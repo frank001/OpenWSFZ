@@ -1,4 +1,4 @@
-# `PASSBAND-140` (the G2(b) `140 Hz` rung, re-armed) — pre-registration: does opening the candidate passband's low edge from 200 Hz to 140 Hz raise reference-matched 20m recovery, on today's binary, without costing in-band recovery?
+# `PASSBAND-140` (the G2(b) `140 Hz` rung, re-armed) — pre-registration: does opening the candidate passband at both edges (`f_min` 200 → 140 Hz, `f_max` 3000 → 3075 Hz) raise reference-matched 20m recovery, on today's binary, without costing in-band recovery?
 
 **Architect, 2026-09-14 15:42Z** (`date -u`, HK-017). Branch `arch/g2b-passband-140` (cut from
 `origin/main`, now at `b4f67f42`). Docs-only; `git diff --stat origin/main...HEAD -- src/ native/` empty.
@@ -8,6 +8,11 @@ Captain, 2026-09-14 ~15:3xZ, on the recommendation to re-arm the passband wideni
 plan: *"proceed"*. `BAR_G` and `BAR_H` (§3.4) are Architect-set, not PO-ratified. The Captain may move
 either **before the first datum**. After that both are frozen, and anyone proposing to move them (me
 included) gets refused.
+
+**Amendment 1, 2026-09-14 15:52Z, before any build or datum.** The top edge is back in the treatment:
+`WIDE` also sets `f_max` = 3075 (§0.3 item 4, §2.1). Our real top edge today is **2959 Hz, not 3000 Hz**,
+because a candidate needs all 8 tones inside the waterfall. That leaves 179 C2 reference decodes above it,
+not 33. Sections touched: title, §0.1, §0.2, §0.3, §2.1, §3.1, §3.2 0a/0f, §3.5 A2/A3, §3.7, §4, §6.
 
 **Supersedes, as the instrument for this question:** revision 6's pre-registration
 (`qa/cycleframer-alignment-replay/2026-08-13-1614-qa-to-architect-g2b-revision-6-j1-j6-fixed.md`),
@@ -23,7 +28,11 @@ carries over, what is retired, and why.
 
 `ft8_shim.c` builds its waterfall from `.f_min = 200.0f` (`:1472`, `ft8_decode_all`; `:1872`,
 `ft8_extract_llrs_at`). Any signal whose base tone sits below 200 Hz is missed **by construction, 100%
-of the time.** WSJT-X FT991A decodes them. This is the largest recoverable item on the board that is
+of the time.** WSJT-X FT991A decodes them. **The top edge cuts too, and lower than its constant
+suggests:** `f_max` = 3000 gives `max_bin` = 481 (`monitor.c:116`), and a candidate needs all 8 tones in
+the waterfall (`decode.c:292`: `freq_offset + num_tones − 1 < num_bins`). So the highest base tone we can
+decode is `(481 − 8) × 6.25 + 3.125` = **2959.4 Hz**. Our live logs top out at exactly **2959 Hz** on both
+corpora (checked). This is the largest recoverable item on the board that is
 not closed or prohibited (ledger bucket A; GAP-CENSUS-A ROW A1, `S_A` = 6.17%). The Captain armed it on
 2026-08-25. It then stalled for three weeks because the two binaries it needs were never built. **Nothing
 about the question has changed. The instrument has to.**
@@ -33,13 +42,15 @@ about the question has changed. The instrument has to.**
 REF = WSJT-X FT991A `ALL.TXT`, dial `14.074`, FT8 rows, counted by audio frequency. **Counts only. No
 replay, no match, no recovery, no leg was run.**
 
-| corpus | REF rows | `[137.5, 200)` Hz | share | `≥ 3000` Hz | ours (live) below 200 Hz |
+| corpus | REF rows | `low` 138–199 Hz | `hi` 2960–3034 Hz | still out: ≤ 137 / ≥ 3035 | ours (live) outside 200–2959 |
 |---|---:|---:|---:|---:|---:|
-| **C2** `20260908_live_run_1827-fp-floor-live-2`, from `260908_193645` | 91,076 | **1,733** | **1.90%** | 33 | 0 of 57,969 |
-| **C1** `20260808_live_run_0016-8080`, `WINDOW_20M` | 69,372 | 799 | 1.15% | 73 | — |
+| **C2** `20260908_live_run_1827-fp-floor-live-2`, from `260908_193645` | 91,076 | **1,733 (1.90%)** | **155 (0.17%)** | 17 / 24 | 0 of 57,969 |
+| **C1′** `20260808_live_run_0016-8080`, `[260808_011045, 260808_111500]` | 64,771 | 703 (1.09%) | 56 (0.09%) | 6 / 51 | — |
 
-⇒ **The most this change can add on C2 is ≈ 1.9 pp of `R`.** It is a ceiling, not an expectation:
-those signals pass the radio's filter skirt, and our overall recovery against WSJT-X is 61%.
+⇒ **The most this change can add on C2 is ≈ 2.1 pp of `R`** (1.90 low + 0.17 top). It is a ceiling, not
+an expectation: those signals pass the radio's filter skirts, and our overall recovery against WSJT-X is
+61%. ~~`≥ 3000` Hz: C2 33, C1 73~~ (the first draft counted the top edge from `f_max`, not from the real
+2959 Hz edge; C2 actually has 179 REF rows above 2959).
 
 ⚠️ **Disclosure (de-blinding check).** Beyond the table above I have seen exactly one outcome-bearing
 number, and every reviewer since 08-12 has seen it too: `79ea12af`'s commit message reports a 250-cycle
@@ -56,7 +67,7 @@ on 08-12 with the same numbers in view.
 moves, `monitor.c:115`); the burned-corpus rule (C1 held out from cycle 250); the two-binaries-one-tree
 build discipline (08-25 §5.2); the determinism control; pin-the-SHA; the `[100,140)` rung stays unrun.
 
-**Retired, for four reasons, before any datum:**
+**Retired before any datum, for reasons 1–3. Item 4 corrects the treatment itself:**
 
 1. **Its primary metric counts emitted decodes, not reference-matched ones** (`g2b_gate.py:394-435`:
    `g_low` = gained `(freq, dt)` tuples in the new band ÷ baseline decodes). It cannot separate recovery
@@ -69,10 +80,20 @@ build discipline (08-25 §5.2); the determinism control; pin-the-SHA; the `[100,
    replay-only decodes were implausible messages live never writes.
 3. **Its baseline pin (`f2f30c89…`/`20260033`) was already retired** on 08-25, and its manifest was never
    populated.
-4. **Its `f_max` = 3030 half is dead.** `[3000, 3030)` gained 0 decodes in `79ea12af`'s own run; the raw
+4. ~~**Its `f_max` = 3030 half is dead.** `[3000, 3030)` gained 0 decodes in `79ea12af`'s own run; the raw
    WAV sits at −42.9 dB there (the radio's filter, ledger Table 4); and C2's REF has 33 rows above
    3000 Hz in total. **Changing `f_max` would add a second variable (five more bins in the noise-floor
-   median) with nothing to buy. This arm changes `f_min` only.**
+   median) with nothing to buy. This arm changes `f_min` only.**~~ **Its `f_max` = 3030 was mis-derived,
+   and the evidence that the top edge was "dead" was blind by construction (HK-026).** `79ea12af` sized
+   the passband so that REF base frequencies up to 3030 Hz were covered, but it set `f_max` = 3030 as if
+   the waterfall's top edge were the highest decodable base tone. It isn't. With `f_max` = 3030 the
+   highest base tone is `(485 − 8) × 6.25 + 3.125` = 2984 Hz. Our reported `freq_hz` is the base tone,
+   so a gain landing in `[3000, 3030)` was impossible: "0 gains in `[3000, 3030)`" could not have read
+   anything else. The same holds for ledger Table 4's upper-passband row. **This arm keeps `79ea12af`'s
+   stated intent (cover REF base tones to 3030 Hz) and applies the 8-tone arithmetic it left out:
+   `f_max` = 3030 + 7 × 6.25 ≈ 3075 ⇒ `max_bin` 493 ⇒ top base tone 3034 Hz.** That covers 155 of C2's
+   179 REF rows above 2959 Hz. The top edge adds 12 bins (481 → 493), while the bottom edge adds 10
+   (32 → 22).
 
 The family adjudicator, round 7 and K1–K5 are **not reopened.** They served a three-rung family, and
 no family is being adjudicated here. Revision 6's four bars are **not applied**. The legacy quantities
@@ -135,10 +156,11 @@ QA authors the dev-task (HK-015). These are its binding constraints; the procedu
 
 1. **A throwaway branch off `origin/main` (`b4f67f42` or later), never pushed or merged.** `BASE` = that
    tree, rebuilt from source with `native/ft8_lib_build/rebuild_shim.bat` (the authoritative script,
-   `BUILD.md:116`). `WIDE` = the identical tree plus **exactly two edits**: `.f_min = 200.0f` →
-   `.f_min = 140.0f` at `ft8_shim.c:1472` and `:1872`. Both call sites change so that the diagnostic
-   extractor keeps the production waterfall geometry. **`f_max` is not touched. `FT8_SHIM_VERSION` is not
-   bumped:** a bump would be a third diff line, and identity is by SHA anyway.
+   `BUILD.md:116`). `WIDE` = the identical tree plus **exactly two edited lines**:
+   `.f_min = 200.0f, .f_max = 3000.0f,` → `.f_min = 140.0f, .f_max = 3075.0f,` at `ft8_shim.c:1472` and
+   `:1872`. Both call sites change so that the diagnostic extractor keeps the production waterfall
+   geometry. **`FT8_SHIM_VERSION` is not bumped:** a bump would be a third diff line, and identity is by
+   SHA anyway.
 2. **`git diff BASE..WIDE` is exactly those two lines**, and it is pasted into the dev-task's completion
    record. Anything else: stop and report, no leg.
 3. **Both DLLs are copied to `artefacts/passband-140/bin/` with distinct filenames**
@@ -147,7 +169,7 @@ QA authors the dev-task (HK-015). These are its binding constraints; the procedu
 4. **Both SHA-256s go into a new manifest, `qa/rr-study/passband-140/dll_manifest.json`, committed before the
    first leg runs.** Never edit an entry after its leg has run. The old `g2b_dll_manifest.json` stays
    retired with revision 6.
-5. **Nothing ships.** No `f_min` edit reaches `main` from this session.
+5. **Nothing ships.** No `f_min`/`f_max` edit reaches `main` from this session.
 
 ### 2.2 Legs
 
@@ -189,9 +211,11 @@ and re-run that leg on that corpus. Report the count. W40 is the leg most likely
   beside every `R`.
 - **Per-REF-row indicator:** `hit_L(r)` = 1 if REF row `r` is in the exact set or in `wild_gained` for leg
   `L`. Then `R = 100 × Σ hit / |REF|`.
-- **Bands, by the REF row's own `freq_hz`:** `sub` ≤ 137 · **`low` 138–199** · `in` 200–2999 · `hi` ≥ 3000.
+- **Bands, by the REF row's own `freq_hz`** (the base tone, as ours is), cut at the two apertures'
+  real edges: `sub` ≤ 137 · **`low` 138–199** · `in` 200–2959 · **`hi` 2960–3034** · `beyond` ≥ 3035.
 - `D(C)` = `R(W40, C) − R(B40, C)`, in pp. `D_band(C)` = `100 × Σ_{r ∈ band}(hit_W40(r) − hit_B40(r)) / |REF|`.
-  **Additive identity, asserted mechanically:** `D = D_sub + D_low + D_in + D_hi` to within `1e-9`.
+  **Additive identity, asserted mechanically:** `D = D_sub + D_low + D_in + D_hi + D_beyond` to within
+  `1e-9`.
 - **Paired CIs, two cluster schemes, and the wider one governs.** N_BOOT = 2000, seed `20260914`, both
   legs recomputed on the same draw, `Δ` taken per draw (never the difference of two independent CIs):
   - **frequency clusters** over REF's distinct `freq_hz` (`paired_cluster_bootstrap()`, as LIVE-GAP-NOW);
@@ -205,12 +229,12 @@ and re-run that leg on that corpus. Report the count. W40 is the leg most likely
 
 | row | check (as code) | on failure |
 |---|---|---|
-| **0a** build | `git diff BASE..WIDE` = the two `.f_min` lines only (§2.1.2); both SHAs in the committed manifest before the first leg; every leg's loaded-file SHA, `ft8_lib_version_check()` and asserted params match §2.2 | **STOP** |
+| **0a** build | `git diff BASE..WIDE` = the two `monitor_config_t` lines only (§2.1.1–2); both SHAs in the committed manifest before the first leg; every leg's loaded-file SHA, `ft8_lib_version_check()` and asserted params match §2.2 | **STOP** |
 | **0b** BASE is what ships | `SHA(BASE) == 6b2e16a6991ae953…34f85c`, **or** K60 and B60 give identical full tuples `(ts, freq_hz, dt, snr, message)` on C2's first 500 cycles | **STOP, escalate.** A `BASE` that differs from the shipped binary makes `W − B` a contrast on a toolchain nobody runs. |
 | **0c** chain fidelity | the chain applied to C2's **live** `openwsfz/ALL.TXT`, grouped per cycle, rejects **≤ 0.1%** of rows (≤ 57 of 57,969) | **STOP.** Live is post-chain, written by the same code, so a correct chain rejects ≈ 0 (my partial port rejected 3). |
 | **0d** seam | B60 through the chain vs C2's live `openwsfz/ALL.TXT`, `seam_fidelity()`: **`F_live ≥ 0.97`**. Report `F_rep` (after the chain), `M` for both, and live cycles with no WAV. | **§3.6 rows VOID.** The replay is not the live decoder. |
 | **0e** determinism | B40r's full tuples equal B40's on C2's first 300 cycles, mechanically diffed | **VOID.** A paired contrast on a non-deterministic instrument is noise. |
-| **0f** the treatment moves (HK-021(q)) | W40's C2 output ≠ B40's; **W40 emits ≥ 1 post-chain decode with `freq_hz` < 200 on C2**; **B40 emits 0** | **STOP.** The wrong DLL loaded, or `f_min` never reached the waterfall. Paste one W40 decode's `(ts, freq_hz, snr)` into the report as the exhibit (no message text). |
+| **0f** the treatment moves (HK-021(q)) | W40's C2 output ≠ B40's; **W40 emits ≥ 1 post-chain decode with `freq_hz` < 200, and ≥ 1 with `freq_hz` > 2959, on C2**; **B40 emits 0 outside 200–2959** | **STOP.** The wrong DLL loaded, or an edge never reached the waterfall. Paste one W40 decode per edge, `(ts, freq_hz, snr)`, into the report as the exhibit (no message text). |
 | **0g** truncation | no cycle at `MAX_RESULTS` in any leg, after any re-run | re-run at 400, then **STOP** if still hit |
 | **0h** C1′ cut | the 251st sorted `wsjt-x/wav/*.wav` is `260808_011045.wav` | **STOP** |
 
@@ -218,7 +242,7 @@ and re-run that leg on that corpus. Report the count. W40 is the leg most likely
 - **0b:** without it a positive `D` could belong to QA's build, not to the change. 0b ties `BASE` to the
   binary behind C2's live log, which is also what makes 0d mean anything.
 - **0c:** the chain is text-based and frequency-blind, so a wrong rule strikes the new band exactly as
-  hard as the old. It would bias `D_low` and the A3 flag. Checking it on live, where the right answer is
+  hard as the old. It would bias `D_low`, `D_hi` and the A3 flag. Checking it on live, where the right answer is
   ≈ 0 rejections, is the only place we know the truth.
 - **0d:** a replay reproducing < 97% of live's own decodes has a defect bigger than anything explained.
   LIVE-GAP-NOW measured `F_live` = 0.9832 on this corpus, binary and `nhard`, and the chain cannot raise
@@ -233,8 +257,8 @@ and re-run that leg on that corpus. Report the count. W40 is the leg most likely
   gated.
 
 ⚠️ **What ROW 0 cannot detect (HK-022, HK-026).**
-- **The live log is blind below 200 Hz.** Our live decoder never looked there, so 0d validates the seam
-  in-band only. For `D_low` the only witness is WSJT-X. An argument covers the gap, not a measurement:
+- **The live log is blind below 200 Hz and above 2959 Hz.** Our live decoder never looked there, so 0d
+  validates the seam in-band only. For `D_low` and `D_hi` the only witness is WSJT-X. An argument covers the gap, not a measurement:
   C2's `cycle-audio` is the audio the live decoder was fed, and nothing in the pipeline is
   frequency-dependent except the waterfall bound under test.
 - **`REF` is WSJT-X, not truth.** A `low` REF row WSJT-X missed can't be a gain, and an unmatched decode of
@@ -243,7 +267,8 @@ and re-run that leg on that corpus. Report the count. W40 is the leg most likely
 ### 3.3 Resolution, computed while drafting (HK-021(m), (o))
 
 - **Readout quantum:** one REF row in 91,000 = **0.0011 pp**.
-- **Expected SE(`D`):** the effect lives in ≈ 62 low-band frequency clusters out of ≈ 2,900. Resampling
+- **Expected SE(`D`):** the effect lives in ≈ 62 low-band frequency clusters (plus ≈ 75 thinly
+  populated top-band ones) out of ≈ 2,900. Resampling
   moves that count by about ±8, which puts frequency-cluster SE at roughly **0.10–0.20 pp**. Cycle-cluster
   SE should be smaller, ≈ 0.05 pp. The wider governs.
 - **Power against `BAR_G` = 0.25**, at the SE bounds (P(ROW G1-or-G2 fires | true `D`)):
@@ -263,8 +288,8 @@ and re-run that leg on that corpus. Report the count. W40 is the leg most likely
 - **`BAR_G` (net gain worth shipping).** On C2, 0.25 pp of `R` ≈ 0.044 extra WSJT-X-confirmed decodes a
   cycle. That's one more every ≈ 23 cycles (≈ 6 min) on a band averaging ≈ 17 reference decodes a cycle.
   It is set above the ledger's "marginal" D-009 sweep (+0.11 pp) and below AO1's 0.71 pp. The change costs
-  ≈ +3% decode time a cycle (`79ea12af`: 0.555 → 0.571 s, against the operator-window budget in the
-  latency defect) and some candidate-budget displacement, so it has to buy something. It does not depend on
+  decode time: `79ea12af` measured +3% for 14 extra bins (0.555 → 0.571 s), and this `WIDE` adds 22
+  (449 → 471), so expect ≈ +5%, against the operator-window budget in the latency defect. It also costs some candidate-budget displacement, so it has to buy something. It does not depend on
   any number this arm will produce.
 - **`BAR_H` (tolerated in-band loss).** In-band losses are stations that decoded yesterday and don't
   today. Their likely cause is candidate displacement (`79ea12af`: pass-1 saturation 40.8% → 46.4%).
@@ -275,13 +300,14 @@ and re-run that leg on that corpus. Report the count. W40 is the leg most likely
 ### 3.5 Descriptive, no row (report every one)
 
 - **A1:** `R`, `R_base`, `M` and `|REF|` for every leg × corpus, and `F_rep` for B60.
-- **A2: where `D` lives.** The `D_sub / D_low / D_in / D_hi` table for both corpora, with CIs, plus
-  `D_low ÷ (low REF share)` = the **yield**: the fraction of the ceiling actually recovered. Also recovery
-  of `low` REF rows by **REF SNR** in 2 dB bins for W40 (the C-GAP-D presentation).
-- **A3: what the operator would see in the new band.** W40's post-chain decodes on C2 with `freq_hz` in
-  `[137.5, 200)`: count, share REF-matched, share unmatched. **Unmatched density** (unmatched decodes per
-  6.25 Hz bin per 100 cycles) in the new band, against B40's in-band unmatched density. 🚩 **If the ratio
-  exceeds 3, flag it to the Architect the same day, before any ship dev-task is written.** Unmatched is not
+- **A2: where `D` lives.** The five-band `D` table for both corpora, with CIs, plus a **yield per edge**:
+  `D_low ÷ (low REF share)` and `D_hi ÷ (hi REF share)`, the fraction of each ceiling actually recovered.
+  Also recovery of `low` and `hi` REF rows by **REF SNR** in 2 dB bins for W40 (the C-GAP-D presentation).
+- **A3: what the operator would see in the new bands, per edge.** W40's post-chain decodes on C2 with
+  `freq_hz` in `[137.5, 200)`, and separately in `(2959, 3034.4]`: count, share REF-matched, share
+  unmatched. **Unmatched density** (unmatched decodes per 6.25 Hz bin per 100 cycles) in each new band,
+  against B40's in-band unmatched density. 🚩 **If either ratio exceeds 3, flag it to the Architect the
+  same day, naming the edge, before any ship dev-task is written.** Unmatched is not
   false (HK-026), and FP is off the menu (Captain, 09-12), so this is a flag and not a gate. Still, nobody
   ships an edge that sprays text without the Captain seeing it first.
 - **A4: legacy readout, continuity with revision 6.** `g2b_gate.per_cycle_terms()` + `rates()`,
@@ -307,15 +333,17 @@ Mutually exclusive by construction. G1 and G2 split on `D_in`. G3 cannot hold al
 ### 3.7 Consequences
 
 - **G1** ⇒ **ship recommended.** Once the Captain confirms §0.4, QA authors the ship dev-task:
-  - `f_min` 140 at both call sites, `f_max` unchanged;
+  - `f_min` 140 and `f_max` 3075 at both call sites (or one edge only, if A3 flagged that edge and the
+    Captain rules so);
   - `FT8_SHIM_VERSION` bump and all-platform rebuild (macOS by CI, as standing);
   - `BUILD.md`'s "Monitor Configuration" block updated;
   - **the false comment at `Ft8LibInterop.cs:231`** fixed.
 
   Merge needs the Captain (HK-010). From then on A1 = 61.09% is a **pre-G2(b)** figure and must say so. If
   A3 flagged, the Captain sees the density numbers before the dev-task is written.
-- **G2** ⇒ the Captain decides with `D`, `D_low`, `D_in` and A3 in front of him. Architect recommendation
-  goes in the acceptance ruling, not now.
+- **G2** ⇒ the Captain decides with `D`, `D_low`, `D_hi`, `D_in` and A3 in front of him. One `WIDE`
+  cannot say which edge caused an in-band cost. If that matters to the decision, the follow-up is a
+  split-edge build pair, not a re-read. Architect recommendation goes in the acceptance ruling, not now.
 - **G3** ⇒ **the passband route closes.** The ledger records bucket A as *"aperture real, signals real (WSJT-X
   decodes them), not recovered by widening on this binary"*. G2(b) is struck from the running order. The
   `[100,140)` rung is not run.
@@ -333,13 +361,14 @@ reads 200). If this arm does not ship, the comment is corrected in the next Deve
 
 | row | probability | reasoning |
 |---|---|---|
-| **G1** | 0.45 | 1,733 real, WSJT-X-decodable signals sit behind a wall we built. Even at half our in-band yield that clears 0.25 pp by a wide margin. |
+| **G1** | 0.45 | 1,888 real, WSJT-X-decodable signals (1,733 low, 155 top) sit behind walls we built. Even at half our in-band yield that clears 0.25 pp by a wide margin. |
 | **G2** | 0.25 | Displacement is real (pass-1 saturation rose in `79ea12af`), and C2 is crowded. `D_in` near −0.1 to −0.2 is plausible, so the harm bar could be crossed. |
 | **G4** | 0.20 | Low-band occupancy is lumpy (few stations, long dwell), so frequency-cluster SE may be at the top of my range. C1′'s ceiling is only 1.15 pp. |
 | **G3** | 0.10 | Only if skirt-attenuated signals sit below our threshold almost uniformly. |
 
-**Point predictions:** `D(C2)` ∈ **[+0.5, +1.3] pp**; yield (`D_low` ÷ 1.90) ∈ [0.35, 0.65]; `D_in(C2)`
-∈ [−0.25, 0.00] pp; A3 flag fires: 0.6. **ROW 0b** by SHA equality 0.4, by output identity 0.9. **ROW 0d**
+**Point predictions:** `D(C2)` ∈ **[+0.55, +1.4] pp**; low yield (`D_low` ÷ 1.90) ∈ [0.35, 0.65]; top
+yield (`D_hi` ÷ 0.17) ∈ [0.25, 0.65], lower than the low edge's because the radio's upper skirt is
+steeper (−42.9 dB in the raw WAV at `[3000, 3030)`); `D_in(C2)` ∈ [−0.25, 0.00] pp; A3 flag fires: 0.6. **ROW 0b** by SHA equality 0.4, by output identity 0.9. **ROW 0d**
 PASS 0.85. Calibration: my last three categorical calls in this programme missed (LIVE-GAP-NOW ROW 0d,
 THRESH-A T2 at 25% prior, `Δ50`). Weight these accordingly.
 
@@ -365,7 +394,7 @@ THRESH-A T2 at 25% prior, `Δ50`). Weight these accordingly.
 - 🛑 **No capture run.** Both corpora are on disk.
 - 🛑 **Does not re-read** GAP-CENSUS-A, LIVE-GAP-NOW's VOID `Δ`, X1/X2, C-GAP-D, or any closed gate. It
   does not reopen revision 6's family adjudicator, round 7 or K1–K5.
-- 🛑 **Does not touch `f_max`, the `[100,140)` rung, the candidate caps** (`K_MAX_CANDIDATES*`; the
+- 🛑 **Does not touch the `[100,140)` rung, `f_max` beyond 3075, the candidate caps** (`K_MAX_CANDIDATES*`; the
   candidate-budget family is closed twice) **or suppression.** If A5 shows saturation rising, that is a
   finding, not a licence.
 - 🛑 **Spectral locality stays barred.** Nothing here stratifies by distance to a neighbouring decode.
