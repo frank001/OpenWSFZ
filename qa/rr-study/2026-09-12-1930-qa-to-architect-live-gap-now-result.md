@@ -74,15 +74,31 @@ cause, whatever its setting was during capture. **Checked for a within-window wa
 callsign hash table is process-global and session-scoped, spec's own note): splitting C2's 5,222
 cycles into 10 chronological deciles shows `F_rep` **flat at 84-88% across the entire ~19-hour
 span**, with no rising trend — ruling out simple "the replay process's table fills up as it goes."
-**Working hypothesis:** the native decoder's own process-global, session-scoped hash-table
+~~**Working hypothesis:** the native decoder's own process-global, session-scoped hash-table
 suppression (the 12-bit unique-match mechanism, #138, mentioned in this arm's own §0) depends on
 history accumulated **before** the corpus window even starts — the live daemon had been running for
 an unknown, likely much longer span before `19:36:45Z`; a replay process starting cold at the
 window boundary can never reconstruct that prior state, so it under-suppresses a small, roughly
-constant share of noise-triggered garbage throughout. **This is a hypothesis; `LIVE-GAP-NOW` was not
-designed to test it, and I have not tested it further here.** It is exactly the failure mode ROW 0d
+constant share of noise-triggered garbage throughout.~~ **CORRECTED (post-hoc, HK-022, 2026-09-13
+— see `BOARD.md`, Architect's 11:23Z acceptance ruling): this hypothesis was attached to the wrong
+symptom.** The dominant, now-*measured* mechanism for the `F_rep` shortfall is structural, not a
+hash-table timing effect: `ALL.TXT` is written **post** the managed `IsPlausibleMessage` (R4/R5)
+filter chain (`Ft8Decoder.cs:338-354`, `Program.cs:794-806`), which this arm's raw C-ABI replay
+bypasses entirely (the "unfiltered" comment checked in §4 above means only *not*
+`DecodeNoiseSuppressionFilter` — it says nothing about R4/R5). A partial port of that filter chain
+(everything but the D9-R3 grammar, so a lower bound) rejects **≥52.8%** of C2's 8,785 replay-only
+decodes (C1: **≥56.0%**), moving `F_rep` 0.866 → 0.932 on its own. **The hash-table cold-start
+hypothesis above is retained — credited but not proven — but reattached to the smaller, separate
+`R_wild` seam shift** (+1.20 pp, replay 62.29% vs live 61.09%; exact matches −369, wildcard gains
++1,466; a partial R4 port moves `R_wild` by only −0.03 pp, consistent with the filter chain NOT
+being the driver of *that* particular shift), **not to the `F_rep` shortfall it was originally
+offered to explain.** It remains untested as a mechanism for the wildcard-term shift specifically.
+It is exactly the failure mode ROW 0d
 exists to catch (spec: "a replay leg's output... keyed the same way" — if the process's own history
 differs, "a replay contrast would not speak for live").
+🛑 **STANDING LESSON (added here, per the Architect's ruling): a raw-C-ABI replay is NOT the live
+path. Apply the managed filter chain, and report `M` (the R4/R5-attributable share) beside any
+replay-vs-live `R_wild` comparison in any future arm of this shape.**
 
 ## 5. `Δ(C1)` / `Δ(C2)` — reported, not gated (spec §3.6's own instruction on a VOID)
 
@@ -93,9 +109,15 @@ Delta(C2) = R(NOW) - R(L08), same method, n_freq=2,734
   mean = -0.297 pp   SE = 0.057 pp   CI95 = [-0.411, -0.196] pp
 ```
 
-Both intervals exclude zero and are negative — if this were a valid contrast (it is not, per §3),
+Both intervals exclude zero and are negative. ~~if this were a valid contrast (it is not, per §3),
 it would read as a small live recall *regression*, not the `+0.5..+2.5 pp` gain the Architect's own
-blind prediction favoured (§4 of the spec, `B1` at 30%). **I am not reading this as `B3`.** ROW 0d's
+blind prediction favoured (§4 of the spec, `B1` at 30%).~~ **CORRECTED (post-hoc, HK-022,
+2026-09-13): even that conditional framing overstated it.** Per §4's correction above, the
+`F_rep` shortfall is now attributed, in dominant part, to the raw replay bypassing the managed
+R4/R5 filter chain — a structural artefact of *this arm's own harness*, not of either build. There
+is no basis, conditional or otherwise, for reading `Δ`'s sign as what "a valid contrast would show"
+in either direction; the sign is at least as well explained by the harness-side filter-bypass
+asymmetry as by any build-attributable effect. **I am not reading this as `B3`.** ROW 0d's
 failure means the replay path itself is not faithful enough to attribute this sign to the build
 span rather than to the replay/live divergence documented in §4 above — the same-direction,
 similar-magnitude asymmetry in `F_rep` on **both** corpora is at least as plausible an explanation
@@ -158,8 +180,12 @@ since both binaries' `ft8_decode_all` candidate passband covers the same nominal
 monitor-config level for signals actually reaching a candidate; the passband widening (`20260038`,
 `[200,3000)`->`[140,3030)` Hz) does not shift these particular bin boundaries (200/3000 Hz), so this
 table cannot see that change directly — a finer-grained bin at the 140-200 Hz edge would be needed
-to, and is not computed here (out of this arm's scope). The `200-3000 Hz` band shows the small
-negative `L08->NOW` shift consistent with `Δ(C1)`/`Δ(C2)`'s own sign, for the reasons in §5.
+to, and is not computed here (out of this arm's scope). ~~The `200-3000 Hz` band shows the small
+negative `L08->NOW` shift consistent with `Δ(C1)`/`Δ(C2)`'s own sign, for the reasons in §5.~~
+**CORRECTED (post-hoc, HK-022, 2026-09-13): "consistent with" wrongly implied the sign is a
+meaningful, cross-checked reading.** Per §5's own correction, `Δ`'s sign is not attributed to the
+build in either direction — this band-level figure moving the same way is unsurprising precisely
+*because* it is pooled from the same VOID contrast, not independent corroboration of anything.
 
 **A5 — `Δ(C2)` with its paired CI:** reported in §5 above (`-0.297 pp`, CI95 `[-0.411, -0.196]`).
 
