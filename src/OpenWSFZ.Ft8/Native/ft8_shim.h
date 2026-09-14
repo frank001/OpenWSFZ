@@ -294,20 +294,53 @@ extern "C" {
  *              to the 256-slot capacity or eviction policy.  No ABI or struct layout change;
  *              no new exported entry points.
  *
- *   20260038 (g2-hash-table-sizing-and-candidate-passband): two independent native
- *              constant changes, shipped together.  (a) HASH_TABLE_SIZE 256 → 4096:
+ *   20260038 (g2-hash-table-sizing-and-candidate-passband): two native constant
+ *              changes were SHIPPED together.  (a) HASH_TABLE_SIZE 256 → 4096:
  *              the table keys on a 10-bit bucket (1024 values) placed at
  *              (h10 * 23) % HASH_TABLE_SIZE, injective up to N = 1024, so N = 256
  *              collided 4:1 by construction before the table was full.  Buys message
- *              TEXT only (fewer <...>); CANNOT change the decode count.  (b) the
- *              ft8_decode_all monitor_config_t candidate passband widened from
- *              [200, 3000) Hz to [140, 3030) Hz, covering 99.90% of the pooled
- *              three-corpus reference decode-frequency distribution (was ~99.09%);
- *              a signal outside the passband is missed by construction, 100% of the
- *              time.  Width +3.2%.  No ABI or struct layout change (FT8Result stays
- *              48 bytes); no new exported entry points.  ONE bump covers both items:
- *              20260034-20260037 are unavailable and 20260039-20260041 are reserved
- *              for the R0/R1/R2 programme.
+ *              TEXT only (fewer <...>); CANNOT change the decode count.  (b) this
+ *              entry originally CLAIMED the ft8_decode_all/ft8_extract_llrs_at
+ *              monitor_config_t candidate passband widened from [200, 3000) Hz to
+ *              [140, 3030) Hz, covering 99.90% of the pooled three-corpus reference
+ *              decode-frequency distribution (was ~99.09%) -- CORRECTED 2026-09-14:
+ *              that claim was FALSE.  ft8_shim.c's actual compiled constants never
+ *              changed at this bump; both call sites (now ft8_shim.c:1472,1872)
+ *              still read .f_min = 200.0f, .f_max = 3000.0f right up until
+ *              FT8_SHIM_VERSION 20260051 (passband-140-ship, entry immediately
+ *              below), the first bump that actually ships a passband edit -- and
+ *              it ships [140, 3075) Hz, not the [140, 3030) Hz claimed here.
+ *              Found false on main by the Architect drafting the 20260051
+ *              pre-registration and independently confirmed by QA, both before any
+ *              build.  Item (a) is unaffected by this correction.  No ABI or
+ *              struct layout change (FT8Result stays 48 bytes); no new exported
+ *              entry points.  ONE bump covers both items: 20260034-20260037 are
+ *              unavailable and 20260039-20260041 are reserved for the R0/R1/R2
+ *              programme.
+ *
+ *   20260051 (passband-140-ship): the change 20260038 claimed above but never
+ *              shipped, now actually shipped, at the corrected width.
+ *              ft8_decode_all/ft8_extract_llrs_at's monitor_config_t candidate
+ *              passband widens from [200, 3000) Hz to [140, 3075) Hz at both call
+ *              sites (ft8_shim.c:1472,1872) -- NOT the [140, 3030) Hz 20260038
+ *              claimed.  f_max = 3075, not 3030: a candidate needs all 8 tones in
+ *              the waterfall (decode.c:292), so the true top base tone the old
+ *              f_max = 3000 already capped at was (481-8)*6.25+3.125 = 2959.4 Hz --
+ *              3000 silently discarded the same 8-tone span at the top edge this
+ *              bump recovers at the bottom.  3075 restores 79ea12af's original
+ *              stated intent (cover REF base tones to 3030 Hz) with that 8-tone
+ *              span added back.  Measured:
+ *              qa/rr-study/2026-09-14-1707-qa-to-architect-passband-140-result.md
+ *              -- D(C2) = +1.41pp CI [+0.42,+2.78]pp, D_in(C2) ~ 0, D(C1') =
+ *              +0.60pp same sign, both cluster schemes, N_BOOT = 2000; Architect
+ *              independently re-derived every figure, no corrections owed.
+ *              Recovers real signal WSJT-X already confirms, measured on 20m live
+ *              traffic on this station's own binary and corpus; NOT independently
+ *              validated on any other band, against any reference other than
+ *              WSJT-X, or under nhard=60.  No ABI or struct layout change
+ *              (FT8Result stays 48 bytes); no new exported entry points.  The
+ *              bump exists purely so the startup ABI check catches a stale
+ *              (pre-passband-140) native binary.
  *
  * r0-reproducible-native-build (FT8_SHIM_VERSION 20260039):
  *
@@ -695,7 +728,7 @@ extern "C" {
  *              ft8_get_h12_by_code's own table/counters are byte-for-byte
  *              unchanged.
  */
-#define FT8_SHIM_VERSION 20260050
+#define FT8_SHIM_VERSION 20260051
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

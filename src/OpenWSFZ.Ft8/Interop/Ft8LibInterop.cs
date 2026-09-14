@@ -228,12 +228,38 @@ internal static class Ft8LibInterop
     ///   the table was ever full. This buys message TEXT only — fewer <c>&lt;...&gt;</c>
     ///   placeholders where a resolvable callsign exists — and cannot change the decode count,
     ///   because a hashed callsign's resolution failure never suppresses a decode.
-    ///   (b) the decode candidate passband widens from [200, 3000) Hz to [140, 3030) Hz,
-    ///   covering 99.90% of the pooled three-corpus reference decode-frequency distribution;
-    ///   a signal outside the passband is missed by construction. Neither item changes this
-    ///   managed layer, the ABI, or struct layout (48 bytes) — the bump exists so the startup
-    ///   ABI check catches a stale (pre-G2) native binary. 20260034-20260037 are unavailable
-    ///   and 20260039-20260041 are reserved for the R0/R1/R2 programme, hence a single bump.
+    ///   (b) this entry originally claimed the decode candidate passband widened from
+    ///   [200, 3000) Hz to [140, 3030) Hz, covering 99.90% of the pooled three-corpus
+    ///   reference decode-frequency distribution. <b>CORRECTED 2026-09-14: that claim was
+    ///   false.</b> The native shim's actual compiled constants never changed at this bump —
+    ///   <c>ft8_shim.c</c> still read <c>.f_min = 200.0f, .f_max = 3000.0f</c> at both call
+    ///   sites (<c>ft8_shim.c:1472,1872</c>) right up until shim 20260051 (passband-140-ship,
+    ///   see below), the first bump that actually ships a passband edit — and it ships
+    ///   [140, 3075) Hz, not the [140, 3030) Hz claimed here. Found false on <c>main</c> by the
+    ///   Architect drafting the 20260051 pre-registration and independently confirmed by QA,
+    ///   both before any build. Item (a) is unaffected by this correction. Neither item changes
+    ///   this managed layer, the ABI, or struct layout (48 bytes) — the bump exists so the
+    ///   startup ABI check catches a stale (pre-G2) native binary. 20260034-20260037 are
+    ///   unavailable and 20260039-20260041 are reserved for the R0/R1/R2 programme, hence a
+    ///   single bump.
+    /// 20260051 (passband-140-ship): the change 20260038 claimed above but never shipped, now
+    ///   actually shipped, at the corrected width. The native <c>ft8_decode_all</c>/
+    ///   <c>ft8_extract_llrs_at</c> <c>monitor_config_t</c> candidate passband widens from
+    ///   [200, 3000) Hz to [140, 3075) Hz at both call sites (<c>ft8_shim.c:1472,1872</c>) —
+    ///   not the [140, 3030) Hz 20260038 claimed. <c>f_max = 3075</c>, not <c>3030</c>: a
+    ///   candidate needs all 8 tones in the waterfall (<c>decode.c:292</c>), so the true top
+    ///   base tone the old <c>f_max = 3000</c> already capped at was
+    ///   <c>(481-8)*6.25+3.125 = 2959.4</c> Hz — 3000 silently discarded the same 8-tone span
+    ///   at the top edge this bump recovers at the bottom. 3075 restores <c>79ea12af</c>'s
+    ///   original stated intent (cover REF base tones to 3030 Hz) with that 8-tone span added
+    ///   back. Measured: <c>qa/rr-study/2026-09-14-1707-qa-to-architect-passband-140-result.md</c>
+    ///   — D(C2) = +1.41pp CI [+0.42,+2.78]pp, D_in(C2) ≈ 0, D(C1') = +0.60pp same sign, both
+    ///   cluster schemes, N_BOOT = 2000; the Architect independently re-derived every figure,
+    ///   no corrections owed. Recovers real signal WSJT-X already confirms, measured on 20m
+    ///   live traffic on this station's own binary and corpus; not independently validated on
+    ///   any other band, against any reference other than WSJT-X, or under nhard=60. No ABI or
+    ///   struct layout change (48 bytes); no new exported entry points. The bump exists purely
+    ///   so the startup ABI check catches a stale (pre-passband-140) native binary.
     /// 20260039 (r0-reproducible-native-build): provenance/reproducibility marker only — no
     ///   ABI, struct layout (48 bytes), or decode-behaviour change. All eleven linked
     ///   translation units now compile from a vendored, version-controlled source tree
@@ -415,7 +441,7 @@ internal static class Ft8LibInterop
     /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
     /// a managed binding, per the pattern every prior entry in this file follows.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260050;
+    private const int ExpectedShimVersion = 20260051;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
