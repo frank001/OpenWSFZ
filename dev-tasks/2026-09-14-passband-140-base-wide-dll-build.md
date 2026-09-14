@@ -1,4 +1,4 @@
-# `PASSBAND-140`: build two measurement DLLs, `BASE` and `WIDE` (`f_min` 200→140 only)
+# `PASSBAND-140`: build two measurement DLLs, `BASE` and `WIDE` (`f_min` 200→140, `f_max` 3000→3075)
 
 **Date:** 2026-09-14
 **Prepared by:** QA
@@ -9,6 +9,16 @@ artefact build, not a shipping change.
 "proceed" (2026-09-14 ~15:3xZ) on the recommendation to re-arm the passband widening.
 **Status:** Cleared for pickup now — no Captain sign-off gate on this step (it produces
 gitignored `artefacts/` output only; nothing reaches `src/`, nothing is pushed or merged).
+
+**🔴 REVISED 2026-09-14, before any WIDE build (Amendment 1, `arch/g2b-passband-140` `4b7b9044`,
+Captain: "33 decodes is not nothing"): `WIDE`'s `f_max` also changes, 3000.0f → 3075.0f, at the
+same two call sites as the `f_min` edit.** Reason: a candidate needs all 8 tones in the waterfall,
+so the true top base tone at the old `f_max=3000.0f` was already only 2959.4 Hz — `f_max=3000`
+silently discarded the same 8-tone span at the top edge that this arm exists to recover at the
+bottom. `WIDE` now covers REF base tones up to 3030 Hz (79ea12af's original stated intent) with
+that same 8-tone span added back in. **§1 item 3 below is corrected in place — read it before
+editing, not the struck original.** If you started building `WIDE` before this revision landed,
+discard that DLL and rebuild from this version.
 **Branch:** a new throwaway branch off `origin/main` at `b4f67f42` or later, **never pushed,
 never merged.** Delete it (or leave it — it never leaves your local checkout) once this task's
 completion record is filed; QA does not need the branch to persist.
@@ -42,16 +52,17 @@ DLL files plus a short completion record.
    next step overwrites that same tracked-tree path.
    - `artefacts/` is blanket-gitignored repo-wide — nothing in this step needs `git add`.
 
-3. **Make exactly two edits** to produce `WIDE`, both in `src/OpenWSFZ.Ft8/Native/ft8_shim.c`:
-   - Line 1472: `.f_min = 200.0f, .f_max = 3000.0f,` → `.f_min = 140.0f, .f_max = 3000.0f,`
-   - Line 1872: `.f_min = 200.0f, .f_max = 3000.0f,` → `.f_min = 140.0f, .f_max = 3000.0f,`
+3. **Make exactly two edits** to produce `WIDE`, both in `src/OpenWSFZ.Ft8/Native/ft8_shim.c`
+   (🔴 revised, Amendment 1 — both `f_min` AND `f_max` change now, still exactly two lines):
+   - Line 1472: `.f_min = 200.0f, .f_max = 3000.0f,` → `.f_min = 140.0f, .f_max = 3075.0f,`
+   - Line 1872: `.f_min = 200.0f, .f_max = 3000.0f,` → `.f_min = 140.0f, .f_max = 3075.0f,`
    (Confirm both line numbers land on the right statement before editing — `grep -n "f_min"
    src/OpenWSFZ.Ft8/Native/ft8_shim.c` should show exactly these two hits, both currently
-   `200.0f`, before you start.)
-   - **`f_max` does not change. `FT8_SHIM_VERSION` in `ft8_shim.h` is not bumped** — a version
-     bump would be a third diff line, and this arm identifies binaries by SHA-256, not by the
-     version constant (`FT8_SHIM_VERSION` has two known real collisions on `main` already,
-     tracked separately — do not add a third divergence point here).
+   `200.0f`/`3000.0f`, before you start.)
+   - **`FT8_SHIM_VERSION` in `ft8_shim.h` is not bumped** — a version bump would be a third diff
+     line, and this arm identifies binaries by SHA-256, not by the version constant
+     (`FT8_SHIM_VERSION` has two known real collisions on `main` already, tracked separately — do
+     not add a third divergence point here).
    - **No other file changes.** If `rebuild_shim.bat` or anything else nudges a timestamp-only
      diff in a tracked file, revert it before building `WIDE` — the only substantive diff between
      `BASE` and `WIDE` must be the two lines above.
@@ -78,8 +89,9 @@ Paste, verbatim, into your reply:
 1. `git diff BASE..WIDE` — or, since there's no `WIDE` commit, simply: the output of
    `git diff origin/main -- src/OpenWSFZ.Ft8/Native/ft8_shim.c` **taken while the two-line edit
    was in place, before you reverted it in step 5.** It must show exactly two changed lines
-   (1472, 1872), each `200.0f` → `140.0f`, nothing else. **If it shows anything else — stop, do
-   not build `WIDE`, and report back instead.**
+   (1472, 1872), each `.f_min = 200.0f, .f_max = 3000.0f,` → `.f_min = 140.0f, .f_max = 3075.0f,`,
+   nothing else. **If it shows anything else — stop, do not build `WIDE`, and report back
+   instead.**
 2. `sha256sum artefacts/passband-140/bin/libft8_PB140_BASE.dll` and the same for `..._WIDE.dll`
    (or PowerShell `Get-FileHash -Algorithm SHA256`).
 3. Confirmation that `SHA(BASE)` — the file you just built with no edits — equals
