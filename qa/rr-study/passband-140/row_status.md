@@ -12,10 +12,10 @@ sequence and §3.5/§3.6.
 | **0a** build | **PASS** | 2026-09-14 | Developer's diff (exactly two hunks, `.f_min`+`.f_max` per Amendment 1) independently cross-checked against `origin/main`'s live content — exact match. Both SHA-256s in manifest before any leg ran. `WIDE` independently re-loaded by QA (`p23_common.Decoder verify=True`): SHA and shim version (`20260050`, unchanged) both confirmed. |
 | **0b** BASE is what ships | **PASS (fallback)** | 2026-09-14 | `SHA(BASE)`=`db31d351...` ≠ pin `6b2e16a6...` (non-reproducible link, independently re-verified both hashes). Fallback: K60 (committed) vs B60 (this BASE), C2 first 500 cycles, `(10,0.10,60)` — 8782/8782 tuples, **0 differing**. Architect-confirmed: record `db31d351...` as `BASE`, not the pin. See `dll_manifest.json` `_row0b`. |
 | **0c** chain fidelity | **PASS** | 2026-09-14 | `PassbandChain row0c`, C2 window (`ts>=260908_193645`, dial `14.074`): `total_rows=57969` (matches spec's own drafted-in count exactly), `rejected=3` (0.0052%), threshold ≤58 (0.1%). `callsign-grammar.json` sha256=`7b581f31b7f0f65191da247eda6568e2f919d96c1414f9b268c39f4943bba37e`. |
-| **0d** seam | pending | — | needs B60 through the chain vs C2 live `ALL.TXT` (`seam_fidelity()`) |
+| **0d** seam | **PASS** | 2026-09-14 | `row0d_seam.py`: B60 through the chain vs C2 live `ALL.TXT`. `F_live=0.9843` (57061/57969, ≥0.97). `F_rep=0.9841` (not gated, reported only). Live cycles with no WAV: 0. Close to LIVE-GAP-NOW's own `F_live=0.9832` on the same corpus/binary/nhard — good cross-check. |
 | **0e** determinism | **PASS** | 2026-09-14 | `row0e_determinism.py`: B40r vs B40's first 300 cycles, 5287 tuples each side, **0 differing**. IDENTICAL. |
-| **0f** treatment moves | pending | — | needs W40 vs B40 |
-| **0g** truncation | pending | — | checked per-leg during decode |
+| **0f** treatment moves | pending | — | needs W40 vs B40, post-chain, on C2 (both legs now decoded, not yet chained) |
+| **0g** truncation | **PASS** | 2026-09-14 | All six legs reported `0 truncated at MAX_RESULTS=200`. No re-run needed. |
 | **0h** C1′ cut | **PASS** | 2026-09-14 | 251st sorted `wsjt-x/wav/*.wav` = `260808_011045.wav`, exact match to spec. |
 
 ## Build status
@@ -29,16 +29,16 @@ sequence and §3.5/§3.6.
 - `qa/rr-study/passband-140/row0b_fallback.py` — K60/B60 tuple-identity check (§3.2 ROW 0b fallback).
 - `qa/rr-study/passband-140/dll_manifest.json` — binary identity record (§2.1 item 4).
 
-## Legs in progress (launched 2026-09-14, background, one process each per spec §2.2)
+## Legs complete (launched 2026-09-14, background, one process each per spec §2.2)
 
 | leg | corpus | cycles | status |
 |---|---|---:|---|
-| B40 | C2 | 5222 | running |
-| B40 | C1′ | 2418 | running |
-| W40 | C2 | 5222 | running |
-| W40 | C1′ | 2418 | running |
-| B60 | C2 | 5222 | running (for ROW 0d seam) |
-| B40r | C2 | 300 | running (for ROW 0e determinism) |
+| B40 | C2 | 5222 | done, 0 truncated |
+| B40 | C1′ | 2418 | done, 0 truncated |
+| W40 | C2 | 5222 | done, 0 truncated |
+| W40 | C1′ | 2418 | done, 0 truncated |
+| B60 | C2 | 5222 | done, 0 truncated |
+| B40r | C2 | 300 | done, 0 truncated |
 
 K60 not run as a full leg — already resolved via the ROW 0b fallback (500 cycles, see above),
 which is the only purpose K60 serves per the spec's own leg table.
