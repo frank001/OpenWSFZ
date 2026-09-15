@@ -352,7 +352,10 @@ ROW 0d, THRESH-A T2, `Δ50`) and one hit (PASSBAND-140 G1, at 0.45). Weight thes
   bus** (ROW 0e). OpenWSFZ and WSJT-X are off the air for decoding for that window. The Captain picks the
   slot, and QA's procedure keeps the band out. ✅ **Granted 2026-09-15 17:32Z: *"2 hours right now is
   fine."*** The window is open now, but the run still starts only after ROW 0a (as amended by A1) and
-  the `--dry-run` pass. Station time does not waive ROW 0.
+  the `--dry-run` pass. Station time does not waive ROW 0. **That window was not used.** At 17:3xZ QA
+  reported 2–3+ h of build left (the runner integration, the scenario file, 0a(iii)(b)/(c) at 48 kHz,
+  the gate-WAV decodes, 0b/0c), and the run needs ~100 min on top. Q2 is **re-asked** once QA reports
+  the bench armed.
 
 ## §6. What this arm does NOT do
 
@@ -382,10 +385,10 @@ counts, rates, doses and frequencies. `git check-ignore -v` every output path be
 | step | who | status |
 |---|---|---|
 | This spec | Architect | ✅ Captain: *"go with E4, spec it"* (2026-09-15) |
-| Q1, Q2 | Captain | Q1 ✅ ratified (movable until the first `Δ`); Q2 ✅ granted 17:32Z, "right now" |
+| Q1, Q2 | Captain | Q1 ✅ ratified (movable until the first `Δ`); Q2 granted 17:32Z for "right now", **not used (bench not ready); re-ask when armed** |
 | Generator (`synth/`, DRIFT + FADE) and ROW 0a | QA | cleared: it is offline and needs no station time |
 | Scenario file(s) and runner changes for §2.4 | QA | cleared, `--dry-run` only |
-| Live bench run (ROW 0b–0g, blocks P and S) | QA | ~~**waits on Q2**~~ Q2 granted; **waits on ROW 0a (A1) and the dry-run only** |
+| Live bench run (ROW 0b–0g, blocks P and S) | QA | **waits on ROW 0a (A1), the dry-run, and then a fresh Q2 slot** |
 | §3.6 → §3.5 → report, committed locally | QA | push/PR needs the Captain's go (HK-033) |
 
 Where QA's commits land (`decoding_improvement` or their own branch) is QA's call under the Captain's
