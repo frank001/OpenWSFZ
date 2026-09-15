@@ -39,6 +39,18 @@ public static class Poll
     /// <exception cref="TimeoutException">
     /// Thrown if <paramref name="condition"/> never returns <see langword="true"/> before the deadline.
     /// </exception>
+    /// <remarks>
+    /// A transient <see cref="IOException"/> raised by <paramref name="condition"/> (e.g. a
+    /// just-closed file briefly opened non-shared by an external process such as Windows Defender
+    /// or the search indexer) is treated the same as a <see langword="false"/> result and the poll
+    /// continues until the bounded timeout, rather than aborting immediately
+    /// (dev-tasks/2026-09-14-cyclearchiveservicetests-manifestgapmarker-ioexception-repeat-flake.md).
+    /// If the condition never stops throwing, the last <see cref="IOException"/> observed is
+    /// wrapped as the <see cref="TimeoutException"/>'s <see cref="Exception.InnerException"/> so a
+    /// genuinely persistent I/O failure is still visible in the failure, not just "timed out".
+    /// Only <see cref="IOException"/> is tolerated; every other exception type still propagates
+    /// immediately, unchanged from prior behavior.
+    /// </remarks>
     public static async Task UntilAsync(
         Func<bool> condition,
         TimeSpan? timeout = null,
@@ -47,13 +59,24 @@ public static class Poll
     {
         var deadline = DateTime.UtcNow + (timeout ?? DefaultTimeout);
         var interval = pollInterval ?? DefaultPollInterval;
+        IOException? lastTransientError = null;
         while (DateTime.UtcNow < deadline)
         {
-            if (condition()) return;
+            try
+            {
+                if (condition()) return;
+            }
+            catch (IOException ex)
+            {
+                lastTransientError = ex;
+            }
+
             await Task.Delay(interval);
         }
 
-        throw new TimeoutException(timeoutMessage?.Invoke() ?? "Condition not met within timeout.");
+        throw new TimeoutException(
+            timeoutMessage?.Invoke() ?? "Condition not met within timeout.",
+            lastTransientError);
     }
 
     /// <summary>
