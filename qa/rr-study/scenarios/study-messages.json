@@ -64,6 +64,36 @@
       "note": "S4 density pool — reply to European station."
     },
     {
+      "id": "MSG-11",
+      "text": "Q2GHI Q1ABC R-12",
+      "used_in": ["E4"],
+      "note": "E4 channel-impairment bench (Sec.8.1, amendment A1) — R-report (the ir bit is set; no other message in this pool sets it)."
+    },
+    {
+      "id": "MSG-12",
+      "text": "Q1ABC Q2GHI RRR",
+      "used_in": ["E4"],
+      "note": "E4 channel-impairment bench (Sec.8.1, amendment A1) — RRR (the packer supports it; no other message in this pool uses it)."
+    },
+    {
+      "id": "MSG-13",
+      "text": "Q6MNO Q4XYZ IO91",
+      "used_in": ["E4"],
+      "note": "E4 channel-impairment bench (Sec.8.1, amendment A1) — grid report."
+    },
+    {
+      "id": "MSG-14",
+      "text": "Q4XYZ Q6MNO R+05",
+      "used_in": ["E4"],
+      "note": "E4 channel-impairment bench (Sec.8.1, amendment A1) — R-report, positive."
+    },
+    {
+      "id": "MSG-15",
+      "text": "Q7STU Q3PQR 73",
+      "used_in": ["E4"],
+      "note": "E4 channel-impairment bench (Sec.8.1, amendment A1) — 73 sign-off. Deliberately no new CQ in this pool: WSJT-X applies its CQ a-priori pass to any CQ regardless of its own callsign, so the pool keeps exactly one CQ (MSG-01) in 15."
+    },
+    {
       "id": "MSG-T4-ANNOUNCE",
       "text": "CQ Q0ABCDEF",
       "used_in": ["S9", "S11"],
