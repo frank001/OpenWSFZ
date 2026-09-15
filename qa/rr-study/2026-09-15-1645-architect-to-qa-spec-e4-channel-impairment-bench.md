@@ -350,7 +350,9 @@ ROW 0d, THRESH-A T2, `Δ50`) and one hit (PASSBAND-140 G1, at 0.45). Weight thes
   arm.
 - **Q2: station time.** About two hours, during which **the radio's audio must be kept off the decode
   bus** (ROW 0e). OpenWSFZ and WSJT-X are off the air for decoding for that window. The Captain picks the
-  slot, and QA's procedure keeps the band out.
+  slot, and QA's procedure keeps the band out. ✅ **Granted 2026-09-15 17:32Z: *"2 hours right now is
+  fine."*** The window is open now, but the run still starts only after ROW 0a (as amended by A1) and
+  the `--dry-run` pass. Station time does not waive ROW 0.
 
 ## §6. What this arm does NOT do
 
@@ -380,10 +382,10 @@ counts, rates, doses and frequencies. `git check-ignore -v` every output path be
 | step | who | status |
 |---|---|---|
 | This spec | Architect | ✅ Captain: *"go with E4, spec it"* (2026-09-15) |
-| Q1, Q2 | Captain | Q1 ✅ ratified (movable until the first `Δ`); Q2 open, before the run |
+| Q1, Q2 | Captain | Q1 ✅ ratified (movable until the first `Δ`); Q2 ✅ granted 17:32Z, "right now" |
 | Generator (`synth/`, DRIFT + FADE) and ROW 0a | QA | cleared: it is offline and needs no station time |
 | Scenario file(s) and runner changes for §2.4 | QA | cleared, `--dry-run` only |
-| Live bench run (ROW 0b–0g, blocks P and S) | QA | **waits on Q2** |
+| Live bench run (ROW 0b–0g, blocks P and S) | QA | ~~**waits on Q2**~~ Q2 granted; **waits on ROW 0a (A1) and the dry-run only** |
 | §3.6 → §3.5 → report, committed locally | QA | push/PR needs the Captain's go (HK-033) |
 
 Where QA's commits land (`decoding_improvement` or their own branch) is QA's call under the Captain's
