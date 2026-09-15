@@ -14,6 +14,14 @@ rem "...=%%~fi"" idiom resolves the resulting "...\..\.." into a clean, normaliz
 for %%i in ("%~dp0..\..") do set "FT8_ROOT=%%~fi"
 echo FT8_ROOT resolved to: %FT8_ROOT%
 
+rem QA review of this task (ceacc8a) caught this: the pre-existing "if exist ... del" guard below
+rem never created obj\ itself -- it silently relied on a stale obj\ already sitting in the tree from
+rem an earlier manual build. Every worktree that had ever run this script already had one, so the
+rem gap was never exercised until QA ran it from qa/base, which never had (cl.exe then failed with
+rem "Cannot open compiler generated file"). A genuinely fresh worktree needs obj\ created, not just
+rem cleared -- mirrors build_linux.sh's own `mkdir -p "$OBJ_DIR"`.
+if not exist "%FT8_ROOT%\native\ft8_lib_build\obj" mkdir "%FT8_ROOT%\native\ft8_lib_build\obj"
+
 echo === r0-reproducible-native-build: clearing obj\ so every .obj below is produced by this invocation ===
 if exist "%FT8_ROOT%\native\ft8_lib_build\obj\*.obj" del /Q "%FT8_ROOT%\native\ft8_lib_build\obj\*.obj"
 
