@@ -10,6 +10,10 @@ cleared.** It needs about two hours of the station with the radio's audio kept o
 is read as the standing rule already here: he may still move it **before the first datum**. After that
 it is frozen, and anyone proposing to move it (me included) gets refused.
 
+**Amendment A1, 2026-09-15 17:26Z, before any datum (§8):** the message pool, ROW 0a(ii) and
+ROW 0a(iii), and one generator rule in §2.3. They came from QA's build questions. **No bar, gate row,
+dose or block changes.**
+
 **Authorised by:** C-ASYM-A ROW C3 (2026-08-23, `qa/rr-study/2026-08-23-1032-qa-to-architect-c-asym-a-results.md`
 §6), which fired and named E4 the leading candidate. That spec's §8 said ROW C3 is the row that
 authorises opening E4, and nothing else does. E4 has been unopened for 23 days.
@@ -147,6 +151,11 @@ y(t) = Re{ g1(t) * z(t) + g2(t) * z(t - tau) },   tau = 1 ms
 - Each process has a Gaussian Doppler spectrum. Its **frequency spread `B` is defined as 2σ** of that
   spectrum (the ITU-R F.1487 convention). Generate it by shaping complex white Gaussian noise in the
   frequency domain.
+  - **(A1, §8.3) "That spectrum" is the Doppler POWER spectrum `S(f) = |H(f)|²`,** so the magnitude
+    filter's own σ is `√2 · B/2`. QA caught this during the build.
+  - 🔴 **(A1, §8.3) Generate each `g` on a buffer of at least `T_tx + 2/B` seconds and keep the
+    transmission's `n` samples.** Frequency-domain shaping is circular. On a buffer only `T_tx` long,
+    the gain at the last symbol is the gain at the first symbol again, at every `B`.
 - Seeds come from `(trial, position)` and are independent of the AWGN seed.
 - Doses: **`B` ∈ {0.1, 0.25, 0.5, 1, 2, 5, 10, 20} Hz.** 0.1/0.5/1 Hz bracket F.1487's quiet, moderate
   and disturbed mid-latitude conditions. 10 Hz is flutter. 20 Hz smears each tone across three tone
@@ -164,7 +173,9 @@ y(t) = Re{ g1(t) * z(t) + g2(t) * z(t - tau) },   tau = 1 ms
 - **Lattice jitter:** every station's base frequency gets `U(−1.5625, +1.5625)` Hz, seeded per
   `(trial, position)`. Our 3.125 Hz lattice makes sub-lattice placement matter (P3). Without jitter, a
   dose could be confounded with a fixed lattice offset.
-- **Messages:** 15 distinct standard Q-prefix messages from `scenarios/study-messages.json`. **No
+- **Messages:** ~~15 distinct standard Q-prefix messages from `scenarios/study-messages.json`.~~
+  **(A1, §8.1) `MSG-01` … `MSG-15`. The file held only 10 standard messages; QA appends
+  `MSG-11` … `MSG-15` with the texts in §8.1.** **No
   hashed or non-standard callsigns**, so `<...>` rendering cannot touch recovery. The message
   assignment rotates with a stride independent of the dose rotation.
 - `dt_s` = 0.0, as in S8.
@@ -199,7 +210,7 @@ rate), 200 trials take about 100 minutes, plus warm-up. **Supervise it** (HK-013
 
 | row | check (as code) | on failure |
 |---|---|---|
-| **0a** generator | **(i)** With no impairment fields, the render of every scenario in `scenarios/` (at its standard seeds) is **byte-identical** to `origin/main`'s synth output, mechanically diffed. **(ii) DRIFT:** on a noiseless render, the fitted slope of instantaneous frequency (Hilbert phase derivative, smoothed over one symbol) × `T_tx` is within ±2% of `delta_hz` at every dose, and `< 0.01` Hz at dose 0. **(iii) FADE:** at every `B`, a 2,000 s noiseless carrier gives a measured 2σ spread within ±10% of `B`; mean `|g1|² + |g2|²` within ±3% of 1; `|corr(g1, g2)| < 0.05`. | **STOP** |
+| **0a** generator | **(i)** With no impairment fields, the render of every scenario in `scenarios/` (at its standard seeds) is **byte-identical** to `origin/main`'s synth output, mechanically diffed. **(A1: run it after `MSG-11`…`15` are appended.)** ~~**(ii) DRIFT:** on a noiseless render, the fitted slope of instantaneous frequency (Hilbert phase derivative, smoothed over one symbol) × `T_tx` is within ±2% of `delta_hz` at every dose, and `< 0.01` Hz at dose 0.~~ **(ii) DRIFT: REPLACED by §8.2 (differential).** ~~**(iii) FADE:** at every `B`, a 2,000 s noiseless carrier gives a measured 2σ spread within ±10% of `B`; mean `|g1|² + |g2|²` within ±3% of 1; `|corr(g1, g2)| < 0.05`.~~ **(iii) FADE: REPLACED by §8.3 (a pooled long carrier, plus two checks through the bench's own call).** | **STOP** |
 | **0b** pin and config | The daemon's loaded `libft8.dll` SHA-256 = **`91997e38038d9328edcb49cd1e8661706d0092ed2c73e808094c96c3980ad2c6`** (`origin/main` `win-x64`, shim 20260051, hashed while drafting). Effective `nhard` = 40, read back. WSJT-X is the **FT991A instance**, and its decode depth and AP settings are copied from its `.ini` into the report. | **STOP** |
 | **0c** chain health | `captureActive` true; playback on `Voicemeeter AUX Input`; the warm-up message present in **both** `ALL.TXT`s at the warm-up timestamp | **STOP** |
 | **0d** control | At dose 0 in block P, `R_O ≥ 0.95` **and** `R_W ≥ 0.95` | **VOID.** The bench loses clean signals, so no differential means anything. |
@@ -380,3 +391,133 @@ Where QA's commits land (`decoding_improvement` or their own branch) is QA's cal
 
 🔴 **HK-025 is available in full.** If any row here is a diagnostic dressed as a gate, name it, evaluate
 both branches, and refuse it.
+
+---
+
+## §8. Amendment A1: 2026-09-15 17:26Z (`date -u`), before any datum
+
+**Trigger:** three build questions from QA (`qa-83`), about 17:1xZ. No `Δ`, no decode and no bench
+render existed when this was written. It changes generator verification, one generator rule and the
+message pool. **It does not change `BAR_E`, F1–F4, ROW 0b–0g, the doses, the blocks or the trial
+counts.** Every original line it replaces is struck where it lives (§2.3, §2.4, §3.2).
+
+### 8.1 Message pool: append five, specified here
+
+`study-messages.json` holds 10 standard messages (`MSG-01`…`10`). The other two (`T4`/`T1`) are the
+hash-resolution pair, and §2.4 bars them. **QA appends these five, exactly as written.** Each is a
+standard Type-1 message with two Q-prefix calls, and no hash, `/P` or `/R`:
+
+| id | text | type |
+|---|---|---|
+| `MSG-11` | `Q2GHI Q1ABC R-12` | R-report (the `ir` bit is set; no existing message sets it) |
+| `MSG-12` | `Q1ABC Q2GHI RRR` | RRR (the packer supports it; no existing message uses it) |
+| `MSG-13` | `Q6MNO Q4XYZ IO91` | grid |
+| `MSG-14` | `Q4XYZ Q6MNO R+05` | R-report, positive |
+| `MSG-15` | `Q7STU Q3PQR 73` | 73 |
+
+**No new CQ.** WSJT-X applies its CQ a-priori pass to any CQ, whatever its own call is, so the pool
+keeps one CQ in 15. The rotation balances it across doses anyway. `used_in: ["E4"]`. Adding `"E4"` to
+`MSG-01`…`10`'s `used_in` is optional (it is metadata only).
+
+**Why appending is safe, checked:** `run_scenario.py:_load_scenario` resolves messages **by id** from
+each scenario's own pool. The only reader that loops over the whole file is `gate_render.py`, which
+renders one gate WAV per message, so appending only **adds** five WAVs. ROW 0a(i), run after the
+append, proves it mechanically.
+
+**Before station time:** OpenWSFZ must decode each new text offline from its gate WAV, by any path
+QA already uses. A bad encoding must turn up there, not as a ROW 0d VOID after two hours of station
+time (one bad message in 15 caps dose-0 recovery at 140/150 = 0.933 < 0.95).
+
+### 8.2 ROW 0a(ii) DRIFT: a differential. QA's reading is right, and the original wording was wrong
+
+The original asked for an **absolute** fit of the instantaneous frequency. FT8's own tone sequence has a
+trend, which is several Hz on a real message (QA measured it). So the original dose-0 check
+(`< 0.01 Hz`) would have STOPped a perfect generator. That was my defect, and QA's differential is
+what the row was for. **Replacement (predicate as code):**
+
+```
+y_u = render(tones, f0, drift_hz=0)          # noiseless, same tones, same f0
+y_d = render(tones, f0, drift_hz=±delta)     # noiseless
+dphi = unwrap(angle(hilbert(y_d) * conj(hilbert(y_u))))
+df   = diff(dphi) * fs / (2*pi)              # Hz, instantaneous-frequency difference
+trim the first and last symbol (click ramp + Hilbert edge)
+slope, mean from a least-squares line of df against t
+
+PASS iff, at every dose and BOTH signs:
+  |slope * T_tx - signed_delta| <= 0.02 * |delta|        # the dose, sign included
+  |mean(df)|                    <  0.01 Hz               # centring (§2.2): mean frequency unchanged
+and dose 0: y_d is byte-identical to y_u                 # stronger than the old < 0.01 Hz
+```
+
+What this cannot see (HK-022): the drifted and undrifted paths sharing one defect. ROW 0a(i) covers
+that: the default path must be byte-identical to `origin/main`.
+
+### 8.3 ROW 0a(iii) FADE: pooled seeds, plus two checks through the bench's own call
+
+**Two defects in the original, both mine. I checked both by simulation on a copy of QA's
+`_shaped_gaussian_process`** (Architect scratch; nothing written into QA's tree).
+
+**(1) Single-draw noise, which QA flagged at `B` = 0.1. It is wider than 0.1.** Here are the rates at
+which one 2,000 s draw of a **correct** generator fails each sub-check (200 draws per `B`):
+
+| `B` (Hz) | power ±3% | `|corr|` < 0.05 | spread ±10% |
+|---|---:|---:|---:|
+| 0.1 | **47%** | **44%** | 0% |
+| 0.25 | **27.5%** | 9.5% | 0% |
+| 0.5 | 9.5% | 0% | 0% |
+| 1 | 1.5% | 0% | 0% |
+| 2 | 0% | 0% | 0% |
+
+Across the ladder, the original row STOPs a correct generator about **80%** of the time. That is a
+tolerance set below the estimator's own noise (HK-021(o)). The analytic power sd at 0.1 Hz is 0.038
+(one process's time-average of `|g|²` has relative variance `1/(√π·B·T)`; the two paths halve it). The
+simulation measured 0.041.
+
+**(2) The 2,000 s carrier cannot see the defect that matters (HK-022, HK-026).** `modulate_faded`
+shapes `g1` and `g2` on a buffer exactly one transmission long (`n = len(z)`). Frequency-domain
+shaping is circular, so the process's end wraps onto its start. The true correlation between the
+gain at the first and last sample is ≤ 4×10⁻⁴ at every `B`. **The current generator gives 0.89–1.02 at
+every `B`** (300 seeds). At 0.1 Hz the whole transmission is distorted. At 20 Hz only the ends are, but
+those are Costas arrays 1 and 3. The check ran on a 2,000 s buffer, where the wrap sits 2,000 s away,
+so it could never see this.
+
+**Generator rule, added to §2.3:** each `g` is generated on `L ≥ T_tx + 2/B` seconds, and the
+transmission uses its first `n` samples. The wrap-around term is then `exp(−2π²) ≈ 3×10⁻⁹`. Cost: the
+longest buffer is 32.64 s, at `B` = 0.1.
+
+**Replacement ROW 0a(iii), all three STOP:**
+
+- **(a) Spectrum and power, on a long carrier.** At every `B`: **K = 32** independent 2,000 s
+  noiseless realisations, with the statistics **pooled** over the K. Measured 2σ of the **power**
+  spectrum within ±10% of `B`. Pooled mean `|g1|² + |g2|²` within ±3% of 1. Pooled `|corr(g1, g2)|`
+  < 0.05. The sample rate may be any rate ≥ 200 Hz (the process is defined in Hz), and the report
+  states it. Predicted margin at 0.1 Hz: power sd 0.0072 (±3% ≈ 4.2 sd); `P(|corr| ≥ 0.05)` ≈ e⁻²⁸.
+- **(b) No wrap, through the bench's own call.** Use the function `modulate_faded` itself calls to
+  make `g1` and `g2`, with the bench's own arguments: 48 kHz, transmission length, and the §2.3
+  buffer rule. Take seeds 0…399 from a seed space disjoint from the bench's, and pool both paths (800
+  realisations). At every `B`, the ensemble `ρ(n − 1)` must be ≤ 0.20.
+- **(c) The coherence the bench actually delivers.** On the same 800 realisations, the ensemble
+  `ρ(1/(2B))` must be within **±0.05** of **`exp(−π²/8)` = 0.2910**. That target is the same at every
+  `B`.
+
+```
+rho(lag) = | mean_r mean_t g_r[t+lag] * conj(g_r[t]) |  /  mean_r mean_t |g_r[t]|^2
+```
+
+**Both new checks pass where the generator is right, and fail where it is wrong (HK-021(z)).**
+Simulation: 40 repeats of 400 seeds, at a reduced sample rate (the statistics depend on duration, not
+rate):
+
+| check | correct generator (with the buffer rule) | current `fade.py` | the `σ_h` bug QA fixed | `B` off by ±10% |
+|---|---|---|---|---|
+| (b) `ρ(n − 1)` ≤ 0.20 | mean 0.03, max 0.086 | **0.89–1.02 ⇒ STOP** | (not the target) | (not the target) |
+| (c) `|ρ(1/2B) − 0.291|` ≤ 0.05 | sd ≤ 0.013 (0.1 Hz), max dev 0.031 | 0.288–0.316 (blind to the wrap; (b) catches it) | **0.539 ⇒ STOP** (analytic) | 0.225 / 0.368 ⇒ STOP (analytic) |
+
+**Families that fire together:** 8 doses × 5 FADE sub-checks. Each is set at ≳ 3.8 sd, so a correct
+generator passes the whole row with high probability. An unlucky STOP on a correct generator is
+re-run once on fresh seeds, and the report says so. A second STOP is a defect.
+
+### 8.4 What A1 does not change
+
+`BAR_E` 0.10, F1–F4, ROW 0b–0g, the DRIFT and FADE dose ladders, blocks P/S, trial counts, N_BOOT and
+its seed, the §4 predictions, and Q2. **No `src/` or `native/` change.**
