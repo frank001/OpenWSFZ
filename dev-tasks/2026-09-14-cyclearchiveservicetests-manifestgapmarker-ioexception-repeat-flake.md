@@ -1,9 +1,9 @@
 # Developer handoff: tolerate transient `IOException` in `CycleArchiveServiceTests` manifest polls
 
 **Authored by:** QA, 2026-09-14 18:36Z (per HK-000/HK-015), timestamp per `date -u` (HK-017).
-**Status:** Proposed. Per HK-011, needs the Captain's explicit sign-off before pickup; the Developer
-session implementing this does not run `pre_merge_check.py` or push/merge on its own initiative (QA
-verifies, Captain signs off the merge, HK-010).
+**Status:** ✅ **Captain signed off for Developer pickup, 2026-09-15 14:56Z.** Per HK-011, the
+Developer session implementing this does not run `pre_merge_check.py` or push/merge on its own
+initiative (QA verifies, Captain signs off the merge separately, HK-010).
 **Tracking:** [GitHub issue #177](https://github.com/frank001/OpenWSFZ/issues/177), label `flake`
 (label created 2026-09-14 — did not exist for the first occurrence).
 **Branch:** new short branch off `main`, name at the Developer's/Captain's discretion. Do not combine
