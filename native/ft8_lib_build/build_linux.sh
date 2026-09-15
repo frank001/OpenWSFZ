@@ -7,7 +7,16 @@ set -e
 # native/ft8_lib_vendor/ tree (content-identical to upstream, see PROVENANCE.md)
 # plus the already-tracked MSVC/VLA-patched decode.c/monitor.c at
 # native/ft8_lib_build/patched/ -- mirrors rebuild_shim.bat's own /I structure.
-FT8_ROOT=/mnt/d/Projects/claude/OpenWSFZ
+# dev-tasks/2026-09-15-build-linux-sh-hardcoded-ft8-root-landmine.md: derive FT8_ROOT from this
+# script's own location (native/ft8_lib_build/build_linux.sh -> repo root is two levels up),
+# rather than a literal path, so the script builds against and writes back to whichever worktree
+# actually invoked it -- not always the Architect's own checkout. `cd .../../.. && pwd` (not `git
+# rev-parse --show-toplevel`) deliberately -- the WSL distro this script actually runs in has no
+# git installed, confirmed live 2026-09-15, so a git-based derivation would break the real target
+# environment even though it resolves correctly on a machine that does have git. Resolves correctly
+# whether invoked by a relative path, an absolute path, or from inside its own directory
+# (BASH_SOURCE[0] is set correctly in all three cases by bash).
+FT8_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR=$FT8_ROOT/native/ft8_lib_build
 SRC_DIR=$FT8_ROOT/src/OpenWSFZ.Ft8/Native
 LIB_SRC=$FT8_ROOT/native/ft8_lib_vendor
