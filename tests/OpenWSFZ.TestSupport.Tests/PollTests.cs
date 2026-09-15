@@ -61,6 +61,76 @@ public class PollTests
             .WithMessage("custom diagnostic message");
     }
 
+    // ── IOException tolerance (dev-tasks/2026-09-14-cyclearchiveservicetests-manifestgapmarker-
+    //    ioexception-repeat-flake.md) ─────────────────────────────────────────
+    // Deterministic regression coverage for the transient-IOException-tolerance behavior itself,
+    // added at QA's request during review: the flaky CycleArchiveServiceTests target test this fix
+    // was written for has never reproduced on demand (0/several manual re-runs across both prior
+    // occurrences), so a green run of that test is not a reliable regression guard for this specific
+    // behavior. These tests drive the failure mode directly instead.
+
+    [Fact(DisplayName = "TestSupport: Poll.UntilAsync tolerates a transient IOException from its condition and keeps polling")]
+    public async Task UntilAsync_TreatsTransientIOException_AsNotYetTrue_AndKeepsPolling()
+    {
+        var throwsRemaining = 3;
+        var tickCount = 0;
+        bool Condition()
+        {
+            tickCount++;
+            if (throwsRemaining > 0)
+            {
+                throwsRemaining--;
+                throw new IOException("simulated transient sharing violation");
+            }
+            return true;
+        }
+
+        var act = () => Poll.UntilAsync(Condition, timeout: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(10));
+
+        await act.Should().NotThrowAsync(
+            "a transient IOException from the condition must be treated like a false result, not abort the poll");
+        tickCount.Should().BeGreaterThanOrEqualTo(4, "three throwing ticks plus the succeeding tick");
+    }
+
+    [Fact(DisplayName = "TestSupport: Poll.UntilAsync still throws TimeoutException when the condition throws IOException on every tick, with the last IOException as InnerException")]
+    public async Task UntilAsync_ThrowsTimeoutException_WhenConditionAlwaysThrowsIOException()
+    {
+        IOException? lastThrown = null;
+        bool Condition()
+        {
+            lastThrown = new IOException($"simulated persistent sharing violation at {DateTime.UtcNow:O}");
+            throw lastThrown;
+        }
+
+        var act = () => Poll.UntilAsync(Condition, timeout: TimeSpan.FromMilliseconds(100), pollInterval: TimeSpan.FromMilliseconds(10));
+
+        var assertion = await act.Should().ThrowAsync<TimeoutException>(
+            "a persistent IOException must still surface as a timeout, not hang or be swallowed forever");
+        assertion.Which.InnerException.Should().BeSameAs(lastThrown,
+            "the last transient IOException observed must be visible on the eventual TimeoutException, not silently discarded");
+    }
+
+    [Fact(DisplayName = "TestSupport: Poll.UntilAsync lets a non-IOException thrown by its condition propagate immediately, unchanged from prior behavior")]
+    public async Task UntilAsync_LetsOtherExceptionTypes_PropagateImmediately_WithoutWaitingForTimeout()
+    {
+        var tickCount = 0;
+        bool Condition()
+        {
+            tickCount++;
+            throw new InvalidOperationException("not an IOException -- must not be tolerated");
+        }
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var act = () => Poll.UntilAsync(Condition, timeout: TimeSpan.FromSeconds(5), pollInterval: TimeSpan.FromMilliseconds(10));
+
+        await act.Should().ThrowAsync<InvalidOperationException>(
+            "only IOException is tolerated -- every other exception type must still escape the poll immediately");
+        sw.Stop();
+
+        tickCount.Should().Be(1, "the poll must abort on the very first tick, not retry a non-IOException");
+        sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(1), "it must not wait out the 5s timeout for a non-tolerated exception");
+    }
+
     // ── WaitForEqualAsync ───────────────────────────────────────────────────
 
     [Fact(DisplayName = "TestSupport: Poll.WaitForEqualAsync returns once the observed value equals the expected value")]
