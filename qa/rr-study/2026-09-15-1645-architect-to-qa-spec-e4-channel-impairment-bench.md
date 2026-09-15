@@ -5,9 +5,10 @@
 
 **Status: cleared to specify.** The Captain, 2026-09-15: *"go with E4, spec it"*. **The run is NOT yet
 cleared.** It needs about two hours of the station with the radio's audio kept off the decode bus
-(§5 Q2), so the Captain schedules it. `BAR_E` (§3.4) is Architect-set, not PO-ratified. The Captain may
-move it **before the first datum**. After that it is frozen, and anyone proposing to move it (me
-included) gets refused.
+(§5 Q2), so the Captain schedules it. ~~`BAR_E` (§3.4) is Architect-set, not PO-ratified.~~
+**`BAR_E` = 0.10 ratified by the Captain, 2026-09-15: *"10-point bar is fine (for now)"*.** "For now"
+is read as the standing rule already here: he may still move it **before the first datum**. After that
+it is frozen, and anyone proposing to move it (me included) gets refused.
 
 **Authorised by:** C-ASYM-A ROW C3 (2026-08-23, `qa/rr-study/2026-08-23-1032-qa-to-architect-c-asym-a-results.md`
 §6), which fired and named E4 the leading candidate. That spec's §8 said ROW C3 is the row that
@@ -333,8 +334,9 @@ ROW 0d, THRESH-A T2, `Δ50`) and one hit (PASSBAND-140 G1, at 0.45). Weight thes
 
 ## §5. PO questions (before the first datum only)
 
-- **Q1: `BAR_E` = 0.10?** Architect-set per §3.4. It can be moved **before QA produces any `Δ`** and is
-  frozen after. A move proposed once `Δ` is known is refused and VOIDs the arm.
+- **Q1: `BAR_E` = 0.10?** ✅ **Ratified 2026-09-15** (*"fine (for now)"*). It can still be moved **before
+  QA produces any `Δ`** and is frozen after. A move proposed once `Δ` is known is refused and VOIDs the
+  arm.
 - **Q2: station time.** About two hours, during which **the radio's audio must be kept off the decode
   bus** (ROW 0e). OpenWSFZ and WSJT-X are off the air for decoding for that window. The Captain picks the
   slot, and QA's procedure keeps the band out.
@@ -367,7 +369,7 @@ counts, rates, doses and frequencies. `git check-ignore -v` every output path be
 | step | who | status |
 |---|---|---|
 | This spec | Architect | ✅ Captain: *"go with E4, spec it"* (2026-09-15) |
-| Q1, Q2 | Captain | Q1 open until the first `Δ`; Q2 before the run |
+| Q1, Q2 | Captain | Q1 ✅ ratified (movable until the first `Δ`); Q2 open, before the run |
 | Generator (`synth/`, DRIFT + FADE) and ROW 0a | QA | cleared: it is offline and needs no station time |
 | Scenario file(s) and runner changes for §2.4 | QA | cleared, `--dry-run` only |
 | Live bench run (ROW 0b–0g, blocks P and S) | QA | **waits on Q2** |
