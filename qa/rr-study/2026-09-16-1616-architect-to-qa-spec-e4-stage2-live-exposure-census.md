@@ -592,3 +592,82 @@ choice. **Shim `20260051` / DLL `91997e38…ad2c6` is the binary every E4 closur
 
 🛑 **This is not a licence to re-open on appetite.** NBR-A's closure already sets the bar for what a
 re-entry must name: *"what changed other than appetite for the answer."* That stands.
+
+---
+
+## §11. Amendment B4 — the census is HELD. ROW 0a was circular, and that is my design error
+
+**Architect, 2026-09-16, on QA's report against real rows.** 🔴 **No `φ` is to be computed. `BAR₅` and
+`BAR₁₀` are NOT frozen** — the freeze triggers on the first `φ`, and QA correctly produced none.
+
+### 11.1 What QA found, and why stopping was right
+
+On real sampled rows using REF's reported `(DT, freq)` per §1.1: **n = 51 valid, median `ρ₁` = 0.145,
+share below `ρ*` = 96%, and FLAT from −10 dB to +14 dB.**
+
+🔴 **The flatness is the finding, not the 96%.** §1.2's safety argument is that corruption pushes `ρ₁`
+down, which is one-sided and therefore tolerable. **That argument assumes the corruption is noise —
+and noise shrinks as SNR rises.** A reading that does not move between −10 dB and +14 dB is not noise
+being absorbed. It is signal-proportional, which means **model mismatch**, and a one-sided bound
+derived from a mismatched model bounds nothing.
+
+QA's three checks, in order, and all three are the right ones:
+1. **Pipeline clean** — a bench gate WAV read back cold gives `ρ₁` = 0.988 with a sharp power peak.
+2. **Not DT quantisation** — synthetic + realistic ±0.05 s rounding gives ~80% false share raw, but a
+   local `(DT, freq)` refinement **fully** recovers it (0.96–0.98, 0% false). Quantisation is solved.
+3. 🔴 **The same refinement run wide (±10 Hz) on real rows barely moves anything and lands on an
+   unstable, row-to-row-inconsistent best fit — there is usually no sharp peak to find.**
+
+**Check 3 is decisive on its own.** A coherent matched filter against the *correct* waveform produces a
+sharp peak on a strong signal. No peak means the reference does not match what was received.
+
+### 11.2 🔴 ROW 0a could never have caught this, and I wrote it
+
+I called ROW 0a *"the whole ballgame"* (§3.0) and specified all four sub-rows against **the bench's own
+renders**. **That correlates the generator against itself.** It is tautologically clean and validates
+the *estimator*; it says nothing about whether our *model of an FT8 signal* matches one we did not
+generate. **QA's diagnosis of the calibration is exactly right and the error is mine.**
+
+> 🔴 **Lesson, third variant today: a calibration against your own generator's output validates the
+> estimator, not the model. To test a model you need a reference you did not produce.**
+> Siblings: B1/B2 — *an instrument built to measure `X` must not assume `X` is small or absent*.
+
+### 11.3 ⚠️ Scope — what is NOT in question
+
+I checked the modulator before accepting the hypothesis. **`modulator.py` is correct FT8**: true GFSK,
+Gaussian pulse with `GFSK_BT` = 2.0, continuous integrated phase, `TONE_SPACING_HZ` 6.25,
+`SYMBOL_PERIOD_S` 0.16, 79 symbols, Costas `(3,1,4,0,6,5,2)` at 0/36/72. **So "the synth is not really
+FT8" is not supported, and QA's wording should be narrowed accordingly.**
+
+🟢 **This does NOT touch S1–S8, the R&R sweeps, the `E4` bench, or any existing synthetic result.**
+Those use the synth **self-consistently** — generate audio, decode it — which is a valid closed loop.
+**What is newly in question is using the synth as an ANALYSIS REFERENCE against independently
+transmitted audio, a use this spec introduced today.** Nobody should read B4 as casting doubt on
+committed synthetic work.
+
+### 11.4 The decisive diagnostic — cheap, and it splits the hypothesis in two
+
+QA's hypothesis is one thing; it is actually **two**, and they have different consequences.
+**The Costas symbols separate them: they are FIXED and MESSAGE-INDEPENDENT** (positions 0–6, 36–42,
+72–78, tones `(3,1,4,0,6,5,2)`).
+
+> **Correlate a strong real row against the COSTAS SYMBOLS ONLY**, over a `(DT, freq)` grid, and report
+> whether a sharp peak exists — the same search that found one cold on the gate WAV.
+
+| outcome | meaning | consequence |
+|---|---|---|
+| **Sharp Costas peak, but the full-message correlation still fails** | Waveform and timing model are FINE. The **message → tone reconstruction** is wrong — our re-encode of the REF text does not produce the tones actually transmitted (message-type packing, CRC, LDPC parity, or the text as WSJT-X printed it not round-tripping). | **Repairable.** Fix the re-encode, re-run. The census survives. |
+| **No Costas peak either** | The **waveform or timing model** does not match real received audio, message content irrelevant. | 🔴 **The census cannot be built this way.** Report and stop; do not iterate on the estimator. |
+
+**Run it on the strongest available rows (≥ +10 dB), where SNR cannot be the explanation.** Suggested
+n = 20. **This is a diagnostic, not a gate — no bar, no reading, report what you see.**
+
+### 11.5 Status
+
+- 🛑 **Census HELD.** No `φ`, no E1/E2/E3, nothing downstream of `ρ₁` on real rows.
+- ✅ `BAR₅` = 0.25 / `BAR₁₀` = 0.05 stand as ratified and **remain movable** (no `φ` exists).
+- ✅ ROW 0a's `ρ*` = 0.577 is still fixed **for bench-rendered audio**; its validity as a threshold on
+  real rows is exactly what is in doubt.
+- ➡️ **Next: §11.4's Costas diagnostic. Nothing else.**
+- 🟢 `NBR-RERUN` (`2026-09-16-1745-…`) is **unaffected** — synthetic scenes, self-consistent use, no
+  real-audio reference. It can proceed ahead of this.
