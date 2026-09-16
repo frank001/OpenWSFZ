@@ -572,8 +572,11 @@ that does not depend on the token scan and was not chosen after seeing it:
 QA's forensic points (all four tokens within 1–7 Hz of one of the bench's own 15 station frequencies;
 all at −9 to −24 dB, matching the doses in play in those cycles; all structurally malformed — a
 doubled `/R`, a `<...>` hash placeholder although E4 injects zero hashed callsigns) are **consistent
-with** the above and were selected after the result. They are recorded as corroboration and **carry no
-weight in this disposition**.
+with** the above and were selected after the result. They are recorded as corroboration and ~~**carry no
+weight in this disposition**~~ 🔴 **STRUCK 2026-09-16 by A4 (§11), at QA's challenge — the claim was an
+overclaim, and §10.3 later relied on post-hoc material of the same kind. Corrected standard: this and
+§10.3's temporal pattern are corroboration of EQUAL status; the disposition rests on §9.2's two
+pre-datum supports. See §11.**
 
 ### 9.3 Disposition: ROW 0e FIRED; the run is NOT VOID
 
@@ -773,3 +776,68 @@ stands, and QA may start its ROW 0a immediately.
 ➡️ **The Captain must be told:** he ratified the strike with two conditions attached; one passed and
 **one I have struck myself rather than satisfied.** That changes what he ratified. The alternative on
 the table remains a ~2 h re-run under ROW 0e-1, and it is his call whether §10.3 is good enough.
+
+### 10.6 Falsifier result — no VOID triggered
+
+QA, 2026-09-16, via the daemon's own status API (`GET /api/v1/status` — what the station already
+records, HK-027), polled 6× over 24 s, spanning more than one FT8 cycle on a live 14.074 MHz dial:
+`audioDevice` = `Voicemeeter Out B1`, `captureActive` = true, **`audioActive` = false on every poll**,
+`catConnectionStatus` = `Disabled`. A connected antenna on an active band would show `audioActive`
+flickering true.
+
+**Reading, held to §10.4's own framing: this is the clean-now result, not the dirty-now one. It
+triggers no VOID. It confirms nothing** — it is a day late, and I am not going to start treating it as
+support now that it came back the way I hoped.
+
+---
+
+## §11. Amendment A4 — I overclaimed in §9.2, and QA caught it
+
+**Architect, 2026-09-16.** QA (`qa-cd`) flagged, for the record rather than as a refusal:
+
+> §10.3's temporal-pattern argument is doing real evidential work for the same disposition that §9.2
+> said post-hoc forensic corroboration carries none of.
+
+**That is correct, and it is the sharpest point anyone has made in this arm.** A4 changes **no
+verdict** — it corrects a reasoning standard I stated too strongly and then failed to hold myself to.
+🛑 **It is not the third bite at ROW 0e that §10.4 forbade: the disposition is untouched.**
+
+### 11.1 The distinction I would have drawn, and why it is not enough
+
+The defence available to me is that the two are not quite alike. The forensics (frequency proximity,
+malformed structure) are **two statistics chosen from a large menu** of things one could compute about
+4 tokens, and choosing the exculpatory ones is the garden of forking paths. The temporal pattern is
+**the unique mechanical signature of the specific alternative** — a routing revert is persistent by
+construction, so the statistic is fixed by the hypothesis rather than picked from a menu. And the
+counts it reads were pre-registered in condition (ii), even if their shape was not.
+
+**That is a real difference, but it is one of degree, not of kind, and it is not enough to carry "zero"
+versus "full".** Both were computed after seeing the result. Pre-registering a count does not
+pre-register every function of the rows underneath it.
+
+### 11.2 The corrected standard
+
+- 🔴 **Struck at source** (§9.2, the sentence at what is now line 575, marked in place per HK-022):
+  "carry no weight in this disposition" was an **overclaim**.
+- **One standard for both.** QA's forensics and §10.3's temporal pattern are **corroboration of equal
+  status** — real, non-zero, and not load-bearing.
+- 🔴 **What the disposition actually rests on, and what it always rested on, is the two supports in
+  §9.2 that needed no sight of the tokens:** the **pre-run physical off-bus confirmation**, and the
+  **magnitude argument** — 0.02 unmatched decodes per cycle against the tens per cycle live band audio
+  puts into both `ALL.TXT`s, wrong by 2–3 orders of magnitude. Both were available before a single
+  token was examined. **If those two do not carry it, nothing in §10.3 rescues it, and the honest
+  response is the re-run, not a better argument.** My judgement is that they do carry it. That
+  judgement is the Captain's to accept or reject, and it is what is in front of him.
+
+### 11.3 The lesson worth keeping
+
+**Declaring evidence "zero weight" is itself a claim that has to be honoured later.** I made that
+declaration in §9.2 to show discipline, then leaned on material of the same kind in §10.3 two hours
+later. The cheap fix would have been to never say "zero" — to say "corroborative, not load-bearing",
+which is what I actually meant and what is now written. 🔴 **Three of this document's amendments (A2,
+A3, A4) correct the Architect's own errors, two of them HK-027, one an overclaim.** That is the record.
+
+### 11.4 What A4 changes
+
+Nothing operational. No verdict, no row, no bar, no dose, no disposition. `BAR_E` frozen, DRIFT F3,
+FADE F4, the run stands subject to the Captain. **No `src/` or `native/` change.**
