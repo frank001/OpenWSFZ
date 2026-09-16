@@ -353,3 +353,106 @@ precisely today's defect.
 - QA's next step is the replacement estimator and 0a(v), which needs no live audio and no `BAR_φ` — so
   it runs in parallel with the Captain's decision and nothing is idle.
 - 🛑 **No `src/` or `native/` change.** The estimator lives in `qa/rr-study/synth/`.
+
+---
+
+## §9. Amendment B2 — ROW 0a(v) STOPs a second time. E4/E5 are STRUCK, not suspended
+
+**Architect, 2026-09-16, after QA's 0a(v) report.** My replacement estimator failed too. **E4/E5 are
+abandoned. The `E4-BENCH` §9.5 DRIFT caveat stands permanently as a stated limitation.** `BAR_φ`, `ρ*`,
+E1–E3 and the FADE census are untouched.
+
+### 9.1 What 0a(v) returned, and why it is real
+
+| injected | 0 | 0.5 | 1 | 2 | 4 | **8** | **16** |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| recovered | 0.000 | 0.447 | 1.043 | 1.938 | 4.025 | **5.925** | **20.123** |
+| tolerance | 0.5 | 0.5 | 0.5 | 0.5 | 0.5 | 0.8 | 1.6 |
+| | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+
+QA eliminated both cheap explanations before reporting: the frequency-search machinery recovers a
+**constant** 1/4/8/16 Hz shift exactly, and a **noiseless** render at doses 8 and 16 shows the same bias
+as the 50-trial median. So it is neither a bug nor noise.
+
+**The mechanism, confirmed by arithmetic while ruling:** a 26-symbol sub-window is 4.16 s, and the
+signal is chirping *inside* it.
+
+| dose | drift rate | sweep **within one sub-window** | in tone spacings |
+|---|---:|---:|---:|
+| 4 | 0.316 Hz/s | 1.32 Hz | **0.21** ✅ |
+| 8 | 0.633 Hz/s | 2.63 Hz | **0.42** ❌ |
+| 16 | 1.266 Hz/s | 5.27 Hz | **0.84** ❌ |
+
+**The break is exactly where the in-window sweep passes ~0.2–0.4 of a tone spacing.** A single-frequency
+correlation peak cannot track a chirp; it settles somewhere that is not the window's centroid.
+
+🔴 **And the direction is inconsistent — dose 8 under-reads (5.93), dose 16 over-reads (20.12).** There
+is no "biases safe" story to fall back on, which is what the first estimator at least had in one
+direction. QA is right that this is a window-size / chirp-rate interaction in the method, not a build
+defect.
+
+### 9.2 🔴 The lesson, and it is the same error twice
+
+Both estimators failed **the same way**, and it is sharper than the lesson I recorded in B1:
+
+> 🔴 **An instrument built to measure X must not assume X is small or absent. Both of my drift
+> estimators assumed the signal was locally non-drifting.**
+
+- **B1's estimator** unwrapped per-symbol phase — which assumes the offset stays inside ±Nyquist, i.e.
+  **assumes drift is small**. It folded at 6.25 Hz.
+- **B1's replacement** fitted one frequency per sub-window — which assumes the signal is **stationary
+  within the window**, i.e. again **assumes drift is small**. It broke at 0.42 tones of in-window sweep.
+
+I replaced the first method's symptom without auditing the second method's own core assumption against
+the regime it had to work in. **This supersedes B1 §8.2's narrower "a sampling limit applies to every
+consumer" wording**, which was a special case of it.
+
+### 9.3 The method that would actually work, recorded for whoever wants it
+
+Not being built. **Fit the chirp, because a linear drift *is* a chirp** — do not estimate a frequency
+and difference it:
+
+> Two-parameter matched filter over the **whole** transmission against the known tone sequence:
+> correlate against `exp(j2π(f₀t + ½kt²))`, searching `(f₀, k)`. Total drift = `k · T_tx`. Cheap in
+> practice: for each candidate `k`, **dechirp then one FFT** yields every `f₀` at once. Resolution over
+> 12.64 s is ≈ 0.08 Hz, far finer than the 0.5 Hz tolerance, and the model is exactly correct for the
+> generator's linear drift, so the filter is optimal rather than approximate.
+
+### 9.4 Why I am stopping rather than building it
+
+The chirp fit is cheap and is the right method, and I am still not spending a third build cycle on it:
+
+- **E4/E5 were always a rider.** DRIFT already reads **F3** on its own pre-registered predicate. E4 only
+  converted my assertion *"≥8 Hz of drift in one 12.6 s transmission is not a live population"* into a
+  measurement. **Nothing is blocked by its absence, and F3 is not weakened** — it was ruled on its own
+  terms, with the ladder gap disclosed by me at the time.
+- **What could hide in (8,16] is bounded and physically extreme.** 8–16 Hz across one transmission is
+  0.6–1.3 Hz/s. For a differential to hide there, one decoder would have to cross substantially before
+  the other inside that single octave, at drift rates no ordinary transmitter produces.
+- **Allocation.** Two build cycles are already spent on a nice-to-have while **density — the other
+  candidate for the same 17.96 pp ceiling — is completely unexplored.** A third belongs there.
+- 🛑 **This is a forward-looking call, not sunk cost.** The two spent cycles are gone either way; the
+  question is only whether the next hour is worth this rider, and it is not.
+
+**Consequence, stated plainly so nobody has to rediscover it:** the `E4-BENCH` §9.5 caveat — that the
+(8,16] Hz octave is unmeasured and a differential could in principle hide there — is now **permanent**.
+It is a disclosed limitation of the programme, not an open action.
+
+### 9.5 0a(vi), the odd result: recorded, explained as a guess, not relied on
+
+Drift 8 Hz composed with FADE `B` = 1 and `B` = 5 recovered **8.4** and **8.3** Hz — *closer to truth*
+than the no-fade case (5.93). QA flagged it without chasing it, correctly.
+
+**Candidate explanation, not verified and not to be built on:** fading randomly reweights the energy
+across the sub-window, smearing the deterministic bias that a fixed window shape imposes on a chirp —
+i.e. fading acts as **dither** on a biased estimator. If true it is a median-over-50-trials effect and
+would be worthless per-row, which is what E4/E5 would have needed. 🛑 **It does not rescue the
+estimator, and the correct response to "our instrument works better when the signal is degraded" is
+suspicion, not adoption.**
+
+### 9.6 What B2 changes
+
+**E4 and E5 are struck**, ROW 0a(v)/(vi) are closed, and the drift limb of this census is over.
+**Untouched:** `BAR_φ` (still with the Captain), `ρ*` = 0.577, E1–E3, the population, the sample, and
+every FADE row. **The FADE census — the reason this arm exists — is unaffected and still gated only on
+the worth-building anchor.** No `src/` or `native/` change.
