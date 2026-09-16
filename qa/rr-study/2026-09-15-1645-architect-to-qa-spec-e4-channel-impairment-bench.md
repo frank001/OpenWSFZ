@@ -648,9 +648,13 @@ to move it (mine included) is refused. Unchanged: F1–F4 and their predicates, 
 dose ladders, blocks P/S, trial counts, N_BOOT and its seed, the §4 predictions as recorded. **No
 `src/` or `native/` change.**
 
-➡️ **Captain ratifies (§9.3):** whether ROW 0e's VOID authority is struck and the 2026-09-15 run
-stands. It is the difference between a DRIFT closure and re-buying ~2 h of station time.
-➡️ **Captain decides (§3.7 F4 route, FADE):** my recommendation is **stop, do not extend** — §9.7.
+✅ **RATIFIED by the Captain, 2026-09-16: *"ratify the ROW 0e strike, and run the exposure census"*.**
+ROW 0e's VOID authority is struck and the 2026-09-15 run stands. ⚠️ **He ratified it with two
+conditions attached (§9.3); one of them has since been struck by me rather than satisfied — see §10,
+which he must be told about because it changes what he ratified.**
+✅ **FADE route decided, same ruling:** stop the bench, run the live exposure census. Specified in
+`qa/rr-study/2026-09-16-1616-architect-to-qa-spec-e4-stage2-live-exposure-census.md`. ⚠️ Recorded there
+as a **flagged deviation** from §3.7, which gates Stage 2 on an F1.
 
 ### 9.7 Why I do not recommend a tighter re-run
 
@@ -685,3 +689,87 @@ is a **deviation from this spec, flagged as one**, and it is the Captain's call.
 time: it runs on archived C2 audio. **My recommendation: run Stage 2 for FADE exposure, stop the
 bench.** If φ comes back small, FADE closes on arithmetic and **density becomes the leading remaining
 candidate for the 17.96 pp ceiling** (§3.7), which is the question I would bring next.
+
+---
+
+## §10. Amendment A3 — ROW 0e condition (i) is struck as malformed. Second HK-027 error in this document
+
+**Architect, 2026-09-16T16:2xZ**, after QA (`qa-cd`) reported against §9.3's two conditions.
+
+### 10.1 What QA found
+
+- ✅ **Condition (ii), volume: PASSES, mechanically.** 4 unmatched rows total (OpenWSFZ 3, WSJT-X 1),
+  **max 1 per cycle, in 4 distinct non-overlapping cycles**, 18:56:30 / 19:15:30 / 19:17:30 / 19:19:15Z.
+  Bound was ≤ 20 total and ≤ 2 per cycle.
+- ✅ **F-rows independently CONFIRMED** by QA's own script, matching §9.5 to 4 decimals on every dose,
+  including the ROW 0f polarity correction. DRIFT F3, FADE F4.
+- 🔴 **Condition (i), routing held to the end: NO RECORD EXISTS.** The supervisor's `attempt-1.log`
+  logs the Voicemeeter device selection **once, before trial 1 (18:26Z)** and never again; the other
+  logs stop at 17:11Z, before the run. Nothing in the 19:25–20:10Z window touches routing or device
+  state. QA searched and handed it back without ruling. **That is the correct behaviour and the right
+  call.**
+
+### 10.2 The ruling: condition (i) is struck, and that is my error to own
+
+Per §9.3's own wording, a failed condition withdraws the disposition and VOIDs the run. **I am not
+applying that, and the reason has to be better than "I would rather not".** Here it is:
+
+🔴 **Condition (i) is malformed, and I wrote it a day after the window it asks about closed.** It
+requires a record that could only have been created *during* the run, by a supervisor that was already
+built and already finished. No action available to anyone at 16:08Z on 2026-09-16 could satisfy it.
+It could only ever return "the station happened to log it" or "it did not" — and **the absence of a
+routing log is not evidence that routing changed.** As written, it converts an absence of evidence
+into a VOID. That fails HK-021(k): a precondition has to be able to change the verdict for the right
+reason, and this one changes it on a coin-flip about log verbosity.
+
+**And it is the second time in this same document that I specified an action without first asking what
+the instrument already records.** §9.3 literally cites HK-027 — *"Whatever the station already records"*
+— and then makes the run's validity depend on something it does not. ROW 0e itself was the first
+(§9.1). Two HK-027 errors in one amendment is a pattern, not a slip, and it is recorded as one.
+
+### 10.3 What actually answers the question condition (i) was pointed at
+
+The gap is real: §9.2's pre-run confirmation covers the **start**, not the whole window. What would
+contamination by a routing revert look like? **A step change.** If the radio's audio returned to the
+bus at time `T`, every cycle from `T` to the end carries live band traffic — tens of decodes per cycle,
+continuously, never one.
+
+**Observed: 4 isolated singletons, in 4 non-overlapping cycles, spread across 23 minutes, with clean
+cycles between every pair and the final ~6.5 minutes (19:19:15 → 19:25:45Z) clean.** A revert cannot
+produce that shape. The incompatibility is **structural — persistent versus isolated —** not a
+threshold I picked.
+
+⚠️ **Stated plainly: I learned that temporal pattern from QA's report, which is to say after condition
+(i) failed.** That is a weaker epistemic position than a pre-registered check and I am not dressing it
+up as one. What makes me willing to act on it: it rests on the same volume statistic condition (ii)
+already required and passed, read for its shape rather than its count; and the §9.2 magnitude argument
+— 0.02 unmatched decodes per cycle against the tens per cycle live band audio produces — never depended
+on condition (i) at all.
+
+### 10.4 One falsifier, and it is the only thing still outstanding
+
+QA asks whether a routing check run now, a day later, could stand in. **It cannot confirm the run** —
+it is a day late and proves nothing about 19:25Z. **But it can refute it**, and that asymmetry is worth
+five minutes:
+
+> **Read the current routing state of the playback bus.** If the radio's audio is **on** the bus now,
+> with nobody having reconfigured it since, the premise that it was off during the run is in doubt and
+> **this disposition withdraws immediately, the run is VOID.** If it is off, nothing is confirmed and
+> the disposition stands on §10.3.
+
+🔴 **No further amendment to ROW 0e.** I have now patched this row twice after the fact. The disposition
+in §9.3, as modified here, is **final for the 2026-09-15 run either way**, and any future E4 run uses
+**ROW 0e-1** (§9.4) with routing read at start **and** end, which is what should have been there from
+the beginning.
+
+### 10.5 What A3 changes
+
+Nothing except §9.3's condition (i). `BAR_E` stays frozen, F1–F4 and their readings stand (DRIFT F3,
+FADE F4), ROW 0a–0d/0f/0g untouched, no dose, block, trial-count, bar or row change. **No `src/` or
+`native/` change.** The Stage 2 census does **not** depend on any of this — it measures the live band
+from archived audio and calibrates on generator renders, so it is unaffected by whether the bench run
+stands, and QA may start its ROW 0a immediately.
+
+➡️ **The Captain must be told:** he ratified the strike with two conditions attached; one passed and
+**one I have struck myself rather than satisfied.** That changes what he ratified. The alternative on
+the table remains a ~2 h re-run under ROW 0e-1, and it is his call whether §10.3 is good enough.
