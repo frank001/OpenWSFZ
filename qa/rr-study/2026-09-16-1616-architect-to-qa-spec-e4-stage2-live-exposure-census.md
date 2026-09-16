@@ -456,3 +456,102 @@ suspicion, not adoption.**
 **Untouched:** `BAR_φ` (still with the Captain), `ρ*` = 0.577, E1–E3, the population, the sample, and
 every FADE row. **The FADE census — the reason this arm exists — is unaffected and still gated only on
 the worth-building anchor.** No `src/` or `native/` change.
+
+---
+
+## §10. Amendment B3 — block S changes the bar. Two thresholds off one measurement
+
+**Architect, 2026-09-16, on QA's block-S reduction (`e4_block_s_reduced.json`, `qa/e4-bench`
+`0011b5b1`).** 🔴 **`BAR_φ` = 0.12 is WITHDRAWN.** It applied a differential measured at −8 dB to the
+whole ≥ −10 dB population, and block S shows that is wrong. **This also resolves the "how to treat the
+10 Hz dose" fork I put to the Captain — it is answered here, by design, and no longer his to decide.
+The only thing still his is the worth-building anchor.**
+
+### 10.1 What block S says. Two effects, not one
+
+| FADE dose | `Δ` at −8 dB (block P, n=150) | `Δ` at 0 dB (block S, n=50) | reading |
+|---|---:|---:|---|
+| **5 Hz** | **+0.087** (90% [0.053, 0.127]) | **−0.020** (90% [−0.06, 0.00]) | **gone at 0 dB** — a plain SNR effect |
+| **10 Hz** | +0.073 | **+0.200** (90% [0.12, 0.30], **Bonferroni [0.06, 0.36]**) | **grows with SNR** |
+
+🔴 **`R_O` = 0.0000 at 10 Hz at BOTH SNRs — 0/150 and 0/50, zero recoveries in 200 trials — while
+`R_W` improves 7.3% → 20% as the signal gets stronger.** That is not an SNR lottery. It does not move
+when the signal gets stronger, which is what makes it look structural.
+
+🛑 **Block S is DESCRIPTIVE by construction (§3.5 A3). No gate row may fire on it, and the 10 Hz
+Bonferroni interval excluding zero is NOT an F1.** It informs this census's design — which is exactly
+what A3 was pre-registered for — and nothing else.
+
+### 10.2 🔴 The two-bin split is NOT available, and the reason is base rate
+
+The obvious response is a second threshold `ρ**` separating ≥ 10 Hz from ≈ 5 Hz. **Computed from ROW
+0a's own distributions (no new run), it does not work.** The `ρ₁` distributions at −8 dB overlap badly:
+
+| `B` | min | p10 | median | p90 | max |
+|---|---:|---:|---:|---:|---:|
+| 5 Hz | 0.090 | 0.136 | **0.215** | 0.307 | 0.348 |
+| 10 Hz | 0.008 | 0.067 | **0.132** | 0.218 | 0.246 |
+
+The best threshold, `ρ**` = 0.167, gives **detection 0.86 at a false-call rate of 0.24** — against the
+0.90 / 0.10 standard `ρ*` met at 1.00 / 0.00. **And milder fading is always commoner than severe**
+(HK-021(u)), so the false calls swamp the bin:
+
+| true φ(5–10 Hz) | true φ(≥10 Hz) | measured bin | **contamination** |
+|---:|---:|---:|---:|
+| 0.050 | 0.005 | 0.0163 | **74%** |
+| 0.050 | 0.010 | 0.0206 | 58% |
+| 0.020 | 0.005 | 0.0091 | 53% |
+
+**A bin that is majority misclassified milder fading cannot carry a bar.** So the census measures
+**one** quantity, `φ_upper(≥ 5 Hz)`, exactly as before.
+
+### 10.3 The design: one measurement, two thresholds
+
+Since `φ_upper(≥5 Hz)` is an upper bound on **both** sub-populations, it can be read against both
+effects at once. Same 1 pp anchor, same convention throughout (`Δ` at its 90% upper, the conservative
+end):
+
+| effect | population | share | `Δ` (90% upper) | threshold |
+|---|---|---:|---:|---:|
+| **5 Hz**, near-threshold only | REF −10 … −1 dB | 31.7% | 0.127 | **`BAR₅` = 0.25** |
+| **10 Hz**, all SNR | REF ≥ −10 dB | 66.2% | 0.300 | **`BAR₁₀` = 0.05** |
+
+**Replaces E1/E2/E3 (E4/E5 are struck by B2):**
+
+| row | predicate | reading |
+|---|---|---|
+| **E1** | ROW 0a passed **and** 95% upper limit on `φ_upper` **< `BAR₁₀` (0.05)** | 🔴 **FADE CLOSES ENTIRELY.** Even if every faded row were a 10 Hz row at the most favourable `Δ`, the ceiling is under 1 pp. |
+| **E2** | `BAR₁₀` ≤ upper limit, **and** 95% upper limit **< `BAR₅` (0.25)** | **The 5 Hz effect closes; the 10 Hz one does not.** Go to §10.4 before anything else. |
+| **E3** | otherwise, incl. any ROW 0a STOP | **UNRESOLVED.** |
+
+**Why E1 is clean:** it does not need the split. It closes both regimes with one number by assuming the
+worst case inside the measured envelope. **That is the whole reason this design survives the loss of
+`ρ**`.**
+
+### 10.4 🔴 The confound that must be resolved BEFORE any 10 Hz treatment — conditional, not now
+
+**WSJT-X's nonzero recovery at 10 Hz may not be fading robustness at all.** ROW 0b recorded its live
+settings: **`NDepth` = 3, `TwoPass` = true**. At 10 Hz spread most soft bits are worthless, which is
+precisely the regime where **a priori (AP) decoding** earns its keep — hypothesise the message, verify
+the CRC. **The bench's pool is 15 standard-format messages including `CQ`, which is exactly what AP
+exploits**, and AP gets *more* effective as SNR rises, which matches 7.3% → 20%.
+
+🛑 **If that is what is happening, "fix our fading weakness" is the wrong treatment entirely** — the
+difference would be a message-prior feature, not a channel-robustness one, and AP carries its own
+false-accept risk that this programme has a long history with.
+
+**It is NOT being tested now.** It costs bench time, and it only matters if the census fails to close.
+**Pre-registered sequencing: on an E2 or E3, the AP question is the FIRST thing resolved, before any
+fading treatment is scoped.** The test is a 10 Hz re-run with AP disabled, or with messages AP cannot
+exploit. 🛑 **Until then, "OpenWSFZ is structurally weak at 10 Hz Doppler spread" is an OPEN HYPOTHESIS,
+not a finding.** Do not let it harden.
+
+### 10.5 What B3 changes
+
+`BAR_φ` = 0.12 withdrawn, replaced by `BAR₅` = 0.25 and `BAR₁₀` = 0.05 **derived from the same single
+anchor**; E1–E3 re-specified; the E1 population for the 5 Hz reading narrowed to −10 … −1 dB. Untouched:
+`ρ*` = 0.577, ROW 0a, the sample, the seed, the one-sided reading, and §1.2's corrected framing. Both
+thresholds **scale inversely with the anchor** — at 0.5 pp they are 0.125 and 0.025; at 2 pp, 0.50 and
+0.10. **No `src/` or `native/` change.**
+
+➡️ **The Captain decides the anchor. That is now the only open input to this arm.**
