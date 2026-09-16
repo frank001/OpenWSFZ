@@ -526,3 +526,162 @@ re-run once on fresh seeds, and the report says so. A second STOP is a defect.
 
 `BAR_E` 0.10, F1–F4, ROW 0b–0g, the DRIFT and FADE dose ladders, blocks P/S, trial counts, N_BOOT and
 its seed, the §4 predictions, and Q2. **No `src/` or `native/` change.**
+
+---
+
+## §9. Amendment A2 and the ROW 0e disposition — Architect, 2026-09-16T16:08Z
+
+🔴 **A2 is written AFTER the data. A1 was not.** That difference is the whole reason this section is
+long. A2 does two things: it disposes ROW 0e for the run of 2026-09-15 18:26–19:25Z, and it replaces
+ROW 0e for any future run. **It changes nothing else** — see §9.5. The ROW 0e disposition converts a
+VOID into a live result, so it has a cost consequence and the Captain ratifies it (§9.6).
+
+### 9.1 ROW 0e fired. The row is defective, and the defect is mine
+
+ROW 0e as pre-registered: *"Within the run's cycles, **zero** decodes from either decoder carry a
+callsign-shaped token that is not Q-prefix"* ⇒ *"VOID, and an NFR-021 incident. Live band audio
+reached the decode bus."* Four such tokens appeared. **QA read the row correctly, did not soften it,
+and was right to hand the disposition up rather than take it.**
+
+**The row contradicts §3.5 A4 of this same document, and did so before any datum was taken.** A4
+pre-registers *"false positives. Decodes matching no injected message, per decoder, per family.
+Unmatched is false here, because truth is known."* A4 therefore expects a population of unmatched
+decodes and asks for it to be counted. At −9 to −24 dB an FT8 decoder's unmatched output routinely
+carries a callsign-shaped token, and nothing makes such a token Q-prefix. **So A4 predicts exactly the
+event ROW 0e declares fatal.** One clause budgets for a population the other treats as proof of
+contamination. That is not a post-hoc reinterpretation of a row that happened to fire; it is an
+internal inconsistency readable from the specification alone, with the data covered up.
+
+This is HK-026 in its plainest form: **ROW 0e is an instrument that cannot distinguish its target
+(live RF on the bus) from the bench's own expected output (false decodes).** Its response is not flat
+where the boundary sits. I pre-registered it anyway.
+
+### 9.2 The fact ROW 0e existed to establish has independent, pre-datum evidence
+
+The row is a proxy. The fact is *"no live band audio reached the decode bus."* That fact has evidence
+that does not depend on the token scan and was not chosen after seeing it:
+
+1. **Pre-run physical confirmation.** QA confirmed the radio's audio was off the decode bus before the
+   run, at the Captain's direction, and said so before the first datum.
+2. **Volume.** Four unmatched tokens across 200 cycles is ≈ 0.02 per cycle. Live band audio on this bus
+   at these SNRs puts **tens of decodes per cycle** into both `ALL.TXT`s — the C2 corpus is the
+   measured precedent. The contamination hypothesis is wrong by **two to three orders of magnitude**,
+   not by a factor. This is a magnitude argument, and it does not need a threshold chosen after the
+   fact to carry.
+
+QA's forensic points (all four tokens within 1–7 Hz of one of the bench's own 15 station frequencies;
+all at −9 to −24 dB, matching the doses in play in those cycles; all structurally malformed — a
+doubled `/R`, a `<...>` hash placeholder although E4 injects zero hashed callsigns) are **consistent
+with** the above and were selected after the result. They are recorded as corroboration and **carry no
+weight in this disposition**.
+
+### 9.3 Disposition: ROW 0e FIRED; the run is NOT VOID
+
+**Ruling.** ROW 0e's predicate fired and that stands on the record — it is not re-read, not
+re-thresholded, and not declared un-fired. What is struck is the predicate's **authority to VOID**,
+on the §9.1 ground that it is internally inconsistent with A4 and cannot separate the two populations.
+The fact it proxied is established by §9.2. **The run of 2026-09-15 stands as a live result.**
+
+🔴 **Conditional on two mechanical confirmations QA runs offline, at zero station cost.** If either
+fails, this disposition is withdrawn and the run is VOID:
+
+- **(i) The routing held to the end.** An observation *timestamped after 19:25Z* that the radio's audio
+  was still off the playback bus — Voicemeeter routing state, device graph, or the rig's power state.
+  Whatever the station already records (HK-027). If nothing recorded it, say so; that is a negative
+  answer, not a pass.
+- **(ii) Volume.** Total unmatched (non-truth) decodes across the run window, both decoders, ≤ 20, and
+  no single cycle above 2. Observed is 4 and ≤ 1. The bound has two orders of margin over any live
+  band; it is a sanity floor, not a fine-grained test, and it is stated that way on purpose.
+
+**The Captain's separate NFR-021 ruling (scope is VCS/commits; this was an uncommitted local run) is
+accepted and is a different question. This section answers only "did real RF reach the bus".**
+
+### 9.4 Replacement ROW 0e, for any future run: assert the cause, not the symptom
+
+| row | check (as code) | on failure |
+|---|---|---|
+| **0e-1** routing | The radio's audio is not routed to the playback bus, read mechanically from the audio graph at run **start and end**, both recorded verbatim in the report. Unreadable counts as failed. | **VOID** |
+| **0e-2** ~~token scan~~ | ~~zero non-Q callsign-shaped tokens~~ **STRUCK (§9.1).** | — |
+
+**New descriptive, no row — A7.** Every unmatched callsign-shaped token in the window, with its cycle,
+frequency, SNR, and distance to the nearest injected station frequency in that cycle. It is reported
+and never gates. A7 is what the token scan was actually measuring.
+
+**What 0e-1 cannot detect (HK-022):** contamination arriving by a path that is not the radio — another
+application on the bus, or a mid-run routing change that reverts before the end check. A7's frequency
+column is the descriptive tell for that, and it is descriptive on purpose.
+
+### 9.5 🔴 The F-row readings, recomputed from `e4_gate_results.json` (HK-018)
+
+**QA's report inverts ROW 0f's polarity, and it changes DRIFT's reading.** ROW 0f is
+`min(R_O, R_W) ≤ 0.50` at the top dose, and its *failure* branch ("ladder too gentle") is what removes
+F3. Both decoders read 0.0000 at DRIFT 16 Hz and FADE 20 Hz ⇒ the predicate is **satisfied** ⇒ ROW 0f
+**PASSED** for both families ⇒ **F3 is on the table, not off it.**
+
+Reading the pre-registered F-rows off QA's own gate file, doses above 0 only:
+
+| family | ROW 0f | F1 (`max CI_lo^Bonf` ≥ 0.10) | F2 (`min CI_hi^Bonf` ≤ −0.10) | F3 (every 90% interval inside ±0.10) | **reading** |
+|---|---|---:|---:|---|---|
+| **DRIFT** | PASS (0.0 at 16 Hz) | 0.000 — no | 0.000 — no | all six: [0,0] or [−0.02, 0] ⇒ **yes** | **F3** |
+| **FADE** | PASS (0.0 at 20 Hz) | 0.033 (5 Hz) — no | 0.000 — no | 5 Hz `p90_hi` = **0.1267**, 10 Hz = **0.1067** ⇒ no | **F4** |
+
+**DRIFT reads F3, not F4.** Per §3.7 that closes DRIFT as an explanation of the above-threshold gap on
+this binary — **the family, on this ladder, not E4** (§3.2's caveat stands).
+
+⚠️ **Honest limitation on the DRIFT F3, flagged by me and not by the predicate.** Both decoders hold
+≥ 99.3% through 8 Hz and both read 0.0000 at 16 Hz, so the ladder has an **unmeasured octave, (8, 16]
+Hz**, exactly where the transition lives. F3's predicate is satisfied as written and the reading
+stands. A differential hidden inside that octave is possible. I do **not** recommend buying it: 8 Hz of
+total drift across one 12.6 s transmission is far outside the live population, and that claim is
+checkable for free from the archived logs (per-station frequency change across consecutive cycles), not
+with station time.
+
+🔴 **My §4 blind predictions missed again.** DRIFT: predicted F1 0.45, F3 0.25 — outcome F3, and the
+point prediction `d50` ∈ [2, 6] Hz was wrong by at least an octave in the safe direction. FADE:
+predicted F3 0.35, F4 0.30 — outcome F4, `d50` ≥ 10 Hz predicted and met. **Running tally for §3.4-style
+weighting: of my last six categorical calls, four missed.**
+
+### 9.6 What A2 does not change, and what needs the Captain
+
+`BAR_E` = 0.10 — 🔴 **now FROZEN**: `Δ` exists, so the §5 Q1 "for now" window is closed, and a proposal
+to move it (mine included) is refused. Unchanged: F1–F4 and their predicates, ROW 0a–0d, 0f, 0g, the
+dose ladders, blocks P/S, trial counts, N_BOOT and its seed, the §4 predictions as recorded. **No
+`src/` or `native/` change.**
+
+➡️ **Captain ratifies (§9.3):** whether ROW 0e's VOID authority is struck and the 2026-09-15 run
+stands. It is the difference between a DRIFT closure and re-buying ~2 h of station time.
+➡️ **Captain decides (§3.7 F4 route, FADE):** my recommendation is **stop, do not extend** — §9.7.
+
+### 9.7 Why I do not recommend a tighter re-run
+
+QA asks whether the top doses should be pulled in now that both decoders look more robust than
+predicted. **DRIFT: no** — it reads F3 and the unmeasured octave is live-implausible (§9.5).
+**FADE: no, and the arithmetic is the reason, not the appetite.**
+
+FADE's whole signal is two adjacent doses with the same sign: 5 Hz `Δ` = +0.087 (90% [0.053, 0.127])
+and 10 Hz `Δ` = +0.073 (90% [0.040, 0.107]). Take the point estimates as true and ask what any `n`
+could buy:
+
+- **F1 needs `CI_lo^Bonf` ≥ 0.10.** At a true `Δ` of 0.087 that bound converges to 0.087. **F1 cannot
+  fire at any `n`.** It fires only if the point estimate is badly low — and 0.15 already sits outside
+  the current 90% interval.
+- **F3 needs every 90% interval inside ±0.10.** At a true `Δ` of 0.087 the half-width must fall below
+  0.013, from 0.037 now. That is ≈ 8× the trials, **≈ 13 h of station time**, to earn a reading of "no
+  material differential" about a differential of 0.087.
+
+**So FADE is structurally F4 at `BAR_E` = 0.10, and a re-run mostly re-buys F4.** That is not an
+instrument defect. It is what a true effect sitting on the bar looks like, and the bar was set where it
+was on purpose.
+
+**The decision-relevant quantity is exposure, and it costs no station time.** §3.4's own arithmetic
+with the measured `Δ`: the recoverable live gain is at most `0.087 × φ × 66` pp, where φ is the share
+of above-threshold live rows carrying ≥ 5 Hz of Doppler spread. φ = 0.3 ⇒ 1.7 pp; φ = 0.1 ⇒ 0.57 pp;
+φ = 0.05 ⇒ 0.29 pp. **5 Hz of spread is polar-path flutter, not a mid-latitude path**, so my estimate
+is φ ≤ 0.05 and FADE closes on exposure without another trial.
+
+⚠️ **That estimate is mine, not measured.** §3.7 gates Stage 2 (the live exposure census, run over all
+REF rows ≥ −10 dB, hit or missed, HK-021(t)) on **an F1**, and we have F4 — so specifying Stage 2 now
+is a **deviation from this spec, flagged as one**, and it is the Captain's call. It needs no station
+time: it runs on archived C2 audio. **My recommendation: run Stage 2 for FADE exposure, stop the
+bench.** If φ comes back small, FADE closes on arithmetic and **density becomes the leading remaining
+candidate for the 17.96 pp ceiling** (§3.7), which is the question I would bring next.
