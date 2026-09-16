@@ -554,4 +554,41 @@ anchor**; E1–E3 re-specified; the E1 population for the 5 Hz reading narrowed 
 thresholds **scale inversely with the anchor** — at 0.5 pp they are 0.125 and 0.025; at 2 pp, 0.50 and
 0.10. **No `src/` or `native/` change.**
 
-➡️ **The Captain decides the anchor. That is now the only open input to this arm.**
+➡️ ~~**The Captain decides the anchor. That is now the only open input to this arm.**~~
+
+### 10.6 ✅ ANCHOR RATIFIED — 2026-09-16. The census is GO
+
+**The Captain: *"I agree with the 1 point."*** His reasoning, recorded because it has a standing
+consequence beyond this arm:
+
+> *"even when we can improve the decoder a slightly bit it may be worth revisiting investigations that
+> we have closed or parked to see if the improvements can bring better results."*
+
+**Fixed by that ratification, and now FROZEN once QA produces the first `φ` (§5 Q1's rule):**
+
+| | value |
+|---|---:|
+| worth-building anchor | **1.00 pp** |
+| **`BAR₅`** (5 Hz, REF −10…−1 dB, 31.7%, `Δ`hi 0.127) | **0.25** |
+| **`BAR₁₀`** (10 Hz, REF ≥−10 dB, 66.2%, `Δ`hi 0.300) | **0.05** |
+
+🟢 **Nothing else is outstanding. E1–E3 run as specified in §10.3, on ROW 0a's fixed `ρ*` = 0.577.**
+
+### 10.7 🔴 The standing consequence of the Captain's reasoning — a distinction, not a loophole
+
+His argument is that a gain's worth includes **option value on re-opening closed work**. That is
+sound, and it collides with a standing prohibition unless the boundary is stated precisely:
+
+| | status |
+|---|---|
+| Re-reading a closed gate **with a better metric on the same data** | 🛑 **PROHIBITED, unchanged.** This is the standing rule and the Captain's reasoning does not touch it. |
+| Re-running a closed arm **against a decoder that has materially changed** | ✅ **A genuinely new experiment** — the system under test is different, so it is not a re-read. It still earns a **fresh pre-registration**. |
+
+🔴 **What this requires of us going forward: a closure must record WHICH BINARY it was closed against.**
+A closure that does not name its binary cannot be revisited under this reasoning, because there is no
+way to tell whether anything changed. ✅ The `E4-BENCH` DRIFT `F3` ruling already carries this —
+*"closes DRIFT … **on this binary**"* — and that phrasing is now the required form, not a stylistic
+choice. **Shim `20260051` / DLL `91997e38…ad2c6` is the binary every E4 closure is pinned to.**
+
+🛑 **This is not a licence to re-open on appetite.** NBR-A's closure already sets the bar for what a
+re-entry must name: *"what changed other than appetite for the answer."* That stands.
