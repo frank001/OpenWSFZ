@@ -80,8 +80,15 @@ From `g`:
 ### 1.2 🔴 The blind spot, stated before the data (HK-026)
 
 **A channel sampled at 6.25 Hz has a Nyquist limit of 3.125 Hz.** The dose that matters — 5 Hz spread —
-is **above** that limit. `ρ₁` is monotone in `B` at low spread and then **saturates**: somewhere around
-3 Hz it reaches the floor and a 5 Hz channel becomes indistinguishable from a 15 Hz one.
+is **above** that limit. `ρ₁` is monotone in `B` at low spread and then **saturates**: ~~somewhere around
+3 Hz it reaches the floor and a 5 Hz channel becomes indistinguishable from a 15 Hz one.~~
+
+🔴 **STRUCK 2026-09-16 by B1 (§8.3) — this was PESSIMISTIC and measurably wrong.** ROW 0a measured
+median `ρ₁` at −8 dB: `B` = 1 → 0.861, 2 → 0.647, **5 → 0.215**, 10 → 0.132, 20 → 0.096, against a
+statistic floor of ≈ 1/√79 = 0.112. **5 Hz is cleanly separated from both ≤ 1 Hz and from 10 Hz.**
+Saturation onset is ≈ 10 Hz, not 3 Hz. 🛑 **Never cite "the estimator is blind above 3 Hz."**
+**The one-sided reading below is UNCHANGED, but it now rests on leg (1) alone** — live corruption
+biases `ρ₁` down — **not on saturation.**
 
 **So this instrument cannot measure φ. It can only bound it.** Two things make that acceptable, and
 both must survive ROW 0a or the census does not run:
@@ -173,8 +180,11 @@ live population — **asserted by me, never measured.** This census measures it 
 
 | row | predicate | reading |
 |---|---|---|
-| **E4** | ROW 0a(iv) passed, and the 95% upper limit on the share of sampled rows with \|Δf\| ≥ 8 Hz is **< 0.005** | **The (8,16] hole is formally dismissed and DRIFT's F3 closure stands without the caveat.** |
+| **E4** | ~~ROW 0a(iv) passed, and the 95% upper limit on the share of sampled rows with \|Δf\| ≥ 8 Hz is **< 0.005**~~ 🔴 **SUSPENDED by B1 (§8) — the drift estimator ALIASES at exactly this threshold.** Re-armed unchanged once ROW 0a(v) passes. | **The (8,16] hole is formally dismissed and DRIFT's F3 closure stands without the caveat.** |
 | **E5** | otherwise | **The caveat stands as written.** The hole stays open, and re-opening it becomes a real question rather than a theoretical one. |
+
+🛑 **E4 and E5 MAY NOT BE COMPUTED until ROW 0a(v) passes (§8).** The predicates and the 0.005 bar are
+unchanged; only the instrument underneath them is being replaced.
 
 ### 3.3 Descriptive, no row (report every one)
 
@@ -247,3 +257,99 @@ arithmetic rather than judgement.
 
 **HK-025 applies: QA may refuse any row here on mechanical grounds without my agreement.** ROW 0a(ii)
 is the one I most want argued with if it looks unworkable — it is doing all the load-bearing work.
+
+---
+
+## §8. Amendment B1 — the drift estimator aliases at exactly the threshold E4 gates on
+
+**Architect, 2026-09-16, after QA's ROW 0a report.** ROW 0a **PASSES**. B1 suspends E4/E5, replaces the
+drift estimator, adds ROW 0a(v)–(vi), and corrects §1.2. **`BAR_φ`, `ρ*`, `BAR` 0.005, E1–E3 and the
+population are untouched.**
+
+### 8.1 What ROW 0a returned
+
+| sub-row | result |
+|---|---|
+| **0a(i)** monotone | ✅ PASS — median `ρ₁` 0.970 / 0.962 / 0.943 / 0.861 / 0.647 across 0.1 → 2 Hz |
+| **0a(ii)** separation | ✅ **PASS with room**: at `ρ*` = 0.577, P(`ρ₁` < `ρ*` \| 5 Hz) = **1.00**, P(\| ≤ 1 Hz) = **0.00**, against a 0.90 / 0.10 bar. `ρ*` = 0.577 is **now FIXED and never touched again.** |
+| **0a(iii)** saturation | disclosed: `ρ₁` still falling at 20 Hz (0.132 → 0.096). Floor ≈ 1/√79 = 0.112, so it is at the floor by ~10 Hz. |
+| **0a(iv)** null | ✅ PASS — median `ρ₁` 0.976, median \|Δf\| 0.007 Hz |
+
+### 8.2 🔴 The defect QA found, which ROW 0a as written could not have caught
+
+QA went past what 0a(iv) asked — it validates `drift_hz()` **only at drift = 0** — and ran the
+estimator against the bench's **known DRIFT ladder**, because E4/E5 depend on that same estimator
+reading real drift up to 8 Hz. Measured, −8 dB, n = 50 per dose:
+
+| injected | 0 | 0.5 | 1 | 2 | 4 | **8** | **16** |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **recovered (median)** | −0.002 | 0.501 | 1.001 | 1.998 | 3.997 | **3.305** | **2.893** |
+
+**Exact through 4 Hz, then it folds.** This is not noise — it is the estimator's own Nyquist ceiling:
+`g` is sampled once per symbol at 6.25 Hz, so the *instantaneous* offset is unambiguous only to
+±3.125 Hz, which a linear ramp first violates at **6.25 Hz of total drift**. Onset matches to the Hz.
+
+🔴 **The direction is what makes it fatal, and QA named it correctly: this biases LOW at exactly the
+8 Hz line E4 gates on.** A row genuinely drifting 8 Hz reads back ≈ 3.3 Hz — **under** the threshold.
+So E4 would fire, "the share is tiny, the hole is dismissed," **whether drift is rare or ubiquitous.**
+It is the opposite of `φ_upper`'s safe one-sided bias, and it manufactures the reassuring answer.
+**A row that can only return the comforting result is not a check** (HK-021(k), HK-026).
+
+**And I had already written the argument that kills it, two sections earlier.** §1.2 derives the
+6.25 Hz sampling limit and reasons carefully about what it does to `ρ₁` — then §3.2 builds E4 on a
+second statistic drawn from *the same samples* without applying it. 🔴 **Named lesson: a sampling limit
+applies to EVERY consumer of the limited quantity, not just the one you were thinking about when you
+found it.** That is the error, and it is mine.
+
+### 8.3 What is corrected, and one piece of good news
+
+- **§1.2's saturation claim is struck in place** (marked there, HK-022). It was pessimistic: 5 Hz reads
+  0.215 against a 0.112 floor and separates cleanly from 10 Hz. **Saturation onset ≈ 10 Hz, not 3 Hz.**
+- 🔴 **The one-sided reading is UNCHANGED** — `φ_upper` is still only an upper bound and *"φ is small"*
+  is still the only closing reading. But it now rests on **live corruption biasing `ρ₁` down** (noise,
+  co-channel energy, DT/frequency error), **not on saturation.** A future reader citing "blind above
+  3 Hz" is citing a struck claim.
+- ✅ **FADE is NOT affected by the aliasing, and here is why, so the doubt does not spread:** `ρ₁` is a
+  **magnitude**. A linear drift multiplies `g` by a near-constant phase rotation per sample, which
+  rotates the lag-1 product without shrinking it. Second order, if drift pulls the tone off the
+  correlation bin, `|g|` shrinks and `ρ₁` falls — **down, i.e. `φ_upper` up, the safe direction.**
+  **E1–E3 proceed unchanged.**
+- ✅ **Fading does not fake drift**, checked in QA's own data: on FADE-only renders with zero injected
+  drift, the **share reading ≥ 8 Hz is 0.00 at every `B`**, max spurious \|Δf\| 2.2 Hz. So E4's
+  threshold has ≈ 4× margin over fade-induced noise. The false-**positive** direction was already safe;
+  it is the false-negative one that is broken.
+
+### 8.4 Replacement drift estimator: no phase unwrapping, so no aliasing
+
+**Split-window frequency difference.** No unwrapping anywhere, so there is no Nyquist ceiling to fold
+across — the ambiguity limit becomes the **search range**, which we choose, and a row that pins at the
+edge is **flagged out-of-range rather than silently folded**.
+
+1. Sub-window **A** = symbols 1–26, sub-window **B** = symbols 54–79.
+2. In each, estimate the frequency offset by maximising coherent correlation against that window's
+   **known** tone sequence over a search grid of **±25 Hz**, coarse then fine, final step ≤ 0.05 Hz.
+3. Centroids are 53 symbols apart out of 79, so
+   **`Δf_total` = (`f_B` − `f_A`) × 79/53 = 1.491 × (`f_B` − `f_A`)**.
+4. Any row whose `f_A` or `f_B` lands within 0.5 Hz of a search edge is **flagged out-of-range and
+   counted separately**, never silently included.
+
+### 8.5 New ROW 0a(v) — QA's check, promoted to a pre-registered gate
+
+**It was QA's initiative that found this, so it becomes the row rather than staying an anecdote.**
+
+| sub-row | check (as code) | on failure |
+|---|---|---|
+| **0a(v)** drift recovery across the range | At −8 dB, ≥ 50 trials, on the bench's own DRIFT ladder **0, 0.5, 1, 2, 4, 8, 16 Hz**: median recovered within **max(±0.5 Hz, ±10%)** of injected **at every dose, 8 and 16 Hz included**; and at dose 0, median \|Δf\| < 0.5 Hz. | **STOP.** E4/E5 stay suspended and the §9.5 DRIFT caveat stands unmeasured. A second failure means the census cannot answer the drift question, which is a legitimate outcome — **do not widen the tolerance to pass it.** |
+| **0a(vi)** drift under fade, **disclosure only** | Drift recovery at injected 8 Hz combined with FADE `B` = 1 Hz and `B` = 5 Hz, if the generator composes the two cheaply. If it does not, **say so** — the combined case is then untested and that goes in the report. | no STOP |
+
+**Why 0a(v) changes the verdict (both branches):** passed, a small measured share at ≥ 8 Hz means drift
+really is rare and E4 means something. Failed, the same small share means nothing at all, which is
+precisely today's defect.
+
+### 8.6 Sequence
+
+- **E1–E3 (FADE) are unaffected** and still gated only on `BAR_φ`, which is still with the Captain.
+- **E4/E5 (DRIFT) wait on 0a(v).**
+- QA's next step is the replacement estimator and 0a(v), which needs no live audio and no `BAR_φ` — so
+  it runs in parallel with the Captain's decision and nothing is idle.
+- 🛑 **No `src/` or `native/` change.** The estimator lives in `qa/rr-study/synth/`.
