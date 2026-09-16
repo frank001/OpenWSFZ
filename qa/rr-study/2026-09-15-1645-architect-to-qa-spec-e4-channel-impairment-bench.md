@@ -652,9 +652,12 @@ dose ladders, blocks P/S, trial counts, N_BOOT and its seed, the §4 predictions
 `src/` or `native/` change.**
 
 ✅ **RATIFIED by the Captain, 2026-09-16: *"ratify the ROW 0e strike, and run the exposure census"*.**
-ROW 0e's VOID authority is struck and the 2026-09-15 run stands. ⚠️ **He ratified it with two
-conditions attached (§9.3); one of them has since been struck by me rather than satisfied — see §10,
-which he must be told about because it changes what he ratified.**
+ROW 0e's VOID authority is struck and the 2026-09-15 run stands. ⚠️ He ratified it with two conditions
+attached (§9.3); one was then struck by me rather than satisfied (§10), and A4 (§11) weakened the
+reasoning further. **Both were put to him explicitly, with the re-run as the stated alternative.**
+🔴 ✅ **FINAL — the Captain, 2026-09-16, on the corrected and weakened case: *"the run stands.
+proceed."*** The pre-run off-bus confirmation and the magnitude argument carry it; **no re-run**.
+**ROW 0e is CLOSED. DRIFT's `F3` is banked without qualification.** 🛑 Do not re-litigate this row.
 ✅ **FADE route decided, same ruling:** stop the bench, run the live exposure census. Specified in
 `qa/rr-study/2026-09-16-1616-architect-to-qa-spec-e4-stage2-live-exposure-census.md`. ⚠️ Recorded there
 as a **flagged deviation** from §3.7, which gates Stage 2 on an F1.
