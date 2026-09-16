@@ -116,6 +116,13 @@ def drift_hz(g: np.ndarray, sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ) -> flo
     offset +/-D/2; once ``D/2`` exceeds ~3.125 Hz (``D`` gtr approx 6.25 Hz) the
     per-step phase difference can exceed +/-pi and alias. See the calibration
     report's own drift-ladder addendum for where this actually bites.
+
+    🔴 SUPERSEDED for anything gating on drift (2026-09-16, amendment B1, spec
+    Sec.8): this function reads back ~3.3 Hz for a true 8 Hz dose and ~2.9 Hz
+    for a true 16 Hz dose -- aliased LOW, the unsafe direction for Sec.3.2's
+    E4/E5, which gate on exactly that threshold. Kept only as the historical
+    record of the defect ROW 0a(v) was written to catch; use
+    :func:`split_window_drift_hz` for any new measurement.
     """
     n = len(g)
     if n < 3:
@@ -132,3 +139,105 @@ def drift_hz(g: np.ndarray, sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ) -> flo
     slope, _intercept = np.linalg.solve(ATA, ATb)
     transmission_s = n * SYMBOL_PERIOD_S
     return float(slope * transmission_s)
+
+
+# ── Replacement drift estimator (amendment B1, Stage-2 spec Sec.8.4) ─────────
+#
+# Split-window frequency difference. No phase unwrapping anywhere -- there is
+# therefore no Nyquist ceiling to fold across. The ambiguity limit becomes the
+# search range (chosen below, +/-25 Hz), and a row that pins at the edge is
+# flagged out-of-range rather than silently folded -- the change of failure
+# mode (loud vs silent) is the point of the redesign, more than the range.
+
+NUM_SYMBOLS_SW = NUM_SYMBOLS  # local alias, for readability below
+WINDOW_A = (0, 26)     # symbols 1-26 (1-indexed) -- Sec.8.4 step 1
+WINDOW_B = (53, 79)    # symbols 54-79 (1-indexed)
+_CENTROID_A = (WINDOW_A[0] + WINDOW_A[1] - 1) / 2.0   # 12.5
+_CENTROID_B = (WINDOW_B[0] + WINDOW_B[1] - 1) / 2.0   # 65.5
+CENTROID_GAP_SYMBOLS = _CENTROID_B - _CENTROID_A       # 53.0
+DRIFT_SCALE = NUM_SYMBOLS_SW / CENTROID_GAP_SYMBOLS    # 79/53 = 1.4906 (Sec.8.4 step 3)
+
+SEARCH_RANGE_HZ = 25.0
+_COARSE_STEP_HZ = 0.5
+_FINE_HALF_WINDOW_HZ = 0.5
+_FINE_STEP_HZ = 0.05           # Sec.8.4 step 2: "final step <= 0.05 Hz"
+EDGE_FLAG_MARGIN_HZ = 0.5       # Sec.8.4 step 4: "within 0.5 Hz of a search edge"
+
+
+def _window_freq_offset(
+    mixed: np.ndarray,
+    t: np.ndarray,
+) -> float:
+    """argmax_f |sum mixed * exp(-j*2*pi*f*t)| over a coarse-then-fine grid.
+
+    ``mixed`` is already ``seg * conj(z_ref)`` for the base (delta_f=0)
+    reference, restricted to one sub-window's samples -- so this is a search
+    over the RESIDUAL offset only, not the whole carrier. Looped rather than
+    an outer-product matrix (samples-per-window x grid-size would be tens of
+    millions of complex entries per call): each grid point is one vectorised
+    dot product, cheap, and this keeps memory flat.
+    """
+    def score(freqs: np.ndarray) -> np.ndarray:
+        return np.array([
+            abs(np.sum(mixed * np.exp(-1j * 2.0 * np.pi * f * t))) for f in freqs
+        ])
+
+    coarse = np.arange(-SEARCH_RANGE_HZ, SEARCH_RANGE_HZ + 1e-9, _COARSE_STEP_HZ)
+    c_best = float(coarse[np.argmax(score(coarse))])
+
+    lo = max(-SEARCH_RANGE_HZ, c_best - _FINE_HALF_WINDOW_HZ)
+    hi = min(SEARCH_RANGE_HZ, c_best + _FINE_HALF_WINDOW_HZ)
+    fine = np.arange(lo, hi + 1e-9, _FINE_STEP_HZ)
+    return float(fine[np.argmax(score(fine))])
+
+
+def split_window_drift_hz(
+    audio: np.ndarray,
+    tones: "list[int]",
+    base_freq_hz: float,
+    dt_s: float = 0.0,
+    sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
+) -> "tuple[float, bool]":
+    """Total drift Delta-f (Hz) via the split-window method (B1, Sec.8.4).
+
+    Returns ``(delta_f_hz, out_of_range)``. ``out_of_range`` is True iff
+    either sub-window's fitted offset lands within :data:`EDGE_FLAG_MARGIN_HZ`
+    of the +/-:data:`SEARCH_RANGE_HZ` search edge -- per Sec.8.4 step 4, such a
+    row must be counted separately, never silently included in a median.
+
+    Method: for each of sub-window A (symbols 1-26) and B (symbols 54-79),
+    find the frequency offset (relative to ``base_freq_hz``) that maximises
+    coherent correlation against that window's own KNOWN tones, restricted to
+    that window's own samples. The two windows' centroids are
+    :data:`CENTROID_GAP_SYMBOLS` (53) of 79 symbols apart, so
+    ``delta_f_total = (f_B - f_A) * NUM_SYMBOLS / CENTROID_GAP_SYMBOLS``.
+    """
+    if len(tones) != NUM_SYMBOLS:
+        raise ValueError(f"expected {NUM_SYMBOLS} tones, got {len(tones)}")
+
+    fs = sample_rate_hz
+    phase_ref = instantaneous_phase(list(tones), base_freq_hz, fs)
+    z_ref = np.exp(1j * phase_ref)
+    n_tx = len(z_ref)
+
+    start = int(round(dt_s * fs))
+    seg = np.asarray(audio, dtype=np.float64)[start:start + n_tx]
+    if len(seg) < n_tx:
+        raise ValueError(
+            f"audio too short for extraction: need {n_tx} samples from offset "
+            f"{start}, got {len(seg)}"
+        )
+    mixed_full = seg * np.conj(z_ref)
+    sps = int(round(SYMBOL_PERIOD_S * fs))
+
+    def window_estimate(win: "tuple[int, int]") -> "tuple[float, bool]":
+        s, e = win[0] * sps, win[1] * sps
+        t_w = np.arange(s, e, dtype=np.float64) / fs
+        f_hat = _window_freq_offset(mixed_full[s:e], t_w)
+        oor = abs(f_hat) >= (SEARCH_RANGE_HZ - EDGE_FLAG_MARGIN_HZ)
+        return f_hat, oor
+
+    f_a, oor_a = window_estimate(WINDOW_A)
+    f_b, oor_b = window_estimate(WINDOW_B)
+    delta_f_total = (f_b - f_a) * DRIFT_SCALE
+    return delta_f_total, (oor_a or oor_b)

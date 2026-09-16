@@ -142,6 +142,7 @@ def modulate_faded(
     seed: int,
     extended: bool = False,
     tau_s: float = FADE_TAU_S,
+    drift_hz: float = 0.0,
 ):
     """Render `tones` through a two-path Watterson fading channel (Sec.2.3), placed
     at `dt_s` in a `slot_length_s` slot -- the FADE-family counterpart to
@@ -158,8 +159,14 @@ def modulate_faded(
     consumed by both `g1` and `g2` in sequence from one `Generator`, so the two paths
     are independent draws from the same deterministic stream, not from two identical
     seeds.
+
+    `drift_hz` -- default 0.0, byte-identical to omitting it (matches
+    :func:`synth.modulator.modulate`'s own convention). E4's own ladder never
+    combines the two families on one station (Sec.2.4) -- this parameter exists
+    for E4-STAGE2 ROW 0a(vi) only (drift-under-fade, disclosure check, amendment
+    B1 Sec.8.5), forwarded straight to :func:`instantaneous_phase` unchanged.
     """
-    phase = instantaneous_phase(tones, base_freq_hz, sample_rate_hz)  # no drift (Sec.2.4)
+    phase = instantaneous_phase(tones, base_freq_hz, sample_rate_hz, drift_hz=drift_hz)
     z = np.exp(1j * phase)
     n = len(z)
 
