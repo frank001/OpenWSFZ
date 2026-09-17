@@ -1408,3 +1408,37 @@ interpolation is not `φ`; `φ` comes from the pre-registered sample and only af
 - 🛑 **No `φ`. `BAR₅`/`BAR₁₀` still ratified, still movable.**
 - ✅ QA accepted §16's three corrections without re-litigating and is independently re-deriving §16.1's
   counterfactual. **Nothing is owed back on that.**
+
+### 17.5 🔴 §13.5's read-out, SHARPENED — pre-registered 19:46Z, BEFORE QA's data lands
+
+QA confirms Item 1(a) is already built the right way: same 993 rows, `GRID_A` 0.20–0.80 vs `GRID_B`
+0.40–0.60, tracking per-row same-origin agreement. **That is the discriminator §17.1 asked for and it
+needs no redesign.** Two read-out additions only — both are `groupby`s on data the run already produces,
+no new compute:
+
+**(i) 🔴 The decisive statistic is not the median shift — it is WHERE the mismatches sit.**
+A global median shift can stay small while mis-location still owns the low tail, and the low tail is
+exactly what `φ` counts.
+
+> **Report the origin-mismatch rate stratified by `ρ₁`** — at minimum bottom decile vs top decile, or
+> below-`ρ*` vs above-`ρ*`.
+
+| | predicate | reading |
+|---|---|---|
+| **G-a** | bottom-decile mismatch rate ≤ **2×** the top-decile rate | mis-location is **not** concentrated in the low tail ⇒ the spread is the CHANNEL ⇒ **P1 confirmed, gate clears** |
+| **G-b** | bottom-decile rate > 2× the top **and** those rows' `ρ₁` rises materially on `GRID_B` | per-row instrument failure contributes to the low tail ⇒ 🛑 **spread is contaminated, `φ` is not computable as specified** |
+| **G-c** | otherwise | report, do not interpret |
+
+**(ii) ⚠️ `GRID_B` IS NOT A GOLD STANDARD, and the mismatch count alone is ambiguous.**
+A row whose **true** origin lies outside 0.40–0.60 (a genuinely late or early arrival) is **forced** to a
+wrong origin by the narrow grid. A mismatch therefore does not by itself mean `GRID_A` was wrong.
+
+> **For every mismatched row, report which grid gives the higher Costas peak power / sharpness.** That
+> identifies which origin is actually better **from the data**, instead of assuming the narrow one is.
+
+✅ **One thing this asymmetry does NOT threaten:** forcing a wrong origin *lowers* `ρ₁` (that is B5's
+whole finding), so a **higher** median on `GRID_B` cannot be manufactured by over-narrowing. The
+direction is safe; only the per-row attribution needs (ii).
+
+🔴 **Pre-registered at 19:46Z, before QA reported Item 1(a). If any of this arrives after the data, it is
+outcome-chosen and must be discarded** (HK-021(y)).
