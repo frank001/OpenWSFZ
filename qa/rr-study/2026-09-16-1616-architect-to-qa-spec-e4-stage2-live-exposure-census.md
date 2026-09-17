@@ -14,6 +14,58 @@ Captain over that logic.**
 
 ---
 
+# 🔴 §0.0 CURRENT POSITION — READ THIS BEFORE CITING ANYTHING FROM §8–§19
+
+**Added 2026-09-17T21:3xZ.** This document carries **twelve amendments (B1…B13), and several withdraw,
+void or refute earlier ones.** Reading it front-to-back will hand you retired figures as if they were
+findings. **This block is the live state. Where it disagrees with any section below, this block wins.**
+
+## ✅ ESTABLISHED
+
+| | |
+|---|---|
+| **Time origin** | `DT` is located **per row**, Costas-only, on **`GRID_A` = `[DT_ref+0.20, DT_ref+0.80]`** (§12.6). The true offset sits at ≈ **`DT_ref`+0.48 s**. 🛑 **Never hard-code the offset — search.** |
+| **ROW 0h** | PASS — `iqr(dt_off)`=0.06, sharpness ≥3× on 99.0%. *(measured on the WIDE grid, by design)* |
+| **ROW 0i** | 🟢 **PASS — median `ρ₁` = 0.8865 on `GRID_A`, n=849** (B12). |
+| **ROW 0j′** | 🟢 **J1** — dropped vs kept differ by 0.0135 / 0.0131 vs a 0.05 bar ⇒ **missing at random, NO band** (B13). |
+| **ROW 0k** | 🟢 **K1** — ratio 0.1476 vs bar 0.20 ⇒ `ρ₁` **discriminates fading on real audio**. |
+| **`ρ*` = 0.577** | Stands as specified. **No re-referencing** — P2 (common receive-chain offset) is ruled out. |
+| **P3 (near-neighbour)** | 🛑 **DEAD** — zero deficit at 50 Hz; required reach is ≈47 Hz (B8 §15.1). |
+| **Drift limb / E4 / E5** | **STRUCK** (B2). §9.5's (8,16] Hz caveat is **permanent**. |
+
+## 🛑 RETIRED — NEVER CITE THESE AS FINDINGS
+
+| figure | why |
+|---|---|
+| **`ρ₁` median `0.7537`** | **Artefact** — 0i was run on 0h's WIDE grid (B12). The correct figure is **0.8865**. |
+| **The "pedestal" of 0.224** | Deflates to **0.092** once the grid is right. All P1/P2/P3 weighing in §13.2/§15.2/§16.4 used the inflated number. |
+| **`IQR = 0.2973` / "spread is P1-like"** | **DISCARDED** — computed on the wide-grid set (B13). |
+| **"`E1` will almost certainly MISS"** (§17.3) | **WITHDRAWN** — computed off the artefact. `φ`'s direction is **unknown**. |
+| **`G-a` "fires"** (§17.5/§19.2) | 🛑 **VOID** — with the top-decile rate at 50% the ratio's ceiling *is* 2.00, so `G-b` required >100%. **It cleared nothing.** |
+| **§15.3's withdrawal of ROW 0i** | **REVERSED** (B12). The argument was factually wrong; the bar was attainable and was attained. |
+| **§14.1's "`E1` unreachable by construction"** | **DISSOLVED** by J1 — it followed only from the worst-case band. |
+| **§13.1's "the cause is LOCATION METHOD", −0.114** | **CORRECTED** — location explains part, **grid width the larger part**. |
+| **ROW 0a as a calibration** | **Struck** (B4) — circular. Replaced by 0h/0i/0j, not rehabilitated. |
+| Any share-below-`ρ*` figure in §12.9 / §17.3 | 🛑 **NOT `φ`.** Ad-hoc samples, Architect seeds, n ≤ 39. |
+
+## ⏳ OPEN
+
+1. **Narrow-grid median / IQR / p10 / p90** — in flight. Replaces the discarded 0.2973.
+2. **`ROW 0m`** (§19.4) — does the **narrow** grid's own low tail hold up? *Wide-vs-narrow showed the
+   wide grid is bad, not that the narrow one is good.* **With the Captain**, alongside the alternative of
+   computing `φ` now with 0m recorded as a disclosed limitation.
+3. **`φ` itself — NOT COMPUTED, and not authorised.** `BAR₅` = 0.25 / `BAR₁₀` = 0.05 remain ratified and
+   **still movable** (the freeze triggers on the first `φ`).
+4. **§18.4's pattern ruling** — with the Captain.
+
+## ⚠️ If you are citing this document at all
+
+🛑 **Three predicates in this arm could only ever return one verdict** — ROW E4, ROW 0j's band, and
+`G-a`/`G-b`. **Before quoting any gate here as having "fired", check that its other branch was
+reachable.** That check is arithmetic and takes one line.
+
+---
+
 ## §0. What this is, and why it is the question that actually decides FADE
 
 ### 0.1 The one-line reason
