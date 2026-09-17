@@ -39,7 +39,8 @@ findings. **This block is the live state. Where it disagrees with any section be
 |---|---|
 | **`ρ₁` median `0.7537`** | **Artefact** — 0i was run on 0h's WIDE grid (B12). The correct figure is **0.8865**. |
 | **The "pedestal" of 0.224** | Deflates to **0.092** once the grid is right. All P1/P2/P3 weighing in §13.2/§15.2/§16.4 used the inflated number. |
-| **`IQR = 0.2973` / "spread is P1-like"** | **DISCARDED** — computed on the wide-grid set (B13). |
+| **`IQR = 0.2973` / "spread is P1-like"** | **DISCARDED** — computed on the wide-grid set (B13). Narrow grid reads **0.1663** (B14). |
+| **The IQR bars `≥0.20` / `≤0.10`** | 🛑 **WITHDRAWN as underived** (B14). Only the P2 null (IQR ≈ 0.03) had content; it is **rejected at 5.5×**. P1 is **not established**. |
 | **"`E1` will almost certainly MISS"** (§17.3) | **WITHDRAWN** — computed off the artefact. `φ`'s direction is **unknown**. |
 | **`G-a` "fires"** (§17.5/§19.2) | 🛑 **VOID** — with the top-decile rate at 50% the ratio's ceiling *is* 2.00, so `G-b` required >100%. **It cleared nothing.** |
 | **§15.3's withdrawal of ROW 0i** | **REVERSED** (B12). The argument was factually wrong; the bar was attainable and was attained. |
@@ -50,7 +51,8 @@ findings. **This block is the live state. Where it disagrees with any section be
 
 ## ⏳ OPEN
 
-1. **Narrow-grid median / IQR / p10 / p90** — in flight. Replaces the discarded 0.2973.
+1. ✅ **Narrow-grid spread — LANDED** (B14): median **0.8862** · IQR **0.1663** · p10 **0.6331** · p90 **0.9654** · share<`ρ*` **0.0704**. **P2 excluded; P1 not established.**
+1b. 🔴 **§20.3 — THIS CENSUS CAN ONLY CLOSE `FADE`, NEVER OPEN IT.** If `φ_upper` exceeds the bar, **nothing is concluded**. 🛑 **"`E1` did not fire" must NEVER be read as "fading is a large contributor."**
 2. **`ROW 0m`** (§19.4) — does the **narrow** grid's own low tail hold up? *Wide-vs-narrow showed the
    wide grid is bad, not that the narrow one is good.* **With the Captain**, alongside the alternative of
    computing `φ` now with 0m recorded as a disclosed limitation.
@@ -1721,3 +1723,69 @@ not prevent it. Checking the arithmetic of the predicate before shipping it does
 - 🛑 **G-a VOID. IQR 0.2973 DISCARDED.**
 - ⏳ **Narrow-grid median/IQR/p10/p90 in flight (~15 min). ROW 0m proposed.**
 - 🛑 **Still no `φ`. `BAR₅`/`BAR₁₀` still ratified, still movable.**
+
+---
+
+## §20. Amendment B14 — the narrow-grid spread. P2 excluded; the "ambiguity" is my bar, not the data
+
+**Architect, 2026-09-17T21:38Z.** `GRID_A`, n=852, ≥ +10 dB: **median 0.8862 · IQR 0.1663 · p10 0.6331 ·
+p90 0.9654 · share < `ρ*` = 0.0704.**
+
+### 20.1 The two branches are not symmetric, and only one of them had content
+
+| branch | what its null actually predicted | observed | verdict |
+|---|---|---|---|
+| **P2** — one common receive-chain offset | **IQR ≈ 0.03**, the bench's own fixed-dose spread. Derived. | **0.1663 = 5.5×** | 🛑 **REJECTED, decisively** |
+| **P1** — per-row channel | **IQR ≥ 0.20** — 🔴 **a round number I picked, derived from nothing** | 0.1663 | **not established** |
+
+⇒ **"Neither fires" is an artefact of an underived bar, not a finding.** 🛑 **And I am not cashing this
+as a win:** the correct reading is **P2 excluded, P1 NOT positively established.** The test could only
+ever exclude one branch — **a one-sided instrument, which is fine as long as it is labelled, and I did
+not label it.**
+
+### 20.2 ✅ What the numbers say on their own terms
+
+Through §15.2's bench map: **p90 ⇒ `B` ≈ 0.18 Hz · median ⇒ 0.84 Hz · p10 ⇒ 1.91 Hz · `ρ*` ⇒ 2.24 Hz.**
+An ordinary 20 m distribution, and **only 7.04% of strong rows sit below `ρ*`.**
+
+🔴 **On signals we can actually measure, fading at the census's own threshold is RARE.**
+
+### 20.3 🔴 The structural point the Captain needs, and it outranks everything above
+
+**This census can only ever CLOSE `FADE`. It cannot open it.** `E1` fires when `φ_upper < BAR`; if
+`φ_upper` exceeds the bar, **nothing is concluded** — because `φ_upper` is a one-sided bound inflated by
+estimator noise on weak rows (§1.2, by design and disclosed from the start).
+
+**Two indicative numbers, and they are NOT `φ`:**
+
+| population | share < `ρ*` |
+|---|---|
+| ≥ +10 dB (n=852) | **0.0704** |
+| full frame, `0j′`'s kept rows (n=4416) | **0.3589** |
+
+`BAR₁₀` = 0.05. ⇒ **the strong indication is that `E1` will not fire — not because fading is common, but
+because the bound is loose where the instrument is noisy.** 🛑 **Nobody may read "`E1` did not fire" as
+"fading is a large contributor." It means UNRESOLVED.**
+
+⚠️ **So the arm's likely terminal state is "unresolved", not a number for `FADE`'s contribution.** That
+is materially different from what it was launched to produce and the Captain should have it before
+spending anything further.
+
+### 20.4 ➡️ Which makes ROW 0m MORE decision-relevant, not less
+
+If the narrow grid's low tail is **location-limited** rather than real, the true `φ` is **smaller** than
+measured — and `E1` could close after all. **0m is the only remaining lever on that**, and it is minutes
+of compute on data QA already holds.
+
+🔴 **Recommendation: run 0m, then compute `φ`. Both cheap, in that order.** ⚠️ **Stated against my own
+interest: even with 0m clean, "unresolved" remains the likely outcome, and stopping now with §20.3
+recorded as the arm's honest finding is a defensible ruling. This is the fourth extension of a cycle
+granted once and I will not argue with a stop.**
+
+### 20.5 Status
+
+- 🛑 **P2 EXCLUDED. P1 NOT ESTABLISHED. The IQR bar is withdrawn as underived — do not cite 0.20/0.10.**
+- ✅ **Narrow-grid figures stand:** median 0.8862, IQR 0.1663, p10 0.6331, p90 0.9654, share<`ρ*` 0.0704.
+- 🛑 **Still no `φ`.** `BAR₅`/`BAR₁₀` ratified, still movable.
+- ➡️ **With the Captain: (a) ROW 0m then `φ`, or (b) stop with §20.3 as the finding.** Plus §18.4's
+  pattern ruling.
