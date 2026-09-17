@@ -1483,3 +1483,84 @@ built to test, so the design was right and my attribution was overconfident.**
 **Nothing above is re-ruled until that is answered.** ✅ Note that §17.5(ii)'s pre-registered reasoning
 already covers the direction: **forcing a wrong origin LOWERS `ρ₁`**, so a higher median on a narrower
 grid is genuine recovery, not an artefact of over-narrowing.
+
+---
+
+## §18. Amendment B12 — CONFIRMED against the code. `0.7537` is an artefact. ROW 0i is REINSTATED and PASSES
+
+**Architect, 2026-09-17T19:57Z.** QA answered from `e4_stage2_census_b5.py:287`, not from memory:
+**`0.7537` was produced by `WIDE_DT_OFFSETS` (`DT_ref−0.30 … +1.40`) — 0h's grid — from a single shared
+`locate_origin()` call whose result fed BOTH rows.** Confirmed, not inferred.
+
+### 18.1 🟢 ROW 0i is REINSTATED and it PASSES
+
+On §12.6's own grid, n=849: **`median(ρ₁_full)` = 0.8865 ≥ 0.80.** `GRID_A` and `GRID_B` agree at
+**98.6% same-origin** and to four decimals. **ROW 0i PASSES.**
+
+🛑 **And my §15.3 reasoning was not merely unnecessary — it was FACTUALLY WRONG.** I argued the bar asked
+for something the real channel could not deliver: *"it asks 'is the channel clean?' … its null assumed a
+fact about the physical world that is false."* **The real channel delivers 0.8865. The bar was
+attainable and it was attained.** The withdrawal was a bad ruling, not a good catch.
+
+### 18.2 What falls with it
+
+| | status |
+|---|---|
+| **§17.3 — "`E1` will almost certainly MISS"** | 🛑 **WITHDRAWN.** Computed off the artefact. `φ`'s direction is now **unknown**, and `E1` may well fire. The blind 0.65 stays unscored. |
+| **§16.2 — the 0.8607-vs-0.7537 gap as a "free preview pointing P1-like"** | 🛑 **WITHDRAWN.** I explained that gap as propagation varying across subsamples. **It was the grid.** 0k's real arm was on the narrow grid; the global figure was not. |
+| **§17.1 / §17.4 — the spread reading (IQR 0.2973)** | ⏸️ **SUSPECT.** Computed on the full wide-grid 0i set ⇒ inflated by the very mis-location §17.1 named as the omitted third option. **Must be recomputed on §12.6's grid** — §17.5's n=993 run does exactly that. |
+| **§13.2/§15.2/§16.4 — the "pedestal"** | 📉 **DEFLATED from 0.224 to 0.092** (`B` ≈ 1.43 → 0.84 Hz). P1/P2/P3 were all weighed against the inflated figure. |
+| **§13.1 — "the real cause is LOCATION METHOD", settled at −0.114** | 🔴 **CORRECTED.** Location method explains part; **grid width explains the larger part.** |
+| §12.6 origin fix · ROW 0h · ROW 0j (`d`=10.76%) · §14.1's arithmetic · 0l-A / P3 dead · ROW 0k / K1 | ✅ **UNAFFECTED.** K1 is a **ratio between two arms sharing one locator**, so it is robust to grid choice. |
+
+### 18.3 🔴 Where the fault sits, split honestly
+
+**Mine:** §12.7 named the **exception** (*"for 0h only, the WIDE one"*) **without naming the default in
+the same place.** 0i's grid had to be inferred from §12.6, a different section, by a reader building one
+shared pass. **A spec that states an exception must state what the exception is FROM, in the same
+breath.** That is the fix.
+
+**QA's, in its own words and I am not going to talk it down:** it read *"for 0h only"*, built one shared
+loop, and did not ask what 0i should use instead. It says so plainly and it is right that the phrase
+existed precisely to mark a distinction.
+
+🔴 **But note what actually surfaced it: QA's own flag that the grids disagreed, and §13.5 — a check I
+wrote for exactly this.** The system caught it. It caught it **three amendments late**, because I spent
+B6, B8 and B10 theorising about a number instead of asking which instrument produced it.
+
+> 🛑 **LESSON, and it is the day's fifth: when a measurement does not fit the other measurements, ask
+> what produced it BEFORE explaining it.** `b5_03` = 0.907, `b5_04` = 0.793, QA = 0.8865 — **three
+> mutually consistent numbers and one outlier, and I wrote three amendments explaining the outlier.**
+
+### 18.4 🔴 The §15.4 pattern, restated for the Captain — it changed, and not in my favour
+
+Previously: *three of four calibration rows withdrawn or replaced.* **Corrected:**
+
+| row | verdict |
+|---|---|
+| **0a** | genuinely defective — circular. Withdrawal **stands**. |
+| **0j** | genuinely defective — verdict invariant to input. Replacement **stands**. |
+| **0i** | 🔴 **NOT defective. PASSES. Withdrawn by me on a physical claim that was false.** |
+| **0h** | passed first time. |
+
+⇒ **Two genuinely bad rows, one bad RULING.** 🛑 **That is not a better record, it is a different and
+arguably worse failure mode: over-specification is a drafting problem; withdrawing a sound row on a
+wrong physical argument is a judgement problem.** The Captain's §15.4 ruling should be made against this
+version, not the one I sent at 18:50Z.
+
+### 18.5 Ledger
+
+| prediction | P | class | outcome |
+|---|---|---:|---|
+| §13.5: narrow grid recovers **≤ 0.02** of the gap | 0.60 | C | 🔴 **MISS** — recovered **0.1328**, ~6.6× the ceiling |
+
+**COMPUTED 6/9 → 6/10.** ⚠️ **This miss is load-bearing, not incidental: I predicted the grid barely
+mattered, which is precisely why I spent three amendments looking elsewhere.**
+
+### 18.6 Status
+
+- 🟢 **ROW 0i PASSES. ROW 0h PASSES. ROW 0k = K1. `ρ*` = 0.577 stands, no re-referencing.**
+- ⏳ **Remaining: the spread recomputed on §12.6's grid (§17.5, n=993) and `0j′` (n=5000).** Both running.
+- 🛑 **Still no `φ`, and its direction is now genuinely unknown.** `BAR₅`/`BAR₁₀` still ratified, still
+  movable.
+- 🔴 **For the Captain: §18.4 replaces §15.4.**
