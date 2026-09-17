@@ -1011,3 +1011,100 @@ inherits every assumption of the run it was computed from.
 - ✅ **ROW 0h PASS stands. §12.6 is unchanged and is the correct method.**
 - ⏸️ **ROW 0j** — not yet reported; still open.
 - 🟢 **`NBR-RERUN` CLOSED, G1.** The density sizing stands on the shipped binary.
+
+---
+
+## §14. Amendment B7 — ROW 0j fires, and my own rule makes `E1` unreachable for ANY `φ`
+
+**Architect, 2026-09-17T18:10Z.** QA returned `d` = **10.76%** (538/5000 non-re-encodable) on the full
+pre-registered sample, same seed and frame as 0h/0i. QA also confirmed, against its own copies, that
+§13.1's three-line reading of the scripts is correct, and — **materially** — that its census pipeline's
+`locate_origin()` already builds its reference from the Costas tones only and scores on the Costas
+indices only. ⇒ 🔴 **The 0.7537 at n=855 IS the §12.6-correct reading. The pedestal is not a
+winner's-curse artefact.** That is the single most useful thing in QA's message and it stands.
+
+### 14.1 The arithmetic nobody had done
+
+§12.7 says `d > 0.10` ⇒ report `φ` as the band `[φ(1−d), φ(1−d) + d]`, and a bar inside the band does
+not close. With `d` = 0.1076 the band's **upper end is `φ·0.8924 + 0.1076`, whose minimum over all
+possible `φ` is 0.1076** — attained at `φ` = 0.
+
+| bar | value | closes when | verdict |
+|---|---|---|---|
+| `BAR₁₀` | 0.05 | never — `0.1076 > 0.05` for **every** `φ` | 🛑 **UNREACHABLE BY CONSTRUCTION** |
+| `BAR₅` | 0.25 | only if `φ_obs < 0.1596` | reachable, but see §12.9's indicative ~28% |
+
+🔴 **`E1` — "FADE closes on exposure" — cannot fire under my own ROW 0j, whatever the data say.** The
+dropped-row band is **twice the width of the bar it has to fit inside.** This is independent of the
+pedestal, independent of 0i, and independent of any measurement: it is arithmetic I should have done
+when I wrote 0j, and it means the census has been carrying a second, silent blocker since B5.
+
+🛑 **A row that can only return one answer is not a check.** I wrote exactly that about ROW E4 in the
+drift work, where the row could only return the *comforting* answer. **Here it can only return the
+uncomforting one. The defect is the same defect.**
+
+### 14.2 🔴 The rule is wrong, and I am changing it — with the asymmetry stated openly
+
+**I refused to move 0i's bar three hours ago. I am now changing 0j's rule. The Captain should check that
+distinction rather than take it from me**, so here it is plainly:
+
+- **0i's bar is a measurement threshold.** It fired on data. Moving it would relax a standard because the
+  answer displeased me. **Not done, and still not being done.**
+- **0j's rule is an inference procedure.** §14.1 shows it returns the same verdict for every possible
+  input. **It is not a threshold that fired; it is a rule that cannot discriminate.**
+
+⚠️ **The honest risk is that this distinction is self-serving, because the change happens to unblock my
+own arm.** It is recorded here for exactly that reason. **If the Captain reads it as special pleading,
+the correct fallback is §14.5's stop, not a negotiated bar.**
+
+### 14.3 ROW 0j′ — replace worst-case with a test of the assumption that worst-case was hiding
+
+The band assumes dropped rows could **all** be faded. **There is no physical reason to expect that: a
+message's type is chosen by the operator, and the ionosphere does not read callsigns.** The worst case is
+not the honest case — it is the case you assume when you have no way to look. **We do have a way to look.**
+
+🔴 **`ρ₁` computed on the Costas symbols alone needs no re-encode, so it is available on all 538 dropped
+rows** — and §12.8 measured it tracking the full-message statistic at rank correlation **0.887**.
+
+> **ROW 0j′ — compare the Costas-only `ρ₁` distribution of the 538 dropped rows against the kept rows,
+> on the same sample.** Report both medians, both share-below-`ρ*`, and a two-sample test.
+
+| | predicate | consequence |
+|---|---|---|
+| **J1** | `|median_drop − median_kept| ≤ 0.05` **and** the share-below difference ≤ 0.05 | dropped rows are **missing at random w.r.t. the channel** ⇒ `φ` over kept rows is unbiased; **no band**, widen the CI only |
+| **J2** | either exceeds 0.05 | dropped rows **are** channel-different ⇒ the band stands, **and `E1` is unreachable per §14.1** |
+| **J3** | Costas-only `ρ₁` unavailable on the dropped rows for any reason | report and stop |
+
+⚠️ **Cost on the complement, stated (HK-021(t)): J1 does not make the census sound** — it removes *this*
+blocker only. **The pedestal (§13.2) is untouched by 0j′ and still gates everything.**
+
+### 14.4 §13.5 is now sharper than when I wrote it
+
+QA's confirmation that its pipeline matches `b5_04`'s method leaves **grid width as the one remaining
+methodological difference** between `b5_04`'s 0.793 and QA's 0.7537 (0.40–0.60 s vs 0.20–0.80 s; the
+populations differ too, ≥−10 dB n=36 vs ≥+10 dB n=855). ⇒ **Run both widths on the SAME rows.** That
+controls population and isolates the only variable left. Still nearly free, now decisive rather than
+merely cheap.
+
+### 14.5 Ledger
+
+| prediction | P | class | outcome |
+|---|---|---:|:---:|
+| ROW 0j returns `d ∈ [0.05, 0.15]` | 0.80 | C | ✅ **HIT** (0.1076) |
+| *(original)* dropped share **2–4%** | — | C | 🔴 **MISS** (0.1076, ~3× the top of the range) |
+
+**COMPUTED class: 3/3 → 5/7** across 0h/0i/0j and the original dropped-share row. 🔴 **Both misses are
+the same failure**: a number carried forward from an earlier run without re-checking that the run matched
+what was later specified.
+
+### 14.6 Status — unchanged where it matters
+
+- 🛑 **ROW 0i STOP STANDS. Bar NOT moved. No `φ`.** Nothing in B7 touches it.
+- 🔴 **`E1` is unreachable until 0j′ returns J1.** Even then the pedestal gates the census.
+- ➡️ **Sequence unchanged: §13.5 grid check → ROW 0l → ROW 0k**, with **0j′ folded into §13.5** (same
+  sample, same run, no extra pass).
+- 🔴 **The stop-loss stands and now has a second trigger: `0k` returns K2, OR `0j′` returns J2 — either
+  one CLOSES the FADE exposure limb.** No fourth estimator.
+- 🔴 **My recommendation is unchanged and this strengthens it.** Two independent blockers now sit on an
+  arm that has produced no `φ` in three days, while density has a reproducer, a ≈5.9 pp sizing and
+  shipped-binary confirmation. **Whether to spend the cycle is the Captain's call.**
