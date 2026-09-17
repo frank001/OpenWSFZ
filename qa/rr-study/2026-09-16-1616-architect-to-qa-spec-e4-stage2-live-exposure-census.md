@@ -1259,3 +1259,89 @@ than in a QA build cycle.**
 - ➡️ **Dispatch: §13.5 + 0j′ + spread check in one pass, then ROW 0k.**
 - 🔴 **For the Captain: §15.3's withdrawal of ROW 0i, and §15.4's pattern.** 0k's result makes 0i moot
   either way, so QA is not blocked on this ruling.
+
+---
+
+## §16. Amendment B9 — ROW 0k fires K1. `ρ₁` discriminates fading on real audio
+
+**Architect, 2026-09-17T19:35Z**, on QA's 0k run (`artefacts/e4-stage2-b8-row0k/row0k_result.json`).
+
+| `B_add` | 0 | 1 | 2 | 5 | 10 | `Δ` |
+|---|---|---|---|---|---|---|
+| **real** (n=111) | 0.8607 | 0.7440 | 0.5129 | 0.1643 | 0.1205 | **0.7402** |
+| **bench** (n=150/dose, `B_pre`=1.5) | 0.7684 | 0.6769 | 0.4617 | 0.1586 | 0.1234 | **0.6450** |
+
+**ratio = 0.1476, bar 0.20 ⇒ 🟢 K1 FIRES.** Architect's prediction 0.75 — **HIT**.
+
+### 16.1 QA's disclosed baseline mismatch — verified conservative, NO re-run
+
+QA calibrated `B_pre` against the study's global n=855 median (0.7537), not against this 120-row sample's
+own `B_add`=0 baseline (0.8607), and flagged it rather than burying it. **I re-derived the direction
+rather than accepting the argument** (`b9_01`):
+
+| bench baseline | `Δ_bench` | ratio | |
+|---|---|---|---|
+| **0.7684 (as run)** | 0.6450 | **0.1476** | PASS |
+| 0.8607 (properly matched) | 0.7373 | **0.0039** | PASS |
+| **0.7500** | 0.6266 | 0.1813 | **first passing value** |
+
+🔴 **Correcting the mismatch drives the ratio to ≈0.004. The mismatch made K1 HARDER, and the run sat
+0.018 from its own failure point and passed anyway.** ⇒ **No re-run. The margin absorbs it and the
+correction can only help.** QA's direction claim is confirmed, not merely accepted.
+
+### 16.2 🔴 What QA did not flag, and it is the more interesting number
+
+The real arm is a **deterministic prefix** of the calibration subset, and its baseline reads **0.8607
+against the global 855-row median of 0.7537 — a gap of 0.107.**
+
+**A prefix is not a random sample**: it is almost certainly a narrow time window, i.e. one propagation
+condition. 🔴 **Under P2 (a fixed receive-chain offset) every subsample would read nearly the same.
+Under P1 (real per-row channel) subsamples vary with propagation.** ⇒ **This is a free preview of the
+spread check, and it points P1-like.** Corroborating, not deciding — Item 1 still rules.
+
+⚠️ **Consequence for later: this 111-row arm is NOT representative of the census population.** Fine for a
+discrimination test, 🛑 **not usable for estimating `φ`.**
+
+### 16.3 ⚠️ Limitation of the composition mechanism — record it, do not cross-cite
+
+§15.7 left the injection mechanism open; QA applied `B_add` to the **extracted per-symbol gain sequence
+`g`**, not in the audio domain. **Two consequences, opposite signs:**
+
+- ✅ **Better than I specified in one respect:** the audio is untouched, so the located origin is
+  *exactly* invariant across doses rather than merely fairly so. Cleaner than an audio-domain injection.
+- 🛑 **But the `g`-domain model holds the gain CONSTANT within each 0.16 s symbol**, so it under-models
+  intra-symbol damage where coherence time approaches the symbol period (`B` = 10 Hz ⇒ ~0.1 s < 0.16 s).
+  **QA's own sanity check shows exactly this:** `g`-domain 0.32/0.20 at `B` = 5/10 vs the audio-domain
+  table's 0.19/0.13.
+
+⇒ 🛑 **DO NOT cross-cite 0k's `Δ` values against §15.2's audio-domain `B`→`ρ₁` table.** They are different
+units of damage. **Both arms are compressed identically, so the normalised ratio largely cancels it and
+K1's verdict stands** — but the absolute `Δ`s are not audio-domain quantities.
+
+### 16.4 🔴 Correcting what K1 licenses — QA's read is too strong in one half and unnecessary in the other
+
+QA wrote *"census can proceed; `ρ*` gets re-referenced by the measured offset."* **Both halves need
+tightening:**
+
+1. 🛑 **K1 tests SLOPE, not ABSOLUTE calibration.** An instrument can have a correct response and a
+   constant offset. **K1 alone does not license computing `φ`**, which depends entirely on absolute
+   position relative to `ρ*`.
+2. ✅ **And if there is no offset, no re-referencing is needed at all.** 0l-A measured our estimator at
+   **0.988 on clean synthetic audio** ⇒ no intrinsic offset; §15.2 maps the real 0.754 to `B` ≈ 1.4 Hz ⇒
+   physically ordinary. **"Re-reference `ρ*`" presumes the very defect that may not exist.**
+
+🔴 **So the remaining gate is P2 — a receive-chain offset — and that is precisely what Item 1's SPREAD
+CHECK decides:**
+
+| spread result | reading | consequence |
+|---|---|---|
+| **IQR ≥ 0.20** | P1-like — per-row channel variation | **no offset; `φ` computable directly, `ρ*` = 0.577 stands as-is** |
+| **IQR ≤ 0.10** | P2-like — one common cause | **a common offset exists; `ρ*` must be re-referenced BEFORE any `φ`** |
+
+### 16.5 Status
+
+- 🟢 **ROW 0k CLOSED, K1.** `ρ₁` responds to fading on real audio the way it does on the bench.
+- 🛑 **Still no `φ`, and K1 does not authorise one.** `BAR₅`/`BAR₁₀` still ratified, still movable.
+- ➡️ **Item 1 (grid width + `0j′` + spread check) is the last gate.** ETA ~80–90 min from QA's report.
+- 🔴 **`ROW 0i` withdrawal (§15.3) and §15.4's pattern remain the Captain's to rule on.** 0k firing does
+  not retroactively validate the rows that were withdrawn.
