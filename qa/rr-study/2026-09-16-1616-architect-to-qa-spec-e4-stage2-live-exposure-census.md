@@ -1000,7 +1000,7 @@ only if `0l` comes back clean.**
 | ROW 0h PASSES | 0.95 | C | ✅ **HIT** |
 | ROW 0i PASSES | 0.90 | C | 🔴 **MISS** |
 
-🔴 **The 0i miss is the first COMPUTED-class miss on the ledger** (was 3/3, now 4/6 across 0h/0i). It did
+🛑 ~~**The 0i miss is the first COMPUTED-class miss on the ledger** (was 3/3, now 4/6 across 0h/0i).~~ **STRUCK 2026-09-17 by B11 (§18): BOTH figures are wrong and `3/3` is a RETIRED figure the ledger explicitly forbids re-quoting.** The ρ₁-saturation call (2.5–3.5 Hz vs ≈10 Hz measured) was **already** a COMPUTED miss on 09-16, so 0i is the **second**, not the first. Mechanical count: **COMPUTED 6/9.** It did
 not miss from noise: **I predicted from my own measurement without noticing that the measurement used a
 different origin-location method than the spec I wrote in the same document.** 🛑 A computed prediction
 inherits every assumption of the run it was computed from.
@@ -1093,7 +1093,7 @@ merely cheap.
 | ROW 0j returns `d ∈ [0.05, 0.15]` | 0.80 | C | ✅ **HIT** (0.1076) |
 | *(original)* dropped share **2–4%** | — | C | 🔴 **MISS** (0.1076, ~3× the top of the range) |
 
-**COMPUTED class: 3/3 → 5/7** across 0h/0i/0j and the original dropped-share row. 🔴 **Both misses are
+🛑 ~~**COMPUTED class: 3/3 → 5/7**~~ — **STRUCK by B11 (§18): `3/3` is RETIRED and was hand-recalled, not counted. Mechanical count: COMPUTED 6/9.** Across 0h/0i/0j and the original dropped-share row. 🔴 **Both misses are
 the same failure**: a number carried forward from an earlier run without re-checking that the run matched
 what was later specified.
 
@@ -1345,3 +1345,66 @@ CHECK decides:**
 - ➡️ **Item 1 (grid width + `0j′` + spread check) is the last gate.** ETA ~80–90 min from QA's report.
 - 🔴 **`ROW 0i` withdrawal (§15.3) and §15.4's pattern remain the Captain's to rule on.** 0k firing does
   not retroactively validate the rows that were withdrawn.
+
+---
+
+## §17. Amendment B10 — the spread check reads P1-like, and my own rule for it was under-specified
+
+**Architect, 2026-09-17T19:42Z.** QA had already run Item 1(c) — the free one — before 0k started:
+
+| n=855, ≥ +10 dB calibration set | p10 | median | p90 | **IQR** |
+|---|---|---|---|---|
+| `ρ₁_full` | 0.4490 | 0.7537 | 0.9475 | **0.2973** |
+
+**IQR ≥ 0.20 ⇒ P1-like** by §16.4's rule, and ≈**10×** the bench's fixed-dose IQR (~0.03).
+Architect's prediction (P1-like @ 0.70) — **HIT**.
+
+### 17.1 🛑 I am not cashing this yet, and the reason is a defect in my own rule
+
+§16.4 offered two readings: *narrow ⇒ one common cause (P2)* and *wide ⇒ per-row channel (P1)*.
+🔴 **There is a third, and I omitted it: PER-ROW INSTRUMENT FAILURE** — e.g. a subset of rows mis-locating
+on §12.6's wider grid — **which also produces a wide spread.** A wide IQR therefore rules out a *common
+offset*; it does **not** establish that the variation is the channel.
+
+> 🛑 **This is the same defect class as §11.4's fork: a binary framing that omitted the option which
+> turned out to matter.** Fourth time in this arm, and the first time it has happened on a result that
+> lands **in my favour**.
+
+🔴 **§13.5's grid-width check is exactly the test that separates them, and it is still in flight.**
+**The gate is NOT cleared. No `φ` yet.**
+
+⚠️ **Stated deliberately for the Captain's §15.4 ruling: I have withdrawn three rows that fired against
+me. This one fires for me, and it gets the same scrutiny.** If that reads as consistency rather than
+convenience, it should be because of cases like this one, not because I say so.
+
+### 17.2 ✅ What does support P1 — a physical plausibility check, which is not a test
+
+Reading the quantiles through §15.2's bench `B`→`ρ₁` map:
+
+| | p90 | median | p10 | `ρ*` = 0.577 |
+|---|---|---|---|---|
+| implied Doppler spread `B` | **0.44 Hz** | **1.43 Hz** | **3.15 Hz** | 2.24 Hz |
+
+**That is an ordinary-to-moderately-disturbed 20 m distribution.** 🔴 **A per-row instrument failure has
+no reason to produce a physically plausible Doppler distribution** — which is a real argument, but it is
+**plausibility, not a discriminating test.** §13.5 remains the test. ⚠️ And per §16.3 this map is
+audio-domain, so it may be read against the census's own `ρ₁` but **never against 0k's `Δ` values.**
+
+### 17.3 Direction only — no number, and `E1` is almost certainly gone
+
+`ρ*` = 0.577 sits **between p10 and the median** ⇒ **`φ` will land in the tens of percent, not near
+`BAR₁₀` = 0.05.** ⇒ 🔴 **`E1` — "FADE closes on exposure" — will almost certainly MISS. The blind 0.65
+stands and scores as a miss, unrevised** (§12.10).
+
+🛑 **No percentage is cited here and none may be derived from these three quantiles.** A crude 3-point
+interpolation is not `φ`; `φ` comes from the pre-registered sample and only after §13.5 clears.
+
+### 17.4 Status
+
+- ✅ **P2 (a common receive-chain offset) is ruled out.** `ρ*` = 0.577 needs no re-referencing **on that
+  account**.
+- ⏳ **P1 vs per-row instrument failure: OPEN, pending §13.5.** This is now the only thing between us and
+  a `φ`.
+- 🛑 **No `φ`. `BAR₅`/`BAR₁₀` still ratified, still movable.**
+- ✅ QA accepted §16's three corrections without re-litigating and is independently re-deriving §16.1's
+  counterfactual. **Nothing is owed back on that.**
