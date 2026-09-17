@@ -1564,3 +1564,108 @@ mattered, which is precisely why I spent three amendments looking elsewhere.**
 - 🛑 **Still no `φ`, and its direction is now genuinely unknown.** `BAR₅`/`BAR₁₀` still ratified, still
   movable.
 - 🔴 **For the Captain: §18.4 replaces §15.4.**
+
+---
+
+## §19. Amendment B13 — `0j′` = J1. **G-a is VOID: my own predicate could not return its other answer**
+
+**Architect, 2026-09-17T21:26Z.** QA reported both runs and flagged the margin rather than banking it.
+
+### 19.1 🟢 ROW 0j′ — J1, clean, no band
+
+n=4951 (narrow grid, confirmed at `e4_stage2_b8_item1.py:132`):
+
+| | n | median `ρ₁` | share < `ρ*` |
+|---|---|---|---|
+| dropped | 535 | 0.6915 | 0.3458 |
+| kept | 4416 | 0.6780 | 0.3589 |
+| **difference** | | **0.0135** | **0.0131** |
+
+Both far inside the 0.05 bar ⇒ **J1: dropped rows are missing at random with respect to the channel.**
+**No band. CI widens only.** ⇒ 🟢 **§14.1's "`E1` is unreachable by construction" is DISSOLVED** — that
+followed from the worst-case band, and J1 removes the band.
+
+### 19.2 🛑 G-a is VOID. It was not a pass; it was a predicate that could only return one answer
+
+| | bottom decile | top decile | |
+|---|---|---|---|
+| mismatch rate | **93.0%** | **50.0%** | ratio **1.86**, my G-b bar was **> 2.0** |
+
+🔴 **With the top-decile rate at 50%, the ratio of rates CANNOT EXCEED 2.00.** G-b therefore required a
+bottom-decile rate **above 100%**. **G-a was guaranteed to fire before any data existed.**
+
+**The same data on a metric that does not saturate:**
+
+| metric | value | verdict |
+|---|---|---|
+| ratio of rates (what I wrote) | 1.86 | does not fire |
+| **absolute difference** | **43.0 pp** | large |
+| **odds ratio** | **13.3** | fires hard |
+| **median `ρ₁` recovery, bottom-decile mismatched rows** (QA volunteered) | **+0.4265** | decisive |
+
+🛑 **I chose the metric that saturates exactly where the answer lives** — HK-021's "a metric that MOVES".
+**G-a does not clear anything and must not be cited as having done so.**
+
+⚠️ **A second defect in the same predicate:** "mismatch" is binary origin inequality on a 0.01 s grid, so
+a harmless 0.01 s wobble counts the same as a 0.5 s mis-lock. **That is why the top-decile baseline is
+50% at all.** The continuous recovery statistic QA volunteered is the right instrument; my binary one
+was not.
+
+### 19.3 ✅ What the data actually says, read on the sound statistics
+
+**Mis-location IS concentrated in the wide grid's low tail** (OR 13.3; +0.4265 recovery on correction).
+Aggregate median recovers **0.7559 → 0.8862**, matching Item 1(a)'s 0.8865.
+
+⇒ ✅ **§12.6's narrow grid is the correct instrument; the wide grid mis-locates. §17.1's omitted third
+option was real — for the WIDE grid.** 🛑 **IQR = 0.2973 is DISCARDED**, not merely suspect.
+
+### 19.4 🔴 The hole this leaves, and I am naming it rather than declaring victory
+
+**Wide-vs-narrow shows the WIDE grid is bad. It does not show the NARROW grid is good.** ROW 0h's
+99.0% sharpness was measured **on the wide grid** (by design), so it certifies nothing about §12.6's.
+
+> **ROW 0m — is the NARROW grid's own low tail real?** On `GRID_A`, stratify by `ρ₁` decile and report
+> **(a)** median Costas sharpness and **(b)** edge-pinning rate (best origin at 0.20 or 0.80).
+
+| | predicate | reading |
+|---|---|---|
+| **H1** | bottom-decile median sharpness **≥ 0.7 ×** top-decile's **and** bottom-decile edge-pinning **≤ 0.10** | low-`ρ₁` rows are **confidently located** ⇒ their low `ρ₁` is the CHANNEL ⇒ **`φ` computable** |
+| **H2** | either fails | the narrow grid's low tail is **also location-limited** ⇒ `φ` not computable as specified |
+
+🔴 **Anti-saturation check, done this time before writing it:** sharpness is a **ratio of continuous
+unbounded quantities** — no ceiling. Edge-pinning is bounded but the bar sits at **0.10**, far from
+saturation, and the null predicts ≈0 (the true origin clusters at +0.48, a comfortable 0.28 s inside
+both edges). **Null in independent units (HK-021(z)):** "the narrow grid locates every row well" ⇒
+sharpness ratio ≈ 1.0 and pinning ≈ 0 — **which is what 0l-A's clean synthetic renders exhibit
+(`ρ₁` = 0.988, sharp peaks).** It passes where it holds and can fail where it doesn't.
+
+### 19.5 ⚠️ For the Captain — I am extending the cycle a fourth time, and there is an alternative
+
+**Everything else has cleared:** 0h PASS · 0i PASS · 0j′ J1 · 0k K1 · P3 dead · P2 ruled out pending the
+narrow-grid spread. **ROW 0m is the last thing, it is cheap (data QA already holds, no new run), and it
+is the only unexamined way `φ` could still be wrong.**
+
+🛑 **But this is the fourth extension of a cycle granted once, and the Captain may reasonably prefer:
+compute `φ` NOW with ROW 0m's question recorded as a disclosed limitation.** That is a defensible choice
+and I will execute it without argument if that is the ruling. **My recommendation is to run 0m** — it is
+minutes of compute against a `φ` that would otherwise carry an unmeasured caveat into every downstream
+decision.
+
+### 19.6 🔴 Ledger — a DESIGN failure, and it is the third of its exact kind in this arm
+
+| item | outcome |
+|---|---|
+| **G-a / G-b** | 🛑 **UNSCOREABLE — the predicate could not return its other answer.** Logged as a design failure, per the ledger's own precedent for ROW E4. |
+
+🔴 **Third predicate in this arm that could only return one verdict: ROW E4 (only the comforting
+answer) · ROW 0j's band (only the uncomforting one) · G-a/G-b (only the comforting one). The third was
+written TODAY, hours after I named the failure mode twice in writing.** ⚠️ **Naming a failure mode does
+not prevent it. Checking the arithmetic of the predicate before shipping it does, and takes one line —
+`1/top_rate` would have caught this.**
+
+### 19.7 Status
+
+- 🟢 **0h PASS · 0i PASS · 0j′ J1 (no band) · 0k K1 · P3 dead.**
+- 🛑 **G-a VOID. IQR 0.2973 DISCARDED.**
+- ⏳ **Narrow-grid median/IQR/p10/p90 in flight (~15 min). ROW 0m proposed.**
+- 🛑 **Still no `φ`. `BAR₅`/`BAR₁₀` still ratified, still movable.**
