@@ -1442,3 +1442,44 @@ direction is safe; only the per-row attribution needs (ii).
 
 🔴 **Pre-registered at 19:46Z, before QA reported Item 1(a). If any of this arrives after the data, it is
 outcome-chosen and must be discarded** (HK-021(y)).
+
+### 17.6 🛑 SUSPECT — 19:54Z. `0.7537` may be an off-spec-grid artefact, and if so several rulings above fall
+
+**PROVISIONAL. NOTHING IS RE-RULED HERE.** QA's first Item 1(a) leg landed:
+
+> `GRID_A` 0.20–0.80 vs `GRID_B` 0.40–0.60, n=849: **same-origin 98.6%, medians IDENTICAL at 0.8865
+> both.** The gap is between **either** of those and **the WIDE grid that produced the original 0i
+> figure of 0.7537.**
+
+🔴 **`GRID_A` 0.20–0.80 IS §12.6's grid.** On §12.6's own grid the median reads **0.8865**, not 0.7537.
+
+| | `ρ₁` | implied `B` | deficit vs clean 0.978 | ROW 0i bar 0.80 |
+|---|---|---|---|---|
+| wide grid (drove the STOP) | 0.7537 | 1.43 Hz | 0.224 | **FAILS** |
+| **§12.6's grid** | **0.8865** | **0.84 Hz** | **0.092** | 🟢 **PASSES** |
+
+🔴 **The likely cause is my own wording.** §12.7 says *"For 0h only, the search grid is the WIDE one
+(`DT ∈ [DT_ref−0.30, DT_ref+1.40]`)"* — a parenthetical about grid choice, placed in a table of three
+rows that QA quite reasonably runs in **one shared pass**. If 0i inherited 0h's wide grid, then **the
+number that stopped this arm was produced by an instrument my own spec designated for a different row.**
+
+⚠️ **AND MY OWN EVIDENCE ALREADY SAID SO — I had it and misread it.** `b5_04` (Costas-located, grid
+0.40–0.60, all-SNR) read **0.793**; `b5_03` (full-message-located, 0.38–0.585, ≥+10 dB) read **0.907**;
+QA's §12.6 grid at ≥+10 dB reads **0.8865**. **Those three are mutually consistent. `0.7537` never
+fitted.** In §13.1 I attributed the whole 0.907→0.754 gap to **location method** and called it settled at
+−0.114. **Location method explains part; GRID WIDTH explains the rest — which is exactly what §13.5 was
+built to test, so the design was right and my attribution was overconfident.**
+
+🛑 **What is now SUSPECT, pending one answer from QA:**
+- **§17.3's "`E1` will almost certainly MISS"** — computed off 0.7537 one hour ago. At 0.8865, `ρ*`=0.577
+  sits far below the median and `φ` is much smaller. **That call may be wrong and must not be relied on.**
+- **§15.3's withdrawal of ROW 0i** — I withdrew it as mis-specified. **If 0i passes on its own spec's
+  grid, the premise that it failed was false.** The *logic* critique (a level test conflates channel with
+  model) may still stand on its own; the *occasion* for it does not.
+- **§13.2/§15.2/§16.4/§17.1's whole "pedestal" framing** — a 0.092 deficit is a different object from a
+  0.224 one, and P1/P2/P3 were weighed against the inflated figure.
+
+➡️ **THE ONE LOAD-BEARING QUESTION, put to QA and not assumed: WHICH GRID PRODUCED `0.7537`?**
+**Nothing above is re-ruled until that is answered.** ✅ Note that §17.5(ii)'s pre-registered reasoning
+already covers the direction: **forcing a wrong origin LOWERS `ρ₁`**, so a higher median on a narrower
+grid is genuine recovery, not an artefact of over-narrowing.
