@@ -868,3 +868,146 @@ reads **7.7%–13.3%** in these runs. It scores on ROW 0j, not on this.
 - 🛑 No `φ` until all three pass. `BAR₅`/`BAR₁₀` freeze on the first `φ`, unchanged.
 - 🟢 `NBR-RERUN` remains untouched and independent. **Which of the two runs first is the Captain's
   call, not QA's and not mine.**
+
+---
+
+## §13. Amendment B6 — ROW 0i's STOP stands. The bar is defective and the bar is mine
+
+**Architect, 2026-09-17T18:05Z**, on QA's full-power B5 run (`qa/e4-bench` `3f7be761`).
+
+- ✅ **ROW 0h PASS**, n=992: `iqr(dt_off)` = **0.06** (bar 0.10), `sharpness ≥ 3×` on **99.0%** of rows
+  (bar 90%). **B5's origin fix is real and robust.** That part is settled.
+- 🔴 **ROW 0i STOP**, n=855: `median(ρ₁_full)` = **0.7537**, bar 0.80.
+- 🔴 **New, not in B5: median `ρ₁_full` is FLAT across SNR** — 0.746 / 0.738 / 0.736 / 0.786 / 0.795
+  from 10 dB to 25+ dB. **No rise toward a clean ceiling where the channel should be cleanest.**
+
+🛑 **I am NOT moving the bar.** In B2 I refused to widen QA's drift tolerance when ROW 0a(v) failed
+against me — *"per the Architect's own standing instruction, tolerance NOT widened."* **A bar that may
+only be adjusted when it fires in my favour is not a bar.** What follows is a defect in how 0.80 was
+*derived*, not a case for relaxing it.
+
+### 13.1 🔴 Correction to QA's diagnosis — checked against the scripts, and it matters
+
+QA attributed the 0.907 → 0.754 gap to my ad-hoc scripts requiring **both** decoders to have decoded the
+row (`set(w) & set(o)`), a cleaner biased subsample. **Checked line by line; that is not what those
+scripts do:**
+
+| script | row selection | how the origin is LOCATED | full-msg `ρ₁` |
+|---|---|---|---|
+| `b5_02` | `set(w) & set(o)` — **intersection** | Costas-only power | *(not reported — peak location only)* |
+| `b5_03` | **REF only** (`w`), ≥+10 dB | 🔴 **full-message power, all 79 symbols** | **0.907** |
+| `b5_04` | **REF only** (`w`), ≥−10 dB | **Costas-only power** (§12.6's method) | **0.793** |
+
+**Only `b5_02` used the intersection, and `b5_02` did not produce 0.907.** `b5_03` and `b5_04` are both
+REF-only, so selection between decoders explains none of the gap.
+
+🔴 **What does explain it is sitting inside my own two scripts: same corpus, same estimator, same REF-only
+population — 0.907 when the origin is located by maximising FULL-MESSAGE power, 0.793 when located by
+COSTAS-ONLY power.** A −0.114 step from the location method alone.
+
+**§12.6 specifies Costas-only location. I set ROW 0i's bar from `b5_03`, which locates the other way.**
+⇒ **I calibrated the bar with one instrument and then specified a different one.** QA's 0.754 against a
+bar built on 0.907 is measuring that mistake, not the model.
+
+> 🔴 **LESSON, and it is the fourth variant in three days: a COMPUTED prediction is only as good as the
+> identity between what you measured and what you specified.** B1/B2 — an instrument must not assume the
+> thing it measures is small. B4 — a calibration against your own generator validates the estimator, not
+> the model. B5 — a control on your own clock validates the correlator, not the alignment. **B6 — a bar
+> calibrated on a different instrument than the one you specified is not a bar.**
+
+⚠️ **Why locating on full-message power inflates `ρ₁`:** it maximises `Σ|g|²` over ~350 grid candidates,
+and `ρ₁` is built from the same `g`. Picking the grid point where noise happens to align constructively
+selects for high `ρ₁` — a winner's curse on the statistic itself. **Costas-only location puts the
+selection in a different subspace from the readout, which is why §12.6 is right and `b5_03` was not.**
+**§12.6 is unchanged. It is the better method. It simply reads lower than the number I set the bar from.**
+
+### 13.2 🔴 The real open object: a PEDESTAL, and it is uncharacterised
+
+QA's flat-vs-SNR curve is the important finding, and it is not a repeat of §11.1's struck reasoning:
+0.75 is **nowhere near** the noise null (median 0.093, §12.4), so this is signal, not noise. It is a
+**fixed ~0.2 deficit that does not shrink as the channel gets cleaner.**
+
+🛑 **So `ρ*` = 0.577 is mis-referenced on real rows by an unknown amount, and `φ` computed now would be
+inflated by that amount.** Lowering 0i's bar to sit under the pedestal would admit an uncharacterised
+systematic into the census — precisely the HK-026 error.
+
+**Three candidates, and they have opposite consequences:**
+
+| | pedestal cause | consequence for the census |
+|---|---|---|
+| **P1** | real fading genuinely is this common | `ρ₁` is *measuring*, not confounded — census is fine, `φ` is just large |
+| **P2** | receive-chain waveform mismatch (SSB filter / AGC) vs our ideal-GFSK reference | additive pedestal; `ρ*` can be re-referenced once measured |
+| **P3** | 🔴 **near-neighbour interference** — 6.25 Hz bins, ~24 simultaneous signals, and reported SNR is noise-relative, not interference-relative | **`ρ₁ < ρ*` would count CROWDING as FADING ⇒ the census double-counts density** |
+
+### 13.3 ROW 0k — the decisive test, and it is non-circular by construction
+
+> **Take REAL captured rows, apply a KNOWN Watterson fade on top (`B` = 0, 1, 2, 5, 10 Hz), run §12.6,
+> and measure the `ρ₁` response curve against the bench's own curve at the same doses.**
+
+Real audio is a reference we did not produce; the perturbation is one we control entirely. **That
+combination escapes the circularity that killed ROW 0a.**
+
+| outcome | predicate | meaning |
+|---|---|---|
+| **K1** | real curve = bench curve shifted down by a constant, slopes agree within 20% | `ρ₁` **discriminates fading**; pedestal is additive ⇒ re-reference `ρ*` by the measured pedestal, census survives |
+| **K2** | real curve is **compressed** (slope < 50% of bench) | `ρ₁` **does not discriminate fading on real rows** ⇒ 🛑 the census cannot be built on `ρ₁`; close the exposure limb and report the bench result alone |
+| **K3** | otherwise | report, do not interpret |
+
+### 13.4 ROW 0l — is the pedestal the neighbours? Synthetic, and it sidesteps the prohibition entirely
+
+> **Render victim + ONE neighbour at `Δf` ∈ {6.25, 12.5, 18.75, 25, 31.25, 50, 100, absent} Hz, NO fading
+> at any dose, and measure the victim's `ρ₁` under §12.6.**
+
+**Controlled synthetic scenes, self-consistent use, no live stratification, no real-audio reference** —
+so this touches neither B4's scope question nor the blocked live-concentration ruling. **If `ρ₁` falls
+with crowding, P3 is live and `φ` would double-count density.**
+
+⚠️ **Do not over-read 0l as density evidence.** It measures whether **our channel-gain estimator** is
+disturbed by a neighbour — not whether the **decoder's** exclusion zone is. Any read-across to the
+`F-NBR-A` mechanism question (M1/M2) is secondary and **authorises nothing there.** 🔴 I flag this
+explicitly because my ledger's named bias is over-predicting a findable localised defect, and P3 is
+exactly the shape of hypothesis I am historically worst at.
+
+### 13.5 One nearly-free check first — grid width
+
+`b5_04` searched `DT` over 0.40–0.60 s; §12.6 searches 0.20–0.80 s, **3× wider ⇒ ~3× the candidates for a
+weak row to mis-lock onto.** Before anything else: **re-run 0i's own rows under both grid widths and
+report both medians.** If the narrow grid recovers a materially higher median, part of the pedestal is
+mis-location, not channel. Cheap, and it partitions the problem.
+
+### 13.6 Sequence, and the honest opportunity-cost statement
+
+➡️ **§13.5 grid check → ROW 0l → ROW 0k.** `0l` first of the two rows: it is hours of synthetic compute
+and it is the one that can convert a FADE blocker into a finding.
+
+🔴 **Stated plainly, because this arm has now produced three methodology blockers in three days (B1/B2
+drift, B4/B5 origin, B6 pedestal) and no `φ`:** the census's entire deliverable is *how often ≥5 Hz
+fading occurs live*. The `E4` bench already stands on its own without it (5 Hz `Δ` = +0.087 at −8 dB and
+vanishing at 0 dB; 10 Hz `R_O` = 0/200 at both SNRs, still an OPEN HYPOTHESIS per B3, AP confound
+unresolved). **Meanwhile density has a reproducer, a ≈5.9 pp sizing, and — as of today's `NBR-RERUN` G1 —
+confirmation that the sizing holds on the shipped binary.**
+
+🛑 **Stop-loss, pre-registered now rather than argued later: if ROW 0k returns K2, the FADE exposure limb
+is CLOSED as unmeasurable by this method.** No fourth estimator, no fifth cycle. **Whether to spend the
+cycle at all is the Captain's call, and I am not neutral: I think `0l` is worth it and `0k` is worth it
+only if `0l` comes back clean.**
+
+### 13.7 Ledger
+
+| prediction | P | class | outcome |
+|---|---|:---:|---|
+| `NBR-RERUN` reads G1 | 0.78 | H | ✅ **HIT** |
+| ROW 0h PASSES | 0.95 | C | ✅ **HIT** |
+| ROW 0i PASSES | 0.90 | C | 🔴 **MISS** |
+
+🔴 **The 0i miss is the first COMPUTED-class miss on the ledger** (was 3/3, now 4/6 across 0h/0i). It did
+not miss from noise: **I predicted from my own measurement without noticing that the measurement used a
+different origin-location method than the spec I wrote in the same document.** 🛑 A computed prediction
+inherits every assumption of the run it was computed from.
+
+### 13.8 Status
+
+- 🛑 **ROW 0i STOP STANDS. Bar NOT moved. No `φ`.** `BAR₅`/`BAR₁₀` still ratified, still movable.
+- ✅ **ROW 0h PASS stands. §12.6 is unchanged and is the correct method.**
+- ⏸️ **ROW 0j** — not yet reported; still open.
+- 🟢 **`NBR-RERUN` CLOSED, G1.** The density sizing stands on the shipped binary.
