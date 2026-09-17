@@ -1108,3 +1108,154 @@ what was later specified.
 - 🔴 **My recommendation is unchanged and this strengthens it.** Two independent blockers now sit on an
   arm that has produced no `φ` in three days, while density has a reproducer, a ≈5.9 pp sizing and
   shipped-binary confirmation. **Whether to spend the cycle is the Captain's call.**
+
+---
+
+## §15. Amendment B8 — P3 is dead, the "pedestal" is probably ordinary fading, and ROW 0i tests the wrong thing
+
+**Architect, 2026-09-17T18:50Z. Captain granted the cycle (*"1. spend the cycle. 2. await results of 1"*).**
+Before dispatching, I ran two prior-setting checks of my own. Both changed the plan, and one of them
+dissolves a row I wrote yesterday.
+
+### 15.1 ROW 0l-A, pre-empted: the neighbour hypothesis fails on reach AND on magnitude
+
+**Architect run, `qa/rr-study/architect-checks/b8_01_prior_0l_neighbour_reach.py`** — victim + ONE
+equal-level neighbour, **no fading at any dose**, victim at +15 dB, n = 12 messages per cell, §12.6
+estimator throughout:
+
+| neighbour `Δf` | 6.25 | 12.5 | 18.75 | 25 | 31.25 | **50** | 100 | 200 | none |
+|---|---|---|---|---|---|---|---|---|---|
+| median `ρ₁` | 0.9357 | 0.9395 | 0.9515 | 0.9564 | 0.9596 | **0.9880** | 0.9879 | 0.9880 | **0.9880** |
+| deficit as % of the 0.234 pedestal | 22.4% | — | 15.6% | — | 12.1% | **0.0%** | 0.0% | 0.0% | — |
+
+**And the reach requirement, computed from C2's own occupancy** (`b8_02_neighbour_reach_requirement.py`,
+90,958 rows / 4,113 cycles): **median nearest-neighbour separation = 47.0 Hz.** Share of rows with a
+neighbour within 18.75 Hz = 0.223; within 50 Hz = 0.533. ⇒ **to move a MEDIAN, the disturbance must
+reach ≈47 Hz.**
+
+🛑 **P3 fails twice, independently:**
+1. **Reach** — at 50 Hz the deficit is **0.0000 to four decimals**, identical to no neighbour at all.
+   The estimator's disturbance is gone by ~50 Hz; it needs to be alive at 47 Hz.
+2. **Magnitude** — even at `Δf` = 6.25 Hz, equal level, the worst cell tested, the deficit is **0.052 =
+   22% of the 0.234 pedestal**. *Every row maximally crowded* still would not produce it.
+
+⇒ 🔴 **Near-neighbour interference is NOT the cause of the pedestal. P3 is OUT.** ⚠️ **What is NOT
+pre-empted:** many-neighbour cumulative effect and level ratios ≫ 0 dB. Those are deferred, not answered
+(§15.5). ⚠️ **This says nothing about the decoder's exclusion zone** — it is about our estimator only,
+exactly as §13.4 warned.
+
+### 15.2 🔴 The bench already held the conversion, and it reframes everything (HK-018)
+
+`row0a_calibration_result.json` — committed 09-16, 50 trials per dose — maps `ρ₁` to Watterson spread:
+
+| `B` (Hz) | none | 0.5 | 1 | 2 | 5 | 10 | 20 |
+|---|---|---|---|---|---|---|---|
+| bench median `ρ₁` | 0.978 | 0.943 | 0.86 | 0.61 | 0.19 | 0.13 | 0.05 |
+
+**Read the real-row numbers through it:**
+- **median `ρ₁` = 0.754 ⇔ `B` ≈ 1.4 Hz.** That is **ordinary mild HF Doppler spread**, not an anomaly.
+- **`ρ*` = 0.577 ⇔ `B` ≈ 2.2 Hz.**
+- ⇒ 🔴 **the median row does not trip the bar.** The deficit sits **above** `ρ*`; the ~28% below it is a
+  tail, not the bulk.
+
+🛑 **I named it a "pedestal" and called it a defect before checking what it corresponds to physically.
+0.754 is what a WORKING instrument should report over a real 20 m path.** **P1 — real, mild, common
+fading — is now the parsimonious reading**, and neither B6 nor B7 said so.
+
+⚠️ **QA's inference from the flat curve does not hold, and I let it stand in B6.** QA read flat-`ρ₁`-vs-SNR
+as arguing against real fading. **There is no physical reason Doppler spread should track SNR** — power
+and path dynamics are different quantities; a strong signal can be heavily faded. Flatness is fully
+consistent with P1 and is **not** evidence for an instrument effect.
+
+### 15.3 🔴 ROW 0i is MIS-SPECIFIED. It is WITHDRAWN, not relaxed
+
+0i's predicate is `median(ρ₁_full) ≥ 0.80` — **a LEVEL test.** §15.2 shows the level is set by the real
+channel. **So 0i asks "is the channel clean?" while claiming to ask "does the model match?"** Those are
+different questions, and a row that requires a real ionospheric path to look nearly clean cannot validate
+a model against it. **Its null assumed a fact about the physical world that is false.**
+
+🛑 **This is NOT the bar moving.** The bar is not being lowered to 0.70 so it passes; **the predicate is
+being withdrawn because it measures the wrong quantity.** The right question — *does `ρ₁` RESPOND
+correctly to a known change in fading?* — is a **discrimination** test, and that is exactly **ROW 0k**.
+⇒ **0k SUBSUMES 0i.** If 0k passes, discrimination is demonstrated and 0i was never needed; if 0k fails,
+we stop, and 0i's verdict is irrelevant either way.
+
+### 15.4 ⚠️ The pattern, stated plainly because the Captain should judge it, not me
+
+**I have now withdrawn or replaced three of the four calibration rows I wrote for this census:** ROW 0a
+(circular, B4), ROW 0j (verdict invariant to input, B7), ROW 0i (tests the wrong quantity, here). **Only
+ROW 0h — which passed — has survived contact with data.**
+
+🛑 **Each withdrawal has a defensible reason, and each one happens to unblock my own arm. That pattern is
+itself evidence about my spec quality under time pressure, and the Captain is entitled to read it as
+grounds to stop rather than as three independent corrections.** I am not the right judge of that. **If
+the ruling is stop, §14.6's stop-loss applies and nothing here is orphaned** — the `E4` bench result
+stands on its own.
+
+### 15.5 What actually remains — smaller than B6/B7 asked for
+
+| item | status |
+|---|---|
+| **ROW 0h** | ✅ PASSED. Done. |
+| **§13.5 grid width + ROW 0j′** | ➡️ **RUN** — one pass, same sample, nearly free |
+| 🆕 **Spread check** | ➡️ **RUN** — free, data already in `artefacts/e4-stage2-b5-full/` (§15.6) |
+| **ROW 0k** | ➡️ **RUN** — the only real build, and it now subsumes 0i |
+| **ROW 0l** | ⏸️ **DEFERRED** — 0l-A pre-empted by §15.1; the multi-neighbour/level-ratio remainder is not worth a build cycle against a hypothesis already dead on reach |
+| **ROW 0i** | 🛑 **WITHDRAWN** (§15.3), subject to the Captain |
+
+### 15.6 🆕 The free discriminator — P1 vs P2 separates on SPREAD, not median
+
+A fixed receive-chain mismatch (P2) is **the same for every row** ⇒ narrow `ρ₁` distribution. Real fading
+(P1) varies with path ⇒ wide. **QA reported medians only; the per-row values already exist.**
+
+> **Report the IQR and p10/p90 of `ρ₁_full` over the 0i calibration set.** Bench reference at a FIXED
+> dose, from the table's own 50-trial spreads: `B` = 1 gives IQR ≈ 0.03. **IQR ≤ 0.10 ⇒ P2-like (one
+> common cause). IQR ≥ 0.20 ⇒ P1-like (per-row channel).** Diagnostic, **not a gate.**
+
+⚠️ The cleanest P1/P2 test — one signal, two receive chains — is **not available**: I checked, C2 archived
+audio from **one** path only (`wsjtx-2-sdruno/` holds `ALL.TXT`, no WAVs). It would need new capture,
+which is outside this grant.
+
+### 15.7 ROW 0k — executable, with the saturation confound fixed
+
+🔴 **The confound B6 missed:** real rows are **already faded** (`B` ≈ 1.4 Hz), so added fade composes into
+a saturating region. **A clean bench arm would show a steeper slope for that reason alone**, and K2 would
+fire on saturation, not on instrument failure.
+
+**Fix — match the starting point:**
+1. **Bench arm:** render clean, then pre-fade at `B_pre` chosen so the bench arm's **median `ρ₁` matches
+   the real rows' median within 0.02**. From §15.2's table, `B_pre` ≈ **1.4 Hz**; QA solves for it against
+   the table rather than assuming it.
+2. **Both arms** then receive the **same** additional dose ladder `B_add` ∈ {0, 1, 2, 5, 10} Hz.
+3. `Δ_arm = median ρ₁(B_add=0) − median ρ₁(B_add=10)`, per arm. n ≥ 100 real rows, ≥ 100 bench trials.
+
+| row | predicate | meaning |
+|---|---|---|
+| **K1** | `|Δ_real − Δ_bench| / Δ_bench ≤ 0.20` | `ρ₁` **discriminates fading on real audio** ⇒ census proceeds; `ρ*` re-referenced by the measured offset |
+| **K2** | `Δ_real < 0.50 × Δ_bench` | response **compressed** ⇒ 🛑 stop-loss fires, FADE exposure limb CLOSES |
+| **K3** | otherwise | report, do not interpret |
+
+⚠️ `fade.py`'s wrap guard derives its buffer from `n` itself (`_wrapped_shaped_gaussian_process`), so it
+**does** extend correctly on a 15 s cycle buffer. **Checked — no special handling needed.**
+
+### 15.8 Predictions
+
+| prediction | P | class |
+|---|---|---:|
+| **K1** — `ρ₁` discriminates on real audio | **0.75** | H |
+| **K2** — compressed, limb closes | 0.15 | H |
+| Spread check returns **P1-like** (IQR ≥ 0.20) | **0.70** | H |
+| §13.5: narrow grid recovers ≤ 0.02 of the gap | 0.60 | C |
+| **0j′ returns J1** (dropped rows missing-at-random) | 0.80 | H |
+
+🔴 **All five are "no defect here" calls, which is the opposite direction to my ledger's named bias.
+Recorded before the data, as the ledger requires.** ⚠️ **§15.1 was a case where I declined to predict and
+measured instead — that is the behaviour the ledger asks for, and it is why P3 died in 20 minutes rather
+than in a QA build cycle.**
+
+### 15.9 Status
+
+- 🛑 **No `φ`. `BAR₅`/`BAR₁₀` still ratified, still movable.**
+- ➡️ **Dispatch: §13.5 + 0j′ + spread check in one pass, then ROW 0k.**
+- 🔴 **For the Captain: §15.3's withdrawal of ROW 0i, and §15.4's pattern.** 0k's result makes 0i moot
+  either way, so QA is not blocked on this ruling.
