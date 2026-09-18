@@ -249,3 +249,102 @@ programme. ROW 0a is the binding check.
 - 🔴 **Bars fixed:** ROW 0c ≥ 0.90 · 0d ≤ 0.20 at −30 dB · 0e ≥ 6/9 excluded · per cell M1 ≤ 0.20 / M2 ≥ 0.80 ·
   unanimity for ROW 1/2. They do not move after the result.
 - 🛑 **Subtract-resynthesise DEAD · candidate-budget CLOSED ×2 · no remedy trial in this arm.**
+
+---
+
+## §10. ACCEPTANCE RULING — 🛑 VOID. The oracle is not production, and the data prove it
+
+**Architect, 2026-09-18T14:36Z.** QA report `2026-09-18-1433-qa-to-architect-density-mech-result.md`,
+commit `10045691` (`qa/e4-bench`, not pushed). QA ran the spec exactly as written, ROW 0 was silent, and
+the rows mechanically return **ROW 1 (M1)**. **I am not accepting it, and the fault is in the spec, not the
+run.**
+
+### 10.1 The contradiction
+
+| cell | `prod` (production, E present) | `orc_E` (oracle at F's true position, E present) |
+|---|---:|---:|
+| primary Δ 18.75, `X` +1 | **94/100** | **0/100** |
+| strong Δ 12.0, `X` +3 | **100/100** | **0/100** |
+| strong Δ 18.75, `X` +3 | **100/100** | **0/100** |
+| primary Δ 6.25 / 12.0, `X` +1 | 35 / 15 | 0 / 0 |
+
+`orc_E` is **0/100 in all 12 cells**, with a paired BER shift of **0.30–0.44 (53–77 of 174 bits)**,
+including cells where **production decodes F from the same audio every time.** The arm's whole premise
+(§0, §1.2) was that the oracle is *"production's own extraction + LDPC, at the right spot"*. **If it were,
+it could not fail 100/100 where production succeeds 100/100.** So `orc_E` = 0 is **not** evidence that
+the bits are corrupted *for production*, and an M1 reading drawn from it is **void**.
+
+### 10.2 Why — two things production does that the oracle does not (checked in `ft8_shim.c` on `main`)
+
+1. **Production is TWO-PASS** (`K_MAX_PASSES` = 2). After pass 0 it **attenuates each decoded signal's
+   waterfall tiles** (active tone bin ±1) by a **soft SNR-scaled factor**: none at ≤ −5 dB, full at
+   ≥ +15 dB (`K_SOFT_SUPP_SNR_MIN/MAX_DB`). It then re-runs candidate search with a wider net. The oracle
+   extracts from the **unsuppressed pass-0 waterfall**. ⚠️ Suggestive, **not established:** E at +8 dB
+   (strong cells) gets ≈ 65% attenuation and production recovers F at 12 and 18.75 Hz. E at −5 dB (primary)
+   gets **none**, and production mostly fails.
+2. **Production extracts where its own search puts the candidate**, which need not be F's *true*
+   position. At primary Δ 18.75 / `X` +1, E is unsuppressed (−5 dB), yet production decodes F 94/100 while
+   the oracle at the true position reads BER ≈ 0.30. **That cell is unexplained by (1) alone.** A candidate
+   at a lattice point displaced away from E is one candidate explanation. **I am not asserting it.**
+
+### 10.3 🔴 My design failure, logged
+
+**ROW 0 proved the oracle can say YES (E removed) and NO (−30 dB). It never checked that the oracle
+agrees with production where production succeeds WITH E present, which is the only condition the arm
+reads.** That check was free: `prod` was measured in the same cells. **HK-022's question, "what error
+could this ROW 0 NOT detect?", has the answer "exactly this one."** It is the fourth predicate-design
+failure in two days (`E4-STAGE2` ×3), and it is the same shape: a precondition validated off the axis the
+verdict reads on.
+
+### 10.4 What the run DOES establish — descriptive, not a verdict
+
+- ✅ **Single-pass magnitude extraction at the victim's true position is completely corrupted by a
+  neighbour ≥ 1 dB stronger within 18.75 Hz**: 0/100 in every cell, BER 0.30–0.44, against 100/100 with
+  E removed on the same noise. That is a true fact about `ft8_extract_likelihood()` on an unsuppressed
+  waterfall.
+- ✅ **Production's recovery of such victims, where it happens, therefore runs through something the
+  oracle omitted**: pass 1, a displaced candidate, or both.
+- ✅ The instrument itself is sound for what it measured: 0a–0d all clean, position mapping confirmed
+  (`orc_0` 100/100 everywhere), byte-identical reruns.
+
+🛑 **Not established: M1, M2, or which production stage loses F in the cells where it is lost.**
+
+### 10.5 Amendment A1 — the diagnostic that decides between §10.2's explanations (dispatched)
+
+Same harness, same seeds, same binary. **Cells:** the five with `prod` > 0 (primary Δ 6.25/12/18.75 at
+`X` +1; strong Δ 12/18.75) **plus** primary Δ 12 / `X` +3 (bench geometry, `prod` 0) as the excluded
+reference. N = 100.
+
+| measurement | how |
+|---|---|
+| **`prod_p0`**: production with pass 1 disabled | `ft8_set_decode_params(k_min_score_pass2 = 1 000 000, <production's own osd_corr_threshold>, <production's own osd_nhard_max>)`, which leaves pass 0 untouched and admits no pass-1 candidate. Confirm via `ft8_get_last_candidate_counts` that pass 1 had **0** candidates. **Restore production's values afterwards and assert them.** |
+| **production's F position** | for every `prod` hit, F's reported `(freq_hz, dt)` from `ft8_decode_all`, and its offset from the true position |
+| **`orc_P`**: oracle at production's position | `ft8_extract_llrs_at` at production's reported position (same §1.3 time-origin mapping) → `ft8_ldpc_decode_llrs`, E present |
+
+**Readings, per cell with `prod` ≥ 0.80** (primary 18.75/+1; strong 12, 18.75):
+
+| reads | predicate | meaning |
+|---|---|---|
+| **A1-POS** | `prod_p0` ≥ 0.80 **and** `orc_P` ≥ 0.80 | production gets F **in pass 0 at a displaced position**. The oracle looked in the wrong place. |
+| **A1-PASS1** | `prod_p0` ≤ 0.20 | production gets F **only via pass 1** (suppression and/or the wider net) |
+| **A1-OTHER** | anything else | report |
+
+🛑 **A1 carries no M1/M2 verdict.** It says which production route recovers F where F is recovered, which
+is what a valid re-spec of this arm has to model. **A1-PASS1 would mean the oracle needs pass-1's
+suppressed waterfall, which no export provides.** That is a `native/` change (HK-011) and a Captain
+decision. **A1-POS would mean the oracle must search a neighbourhood, not a point**, which needs no
+Developer.
+
+### 10.6 Ledger
+
+**All `DENSITY-MECH` §8 predictions: UNSCORED, arm void** (the ledger's precedent for ROW E4). The carried
+assessment §8 #2 (M2 @ 0.60) **stays open.** 🛑 **QA's note that "#2 (M1 @ 0.35) called it right" is
+withdrawn with the verdict.** Design failure logged (§10.3).
+
+### 10.7 Status
+
+- 🛑 **VOID. No M1, no M2. Do not cite "the loss is in extraction".**
+- ✅ Descriptive fact (§10.4): pass-0 extraction at the true position is fully corrupted by a ≥ 1 dB-stronger
+  neighbour ≤ 18.75 Hz.
+- ➡️ **A1 dispatched to QA** (diagnostic, minutes, no `src/`/`native/`).
+- ✅ **`DENSITY-LIVE`'s ≈ 4.30 pp is unaffected.** This arm is about where the loss happens, not whether.
