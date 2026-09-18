@@ -53,12 +53,13 @@ findings. **This block is the live state. Where it disagrees with any section be
 
 1. ✅ **Narrow-grid spread — LANDED** (B14): median **0.8862** · IQR **0.1663** · p10 **0.6331** · p90 **0.9654** · share<`ρ*` **0.0704**. **P2 excluded; P1 not established.**
 1b. 🔴 **§20.3 — THIS CENSUS CAN ONLY CLOSE `FADE`, NEVER OPEN IT.** If `φ_upper` exceeds the bar, **nothing is concluded**. 🛑 **"`E1` did not fire" must NEVER be read as "fading is a large contributor."**
-2. ➡️ **`ROW 0m`** (§19.4) — **DISPATCHED 2026-09-18, Captain ruled option 1** (B15 §21). H1 ⇒ `φ`
-   authorised; H2 ⇒ stop, no `φ`.
-3. **`φ` — NOT YET COMPUTED. CONDITIONALLY authorised on an H1, `GRID_A` ONLY** (B15 §21.2); any `φ`
-   from another grid is void on sight. 🔴 **`BAR₅` = 0.25 / `BAR₁₀` = 0.05 FREEZE the moment a `φ`
-   exists** — still movable only until then.
-4. **§18.4's pattern ruling** — with the Captain.
+2. ✅ **`ROW 0m` — H1, AT THE MARGIN** (B16 §22.1): sharpness ratio **0.70705** vs ≥0.70 · pinning **0.0233** vs ≤0.10.
+3. ✅ **`φ` COMPUTED — census reads 🔴 `E3`, UNRESOLVED** (B16 §22): `φ_upper` = **0.2935** (1296/4416),
+   95% CI **[0.2802, 0.3071]**, `GRID_A`, full-message `ρ₁`. 🔒 **`BAR₅` = 0.25 / `BAR₁₀` = 0.05 are now
+   FROZEN.** 🛑 **NOT evidence that fading is a large contributor.** 🛑 **Never cite B13's `0.3589` as
+   `φ`** — it is a **Costas-only** `ρ₁`, a different statistic (§22.3).
+4. ➡️ **With the Captain: §10.4's pre-registered next step (the AP question) vs. park FADE and move to
+   DENSITY** (§22.6). Plus **§18.4's pattern ruling**.
 
 ## ⚠️ If you are citing this document at all
 
@@ -1854,3 +1855,138 @@ withdrawn, not revived.
 - ➡️ **DISPATCHED: 0m → (H1) → `φ`.**
 - 🔴 **`BAR₅`/`BAR₁₀` freeze on the first `φ`.**
 - 🔴 **§18.4's pattern ruling remains with the Captain and is NOT affected by this dispatch.**
+
+---
+
+## §22. Amendment B16 — ACCEPTANCE RULING: ROW 0m H1 (at the margin) · `φ` = 0.2935 · census reads `E3`, UNRESOLVED
+
+**Architect, 2026-09-18T13:25Z.** QA ran both steps as dispatched. Artefacts:
+`worktrees/qa/artefacts/e4-stage2-phi/` (`phi_summary.json`, `phi_sample_rows.json`, `run.log`);
+script `qa/rr-study/harness/e4_stage2_phi.py` (QA worktree, uncommitted at the time of ruling).
+**Checked by the Architect, not taken on report:** I re-derived the pooled share from `phi_sample_rows.json`
+(n=4416, k<`ρ*`=1296 ⇒ **0.29348**, exact match) and confirmed the script uses `GRID_A` location with
+**full-message** `ρ₁` (`full_message_rho1_at`, line 121), as §21.2 requires. The band counts sum to
+4416 and 1296.
+
+### 22.1 ROW 0m — H1, and the margin is disclosed rather than banked
+
+n=852, deciles n=86 each: sharpness ratio **0.70705** (bar ≥ 0.70; margin **0.0070**) · bottom-decile
+pinning **0.0233** (bar ≤ 0.10; top decile 0.000). ⇒ **H1.**
+
+🛑 **The bar is not moved and no post-hoc robustness check is added.** A resample of 86 rows could
+plausibly read H2. That is a disclosure, not a new predicate: a bootstrap straddling 0.70 could not change
+this row (HK-021(k)). **Why proceeding is safe anyway:** if the low tail is partly location-limited after
+all, `ρ₁` there is biased **down** ⇒ `φ_upper` biased **up**. That is the conservative direction for `E1`.
+A marginal H1 can make the bound looser but cannot manufacture a false closure.
+
+### 22.2 `φ` and the verdict
+
+| | n | k | `φ_upper` | 95% CI |
+|---|---:|---:|---:|---|
+| **POOLED** | **4416** | **1296** | **0.2935** | **[0.2802, 0.3071]** |
+
+Dropped: **584 of 5000 (11.68%)**. That is 535 non-re-encodable (0j′'s population) + 49 origin/extract
+failures. No band (J1), CI widened only.
+
+**Mechanical reading of §10.3:** `E1` needs upper < 0.05 ✗ · `E2` needs upper < 0.25 ✗ (0.3071; even
+the **lower** limit clears 0.25) ⇒ 🔴 **`E3` — UNRESOLVED.**
+
+**Were the other branches reachable?** (§0.0's standing check.) Yes: `φ` is an unbounded-direction share
+in [0,1], and both bars sit well inside the range. **This row could have returned any of its three
+answers.**
+
+**The 49 extra drops were not covered by J1's test.** Worst case, all 49 sit on one side of `ρ*`. That moves
+`φ` by at most ≈ 49/4465 ≈ **1.1 pp** (≥ 0.2903 if all 49 sit above `ρ*`). The lower CI stays > 0.25 ⇒
+**the verdict is invariant.** Recorded, not gated.
+
+🔒 **`BAR₅` = 0.25 and `BAR₁₀` = 0.05 are FROZEN as of this `φ`** (§21.2). No later result may move them.
+
+### 22.3 🛑 `φ` = 0.2935 vs B13's "share < `ρ*`" = 0.3589: not a discrepancy, and never interchangeable
+
+Same seed-20260916 sample, same 4416 kept rows, different numbers. **Resolved before ruling:**
+`e4_stage2_b8_item1.py` part (b) scored ROW 0j′ with **Costas-only `ρ₁`** (`costas_only_rho1_at`, 21
+symbols). That was chosen so that **non-re-encodable** rows could be scored at all. `φ` uses **full-message** `ρ₁`
+(§12.6). With fewer lag-1 pairs the estimator is noisier and reads lower: B13 kept median **0.6780** vs
+`φ`'s kept median **0.7764**.
+
+🛑 **0.3589 is NOT `φ` and may never be cited as one.** ⚠️ **One consequence to record:** J1 established
+missing-at-random on the **Costas-only** statistic and `φ` is on the **full-message** one. That was the
+design (dropped rows have no full-message `ρ₁`). The two track at rank 0.887 (§14), and the
+worst-case dropped-row argument in §22.2 does not depend on which statistic J1 used.
+
+### 22.4 The SNR gradient — REPORTING ONLY, it gates nothing (§21.3)
+
+| REF SNR (dB) | n | `φ_upper` | 95% CI |
+|---|---:|---:|---|
+| −10 … −1 | 2171 | 0.4334 | [0.4127, 0.4544] |
+| 0 … 4 | 817 | 0.2607 | [0.2318, 0.2919] |
+| 5 … 9 | 576 | 0.1424 | [0.1162, 0.1733] |
+| 10 … 14 | 390 | 0.0846 | [0.0609, 0.1165] |
+| 15 … 19 | 222 | 0.0811 | [0.0519, 0.1245] |
+| ≥ 20 | 240 | 0.0375 | [0.0199, 0.0697] |
+| *≥ +10 pooled* | *852* | *0.0704* | — reproduces B14's 0.0704 exactly (same rows, same statistic) |
+
+**What it says:** `φ_upper` falls **monotonically, ~12×, from the weakest band to the strongest.** A
+physical fading channel does not know the signal's SNR. **This gradient is the §1.2 prediction:
+`φ_upper` is dominated by estimator noise on weak rows.** It was pre-registered at §3.2 (line ~247) as the
+check on "how much of `φ_upper` is instrument". **Most of it is instrument.**
+
+**What a better instrument would have to fix:** the bound is loose **exactly where `BAR₅` lives**
+(−10…−1 dB, 0.43). Closing FADE would need a `ρ₁` estimator whose noise floor at −10…−1 dB is
+**~5–10× lower**, or a way to score fading that does not depend on a per-row correlation at low SNR.
+🛑 **Neither is proposed here.**
+
+🛑 **Not licensed:** reading any stratum against a bar. **Even the ≥ 20 dB stratum's upper limit (0.0697)
+does not clear `BAR₁₀`**, and it would not count if it did: the bars apply to the pre-registered pooled
+measurement, and a per-band gate chosen after seeing the gradient would be an outcome-chosen split
+(HK-021(y)).
+
+### 22.5 🛑 The caveat (§21.4), restated as a ruling
+
+**`E3` means UNRESOLVED.** `φ_upper` is a one-sided upper bound. **0.29 is NOT "29% of live rows are
+faded", and a non-firing `E1` is NOT evidence that fading is a large contributor.** The only defensible
+strong-signal statement: **at ≥ +10 dB, where the instrument is least noisy, ≤ ~7% of rows sit below `ρ*`**,
+and even that is an upper bound. **The bench's FADE ceiling (≤ 1.0 pp, board) is unchanged by this census.**
+The census neither raises nor lowers it.
+
+### 22.6 ➡️ What is pre-registered next, and my recommendation
+
+**§10.4, written before any data:** *"on an E2 or E3, the AP question is the FIRST thing resolved, before any
+fading treatment is scoped."* That binds any **fading treatment**. It does **not** oblige us to scope one.
+
+| option | what it costs | what it buys |
+|---|---|---|
+| **(a) Resolve §10.4's AP question now** (10 Hz bench re-run with AP disabled / AP-proof messages) | bench time + a spec | tells us whether WSJT-X's 10 Hz edge is fading robustness or a priori decoding. **Only matters if we would then treat FADE.** |
+| **(b) PARK `FADE` as UNRESOLVED; move to DENSITY** (recommended) | nothing now | frees the programme for the **≈ 5.9 pp** ceiling (≈ 3× anything else on the board, the only contributor with a reproducer). FADE's bench ceiling is **≤ 1.0 pp**. |
+
+🔴 **Recommendation: (b).** Even a fully-resolved FADE treatment is worth ≤ 1 pp on the bench. The census
+cannot close it, and §22.4 says why. The AP test should come back **only** if FADE is ever proposed for
+treatment. ⚠️ **Density is itself blocked on a Captain ruling** (the live-concentration check's
+proximity to retired SPECTRAL LOCALITY; board 2026-09-16T17:30Z). Choosing (b) moves that ruling to the
+front of the queue; it does not authorise density work. ⚠️ **And per the prediction ledger, my instinct
+to spec density like every other single-mechanism arm is the biased one.** Whoever writes that spec
+should read the ledger first.
+
+### 22.7 Ledger — scored at ruling time
+
+| prediction | P | class | outcome |
+|---|---:|:---:|---|
+| `ROW 0m` returns H1 (B15) | 0.75 | H | ✅ **HIT, at the margin** (0.70705 vs 0.70) |
+| **`E1` — FADE closes on exposure (blind, §12.10)** | **0.65** | H | 🔴 **MISS** — reads `E3` |
+| `E3` unresolved (blind) | 0.25 | H | ✅ **HIT** |
+| `φ_upper` point 0.02–0.08 (blind) | — | H | 🔴 **MISS** — 0.2935 (the strong-signal stratum, 0.0704, sits inside it) |
+| `φ` pooled 0.25–0.45 (B15) | 0.60 | C | ✅ **HIT** |
+| `φ` at ≥ +10 dB < 0.12 (B15) | 0.80 | C | ✅ **HIT** (0.0704) |
+| `E1` fires @ 0.10 (B15, **INFORMED re-forecast**) | 0.10 | — | did not fire. **Not scored into the blind record**, per §21.5. |
+
+⚠️ **The blind `E1` miss is in the direction of the historical bias's mirror image.** I called "no defect
+here" at 0.65 and the instrument could not deliver that answer. **The error was in the instrument's reach,
+not in a claim about the band.** §20.3 found that three amendments too late.
+
+### 22.8 Status
+
+- ✅ **0m H1 (marginal) · `φ` = 0.2935 [0.2802, 0.3071] · `E3` UNRESOLVED.** 🔒 **Bars FROZEN.**
+- 🛑 **B13's 0.3589 is a Costas-only statistic — never `φ`.**
+- ➡️ **With the Captain: (a) the §10.4 AP question, or (b) park FADE as unresolved and move to density
+  (recommended).** Plus §18.4's pattern ruling.
+- 🟢 **This census's measurement work is COMPLETE.** Nothing further is dispatched to QA on this arm.
