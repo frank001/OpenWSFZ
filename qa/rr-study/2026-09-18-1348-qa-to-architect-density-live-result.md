@@ -9,8 +9,12 @@ test only** — spec §0). No `src/`/`native/` change, no station time, no new c
 concentrate in the bench-proven near-neighbour geometry, by a wide margin: `D(EXPOSED,PL) = 0.7293`,
 95% CI `[0.7010, 0.7540]` — the CI's *lower* limit alone (`0.701`) is more than 4× the `0.170` bar.
 Attributable cost `C = D × n_EXPOSED / 91,046 ≈ 4.30 pp` of decode rate (spec's own worked example:
-`D=0.170 ⇔ C=1.0pp`). **Density becomes the programme's main line** per spec §7's pre-registered
-sequence; the M1/M2 mechanism arm is next, gated on its own shim-feasibility ROW 0.
+`D=0.170 ⇔ C=1.0pp`). 🛑 **Cite `4.30 pp`, with this arm's C2 qualifiers (§1) — not the `≈5.9 pp`
+bench-ceiling planning figure from the assessment.** They answer different questions (an upper bound
+assuming the bench's 0/100 generalises, vs. this arm's measured, standardised, CI-bounded live
+figure); `4.30 pp` is the one this result licenses. **Density becomes the programme's main line**
+per spec §7's pre-registered sequence — the Architect owns the M1/M2 mechanism-arm spec (HK-015);
+the Captain has approved that arm and the Architect is writing it now.
 
 ---
 
@@ -91,13 +95,23 @@ Raw recovery, for scale: **EXPOSED 5.18%** (n=5,363) vs **PL 83.23%** (n=7,476),
 | CLEAR | 28,310 | 85.30% |
 
 **`D(EXPOSED,PL)` per 5 dB band** (🛑 not read against `0.170` — the bar belongs to the pooled,
-standardised figure, HK-021(y)): `−10…−6: 0.674` · `−5…−1: 0.731` · `0…4: 0.760` · `5…9: 0.786` ·
+standardised figure, HK-021(y)): `−10…−6: 0.682` · `−5…−1: 0.733` · `0…4: 0.760` · `5…9: 0.786` ·
 `≥10: 0.844`. **Monotonically increasing with SNR** — the exclusion, where it holds, holds more
 completely on stronger signals, not less; there is no band where the effect collapses.
 
-**`D(TRANSITION,PF)` = 0.2668**, CI95 `[0.2377, 0.2950]` — graded-zone check, not a gate. Consistent
-with the bench's partial-effect prediction (27/100→98/100 across the transition zone): a real but
-much smaller penalty than the full-exclusion `EXPOSED` class.
+⚠️ **Correction (caught by the Architect's independent recompute, applied before push):**
+`density_live.py`'s original `snr_band5()` used `snr < −6` for the bottom band edge, which excludes
+exactly `−6 dB` and pushes it into `−5…−1` instead of `−10…−6`. This only touched §4.3's
+5 dB-band reporting items (1b and this one) — the primary and ROW 0a/0b/0c all stratify on 1 dB
+cells and were never affected, and the fix does not change the verdict. Fixed to `snr <= −6`;
+`EXPOSED`'s per-band `n` now reproduces spec §2.1 exactly (`2,059 / 1,500 / 1,017 / 509 / 278`,
+confirmed against the JSON). The two lowest-band `D` values above moved by `<0.01` (`0.674→0.682`,
+`0.731→0.733`); re-run, re-verified.
+
+**`D(TRANSITION,PF)` = 0.2668**, CI95 `[0.2377, 0.2950]` — graded-zone check, not a gate, and 🛑
+**not added to `C`**: `C` is defined (spec §3) from `D(EXPOSED,PL)` alone. Consistent with the
+bench's partial-effect prediction (27/100→98/100 across the transition zone): a real but much
+smaller penalty than the full-exclusion `EXPOSED` class.
 
 **`D(EXPOSED,PF)` = 0.7590**, CI95 `[0.7377, 0.7785]` — for completeness, close to `D(EXPOSED,PL)`
 as expected since ROW 0a already establishes `PL` and `PF` read alike.
@@ -148,14 +162,22 @@ Classifier reads numeric fields only (`snr`, `freq_hz`); message text is touched
 
 **ROW 1 → density is the programme's main line.** Per the pre-registered sequence: the M1 (tone
 contention) vs M2 (tile artefact) mechanism arm is next, on a continuous metric (LLR BER vs truth),
-with shim feasibility as its own ROW 0 — that spec needs the Captain's go before I start it.
+with shim feasibility as its own ROW 0. Per HK-015, **that spec is the Architect's to write, not
+QA's** — the Captain has approved the arm and the Architect is writing it on `arch/density`.
 🛑 **This result establishes concentration, not mechanism, and licenses no fix** (spec §5.5) — same
 discipline as the bench assessment it confirms.
 
+**Ruling:** the Architect independently recomputed this arm with separate code and confirmed
+`R_wild=61.0856`, `D=0.7293`, `C=4.296pp`, `D(PL,PF)=0.0272`, `D(TRANSITION,PF)=0.2668` to 4 dp, and
+ran an artefact check (REF-only, counts only) on `EXPOSED`'s pairs: 2/5,363 share a sender token
+with `dF` uniform over 0–18 Hz — real transmitter pairs, not duplicate decodes. Ruling recorded at
+spec §10, `arch/density` `3b22c786`.
+
 ## 10. Artefacts
 
-Committed by path (HK-014/HK-033 — **not pushed**, Captain's go needed): `qa/rr-study/density-live/`
-(`density_live.py`, `results/density_live_result.json`), this report. Branch: `qa/e4-bench` (current
-worktree branch; will move to its own branch name if the Captain wants it split out before push).
-No `artefacts/` gitignored output beyond what's already on disk for C2 (no new capture, no new
-run).
+Committed by path (HK-014/HK-033): `qa/rr-study/density-live/` (`density_live.py`,
+`results/density_live_result.json`), this report. Branch: `qa/e4-bench`. **Captain-approved for
+push** (relayed via the Architect's session, HK-033) covering this commit plus the band-edge fix
+commit, and `arch/density` `517db622` + `3b22c786` (spec + ruling) per HK-014 — any `arch/density`
+commits after `3b22c786` are not covered by that approval. No `artefacts/` gitignored output beyond
+what's already on disk for C2 (no new capture, no new run).

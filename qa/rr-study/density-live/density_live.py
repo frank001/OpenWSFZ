@@ -89,7 +89,7 @@ def classify(v_snr, v_f, neighbours):
 
 
 def snr_band5(snr):
-    if snr < -6:
+    if snr <= -6:
         return "-10..-6"
     if snr < 0:
         return "-5..-1"
