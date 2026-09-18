@@ -1,0 +1,219 @@
+{
+  "spec_commit": "1a7f9547",
+  "prod_params": {
+    "k_min_score_pass2": 10,
+    "osd_corr_threshold": 0.1,
+    "osd_nhard_max": 60,
+    "source": "ft8_shim.c:478-480"
+  },
+  "p0_only_params": {
+    "k_min_score_pass2": 1000000,
+    "osd_corr_threshold": 0.1,
+    "osd_nhard_max": 60
+  },
+  "orc_P_position_convention": "production's reported (freq_hz, dt) used DIRECTLY -- freq_hz as reported (tone-0 convention), dt as reported with NO added SYMBOL_PERIOD_S (dll_common.py's own B-orig-A finding: decode_all's reported dt for a true-dt=0 station already reads ~0.16, i.e. already equals dt_true+SYMBOL_PERIOD_S -- adding it again would double-correct)",
+  "cells": [
+    {
+      "label": "primary_6.25_+1",
+      "group": "primary",
+      "delta_hz": 6.25,
+      "x_db": 1.0,
+      "part_index": 2001,
+      "n_trials": 100,
+      "prod_hits": 35,
+      "prod_rate": 0.35,
+      "prod_p0_hits": 0,
+      "prod_p0_rate": 0.0,
+      "p0_pass1_nonzero_trials": 0,
+      "p0_pass1_all_zero": true,
+      "orc_P_hits_of_100": 0,
+      "orc_P_rate_of_100": 0.0,
+      "orc_P_hits_of_prodhits": 0,
+      "orc_P_rate_of_prodhits": 0.0,
+      "freq_offset_hz": {
+        "n": 35,
+        "mean": -0.25,
+        "min": -0.25,
+        "max": -0.25
+      },
+      "dt_offset_s": {
+        "n": 35,
+        "mean": -3.5762786898541066e-09,
+        "min": -3.5762786898541066e-09,
+        "max": -3.5762786898541066e-09
+      }
+    },
+    {
+      "label": "primary_12.00_+1",
+      "group": "primary",
+      "delta_hz": 12.0,
+      "x_db": 1.0,
+      "part_index": 2004,
+      "n_trials": 100,
+      "prod_hits": 15,
+      "prod_rate": 0.15,
+      "prod_p0_hits": 0,
+      "prod_p0_rate": 0.0,
+      "p0_pass1_nonzero_trials": 0,
+      "p0_pass1_all_zero": true,
+      "orc_P_hits_of_100": 0,
+      "orc_P_rate_of_100": 0.0,
+      "orc_P_hits_of_prodhits": 0,
+      "orc_P_rate_of_prodhits": 0.0,
+      "freq_offset_hz": {
+        "n": 15,
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "dt_offset_s": {
+        "n": 15,
+        "mean": -3.5762786898541066e-09,
+        "min": -3.5762786898541066e-09,
+        "max": -3.5762786898541066e-09
+      }
+    },
+    {
+      "label": "primary_18.75_+1",
+      "group": "primary",
+      "delta_hz": 18.75,
+      "x_db": 1.0,
+      "part_index": 2007,
+      "n_trials": 100,
+      "prod_hits": 94,
+      "prod_rate": 0.94,
+      "prod_p0_hits": 0,
+      "prod_p0_rate": 0.0,
+      "p0_pass1_nonzero_trials": 0,
+      "p0_pass1_all_zero": true,
+      "orc_P_hits_of_100": 0,
+      "orc_P_rate_of_100": 0.0,
+      "orc_P_hits_of_prodhits": 0,
+      "orc_P_rate_of_prodhits": 0.0,
+      "freq_offset_hz": {
+        "n": 94,
+        "mean": 0.25,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "dt_offset_s": {
+        "n": 94,
+        "mean": -3.5762786898541066e-09,
+        "min": -3.5762786898541066e-09,
+        "max": -3.5762786898541066e-09
+      }
+    },
+    {
+      "label": "strong_12.00",
+      "group": "strong",
+      "delta_hz": 12.0,
+      "x_db": 3.0,
+      "part_index": 2102,
+      "n_trials": 100,
+      "prod_hits": 100,
+      "prod_rate": 1.0,
+      "prod_p0_hits": 0,
+      "prod_p0_rate": 0.0,
+      "p0_pass1_nonzero_trials": 0,
+      "p0_pass1_all_zero": true,
+      "orc_P_hits_of_100": 0,
+      "orc_P_rate_of_100": 0.0,
+      "orc_P_hits_of_prodhits": 0,
+      "orc_P_rate_of_prodhits": 0.0,
+      "freq_offset_hz": {
+        "n": 100,
+        "mean": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "dt_offset_s": {
+        "n": 100,
+        "mean": -3.5762786898541066e-09,
+        "min": -3.5762786898541066e-09,
+        "max": -3.5762786898541066e-09
+      }
+    },
+    {
+      "label": "strong_18.75",
+      "group": "strong",
+      "delta_hz": 18.75,
+      "x_db": 3.0,
+      "part_index": 2103,
+      "n_trials": 100,
+      "prod_hits": 100,
+      "prod_rate": 1.0,
+      "prod_p0_hits": 0,
+      "prod_p0_rate": 0.0,
+      "p0_pass1_nonzero_trials": 0,
+      "p0_pass1_all_zero": true,
+      "orc_P_hits_of_100": 0,
+      "orc_P_rate_of_100": 0.0,
+      "orc_P_hits_of_prodhits": 0,
+      "orc_P_rate_of_prodhits": 0.0,
+      "freq_offset_hz": {
+        "n": 100,
+        "mean": 0.25,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "dt_offset_s": {
+        "n": 100,
+        "mean": -3.5762786898541066e-09,
+        "min": -3.5762786898541066e-09,
+        "max": -3.5762786898541066e-09
+      }
+    },
+    {
+      "label": "primary_12.00_+3_EXCLUDED_REF",
+      "group": "primary",
+      "delta_hz": 12.0,
+      "x_db": 3.0,
+      "part_index": 2005,
+      "n_trials": 100,
+      "prod_hits": 0,
+      "prod_rate": 0.0,
+      "prod_p0_hits": 0,
+      "prod_p0_rate": 0.0,
+      "p0_pass1_nonzero_trials": 0,
+      "p0_pass1_all_zero": true,
+      "orc_P_hits_of_100": 0,
+      "orc_P_rate_of_100": 0.0,
+      "orc_P_hits_of_prodhits": 0,
+      "orc_P_rate_of_prodhits": null,
+      "freq_offset_hz": {
+        "n": 0,
+        "mean": null,
+        "min": null,
+        "max": null
+      },
+      "dt_offset_s": {
+        "n": 0,
+        "mean": null,
+        "min": null,
+        "max": null
+      }
+    }
+  ],
+  "readings": {
+    "primary_18.75_+1": {
+      "read": "A1-PASS1",
+      "prod_p0_rate": 0.0,
+      "orc_P_rate_of_100": 0.0,
+      "prod_rate": 0.94
+    },
+    "strong_12.00": {
+      "read": "A1-PASS1",
+      "prod_p0_rate": 0.0,
+      "orc_P_rate_of_100": 0.0,
+      "prod_rate": 1.0
+    },
+    "strong_18.75": {
+      "read": "A1-PASS1",
+      "prod_p0_rate": 0.0,
+      "orc_P_rate_of_100": 0.0,
+      "prod_rate": 1.0
+    }
+  },
+  "n_trials_per_cell": 100,
+  "wall_time_s": 412.5
+}

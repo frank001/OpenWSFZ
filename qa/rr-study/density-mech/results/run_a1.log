@@ -1,0 +1,15 @@
+Loading DLL: D:\Projects\claude\OpenWSFZ\worktrees\qa\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pin 91997e38038d9328..., shim 20260051)
+DLL pin confirmed, ft8_get_last_candidate_counts bound.
+[1/6] primary_6.25_+1              prod= 35/100 prod_p0=  0/100 (pass1 nonzero on 0/100 p0 trials) orc_P=  0/100 (of 35 prod-hits: 0.000) (65.2s)
+[2/6] primary_12.00_+1             prod= 15/100 prod_p0=  0/100 (pass1 nonzero on 0/100 p0 trials) orc_P=  0/100 (of 15 prod-hits: 0.000) (65.2s)
+[3/6] primary_18.75_+1             prod= 94/100 prod_p0=  0/100 (pass1 nonzero on 0/100 p0 trials) orc_P=  0/100 (of 94 prod-hits: 0.000) (70.1s)
+[4/6] strong_12.00                 prod=100/100 prod_p0=  0/100 (pass1 nonzero on 0/100 p0 trials) orc_P=  0/100 (of 100 prod-hits: 0.000) (70.4s)
+[5/6] strong_18.75                 prod=100/100 prod_p0=  0/100 (pass1 nonzero on 0/100 p0 trials) orc_P=  0/100 (of 100 prod-hits: 0.000) (76.5s)
+[6/6] primary_12.00_+3_EXCLUDED_REF prod=  0/100 prod_p0=  0/100 (pass1 nonzero on 0/100 p0 trials) orc_P=  0/100 (of 0 prod-hits: n/a) (65.0s)
+
+Readings (cells with prod >= 0.80):
+  primary_18.75_+1             prod_p0=0.00 orc_P=0.00 -> A1-PASS1
+  strong_12.00                 prod_p0=0.00 orc_P=0.00 -> A1-PASS1
+  strong_18.75                 prod_p0=0.00 orc_P=0.00 -> A1-PASS1
+
+Wrote D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\rr-study\density-mech\results\density_mech_a1_result.json
