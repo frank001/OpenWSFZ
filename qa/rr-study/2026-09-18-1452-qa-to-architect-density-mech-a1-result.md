@@ -7,9 +7,10 @@ VOID ruling on the original `DENSITY-MECH` run (`qa/rr-study/2026-09-18-1433-qa-
 mech-result.md`, corrected in a separate commit).
 
 **Headline: unanimous `A1-PASS1` in all three qualifying cells.** With pass 1 disabled
-(`k_min_score_pass2 = 1,000,000`, production's own `osd_corr_threshold`/`osd_nhard_max` otherwise),
-production decodes `F` **0/100 times** in every cell — including the three where full two-pass production
-decodes it 94–100/100 on the same audio. The oracle at **production's own reported position** (not the
+(`k_min_score_pass2 = 1,000,000`, `osd_corr_threshold`/`osd_nhard_max` otherwise left at the shim's own
+defaults — `nhard=60`, not the live app's `40`; see §1), production decodes `F` **0/100 times** in every
+cell — including the three where full two-pass production decodes it 94–100/100 on the same audio. The
+oracle at **production's own reported position** (not the
 textbook true position) also reads **0/100** in all three. Production's reported position turns out to be
 within 0–1 Hz of the textbook true position anyway (see §4) — so this isn't a position story at all.
 **Pass 1 (soft SNR-scaled tile suppression + a wider candidate net) is what recovers `F` where it is
@@ -24,7 +25,7 @@ recovered; pass 0 alone cannot, at any position tested.**
 | Harness | Same binary/pin (`91997e38...`, shim `20260051`), same scene machinery, same seeds as `density_mech.py` — reused verbatim via `import density_mech as DM` (`DM.cell_signals`, `DM.F_TIME_OFFSET_S`, `DM.MAX_ITERS`/`DM.OSD_DEPTH`) |
 | Cells | 6, each pinned to its **original** `part_index` so the rendered audio is bit-identical to the VOIDed run: `primary Δ=6.25/12.00/18.75 X=+1`, `strong Δ=12.00/18.75`, `primary Δ=12.00 X=+3` (excluded reference) |
 | N | 100 trials/cell (single run — A1 is diagnostic, spec does not ask for a ROW 0b-style determinism double-run) |
-| Production params | `k_min_score_pass2=10, osd_corr_threshold=0.10, osd_nhard_max=60` — **read from the build**, `ft8_shim.c:478-480`'s compiled-in `s_k_min_score_pass2`/`s_osd_corr_threshold`/`s_osd_nhard_max` initial values. This harness never called `ft8_set_decode_params` before A1, so every `prod` figure in the original run already used exactly these — confirmed identical below (§3), not assumed |
+| Params used ("prod") | `k_min_score_pass2=10, osd_corr_threshold=0.10, osd_nhard_max=60` — **read from the build**, `ft8_shim.c:478-480`'s compiled-in `s_k_min_score_pass2`/`s_osd_corr_threshold`/`s_osd_nhard_max` initial values. 🛑 **These are the RAW SHIM's defaults, not the live app's** — the shipped app sets `OsdNhardMax=40` through the managed layer (`DecoderConfig.cs:94`, `NHARD40-DEFAULT`, since 2026-09-12), confirmed on disk this session. This harness never called `ft8_set_decode_params` before A1, so every `prod` figure here and in the original run used the shim's `nhard=60`, not the live app's `40` — confirmed identical to the original run below (§3), not assumed. **`A1-PASS1` is invariant to this**: `osd_nhard_max` is a maximum-Hamming-distance rejection gate (stricter at a lower value), so `nhard=40` can only reject candidates `nhard=60` already rejects — `prod_p0=0/100` at `60` implies `0/100` at `40` too. **The same caveat applies to every direct-DLL harness that never calls `ft8_set_decode_params`**: `F-NBR-A`, `NBR-RERUN`, and this arm's own `prod` rates all ran at the shim's `nhard=60`, not the live app's `40` |
 | Pass-1-disabled params | `k_min_score_pass2=1,000,000`, `osd_corr_threshold`/`osd_nhard_max` unchanged at production's values |
 | Wall time | 412.5 s (6.9 min) |
 
@@ -53,8 +54,9 @@ minus `F_TIME_OFFSET_S`) is `-3.6×10⁻⁹` in every cell — floating-point no
 | strong Δ=18.75 | 100/100 | 100/100 |
 | primary Δ=12.00, X=+3 (ref) | 0/100 | 0/100 |
 
-**Exact match, every cell** — confirms this harness's implicit production defaults were identical all
-along (§1), and that `prod`'s own determinism (already proven in the original run's ROW 0b) extends
+**Exact match, every cell** — confirms this harness's implicit defaults were identical all along: the
+shim's defaults (`nhard 60`; the live app runs `40`), and `A1-PASS1` is invariant to it (§1). `prod`'s own
+determinism (already proven in the original run's ROW 0b) extends
 across scripts using the same seeds/binary.
 
 ## 4. `prod_p0`, `orc_P`, and the position offset
