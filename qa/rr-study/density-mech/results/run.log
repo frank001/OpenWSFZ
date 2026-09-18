@@ -1,0 +1,53 @@
+==========================================================================================
+DENSITY-MECH run 1/2 (ROW 0b needs two byte-identical full runs)
+==========================================================================================
+Loading DLL: D:\Projects\claude\OpenWSFZ\worktrees\qa\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pin 91997e38038d9328..., shim 20260051)
+ROW 0a: sha256=91997e38038d9328... shim=20260051 max_iters=50 osd_depth=2 -> PASS
+[1/12] primary Delta=6.25Hz X=1.0dB (F=-6.0dB E=-5.0dB): prod=35/100 orc_E=0/100 orc_0=100/100 (56.0s)
+[2/12] primary Delta=6.25Hz X=3.0dB (F=-8.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (54.7s)
+[3/12] primary Delta=6.25Hz X=6.0dB (F=-11.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (53.7s)
+[4/12] primary Delta=12.00Hz X=1.0dB (F=-6.0dB E=-5.0dB): prod=15/100 orc_E=0/100 orc_0=100/100 (55.6s)
+[5/12] primary Delta=12.00Hz X=3.0dB (F=-8.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (55.4s)
+[6/12] primary Delta=12.00Hz X=6.0dB (F=-11.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (55.5s)
+[7/12] primary Delta=18.75Hz X=1.0dB (F=-6.0dB E=-5.0dB): prod=94/100 orc_E=0/100 orc_0=100/100 (58.6s)
+[8/12] primary Delta=18.75Hz X=3.0dB (F=-8.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (57.3s)
+[9/12] primary Delta=18.75Hz X=6.0dB (F=-11.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (56.9s)
+[10/12] strong Delta=6.25Hz X=3.0dB (F=5.0dB E=8.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (59.4s)
+[11/12] strong Delta=12.00Hz X=3.0dB (F=5.0dB E=8.0dB): prod=100/100 orc_E=0/100 orc_0=100/100 (59.9s)
+[12/12] strong Delta=18.75Hz X=3.0dB (F=5.0dB E=8.0dB): prod=100/100 orc_E=0/100 orc_0=100/100 (63.5s)
+ROW 0d (F alone, E removed, -30dB): orc_0=0/100 (10.8s)
+
+ROW 0c: PASS | ROW 0d: PASS | ROW 0e: 7/9 excluded (need >=6) -> PASS
+>>> VERDICT: ROW 1 M1 <<<
+Cell reads: (Delta=12.00,X=1.0)=M1, (Delta=12.00,X=3.0)=M1, (Delta=12.00,X=6.0)=M1, (Delta=18.75,X=3.0)=M1, (Delta=18.75,X=6.0)=M1, (Delta=6.25,X=3.0)=M1, (Delta=6.25,X=6.0)=M1
+
+At least one excluded cell reads M1/MIXED -- computing codeword-position BER (Sec.4 item 4) ...
+
+==========================================================================================
+DENSITY-MECH run 2/2
+==========================================================================================
+Loading DLL: D:\Projects\claude\OpenWSFZ\worktrees\qa\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll (pin 91997e38038d9328..., shim 20260051)
+ROW 0a: sha256=91997e38038d9328... shim=20260051 max_iters=50 osd_depth=2 -> PASS
+[1/12] primary Delta=6.25Hz X=1.0dB (F=-6.0dB E=-5.0dB): prod=35/100 orc_E=0/100 orc_0=100/100 (55.1s)
+[2/12] primary Delta=6.25Hz X=3.0dB (F=-8.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (54.2s)
+[3/12] primary Delta=6.25Hz X=6.0dB (F=-11.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (53.8s)
+[4/12] primary Delta=12.00Hz X=1.0dB (F=-6.0dB E=-5.0dB): prod=15/100 orc_E=0/100 orc_0=100/100 (56.3s)
+[5/12] primary Delta=12.00Hz X=3.0dB (F=-8.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (55.6s)
+[6/12] primary Delta=12.00Hz X=6.0dB (F=-11.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (55.5s)
+[7/12] primary Delta=18.75Hz X=1.0dB (F=-6.0dB E=-5.0dB): prod=94/100 orc_E=0/100 orc_0=100/100 (58.4s)
+[8/12] primary Delta=18.75Hz X=3.0dB (F=-8.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (57.3s)
+[9/12] primary Delta=18.75Hz X=6.0dB (F=-11.0dB E=-5.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (56.9s)
+[10/12] strong Delta=6.25Hz X=3.0dB (F=5.0dB E=8.0dB): prod=0/100 orc_E=0/100 orc_0=100/100 (59.4s)
+[11/12] strong Delta=12.00Hz X=3.0dB (F=5.0dB E=8.0dB): prod=100/100 orc_E=0/100 orc_0=100/100 (60.1s)
+[12/12] strong Delta=18.75Hz X=3.0dB (F=5.0dB E=8.0dB): prod=100/100 orc_E=0/100 orc_0=100/100 (63.8s)
+ROW 0d (F alone, E removed, -30dB): orc_0=0/100 (10.8s)
+
+ROW 0c: PASS | ROW 0d: PASS | ROW 0e: 7/9 excluded (need >=6) -> PASS
+>>> VERDICT: ROW 1 M1 <<<
+Cell reads: (Delta=12.00,X=1.0)=M1, (Delta=12.00,X=3.0)=M1, (Delta=12.00,X=6.0)=M1, (Delta=18.75,X=3.0)=M1, (Delta=18.75,X=6.0)=M1, (Delta=6.25,X=3.0)=M1, (Delta=6.25,X=6.0)=M1
+
+At least one excluded cell reads M1/MIXED -- computing codeword-position BER (Sec.4 item 4) ...
+
+ROW 0b (determinism, mechanically diffed, wall_time_s excluded): PASS -- byte-identical
+
+Wrote D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\rr-study\density-mech\results\density_mech_result.json
