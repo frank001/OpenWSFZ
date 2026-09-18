@@ -348,3 +348,89 @@ withdrawn with the verdict.** Design failure logged (§10.3).
   neighbour ≤ 18.75 Hz.
 - ➡️ **A1 dispatched to QA** (diagnostic, minutes, no `src/`/`native/`).
 - ✅ **`DENSITY-LIVE`'s ≈ 4.30 pp is unaffected.** This arm is about where the loss happens, not whether.
+
+---
+
+## §11. A1 RULING — A1-PASS1, unanimous. Production recovers a crowded victim ONLY in pass 1
+
+**Architect, 2026-09-18T14:54Z.** QA report `2026-09-18-1452-qa-to-architect-density-mech-a1-result.md`,
+commit `90c4cee7`; QA's §10 correction to the original report `df826d71`, struck where the claims lived.
+Both on `qa/e4-bench`, not pushed. **Result JSON read by the Architect, not taken on report.**
+
+### 11.1 Result
+
+| cell | `prod` | `prod_p0` (pass 1 off) | `orc_P` (oracle at production's position) | reads |
+|---|---:|---:|---:|---|
+| primary 18.75 / +1 | 94/100 | **0/100** | 0/100 | **A1-PASS1** |
+| strong 12.0 / +3 | 100/100 | **0/100** | 0/100 | **A1-PASS1** |
+| strong 18.75 / +3 | 100/100 | **0/100** | 0/100 | **A1-PASS1** |
+| primary 6.25 / +1 *(descriptive)* | 35 | 0 | 0 | — |
+| primary 12.0 / +1 *(descriptive)* | 15 | 0 | 0 | — |
+| primary 12.0 / +3 *(excluded reference)* | 0 | 0 | 0 | — |
+
+Pass 1 was mechanically confirmed disabled (0 pass-1 candidates in all 600 `p0` trials). Production's F
+position sits within 0–1 Hz of the true one (sub-lattice), with `dt` offset ≈ 0. ⇒ **§10.2(2), the
+displaced candidate, is ruled out.** `prod` reproduced the original run in all six cells.
+
+⇒ 🟢 **Every recovery of a crowded victim in this geometry happens in PASS 1. Pass 0 recovers nothing,
+anywhere.** Where production loses the victim (the excluded cells), it is losing it **in pass 1's
+handling**: the soft tile suppression of E and/or pass 1's wider candidate net. **Which of those, A1
+cannot say.**
+
+### 11.2 ⚠️ One correction to QA's report: `nhard` = 60 is the SHIM's default, not live production's
+
+QA states the harness defaults `(10, 0.10, 60)` "were production's own all along". **They are the raw
+shim's defaults** (`ft8_shim.c:478-480`). **The shipped app sets `osdNhardMax` = 40** via the managed
+layer (`DecoderConfig.cs:94`, `NHARD40-DEFAULT`, since 2026-09-12). Every direct-DLL harness, including
+`F-NBR-A`, `NBR-RERUN` and this arm, runs at 60 unless it calls `ft8_set_decode_params` itself.
+**A1-PASS1 is invariant to it:** a stricter `nhard` can only admit fewer OSD decodes, and pass 0 is already
+0/100 at the more permissive 60. `prod` rates at 40 could be lower, which is not measured and not needed
+for this reading. **Recorded so it is not inherited silently (HK-020).**
+
+### 11.3 What this means for the fix routes — the Captain's question
+
+The M1/M2 dichotomy was **ill-posed for a two-pass decoder**. The question that has an answer is: **the
+only route by which our decoder ever recovers a crowded weaker station is pass 1, after soft
+spectrogram suppression of the stronger one.** Density's loss lives in **pass 1**, which is D-001's
+co-channel territory. Its history is heavy:
+
+| route | status |
+|---|---|
+| PCM subtract-and-resynthesise | 🛑 **DEAD**: three builds, three reverts (crashes, −0.1 pp) |
+| extra passes (3-pass) | 🛑 **CLOSED**: "candidate budget + extra passes, closed twice" (S7 −4.30 pp) |
+| pass-1 candidate budget / thresholds | 🛑 **CLOSED ×2** |
+| **soft suppression ramp tuning** (`K_SOFT_SUPP_SNR_MIN/MAX_DB`) | ⚠️ **one variant REJECTED** (H5, 20260011: window shifted 10 dB lower). **Not a standing prohibition.** |
+
+**What is new since those closures, and not appetite:** (1) a **live-priced** target, ≈ 4.30 pp (C2), and
+all of those closures were judged on S7 synthetic R&R; (2) a **live instrument** that can price any remedy
+on real crowded rows (`DENSITY-LIVE`'s classifier); (3) the geometry is now known exactly (≤ 18.75 Hz,
+neighbour ≥ own level), where the June work targeted exact co-channel (ΔF ≈ 0).
+
+**To see inside pass 1** (clean bits, so the pass-1 net misses them, vs dirty bits, so suppression is too
+weak or does collateral damage) needs **a diagnostic-only export: `ft8_extract_llrs_at` on the pass-1
+(post-suppression) waterfall.** That is a **`native/` change**: Developer session (HK-011), shim bump, no
+production path touched.
+
+🔴 **But the Captain should decide the route question BEFORE that spend,** because both answers land next
+to closed or rejected families. If he wouldn't reopen pass-1 suppression work for 4.30 pp, the export buys
+a finding nobody can act on. §11.4 lays out the options.
+
+### 11.4 Options for the Captain
+
+| option | cost | what it buys |
+|---|---|---|
+| **(a) Reopen pass-1 co-channel handling as the density line**, starting with the diagnostic export, then a pre-registered remedy arm priced on `DENSITY-LIVE`'s instrument | Developer session + shim bump, then an arm | the only open road to the 4.30 pp. **Needs his explicit reopening of territory D-001 closed** (suppression tuning isn't prohibited, but it sits beside two things that are). |
+| **(b) Park density** with the finding recorded: ≈ 4.30 pp, loss localised to pass 1 | nothing | honest stop. The number and the locus survive for later. |
+
+**Architect's recommendation: (a), gated.** 4.30 pp is the largest live-priced item this programme has
+found, it is ~2× what `PASSBAND-140` shipped, and for the first time there's a live instrument to price a
+remedy before it ships. **Stated against my own interest:** the June co-channel work failed three
+different ways, my mechanism calls on this defect have now been void, M1 at 55%, and M2 at 0.60, and (b)
+is defensible.
+
+### 11.5 Status
+
+- 🟢 **A1-PASS1 (unanimous). Pass 0 recovers crowded victims nowhere; pass 1 is the only route.**
+- 🛑 **Still no M1/M2. `DENSITY-MECH`'s main verdict stays VOID.**
+- ⚠️ Direct-DLL harnesses run at `nhard` 60, not live's 40. Invariant here, and recorded.
+- ➡️ **With the Captain: (a) reopen pass-1 co-channel handling (export first) or (b) park density.**
