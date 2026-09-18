@@ -272,3 +272,108 @@ concentrate"** (point `D` > 0 with CI excluding 0), **the new 0.60 against ROW 1
 - ➡️ **DISPATCHED to QA** on Captain authority (density; spectral-locality gate cleared for this test only).
 - 🛑 **No OpenWSFZ decode has been classified by anyone for this arm.** §2.1 is REF-only.
 - 🔴 **Bars fixed: ROW 0a ±0.05 · primary 0.170 (= 1.0 pp).** They do not move after the result.
+
+---
+
+## §10. ACCEPTANCE RULING — ROW 1, CONCENTRATES. `D` = 0.7293 [0.7010, 0.7540] · `C` ≈ 4.30 pp
+
+**Architect, 2026-09-18T13:50Z.** QA report `2026-09-18-1348-qa-to-architect-density-live-result.md`,
+script `qa/rr-study/density-live/density_live.py`, result JSON beside it. QA commit `db9b4d01` on
+`qa/e4-bench`, not pushed.
+
+### 10.1 Checked, not taken on report
+
+- ✅ **Independent recompute** by the Architect, own code (§2 classifier, §3 standardisation, no
+  bootstrap), against the same live logs: **`R_wild` 61.0856% · `D(EXPOSED,PL)` 0.7293 · `C` 4.296 pp ·
+  `D(PL,PF)` 0.0272 · `D(TRANSITION,PF)` 0.2668.** Every point estimate matches QA's to 4 dp.
+- ✅ **Deliverable 1:** QA reproduced §2.1's REF-only class table exactly, all seven classes, before
+  loading TEST.
+- ✅ **Artefact check: are EXPOSED pairs two real stations?** A result this strong needs one. REF-only,
+  text compared in memory, counts written. **Only 2 of 5,363 pairs share a sender token** (0.04%). The
+  victim-to-neighbour `Δf` is **roughly uniform over 0–18 Hz** (231–385 per 1 Hz bin, no pile-up at 0),
+  which is not how duplicate decodes of one signal would look. 5.7% share *some* token, consistent with
+  callers in a pile-up working the same station. **These are two transmitters.**
+
+### 10.2 The gates
+
+| row | value | bar | |
+|---|---|---|---|
+| 0a — placebo null `D(PL,PF)` | **0.027** [0.009, 0.045] | inside ±0.05 | ✅ silent |
+| 0b — coverage | 0 rows dropped | ≤ 5% | ✅ silent |
+| 0c — reproduction | **61.0856%** | 61.09% | ✅ silent |
+| **Primary `D(EXPOSED,PL)`** | **0.7293 [0.7010, 0.7540]** | CI_lo ≥ 0.170 | 🟢 **ROW 1**: CI_lo clears by **4.1×** |
+
+⇒ 🟢 **ROW 1 — CONCENTRATES.** **Live cost attributable to the bench geometry: `C` ≈ 4.30 pp** of decode
+rate on C2.
+
+**Raw, for scale:** WSJT-X decoded all 5,363 EXPOSED rows; **we decoded 278 (5.2%).** SNR-matched rows
+with an equally close but ≥ 3 dB weaker neighbour: 83.2%. **The bench's 0/100 does generalise to live,
+almost completely.**
+
+⚠️ **0a passed but its CI excludes zero:** `PL` recovers ≈ 2.7 pp worse than `PF`. A weaker
+near-neighbour costs a little. That is inside the tolerated confound and **could inflate `D` by at most
+≈ 0.045**, against a 0.56 margin over the bar, **so the verdict is unaffected.** 🛑 **It may not be read as
+mechanism evidence.**
+
+### 10.3 What the number is and is not
+
+- **4.30 pp is NOT the whole density cost.** It prices only the complete-exclusion geometry (≤ 18 Hz,
+  neighbour ≥ own level). Reporting item 3, `D(TRANSITION,PF)` = **0.267** [0.238, 0.295] over 7,429 rows,
+  is the graded zone the bench predicted (27/100 → 98/100). 🛑 **Reporting only, not gated, and not added
+  to `C`.** It says there is more beyond the gated geometry, not how much.
+- **§5's caveats stand:** neighbours WSJT-X didn't decode are invisible (biases `D` **down**, so the
+  unsafe direction for ROW 2, the conservative one for ROW 1). It is one corpus on a superseded binary,
+  `nhard` 60, pre-`PASSBAND-140`.
+- **The 5.9 pp sizing is NOT validated as a number.** It assumed 100% loss on EXPOSED rows; live loss is
+  ≈ 95%, but priced against the SNR-matched `PL` baseline it comes to 4.30 pp. **Cite 4.30 pp (C2), not 5.9.**
+- 🛑 **ROW 1 says nothing about M1 vs M2 and licenses no fix** (§5.5).
+
+### 10.4 Reporting items, as reported
+
+- **`rel` split (item 5):** equal level (`rel` = 0, n=241) we recover **32.4%**; neighbour ≥ 1 dB
+  stronger (n=5,122) **3.9%**. That is the C3 knife-edge, seen live.
+- **Per-band `D` (item 2) rises with SNR:** 0.67 → 0.84 from the weakest band to the strongest. **Strong
+  victims are excluded as completely as weak ones.** This is a level-ratio effect, not a weak-signal
+  one, exactly as C3 said. 🛑 No band is read against a bar.
+- ⚠️ **QA reporting defect, cosmetic:** `density_live.py:92` (`snr < -6`) puts −6 dB in the band labelled
+  "−5…−1", so the reporting bands don't match §2.1's. **Primary is unaffected** (1 dB cells). QA should
+  fix the label or edge in the report before push.
+
+### 10.5 🔴 What ROW 1 does to the programme, and two closed doors the Captain must see
+
+Per §7: **density is now the programme's main line**, and the **M1/M2 mechanism arm** is next, on a
+continuous metric, with shim feasibility as ROW 0. **That arm is the Architect's to specify (HK-015), and it
+needs the Captain's go first.**
+
+🛑 **Two of the most obvious fix routes are CLOSED by standing prohibition, and nobody should reach for
+them because this number is large:**
+
+1. **Subtract-and-resynthesise is DEAD** (three builds, three reverts). This is how WSJT-X handles a
+   stronger neighbour, and it would be the first thing anyone suggests.
+2. **The candidate-budget family is closed twice.** An **M2** outcome (tile/pass-1 artefact) lands in it
+   and **authorises nothing directly**. It would need a new pre-registration naming the specific
+   parameter, FP primary.
+
+**This is why the mechanism question comes first:** an **M1** outcome (tone-set contention in extraction)
+routes to D-001 limb 2's extraction work, which is **not** closed. **The arm decides which door is open.**
+
+### 10.6 Ledger — scored at ruling time
+
+| prediction | P | class | outcome |
+|---|---:|:---:|---|
+| Live-concentration check fires (carried, assessment §8 #1) | 0.70 | H | ✅ **HIT** |
+| ROW 0a passes | 0.65 | H | ✅ **HIT** |
+| Verdict ROW 1 | 0.60 | H | ✅ **HIT** |
+| Point `D` in 0.25–0.55 | 0.45 | H | 🔴 **MISS**: 0.7293, **above** the band |
+| §2.1 class table reproduces | 0.95 | C | ✅ **HIT** |
+
+⚠️ **The miss runs against the ledger's named bias.** I **under**-predicted the size of a defect, the
+first time that direction has appeared. I discounted the bench's 0/100 for live generalisation, and it
+generalised almost completely. **One arm is one arm; it doesn't show the bias is fixed.**
+
+### 10.7 Status
+
+- 🟢 **ROW 1 — CONCENTRATES. `D` = 0.7293 [0.7010, 0.7540], `C` ≈ 4.30 pp (C2).** Recomputed independently.
+- ➡️ **With the Captain:** go / no-go on the M1/M2 mechanism arm (Architect specs it) · push of QA
+  `db9b4d01` and Architect `517db622` + this ruling (HK-033 / HK-014).
+- 🛑 **Subtract-resynthesise DEAD · candidate-budget CLOSED ×2** — neither reopens on this result.
