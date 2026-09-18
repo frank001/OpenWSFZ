@@ -53,11 +53,11 @@ findings. **This block is the live state. Where it disagrees with any section be
 
 1. ✅ **Narrow-grid spread — LANDED** (B14): median **0.8862** · IQR **0.1663** · p10 **0.6331** · p90 **0.9654** · share<`ρ*` **0.0704**. **P2 excluded; P1 not established.**
 1b. 🔴 **§20.3 — THIS CENSUS CAN ONLY CLOSE `FADE`, NEVER OPEN IT.** If `φ_upper` exceeds the bar, **nothing is concluded**. 🛑 **"`E1` did not fire" must NEVER be read as "fading is a large contributor."**
-2. **`ROW 0m`** (§19.4) — does the **narrow** grid's own low tail hold up? *Wide-vs-narrow showed the
-   wide grid is bad, not that the narrow one is good.* **With the Captain**, alongside the alternative of
-   computing `φ` now with 0m recorded as a disclosed limitation.
-3. **`φ` itself — NOT COMPUTED, and not authorised.** `BAR₅` = 0.25 / `BAR₁₀` = 0.05 remain ratified and
-   **still movable** (the freeze triggers on the first `φ`).
+2. ➡️ **`ROW 0m`** (§19.4) — **DISPATCHED 2026-09-18, Captain ruled option 1** (B15 §21). H1 ⇒ `φ`
+   authorised; H2 ⇒ stop, no `φ`.
+3. **`φ` — NOT YET COMPUTED. CONDITIONALLY authorised on an H1, `GRID_A` ONLY** (B15 §21.2); any `φ`
+   from another grid is void on sight. 🔴 **`BAR₅` = 0.25 / `BAR₁₀` = 0.05 FREEZE the moment a `φ`
+   exists** — still movable only until then.
 4. **§18.4's pattern ruling** — with the Captain.
 
 ## ⚠️ If you are citing this document at all
@@ -1789,3 +1789,68 @@ granted once and I will not argue with a stop.**
 - 🛑 **Still no `φ`.** `BAR₅`/`BAR₁₀` ratified, still movable.
 - ➡️ **With the Captain: (a) ROW 0m then `φ`, or (b) stop with §20.3 as the finding.** Plus §18.4's
   pattern ruling.
+
+---
+
+## §21. Amendment B15 — CAPTAIN RULED: option 1. ROW 0m, then `φ`. Dispatch conditions
+
+**Architect, 2026-09-18T10:51Z.** Captain: *"Go with option 1"* ⇒ **ROW 0m first, then `φ`.**
+This section is the dispatch, pre-registered before QA holds any of it.
+
+### 21.1 Sequence and the conditional authorisation
+
+1. **ROW 0m** (§19.4) — on `GRID_A`, stratify by `ρ₁` decile; report median Costas sharpness and
+   edge-pinning rate. **H1** ⇒ proceed to step 2. **H2** ⇒ 🛑 **STOP, report, no `φ`.**
+2. **`φ`** — computed **only** on an H1.
+
+🔴 **`φ` IS AUTHORISED CONDITIONALLY, AND ONLY ON `GRID_A` (§12.6's grid).** Given everything §18–§20
+cost, that is not a formality: **any `φ` from any other grid is void on sight.**
+
+### 21.2 🔴 Conditions that bind the `φ` computation
+
+| | |
+|---|---|
+| **Grid** | `GRID_A` = `[DT_ref+0.20, DT_ref+0.80]`, Costas-only location, full-message `ρ₁` (§12.6). Nothing else. |
+| **Threshold** | `ρ*` = **0.577**, unchanged, **no re-referencing** (P2 excluded, B14). |
+| **Dropped rows** | `0j′` = **J1** ⇒ **NO band.** `φ` over re-encodable rows, **CI widened only** (§14.3). |
+| **Bars** | `BAR₅` = 0.25 (near-threshold −10…−1 dB) and `BAR₁₀` = 0.05 (all SNR), **both read off the SAME single measurement `φ_upper(≥5 Hz)`** — B3/§10.3. 🛑 **Do NOT split into two measurements.** |
+| **Freeze** | 🔴 **`BAR₅`/`BAR₁₀` FREEZE ON THE FIRST `φ`.** They have been movable for two days precisely because no `φ` existed. **The moment step 2 produces a number they are fixed**, and no later result may move them. |
+
+### 21.3 🔴 Required reporting — NOT a gate, and it is what makes an "unresolved" outcome worth having
+
+> **Report `φ` STRATIFIED BY SNR BAND as well as pooled.**
+
+§20.3 established that this census can only **close** `FADE`; a pooled `φ` above the bar concludes
+nothing. **The stratification is what converts "unresolved" from an empty result into a useful one:** if
+`φ` is ~0.07 at ≥ +10 dB and large at −10…0 dB, that localises the looseness to **estimator noise on
+weak rows** and states what a better instrument would have to fix. **If the pooled number is all we
+report, the arm ends with nothing anyone can act on.**
+
+🛑 **This is a reporting requirement, not a new predicate. It gates nothing and cannot change any row.**
+
+### 21.4 🛑 The caveat that must travel with the result, in QA's own report
+
+**If `E1` does not fire, the arm's finding is UNRESOLVED — NOT "fading is a large contributor."**
+`φ_upper` is one-sided and inflated by estimator noise on weak rows (§1.2, disclosed at the outset).
+**Any downstream citation that reads a non-firing `E1` as evidence of a large `FADE` contribution is
+prohibited** (§0.0).
+
+### 21.5 Predictions — written before QA has run either step
+
+| prediction | P | class |
+|---|---|---:|
+| **ROW 0m returns H1** (narrow grid's low tail is real, not location-limited) | **0.75** | H |
+| **`E1` fires** (`φ_upper` < `BAR₁₀` = 0.05) | **0.10** | H |
+| `φ` pooled lands in **0.25–0.45** | 0.60 | C |
+| `φ` at ≥ +10 dB lands **below 0.12** | 0.80 | C |
+
+⚠️ **The `E1` call at 0.10 is a re-forecast, not the blind 0.65.** The blind `E1` @ 0.65 from §12.10
+**still stands as the scored one**; this is a second, informed number and **must be recorded as
+informed** — §17.3 is exactly where I got this wrong by computing off an artefact, and that one is
+withdrawn, not revived.
+
+### 21.6 Status
+
+- ➡️ **DISPATCHED: 0m → (H1) → `φ`.**
+- 🔴 **`BAR₅`/`BAR₁₀` freeze on the first `φ`.**
+- 🔴 **§18.4's pattern ruling remains with the Captain and is NOT affected by this dispatch.**
