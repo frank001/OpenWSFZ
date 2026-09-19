@@ -136,7 +136,7 @@ IN THE EXACT CONDITION THE VERDICT READS**, which is pass 1 with E present.
 | **0b — determinism & non-perturbation** | two full runs byte-identical; **and** `prod` with the probe armed = `prod` with it disarmed, per trial, in every cell | any difference |
 | **0c — AGREEMENT WITH PRODUCTION, on the verdict axis** | in every trial where production decoded F **in pass 1** (`pass_F` = 1), the **`P1` oracle also decodes F**. Required: **agreement ≥ 0.95 of those trials**, pooled over cells, **with ≥ 50 such trials** (A1 gives ~294 across three cells) | < 0.95, or < 50 trials |
 | **0d — the oracle can say NO** | F alone at −30 dB: `P1_0` hit rate ≤ 0.20 | > 0.20 |
-| **0e — the oracle can say YES** | `P1_0` (E removed) ≥ 0.90 in every gated cell | any cell < 0.90 |
+| ~~**0e — the oracle can say YES**~~ | ~~`P1_0` (E removed) ≥ 0.90 in every gated cell~~ 🔴 **SUPERSEDED by §7 A1 (2026-09-19): infeasible as written — F decodes in pass 0 of the control and pass 1 suppresses F's own tiles, so `P1_0` reads F's ruins wherever F's factor < 1 (pilot: 0.00 in the strong and E+15 cells).** | ~~any cell < 0.90~~ → see §7 |
 | **0f — the geometry is excluded** | `prod` ≤ 0.20 in ≥ 6 gated cells (so there is something to read) | < 6 |
 
 **Why 0c is the load-bearing row.** If the `P1` oracle fails where production **succeeded** in pass 1, it is
@@ -175,8 +175,10 @@ production succeeds. The rows are mutually exclusive. **Readout quantum:** N = 1
 sit 0.60 apart. A cell truly near a bar goes to SPLIT, and that is honest. ✅
 
 **Null in independent units (HK-021(z)).** "The probe is production's own pass-1 state" ⇒ 0c ≈ 1.00
-(identical code path, identical waterfall) and `P1_0` ≈ `orc_0` ≈ 1.00 (A1/`DENSITY-MECH`: 100/100). The
-0.95 and 0.90 bars pass where that holds, and fail on a tap at the wrong point or a perturbing tap.
+(identical code path, identical waterfall) ~~and `P1_0` ≈ `orc_0` ≈ 1.00 (A1/`DENSITY-MECH`: 100/100)~~ 🔴 **struck
+2026-09-19 (§7): false wherever F's own applied factor < 1 — `orc_0` was a pass-0-equivalent read, `P1_0` is
+read AFTER F's own pass-0 decode has suppressed it. I carried a number across a pass boundary without checking
+what the pass does to F.** The 0.95 ~~and 0.90 bars pass~~ bar passes where that holds, and fails on a tap at the wrong point or a perturbing tap.
 
 ### 2.5 Reporting only — gates nothing
 
@@ -244,8 +246,70 @@ to `main` without a third.
 
 ## §6. Status
 
-- 🛑 **HELD. Not dispatched. QA does not start: no dev-task, no harness, no Developer contact.**
-- ➡️ **With the Captain:** go / no-go on **Stage 1** (export build). Stage 2 needs a **second**, separate go.
+- ~~🛑 **HELD. Not dispatched. QA does not start: no dev-task, no harness, no Developer contact.**~~
+- ~~➡️ **With the Captain:** go / no-go on **Stage 1** (export build). Stage 2 needs a **second**, separate go.~~
+  🟢 **2026-09-19: Stage 1 GO given and Stage 1 ACCEPTED (S1-a…e); Stage 2 GO given. Stage 2 runs under §7's amendments.**
 - 🔴 **Bars fixed now:** S1-a/b byte-identical · S1-c bit-for-bit · 0c ≥ 0.95 over ≥ 50 pass-1 trials ·
-  0d ≤ 0.20 · 0e ≥ 0.90 · 0f ≥ 6 · per cell DIRTY ≤ 0.20 / CLEAN ≥ 0.80 · unanimity for ROW 1/2.
+  0d ≤ 0.20 · ~~0e ≥ 0.90~~ **0e-i / 0e-ii per §7** · 0f ≥ 6 · per cell DIRTY ≤ 0.20 / CLEAN ≥ 0.80 (on `o1` per §7 A2) · unanimity for ROW 1/2.
 - 🛑 **PCM subtract-resynthesise DEAD · candidate-budget CLOSED ×2 · no remedy in this document.**
+
+---
+
+## §7. Amendment 1 — ROW 0e infeasible as written; ruling on QA's A1–A4 (2026-09-19T11:48Z, `date -u`)
+
+**Raised by QA under HK-025 before any Stage 2 data was collected.** QA's feasibility pilot ran control legs
+only (N = 20, no verdict quantity computed; `artefacts/density-p1-stage2/pilot_row0e_feasibility.txt`,
+gitignored): primary cells F reported ≈ −6.5 dB, factor 1.000, `P1_0` = 1.00 · strong-victim cells factor
+0.43, `P1_0` = 0.00 · E+15 cells factor 0.10, `P1_0` = 0.00 · `P0_0` = 1.00 in every cell.
+
+**The defect is mine.** With E removed, F decodes in **pass 0**, and pass 1 then suppresses **F's own** tiles
+before the pass-1 tap reads. §2.3's 0e would have fired with certainty in 5 cells whether or not the probe
+was sound: a row that cannot pass, so a STOP that says nothing. Same shape as `DENSITY-MECH` §10.3: a
+precondition checked in a condition different from the one it had to hold in. Struck at §2.3 and §2.4 (HK-022).
+
+### 7.1 Ruling
+
+| item | ruling |
+|---|---|
+| **A1 — split 0e** | ✅ **ACCEPTED WITH ONE EDIT** (below) |
+| **A2 — `o1` over trials with `pass_F ≠ 0`** | ✅ **ACCEPTED.** The gating `o1` in §2.4 is the `P1` hit rate over trials where F was **not** decoded in pass 0 (`pass_F` ∈ {1, none}). The unconditional rate is reported. Denominator is ≥ 80 by construction in any excluded cell (`prod` ≤ 0.20); QA reports it per cell anyway. |
+| **A3 — params read-back** | ✅ **ACCEPTED.** No getter exists (QA verified all 26 exports). 0a becomes: SHA pin + shim version + the values **SET** (10 / 0.10 / 40) recorded, with a statement that read-back is impossible. 🔴 **I wrote "read back" without grepping the export list. That is the fourth feasibility claim in this programme made without a one-line grep** (ledger, `DENSITY` #3). |
+| **A4 — "gated cells"** | ✅ **All 14 are gated.** The 12-cell variant without E+15 is reporting only. |
+
+### 7.2 The edit to A1 — 0e-i must be gated on the control's F factor, not on `prod`
+
+As QA proposed it, 0e-i applies to every **excluded** cell. Excluded status comes from `prod` in this run,
+and this run uses **nhard 40**, not `DENSITY-MECH`'s 60 (§3.4: `prod` is not comparable across them). **If a
+strong-victim or E+15 cell turns out excluded at nhard 40, 0e-i would fire there with certainty:** its
+control reads `P1_0` = 0.00 from self-suppression. That is the same fault this amendment exists to remove.
+
+And in such a cell `P1_0` is not the right YES test anyway. The reading (`o1`, per A2) uses trials where F was
+**not** decoded in pass 0, so F's own tiles were **not** suppressed. The control, by contrast, always
+suppresses them.
+
+| row | check | fires when |
+|---|---|---|
+| **0e-i — pass-1 YES, where the control is valid** | over excluded cells whose control-leg **median F factor ≥ 0.90**: `P1_0` ≥ 0.90 in each | any such cell < 0.90, **or no excluded cell qualifies** (the row may not go decorative) |
+| **0e-ii — tap + LDPC YES on an unsuppressed waterfall** | `P0_0` ≥ 0.90 in every gated cell | any cell < 0.90 |
+
+- An excluded cell whose control F factor is < 0.90 is **still read**, flagged in the cell map, and its YES
+  evidence is 0e-ii plus 0c (the pass-1 tap agreeing with production **with E present**, which is the
+  verdict axis itself). It is not gated by 0e-i.
+- **Why the split is not outcome-chosen (HK-021(y)).** The control's F factor comes from F's reported SNR
+  with E **absent**, fixed by the cell's geometry. It does not depend on `o1` or `prod`. The pilot says the
+  nine primary cells qualify (factor 1.000), so 0e-i covers them.
+- **Both rows can fire:** 0e-i if the pass-1 tap misreads an unsuppressed F, 0e-ii if the tap or LDPC path is
+  broken. Both pass under the null (pilot 1.00 / 1.00).
+
+§2.4's `excl` and verdict code are unchanged except `o1` → the A2 conditional rate. 0a–0d and 0f are unchanged.
+
+### 7.3 Predictions
+
+- **§5 #2 ("ROW 0 silent", 0.70, H) is scored a MISS against the spec as written.** The pilot shows 0e would
+  have fired with certainty. A prediction on a row I designed to be unpassable is a design failure, and it is
+  scored as one, not withdrawn.
+- **No new blind prediction is written for the amended ROW 0.** I have seen the pilot's control rates, so any
+  number would be informed.
+- **#3–#6 stand as written.** They are on the reading rows and on E's factor, which nobody has seen.
+
+🟢 **QA may pre-register the harness under §7 and run.**
