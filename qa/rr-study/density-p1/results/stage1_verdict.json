@@ -1,0 +1,99 @@
+{
+ "row0": {
+  "0a": true,
+  "0b": true,
+  "0c": true,
+  "0d": true,
+  "0e": true
+ },
+ "row0_detail": {
+  "real_results_total": 2329,
+  "real_calls": 200,
+  "real_skipped": 0,
+  "armed_real_n_supp_ge1": 157,
+  "armed_real_pass1_decodes": 70,
+  "synth_calls": 300,
+  "control_differs_first_line": 1
+ },
+ "S1-a": {
+  "pass": true,
+  "detail": {
+   "synth": [
+    true,
+    "33d5640188851009",
+    "33d5640188851009",
+    null
+   ],
+   "real": [
+    true,
+    "1bf6deb97821aec5",
+    "1bf6deb97821aec5",
+    null
+   ]
+  }
+ },
+ "S1-b": {
+  "pass": true,
+  "detail": {
+   "synth": [
+    true,
+    "33d5640188851009",
+    "33d5640188851009",
+    null
+   ],
+   "real": [
+    true,
+    "1bf6deb97821aec5",
+    "1bf6deb97821aec5",
+    null
+   ]
+  }
+ },
+ "S1-c": {
+  "pass": true,
+  "tap_eq_ext_mismatches": {
+   "synth": 0,
+   "real": 0
+  },
+  "synth_true_pos_calls": 156,
+  "synth_true_pos_nonzero": 0,
+  "ext_old_vs_new_identical": {
+   "synth": true,
+   "real": true
+  }
+ },
+ "S1-e": {
+  "pass": true,
+  "records": {
+   "synth": 3013,
+   "real": 2259
+  },
+  "in_ramp": {
+   "synth": 1800,
+   "real": 999
+  },
+  "snr_range": {
+   "synth": [
+    -26.829113006591797,
+    9.417720794677734
+   ],
+   "real": [
+    -29.924049377441406,
+    41.784812927246094
+   ]
+  },
+  "formula_violations": {
+   "synth": 0,
+   "real": 0
+  },
+  "n_supp_vs_pc0_violations": {
+   "synth": 0,
+   "real": 0
+  }
+ },
+ "reporting": {
+  "synth_p1_differs_from_p0": "183/264",
+  "real_p1_differs_from_p0": "39/190"
+ },
+ "verdict": "S1-a/b/c/e ALL PASS"
+}
