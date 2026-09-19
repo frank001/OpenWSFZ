@@ -277,6 +277,21 @@ else
   echo "OWSFZ_NO_DOTNET_FOUND"
   exit 127
 fi
+# Fix 2026-09-19 (QA, at the Captain's request): the probe above may find dotnet only
+# by ABSOLUTE PATH (e.g. $HOME/.dotnet/dotnet, on neither the login nor the non-login
+# PATH). "$DOTNET" build then works, but processes MSBuild spawns resolve `dotnet`
+# through PATH, not through $DOTNET: OpenWSFZ.E2E.Tests' pre-build Exec runs
+# `python3 tools/publish_selfcontained.py`, whose subprocess call is a bare "dotnet"
+# and died with FileNotFoundError, failing this whole gate for a purely environmental
+# reason. So when dotnet was found by absolute path, put its directory on PATH and set
+# DOTNET_ROOT for the children too. (No curly braces in this text: it goes through
+# str.format().)
+case "$DOTNET" in
+  /*)
+    export PATH="$(dirname "$DOTNET"):$PATH"
+    [ -n "$DOTNET_ROOT" ] || export DOTNET_ROOT="$(dirname "$DOTNET")"
+    ;;
+esac
 cd "{repo_path}" || {{ echo "OWSFZ_CD_FAILED"; exit 126; }}
 "$DOTNET" build OpenWSFZ.slnx -c Release
 "$DOTNET" test OpenWSFZ.slnx -c Release --no-build --filter "Category!=AwgnFpReplay"
