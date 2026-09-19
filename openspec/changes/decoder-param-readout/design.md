@@ -58,16 +58,23 @@ For a runtime entry, `value` is the current setting and `default_value` is the c
 
 ### D12 — Completeness covers **bare literals**, not only `#define K_*` (Architect, spec §12)
 
-D4 is the proof that a `#define K_*` grep is not enough: the OSD depth was invisible to it. So the Developer **audits the decode path for any other bare numeric tuning literal**, in `ft8_shim.c` **and** the patched `native/ft8_lib_build/patched/ft8/*.c`, and **reports every one found**. Each is then either:
+D4 is the proof that a `#define K_*` grep is not enough: the OSD depth was invisible to it. So the Developer **audits the decode path for any other bare numeric tuning literal**, in `ft8_shim.c` **and** the patched `native/ft8_lib_build/patched/ft8/*.c`, and **reports every one found**. Each is then exactly one of:
 
-- **hoisted to a named constant and tabled** (arithmetic-identical, bound by S1-a), or
+- **hoisted to a named constant and tabled** (arithmetic-identical, bound by S1-a);
+- **derived**: a value derived from a constant that **is** tabled (see below). It is **listed as derived from that constant**, in the report and on the page's note, and is **never excluded as "protocol"**; or
 - **named on the read-only page's "Not included" note** with its location, value and the reason it is not tabled.
 
 **Nothing is omitted silently.**
 
-*Definition, so the audit is not a matter of taste.* A **tuning literal** is a numeric literal that, if changed, would change decode results **without changing the FT8 protocol**: a threshold, an iteration count, a depth, a window, a cap, a scale, a limit. It is **not** a protocol constant (79 symbols, 174/91 LDPC dimensions, the Costas pattern, 8 tones, the 12 kHz sample rate, the 6.25 Hz / 3.125 Hz bin spacing) and not an array size or loop bound derived from one. Where the Developer is unsure which side a literal falls on, they **list it** under the "Not included" note *with that doubt stated*, rather than deciding silently.
+*Definition, so the audit is not a matter of taste.* A **tuning literal** is a numeric literal that, if changed, would change decode results **without changing the FT8 protocol**: a threshold, an iteration count, a depth, a window, a cap, a scale, a limit.
 
-**How QA checks it (and what is judgment).** QA runs its own grep of the same files for numeric literals on the decode path and diffs it against the Developer's report: every literal QA finds must appear in the report as hoisted-and-tabled or as a "Not included" entry, and every "Not included" entry must appear on the page. **That comparison is mechanical. Whether a literal is a "tuning" literal at all is not**, so any disagreement goes to the Architect, not to QA alone.
+**Protocol constants, and only these:** the **6.25 Hz tone spacing**, the FT8 dimensions **79 symbols / 174 bits / 91 bits**, the **Costas** pattern, the **8 tones**, and the **12 kHz** sample rate. An array size or loop bound that follows directly from one of them is not a tuning literal either.
+
+🔴 ~~*"…the 6.25 Hz / 3.125 Hz bin spacing"* listed as a protocol constant~~ **CORRECTED (Architect, spec §12): that was wrong.** The **3.125 Hz sub-bin** is `6.25 Hz / K_FREQ_OSR`, and the **half-symbol time sub-step** is `symbol period / K_TIME_OSR`. Both are the decoder's **own oversampling choices**, not the protocol's. A literal such as `3.125f` or `0.5f` that is really `1 / K_FREQ_OSR` or `1 / K_TIME_OSR` is therefore a **derived value of a tabled tuning constant**: list it as **derived from `K_FREQ_OSR` / `K_TIME_OSR`**, never as protocol.
+
+Where the Developer is unsure which category a literal falls in, they **list it** *with that doubt stated*, rather than deciding silently.
+
+**How QA checks it (and what is judgment).** QA runs its own grep of the same files for numeric literals on the decode path and diffs it against the Developer's report: every literal QA finds must appear in the report as *hoisted-and-tabled*, *derived (from which tabled constant)*, or a *"Not included"* entry, and every derived or "Not included" entry must appear on the page. **That comparison is mechanical. Whether a literal is a "tuning" literal at all is not**, so any disagreement goes to the Architect, not to QA alone.
 
 ### D5 — Hoist the passband literals
 
