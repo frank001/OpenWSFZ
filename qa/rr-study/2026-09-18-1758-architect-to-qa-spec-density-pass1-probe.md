@@ -313,3 +313,61 @@ suppresses them.
 - **#3–#6 stand as written.** They are on the reading rows and on E's factor, which nobody has seen.
 
 🟢 **QA may pre-register the harness under §7 and run.**
+
+---
+
+## §8. Stage 2 acceptance ruling (2026-09-19T12:05Z, `date -u`)
+
+**Read:** QA report `qa/rr-study/2026-09-19-1201-qa-to-architect-density-p1-stage2-result.md` (`qa/density-p1`
+`53cef1ed`) and `results/stage2_verdict.json`. The harness was pre-registered at `73ee2d4f` (13:51:42+02:00),
+before the result commit (14:03:51+02:00). Checked with `git log`.
+
+### 8.1 Verdict — ACCEPTED: **ROW 1 DIRTY, ROW 0 silent**, deterministic (run A ≡ run B, 30/30 files)
+
+The verdict is mechanical, and it reads as written. **It MUST be cited as two regimes and never as "suppression
+is too weak"** (§2.5 item 2 anticipated this):
+
+| regime | cells | E applied factor | where F's bits break | question for a remedy |
+|---|---|---:|---|---|
+| **A — no suppression applied** | 7 of 9 excluded (E −5 dB; E reported ≈ −3.6 dB) | 0.928–0.941 | spread, **larger off** E's footprint (E's tone lands in F's wrong bins) | the ramp's **floor** |
+| **B — real suppression, collateral** | 2 of 9 (strong Δ6.25, E+15 Δ6.25) | 0.305 / 0.000 | **only** on overlap symbols: BER 0.589, and **0 / 9,000** elsewhere | the **footprint** |
+
+- **CLEAN branch: empty.** The oracle and production agree on all 1,400 trials. In this scene pass 1 has no
+  candidate-stage headroom. This is consistent with candidate-budget being CLOSED ×2 and adds a third closure
+  from a different angle.
+- **Near-bar cell carried:** primary Δ12 X1 has `o1` = 0.15 against a 0.20 bar (≈ 1.4 SE). The verdict stands
+  on the pre-registered rule. It is **not** decisive for that cell, and nobody should cite "all 9 DIRTY" as margin.
+
+### 8.2 One generalisation limit QA did not state, from QA's own JSON
+
+The overlap-symbol count is **fixed per Δ**, because both messages are fixed. It is 84 bits/trial at Δ6.25, 27 at
+Δ12 and 12 at Δ18.75 (`bits` ÷ 100). **So regime B's "one bin only" is really "enough overlap symbols to exceed
+LDPC capacity, for this one E/F message pair".** The strong Δ12 and E+15 Δ12 cells, which decode 100/100 under
+real suppression, still **have** 9 overlap symbols per trial. The collateral mechanism may be present there too,
+just under FEC capacity. **A different message pair shifts the overlap count at every Δ.** Regime B is established
+for **one message pair at one-bin separation**, not for "one bin".
+
+➡️ **Requested from QA, reporting only, from data already gathered (HK-018):** the overlap / no-overlap BER
+split for the four **non-excluded** real-suppression cells (strong Δ12/18.75, E+15 Δ12). It gates nothing and
+cannot change the verdict. It decides whether the remedy spec treats the footprint as a Δ-threshold or as a dose.
+
+### 8.3 Predictions scored (§5)
+
+| # | prediction | P | class | outcome |
+|---|---|---:|:---:|---|
+| 3 | ROW 1 DIRTY, given ROW 0 silent | 0.40 | H-mech | ✅ **HIT, weak.** Tied as the mode with #5 (0.40). 7 of the 9 DIRTY cells are regime A, which §2.5 and #6 already expected to be near-automatic. **I made no prediction on collateral vs residual, and regime B is the informative finding.** |
+| 4 | ROW 2 CLEAN | 0.20 | H-mech | complement of #3/#5, **not scored separately** (one distribution, one outcome) |
+| 5 | ROW 3 SPLIT | 0.40 | H-mech | complement, **not scored separately** |
+| 6 | E at −5 dB reported at a factor ≥ 0.90 | 0.60 | C | ✅ **HIT** (0.928–0.941; E reported ≈ −3.6 dB, not −5) |
+
+### 8.4 Next — the Captain's decision (§2.6, pre-registered)
+
+§2.6 names a **suppression-route remedy arm** with FP as the primary measure. Both regimes are present, and **the
+two remedies pull in opposite directions**:
+- lowering the ramp's floor so E near −5 dB gets suppressed (regime A)
+- narrowing or shaping the ±1-bin footprint so a one-bin neighbour survives (regime B)
+
+Stronger suppression near E −5 dB makes collateral worse at one bin. H5's June over-suppression rejection is the
+known failure. **Not specified here.** The remedy arm needs the Captain's go before I draft it. Before it is
+drafted, it needs the §8.2 reporting item, plus **which regime dominates the live ≈4.30 pp**. Nothing measures
+that yet: `DENSITY-LIVE`'s classifier prices pairs, not the applied factor.
