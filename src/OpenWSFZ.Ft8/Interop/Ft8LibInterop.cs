@@ -441,7 +441,20 @@ internal static class Ft8LibInterop
     /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
     /// a managed binding, per the pattern every prior entry in this file follows.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260051;
+    /// <remarks>
+    /// density-p1-stage1-pass1-probe, shim 20260053: MEASURE-ONLY — a read-only tap inside
+    /// <c>ft8_decode_all</c> that changes no decode output. Adds four new DIAGNOSTIC-ONLY native
+    /// exports — <c>ft8_set_probe</c>, <c>ft8_clear_probe</c>, <c>ft8_get_probe_llrs</c>,
+    /// <c>ft8_get_last_suppression</c> — that snapshot the raw LLRs at one armed position from the
+    /// waterfall as production holds it at the start of each pass, and record the soft-suppression
+    /// factors actually applied between passes. Like <c>ft8_get_h12_by_code</c> (20260048), these
+    /// are NOT added to <see cref="IFt8NativeInterop"/>, have no <c>DllImport</c> here, and have no
+    /// C# caller anywhere in <c>src/</c>: they are reachable only from test code and QA harnesses
+    /// driving the native library directly. The only managed-code change is this
+    /// <see cref="ExpectedShimVersion"/> bump, which exists solely as the ABI self-test. 20260052 is
+    /// deliberately skipped — it is reserved by the queued rc4 renumber task.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260053;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

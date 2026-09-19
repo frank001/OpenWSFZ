@@ -169,6 +169,10 @@ link /DLL ^
   /EXPORT:ft8_extract_llrs_at ^
   /EXPORT:ft8_coherent_llr_at ^
   /EXPORT:ft8_ldpc_decode_llrs ^
+  /EXPORT:ft8_set_probe ^
+  /EXPORT:ft8_clear_probe ^
+  /EXPORT:ft8_get_probe_llrs ^
+  /EXPORT:ft8_get_last_suppression ^
   /EXPORT:ft8_get_last_snr_terms ^
   /EXPORT:ft8_get_h12_displaying_count ^
   /EXPORT:ft8_get_h12_ambiguous_count ^

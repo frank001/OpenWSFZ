@@ -727,8 +727,44 @@ extern "C" {
  *              announce_stamp, cb_lookup_hash's return value, and
  *              ft8_get_h12_by_code's own table/counters are byte-for-byte
  *              unchanged.
+ *
+ *   20260053 — density-p1-stage1-pass1-probe (Architect pre-registration
+ *              DENSITY-P1 s.1, dev-task 2026-09-19): MEASURE-ONLY -- a READ-ONLY
+ *              TAP inside ft8_decode_all, changing NO decode output. Adds four new
+ *              DIAGNOSTIC-ONLY exports -- ft8_set_probe, ft8_clear_probe,
+ *              ft8_get_probe_llrs, ft8_get_last_suppression -- and the
+ *              Ft8SuppressionRecord struct (24 bytes). When armed (ft8_set_probe,
+ *              consumed by the very next ft8_decode_all on the same thread), the
+ *              tap snapshots the RAW, pre-normalisation 174 LLRs at the armed
+ *              (freq, time) position from the waterfall AS PRODUCTION HOLDS IT at
+ *              the start of each pass -- pass 0 unsuppressed, pass 1 after
+ *              production's own soft suppression of the pass-0 decodes -- and
+ *              records each suppression's attenuation factor ACTUALLY APPLIED.
+ *              Answers whether a crowded victim's bits are CLEAN or still DIRTY
+ *              after pass-1 suppression (DENSITY-P1 Stage 2). Deliberately NOT a
+ *              re-implementation: the DENSITY-MECH oracle was a separate code
+ *              path that differed from production and was voided.
+ *              Only edits to existing production code: (a) suppress_candidate_tiles
+ *              returns the factor it applied (was void; production ignores the
+ *              returned value, only the tap reads it); (b) one
+ *              entry-time consume-and-reset call; (c) one `if (probe_active)`
+ *              capture call between the pass-1 suppression block and
+ *              ftx_find_candidates; (d) the record store inside the pass-1
+ *              suppression loop. Everything else is additive. decode.c and the
+ *              vendored native/ tree: zero edits. ft8_extract_llrs_at is NOT
+ *              refactored to share code with the tap -- the two are independent
+ *              copies so that acceptance check S1-c tests their agreement.
+ *              Disarmed cost: one bool test per pass plus a handful of
+ *              thread-local stores per call. FT8Result stays 48 bytes.
+ *              NO IFt8NativeInterop / Ft8LibInterop binding and no DllImport in
+ *              src/OpenWSFZ.Ft8 for any of the four -- reachable only from test
+ *              code and QA harnesses driving the native library directly.
+ *              20260052 is deliberately SKIPPED: reserved by the queued (unexecuted)
+ *              rc4 renumber task (dev-tasks/2026-09-03-shim-version-renumber-
+ *              rc1rc2-and-rc4-branches.md, 20260035 -> 20260052); skipping a slot
+ *              has precedent here (20260003, 20260007).
  */
-#define FT8_SHIM_VERSION 20260051
+#define FT8_SHIM_VERSION 20260053
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1216,6 +1252,101 @@ int ft8_ldpc_decode_llrs(
     int*         out_ldpc_errors,
     int*         out_path,
     int*         out_crc_ok);
+
+/*
+ * ── DENSITY-P1 Stage 1: pass-1 probe TAP (density-p1-stage1-pass1-probe,
+ *    shim 20260053) ─────────────────────────────────────────────────────────
+ *
+ * Four DIAGNOSTIC-ONLY exports. A read-only tap INSIDE ft8_decode_all: when
+ * armed, it snapshots the raw 174 LLRs at one caller-chosen position from the
+ * waterfall exactly as production holds it at the start of each pass, and
+ * records the suppression factors production actually applied between passes.
+ * It reads; it never acts -- no write to the waterfall, no change to any
+ * counter, candidate, decode, SNR, ordering or existing TLS diagnostic.
+ *
+ * NOT reachable from the managed product layer: no IFt8NativeInterop member,
+ * no DllImport in src/OpenWSFZ.Ft8. Test code and QA harnesses only.
+ *
+ * Threading: everything here is THREAD-LOCAL. Arm, decode and read on the SAME
+ * thread (the same contract as ft8_get_last_pass_counts).
+ *
+ * Lifecycle: ft8_set_probe arms the NEXT ft8_decode_all on this thread; that
+ * call consumes the arm (self-disarming). EVERY ft8_decode_all call that
+ * proceeds past its pcm_len check -- armed or not -- resets all probe results
+ * first, so a disarmed call reads back as "not armed", never as stale data from
+ * an earlier armed call. Results always describe the most recent ft8_decode_all
+ * call that ran. (A call rejected for a wrong pcm_len returns -1 before touching
+ * any probe state and therefore does NOT consume a pending arm.)
+ */
+
+/* Return codes of ft8_get_probe_llrs. 0 on success; -2 is deliberately unused
+ * here (it is the SEH code of ft8_decode_all / ft8_extract_llrs_at). */
+#define FT8_PROBE_OK                 0
+#define FT8_PROBE_ERR_BAD_ARG       (-1)  /* pass not in [0, passes) or out174 NULL      */
+#define FT8_PROBE_ERR_OUT_OF_BAND   (-3)  /* resolved freq bin outside [0, num_bins);
+                                             same code as ft8_extract_llrs_at            */
+#define FT8_PROBE_ERR_NOT_ARMED     (-4)  /* the last ft8_decode_all was not armed       */
+#define FT8_PROBE_ERR_PASS_NOT_RUN  (-5)  /* that pass never ran (num_decoded >=
+                                             max_results early-exit, or SEH fault before) */
+
+/*
+ * One pass-0 decode's soft tile suppression, as applied before pass 1.
+ * sizeof == 24; six 4-byte members, no padding.
+ */
+typedef struct
+{
+    int32_t freq_offset;   /* cand->freq_offset of the suppressed pass-0 decode         */
+    int32_t time_offset;   /* cand->time_offset                                         */
+    int32_t freq_sub;      /* cand->freq_sub                                            */
+    int32_t time_sub;      /* cand->time_sub                                            */
+    float   snr_db;        /* the UNROUNDED float SNR the suppression ramp was fed
+                              (NOT the int-rounded FT8Result.snr)                       */
+    float   factor;        /* the attenuation factor suppress_candidate_tiles ACTUALLY
+                              APPLIED (returned by it -- never re-derived): 1.0 = tile
+                              unchanged, 0.0 = tile replaced by the noise floor         */
+} Ft8SuppressionRecord;
+
+/*
+ * ft8_set_probe -- arm the tap for the NEXT ft8_decode_all on this thread.
+ *
+ * Position convention IDENTICAL to ft8_extract_llrs_at: freq_hz is the tone-0
+ * frequency, time_offset_s is the (dt + 0.16 s) origin; both are snapped to the
+ * same K_FREQ_OSR / K_TIME_OSR lattice production candidates live on.
+ */
+void ft8_set_probe(float freq_hz, float time_offset_s);
+
+/*
+ * ft8_clear_probe -- disarm, AND invalidate any captured data (every subsequent
+ * read returns "not armed" / 0 records until the next armed ft8_decode_all).
+ */
+void ft8_clear_probe(void);
+
+/*
+ * ft8_get_probe_llrs -- copy the RAW, PRE-NORMALISATION 174 LLRs captured at the
+ * armed position for `pass` (0 = unsuppressed waterfall, 1 = after production's
+ * pass-1 soft suppression). ftx_normalize_logl() is deliberately NOT applied.
+ *
+ * Returns: FT8_PROBE_OK (0) on success; out174 is written.
+ *          FT8_PROBE_ERR_BAD_ARG    (-1) pass out of range or out174 NULL.
+ *          FT8_PROBE_ERR_OUT_OF_BAND(-3) the resolved frequency bin fell outside
+ *                                        [0, num_bins) for this pass.
+ *          FT8_PROBE_ERR_NOT_ARMED  (-4) the last ft8_decode_all was not armed.
+ *          FT8_PROBE_ERR_PASS_NOT_RUN(-5) that pass did not run.
+ *          out174 is left UNTOUCHED on every non-zero return.
+ */
+int ft8_get_probe_llrs(int pass, float* out174);
+
+/*
+ * ft8_get_last_suppression -- copy up to `capacity` Ft8SuppressionRecords for the
+ * last ARMED ft8_decode_all and return the TOTAL count (n_all_supp), which may
+ * exceed `capacity` (unlike ft8_get_last_pass_counts, which returns the number
+ * COPIED, this returns the total, so a call with capacity 0 / out NULL sizes the
+ * buffer). At most min(capacity, total) records are written. Records are in
+ * production's suppression order (pass-0 decode order).
+ *
+ * Returns 0 if the last call was not armed or pass 1 did not run.
+ */
+int ft8_get_last_suppression(Ft8SuppressionRecord* out, int capacity);
 
 #ifdef __cplusplus
 }

@@ -167,6 +167,10 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_extract_llrs_at ^
    /EXPORT:ft8_coherent_llr_at ^
    /EXPORT:ft8_ldpc_decode_llrs ^
+   /EXPORT:ft8_set_probe ^
+   /EXPORT:ft8_clear_probe ^
+   /EXPORT:ft8_get_probe_llrs ^
+   /EXPORT:ft8_get_last_suppression ^
    /EXPORT:ft8_get_h12_displaying_count ^
    /EXPORT:ft8_get_h12_ambiguous_count ^
    /EXPORT:ft8_get_h12_divergent_count ^
@@ -217,6 +221,12 @@ Verify exports (all fifteen symbols must appear — r1-sync-refiner-instrument-v
 ft8_refine_candidate, n1-extract-llrs-at-position adds ft8_extract_llrs_at,
 r2-coherent-llr-instrument Phase 1 adds ft8_coherent_llr_at, Phase B Amendment 1 adds
 ft8_ldpc_decode_llrs):
+
+> **Shim 20260053 (density-p1-stage1-pass1-probe)** additionally exports four diagnostic-only
+> symbols — `ft8_set_probe`, `ft8_clear_probe`, `ft8_get_probe_llrs`, `ft8_get_last_suppression`.
+> `gcc -shared` has default visibility and no export list, so nothing needs adding for Linux/macOS;
+> they must simply appear in the `nm` output below. `rebuild_shim.bat`'s `/EXPORT` set is the
+> authoritative list.
 
 ```bash
 nm -D libft8.so | grep "ft8_"
@@ -272,6 +282,10 @@ Verify exports (`nm -gU` on macOS prefixes exported symbols with an underscore; 
 symbols must appear — r1-sync-refiner-instrument-validation adds ft8_refine_candidate,
 n1-extract-llrs-at-position adds ft8_extract_llrs_at, r2-coherent-llr-instrument Phase 1 adds
 ft8_coherent_llr_at, Phase B Amendment 1 adds ft8_ldpc_decode_llrs):
+
+> **Shim 20260053 (density-p1-stage1-pass1-probe)** additionally exports `ft8_set_probe`,
+> `ft8_clear_probe`, `ft8_get_probe_llrs`, `ft8_get_last_suppression` (diagnostic-only; see the
+> Linux note above — nothing to add for macOS either).
 
 ```bash
 nm -gU libft8.dylib | grep "ft8_"

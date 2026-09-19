@@ -1,4 +1,61 @@
-=== CURRENT: f001-l3-unresolved-by-code-export (FT8_SHIM_VERSION 20260050) ===
+=== CURRENT: density-p1-stage1-pass1-probe (FT8_SHIM_VERSION 20260053) ===
+
+Built 2026-09-19 from branch feat/density-p1-stage1-probe-tap (branched off
+origin/decoding_improvement at e5c79aa4, whose src/ and native/ are identical to main's), on top
+of the passband-140-ship binary at shim 20260051 (SHA256
+91997e38038d9328edcb49cd1e8661706d0092ed2c73e808094c96c3980ad2c6, 217,088 bytes), per QA's
+Developer handoff (dev-tasks/2026-09-19-density-p1-stage1-pass1-probe-export.md, authorised by the
+Architect's DENSITY-P1 pre-registration s.1 and the Captain's go of 2026-09-19, Stage 1 ONLY).
+
+MEASURE-ONLY -- changes no decode output. A READ-ONLY TAP inside ft8_decode_all plus four new
+DIAGNOSTIC-ONLY exports: ft8_set_probe, ft8_clear_probe, ft8_get_probe_llrs,
+ft8_get_last_suppression (and the 24-byte Ft8SuppressionRecord struct). Armed by ft8_set_probe
+for the next ft8_decode_all on the same thread, the tap snapshots the RAW pre-normalisation 174
+LLRs at the armed position from the waterfall as production holds it at the start of each pass
+(pass 0 unsuppressed; pass 1 after production's own soft suppression of the pass-0 decodes) and
+records the attenuation factor each suppression ACTUALLY applied. It reads; it never acts.
+
+Edits to EXISTING production code (dev-task s.4.1, the complete allowed list): (a)
+suppress_candidate_tiles returns the factor it applied (void -> float; production ignores the
+value); (b) one entry-time consume-and-reset call, `probe_begin_call()`; (c) one
+`if (probe_active) probe_capture_pass(&mon, pass);` between the pass-1 suppression block and
+ftx_find_candidates; (d) the record store inside the pass-1 suppression loop. Everything else is
+additive. decode.c and the vendored native/ tree: zero edits. ft8_extract_llrs_at is NOT
+refactored to share code with the tap (independent copies, so S1-c tests their agreement).
+Disarmed cost: one bool test per pass plus a handful of thread-local stores per call.
+FT8Result stays 48 bytes.
+
+NO IFt8NativeInterop / Ft8LibInterop binding and no DllImport in src/OpenWSFZ.Ft8 for any of the
+four -- the only managed-code change is the ExpectedShimVersion bump (20260051 -> 20260053).
+Test-local P/Invoke lives in tests/OpenWSFZ.Ft8.Tests/DensityP1ProbeTapTests.cs only.
+
+FT8_SHIM_VERSION 20260053, NOT 20260052: 20260052 is reserved on paper by the queued,
+unexecuted rc4 renumber task (dev-tasks/2026-09-03-shim-version-renumber-rc1rc2-and-rc4-
+branches.md, 20260035 -> 20260052). Uniqueness re-checked at pickup across every local and
+remote ref: the highest defined value anywhere was 20260051, and 20260053 appears in no commit
+except QA's own dev-task text. FT8_SHIM_VERSION identifies nothing on its own -- the SHA256
+below is the pin.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    50e94e7d73e33050ac37145ac675ad467415324b9cbc5183dc47f3e361829bb7  (223,232 bytes)
+  Linux x64   (build_linux.sh): NOT rebuilt this session -- CI's `commit-native-binaries` job
+    rebuilds it from source and auto-commits it. The linux-x64/libft8.so currently committed
+    remains at its pre-this-change shim version until that follow-up lands; do not treat it as
+    shim-20260053-compatible before then.
+  macOS ARM64: NOT rebuilt this session -- no Mac available locally; same as every prior native
+    change here. CI's `macos-latest` leg owns it (`commit-native-binaries`). The
+    osx-arm64/libft8.dylib currently committed is likewise pre-20260053 until that lands.
+
+Exports (dumpbin /exports): TWENTY-SIX, the twenty-two pre-existing symbols unchanged (none
+removed) plus exactly the four new ones. Windows link (rebuild_shim.bat) gained the four matching
+`/EXPORT:` lines -- the Windows-only trap: a symbol in the header/.c but missing from that list
+builds and links clean and is then unresolvable by any native caller.
+
+Provenance note: this file has NO entry for 20260051 (passband-140-ship) -- a pre-existing gap
+this change did not introduce and does not repair; the 20260051 binary's SHA256 is recorded above
+as this build's predecessor.
+
+=== f001-l3-unresolved-by-code-export (FT8_SHIM_VERSION 20260050) ===
 
 Built 2026-09-03 from branch feat/f001-l3-unresolved-by-code-export, on top of the
 f001-h12-unique-match-suppression pin at shim 20260049 (SHA256
