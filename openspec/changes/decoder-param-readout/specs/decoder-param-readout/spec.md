@@ -25,12 +25,17 @@ The route SHALL be read-only: `POST`, `PUT`, `PATCH` and `DELETE` SHALL return `
 
 ### Requirement: Read-only decoder-parameter page
 
-The web UI SHALL provide a page `decoder-params.html` that lists **every** entry returned by `GET /api/v1/decoder/params`, grouped into *Runtime-settable* and *Compile-time*, showing each entry's name, value and default, and showing the shim version. The page SHALL contain **no `<input>`, `<select>` or `<textarea>` element and no control that mutates state**. The page SHALL be reachable by a link from the settings page.
+The web UI SHALL provide a page `decoder-params.html` that lists **every** entry returned by `GET /api/v1/decoder/params`, grouped into *Runtime-settable* and *Compile-time*, showing each entry's name, value and default, and showing the shim version. The page SHALL contain **no `<input>`, `<select>` or `<textarea>` element and no control that mutates state**. The page SHALL be reachable by a link from the settings page. The page SHALL also carry a **"Not included" note** naming, for each bare numeric tuning literal on the decode path that is **not** in the table, its file, line, value and the reason; if there is none, the note SHALL say so explicitly. Nothing on the decode path SHALL be omitted silently: each tuning literal is either tabled or named on this note.
 
 #### Scenario: Every API entry is displayed with the API's value
 
 - **WHEN** the page is loaded against a running daemon
 - **THEN** each entry in the API response SHALL appear on the page with the same value and default, and the shim version SHALL be shown
+
+#### Scenario: Nothing on the decode path is omitted silently
+
+- **WHEN** the decode path contains a bare numeric tuning literal that is not in the table
+- **THEN** that literal SHALL be listed on the page's "Not included" note with its file, line, value and reason
 
 #### Scenario: The page has no editable control
 

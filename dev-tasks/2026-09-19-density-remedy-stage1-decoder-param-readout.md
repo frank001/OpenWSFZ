@@ -35,12 +35,13 @@ Bring them into your branch with `git checkout qa/decoder-param-readout-draft --
 4. **GUI.** `web/decoder-params.html`: grouped runtime vs compile-time, `name · value · default`, shim version, **no editable control**. One link from `settings.html`; the `#advanced-decoder-settings` block is **byte-for-byte unchanged**.
 5. **Shim version `20260054`**, three platform binaries, `libft8.version.txt`, `BUILD.md`, `ExpectedShimVersion`, and a direct edit of the ABI requirement in `openspec/specs/ft8lib-interop/spec.md`.
 
-## 2. 🔴 Decisions that must be made BEFORE pickup
+## 2. Decisions before pickup
 
-| # | question | who | default if silent |
+| # | question | who | status |
 |---|---|---|---|
-| **D4** | Hoist and report the bare OSD depth `2` in `native/ft8_lib_build/patched/ft8/decode.c:666`? | Architect / Captain | **Do not start**; ask. QA recommends **yes** (one more edited line in a vendored file, arithmetic-identical, caught by S1-a) |
-| — | The Captain's go for Stage 1 itself | Captain | **held** |
+| **D4** | Hoist and table the bare OSD depth `2` in `native/ft8_lib_build/patched/ft8/decode.c:666`? | Architect | ✅ **DECIDED: yes** (spec §12, `arch/density` `9c5622aa`). One more existing line edited in a vendored file, arithmetic-identical, bound by S1-a |
+| **D12** | Completeness covers **bare literals**, not only `#define K_*`: the Developer audits the decode path for any other bare numeric tuning literal; each is hoisted-and-tabled or named on the page's "Not included" note; nothing omitted silently | Architect | ✅ **DECIDED** (spec §12). See `design.md` D12 for the definition of a *tuning literal* |
+| — | The Captain's go for Stage 1 itself | Captain | 🛑 **HELD** |
 
 ## 3. Builds
 
@@ -55,7 +56,8 @@ Listed in `tasks.md` §5 (`FR-067 … FR-070`, each `DisplayName` starting `FR-0
 ## 5. Rigour controls
 
 1. 🔴 **The proposal declares `**User-facing:** yes`, so gate G9b requires a `VERSION` bump (`0.49` → `0.50`) in the same PR.** The proposal must **first appear in that PR**, together with the bump and the `README.md` / `REQUIREMENTS.md` anchor sentences (G9a). Verify on your branch after committing (the script reads from git): `python tools/check_version_bump.py origin/decoding_improvement` must exit 0. **Do not land the proposal on any branch that can reach `main` without the bump.**
-2. **The complete list of edits to existing native code** is: (a) the two passband literals → constants; (b) *if D4 accepted* the OSD-depth literal → macro; (c) the runtime ramp and side-weight in `suppress_candidate_tiles`. Everything else is additive. **Anything else that touches an existing line: stop and report.**
+2. **The complete list of edits to existing native code** is: (a) the two passband literals → constants; (b) the OSD-depth literal → macro (D4, decided); (b2) any **further** bare tuning literal that the D12 audit finds **and you choose to hoist**, each arithmetic-identical and each **reported**; (c) the runtime ramp and side-weight in `suppress_candidate_tiles`. Everything else is additive. **Anything else that touches an existing line: stop and report.**
+2b. 🔴 **The bare-literal audit (D12) is part of the task, not an extra.** A `#define K_*` search cannot see a bare literal (the OSD depth was invisible to it). Search `ft8_shim.c` **and** every patched `native/ft8_lib_build/patched/ft8/*.c` for numeric *tuning* literals on the decode path, using the `design.md` D12 definition (changes decode results without changing the protocol; **not** a protocol constant, array size or derived loop bound). **Report every one.** Each is hoisted-and-tabled or named on the page's **"Not included"** note (with file, line, value, reason). **Where you are unsure, list it with the doubt stated. Nothing is omitted silently.**
 3. **Byte-identical decode output at defaults.** With `side_weight == 1.0f` use `factor` itself; `1 − (1 − f)` is not bitwise `f`.
 4. **The table must be truthful by construction:** each row reads the macro or variable the decode path reads, not a copy.
 5. **`snr_max` has no upper bound** beyond `> snr_min` and finite (the Stage 2 bench sweeps it above `+15`).
@@ -81,7 +83,8 @@ Listed in `tasks.md` §5 (`FR-067 … FR-070`, each `DisplayName` starting `FR-0
 5. The output of `python tools/check_version_bump.py origin/decoding_improvement` (must be a pass).
 6. Test tally (`FR-067…070` by name) and the full-suite result. CI status on **all three platforms** once pushed.
 7. Both screenshots (HK-005) and the Playwright run (HK-007).
-8. Any deviation from this document, stated plainly.
+8. **The bare-literal audit (D12):** the full list of numeric tuning literals you found on the decode path (file, line, value), each marked *hoisted-and-tabled* or *"Not included"* with its reason; the doubts stated. An empty list must be stated as empty.
+9. Any deviation from this document, stated plainly.
 
 ## 8. What QA does next (not your job, stated so nothing surprises you)
 
@@ -94,7 +97,7 @@ Acceptance, all mechanical, with the bars fixed **before** any run (the `DENSITY
 | **S1-c floor plumbed** | `DENSITY-P1` primary cell Δ12 X3, N = 20: at `(−25, 15, 1)` E's **recorded applied factor** equals `1 − clamp((snr_db + 25)/40)` within `1e-6` and differs from its default-run value |
 | **S1-d side weight plumbed** | E+15 Δ6.25, N = 20: (i) F's pass-1 probe LLR vector differs between `s = 1` and `s = 0` in ≥ 19/20 trials; (ii) **null:** with `(−5, 15, 1.0)` set explicitly, bit-identical to a run where the setter was never called, 20/20 |
 | **S1-e build** | CI green on all three platforms |
-| **S1-f completeness** | the grep-derived set of `#define K_*` the decode path reads and every `ft8_set_*` setter ⊆ the table's names; each compile-time value equals its `#define` |
+| **S1-f completeness** | (i) the grep-derived set of `#define K_*` the decode path reads and every `ft8_set_*` setter ⊆ the table's names; each compile-time value equals its `#define`. **(ii) bare literals (D12):** QA runs its **own** grep of `ft8_shim.c` and the patched `ft8/*.c` for numeric literals on the decode path and diffs it against the Developer's audit report: every literal QA finds must be in the report as *hoisted-and-tabled* or *"Not included"*, and every "Not included" entry must appear on the page. **That comparison is mechanical; whether a literal is a *tuning* literal at all is not**, so any disagreement goes to the Architect, not to QA alone |
 | **S1-g round-trip** | after `ft8_set_decode_params(7, 0.15, 50)` and `ft8_set_supp_params(−10, 15, 0.5)` the table reports exactly those values; after resetting to defaults, the defaults |
 | **S1-h GUI** | Playwright: the page lists every table entry with the API's value, has no editable control, and a changed `app.json` decoder value appears on the page after save |
 

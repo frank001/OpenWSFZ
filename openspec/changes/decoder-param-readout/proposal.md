@@ -44,7 +44,7 @@ This is a **user-visible feature on `decoding_improvement`**, so the project's m
 
 ## Impact
 
-- **Native:** `src/OpenWSFZ.Ft8/Native/ft8_shim.c` / `ft8_shim.h`; `native/ft8_lib_build/rebuild_shim.bat` (three `/EXPORT:` lines); `native/ft8_lib_build/patched/ft8/decode.c` only if the OSD-depth decision (design D4) is taken; three platform binaries.
+- **Native:** `src/OpenWSFZ.Ft8/Native/ft8_shim.c` / `ft8_shim.h`; `native/ft8_lib_build/rebuild_shim.bat` (three `/EXPORT:` lines); `native/ft8_lib_build/patched/ft8/decode.c` (the OSD-depth hoist, design D4, decided) and any further patched `ft8/*.c` literal the D12 audit hoists; three platform binaries.
 - **Managed:** `Ft8LibInterop.cs`, `IFt8NativeInterop.cs`, `Ft8NativeInteropAdapter.cs`; `OpenWSFZ.Web` (`WebApp.cs`, `AppJsonContext.cs`).
 - **Web:** `web/decoder-params.html`, `web/js/decoderParams.js`, one link from `web/settings.html`.
 - **Governance:** `VERSION`, `README.md`, `REQUIREMENTS.md`, `traceability-debt.md` if needed, `openspec/specs/ft8lib-interop/spec.md` (ABI constant, direct edit).

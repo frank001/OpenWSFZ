@@ -52,9 +52,22 @@ The table is built from a single X-macro list so that each row reads the **same 
 
 For a runtime entry, `value` is the current setting and `default_value` is the compiled default. **This is the point of the feature:** `osd_nhard_max` reads `value = 40`, `default_value = 60` when the daemon has applied `DecoderConfig`, and the `nhard` 60-versus-40 split that cost this programme three re-cuts is visible at a glance. A GUI MAY highlight rows where the two differ.
 
-### D4 — 🔴 OPEN: the OSD depth literal — for the Architect to decide **before pickup**
+### D4 — ✅ DECIDED (Architect, spec §12, `arch/density` `9c5622aa`): hoist the OSD depth and table it
 
-`native/ft8_lib_build/patched/ft8/decode.c:666` passes a bare `2` as OSD depth, and `DENSITY-MECH`'s harness had to pin it as `OSD_DEPTH = 2 # decode.c:666 production hardcode`. It is a decode-path tuning value the spec's list does not name. **Recommendation: hoist it to a named macro and include it**, since "all decoder params" is the brief. Cost: one further existing line edited in a **vendored, patched** file (arithmetic-identical, caught by S1-a if wrong). If the Architect declines, it is listed under Non-Goals and the readout page states it is not included. The Developer greps `decode.c` for any **other** tuning literal on the decode path and **reports** them; adding them is not automatic.
+`native/ft8_lib_build/patched/ft8/decode.c:666` passes a bare `2` as OSD depth (`osd_decode(llr_for_osd, 2, plain174)`, verified by the Architect on `origin/decoding_improvement`), and `DENSITY-MECH`'s harness had to pin it as `OSD_DEPTH = 2 # decode.c:666 production hardcode`. It is a decode-path tuning value the original spec list did not name. **It is hoisted to a named macro and included in the table.** Cost: one further existing line edited in a **vendored, patched** file, arithmetic-identical, and gate S1-a binds it.
+
+### D12 — Completeness covers **bare literals**, not only `#define K_*` (Architect, spec §12)
+
+D4 is the proof that a `#define K_*` grep is not enough: the OSD depth was invisible to it. So the Developer **audits the decode path for any other bare numeric tuning literal**, in `ft8_shim.c` **and** the patched `native/ft8_lib_build/patched/ft8/*.c`, and **reports every one found**. Each is then either:
+
+- **hoisted to a named constant and tabled** (arithmetic-identical, bound by S1-a), or
+- **named on the read-only page's "Not included" note** with its location, value and the reason it is not tabled.
+
+**Nothing is omitted silently.**
+
+*Definition, so the audit is not a matter of taste.* A **tuning literal** is a numeric literal that, if changed, would change decode results **without changing the FT8 protocol**: a threshold, an iteration count, a depth, a window, a cap, a scale, a limit. It is **not** a protocol constant (79 symbols, 174/91 LDPC dimensions, the Costas pattern, 8 tones, the 12 kHz sample rate, the 6.25 Hz / 3.125 Hz bin spacing) and not an array size or loop bound derived from one. Where the Developer is unsure which side a literal falls on, they **list it** under the "Not included" note *with that doubt stated*, rather than deciding silently.
+
+**How QA checks it (and what is judgment).** QA runs its own grep of the same files for numeric literals on the decode path and diffs it against the Developer's report: every literal QA finds must appear in the report as hoisted-and-tabled or as a "Not included" entry, and every "Not included" entry must appear on the page. **That comparison is mechanical. Whether a literal is a "tuning" literal at all is not**, so any disagreement goes to the Architect, not to QA alone.
 
 ### D5 — Hoist the passband literals
 
@@ -111,8 +124,8 @@ Verified free by QA on 2026-09-19: the highest version defined on any ref is `20
 ## Risks / Trade-offs
 
 - **Scope.** This is more than a diagnostic build: a user-visible page on `decoding_improvement`. Its route to `main` is the Captain's (HK-010).
-- **Vendored-file edit (D4)** touches `patched/ft8/decode.c`. Mitigated by S1-a; declinable.
-- **Table drift.** Mitigated by construction (D2) *and* by grep (S1-f); either alone would be weaker.
+- **Vendored-file edit (D4)** touches `patched/ft8/decode.c`. Mitigated by S1-a. Further hoists found by the D12 audit add to it; each is arithmetic-identical.
+- **Table drift.** Mitigated by construction (D2) *and* by grep (S1-f); either alone would be weaker. **A `#define` grep is blind to bare literals**, hence D12.
 - **A readout that lies is worse than none.** Hence D3, D8 and S1-g (round-trip): the page must show a value the native library returns, after a real set.
 
 ## Migration Plan
@@ -121,5 +134,5 @@ Additive. Deploy = ship the new binaries and page. Rollback = revert; nothing pe
 
 ## Open Questions
 
-1. **D4:** hoist and include the OSD depth? (Architect.)
-2. Should the GUI highlight rows where `value != default`? (Recommended, optional, Developer's choice.)
+1. ~~**D4:** hoist and include the OSD depth?~~ **Decided: yes** (Architect, spec §12).
+2. Should the GUI highlight rows where `value != default`? (Recommended, optional, Developer's choice; the Architect endorsed the `default` column, D3.)
