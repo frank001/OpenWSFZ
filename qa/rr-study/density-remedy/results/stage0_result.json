@@ -1,0 +1,141 @@
+{
+ "C_pp": 4.3,
+ "REACH_BAR": 0.5,
+ "missed_exposed": {
+  "counts": {
+   "N0": 1337,
+   "RA": 621,
+   "RB": 2118,
+   "RM": 1009
+  },
+  "n_ambiguous": 0,
+  "n_denominator": 5085,
+  "n_missed": 5085,
+  "shares": {
+   "N0": 0.2629301868239921,
+   "RA": 0.12212389380530973,
+   "RB": 0.41651917404129796,
+   "RM": 0.1984267453294002
+  }
+ },
+ "reach": {
+  "floor_in": true,
+  "footprint_in": true,
+  "reach_floor_pp": 1.3783677482792527,
+  "reach_footprint_pp": 2.6442674532940016
+ },
+ "reporting": {
+  "by_df_band": {
+   "0-6": {
+    "counts": {
+     "N0": 532,
+     "RA": 238,
+     "RB": 737,
+     "RM": 392
+    },
+    "n": 1899,
+    "shares": {
+     "N0": 0.28014744602422326,
+     "RA": 0.1253291205897841,
+     "RB": 0.38809899947340704,
+     "RM": 0.20642443391258558
+    }
+   },
+   "13-18": {
+    "counts": {
+     "N0": 434,
+     "RA": 196,
+     "RB": 745,
+     "RM": 335
+    },
+    "n": 1710,
+    "shares": {
+     "N0": 0.25380116959064325,
+     "RA": 0.11461988304093568,
+     "RB": 0.43567251461988304,
+     "RM": 0.195906432748538
+    }
+   },
+   "7-12": {
+    "counts": {
+     "N0": 371,
+     "RA": 187,
+     "RB": 636,
+     "RM": 282
+    },
+    "n": 1476,
+    "shares": {
+     "N0": 0.2513550135501355,
+     "RA": 0.12669376693766937,
+     "RB": 0.43089430894308944,
+     "RM": 0.1910569105691057
+    }
+   }
+  },
+  "full_recovery_pp_of_n_ref": {
+   "N0": 1.4684884563846847,
+   "RA": 0.6820727983656613,
+   "RB": 2.3262965973244296,
+   "RM": 1.1082310041078136
+  },
+  "hit_exposed": {
+   "counts": {
+    "N0": 94,
+    "RA": 20,
+    "RB": 29,
+    "RM": 135
+   },
+   "n_ambiguous": 0,
+   "n_denominator": 278,
+   "shares": {
+    "N0": 0.3381294964028777,
+    "RA": 0.07194244604316546,
+    "RB": 0.10431654676258993,
+    "RM": 0.4856115107913669
+   }
+  },
+  "pass_attribution_on_0c_sample": {
+   "n_decoded_dominant_neighbours_paired": 56,
+   "n_pass0": 56,
+   "share_pass0": 1.0
+  },
+  "snr_input_check": {
+   "median_ours_minus_ref_clear": -3,
+   "median_ours_minus_ref_neighbours": -3.0,
+   "n_clear": 24149,
+   "n_neighbours": 3774,
+   "n_standardised": 3759,
+   "standardised_diff_neighbour_minus_clear": 0.34344240489491884
+  }
+ },
+ "row0": {
+  "0a": true,
+  "0b": true,
+  "0c": true
+ },
+ "row0_detail": {
+  "R_wild": 61.0856050787514,
+  "ambiguous_share": 0.0,
+  "exposed_hits": 278,
+  "n_ambiguous": 0,
+  "n_exposed": 5363,
+  "n_missed": 5085,
+  "n_ref": 91046
+ },
+ "row0c_detail": {
+  "agreement": 0.9203084832904884,
+  "dll_sha": "50e94e7d73e33050ac37145ac675ad467415324b9cbc5183dc47f3e361829bb7",
+  "n_agree": 716,
+  "n_live_in_sample": 788,
+  "n_pairs": 778,
+  "params_readback": "IMPOSSIBLE: no getter export",
+  "params_set": [
+   10,
+   0.1,
+   60
+  ],
+  "shim": 20260053
+ },
+ "spec": "2f6ba3e2 Sec.3+Sec.10",
+ "verdict": "floor+footprint"
+}

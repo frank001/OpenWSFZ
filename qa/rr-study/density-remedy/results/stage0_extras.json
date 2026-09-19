@@ -1,0 +1,107 @@
+{
+ "A_recovery_rate_by_bucket": {
+  "N0": {
+   "hits": 94,
+   "misses": 1337,
+   "rate": 0.06568832983927324
+  },
+  "RA": {
+   "hits": 20,
+   "misses": 621,
+   "rate": 0.031201248049921998
+  },
+  "RB": {
+   "hits": 29,
+   "misses": 2118,
+   "rate": 0.01350721937587331
+  },
+  "RM": {
+   "hits": 135,
+   "misses": 1009,
+   "rate": 0.11800699300699301
+  }
+ },
+ "B_margin_to_bar": {
+  "floor_share_needed": 0.11627906976744186,
+  "footprint_share_needed": 0.11627906976744186
+ },
+ "B_sensitivity_our_snr_shift_db": {
+  "-1": {
+   "counts": {
+    "N0": 1337,
+    "RA": 749,
+    "RB": 1935,
+    "RM": 1064
+   },
+   "floor_in": true,
+   "footprint_in": true,
+   "reach_floor_pp": 1.5331170108161258,
+   "reach_footprint_pp": 2.5360275319567354,
+   "shares": {
+    "N0": 0.2629301868239921,
+    "RA": 0.1472959685349066,
+    "RB": 0.3805309734513274,
+    "RM": 0.20924287118977383
+   }
+  },
+  "0": {
+   "counts": {
+    "N0": 1337,
+    "RA": 621,
+    "RB": 2118,
+    "RM": 1009
+   },
+   "floor_in": true,
+   "footprint_in": true,
+   "reach_floor_pp": 1.3783677482792527,
+   "reach_footprint_pp": 2.6442674532940016,
+   "shares": {
+    "N0": 0.2629301868239921,
+    "RA": 0.12212389380530973,
+    "RB": 0.41651917404129796,
+    "RM": 0.1984267453294002
+   }
+  },
+  "1": {
+   "counts": {
+    "N0": 1337,
+    "RA": 517,
+    "RB": 2275,
+    "RM": 956
+   },
+   "floor_in": true,
+   "footprint_in": true,
+   "reach_floor_pp": 1.2456047197640117,
+   "reach_footprint_pp": 2.732212389380531,
+   "shares": {
+    "N0": 0.2629301868239921,
+    "RA": 0.10167158308751229,
+    "RB": 0.4473942969518191,
+    "RM": 0.1880039331366765
+   }
+  }
+ },
+ "C_row0c_snr_difference_replay_minus_live": {
+  "histogram": {
+   "-1": 10,
+   "0": 716,
+   "1": 14,
+   "2": 21,
+   "3": 12,
+   "4": 5
+  },
+  "n_live_unmatched": 10,
+  "n_pairs": 778,
+  "n_replay_decodes_not_in_live": 136
+ },
+ "D_broad_ambiguity_among_neighbours": {
+  "matcher_n_ambiguous_whole_corpus": 8,
+  "n_gained_whole_corpus": 1541,
+  "n_missed": 5085,
+  "n_neighbours_via_wildcard_single": 143,
+  "n_shared_candidate": 0,
+  "share_of_missed": 0.0,
+  "spec_predicate_ge2_candidates_whole_corpus": 0
+ },
+ "note": "DESCRIPTIVE, POST-HOC, NOT pre-registered. Gates nothing."
+}
