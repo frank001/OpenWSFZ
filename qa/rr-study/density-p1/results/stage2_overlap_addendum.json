@@ -1,0 +1,439 @@
+{
+ "cells": {
+  "e15,12.00,3.0": {
+   "E_factor_median": 0.0,
+   "P1_hit_rate": 1.0,
+   "delta_hz": 12.0,
+   "e_snr_db": 15.0,
+   "f_snr_db": 12.0,
+   "no_overlap": {
+    "ber": 0.0,
+    "bit_errors": 0,
+    "bits": 14700
+   },
+   "overlap": {
+    "ber": 0.5603703703703704,
+    "bit_errors": 1513,
+    "bits": 2700
+   },
+   "overlap_bits_per_trial": 27.0,
+   "prod": 1.0,
+   "raw_errors_per_trial": {
+    "max": 17,
+    "max_when_decoded": 17,
+    "median": 15.0,
+    "median_when_decoded": 15.0,
+    "median_when_not_decoded": null,
+    "min": 13,
+    "min_when_not_decoded": null,
+    "n": 100,
+    "n_decoded": 100,
+    "n_not_decoded": 0
+   }
+  },
+  "e15,6.25,3.0": {
+   "E_factor_median": 0.0,
+   "P1_hit_rate": 0.0,
+   "delta_hz": 6.25,
+   "e_snr_db": 15.0,
+   "f_snr_db": 12.0,
+   "no_overlap": {
+    "ber": 0.0,
+    "bit_errors": 0,
+    "bits": 9000
+   },
+   "overlap": {
+    "ber": 0.5892857142857143,
+    "bit_errors": 4950,
+    "bits": 8400
+   },
+   "overlap_bits_per_trial": 84.0,
+   "prod": 0.0,
+   "raw_errors_per_trial": {
+    "max": 51,
+    "max_when_decoded": null,
+    "median": 49.5,
+    "median_when_decoded": null,
+    "median_when_not_decoded": 49.5,
+    "min": 48,
+    "min_when_not_decoded": 48,
+    "n": 100,
+    "n_decoded": 0,
+    "n_not_decoded": 100
+   }
+  },
+  "primary,12.00,1.0": {
+   "E_factor_median": 0.9356012940406799,
+   "P1_hit_rate": 0.15,
+   "delta_hz": 12.0,
+   "e_snr_db": -5.0,
+   "f_snr_db": -6.0,
+   "no_overlap": {
+    "ber": 0.20272108843537415,
+    "bit_errors": 2980,
+    "bits": 14700
+   },
+   "overlap": {
+    "ber": 0.14,
+    "bit_errors": 378,
+    "bits": 2700
+   },
+   "overlap_bits_per_trial": 27.0,
+   "prod": 0.15,
+   "raw_errors_per_trial": {
+    "max": 54,
+    "max_when_decoded": 31,
+    "median": 33.0,
+    "median_when_decoded": 26,
+    "median_when_not_decoded": 34,
+    "min": 21,
+    "min_when_not_decoded": 23,
+    "n": 100,
+    "n_decoded": 15,
+    "n_not_decoded": 85
+   }
+  },
+  "primary,12.00,3.0": {
+   "E_factor_median": 0.9357595443725586,
+   "P1_hit_rate": 0.0,
+   "delta_hz": 12.0,
+   "e_snr_db": -5.0,
+   "f_snr_db": -8.0,
+   "no_overlap": {
+    "ber": 0.42891156462585034,
+    "bit_errors": 6305,
+    "bits": 14700
+   },
+   "overlap": {
+    "ber": 0.24962962962962962,
+    "bit_errors": 674,
+    "bits": 2700
+   },
+   "overlap_bits_per_trial": 27.0,
+   "prod": 0.0,
+   "raw_errors_per_trial": {
+    "max": 77,
+    "max_when_decoded": null,
+    "median": 70.0,
+    "median_when_decoded": null,
+    "median_when_not_decoded": 70.0,
+    "min": 60,
+    "min_when_not_decoded": 60,
+    "n": 100,
+    "n_decoded": 0,
+    "n_not_decoded": 100
+   }
+  },
+  "primary,12.00,6.0": {
+   "E_factor_median": 0.9354430437088013,
+   "P1_hit_rate": 0.0,
+   "delta_hz": 12.0,
+   "e_snr_db": -5.0,
+   "f_snr_db": -11.0,
+   "no_overlap": {
+    "ber": 0.4763945578231292,
+    "bit_errors": 7003,
+    "bits": 14700
+   },
+   "overlap": {
+    "ber": 0.25925925925925924,
+    "bit_errors": 700,
+    "bits": 2700
+   },
+   "overlap_bits_per_trial": 27.0,
+   "prod": 0.0,
+   "raw_errors_per_trial": {
+    "max": 78,
+    "max_when_decoded": null,
+    "median": 77.0,
+    "median_when_decoded": null,
+    "median_when_not_decoded": 77.0,
+    "min": 76,
+    "min_when_not_decoded": 76,
+    "n": 100,
+    "n_decoded": 0,
+    "n_not_decoded": 100
+   }
+  },
+  "primary,18.75,1.0": {
+   "E_factor_median": 0.9408227801322937,
+   "P1_hit_rate": 0.94,
+   "delta_hz": 18.75,
+   "e_snr_db": -5.0,
+   "f_snr_db": -6.0,
+   "no_overlap": {
+    "ber": 0.11401234567901235,
+    "bit_errors": 1847,
+    "bits": 16200
+   },
+   "overlap": {
+    "ber": 0.16666666666666666,
+    "bit_errors": 200,
+    "bits": 1200
+   },
+   "overlap_bits_per_trial": 12.0,
+   "prod": 0.94,
+   "raw_errors_per_trial": {
+    "max": 41,
+    "max_when_decoded": 31,
+    "median": 20.0,
+    "median_when_decoded": 20.0,
+    "median_when_not_decoded": 33.5,
+    "min": 8,
+    "min_when_not_decoded": 27,
+    "n": 100,
+    "n_decoded": 94,
+    "n_not_decoded": 6
+   }
+  },
+  "primary,18.75,3.0": {
+   "E_factor_median": 0.9414556622505188,
+   "P1_hit_rate": 0.0,
+   "delta_hz": 18.75,
+   "e_snr_db": -5.0,
+   "f_snr_db": -8.0,
+   "no_overlap": {
+    "ber": 0.344320987654321,
+    "bit_errors": 5578,
+    "bits": 16200
+   },
+   "overlap": {
+    "ber": 0.16666666666666666,
+    "bit_errors": 200,
+    "bits": 1200
+   },
+   "overlap_bits_per_trial": 12.0,
+   "prod": 0.0,
+   "raw_errors_per_trial": {
+    "max": 66,
+    "max_when_decoded": null,
+    "median": 58.0,
+    "median_when_decoded": null,
+    "median_when_not_decoded": 58.0,
+    "min": 46,
+    "min_when_not_decoded": 46,
+    "n": 100,
+    "n_decoded": 0,
+    "n_not_decoded": 100
+   }
+  },
+  "primary,18.75,6.0": {
+   "E_factor_median": 0.9284809827804565,
+   "P1_hit_rate": 0.0,
+   "delta_hz": 18.75,
+   "e_snr_db": -5.0,
+   "f_snr_db": -11.0,
+   "no_overlap": {
+    "ber": 0.4008024691358025,
+    "bit_errors": 6493,
+    "bits": 16200
+   },
+   "overlap": {
+    "ber": 0.16666666666666666,
+    "bit_errors": 200,
+    "bits": 1200
+   },
+   "overlap_bits_per_trial": 12.0,
+   "prod": 0.0,
+   "raw_errors_per_trial": {
+    "max": 67,
+    "max_when_decoded": null,
+    "median": 67.0,
+    "median_when_decoded": null,
+    "median_when_not_decoded": 67.0,
+    "min": 64,
+    "min_when_not_decoded": 64,
+    "n": 100,
+    "n_decoded": 0,
+    "n_not_decoded": 100
+   }
+  },
+  "primary,6.25,1.0": {
+   "E_factor_median": 0.9300632476806641,
+   "P1_hit_rate": 0.35,
+   "delta_hz": 6.25,
+   "e_snr_db": -5.0,
+   "f_snr_db": -6.0,
+   "no_overlap": {
+    "ber": 0.18044444444444444,
+    "bit_errors": 1624,
+    "bits": 9000
+   },
+   "overlap": {
+    "ber": 0.21761904761904763,
+    "bit_errors": 1828,
+    "bits": 8400
+   },
+   "overlap_bits_per_trial": 84.0,
+   "prod": 0.35,
+   "raw_errors_per_trial": {
+    "max": 45,
+    "max_when_decoded": 39,
+    "median": 35.0,
+    "median_when_decoded": 33,
+    "median_when_not_decoded": 36,
+    "min": 26,
+    "min_when_not_decoded": 28,
+    "n": 100,
+    "n_decoded": 35,
+    "n_not_decoded": 65
+   }
+  },
+  "primary,6.25,3.0": {
+   "E_factor_median": 0.9302214682102203,
+   "P1_hit_rate": 0.0,
+   "delta_hz": 6.25,
+   "e_snr_db": -5.0,
+   "f_snr_db": -8.0,
+   "no_overlap": {
+    "ber": 0.435,
+    "bit_errors": 3915,
+    "bits": 9000
+   },
+   "overlap": {
+    "ber": 0.23797619047619048,
+    "bit_errors": 1999,
+    "bits": 8400
+   },
+   "overlap_bits_per_trial": 84.0,
+   "prod": 0.0,
+   "raw_errors_per_trial": {
+    "max": 66,
+    "max_when_decoded": null,
+    "median": 59.0,
+    "median_when_decoded": null,
+    "median_when_not_decoded": 59.0,
+    "min": 52,
+    "min_when_not_decoded": 52,
+    "n": 100,
+    "n_decoded": 0,
+    "n_not_decoded": 100
+   }
+  },
+  "primary,6.25,6.0": {
+   "E_factor_median": 0.930854469537735,
+   "P1_hit_rate": 0.0,
+   "delta_hz": 6.25,
+   "e_snr_db": -5.0,
+   "f_snr_db": -11.0,
+   "no_overlap": {
+    "ber": 0.5207777777777778,
+    "bit_errors": 4687,
+    "bits": 9000
+   },
+   "overlap": {
+    "ber": 0.24154761904761904,
+    "bit_errors": 2029,
+    "bits": 8400
+   },
+   "overlap_bits_per_trial": 84.0,
+   "prod": 0.0,
+   "raw_errors_per_trial": {
+    "max": 71,
+    "max_when_decoded": null,
+    "median": 67.0,
+    "median_when_decoded": null,
+    "median_when_not_decoded": 67.0,
+    "min": 63,
+    "min_when_not_decoded": 63,
+    "n": 100,
+    "n_decoded": 0,
+    "n_not_decoded": 100
+   }
+  },
+  "strong,12.00,3.0": {
+   "E_factor_median": 0.30949366092681885,
+   "P1_hit_rate": 1.0,
+   "delta_hz": 12.0,
+   "e_snr_db": 8.0,
+   "f_snr_db": 5.0,
+   "no_overlap": {
+    "ber": 0.0,
+    "bit_errors": 0,
+    "bits": 14700
+   },
+   "overlap": {
+    "ber": 0.5607407407407408,
+    "bit_errors": 1514,
+    "bits": 2700
+   },
+   "overlap_bits_per_trial": 27.0,
+   "prod": 1.0,
+   "raw_errors_per_trial": {
+    "max": 18,
+    "max_when_decoded": 18,
+    "median": 15.0,
+    "median_when_decoded": 15.0,
+    "median_when_not_decoded": null,
+    "min": 12,
+    "min_when_not_decoded": null,
+    "n": 100,
+    "n_decoded": 100,
+    "n_not_decoded": 0
+   }
+  },
+  "strong,18.75,3.0": {
+   "E_factor_median": 0.29715192317962646,
+   "P1_hit_rate": 1.0,
+   "delta_hz": 18.75,
+   "e_snr_db": 8.0,
+   "f_snr_db": 5.0,
+   "no_overlap": {
+    "ber": 0.0,
+    "bit_errors": 0,
+    "bits": 16200
+   },
+   "overlap": {
+    "ber": 0.49666666666666665,
+    "bit_errors": 596,
+    "bits": 1200
+   },
+   "overlap_bits_per_trial": 12.0,
+   "prod": 1.0,
+   "raw_errors_per_trial": {
+    "max": 8,
+    "max_when_decoded": 8,
+    "median": 6.0,
+    "median_when_decoded": 6.0,
+    "median_when_not_decoded": null,
+    "min": 4,
+    "min_when_not_decoded": null,
+    "n": 100,
+    "n_decoded": 100,
+    "n_not_decoded": 0
+   }
+  },
+  "strong,6.25,3.0": {
+   "E_factor_median": 0.30506324768066406,
+   "P1_hit_rate": 0.0,
+   "delta_hz": 6.25,
+   "e_snr_db": 8.0,
+   "f_snr_db": 5.0,
+   "no_overlap": {
+    "ber": 0.0,
+    "bit_errors": 0,
+    "bits": 9000
+   },
+   "overlap": {
+    "ber": 0.5882142857142857,
+    "bit_errors": 4941,
+    "bits": 8400
+   },
+   "overlap_bits_per_trial": 84.0,
+   "prod": 0.0,
+   "raw_errors_per_trial": {
+    "max": 53,
+    "max_when_decoded": null,
+    "median": 49.0,
+    "median_when_decoded": null,
+    "median_when_not_decoded": 49.0,
+    "min": 45,
+    "min_when_not_decoded": 45,
+    "n": 100,
+    "n_decoded": 0,
+    "n_not_decoded": 100
+   }
+  }
+ },
+ "note": "REPORTING ONLY. Run-A data of the pre-registered harness 73ee2d4f. No new decode."
+}

@@ -109,8 +109,13 @@ bin on that symbol:
    factors, which say **why**.
 4. **The E −5 dB cells cannot test the ramp's strength**, only its floor. They say what happens when almost
    nothing is removed.
-5. **The two informative cells are both Δ = 6.25 Hz, one bin.** The footprint result is established for one bin
-   of separation. Δ12/18.75 with real suppression decode 100/100, so it does *not* generalise.
+5. ~~**The two informative cells are both Δ = 6.25 Hz, one bin.** The footprint result is established for one bin
+   of separation. Δ12/18.75 with real suppression decode 100/100, so it does *not* generalise.~~
+   🔴 **CORRECTED 2026-09-19 (Architect, spec §8.2; verified by QA in §7 below): "one bin only" was too broad, and
+   "does not generalise" was WRONG.** The overlap-symbol count is fixed per Δ because both messages are fixed
+   (84 / 27 / 12 bits per trial at Δ 6.25 / 12 / 18.75). The result is established for **one E/F message pair**, and
+   **collateral IS present at Δ12 and Δ18.75** under real suppression: it is a **dose**, and those cells decode only
+   because it stays under FEC capacity. A different message pair shifts the overlap count at every Δ.
 6. **`nhard` 40 here vs 60 in `DENSITY-MECH`:** `prod` rates are not comparable across the two, by design.
 7. **No remedy is tested, and no FP price exists.** Two remedies pull in **opposite** directions: strengthening
    suppression near E −5 dB worsens collateral at one-bin separation. H5's June rejection (over-suppression at
@@ -130,6 +135,44 @@ bin on that symbol:
   factor ≥ 0.90" (0.60): **E's median applied factor is 0.928–0.941 across the nine E −5 cells**.
 - Artefacts: `artefacts/density-p1-stage2/` (gitignored). Committed: the harness, `results/stage2_verdict.json`
   (rates and counts only), `results/stage2_run_hashes.json` (sha256 of the 30 raw JSONL files).
+
+---
+
+## 7. Addendum 1 — is the footprint a Δ-threshold or a dose? (reporting only; gates nothing; cannot move the verdict)
+
+Requested by the Architect (spec §8.2, `arch/density` `10e8f7fe`; corrected to **three** cells). **No new data:** run A
+of the pre-registered harness, the same overlap classification, script `qa/rr-study/density-p1/overlap_addendum.py`,
+results `results/stage2_overlap_addendum.json`. Computed for all 14 cells; the real-suppression cells are below.
+
+| cell (F decoded, i.e. non-excluded) | E factor | overlap bits / trial | BER on overlap | BER off overlap | raw bit errors / trial (of 174) | P1 decodes |
+|---|---:|---:|---|---|---|---:|
+| **strong Δ18.75** | 0.297 | **12** | 0.497 (596/1200) | **0.000 (0/16,200)** | **6** (4–8) | 100/100 |
+| **strong Δ12** | 0.309 | **27** | 0.561 (1514/2700) | **0.000 (0/14,700)** | **15** (12–18) | 100/100 |
+| **E+15 Δ12** | 0.000 | **27** | 0.560 (1513/2700) | **0.000 (0/14,700)** | **15** (13–17) | 100/100 |
+| *strong Δ6.25 (excluded, §4)* | 0.305 | 84 | 0.588 (4941/8400) | 0.000 (0/9000) | 49 (45–53) | 0/100 |
+| *E+15 Δ6.25 (excluded, §4)* | 0.000 | 84 | 0.589 (4950/8400) | 0.000 (0/9000) | 50 (48–51) | 0/100 |
+
+**Reading: a dose.**
+- **The mechanism is the same at every Δ.** Wherever F's tone bin lies inside E's attenuated footprint, the overlap
+  bits are about coin flips (BER 0.50–0.59), and **off the footprint F is perfect: 0 errors in 5 cells, 63,600
+  bits.** The zero also confirms the overlap classification is right: a mis-drawn boundary would leak errors into
+  the "off" column.
+- **Only the number of overlap bits changes with Δ** (12 → 27 → 84), and with it the raw errors per trial
+  (6 → 15 → ~50). Decoding succeeds while that stays under FEC capacity: **the highest raw-error count that still
+  decoded was 18; the lowest that did not was 45** (the five real-suppression cells).
+- So the footprint is **not** a Δ-threshold. Δ12 and Δ18.75 are collateral-damaged too, "just under capacity".
+
+**What this does NOT resolve.**
+1. 🔴 **The capacity threshold is bracketed, not located: somewhere in 18–45 raw errors.** There are only three doses
+   in this scene (6, 15, ~50). Nothing sits between 18 and 45, so the data cannot say where a dose becomes fatal.
+2. **One E/F message pair.** A different pair shifts the overlap count at every Δ (§8.2).
+3. **Raw hard-decision errors are a crude dose.** The LDPC decoder uses soft LLRs, and overlap bits are
+   erasure-like (near coin flips), which are easier to correct than the same count of confident errors. The 18/45
+   bracket is therefore indicative, not a capacity figure.
+4. **Nothing here says how much of the live ≈ 4.30 pp is regime A or regime B.** The classifier prices pairs, not
+   the applied factor (Architect, §8.4).
+5. **The regime-A cells are not a clean dose test:** with factor ≈ 0.93 the errors are residual E, spread on both
+   sides of the footprint (raw errors 33–77), a different mechanism.
 
 ---
 
