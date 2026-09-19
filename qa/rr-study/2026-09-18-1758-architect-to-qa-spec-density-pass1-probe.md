@@ -348,7 +348,7 @@ just under FEC capacity. **A different message pair shifts the overlap count at 
 for **one message pair at one-bin separation**, not for "one bin".
 
 ➡️ **Requested from QA, reporting only, from data already gathered (HK-018):** the overlap / no-overlap BER
-split for the four **non-excluded** real-suppression cells (strong Δ12/18.75, E+15 Δ12). It gates nothing and
+split for the ~~four~~ **three** **non-excluded** real-suppression cells (strong Δ12/18.75, E+15 Δ12). It gates nothing and
 cannot change the verdict. It decides whether the remedy spec treats the footprint as a Δ-threshold or as a dose.
 
 ### 8.3 Predictions scored (§5)
