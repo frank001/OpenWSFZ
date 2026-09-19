@@ -854,7 +854,7 @@ static ftx_callsign_hash_interface_t s_hash_if = { cb_lookup_hash, cb_save_hash 
  * signals while reducing collateral damage on adjacent weaker signals when
  * the decoded signal is borderline (SNR near the decoder floor).
  */
-static void suppress_candidate_tiles(
+static float suppress_candidate_tiles(
     ftx_waterfall_t*       wf,
     const ftx_candidate_t* cand,
     const ftx_message_t*   msg,
@@ -902,6 +902,120 @@ static void suppress_candidate_tiles(
             }
         }
     }
+
+    /* density-p1-stage1-pass1-probe (shim 20260053): return the factor ACTUALLY
+     * APPLIED so the probe tap records it instead of re-deriving it. Production's
+     * only call site ignores this value.                                        */
+    return factor;
+}
+
+/* ── DENSITY-P1 Stage 1: pass-1 probe tap (shim 20260053) ────────────────── */
+/*
+ * A READ-ONLY tap inside ft8_decode_all. See ft8_shim.h's 20260053 changelog
+ * entry and the block comment above ft8_set_probe for the contract.
+ *
+ * Everything below writes ONLY to probe-own thread-local state. Nothing here
+ * writes to the waterfall or to any pre-existing counter/diagnostic.
+ *
+ * probe_capture_pass deliberately DUPLICATES ft8_extract_llrs_at's position-
+ * snapping arithmetic instead of sharing it: the two are independent copies so
+ * that acceptance check S1-c (pass-0 tap bit-for-bit vs ft8_extract_llrs_at)
+ * tests their agreement rather than assuming it. Do NOT refactor one onto the
+ * other.
+ */
+#define FT8_PROBE_N_LLR  174   /* FTX_LDPC_N -- log-likelihood count per candidate */
+
+_Static_assert(sizeof(Ft8SuppressionRecord) == 24,
+               "Ft8SuppressionRecord must be 24 bytes: six 4-byte members, no padding");
+
+static _Thread_local bool  tls_probe_armed         = false;  /* set by ft8_set_probe, consumed by ft8_decode_all */
+static _Thread_local float tls_probe_freq_hz       = 0.0f;
+static _Thread_local float tls_probe_time_offset_s = 0.0f;
+static _Thread_local bool  tls_probe_last_armed    = false;  /* was the LAST ft8_decode_all call armed?           */
+/* Per pass: the code ft8_get_probe_llrs will return. Set to FT8_PROBE_OK only
+ * AFTER the extraction into tls_probe_llr[pass] has completed, so a fault
+ * mid-capture can never leave a half-written buffer reading as valid.        */
+static _Thread_local int   tls_probe_status[K_MAX_PASSES];
+static _Thread_local float tls_probe_llr[K_MAX_PASSES][FT8_PROBE_N_LLR];
+static _Thread_local Ft8SuppressionRecord tls_probe_supp[K_MAX_CANDIDATES];
+static _Thread_local int   tls_probe_n_supp        = 0;
+
+/*
+ * probe_begin_call -- entry-time consume-and-reset. Called by EVERY
+ * ft8_decode_all that proceeds past its pcm_len check, armed or not: consumes
+ * the pending arm and resets every probe result, so a disarmed call leaves the
+ * probe reading as "not armed", never as stale data. Returns whether THIS call
+ * is armed. Touches probe-own thread-local state only.
+ */
+static bool probe_begin_call(void)
+{
+    bool active = tls_probe_armed;
+    tls_probe_armed      = false;
+    tls_probe_last_armed = active;
+    for (int i = 0; i < K_MAX_PASSES; i++)
+        tls_probe_status[i] = FT8_PROBE_ERR_PASS_NOT_RUN;
+    tls_probe_n_supp = 0;
+    return active;
+}
+
+/*
+ * probe_capture_pass -- snapshot the raw (pre-normalisation) 174 LLRs at the
+ * armed position from the waterfall as it stands NOW. Read-only w.r.t. mon->wf.
+ * No ftx_normalize_logl.
+ */
+static void probe_capture_pass(const monitor_t* mon, int pass)
+{
+    /* Same inverse-mapping and lattice snap as ft8_extract_llrs_at (independent
+     * copy -- see the block comment above):
+     *   freq_hz = (min_bin + freq_offset + freq_sub / freq_osr) / symbol_period
+     *   dt      = (time_offset + time_sub / time_osr) * symbol_period          */
+    float raw_freq_bin = tls_probe_freq_hz * mon->symbol_period - mon->min_bin;
+    float raw_time_bin = tls_probe_time_offset_s / mon->symbol_period;
+
+    long total_freq_sub = lroundf(raw_freq_bin * mon->wf.freq_osr);
+    long total_time_sub = lroundf(raw_time_bin * mon->wf.time_osr);
+
+    long freq_offset = total_freq_sub / mon->wf.freq_osr;
+    long freq_sub     = total_freq_sub % mon->wf.freq_osr;
+    long time_offset  = total_time_sub / mon->wf.time_osr;
+    long time_sub      = total_time_sub % mon->wf.time_osr;
+    /* C's truncating %/ can give a negative sub for a negative dividend --
+     * normalise so freq_sub/time_sub stay in [0, osr).                       */
+    if (freq_sub < 0) { freq_sub += mon->wf.freq_osr; freq_offset--; }
+    if (time_sub  < 0) { time_sub  += mon->wf.time_osr;  time_offset--; }
+
+    /* Same D3 guard as ft8_extract_llrs_at: get_cand_mag() does no bounds check on
+     * freq_offset. time is bounds-checked per symbol inside the extraction.     */
+    if (freq_offset < 0 || freq_offset >= mon->wf.num_bins) {
+        tls_probe_status[pass] = FT8_PROBE_ERR_OUT_OF_BAND;
+        return;
+    }
+
+    ftx_extract_likelihood_at(&mon->wf,
+        (int16_t)time_offset, (int16_t)freq_offset,
+        (uint8_t)time_sub, (uint8_t)freq_sub,
+        tls_probe_llr[pass]);
+
+    /* Mark valid only now that the extraction has fully completed. */
+    tls_probe_status[pass] = FT8_PROBE_OK;
+}
+
+/*
+ * probe_record_suppression -- store one pass-0 decode's suppression, with the
+ * factor suppress_candidate_tiles ACTUALLY APPLIED (never re-derived here).
+ */
+static void probe_record_suppression(
+    int index, const ftx_candidate_t* cand, float snr_db, float applied_factor)
+{
+    if (index < 0 || index >= K_MAX_CANDIDATES) return;   /* defensive; accumulator is capped at K_MAX_CANDIDATES */
+    Ft8SuppressionRecord* rec = &tls_probe_supp[index];
+    rec->freq_offset = (int32_t)cand->freq_offset;
+    rec->time_offset = (int32_t)cand->time_offset;
+    rec->freq_sub    = (int32_t)cand->freq_sub;
+    rec->time_sub    = (int32_t)cand->time_sub;
+    rec->snr_db      = snr_db;
+    rec->factor      = applied_factor;
+    tls_probe_n_supp = index + 1;
 }
 
 /* ── Noise floor computation (shared helper) ─────────────────────────────── */
@@ -1442,6 +1556,10 @@ int ft8_decode_all(
 {
     if (pcm_len != FT8_EXPECTED_SAMPLES) return -1;
 
+    /* DENSITY-P1 Stage 1 (shim 20260053): consume the probe arm and reset every
+     * probe result -- on EVERY call, armed or not (probe-own TLS stores only). */
+    bool probe_active = probe_begin_call();
+
     /*
      * SEH containment (MSVC / Windows builds only):
      *
@@ -1591,7 +1709,16 @@ int ft8_decode_all(
 
         if (pass == 1)
             for (int i = 0; i < n_all_supp; i++)
-                suppress_candidate_tiles(&mon.wf, &all_supp_cands[i], &all_supp_msgs[i], noise_raw, all_supp_snrs[i]);
+            {
+                float applied_factor = suppress_candidate_tiles(&mon.wf, &all_supp_cands[i], &all_supp_msgs[i], noise_raw, all_supp_snrs[i]);
+                if (probe_active)   /* DENSITY-P1 tap: record the factor ACTUALLY applied */
+                    probe_record_suppression(i, &all_supp_cands[i], all_supp_snrs[i], applied_factor);
+            }
+
+        /* DENSITY-P1 tap (shim 20260053): snapshot the probe position from the
+         * waterfall as production holds it NOW -- pass 0 unsuppressed, pass 1 after
+         * the soft suppression above. Read-only; runs before ftx_find_candidates. */
+        if (probe_active) probe_capture_pass(&mon, pass);
 
         int pass_min_score = k_pass_cfg[pass].min_score;
         int pass_max_cands = k_pass_cfg[pass].max_cands;
@@ -1962,4 +2089,60 @@ int ft8_ldpc_decode_llrs(
 
     return ftx_ldpc_decode_llrs(llr174, max_iters, osd_depth, out_a91,
                                  out_ldpc_errors, out_path, out_crc_ok);
+}
+
+/* ── DENSITY-P1 Stage 1 probe exports (density-p1-stage1-pass1-probe, shim 20260053) ──
+ *
+ * Four DIAGNOSTIC-ONLY exports over the read-only tap inside ft8_decode_all
+ * (state, probe_begin_call, probe_capture_pass and probe_record_suppression are
+ * defined above, next to suppress_candidate_tiles). Full contract: ft8_shim.h.
+ * No SEH wrapper needed: these only touch probe-own thread-local state. No
+ * production call site; no managed binding.
+ */
+
+void ft8_set_probe(float freq_hz, float time_offset_s)
+{
+    tls_probe_freq_hz       = freq_hz;
+    tls_probe_time_offset_s = time_offset_s;
+    tls_probe_armed         = true;
+}
+
+void ft8_clear_probe(void)
+{
+    /* Disarm AND invalidate captured data: every read now says "not armed". */
+    tls_probe_armed      = false;
+    tls_probe_last_armed = false;
+    for (int i = 0; i < K_MAX_PASSES; i++)
+        tls_probe_status[i] = FT8_PROBE_ERR_PASS_NOT_RUN;
+    tls_probe_n_supp = 0;
+}
+
+int ft8_get_probe_llrs(int pass, float* out174)
+{
+    if (pass < 0 || pass >= K_MAX_PASSES || out174 == NULL)
+        return FT8_PROBE_ERR_BAD_ARG;
+    if (!tls_probe_last_armed)
+        return FT8_PROBE_ERR_NOT_ARMED;               /* never stale data */
+
+    int status = tls_probe_status[pass];
+    if (status != FT8_PROBE_OK)
+        return status;                                /* -5 pass did not run, -3 out of band; out174 untouched */
+
+    memcpy(out174, tls_probe_llr[pass], sizeof(float) * FT8_PROBE_N_LLR);
+    return FT8_PROBE_OK;
+}
+
+int ft8_get_last_suppression(Ft8SuppressionRecord* out, int capacity)
+{
+    if (!tls_probe_last_armed)
+        return 0;
+
+    int total = tls_probe_n_supp;   /* == n_all_supp; stays 0 if pass 1 did not run */
+    if (out != NULL && capacity > 0)
+    {
+        int n = (capacity < total) ? capacity : total;
+        if (n > 0)
+            memcpy(out, tls_probe_supp, sizeof(Ft8SuppressionRecord) * (size_t)n);
+    }
+    return total;
 }
