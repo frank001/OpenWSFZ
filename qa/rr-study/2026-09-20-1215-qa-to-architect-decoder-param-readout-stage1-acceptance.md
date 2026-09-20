@@ -87,6 +87,26 @@ The literal audit sees numbers. It cannot see **non-numeric design choices that 
 
 The Developer added `da9715bb` on top of the accepted `257070d8`, rewording the `NormaliseFloatValue` doc (§5.4, first bullet). **QA re-checked mechanically:** `257070d8` is an ancestor; the diff is one file (`Ft8LibInterop.cs`, +3/−1); **no non-comment line changed**; nothing under `native/`, `src/OpenWSFZ.Ft8/Native/`, `web/` or `tests/`; the DLL at `da9715bb` is still `38a21f84…1cba`. **Every result in this report therefore carries to `da9715bb`**, but it was measured on `257070d8`, and QA did not re-run the tests on the new tip (a doc-comment cannot change them; CI will). The Developer also confirms they made **no change for §5.1** pending the Architect and recorded it as open in their own README.
 
+### 5.6 Addendum (2026-09-20): §5.1 RULED, disclosed, and re-checked on `fb1e80bf`
+
+**Ruling (Architect, spec §13):** the median's `2` is a **tuning** literal (a percentile selector) ⇒ **disclose on the page, NO rebuild, NOT tabled, arms NO sweep.** It is *not* a finding that the 50th percentile is wrong; if a later stage wants it swept, it is hoisted and tabled in that arm with its own rebuild and Captain go. My §5.2 scope note was accepted (page says "every *numeric* parameter").
+
+**Developer's change:** tip `fb1e80bfcbba8cfa53c3d79b8a76a7c7358411f4` = `da9715bb` + one commit, three paths (page, `DecoderParamsPageTests.cs`, the after-screenshot). **QA's re-check bars were registered before it existed** (harness commit `58f569fd`, addendum in the module docstring; the recorded `unit` run and its "6 entries" bar are untouched). Result of `recheck --commit fb1e80bf`, **0 failures**:
+
+| bar | check | result |
+|---|---|---|
+| R1 | descendant of accepted `257070d8` | ✅ |
+| R2 | nothing under `native/` or `src/OpenWSFZ.Ft8/Native/`; DLL blob still `38a21f84…1cba`; every path on the allow-list; `Ft8LibInterop.cs` comment-only | ✅ |
+| R3 | exactly **7** `<li data-status="not-included">`, exactly **one** `noise-floor-median`, six originals unchanged, `derived-none` kept | ✅ |
+| R4 | the entry names `1146` and `1392` and contains percentile / `noise_raw` / occupancy / snr / doubt (keyword proxy) | ✅ |
+| R5 | exactly two `cum * N >=` in `ft8_shim.c`, both `2` | ✅ |
+| R6 | "every numeric parameter", and no unqualified "every parameter of the native FT8 decoder" | ✅ |
+| R7 (by hand) | scratch checkout of `fb1e80bf`, 0 warnings; `--filter "FullyQualifiedName~DecoderParams"` on `OpenWSFZ.Web.Tests`: **21 passed / 0 failed / 0 skipped** (was 19; +2 new); QA read the new tests: one-entry, both site numbers, the doubt words, "not a finding", "arms no sweep", and a source-level test holding both `cum * N >=` sites to the same percentile | ✅ |
+
+**QA read the entry's text** (printed by the harness): 50th percentile, "a free choice and not protocol", sets `noise_raw` and the ramp's SNR input, "a median rises with band occupancy, so in exactly the dense scenes this arm targets, the estimator is pulled toward the signals it is meant to exclude", "not a finding that the 50th percentile is wrong", "arms no sweep", the estimator-shape doubt inside it and not a second entry. That matches the ruling. **Also re-run:** QA's own S1-h Playwright on a scratch daemon built from `fb1e80bf`: **11/11**; the served page carries 7 entries and one `noise-floor-median`. Scratch daemon stopped (path and port verified) and checkout removed. **Result:** `results/stage1_readout_recheck_fb1e80bf.json`.
+
+**Unchanged and still open:** **S1-e (CI ×3)** needs the Captain's push (HK-011); **Stage 2** not started, needs its own go; QA's commits are local only (HK-033); the acceptance's other results were measured on `257070d8` and carry, since the DLL is the same blob.
+
 ## 6. Answers to the Developer's five questions
 
 1. **S1-f(ii):** I grepped **without filtering 0 and 1** (own lister, committed as `qalit.py`) over `ft8_shim.c`, `decode.c`, `monitor.c`, `ldpc.c`. Every `0`/`1` site was read; the suppression footprint is the only tuning one, and it is now `K_SUPP_FOOTPRINT_HALF_BINS`. The `GFSK_*`, `monitor_resynth`, `db_power_sum` and `ft8_decode_multi_symbols` literals are **off the decode path** (`FT8_UNUSED_STATIC` / never called). `sync_refiner`/`coherent_llr` are linked but **not called from `ft8_decode_all`**. Your listing of `monitor.c` and `ldpc.c` is right and I agree with it. **One gap: §5.1.**
@@ -98,7 +118,7 @@ The Developer added `da9715bb` on top of the accepted `257070d8`, rewording the 
 ## 7. Status and what is needed
 
 - ✅ **The native build is technically accepted** on S1-a, b, c, d, f(i), g, h.
-- 🟡 **S1-f(ii) needs the Architect's ruling on §5.1.** Either outcome leaves the DLL and every pin here untouched.
+- ~~🟡 **S1-f(ii) needs the Architect's ruling on §5.1.** Either outcome leaves the DLL and every pin here untouched.~~ ✅ **RULED and CLOSED 2026-09-20 (Architect spec §13, `arch/density` `cfef8246`): TUNING ⇒ disclose, no rebuild. Developer's `fb1e80bf` re-checked by QA: PASS (§5.6).**
 - ⏳ **S1-e needs a push, which needs the Captain (HK-011).** Base and PR target: `decoding_improvement`, **not** `main`. 🔴 **G9b:** the proposal is `User-facing: yes`; this branch carries `0.49 → 0.50`, so it passes. **Never merge the draft branch `qa/decoder-param-readout-draft` on its own.**
 - 🛑 **Merge needs the Captain's separate sign-off** (HK-010). QA has **not** run `pre_merge_check.py` (HK-006).
 - 🛑 **Stage 2 is held** and needs its own Captain go. Nothing of Stage 2 was computed.
