@@ -1,0 +1,63 @@
+{
+ "dll_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+ "catalogue_c2_cycles": 5222,
+ "density_live_c2_cycles": 4113,
+ "open_reconciliation_item": "5,222 vs 4,113 (21%)",
+ "row0": {
+  "0a_pipeline": true,
+  "0b": true,
+  "0c": true,
+  "0d": true,
+  "0e_outcome": true,
+  "0e_text": true
+ },
+ "0a_pipeline": {
+  "reproduced": 57315,
+  "live_decodes_in_executed_cycles": 57969,
+  "share": 0.9887181079542514,
+  "bar": 0.9,
+  "near_bar": false
+ },
+ "0a_delta_reported": {
+  "reproduced": 56060,
+  "live_decodes_in_executed_cycles": 57969,
+  "share": 0.9670686056340457
+ },
+ "0c_placebo": {
+  "D_PL_PF": 0.028415482900679797,
+  "ci95": [
+   0.013608265295025198,
+   0.043451698182955724
+  ],
+  "bar": 0.05
+ },
+ "0e_null": {
+  "outcome_fields_identical_every_cycle": true,
+  "text_identical_every_cycle": true,
+  "cycles_with_text_difference": 0
+ },
+ "executed_cycles": {
+  "V60": 5222,
+  "V0": 5222,
+  "VN": 5222,
+  "S1": 100,
+  "S2": 100
+ },
+ "truncated_at_max_results": {
+  "V60": 0,
+  "V0": 0,
+  "VN": 0,
+  "S1": 0,
+  "S2": 0
+ },
+ "U_base": {
+  "value": 0.05532313665115968,
+  "V0_decodes": 59758,
+  "corroborated_K": 56452,
+  "uncorroborated_U": 1561,
+  "wildcard_only_W_counted_uncorroborated": 1745,
+  "rule": "(V0 decodes not strictly corroborated) / (all V0 decodes); point estimate; frozen on ratification"
+ },
+ "V0_R_wild_pct": 63.93141928256046,
+ "verdict": "ROW 0 clean; U_base measured; awaiting the Captain's ratification (GAIN_BAR + U_base rule)"
+}
