@@ -498,7 +498,9 @@ def cmd_unit(a):
             ref_res.append({"file": f.split("/")[-1], "line": ln, "expect": sub, "literal_id": lit, "on_line": bool(hit)})
             ref_ok &= chk(hit, "S1-f(ii): page cites %s:%d for %r but the line does not contain it" % (f, ln, sub))
     ids = re.findall(r'data-literal="([^"]+)"', page)
-    n_notinc = len(re.findall(r'data-status="not-included"', page))
+    # count <li> ELEMENTS only: the page's explanatory HTML comment also quotes the attribute text (line 85), which a bare
+    # attribute count double-counted on the first unit run (plumbing fix, bar unchanged: 6 entries).
+    n_notinc = len(re.findall(r'<li[^>]*data-status="not-included"', page))
     derived_none = ("derived-none" in ids)
     no_derived_lit = all(not re.search(r"\b3\.125\b", "\n".join(v)) for v in clean.values())
     ref_ok &= chk(no_derived_lit, "S1-f(ii): a `3.125` literal exists in the decode-path sources but the page says none")
