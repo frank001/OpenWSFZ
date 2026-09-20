@@ -731,6 +731,88 @@ def cmd_verdict(a):
               r["H2"], r["dH2"], r["FPb"], r["junk_S"], r["junk_q"], r["junk_z"], r["distance"], r["clause"]))
 
 
+# ── junkfreq: REPORTING-ONLY junk frequency breakdown for V0 + the finalists (registered in the S16 addendum) ─────────
+JF_BUCKET_HZ, JF_NB = 500.0, 7
+
+
+def cmd_jobf(a):
+    """One (cell, pair): re-decode the SAME scenes for V0 (setter untouched) then each finalist; record per-scene junk counts per 500 Hz bucket of the
+    candidate's frequency (history-free) and assert the per-scene junk COUNT equals the stored measurement-set count (integrity of the re-decode)."""
+    with open(os.path.join(OUT_DIR, "verdict.json")) as f:
+        fin = [tuple(v) for v in json.load(f)["finalists"]]
+    cells = build_cells()
+    cell, p = cells[a.cell], a.pair
+    out = os.path.join(OUT_DIR, "junkfreq_c%02d_p%d.jsonl" % (a.cell, p))
+    S1.ensure_ignored(out)
+    d, sha = H.load_new_dll()
+    H.CFG["supp"] = None
+    sh = S1.Shim(os.path.join(H.BIN_DIR, "libft8_NEW.dll"), "NEW", has_probe=False)
+    S1.LIVE_NHARD = 40
+    sh.set_params(S1.LIVE_PASS2)
+    sig, target, f_msg, others, truth = signals_for(cell, p)
+    stored_v0 = {r["t"]: r for r in load_job("meas", "v0", a.cell, p)["recs"]}
+    stored_var = {}
+    for r in load_job("meas", "var", a.cell, p)["recs"]:
+        stored_var[(r["v"], r["t"])] = r
+    pcms = [SR.render_scene(sig, SR.trial_seed(t, part_index(MEAS_BASE, a.cell, p))) for t in range(N_MEAS)]
+    mism = 0
+    with open(out, "w", newline="\n") as fo:
+        for name, tri in [("V0", None)] + [(vname(v), v) for v in fin]:
+            for t in range(N_MEAS):
+                if tri is not None:
+                    assert H.set_supp(d, *tri) == 0
+                _n, rows, _pcl, _c = DP.decode(sh, pcms[t])
+                b = [0] * JF_NB
+                for r in rows:
+                    if " ".join(r["message"].split()) not in truth:
+                        b[min(JF_NB - 1, int(r["freq_hz"] // JF_BUCKET_HZ))] += 1
+                exp = stored_v0[t]["nfp"] if tri is None else stored_var[(name, t)]["nfp"]
+                mism += (sum(b) != exp)
+                fo.write(json.dumps({"v": name, "t": t, "b": b, "count_matches_stored": sum(b) == exp}) + "\n")
+        fo.write(json.dumps({"trailer": 1, "count_mismatch": mism, "sha": sha}) + "\n")
+
+
+def cmd_junkfreq_report(a):
+    cells = build_cells()
+    with open(os.path.join(OUT_DIR, "verdict.json")) as f:
+        fin = [vname(tuple(v)) for v in json.load(f)["finalists"]]
+    tot = {v: [0] * JF_NB for v in ["V0"] + fin}
+    added = {v: [0] * JF_NB for v in fin}
+    removed = {v: [0] * JF_NB for v in fin}
+    mism = jobs = 0
+    for c in range(len(cells)):
+        for p in range(N_PAIRS):
+            path = os.path.join(OUT_DIR, "junkfreq_c%02d_p%d.jsonl" % (c, p))
+            if not os.path.exists(path):
+                log("MISSING " + path); sys.exit(3)
+            per = {}
+            for line in open(path):
+                o = json.loads(line)
+                if "trailer" in o:
+                    mism += o["count_mismatch"]; jobs += 1
+                else:
+                    per[(o["v"], o["t"])] = o["b"]
+            for t in range(N_MEAS):
+                for v in ["V0"] + fin:
+                    for k in range(JF_NB):
+                        tot[v][k] += per[(v, t)][k]
+                for v in fin:
+                    for k in range(JF_NB):
+                        dd = per[(v, t)][k] - per[("V0", t)][k]
+                        added[v][k] += max(dd, 0); removed[v][k] += max(-dd, 0)
+    R = {"bucket_hz": JF_BUCKET_HZ, "jobs": jobs, "count_mismatch_vs_stored": mism, "junk_rows_per_bucket": tot, "added_per_bucket": added, "removed_per_bucket": removed}
+    p_ = os.path.join(OUT_DIR, "junkfreq.json")
+    S1.ensure_ignored(p_)
+    json.dump(R, open(p_, "w"), indent=1)
+    print("junkfreq: %d jobs, per-scene count mismatches vs stored: %d" % (jobs, mism))
+    print("bucket (Hz):        " + " ".join("%5d" % (k * JF_BUCKET_HZ) for k in range(JF_NB)))
+    for v in ["V0"] + fin:
+        print("junk rows %-14s" % v + " ".join("%5d" % x for x in tot[v]))
+    for v in fin:
+        print("  added   %-14s" % v + " ".join("%5d" % x for x in added[v]) + "   total %d" % sum(added[v]))
+        print("  removed %-14s" % v + " ".join("%5d" % x for x in removed[v]) + "   total %d" % sum(removed[v]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -745,6 +827,11 @@ def main():
     pl.add_argument("--phase", choices=["class", "meas"], required=True)
     pl.set_defaults(fn=cmd_plan)
     sub.add_parser("classify").set_defaults(fn=cmd_classify)
+    jf = sub.add_parser("jobf")
+    jf.add_argument("--cell", type=int, required=True)
+    jf.add_argument("--pair", type=int, required=True)
+    jf.set_defaults(fn=cmd_jobf)
+    sub.add_parser("junkfreq-report").set_defaults(fn=cmd_junkfreq_report)
     sub.add_parser("verdict").set_defaults(fn=cmd_verdict)
     a = ap.parse_args()
     a.fn(a)
