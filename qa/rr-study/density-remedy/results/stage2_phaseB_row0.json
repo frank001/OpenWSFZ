@@ -1,0 +1,46 @@
+{
+ "phase": "B (26-variant measurement complete: 504 jobs, 0 failures, all trailers present)",
+ "row0": {
+  "0a": true,
+  "0b": true,
+  "0c": true,
+  "0e": true,
+  "0f": true,
+  "0g": true,
+  "0d": false
+ },
+ "verdict": "ROW 0 STOP: 0d (no verdict computed; no G, H1, H2 or FP of any variant evaluated)",
+ "0d_diagnosis_uses_only_V0_and_VN_records": {
+  "scenes_compared": 8400,
+  "scenes_with_any_difference": 2,
+  "fields_differing": {
+   "sha": 2,
+   "junk_row_hash_list": 2
+  },
+  "fields_identical_in_all_8400": [
+   "F_recovered",
+   "other_11_station_mask",
+   "junk_row_count",
+   "pass_counts",
+   "E_reported_snr"
+  ],
+  "cells_with_a_differing_scene": 2,
+  "max_per_cell": 1
+ },
+ "cause_verified_in_source": "ft8_shim.c (fa8a56ae): g_session_hash_table is a process-global static, one-shot initialised, never re-initialised; callsign resolution also depends on announce_stamp recency; so a junk row carrying a hashed callsign can render differently depending on prior decodes in the process",
+ "0e_family_differing_scenes": {
+  "FLOOR": {
+   "(-10,+15,1)": 8400,
+   "(-15,+15,1)": 8400
+  },
+  "TOP": {
+   "(-5,+10,1)": 8400,
+   "(-5,+5,1)": 8400
+  },
+  "FOOTPRINT": {
+   "(-5,+15,0.5)": 8152,
+   "(-5,+15,0)": 8400
+  }
+ },
+ "note": "0e differing-scene counts are decode-stream identity only (no outcome measure)."
+}
