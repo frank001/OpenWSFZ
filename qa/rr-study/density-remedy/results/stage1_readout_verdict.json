@@ -1,0 +1,200 @@
+{
+ "commit_under_test": "257070d8707e4aa4e3a95362b5b8a674d862262a",
+ "old_commit": "6cb98c52d7f0c8b150e32c254f9740a97c909d00",
+ "pins": {
+  "OLD": [
+   "50e94e7d73e33050ac37145ac675ad467415324b9cbc5183dc47f3e361829bb7",
+   20260053
+  ],
+  "NEW": [
+   "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+   20260054
+  ]
+ },
+ "row0": {
+  "0a": true,
+  "0b": true,
+  "0c": true,
+  "0d": true,
+  "0d2": true,
+  "0e": true,
+  "c_Q>=15": true,
+  "c_pass0_snr_bit_identical": true,
+  "d_E_suppressed": true
+ },
+ "row0_detail": {
+  "real_results_total": 2329,
+  "real_calls": 200,
+  "armed_real_n_supp_ge1": 157,
+  "armed_real_calls": 200,
+  "armed_real_pass1_decodes": 70,
+  "synth_results_total": 3405,
+  "ctl30_first_diff_line": 1,
+  "supp_w0_first_diff_line": 1,
+  "supp_m25_first_diff_line": 1,
+  "c_Q": 20,
+  "d_E_records": 20,
+  "d_E_median_factor": 0.0
+ },
+ "reporting": {
+  "0d2_side_weight_0_calls_differing": "145/201",
+  "0d2_floor_-25_calls_differing": "157/201"
+ },
+ "S1-a": {
+  "pass": true,
+  "detail": {
+   "S1-a.1": {
+    "synth": [
+     true,
+     "33d5640188851009",
+     "33d5640188851009",
+     null
+    ],
+    "real": [
+     true,
+     "1bf6deb97821aec5",
+     "1bf6deb97821aec5",
+     null
+    ]
+   },
+   "S1-a.2": {
+    "synth": [
+     true,
+     "addc8f01264e8dff",
+     "addc8f01264e8dff",
+     null
+    ],
+    "real": [
+     true,
+     "0a6c5a1d1cb1cf19",
+     "0a6c5a1d1cb1cf19",
+     null
+    ]
+   },
+   "S1-a.3": {
+    "synth": [
+     true,
+     "861345032e4efcee",
+     "861345032e4efcee",
+     null
+    ],
+    "real": [
+     true,
+     "d27bc18c1a7a67f9",
+     "d27bc18c1a7a67f9",
+     null
+    ]
+   },
+   "S1-a.4": {
+    "synth": [
+     true,
+     "33d5640188851009",
+     "33d5640188851009",
+     null
+    ],
+    "real": [
+     true,
+     "1bf6deb97821aec5",
+     "1bf6deb97821aec5",
+     null
+    ]
+   }
+  }
+ },
+ "S1-b": {
+  "pass": true,
+  "n_valid": 5,
+  "n_invalid": 17
+ },
+ "S1-c": {
+  "pass": true,
+  "Q": 20,
+  "inner": 20,
+  "max_formula_err": 2.384185793236071e-08,
+  "min_factor_delta_vs_default": 0.4636076092720032,
+  "example_snr_default_floor": [
+   -4.202531814575195,
+   0.9601265788078308,
+   0.4800633192062378
+  ]
+ },
+ "S1-d": {
+  "pass": true,
+  "i_P1_differs_s1_vs_s0": "20/20 (bar >=19)",
+  "ii_null_explicit_eq_default": "20/20 (bar 20)",
+  "iii_P0_unchanged_by_setter": "20/20 (bar 20)",
+  "E_factor_median_default": 0.0
+ },
+ "S1-f(i)": {
+  "pass": true,
+  "k_defines_found": 17,
+  "setters": [
+   {
+    "setter": "ft8_set_decode_params",
+    "params": [
+     "k_min_score_pass2",
+     "osd_corr_threshold",
+     "osd_nhard_max"
+    ],
+    "mapped_or_nonparam": true,
+    "class": "mapped"
+   },
+   {
+    "setter": "ft8_set_supp_params",
+    "params": [
+     "snr_min_db",
+     "snr_max_db",
+     "side_weight"
+    ],
+    "mapped_or_nonparam": true,
+    "class": "mapped"
+   },
+   {
+    "setter": "ft8_set_ap_bits",
+    "params": [
+     "mycall_bits",
+     "num_mycall_bits",
+     "hiscall_bits",
+     "num_hiscall_bits"
+    ],
+    "mapped_or_nonparam": true,
+    "class": "non-parameter"
+   },
+   {
+    "setter": "ft8_set_probe",
+    "params": [
+     "freq_hz",
+     "time_offset_s"
+    ],
+    "mapped_or_nonparam": true,
+    "class": "non-parameter"
+   }
+  ]
+ },
+ "S1-f(ii)_mechanical": {
+  "pass": true,
+  "page_cites_checked": 24,
+  "QA_flagged_uncited_for_Architect": [
+   {
+    "file": "ft8_shim.c",
+    "line": 1146,
+    "matches": true,
+    "page_cites_it": false,
+    "why": "noise-floor MEDIAN (global) -- percentile 50 via `cum*2 >= total`; feeds noise_raw (the value suppression writes back) and noise_floor_db"
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 1392,
+    "matches": true,
+    "page_cites_it": false,
+    "why": "noise-floor MEDIAN (local) -- feeds the reported SNR AND the suppression ramp's input (all_supp_snrs)"
+   }
+  ]
+ },
+ "S1-g": {
+  "pass": true,
+  "total_rows": 30,
+  "decode_unchanged_by_table_read": true
+ },
+ "verdict": "ALL EXECUTABLE GATES PASS"
+}

@@ -1,0 +1,660 @@
+{
+ "sha": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+ "version": 20260054,
+ "S1-b": {
+  "pass": true,
+  "n_valid": 5,
+  "n_invalid": 17,
+  "valid": [
+   {
+    "triple": [
+     -25.0,
+     15.0,
+     1.0
+    ],
+    "set_rc": 0,
+    "get_bits_equal": true
+   },
+   {
+    "triple": [
+     -10.0,
+     15.0,
+     0.5
+    ],
+    "set_rc": 0,
+    "get_bits_equal": true
+   },
+   {
+    "triple": [
+     -5.0,
+     1000.0,
+     0.0
+    ],
+    "set_rc": 0,
+    "get_bits_equal": true
+   },
+   {
+    "triple": [
+     0.0,
+     0.5,
+     1.0
+    ],
+    "set_rc": 0,
+    "get_bits_equal": true
+   },
+   {
+    "triple": [
+     -5.0,
+     3e+38,
+     0.5
+    ],
+    "set_rc": 0,
+    "get_bits_equal": true
+   }
+  ],
+  "invalid": [
+   {
+    "class": "nonfinite",
+    "args": [
+     "nan",
+     "20.0",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "nonfinite",
+    "args": [
+     "inf",
+     "20.0",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "nonfinite",
+    "args": [
+     "-inf",
+     "20.0",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "nonfinite",
+    "args": [
+     "-10.0",
+     "nan",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "nonfinite",
+    "args": [
+     "-10.0",
+     "inf",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "nonfinite",
+    "args": [
+     "-10.0",
+     "-inf",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "nonfinite",
+    "args": [
+     "-10.0",
+     "20.0",
+     "nan"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "nonfinite",
+    "args": [
+     "-10.0",
+     "20.0",
+     "inf"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "nonfinite",
+    "args": [
+     "-10.0",
+     "20.0",
+     "-inf"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "min>=max",
+    "args": [
+     "-5.0",
+     "-5.0",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "min>=max",
+    "args": [
+     "5.0",
+     "5.0",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "min>=max",
+    "args": [
+     "15.0",
+     "-5.0",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "min>=max",
+    "args": [
+     "30.0",
+     "15.0",
+     "0.5"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "side<0",
+    "args": [
+     "-5.0",
+     "15.0",
+     "-0.001"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "side<0",
+    "args": [
+     "-5.0",
+     "15.0",
+     "-1.0"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "side>1",
+    "args": [
+     "-5.0",
+     "15.0",
+     "1.0001"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   },
+   {
+    "class": "side>1",
+    "args": [
+     "-5.0",
+     "15.0",
+     "2.0"
+    ],
+    "rc": -1,
+    "prior_unchanged": true
+   }
+  ]
+ },
+ "S1-g": {
+  "pass": true,
+  "total": 30,
+  "round_trip_ok": true,
+  "small_capacity_ok": true,
+  "decode_unchanged_by_table_read": true,
+  "tablecheck_line_hashes": [
+   "bb479a45aabc8039",
+   "bb479a45aabc8039",
+   "bb479a45aabc8039"
+  ]
+ },
+ "S1-f(i)": {
+  "pass": true,
+  "k_defines_found": 17,
+  "rows": [
+   {
+    "name": "K_FREQ_OSR",
+    "src_expr": "2",
+    "src_value": 2.0,
+    "table_value": 2.0,
+    "ok": true
+   },
+   {
+    "name": "K_LDPC_ITERATIONS",
+    "src_expr": "50",
+    "src_value": 50.0,
+    "table_value": 50.0,
+    "ok": true
+   },
+   {
+    "name": "K_LDPC_ITERATIONS_PASS2",
+    "src_expr": "50",
+    "src_value": 50.0,
+    "table_value": 50.0,
+    "ok": true
+   },
+   {
+    "name": "K_LOCAL_NOISE_WINDOW",
+    "src_expr": "32",
+    "src_value": 32.0,
+    "table_value": 32.0,
+    "ok": true
+   },
+   {
+    "name": "K_MAX_CANDIDATES",
+    "src_expr": "140",
+    "src_value": 140.0,
+    "table_value": 140.0,
+    "ok": true
+   },
+   {
+    "name": "K_MAX_CANDIDATES_ANY_PASS",
+    "src_expr": "(K_MAX_CANDIDATES > K_MAX_CANDIDATES_PASS2 ? K_MAX_CANDIDATES : K_MAX_CANDIDATES_PASS2)",
+    "src_value": 200.0,
+    "table_value": 200.0,
+    "ok": true
+   },
+   {
+    "name": "K_MAX_CANDIDATES_PASS2",
+    "src_expr": "200",
+    "src_value": 200.0,
+    "table_value": 200.0,
+    "ok": true
+   },
+   {
+    "name": "K_MAX_DECODED",
+    "src_expr": "(K_MAX_CANDIDATES + K_MAX_CANDIDATES_PASS2)",
+    "src_value": 340.0,
+    "table_value": 340.0,
+    "ok": true
+   },
+   {
+    "name": "K_MAX_PASSES",
+    "src_expr": "2",
+    "src_value": 2.0,
+    "table_value": 2.0,
+    "ok": true
+   },
+   {
+    "name": "K_MIN_SCORE",
+    "src_expr": "10",
+    "src_value": 10.0,
+    "table_value": 10.0,
+    "ok": true
+   },
+   {
+    "name": "K_PASSBAND_MAX_HZ",
+    "src_expr": "3075.0f",
+    "src_value": 3075.0,
+    "table_value": 3075.0,
+    "ok": true
+   },
+   {
+    "name": "K_PASSBAND_MIN_HZ",
+    "src_expr": "140.0f",
+    "src_value": 140.0,
+    "table_value": 140.0,
+    "ok": true
+   },
+   {
+    "name": "K_SNR_OFFSET_DB",
+    "src_expr": "26.5f",
+    "src_value": 26.5,
+    "table_value": 26.5,
+    "ok": true
+   },
+   {
+    "name": "K_SOFT_SUPP_SNR_MAX_DB",
+    "src_expr": "(15.0f)",
+    "src_value": 15.0,
+    "table_value": 15.0,
+    "ok": true
+   },
+   {
+    "name": "K_SOFT_SUPP_SNR_MIN_DB",
+    "src_expr": "(-5.0f)",
+    "src_value": -5.0,
+    "table_value": -5.0,
+    "ok": true
+   },
+   {
+    "name": "K_SUPP_FOOTPRINT_HALF_BINS",
+    "src_expr": "1",
+    "src_value": 1.0,
+    "table_value": 1.0,
+    "ok": true
+   },
+   {
+    "name": "K_TIME_OSR",
+    "src_expr": "2",
+    "src_value": 2.0,
+    "table_value": 2.0,
+    "ok": true
+   },
+   {
+    "name": "FT8_AP_LLR_HARD",
+    "src_expr": "40.0f",
+    "src_value": 40.0,
+    "table_value": 40.0,
+    "ok": true
+   },
+   {
+    "name": "HASH_TABLE_SIZE",
+    "src_expr": "4096",
+    "src_value": 4096.0,
+    "table_value": 4096.0,
+    "ok": true
+   },
+   {
+    "name": "OSD_DEPTH",
+    "src_expr": "2",
+    "src_value": 2.0,
+    "table_value": 2.0,
+    "ok": true
+   },
+   {
+    "name": "OSD_SEARCH_K_MAX",
+    "src_expr": "32",
+    "src_value": 32.0,
+    "table_value": 32.0,
+    "ok": true
+   },
+   {
+    "name": "LLR_NORM_TARGET_VARIANCE",
+    "src_expr": "24.0f",
+    "src_value": 24.0,
+    "table_value": 24.0,
+    "ok": true
+   },
+   {
+    "name": "CAND_TIME_OFFSET_MIN",
+    "src_expr": "(-10)",
+    "src_value": -10.0,
+    "table_value": -10.0,
+    "ok": true
+   },
+   {
+    "name": "CAND_TIME_OFFSET_END",
+    "src_expr": "20",
+    "src_value": 20.0,
+    "table_value": 20.0,
+    "ok": true
+   }
+  ],
+  "setters": [
+   {
+    "setter": "ft8_set_decode_params",
+    "params": [
+     "k_min_score_pass2",
+     "osd_corr_threshold",
+     "osd_nhard_max"
+    ],
+    "mapped_or_nonparam": true,
+    "class": "mapped"
+   },
+   {
+    "setter": "ft8_set_supp_params",
+    "params": [
+     "snr_min_db",
+     "snr_max_db",
+     "side_weight"
+    ],
+    "mapped_or_nonparam": true,
+    "class": "mapped"
+   },
+   {
+    "setter": "ft8_set_ap_bits",
+    "params": [
+     "mycall_bits",
+     "num_mycall_bits",
+     "hiscall_bits",
+     "num_hiscall_bits"
+    ],
+    "mapped_or_nonparam": true,
+    "class": "non-parameter"
+   },
+   {
+    "setter": "ft8_set_probe",
+    "params": [
+     "freq_hz",
+     "time_offset_s"
+    ],
+    "mapped_or_nonparam": true,
+    "class": "non-parameter"
+   }
+  ]
+ },
+ "S1-f(ii)": {
+  "mechanical_pass": true,
+  "page_cites_checked": 24,
+  "page_not_included_items": 6,
+  "page_literal_ids": [
+   "derived-none",
+   "wf-db-quantisation",
+   "hash-probe-multiplier",
+   "hash-ambiguity-rule",
+   "sync-neighbourhood",
+   "waterfall-frontend",
+   "bp-tanh-approximation"
+  ],
+  "derived_none_present": true,
+  "no_3125_literal_in_sources": true,
+  "QA_flagged_uncited_for_Architect": [
+   {
+    "file": "ft8_shim.c",
+    "line": 1146,
+    "matches": true,
+    "page_cites_it": false,
+    "why": "noise-floor MEDIAN (global) -- percentile 50 via `cum*2 >= total`; feeds noise_raw (the value suppression writes back) and noise_floor_db"
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 1392,
+    "matches": true,
+    "page_cites_it": false,
+    "why": "noise-floor MEDIAN (local) -- feeds the reported SNR AND the suppression ramp's input (all_supp_snrs)"
+   }
+  ],
+  "cite_results": [
+   {
+    "file": "ft8_shim.c",
+    "line": 1148,
+    "expect": "0.5f",
+    "literal_id": "wf-db-quantisation",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 1394,
+    "expect": "0.5f",
+    "literal_id": "wf-db-quantisation",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 1984,
+    "expect": "0.5f",
+    "literal_id": "wf-db-quantisation",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 1148,
+    "expect": "120.0f",
+    "literal_id": "wf-db-quantisation",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 1394,
+    "expect": "120.0f",
+    "literal_id": "wf-db-quantisation",
+    "on_line": true
+   },
+   {
+    "file": "monitor.c",
+    "line": 192,
+    "expect": "240",
+    "literal_id": "wf-db-quantisation",
+    "on_line": true
+   },
+   {
+    "file": "monitor.c",
+    "line": 182,
+    "expect": "1E-12f",
+    "literal_id": "wf-db-quantisation",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 682,
+    "expect": "* 23",
+    "literal_id": "hash-probe-multiplier",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 711,
+    "expect": "* 23",
+    "literal_id": "hash-probe-multiplier",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 783,
+    "expect": "* 23",
+    "literal_id": "hash-probe-multiplier",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 730,
+    "expect": ">= 2",
+    "literal_id": "hash-ambiguity-rule",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 859,
+    "expect": ">= 2",
+    "literal_id": "hash-ambiguity-rule",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 1912,
+    "expect": ">= 2",
+    "literal_id": "hash-ambiguity-rule",
+    "on_line": true
+   },
+   {
+    "file": "ft8_shim.c",
+    "line": 1925,
+    "expect": ">= 2",
+    "literal_id": "hash-ambiguity-rule",
+    "on_line": true
+   },
+   {
+    "file": "decode.c",
+    "line": 223,
+    "expect": "1",
+    "literal_id": "sync-neighbourhood",
+    "on_line": true
+   },
+   {
+    "file": "decode.c",
+    "line": 229,
+    "expect": "1",
+    "literal_id": "sync-neighbourhood",
+    "on_line": true
+   },
+   {
+    "file": "decode.c",
+    "line": 238,
+    "expect": "1",
+    "literal_id": "sync-neighbourhood",
+    "on_line": true
+   },
+   {
+    "file": "monitor.c",
+    "line": 75,
+    "expect": "2.0f",
+    "literal_id": "waterfall-frontend",
+    "on_line": true
+   },
+   {
+    "file": "ldpc.c",
+    "line": 223,
+    "expect": "4.97f",
+    "literal_id": "bp-tanh-approximation",
+    "on_line": true
+   },
+   {
+    "file": "ldpc.c",
+    "line": 227,
+    "expect": "4.97f",
+    "literal_id": "bp-tanh-approximation",
+    "on_line": true
+   },
+   {
+    "file": "ldpc.c",
+    "line": 236,
+    "expect": "945.0f",
+    "literal_id": "bp-tanh-approximation",
+    "on_line": true
+   },
+   {
+    "file": "ldpc.c",
+    "line": 237,
+    "expect": "945.0f",
+    "literal_id": "bp-tanh-approximation",
+    "on_line": true
+   },
+   {
+    "file": "ldpc.c",
+    "line": 248,
+    "expect": "945.0f",
+    "literal_id": "bp-tanh-approximation",
+    "on_line": true
+   },
+   {
+    "file": "ldpc.c",
+    "line": 249,
+    "expect": "945.0f",
+    "literal_id": "bp-tanh-approximation",
+    "on_line": true
+   }
+  ]
+ },
+ "failures": [],
+ "pass_all": true
+}

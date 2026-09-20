@@ -1,0 +1,61 @@
+{
+  "base": "http://127.0.0.1:18761",
+  "apiEntries": 30,
+  "results": [
+    {
+      "name": "API returns a non-empty table",
+      "ok": true,
+      "detail": "30 entries, shim 20260054"
+    },
+    {
+      "name": "H1 every API entry listed once, in its group, value+default text == the API's",
+      "ok": true,
+      "detail": "30/30 rows"
+    },
+    {
+      "name": "H2 no form control / contenteditable / inline handler in the rendered DOM",
+      "ok": true,
+      "detail": "{\"ctl\":0,\"ce\":0,\"on\":0}"
+    },
+    {
+      "name": "H2 the only link is back to settings",
+      "ok": true,
+      "detail": "[\"settings.html\",\"settings.html\"]"
+    },
+    {
+      "name": "H3 page issued no non-GET request",
+      "ok": true,
+      "detail": "5 requests, 0 non-GET"
+    },
+    {
+      "name": "H3 exactly one GET of /api/v1/decoder/params",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "H4 saving via the existing config API succeeds",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "H4 after save the page shows the new native value, default 60, marked differs",
+      "ok": true,
+      "detail": "{\"name\":\"osd_nhard_max\",\"group\":\"dp-runtime-body\",\"valueText\":\"43\",\"defaultText\":\"60\",\"differs\":true}"
+    },
+    {
+      "name": "H5 row count unchanged after the change",
+      "ok": true,
+      "detail": "30"
+    },
+    {
+      "name": "H4 after restore the page shows the original value again",
+      "ok": true,
+      "detail": "{\"name\":\"osd_nhard_max\",\"group\":\"dp-runtime-body\",\"valueText\":\"40\",\"defaultText\":\"60\",\"differs\":true} orig=undefined"
+    },
+    {
+      "name": "H6 no console / page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}
