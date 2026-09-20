@@ -1,0 +1,73 @@
+{
+ "dll_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+ "shim_version": 20260054,
+ "delta_hz": 12.0,
+ "x_db": 3.0,
+ "n_per_level": 12,
+ "levels": [
+  {
+   "nominal_e_db": -5.0,
+   "n": 12,
+   "e_not_decoded": 0,
+   "reported_snr_median": -4.0,
+   "reported_snr_min": -4,
+   "reported_snr_max": -4
+  },
+  {
+   "nominal_e_db": 0.0,
+   "n": 12,
+   "e_not_decoded": 0,
+   "reported_snr_median": 1.0,
+   "reported_snr_min": 1,
+   "reported_snr_max": 1
+  },
+  {
+   "nominal_e_db": 5.0,
+   "n": 12,
+   "e_not_decoded": 0,
+   "reported_snr_median": 6.0,
+   "reported_snr_min": 6,
+   "reported_snr_max": 6
+  },
+  {
+   "nominal_e_db": 8.0,
+   "n": 12,
+   "e_not_decoded": 0,
+   "reported_snr_median": 9.0,
+   "reported_snr_min": 9,
+   "reported_snr_max": 9
+  },
+  {
+   "nominal_e_db": 10.0,
+   "n": 12,
+   "e_not_decoded": 0,
+   "reported_snr_median": 11.0,
+   "reported_snr_min": 11,
+   "reported_snr_max": 11
+  },
+  {
+   "nominal_e_db": 12.0,
+   "n": 12,
+   "e_not_decoded": 0,
+   "reported_snr_median": 13.0,
+   "reported_snr_min": 13,
+   "reported_snr_max": 13
+  },
+  {
+   "nominal_e_db": 15.0,
+   "n": 12,
+   "e_not_decoded": 0,
+   "reported_snr_median": 16.0,
+   "reported_snr_min": 16,
+   "reported_snr_max": 16
+  },
+  {
+   "nominal_e_db": 18.0,
+   "n": 12,
+   "e_not_decoded": 0,
+   "reported_snr_median": 16.0,
+   "reported_snr_min": 16,
+   "reported_snr_max": 16
+  }
+ ]
+}

@@ -1,0 +1,443 @@
+{
+ "build_commit": "fa8a56ae17e10318b90b8ec29401d76ac24411d3",
+ "dll_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+ "shim_version": 20260054,
+ "pairs": [
+  [
+   "Q9UY",
+   "Q6LJ"
+  ],
+  [
+   "Q2EW",
+   "Q5OL"
+  ],
+  [
+   "Q7FIN",
+   "Q3MID"
+  ],
+  [
+   "Q4FA",
+   "Q0RZ"
+  ],
+  [
+   "Q7ZH",
+   "Q9IP"
+  ],
+  [
+   "Q7XY",
+   "Q2BM"
+  ],
+  [
+   "Q3HO",
+   "Q1WN"
+  ],
+  [
+   "Q3OH",
+   "Q1UO"
+  ]
+ ],
+ "n_cells": 21,
+ "n_variants": 26,
+ "variants_sorted": [
+  [
+   -15.0,
+   5.0,
+   0.0
+  ],
+  [
+   -15.0,
+   5.0,
+   0.5
+  ],
+  [
+   -15.0,
+   10.0,
+   0.0
+  ],
+  [
+   -15.0,
+   10.0,
+   0.5
+  ],
+  [
+   -15.0,
+   10.0,
+   1.0
+  ],
+  [
+   -15.0,
+   15.0,
+   0.0
+  ],
+  [
+   -15.0,
+   15.0,
+   0.5
+  ],
+  [
+   -15.0,
+   15.0,
+   1.0
+  ],
+  [
+   -10.0,
+   5.0,
+   0.0
+  ],
+  [
+   -10.0,
+   5.0,
+   0.5
+  ],
+  [
+   -10.0,
+   5.0,
+   1.0
+  ],
+  [
+   -10.0,
+   10.0,
+   0.0
+  ],
+  [
+   -10.0,
+   10.0,
+   0.5
+  ],
+  [
+   -10.0,
+   10.0,
+   1.0
+  ],
+  [
+   -10.0,
+   15.0,
+   0.0
+  ],
+  [
+   -10.0,
+   15.0,
+   0.5
+  ],
+  [
+   -10.0,
+   15.0,
+   1.0
+  ],
+  [
+   -5.0,
+   5.0,
+   0.0
+  ],
+  [
+   -5.0,
+   5.0,
+   0.5
+  ],
+  [
+   -5.0,
+   5.0,
+   1.0
+  ],
+  [
+   -5.0,
+   10.0,
+   0.0
+  ],
+  [
+   -5.0,
+   10.0,
+   0.5
+  ],
+  [
+   -5.0,
+   10.0,
+   1.0
+  ],
+  [
+   -5.0,
+   15.0,
+   0.0
+  ],
+  [
+   -5.0,
+   15.0,
+   0.5
+  ],
+  [
+   -5.0,
+   15.0,
+   1.0
+  ]
+ ],
+ "cells": [
+  {
+   "idx": 0,
+   "key": "primary,6.25,1.0,E-5",
+   "group": "primary",
+   "delta_hz": 6.25,
+   "e_snr_db": -5.0,
+   "f_snr_db": -6.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 1,
+   "key": "primary,6.25,3.0,E-5",
+   "group": "primary",
+   "delta_hz": 6.25,
+   "e_snr_db": -5.0,
+   "f_snr_db": -8.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 2,
+   "key": "primary,6.25,6.0,E-5",
+   "group": "primary",
+   "delta_hz": 6.25,
+   "e_snr_db": -5.0,
+   "f_snr_db": -11.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 3,
+   "key": "primary,12.00,1.0,E-5",
+   "group": "primary",
+   "delta_hz": 12.0,
+   "e_snr_db": -5.0,
+   "f_snr_db": -6.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 4,
+   "key": "primary,12.00,3.0,E-5",
+   "group": "primary",
+   "delta_hz": 12.0,
+   "e_snr_db": -5.0,
+   "f_snr_db": -8.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 5,
+   "key": "primary,12.00,6.0,E-5",
+   "group": "primary",
+   "delta_hz": 12.0,
+   "e_snr_db": -5.0,
+   "f_snr_db": -11.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 6,
+   "key": "primary,18.75,1.0,E-5",
+   "group": "primary",
+   "delta_hz": 18.75,
+   "e_snr_db": -5.0,
+   "f_snr_db": -6.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 7,
+   "key": "primary,18.75,3.0,E-5",
+   "group": "primary",
+   "delta_hz": 18.75,
+   "e_snr_db": -5.0,
+   "f_snr_db": -8.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 8,
+   "key": "primary,18.75,6.0,E-5",
+   "group": "primary",
+   "delta_hz": 18.75,
+   "e_snr_db": -5.0,
+   "f_snr_db": -11.0,
+   "reported_e_snr_calibrated": -4.0,
+   "subband_calibrated": "floor"
+  },
+  {
+   "idx": 9,
+   "key": "strong,6.25,3.0,E+8",
+   "group": "strong",
+   "delta_hz": 6.25,
+   "e_snr_db": 8.0,
+   "f_snr_db": 5.0,
+   "reported_e_snr_calibrated": 9.0,
+   "subband_calibrated": "half"
+  },
+  {
+   "idx": 10,
+   "key": "strong,12.00,3.0,E+8",
+   "group": "strong",
+   "delta_hz": 12.0,
+   "e_snr_db": 8.0,
+   "f_snr_db": 5.0,
+   "reported_e_snr_calibrated": 9.0,
+   "subband_calibrated": "half"
+  },
+  {
+   "idx": 11,
+   "key": "strong,18.75,3.0,E+8",
+   "group": "strong",
+   "delta_hz": 18.75,
+   "e_snr_db": 8.0,
+   "f_snr_db": 5.0,
+   "reported_e_snr_calibrated": 9.0,
+   "subband_calibrated": "half"
+  },
+  {
+   "idx": 12,
+   "key": "e15,6.25,3.0,E+15",
+   "group": "e15",
+   "delta_hz": 6.25,
+   "e_snr_db": 15.0,
+   "f_snr_db": 12.0,
+   "reported_e_snr_calibrated": 16.0,
+   "subband_calibrated": "full"
+  },
+  {
+   "idx": 13,
+   "key": "e15,12.00,3.0,E+15",
+   "group": "e15",
+   "delta_hz": 12.0,
+   "e_snr_db": 15.0,
+   "f_snr_db": 12.0,
+   "reported_e_snr_calibrated": 16.0,
+   "subband_calibrated": "full"
+  },
+  {
+   "idx": 14,
+   "key": "half5,6.25,3.0,E+5",
+   "group": "half5",
+   "delta_hz": 6.25,
+   "e_snr_db": 5.0,
+   "f_snr_db": 2.0,
+   "reported_e_snr_calibrated": 6.0,
+   "subband_calibrated": "half"
+  },
+  {
+   "idx": 15,
+   "key": "heavy12,6.25,3.0,E+12",
+   "group": "heavy12",
+   "delta_hz": 6.25,
+   "e_snr_db": 12.0,
+   "f_snr_db": 9.0,
+   "reported_e_snr_calibrated": 13.0,
+   "subband_calibrated": "heavy"
+  },
+  {
+   "idx": 16,
+   "key": "half5,12.00,3.0,E+5",
+   "group": "half5",
+   "delta_hz": 12.0,
+   "e_snr_db": 5.0,
+   "f_snr_db": 2.0,
+   "reported_e_snr_calibrated": 6.0,
+   "subband_calibrated": "half"
+  },
+  {
+   "idx": 17,
+   "key": "heavy12,12.00,3.0,E+12",
+   "group": "heavy12",
+   "delta_hz": 12.0,
+   "e_snr_db": 12.0,
+   "f_snr_db": 9.0,
+   "reported_e_snr_calibrated": 13.0,
+   "subband_calibrated": "heavy"
+  },
+  {
+   "idx": 18,
+   "key": "half5,18.75,3.0,E+5",
+   "group": "half5",
+   "delta_hz": 18.75,
+   "e_snr_db": 5.0,
+   "f_snr_db": 2.0,
+   "reported_e_snr_calibrated": 6.0,
+   "subband_calibrated": "half"
+  },
+  {
+   "idx": 19,
+   "key": "heavy12,18.75,3.0,E+12",
+   "group": "heavy12",
+   "delta_hz": 18.75,
+   "e_snr_db": 12.0,
+   "f_snr_db": 9.0,
+   "reported_e_snr_calibrated": 13.0,
+   "subband_calibrated": "heavy"
+  },
+  {
+   "idx": 20,
+   "key": "e15,18.75,3.0,E+15",
+   "group": "e15",
+   "delta_hz": 18.75,
+   "e_snr_db": 15.0,
+   "f_snr_db": 12.0,
+   "reported_e_snr_calibrated": 16.0,
+   "subband_calibrated": "full"
+  }
+ ],
+ "coverage": {
+  "6.25|floor": [
+   "primary,6.25,1.0,E-5",
+   "primary,6.25,3.0,E-5",
+   "primary,6.25,6.0,E-5"
+  ],
+  "6.25|full": [
+   "e15,6.25,3.0,E+15"
+  ],
+  "6.25|half": [
+   "strong,6.25,3.0,E+8",
+   "half5,6.25,3.0,E+5"
+  ],
+  "6.25|heavy": [
+   "heavy12,6.25,3.0,E+12"
+  ],
+  "12.0|floor": [
+   "primary,12.00,1.0,E-5",
+   "primary,12.00,3.0,E-5",
+   "primary,12.00,6.0,E-5"
+  ],
+  "12.0|full": [
+   "e15,12.00,3.0,E+15"
+  ],
+  "12.0|half": [
+   "strong,12.00,3.0,E+8",
+   "half5,12.00,3.0,E+5"
+  ],
+  "12.0|heavy": [
+   "heavy12,12.00,3.0,E+12"
+  ],
+  "18.75|floor": [
+   "primary,18.75,1.0,E-5",
+   "primary,18.75,3.0,E-5",
+   "primary,18.75,6.0,E-5"
+  ],
+  "18.75|full": [
+   "e15,18.75,3.0,E+15"
+  ],
+  "18.75|half": [
+   "strong,18.75,3.0,E+8",
+   "half5,18.75,3.0,E+5"
+  ],
+  "18.75|heavy": [
+   "heavy12,18.75,3.0,E+12"
+  ]
+ },
+ "n_seed_rows": 25200,
+ "seed_table_sha256": "fb0f91c261a1cbdecb8e0cd8331f922cda8fa0d92bf83b07bc1e9d02231d8429",
+ "n_class_scenes": 16800,
+ "n_meas_scenes": 8400,
+ "jobs": {
+  "class_v0": 168,
+  "meas_v0": 168,
+  "meas_v0_rerun": 168,
+  "meas_var": 168
+ },
+ "failures": []
+}
