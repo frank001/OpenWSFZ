@@ -991,7 +991,9 @@ internal static class Ft8LibInterop
     /// thing to show an operator who typed <c>0.1</c>. When <paramref name="value"/> is EXACTLY a
     /// float (every parameter in the table is an int or a float), return the shortest decimal that
     /// round-trips that float; any other value (a genuine double, or one out of float range) is
-    /// returned untouched, so this can never change a value's meaning, only its spelling.
+    /// returned untouched. This is a DISPLAY respelling, not an identity: it still names the same
+    /// float, but it does move the double (0.10000000149011612 becomes 0.1, about 1.5e-9), so the
+    /// result must not be compared for equality against the native table's widened double.
     /// </summary>
     internal static double NormaliseFloatValue(double value)
     {
