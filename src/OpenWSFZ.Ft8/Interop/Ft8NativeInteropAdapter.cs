@@ -1,3 +1,5 @@
+using OpenWSFZ.Abstractions;
+
 namespace OpenWSFZ.Ft8.Interop;
 
 /// <summary>
@@ -56,4 +58,7 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)
         => Ft8LibInterop.GetLastSnrTerms(maxDecoded);
+
+    public IReadOnlyList<DecoderParamEntry> GetDecoderParams()
+        => Ft8LibInterop.GetDecoderParams();
 }

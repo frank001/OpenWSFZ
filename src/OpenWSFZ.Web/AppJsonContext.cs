@@ -10,6 +10,8 @@ namespace OpenWSFZ.Web;
 /// </summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(DaemonStatus))]
+[JsonSerializable(typeof(DecoderParamsResponse))]
+[JsonSerializable(typeof(DecoderParamEntry))]
 [JsonSerializable(typeof(WsMessage))]
 [JsonSerializable(typeof(WsHeartbeatMessage))]
 [JsonSerializable(typeof(HeartbeatPayload))]
