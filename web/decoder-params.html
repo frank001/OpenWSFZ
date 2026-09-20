@@ -30,7 +30,7 @@
     <h1>Decoder parameters <span class="param-readonly-tag">read-only</span></h1>
 
     <p class="field-hint">
-      Every parameter of the native FT8 decoder, read <strong>from the native library itself</strong>
+      Every numeric parameter of the native FT8 decoder, read <strong>from the native library itself</strong>
       each time this page loads, not from <code>app.json</code>. The two can differ: the value shown is
       what the decoder is running with <em>now</em>. Reload the page to refresh it.
     </p>
@@ -92,6 +92,9 @@
         literals on the decoder's path are <strong>not</strong> in the table, and why. Protocol constants
         (the 6.25 Hz tone spacing, 79 / 174 / 91, the Costas pattern, 8 tones, 12 kHz) and structural
         values (array sizes, loop bounds, return codes) are not tuning values and are not listed.
+        A numeric audit cannot see non-numeric decoder choices (the window function, the belief-propagation
+        algorithm, the shape of the sync metric, the choice of max-over-tones soft demodulation): they are
+        not parameters, so they appear nowhere on this page.
       </p>
 
       <p id="derived-none" class="field-hint" data-status="derived" data-literal="derived-none">
@@ -143,6 +146,22 @@
           An unpatched vendored file, outside the files the audit rule names; listed rather than omitted.
           Not tabled: a numerical approximation, not a tuning knob. <em>Doubt:</em> the clamp point
           affects belief-propagation output.
+        </li>
+        <li data-status="not-included" data-literal="noise-floor-median">
+          <strong>Noise-floor median (the percentile)</strong>: the <code>2</code> in
+          <code>cum * 2 &gt;= total</code>, which selects the 50th percentile of the waterfall histogram, at
+          <code>ft8_shim.c</code>:1146 (the global noise floor) and :1392 (the local noise floor). Not tabled:
+          hoisting it would need a native rebuild and a new library, for a value that nothing in this change
+          makes settable and no stage sweeps. Both sites must carry the same percentile; a divergence between
+          the global and the local estimator would be a defect, not a tuning option.
+          <em>Doubt:</em> the <code>2</code> is a percentile selector, a free choice and not protocol
+          (<code>cum * 4</code> would be the 25th percentile). It sets <code>noise_raw</code>, the value the
+          suppression writes back, and the SNR input to the suppression ramp (the <code>snr</code> it is fed).
+          A median rises with band occupancy, so in exactly the dense scenes this arm targets, the estimator is
+          pulled toward the signals it is meant to exclude. (Using the median as the estimator at all is a
+          non-numeric choice and is the same doubt, not a second one.) This is <strong>not</strong> a finding
+          that the 50th percentile is wrong, and it arms no sweep: if a later stage wants the percentile swept,
+          it is hoisted and tabled in that arm, with its own rebuild and the Captain's go.
         </li>
       </ul>
     </section>
