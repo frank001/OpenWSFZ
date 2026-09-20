@@ -81,6 +81,16 @@ export function getStatus() {
 }
 
 /**
+ * GET /api/v1/decoder/params  (decoder-param-readout)
+ * The native decoder's whole parameter table, read from the native library on every request
+ * (NOT from app.json), so it shows what the decoder is running with now. Read-only endpoint.
+ * @returns {Promise<{shimVersion: number, entries: Array<{name: string, kind: 'runtime'|'compile-time', value: number, default: number}>}>}
+ */
+export function getDecoderParams() {
+  return fetchJson('/api/v1/decoder/params');
+}
+
+/**
  * GET /api/v1/audio/devices
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
