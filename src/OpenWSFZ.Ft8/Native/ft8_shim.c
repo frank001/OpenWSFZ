@@ -475,9 +475,17 @@ char* stpcpy(char* dest, const char* src)
  * declarations.  Thread safety: module-level writes vs. thread-pool reads; a missed
  * update means one cycle uses old values — acceptable per design (D2 in design.md).
  */
-int   s_k_min_score_pass2  = 10;      /* default: D-009 calibrated value (K=10)  */
-float s_osd_corr_threshold = 0.10f;   /* default: D-009 calibrated value (0.10)  */
-int   s_osd_nhard_max      = 60;      /* default: D-009 calibrated value (60)     */
+/* decoder-param-readout (shim 20260054): the compiled defaults are named so that
+ * ft8_get_decoder_params reports `default_value` from the SAME token the initialisers
+ * below use, instead of a second copy that could drift. Values unchanged. (Not K_-prefixed:
+ * these are the defaults of runtime entries, which the table already carries by name.) */
+#define DEFAULT_K_MIN_SCORE_PASS2   10
+#define DEFAULT_OSD_CORR_THRESHOLD  0.10f
+#define DEFAULT_OSD_NHARD_MAX       60
+
+int   s_k_min_score_pass2  = DEFAULT_K_MIN_SCORE_PASS2;   /* default: D-009 calibrated value (K=10)  */
+float s_osd_corr_threshold = DEFAULT_OSD_CORR_THRESHOLD;  /* default: D-009 calibrated value (0.10)  */
+int   s_osd_nhard_max      = DEFAULT_OSD_NHARD_MAX;       /* default: D-009 calibrated value (60)     */
 
 /*
  * ft8_set_decode_params — update the three runtime-configurable OSD gate parameters.
@@ -538,6 +546,16 @@ void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int 
 #define K_SOFT_SUPP_SNR_MAX_DB  (15.0f)   /* above this: full suppression   */
 
 /*
+ * K_SUPP_FOOTPRINT_HALF_BINS — half-width, in waterfall bins, of the footprint that
+ * suppress_candidate_tiles attenuates around each decoded tone: the tone bin plus this many
+ * bins either side (1 => the tone bin and its two neighbours, d = -1..+1). It was the bare
+ * literal in `for (int d = -1; d <= 1; d++)`, missed by a `#define K_*` search AND by the first
+ * pass of the D12 literal audit (which filtered out the "trivial" literal 1): the footprint is
+ * one of the two levers DENSITY-P1 identified. Value unchanged (arithmetic-identical).
+ */
+#define K_SUPP_FOOTPRINT_HALF_BINS  1
+
+/*
  * Pass 1 uses a wider candidate net.
  * K_MIN_SCORE_PASS2 default was 10 (D-009 calibrated); now a runtime variable
  * s_k_min_score_pass2 set via ft8_set_decode_params() — see decoder-settings-page shim note.
@@ -572,6 +590,26 @@ void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int 
  * 200 Hz of audio bandwidth per sideband.
  */
 #define K_LOCAL_NOISE_WINDOW 32
+
+/* ── Candidate passband (decoder-param-readout, shim 20260054) ───────────────── */
+/*
+ * The waterfall's frequency limits, defined ONCE and used at BOTH monitor_config_t
+ * sites (ft8_decode_all and ft8_extract_llrs_at). They were the literals
+ * `.f_min = 140.0f, .f_max = 3075.0f` written twice, so a value shown to an operator
+ * could have disagreed with one of the two; PASSBAND-140 had to edit both by hand.
+ * Values unchanged (arithmetic-identical).
+ */
+#define K_PASSBAND_MIN_HZ  140.0f
+#define K_PASSBAND_MAX_HZ  3075.0f
+
+/*
+ * K_SNR_OFFSET_DB — the calibration offset subtracted in the reported-SNR formula
+ * (`snr = signal_db - local_noise_db - K_SNR_OFFSET_DB`). It was the bare literal 26.5f.
+ * It is NOT display-only: the unrounded SNR it produces is what the pass-1 soft
+ * suppression ramp is fed (all_supp_snrs), so it moves which tiles get suppressed.
+ * Value unchanged (arithmetic-identical).
+ */
+#define K_SNR_OFFSET_DB    26.5f
 
 /* ── Thread-local per-pass stats and noise floor ─────────────────────────── */
 static _Thread_local int   tls_pass_counts[K_MAX_PASSES];
@@ -833,6 +871,59 @@ static void cb_save_hash(const char* cs, uint32_t h) {
 }
 static ftx_callsign_hash_interface_t s_hash_if = { cb_lookup_hash, cb_save_hash };
 
+/* ── Runtime soft-suppression parameters (decoder-param-readout, shim 20260054) ── */
+/*
+ * The soft-suppression ramp used to be baked in as K_SOFT_SUPP_SNR_MIN_DB / _MAX_DB. Those
+ * two remain, as the DEFAULTS of the runtime values below (and appear in the table as
+ * compile-time entries); the ramp itself now reads the runtime values.
+ *
+ *   s_supp_snr_min_db  — SNR at/below which no suppression is applied   (default -5.0f)
+ *   s_supp_snr_max_db  — SNR at/above which suppression is full         (default 15.0f)
+ *   s_supp_side_weight — how much of the tone bin's attenuation the two neighbouring
+ *                        (d = +/-1) bins receive: 1.0 = the same as the tone bin (production
+ *                        behaviour), 0.0 = the neighbours are not touched.  (default 1.0f)
+ *
+ * Same thread-safety contract as ft8_set_decode_params: set BEFORE the decode that should see
+ * it; not synchronised against a concurrent ft8_decode_all. File-static: unlike the three
+ * OSD gate values, decode.c does not read these; callers reach them through
+ * ft8_get_supp_params / ft8_get_decoder_params.
+ * The live application never calls the setter (no managed binding, by design).
+ */
+#define DEFAULT_SUPP_SIDE_WEIGHT  1.0f
+
+static float s_supp_snr_min_db  = K_SOFT_SUPP_SNR_MIN_DB;
+static float s_supp_snr_max_db  = K_SOFT_SUPP_SNR_MAX_DB;
+static float s_supp_side_weight = DEFAULT_SUPP_SIDE_WEIGHT;
+
+int ft8_set_supp_params(float snr_min_db, float snr_max_db, float side_weight)
+{
+    /* Reject BEFORE storing anything, so a bad call leaves ALL THREE unchanged.
+     * isfinite() first: every comparison below is false for NaN, so NaN must be caught here. */
+    if (!isfinite(snr_min_db) || !isfinite(snr_max_db) || !isfinite(side_weight))
+        return -1;
+    if (!(snr_min_db < snr_max_db))     /* also rejects min == max (division by zero in the ramp) */
+        return -1;
+    if (side_weight < 0.0f || side_weight > 1.0f)
+        return -1;
+    /* No upper bound on snr_max_db beyond `> snr_min_db` and finite: the Stage 2 bench sweeps
+     * it above +15 (Architect spec DENSITY-REMEDY §11.3). */
+
+    s_supp_snr_min_db  = snr_min_db;
+    s_supp_snr_max_db  = snr_max_db;
+    s_supp_side_weight = side_weight;
+    return 0;
+}
+
+int ft8_get_supp_params(float* out3)
+{
+    if (out3 == NULL)
+        return -1;
+    out3[0] = s_supp_snr_min_db;
+    out3[1] = s_supp_snr_max_db;
+    out3[2] = s_supp_side_weight;
+    return 0;
+}
+
 /* ── Spectrogram-domain tile suppression ─────────────────────────────────── */
 /*
  * suppress_candidate_tiles — attenuate the waterfall tiles occupied by a
@@ -861,11 +952,24 @@ static float suppress_candidate_tiles(
     WF_ELEM_T              noise_raw,
     float                  snr_db)
 {
-    /* Compute soft attenuation factor from SNR */
-    float norm   = (snr_db - K_SOFT_SUPP_SNR_MIN_DB)
-                 / (K_SOFT_SUPP_SNR_MAX_DB - K_SOFT_SUPP_SNR_MIN_DB);
+    /* Compute soft attenuation factor from SNR.
+     * decoder-param-readout (shim 20260054): the ramp bounds are the RUNTIME values
+     * s_supp_snr_min_db / s_supp_snr_max_db (defaults K_SOFT_SUPP_SNR_MIN_DB / _MAX_DB, so
+     * the default arithmetic is unchanged). */
+    float norm   = (snr_db - s_supp_snr_min_db)
+                 / (s_supp_snr_max_db - s_supp_snr_min_db);
     float factor = 1.0f - fmaxf(0.0f, fminf(1.0f, norm));
-    /* factor: 1.0 at SNR ≤ −5 dB (no change), 0.0 at SNR ≥ +15 dB (full suppress) */
+    /* factor (defaults): 1.0 at SNR ≤ −5 dB (no change), 0.0 at SNR ≥ +15 dB (full suppress) */
+
+    /* Side bins (d = ±1) receive factor_side = 1 − side_weight·(1 − factor); the tone bin
+     * (d = 0) always receives `factor`.
+     * 🔴 When side_weight == 1.0f the side bins MUST use `factor` ITSELF, not the recomputed
+     * expression: 1 − (1 − f) is NOT bitwise f in float (about a third of factors differ;
+     * e.g. f = 0.1f gives 0.10000002, verified in float32). Taking this branch is what keeps
+     * the default path byte-identical to shim 20260053. */
+    const float factor_side = (s_supp_side_weight == 1.0f)
+                            ? factor
+                            : 1.0f - s_supp_side_weight * (1.0f - factor);
 
     uint8_t tones[FT8_NN];
     ft8_encode(msg->payload, tones);
@@ -885,7 +989,7 @@ static float suppress_candidate_tiles(
             for (int fs = 0; fs < wf->freq_osr; fs++)
             {
                 WF_ELEM_T* row = block + ts * per_tsub + fs * wf->num_bins;
-                for (int d = -1; d <= 1; d++)
+                for (int d = -K_SUPP_FOOTPRINT_HALF_BINS; d <= K_SUPP_FOOTPRINT_HALF_BINS; d++)
                 {
                     int f = tone_bin + d;
                     if (f >= 0 && f < wf->num_bins)
@@ -893,9 +997,12 @@ static float suppress_candidate_tiles(
                         /* Interpolate between current value and noise_raw
                          * by the attenuation factor:
                          *   factor = 0 → noise_raw  (full suppression)
-                         *   factor = 1 → row[f]     (no change)            */
+                         *   factor = 1 → row[f]     (no change)
+                         * The tone bin uses `factor`, the two side bins `factor_side`
+                         * (identical to `factor` at the default side_weight of 1.0). */
+                        const float f_bin = (d == 0) ? factor : factor_side;
                         float attenuated = (float)noise_raw
-                                         + factor * ((float)row[f] - (float)noise_raw);
+                                         + f_bin * ((float)row[f] - (float)noise_raw);
                         row[f] = (WF_ELEM_T)(attenuated + 0.5f);
                     }
                 }
@@ -1587,7 +1694,7 @@ int ft8_decode_all(
 
     /* ── 1. Build waterfall from PCM ─────────────────────────────────────── */
     monitor_config_t cfg = {
-        .f_min = 140.0f, .f_max = 3075.0f,
+        .f_min = K_PASSBAND_MIN_HZ, .f_max = K_PASSBAND_MAX_HZ,
         .sample_rate = FT8_SAMPLE_RATE,
         .time_osr = K_TIME_OSR, .freq_osr = K_FREQ_OSR,
         .protocol = FTX_PROTOCOL_FT8
@@ -1880,7 +1987,7 @@ int ft8_decode_all(
                 signal_db = cnt > 0 ? sum / (float)cnt : noise_floor_db;
             }
             float local_noise_db = compute_local_noise_floor_db(&mon.wf, (int)cand->freq_offset);
-            float snr = signal_db - local_noise_db - 26.5f;
+            float snr = signal_db - local_noise_db - K_SNR_OFFSET_DB;
 
             /* Amendment 2 (shim 20260045): record the SNR formula's two terms,
              * at the SAME pre-increment index results[] is about to use for
@@ -1996,7 +2103,7 @@ int ft8_extract_llrs_at(
 #endif
 
     monitor_config_t cfg = {
-        .f_min = 140.0f, .f_max = 3075.0f,
+        .f_min = K_PASSBAND_MIN_HZ, .f_max = K_PASSBAND_MAX_HZ,
         .sample_rate = FT8_SAMPLE_RATE,
         .time_osr = K_TIME_OSR, .freq_osr = K_FREQ_OSR,
         .protocol = FTX_PROTOCOL_FT8
@@ -2144,5 +2251,117 @@ int ft8_get_last_suppression(Ft8SuppressionRecord* out, int capacity)
         if (n > 0)
             memcpy(out, tls_probe_supp, sizeof(Ft8SuppressionRecord) * (size_t)n);
     }
+    return total;
+}
+
+/* ── Decoder parameter table (decoder-param-readout, shim 20260054) ───────────────────
+ *
+ * ft8_get_decoder_params reports EVERY decoder parameter as (name, value, default, kind).
+ * Full contract: ft8_shim.h. Design: openspec/changes/decoder-param-readout (D1-D3, D12).
+ *
+ * TRUTHFUL BY CONSTRUCTION. There is exactly one list (FT8_PARAM_TABLE below), and each row
+ * names the macro or variable THE DECODE PATH ITSELF READS, never a copy:
+ *   - runtime rows read the live variable (s_k_min_score_pass2, s_osd_*, s_supp_*);
+ *   - compile-time rows read the very #define the decode path uses;
+ *   - the five decode.c tuning constants are read through the const mirrors decode.c
+ *     initialises FROM its own macros (a macro cannot cross a translation unit).
+ * A constant added to the decode path is added to the list or it is not reported; the
+ * completeness check (acceptance gate S1-f, plus the bare-literal audit, design D12) is what
+ * stops that from happening silently.
+ *
+ * Thread-safety (design D7): plain aligned reads with the same contract as
+ * ft8_set_decode_params. A concurrent set may be observed torn BETWEEN entries, never within
+ * one.
+ */
+extern const int   ftx_tune_osd_depth;
+extern const int   ftx_tune_osd_search_k_max;
+extern const float ftx_tune_llr_norm_target_variance;
+extern const int   ftx_tune_cand_time_offset_min;
+extern const int   ftx_tune_cand_time_offset_end;
+
+_Static_assert(sizeof(Ft8ParamEntry) == 72,
+               "Ft8ParamEntry must be 72 bytes: char[48] + 2 doubles + 2 int32, no padding");
+
+/*
+ * RT(name, live_variable, compiled_default)   — a runtime-settable value
+ * CT(MACRO)                                    — a compile-time #define; name == the macro
+ * EXT(name, expression)                        — a compile-time value defined in decode.c
+ */
+#define FT8_PARAM_TABLE(RT, CT, EXT)                                                          \
+    /* runtime-settable: ft8_set_decode_params */                                             \
+    RT("k_min_score_pass2",   s_k_min_score_pass2,   DEFAULT_K_MIN_SCORE_PASS2)               \
+    RT("osd_corr_threshold",  s_osd_corr_threshold,  DEFAULT_OSD_CORR_THRESHOLD)              \
+    RT("osd_nhard_max",       s_osd_nhard_max,       DEFAULT_OSD_NHARD_MAX)                   \
+    /* runtime-settable: ft8_set_supp_params */                                               \
+    RT("supp_snr_min_db",     s_supp_snr_min_db,     K_SOFT_SUPP_SNR_MIN_DB)                  \
+    RT("supp_snr_max_db",     s_supp_snr_max_db,     K_SOFT_SUPP_SNR_MAX_DB)                  \
+    RT("supp_side_weight",    s_supp_side_weight,    DEFAULT_SUPP_SIDE_WEIGHT)                \
+    /* compile-time: every #define K_* the decode path reads (ft8_shim.c) */                  \
+    CT(K_MIN_SCORE)                                                                           \
+    CT(K_MAX_CANDIDATES)                                                                      \
+    CT(K_LDPC_ITERATIONS)                                                                     \
+    CT(K_FREQ_OSR)                                                                            \
+    CT(K_TIME_OSR)                                                                            \
+    CT(K_MAX_PASSES)                                                                          \
+    CT(K_SOFT_SUPP_SNR_MIN_DB)                                                                \
+    CT(K_SOFT_SUPP_SNR_MAX_DB)                                                                \
+    CT(K_SUPP_FOOTPRINT_HALF_BINS)                                                            \
+    CT(K_MAX_CANDIDATES_PASS2)                                                                \
+    CT(K_LDPC_ITERATIONS_PASS2)                                                               \
+    CT(K_MAX_DECODED)                                                                         \
+    CT(K_MAX_CANDIDATES_ANY_PASS)                                                             \
+    CT(K_LOCAL_NOISE_WINDOW)                                                                  \
+    CT(K_PASSBAND_MIN_HZ)                                                                     \
+    CT(K_PASSBAND_MAX_HZ)                                                                     \
+    CT(K_SNR_OFFSET_DB)                                                                       \
+    /* compile-time: named tuning #defines that are not K_-prefixed (D12) */                  \
+    CT(FT8_AP_LLR_HARD)                                                                       \
+    CT(HASH_TABLE_SIZE)                                                                       \
+    /* compile-time: tuning constants defined in patched decode.c (D4, D12) */                \
+    EXT("OSD_DEPTH",                 ftx_tune_osd_depth)                                      \
+    EXT("OSD_SEARCH_K_MAX",          ftx_tune_osd_search_k_max)                               \
+    EXT("LLR_NORM_TARGET_VARIANCE",  ftx_tune_llr_norm_target_variance)                       \
+    EXT("CAND_TIME_OFFSET_MIN",      ftx_tune_cand_time_offset_min)                           \
+    EXT("CAND_TIME_OFFSET_END",      ftx_tune_cand_time_offset_end)
+
+static void fill_param_entry(Ft8ParamEntry* e, const char* name,
+                             double value, double default_value, int32_t kind)
+{
+    memset(e, 0, sizeof(*e));                       /* also zeroes `reserved`, and NUL-pads name */
+    strncpy(e->name, name, FT8_PARAM_NAME_LEN - 1);
+    e->value         = value;
+    e->default_value = default_value;
+    e->kind          = kind;
+}
+
+int ft8_get_decoder_params(Ft8ParamEntry* out, int capacity)
+{
+    int total = 0;
+
+    /* One row = count it, and write it iff there is room. `out == NULL` or capacity <= 0
+     * therefore writes nothing and still returns the total (sizing call). */
+#define FT8_PARAM_ROW(NAME_STR, VALUE, DEFAULT, KIND)                                         \
+    do {                                                                                      \
+        _Static_assert(sizeof(NAME_STR) <= FT8_PARAM_NAME_LEN,                                \
+                       "parameter name does not fit Ft8ParamEntry.name");                     \
+        if (out != NULL && total < capacity)                                                  \
+            fill_param_entry(&out[total], (NAME_STR), (double)(VALUE), (double)(DEFAULT),     \
+                             (KIND));                                                         \
+        ++total;                                                                              \
+    } while (0);
+#define FT8_PARAM_RT(NAME_STR, VAR, DFLT) \
+    FT8_PARAM_ROW(NAME_STR, VAR, DFLT, FT8_PARAM_KIND_RUNTIME)
+#define FT8_PARAM_CT(NAME) \
+    FT8_PARAM_ROW(#NAME, NAME, NAME, FT8_PARAM_KIND_COMPILE_TIME)
+#define FT8_PARAM_EXT(NAME_STR, EXPR) \
+    FT8_PARAM_ROW(NAME_STR, EXPR, EXPR, FT8_PARAM_KIND_COMPILE_TIME)
+
+    FT8_PARAM_TABLE(FT8_PARAM_RT, FT8_PARAM_CT, FT8_PARAM_EXT)
+
+#undef FT8_PARAM_EXT
+#undef FT8_PARAM_CT
+#undef FT8_PARAM_RT
+#undef FT8_PARAM_ROW
+
     return total;
 }

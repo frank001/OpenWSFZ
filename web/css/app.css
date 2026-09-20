@@ -998,6 +998,77 @@ label {
   text-align: center;
   width: 3rem;
 }
+
+/* ── Decoder parameters page (decoder-param-readout, shim 20260054) ──────────────
+   Read-only readout: a table per group, and a static "Not included" note. */
+.param-readonly-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  vertical-align: middle;
+}
+.param-heading {
+  font-size: 1rem;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--color-text);
+}
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.param-table th,
+.param-table td {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+.param-table thead th {
+  background: var(--color-surface);
+  font-weight: 600;
+  color: var(--color-muted);
+}
+.param-table td.param-name {
+  font-family: var(--font-mono);
+}
+.param-table td.param-value,
+.param-table td.param-default {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+/* A row whose value differs from its compiled default. The word "differs" is always
+   shown beside the value, so the state never depends on colour alone. */
+.param-table tr.param-differs td {
+  background: var(--color-surface);
+}
+.param-differs-mark {
+  margin-left: 0.4rem;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  border-radius: 3px;
+  padding: 0 0.3rem;
+}
+.param-error {
+  color: var(--color-danger);
+}
+.param-notes {
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.param-notes li {
+  margin-bottom: 0.75rem;
+}
 .freq-delete-btn {
   background: none;
   border: 1px solid var(--color-border);

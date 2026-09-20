@@ -1,4 +1,58 @@
-=== CURRENT: density-p1-stage1-pass1-probe (FT8_SHIM_VERSION 20260053) ===
+=== CURRENT: decoder-param-readout (FT8_SHIM_VERSION 20260054) ===
+
+Built 2026-09-20 from the working tree of branch feat/decoder-param-readout (branched off
+origin/decoding_improvement at 6cb98c52, whose src/ and native/ are identical to the
+density-p1-stage1 build), on top of the 20260053 binary (SHA256
+50e94e7d73e33050ac37145ac675ad467415324b9cbc5183dc47f3e361829bb7, 223,232 bytes), per QA's
+Developer handoff (dev-tasks/2026-09-19-density-remedy-stage1-decoder-param-readout.md,
+authorised by the Architect's DENSITY-REMEDY spec s.4/s.10.2/s.12 and the Captain's go of
+2026-09-20). DENSITY-REMEDY Stage 1 ONLY.
+
+MEASURE-ONLY -- changes no decode output at defaults. Three new exports:
+  ft8_get_decoder_params -- ONE table of every decoder parameter, (name, value, default, kind),
+      built from a single X-macro list whose rows read the macro/variable the decode path itself
+      reads (30 rows: 6 runtime, 24 compile-time). Sized by an out==NULL call.
+  ft8_set_supp_params / ft8_get_supp_params -- runtime setter/getter for the soft-suppression
+      ramp (snr_min, snr_max, side_weight; defaults -5 / 15 / 1.0; no upper bound on snr_max).
+      No managed binding and no DllImport in src/ (harness-only).
+
+Edits to EXISTING lines -- every one arithmetic-identical (a literal replaced by a macro of the
+same value), the complete list:
+  ft8_shim.c: passband 140.0f / 3075.0f written at TWO monitor_config_t sites -> K_PASSBAND_MIN_HZ
+      / K_PASSBAND_MAX_HZ; SNR-formula literal 26.5f -> K_SNR_OFFSET_DB; the suppression
+      footprint's `d = -1; d <= 1` bounds -> K_SUPP_FOOTPRINT_HALF_BINS; the initialisers of
+      s_k_min_score_pass2 / s_osd_corr_threshold / s_osd_nhard_max -> DEFAULT_* macros;
+      suppress_candidate_tiles reads the runtime ramp (side_weight == 1.0f uses `factor` itself,
+      because 1 - (1 - f) is not bitwise f in float).
+  patched decode.c: bare OSD depth `2` at TWO osd_decode call sites (ftx_decode_candidate and
+      ftx_decode_candidate_ap; the dev-task named only line 666) -> OSD_DEPTH; OSD search limit 32
+      -> OSD_SEARCH_K_MAX; LLR-normalisation target 24.0f -> LLR_NORM_TARGET_VARIANCE; candidate
+      time window -10 / 20 -> CAND_TIME_OFFSET_MIN / CAND_TIME_OFFSET_END. decode.c cannot include
+      a shim header (the Linux/macOS builds use a narrower include path than Windows), so it
+      exports read-only const mirrors initialised FROM those macros for the table to read.
+Everything else is additive. Windows link gained THREE /EXPORT: lines (the Windows-only trap: a
+symbol missing from that list builds clean and fails only at P/Invoke).
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba  (226,304 bytes)
+    The MSVC link is NOT byte-reproducible: do not rebuild if you want this pin.
+  Linux x64   (build_linux.sh): NOT rebuilt this session -- CI's `commit-native-binaries` job
+    rebuilds it from source and auto-commits it. The linux-x64/libft8.so currently committed
+    remains pre-20260054 until that follow-up lands; do not treat it as shim-20260054-compatible
+    before then.
+  macOS ARM64: NOT rebuilt this session -- no Mac available locally; CI's `macos-latest` leg
+    owns it (`commit-native-binaries`). The osx-arm64/libft8.dylib currently committed is
+    likewise pre-20260054 until that lands.
+
+Exports (dumpbin /exports): TWENTY-NINE, the twenty-six pre-existing symbols unchanged (none
+removed) plus exactly ft8_get_decoder_params, ft8_set_supp_params, ft8_get_supp_params.
+
+FT8_SHIM_VERSION 20260054 (uniqueness re-checked at pickup across every local and remote ref: the
+highest DEFINED value anywhere was 20260053; 20260054 appeared only in QA's/the Architect's spec
+and draft text, never in a #define; 20260052 stays reserved by the rc4 renumber task).
+FT8_SHIM_VERSION identifies nothing on its own -- the SHA256 above is the pin.
+
+=== density-p1-stage1-pass1-probe (FT8_SHIM_VERSION 20260053) ===
 
 Built 2026-09-19 from branch feat/density-p1-stage1-probe-tap (branched off
 origin/decoding_improvement at e5c79aa4, whose src/ and native/ are identical to main's), on top

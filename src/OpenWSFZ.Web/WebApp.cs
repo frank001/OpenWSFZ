@@ -60,6 +60,15 @@ public static class WebApp
     /// as a delegate (callers pass <c>() =&gt; cycleArchiveService.DroppedCycles</c>). Defaults to
     /// <c>null</c> → reported as 0 for callers that do not wire up the archive.
     /// </param>
+    /// <param name="decoderParamsProvider">
+    /// Live provider for the native decoder's parameter table, served by
+    /// <c>GET /api/v1/decoder/params</c> (<c>decoder-param-readout</c> capability, shim 20260054).
+    /// Invoked afresh on EVERY request and never cached, so the response shows what the native
+    /// library is running with NOW rather than what <c>app.json</c> says — that difference is the
+    /// feature (callers pass <c>() =&gt; ft8Decoder.GetDecoderParams()</c>). Defaults to <c>null</c>
+    /// → the endpoint answers 503 (never an empty table) for callers, e.g. minimal test fixtures,
+    /// that do not wire up the native shim. A provider that throws is likewise a 503.
+    /// </param>
     /// <param name="appScope">
     /// App-instance scope GUID to tag every WebSocket connection accepted through this
     /// instance's <c>/api/v1/ws</c> endpoint (N6). Pass this when a bus that broadcasts
@@ -89,7 +98,8 @@ public static class WebApp
         int                                                  shimVersion                 = 0,
         Func<int>?                                           hashTableRejectCountProvider = null,
         Func<long>?                                          cycleArchiveDroppedCyclesProvider = null,
-        Guid?                                                appScope                    = null)
+        Guid?                                                appScope                    = null,
+        Func<IReadOnlyList<DecoderParamEntry>>?              decoderParamsProvider       = null)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
         // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(scope)
@@ -311,6 +321,51 @@ public static class WebApp
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0));
+        });
+
+        // ── decoder-param-readout (shim 20260054) ─────────────────────────────────────────
+        // GET /api/v1/decoder/params — the native decoder's whole parameter table, READ-ONLY.
+        //
+        // The provider is invoked on EVERY request and the result is never cached, so this shows
+        // what the native library is running with NOW, not what app.json says (the daemon applies
+        // DecoderConfig to the native library at startup and on each settings change; only the
+        // native library knows what it actually holds). That difference is the feature: a harness
+        // running the compiled default nhard=60 while the live app runs 40 cost this project three
+        // re-cuts before anyone could see it.
+        //
+        // Only GET is mapped, so any other verb (POST/PUT/PATCH/DELETE) gets ASP.NET's own 405.
+        // Authentication is the auth middleware above, which covers every request. If the native
+        // library cannot be read the answer is 503 with a message: a readout that returned an empty
+        // table would look like "the decoder has no parameters", which is a lie.
+        var decoderParamsLogger = app.Services.GetRequiredService<ILoggerFactory>()
+                                              .CreateLogger("OpenWSFZ.Web.DecoderParamsApi");
+
+        app.MapGet("/api/v1/decoder/params", () =>
+        {
+            if (decoderParamsProvider is null)
+                return Results.Problem(
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    detail: "The native decoder parameter table is not available.");
+
+            IReadOnlyList<DecoderParamEntry>? entries;
+            try
+            {
+                entries = decoderParamsProvider();
+            }
+            catch (Exception ex)
+            {
+                decoderParamsLogger.LogWarning(ex, "GET /api/v1/decoder/params: the native decoder parameter table could not be read.");
+                return Results.Problem(
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    detail: $"The native decoder parameter table could not be read: {ex.Message}");
+            }
+
+            if (entries is null || entries.Count == 0)
+                return Results.Problem(
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    detail: "The native decoder reported no parameters.");
+
+            return Results.Ok(new DecoderParamsResponse(shimVersion, entries.ToArray()));
         });
 
         app.MapGet("/api/v1/audio/devices", async (

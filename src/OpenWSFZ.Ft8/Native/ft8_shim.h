@@ -763,8 +763,42 @@ extern "C" {
  *              rc4 renumber task (dev-tasks/2026-09-03-shim-version-renumber-
  *              rc1rc2-and-rc4-branches.md, 20260035 -> 20260052); skipping a slot
  *              has precedent here (20260003, 20260007).
+ *
+ *   20260054 — decoder-param-readout (DENSITY-REMEDY Stage 1; Architect spec
+ *              §4/§10.2/§12, dev-task 2026-09-19): MEASURE-ONLY -- NO DECODE
+ *              OUTPUT CHANGES AT DEFAULTS. Adds three exports: (1)
+ *              ft8_get_decoder_params -- ONE table of every decoder parameter as
+ *              (name, value, default, kind), built from a single X-macro list whose
+ *              rows read the macro/variable the decode path itself reads, so a
+ *              reported value cannot differ from the one in use; (2)
+ *              ft8_set_supp_params and (3) ft8_get_supp_params -- a runtime setter
+ *              and getter for the soft-suppression ramp (snr_min, snr_max,
+ *              side_weight; defaults -5 / 15 / 1.0, unchanged). The ramp
+ *              (suppress_candidate_tiles) now reads the runtime values; when
+ *              side_weight == 1.0f the side bins use `factor` ITSELF, because
+ *              1 - (1 - f) is not bitwise f in float.
+ *              Existing lines edited -- each ARITHMETIC-IDENTICAL (a literal replaced
+ *              by a macro of the same value), each bound by acceptance gate S1-a:
+ *                ft8_shim.c:  the passband literals 140.0f / 3075.0f, written at TWO
+ *                             monitor_config_t sites, -> K_PASSBAND_MIN_HZ / _MAX_HZ;
+ *                             the SNR-formula literal 26.5f -> K_SNR_OFFSET_DB; the
+ *                             suppression footprint's `d = -1; d <= 1` bounds ->
+ *                             K_SUPP_FOOTPRINT_HALF_BINS; the
+ *                             initialisers of s_k_min_score_pass2 / s_osd_corr_threshold
+ *                             / s_osd_nhard_max -> DEFAULT_* macros of the same values;
+ *                             suppress_candidate_tiles reads the runtime ramp.
+ *                decode.c (patched, vendored): the bare OSD depth `2` at TWO osd_decode
+ *                             call sites (ftx_decode_candidate, ftx_decode_candidate_ap)
+ *                             -> OSD_DEPTH; the OSD search limit 32 -> OSD_SEARCH_K_MAX;
+ *                             the LLR-normalisation target 24.0f ->
+ *                             LLR_NORM_TARGET_VARIANCE; the candidate time window -10/20
+ *                             -> CAND_TIME_OFFSET_MIN / _END.
+ *              Everything else is additive. ft8_set_supp_params / ft8_get_supp_params
+ *              have NO IFt8NativeInterop / Ft8LibInterop binding and no DllImport in
+ *              src/ (harness-only, like the probe exports); ft8_get_decoder_params has
+ *              ONE read-only managed binding. 26 -> 29 exports.
  */
-#define FT8_SHIM_VERSION 20260053
+#define FT8_SHIM_VERSION 20260054
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1347,6 +1381,82 @@ int ft8_get_probe_llrs(int pass, float* out174);
  * Returns 0 if the last call was not armed or pass 1 did not run.
  */
 int ft8_get_last_suppression(Ft8SuppressionRecord* out, int capacity);
+
+/*
+ * ── decoder-param-readout (DENSITY-REMEDY Stage 1, shim 20260054) ───────────────────────
+ *
+ * Every decoder parameter, readable from the native library itself, in one call; plus a
+ * runtime setter/getter for the soft-suppression ramp. MEASURE-ONLY: no default moves, no
+ * constant changes value, decode output at defaults is byte-identical to shim 20260053.
+ */
+
+#define FT8_PARAM_NAME_LEN          48  /* Ft8ParamEntry.name capacity, incl. the NUL           */
+#define FT8_PARAM_KIND_COMPILE_TIME  0  /* a constant the decode path reads: value == default   */
+#define FT8_PARAM_KIND_RUNTIME       1  /* settable at run time: value is the CURRENT setting,
+                                           default_value the COMPILED-IN default               */
+
+/*
+ * One row of the parameter table. sizeof == 72 (asserted in ft8_shim.c); blittable.
+ * `double` carries both the int and the float entries EXACTLY: a float is widened, so
+ * osd_corr_threshold 0.10f reads back as 0.10000000149011612 -- callers that present the
+ * value should format it as the float it is.
+ */
+typedef struct
+{
+    char    name[FT8_PARAM_NAME_LEN];  /* NUL-terminated, zero-padded: "osd_nhard_max", "K_MAX_CANDIDATES", ... */
+    double  value;                     /* what the native decoder would use NOW                                */
+    double  default_value;             /* the compiled-in default (== value for compile-time entries)          */
+    int32_t kind;                      /* FT8_PARAM_KIND_COMPILE_TIME | FT8_PARAM_KIND_RUNTIME                 */
+    int32_t reserved;                  /* 0                                                                    */
+} Ft8ParamEntry;
+
+/*
+ * ft8_get_decoder_params -- fill `out` with up to `capacity` entries and return the TOTAL
+ * entry count (which may exceed `capacity`). out == NULL or capacity <= 0 writes nothing
+ * and still returns the total, so a caller can size its buffer first (the same contract as
+ * ft8_get_last_suppression).
+ *
+ * `value` is what the decoder reports NOW, NOT what the application configured: after
+ * ft8_set_decode_params(10, 0.10f, 40), the entry "osd_nhard_max" reads value 40 and
+ * default_value 60. That split -- a harness running the compiled default 60 while the live
+ * app runs 40 -- is exactly what this table makes visible.
+ *
+ * Contents: the six runtime values (the ft8_set_decode_params triple and the three
+ * suppression values); every #define K_* the decode path reads in ft8_shim.c (including the
+ * passband limits, the SNR offset and the suppression footprint half-width); the named
+ * non-K_ tuning defines (FT8_AP_LLR_HARD, HASH_TABLE_SIZE);
+ * and the tuning constants of patched decode.c (OSD_DEPTH, OSD_SEARCH_K_MAX,
+ * LLR_NORM_TARGET_VARIANCE, CAND_TIME_OFFSET_MIN, CAND_TIME_OFFSET_END). Bare literals that
+ * are NOT in the table are accounted for on the read-only page's "Not included" note
+ * (design D12): nothing on the decode path is omitted silently.
+ *
+ * Thread-safety: plain aligned reads, same contract as ft8_set_decode_params. A concurrent
+ * set may be observed torn BETWEEN entries, never within one.
+ */
+int ft8_get_decoder_params(Ft8ParamEntry* out, int capacity);
+
+/*
+ * ft8_set_supp_params -- set the soft-suppression ramp: snr_min_db (at/below which no
+ * suppression is applied), snr_max_db (at/above which it is full) and side_weight (how much
+ * of the tone bin's attenuation the two neighbouring bins receive: 1.0 = the same, 0.0 = the
+ * neighbours are untouched). Defaults -5.0f, 15.0f, 1.0f.
+ *
+ * Returns 0 on success. Returns -1 and leaves ALL THREE unchanged if any argument is
+ * non-finite, if snr_min_db >= snr_max_db, or if side_weight lies outside [0, 1]. There is
+ * NO upper bound on snr_max_db beyond those conditions (the Stage 2 bench sweeps it above
+ * +15).
+ *
+ * Takes effect on the next ft8_decode_all. Same thread-safety contract as
+ * ft8_set_decode_params: set before the decode that should see it. NO managed binding and no
+ * DllImport in src/: reachable only from test code and QA harnesses.
+ */
+int ft8_set_supp_params(float snr_min_db, float snr_max_db, float side_weight);
+
+/*
+ * ft8_get_supp_params -- write {snr_min_db, snr_max_db, side_weight} to out3[0..2] and
+ * return 0 (-1 if out3 is NULL). Harness-only, like ft8_set_supp_params.
+ */
+int ft8_get_supp_params(float* out3);
 
 #ifdef __cplusplus
 }

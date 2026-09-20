@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
+using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Ft8.Interop;
 
@@ -454,7 +456,20 @@ internal static class Ft8LibInterop
     /// <see cref="ExpectedShimVersion"/> bump, which exists solely as the ABI self-test. 20260052 is
     /// deliberately skipped — it is reserved by the queued rc4 renumber task.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260053;
+    /// <remarks>
+    /// decoder-param-readout, shim 20260054: MEASURE-ONLY — no decode output changes at defaults. Adds
+    /// three native exports. <c>ft8_get_decoder_params</c> (the whole decoder parameter table, one
+    /// call) IS bound here, read-only, via <see cref="GetDecoderParams"/> and
+    /// <see cref="IFt8NativeInterop.GetDecoderParams"/>, because the daemon's
+    /// <c>GET /api/v1/decoder/params</c> serves it. <c>ft8_set_supp_params</c> and
+    /// <c>ft8_get_supp_params</c> (the soft-suppression ramp's runtime setter and getter) are NOT:
+    /// like the 20260053 probe exports they have no <c>DllImport</c> here and no C# caller anywhere in
+    /// <c>src/</c>, reachable only from test code and QA harnesses driving the native library
+    /// directly — the live application never sets the ramp. <see cref="ExpectedShimVersion"/> tracks
+    /// <c>FT8_SHIM_VERSION</c> as the ABI self-test, as on every native change. 20260052 remains
+    /// reserved by the queued rc4 renumber task.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260054;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -599,6 +614,19 @@ internal static class Ft8LibInterop
         [Out] float[] outSignalDb,
         [Out] float[] outLocalNoiseDb,
         int           capacity);
+
+    /// <summary>
+    /// Fill <paramref name="outEntries"/> with up to <paramref name="capacity"/> rows of the native
+    /// decoder parameter table and return the TOTAL row count (decoder-param-readout, shim
+    /// 20260054). Passing <c>null</c>/0 writes nothing and returns the total, which is how
+    /// <see cref="GetDecoderParams"/> sizes its buffer. See <c>ft8_shim.h</c>'s
+    /// <c>ft8_get_decoder_params</c> doc comment for the full contract.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_decoder_params",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetDecoderParams(
+        [Out] Ft8NativeParamEntry[]? outEntries,
+        int                          capacity);
 
     /// <summary>
     /// Supply known AP bit constraints for the next decode cycle
@@ -891,6 +919,95 @@ internal static class Ft8LibInterop
             return ([], []);
 
         return (signalDb[..numDecoded], localNoiseDb[..numDecoded]);
+    }
+
+    /// <summary>
+    /// Read the native decoder's parameter table: every runtime-settable value and every
+    /// compile-time tuning constant, each with the value the native library would use NOW and its
+    /// compiled-in default (decoder-param-readout, shim 20260054). Read-only.
+    /// <para>
+    /// Sizes the buffer with an <c>out == NULL</c> call, then fills it. Not thread-affine: the table
+    /// is process-global state (a plain aligned read, the same contract as
+    /// <c>ft8_set_decode_params</c>).
+    /// </para>
+    /// <para>
+    /// Float values are reported as the shortest decimal that round-trips the float
+    /// (<see cref="NormaliseFloatValue"/>), so <c>osd_corr_threshold</c> reads <c>0.1</c> rather than
+    /// its widened-to-double spelling <c>0.10000000149011612</c>.
+    /// </para>
+    /// </summary>
+    /// <returns>A non-empty array, in the native table's order.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The managed mirror's size disagrees with the native struct, the native library reports no
+    /// parameters or a different count on the second call, or a row has an unknown kind. An empty or
+    /// mislabelled table is NEVER returned: a readout that lies is worse than none.
+    /// </exception>
+    public static DecoderParamEntry[] GetDecoderParams()
+    {
+        EnsureInitialized();
+
+        // Verify the managed mirror BEFORE trusting a byte of the table — the same discipline the
+        // startup self-test applies to Ft8NativeResult, kept lazy here so a layout slip in this
+        // read-only feature cannot stop the daemon decoding.
+        int managedSize = Marshal.SizeOf<Ft8NativeParamEntry>();
+        if (managedSize != Ft8NativeParamEntry.ExpectedNativeSizeBytes)
+            throw new InvalidOperationException(
+                $"Ft8NativeParamEntry marshals to {managedSize} bytes but the native Ft8ParamEntry is " +
+                $"{Ft8NativeParamEntry.ExpectedNativeSizeBytes}. Recheck [StructLayout] / SizeConst.");
+
+        int total = NativeGetDecoderParams(null, 0);
+        if (total <= 0)
+            throw new InvalidOperationException(
+                $"ft8_get_decoder_params reported {total} entries; the native decoder always has parameters.");
+
+        var rows   = new Ft8NativeParamEntry[total];
+        int filled = NativeGetDecoderParams(rows, total);
+        if (filled != total)
+            throw new InvalidOperationException(
+                $"ft8_get_decoder_params reported {total} entries when sizing but {filled} when filled.");
+
+        var entries = new DecoderParamEntry[total];
+        for (int i = 0; i < total; i++)
+        {
+            string kind = rows[i].Kind switch
+            {
+                Ft8NativeParamEntry.KindCompileTime => DecoderParamKind.CompileTime,
+                Ft8NativeParamEntry.KindRuntime     => DecoderParamKind.Runtime,
+                _ => throw new InvalidOperationException(
+                        $"ft8_get_decoder_params entry '{rows[i].Name}' has unknown kind {rows[i].Kind}."),
+            };
+            entries[i] = new DecoderParamEntry(
+                rows[i].Name,
+                kind,
+                NormaliseFloatValue(rows[i].Value),
+                NormaliseFloatValue(rows[i].DefaultValue));
+        }
+        return entries;
+    }
+
+    /// <summary>
+    /// The native table carries every value as a <c>double</c>, and widens a <c>float</c> exactly, so
+    /// <c>0.10f</c> arrives as <c>0.10000000149011612</c>. That is the right number and the wrong
+    /// thing to show an operator who typed <c>0.1</c>. When <paramref name="value"/> is EXACTLY a
+    /// float (every parameter in the table is an int or a float), return the shortest decimal that
+    /// round-trips that float; any other value (a genuine double, or one out of float range) is
+    /// returned untouched. This is a DISPLAY respelling, not an identity: it still names the same
+    /// float, but it does move the double (0.10000000149011612 becomes 0.1, about 1.5e-9), so the
+    /// result must not be compared for equality against the native table's widened double.
+    /// </summary>
+    internal static double NormaliseFloatValue(double value)
+    {
+        if (!double.IsFinite(value))
+            return value;
+
+        float asFloat = (float)value;
+        if ((double)asFloat != value)
+            return value;
+
+        return double.Parse(
+            asFloat.ToString("R", CultureInfo.InvariantCulture),
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture);
     }
 
     /// <summary>

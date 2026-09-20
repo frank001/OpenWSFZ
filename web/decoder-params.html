@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenWSFZ — Decoder parameters</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+
+  <!--
+    decoder-param-readout (shim 20260054): a READ-ONLY readout of every decoder parameter, as the
+    native decoder itself reports it.
+
+    This page deliberately contains NO form controls (no input, select, textarea or button
+    elements, and no form): it cannot change anything. Editing lives in Settings -> Radio hardware
+    -> Advanced Decoder Settings, which is unchanged. The table below is filled by js/decoderParams.js from
+    GET /api/v1/decoder/params; the "Not included" note further down is static, so what the
+    completeness audit found is readable without running any script.
+  -->
+
+  <header id="settings-page">
+
+    <nav class="settings-nav" aria-label="Breadcrumb">
+      <a id="back-link" href="settings.html">← Back to settings</a>
+      <span aria-hidden="true">/</span>
+      <span>Decoder parameters</span>
+    </nav>
+
+    <h1>Decoder parameters <span class="param-readonly-tag">read-only</span></h1>
+
+    <p class="field-hint">
+      Every numeric parameter of the native FT8 decoder, read <strong>from the native library itself</strong>
+      each time this page loads, not from <code>app.json</code>. The two can differ: the value shown is
+      what the decoder is running with <em>now</em>. Reload the page to refresh it.
+    </p>
+    <p class="field-hint">
+      <strong>Runtime-settable</strong> values can be changed under
+      <a href="settings.html">Settings → Radio hardware → Advanced Decoder Settings</a>; the suppression
+      values have no setting here and stay at their defaults in the running application.
+      <strong>Compile-time</strong> constants change only by rebuilding the native library.
+    </p>
+
+    <p id="dp-shim" class="field-hint">
+      Native decoder shim version: <code id="dp-shim-version">…</code>
+    </p>
+
+  </header>
+
+  <main id="settings-main">
+
+    <p id="dp-status" class="field-hint" role="status">Loading…</p>
+
+    <section id="dp-runtime" aria-labelledby="dp-runtime-heading" hidden>
+      <h2 id="dp-runtime-heading" class="param-heading">Runtime-settable</h2>
+      <table class="param-table">
+        <thead>
+          <tr><th scope="col">Name</th><th scope="col">Value</th><th scope="col">Default</th></tr>
+        </thead>
+        <tbody id="dp-runtime-body"><!-- rows populated by decoderParams.js --></tbody>
+      </table>
+      <p class="field-hint">
+        A row marked <span class="param-differs-mark">differs</span> is running with a value other than
+        the compiled-in default. That is normal — the daemon applies the decoder settings at startup
+        (the default for <code>osd_nhard_max</code> is 40 in the application but 60 in the native library) — and
+        it is exactly the split this page exists to make visible.
+      </p>
+    </section>
+
+    <section id="dp-compile" aria-labelledby="dp-compile-heading" hidden>
+      <h2 id="dp-compile-heading" class="param-heading">Compile-time</h2>
+      <table class="param-table">
+        <thead>
+          <tr><th scope="col">Name</th><th scope="col">Value</th><th scope="col">Default</th></tr>
+        </thead>
+        <tbody id="dp-compile-body"><!-- rows populated by decoderParams.js --></tbody>
+      </table>
+    </section>
+
+    <!--
+      Not included (design D12: nothing on the decode path is omitted silently).
+
+      One <li> per numeric literal on the decode path that is NOT in the table above. Each is either
+      derived from a tabled constant (data-status="derived") or not tabled, with its reason and,
+      where there is one, the doubt (data-status="not-included"). data-literal is a stable id that
+      tests key on. Locations are file:line at the commit that built shim 20260054.
+    -->
+    <section id="not-included" aria-labelledby="not-included-heading">
+      <h2 id="not-included-heading" class="param-heading">Not included</h2>
+      <p class="field-hint">
+        A parameter table is only trustworthy if you can see what it leaves out. These numeric
+        literals on the decoder's path are <strong>not</strong> in the table, and why. Protocol constants
+        (the 6.25 Hz tone spacing, 79 / 174 / 91, the Costas pattern, 8 tones, 12 kHz) and structural
+        values (array sizes, loop bounds, return codes) are not tuning values and are not listed.
+        A numeric audit cannot see non-numeric decoder choices (the window function, the belief-propagation
+        algorithm, the shape of the sync metric, the choice of max-over-tones soft demodulation): they are
+        not parameters, so they appear nowhere on this page.
+      </p>
+
+      <p id="derived-none" class="field-hint" data-status="derived" data-literal="derived-none">
+        <strong>Derived values: none found.</strong> A literal equal to <code>6.25 Hz / K_FREQ_OSR</code>
+        (the 3.125 Hz sub-bin) or to <code>symbol period / K_TIME_OSR</code> (the half-symbol step)
+        would be listed here as derived from that constant, never excluded as protocol; the audit
+        found neither as a literal (both appear only in comments).
+      </p>
+
+      <ul id="not-included-list" class="param-notes">
+        <li data-status="not-included" data-literal="wf-db-quantisation">
+          <strong>Waterfall dB quantisation</strong>: scale <code>0.5f</code> and offset <code>120.0f</code>
+          (<code>ft8_shim.c</code>:1148, 1394, 1984), the exact inverse of the waterfall encoder
+          <code>2·db + 240</code> with its 0–255 clamp (<code>monitor.c</code>:192) and the
+          <code>1E-12f</code> log floor (<code>monitor.c</code>:182). Not tabled: it is the waterfall's
+          byte encoding, defined once by the encoder and inverted at three sites, so changing one
+          without the others would corrupt the noise floor and SNR rather than tune anything.
+          <em>Doubt:</em> it does fix the dB resolution (0.5 dB) and origin of everything downstream,
+          including the noise floor the suppression writes back.
+        </li>
+        <li data-status="not-included" data-literal="hash-probe-multiplier">
+          <strong>Callsign hash-table probe multiplier</strong> <code>23</code> (<code>h10 * 23</code>,
+          <code>ft8_shim.c</code>:682, 711, 783). Not tabled: an implementation detail of the session
+          callsign table, required to be identical at all three sites. <em>Doubt:</em> together with
+          <code>HASH_TABLE_SIZE</code> (tabled) it decides which entries collide, so it can change
+          which callsign a 12-bit hash resolves to when the table is crowded.
+        </li>
+        <li data-status="not-included" data-literal="hash-ambiguity-rule">
+          <strong>Ambiguity rule</strong>: two or more matching entries means not a unique match, so the
+          12-bit-hash callsign is suppressed (<code>&gt;= 2</code>, <code>ft8_shim.c</code>:730, 859, 1912,
+          1925). Not tabled: the definition of "not unique" (F-001), not a threshold to move.
+          <em>Doubt:</em> it decides whether such a callsign is displayed at all.
+        </li>
+        <li data-status="not-included" data-literal="sync-neighbourhood">
+          <strong>Sync-score neighbourhood</strong>: one frequency bin either side and one time block
+          either side of each Costas symbol (<code>decode.c</code>:223, 229, 238). Not tabled: the shape of
+          the sync metric, not a scalar threshold. <em>Doubt:</em> a decode-sensitive design choice; the
+          cut-off applied to the score, <code>K_MIN_SCORE</code>, <em>is</em> tabled.
+        </li>
+        <li data-status="not-included" data-literal="waterfall-frontend">
+          <strong>Waterfall front-end scaling</strong>: FFT normalisation <code>2.0f / nfft</code>
+          (<code>monitor.c</code>:75). Outside the files the audit rule names
+          (<code>patched/common/monitor.c</code> is not a <code>patched/ft8/*.c</code> file), listed
+          rather than omitted. Not tabled: a signal-processing definition of the waterfall.
+        </li>
+        <li data-status="not-included" data-literal="bp-tanh-approximation">
+          <strong>Belief-propagation tanh/atanh approximation</strong>: the clamp at ±<code>4.97</code> and the
+          rational-approximation coefficients (<code>native/ft8_lib_vendor/ft8/ldpc.c</code>:223–249).
+          An unpatched vendored file, outside the files the audit rule names; listed rather than omitted.
+          Not tabled: a numerical approximation, not a tuning knob. <em>Doubt:</em> the clamp point
+          affects belief-propagation output.
+        </li>
+        <li data-status="not-included" data-literal="noise-floor-median">
+          <strong>Noise-floor median (the percentile)</strong>: the <code>2</code> in
+          <code>cum * 2 &gt;= total</code>, which selects the 50th percentile of the waterfall histogram, at
+          <code>ft8_shim.c</code>:1146 (the global noise floor) and :1392 (the local noise floor). Not tabled:
+          hoisting it would need a native rebuild and a new library, for a value that nothing in this change
+          makes settable and no stage sweeps. Both sites must carry the same percentile; a divergence between
+          the global and the local estimator would be a defect, not a tuning option.
+          <em>Doubt:</em> the <code>2</code> is a percentile selector, a free choice and not protocol
+          (<code>cum * 4</code> would be the 25th percentile). It sets <code>noise_raw</code>, the value the
+          suppression writes back, and the SNR input to the suppression ramp (the <code>snr</code> it is fed).
+          A median rises with band occupancy, so in exactly the dense scenes this arm targets, the estimator is
+          pulled toward the signals it is meant to exclude. (Using the median as the estimator at all is a
+          non-numeric choice and is the same doubt, not a second one.) This is <strong>not</strong> a finding
+          that the 50th percentile is wrong, and it arms no sweep: if a later stage wants the percentile swept,
+          it is hoisted and tabled in that arm, with its own rebuild and the Captain's go.
+        </li>
+      </ul>
+    </section>
+
+  </main>
+
+  <script type="module" src="js/decoderParams.js"></script>
+</body>
+</html>

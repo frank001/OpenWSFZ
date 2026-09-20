@@ -180,6 +180,9 @@ link /DLL ^
   /EXPORT:ft8_get_h12_by_code ^
   /EXPORT:ft8_get_h12_suppressed_count ^
   /EXPORT:ft8_get_h12_unresolved_by_code ^
+  /EXPORT:ft8_get_decoder_params ^
+  /EXPORT:ft8_set_supp_params ^
+  /EXPORT:ft8_get_supp_params ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\decode.obj" ^

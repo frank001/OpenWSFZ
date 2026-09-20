@@ -479,6 +479,10 @@ var app = WebApp.Create(
     // report the native hash-table reject count mid-session (it changes over time, unlike
     // the fixed shimVersion above).
     hashTableRejectCountProvider: () => ft8Decoder.GetHashTableRejectCount(),
+    // decoder-param-readout (shim 20260054): live provider for GET /api/v1/decoder/params. Read from
+    // the native library on EVERY request (no cache), so the page shows what the decoder is running
+    // with NOW rather than what app.json says.
+    decoderParamsProvider: () => ft8Decoder.GetDecoderParams(),
     // cycle-audio-archive: live provider, same rationale as hashTableRejectCountProvider above.
     // Cannot close over `app` (the variable this very Create(...) call is assigning) or the
     // `cycleArchiveService` local resolved further below — neither exists yet at this point in

@@ -119,6 +119,14 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     public int GetHashTableRejectCount()
         => _interop.GetHashTableRejectCount();
 
+    /// <summary>
+    /// Read the native decoder's parameter table — what the native library is running with NOW, not
+    /// what <c>app.json</c> says (decoder-param-readout, shim 20260054). Read-only; reads the native
+    /// library on every call (no caching). Backs <c>GET /api/v1/decoder/params</c>.
+    /// See <see cref="IFt8NativeInterop.GetDecoderParams"/>.
+    /// </summary>
+    public IReadOnlyList<DecoderParamEntry> GetDecoderParams() => _interop.GetDecoderParams();
+
     /// <summary>SUP-B (shim 20260047). See <see cref="IFt8NativeInterop.GetH12DisplayingCount"/>.</summary>
     public int GetH12DisplayingCount() => _interop.GetH12DisplayingCount();
 

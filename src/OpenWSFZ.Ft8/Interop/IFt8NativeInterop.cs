@@ -1,3 +1,5 @@
+using OpenWSFZ.Abstractions;
+
 namespace OpenWSFZ.Ft8.Interop;
 
 /// <summary>
@@ -172,4 +174,28 @@ internal interface IFt8NativeInterop
     /// </summary>
     /// <param name="maxDecoded">Maximum number of decodes to query (array capacity).</param>
     (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded);
+
+    /// <summary>
+    /// Read the native decoder's parameter table, in one call: every runtime-settable value and
+    /// every compile-time tuning constant, each with the value the native library would use NOW and
+    /// its compiled-in default (decoder-param-readout, shim 20260054). Read-only: this reports what
+    /// the native decoder is running with, NOT what <c>app.json</c> says.
+    /// <para>
+    /// Not thread-affine (unlike the per-cycle getters above): the table is process-global state.
+    /// </para>
+    /// <para>
+    /// A <b>default interface method</b> that throws <see cref="NotSupportedException"/>, so the many
+    /// test doubles of this interface that have no use for the table need not each grow a stub; the
+    /// production <see cref="Ft8NativeInteropAdapter"/> overrides it, and so does any double that
+    /// exists to exercise the readout.
+    /// </para>
+    /// </summary>
+    /// <returns>A non-empty list; never <c>null</c>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The native library reported no parameters, a row of an unknown kind, or an unexpected
+    /// struct size. The caller must NOT present an empty table as if it were the answer.
+    /// </exception>
+    IReadOnlyList<DecoderParamEntry> GetDecoderParams()
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not expose the native decoder parameter table.");
 }
