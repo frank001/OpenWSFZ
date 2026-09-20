@@ -175,6 +175,9 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_get_h12_ambiguous_count ^
    /EXPORT:ft8_get_h12_divergent_count ^
    /EXPORT:ft8_get_h12_by_code ^
+   /EXPORT:ft8_get_decoder_params ^
+   /EXPORT:ft8_set_supp_params ^
+   /EXPORT:ft8_get_supp_params ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
    monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj
 
@@ -227,6 +230,12 @@ ft8_ldpc_decode_llrs):
 > `gcc -shared` has default visibility and no export list, so nothing needs adding for Linux/macOS;
 > they must simply appear in the `nm` output below. `rebuild_shim.bat`'s `/EXPORT` set is the
 > authoritative list.
+
+> **Shim 20260054 (decoder-param-readout)** additionally exports three symbols —
+> `ft8_get_decoder_params`, `ft8_set_supp_params`, `ft8_get_supp_params`. Same rule: nothing to add
+> for Linux (default visibility), they must simply appear in the `nm` output below. On Windows a
+> **missing `/EXPORT:` line builds clean and fails only at P/Invoke** — verify with
+> `dumpbin /exports` (26 → 29 exports).
 
 ```bash
 nm -D libft8.so | grep "ft8_"
@@ -286,6 +295,10 @@ ft8_coherent_llr_at, Phase B Amendment 1 adds ft8_ldpc_decode_llrs):
 > **Shim 20260053 (density-p1-stage1-pass1-probe)** additionally exports `ft8_set_probe`,
 > `ft8_clear_probe`, `ft8_get_probe_llrs`, `ft8_get_last_suppression` (diagnostic-only; see the
 > Linux note above — nothing to add for macOS either).
+
+> **Shim 20260054 (decoder-param-readout)** additionally exports `ft8_get_decoder_params`,
+> `ft8_set_supp_params`, `ft8_get_supp_params` (see the Linux note above — nothing to add for macOS
+> either).
 
 ```bash
 nm -gU libft8.dylib | grep "ft8_"

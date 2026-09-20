@@ -61,6 +61,47 @@ extern int   s_osd_nhard_max;        /* runtime-configurable; default 60   (shim
 #define OSD_CORR_THRESHOLD s_osd_corr_threshold
 #define OSD_NHARD_MAX      s_osd_nhard_max
 
+/* ── Named decode-path tuning constants (decoder-param-readout, shim 20260054) ─────────
+ *
+ * Each was a bare numeric literal at its use site(s) below. They are named HERE, with
+ * the SAME value, so that ft8_shim.c's ft8_get_decoder_params table can report the value
+ * the decode path actually uses instead of a copy of it. Every use site now reads the
+ * macro, so the macro IS the single definition (arithmetic-identical: the preprocessor
+ * substitutes the same token). No decode output changes.
+ *
+ *   OSD_DEPTH             — ndeep passed to osd_decode by the two PRODUCTION decode paths
+ *                           (ftx_decode_candidate and ftx_decode_candidate_ap; both sites
+ *                           were a bare `2`). ftx_ldpc_decode_llrs takes its depth as a
+ *                           parameter and is NOT one of these sites. Matches WSJT-X's
+ *                           default maxosd=2 at ndepth=3.
+ *   OSD_SEARCH_K_MAX      — osd_decode searches at most this many of the least-reliable
+ *                           free positions when enumerating 1- and 2-flip trials.
+ *   LLR_NORM_TARGET_VARIANCE — ftx_normalize_logl scales the LLR vector to this variance
+ *                           ("experimentally found coefficient" upstream).
+ *   CAND_TIME_OFFSET_MIN / _END — ftx_find_candidates scans candidate time offsets in
+ *                           [MIN, END) blocks (so -10..+19).
+ */
+#define OSD_DEPTH                  2
+#define OSD_SEARCH_K_MAX           32
+#define LLR_NORM_TARGET_VARIANCE   24.0f
+#define CAND_TIME_OFFSET_MIN       (-10)
+#define CAND_TIME_OFFSET_END       20
+
+/* Read-only mirrors for ft8_shim.c's parameter table. Initialised FROM the macros above, so
+ * a reported value cannot differ from the one the decode path uses. Const data with external
+ * linkage; the shim reads them via extern. (decode.c cannot include a shim header: the Linux
+ * and macOS builds compile it with a narrower include path than the Windows build.) */
+extern const int   ftx_tune_osd_depth;
+extern const int   ftx_tune_osd_search_k_max;
+extern const float ftx_tune_llr_norm_target_variance;
+extern const int   ftx_tune_cand_time_offset_min;
+extern const int   ftx_tune_cand_time_offset_end;
+const int   ftx_tune_osd_depth                 = OSD_DEPTH;
+const int   ftx_tune_osd_search_k_max          = OSD_SEARCH_K_MAX;
+const float ftx_tune_llr_norm_target_variance  = LLR_NORM_TARGET_VARIANCE;
+const int   ftx_tune_cand_time_offset_min      = CAND_TIME_OFFSET_MIN;
+const int   ftx_tune_cand_time_offset_end      = CAND_TIME_OFFSET_END;
+
 // Lookup table for y = 10*log10(1 + 10^(x/10)), where
 //   y - increase in signal level dB when adding a weaker independent signal
 //   x - specific relative strength of the weaker signal in dB
@@ -287,7 +328,7 @@ int ftx_find_candidates(const ftx_waterfall_t* wf, int num_candidates, ftx_candi
     {
         for (candidate.freq_sub = 0; candidate.freq_sub < wf->freq_osr; ++candidate.freq_sub)
         {
-            for (candidate.time_offset = -10; candidate.time_offset < 20; ++candidate.time_offset)
+            for (candidate.time_offset = CAND_TIME_OFFSET_MIN; candidate.time_offset < CAND_TIME_OFFSET_END; ++candidate.time_offset)
             {
                 for (candidate.freq_offset = 0; (candidate.freq_offset + num_tones - 1) < wf->num_bins; ++candidate.freq_offset)
                 {
@@ -402,7 +443,7 @@ static void ftx_normalize_logl(float* log174)
     float variance = (sum2 - (sum * sum * inv_n)) * inv_n;
 
     // Normalize log174 distribution and scale it with experimentally found coefficient
-    float norm_factor = sqrtf(24.0f / variance);
+    float norm_factor = sqrtf(LLR_NORM_TARGET_VARIANCE / variance);
     for (int i = 0; i < FTX_LDPC_N; ++i)
     {
         log174[i] *= norm_factor;
@@ -598,7 +639,7 @@ static int osd_decode(const float llr[], int ndeep, uint8_t plain[])
 
     /* Search the search_k least-reliable free positions (highest free_col index,
      * since perm[] is sorted most-reliable-first and free_cols[] is ascending). */
-    int search_k = (n_free < 32) ? n_free : 32;
+    int search_k = (n_free < OSD_SEARCH_K_MAX) ? n_free : OSD_SEARCH_K_MAX;
 
     if (ndeep >= 1) {
         /* Single flips */
@@ -663,7 +704,7 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
     {
         /* BP failed to converge; try OSD fallback (shim 20260025).
          * ndeep=2 matches WSJT-X's default maxosd=2 at ndepth=3. */
-        if (!osd_decode(llr_for_osd, 2, plain174))
+        if (!osd_decode(llr_for_osd, OSD_DEPTH, plain174))
             return false;
 
         /* OSD two-feature gate (shim 20260028, D-009 R5):
@@ -1086,7 +1127,7 @@ bool ftx_decode_candidate_ap(
     if (status->ldpc_errors > 0)
     {
         /* BP failed; try OSD fallback with pre-BP normalised LLRs. */
-        if (!osd_decode(llr_for_osd, 2, plain174))
+        if (!osd_decode(llr_for_osd, OSD_DEPTH, plain174))
             return false;
 
         /* OSD two-feature gate (shim 20260028, D-009 R5) — same as ftx_decode_candidate. */
