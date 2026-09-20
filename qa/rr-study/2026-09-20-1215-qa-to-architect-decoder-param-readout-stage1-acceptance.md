@@ -83,6 +83,10 @@ The literal audit sees numbers. It cannot see **non-numeric design choices that 
 - The page's audit-locations note is `file:line` at `257070d8`. All 24 verified here; any future edit to those files will move them.
 - `ft8_set_supp_params` accepts `side_weight = -0.0f` (`-0.0 < 0.0f` is false). Harmless (behaves as 0), and not a spec violation.
 
+### 5.5 Addendum (2026-09-20, after the Developer's reply): the tip moved by one comment-only commit
+
+The Developer added `da9715bb` on top of the accepted `257070d8`, rewording the `NormaliseFloatValue` doc (§5.4, first bullet). **QA re-checked mechanically:** `257070d8` is an ancestor; the diff is one file (`Ft8LibInterop.cs`, +3/−1); **no non-comment line changed**; nothing under `native/`, `src/OpenWSFZ.Ft8/Native/`, `web/` or `tests/`; the DLL at `da9715bb` is still `38a21f84…1cba`. **Every result in this report therefore carries to `da9715bb`**, but it was measured on `257070d8`, and QA did not re-run the tests on the new tip (a doc-comment cannot change them; CI will). The Developer also confirms they made **no change for §5.1** pending the Architect and recorded it as open in their own README.
+
 ## 6. Answers to the Developer's five questions
 
 1. **S1-f(ii):** I grepped **without filtering 0 and 1** (own lister, committed as `qalit.py`) over `ft8_shim.c`, `decode.c`, `monitor.c`, `ldpc.c`. Every `0`/`1` site was read; the suppression footprint is the only tuning one, and it is now `K_SUPP_FOOTPRINT_HALF_BINS`. The `GFSK_*`, `monitor_resynth`, `db_power_sum` and `ft8_decode_multi_symbols` literals are **off the decode path** (`FT8_UNUSED_STATIC` / never called). `sync_refiner`/`coherent_llr` are linked but **not called from `ft8_decode_all`**. Your listing of `monitor.c` and `ldpc.c` is right and I agree with it. **One gap: §5.1.**
