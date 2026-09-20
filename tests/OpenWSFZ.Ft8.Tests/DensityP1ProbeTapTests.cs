@@ -255,11 +255,18 @@ public sealed class DensityP1ProbeTapTests
 
     // ── Sanity: the DLL under test is the new one, and the layout is what QA reads ──
 
-    [Fact(DisplayName = "T0a: the loaded native binary is shim 20260053 and Ft8SuppressionRecord is 24 bytes")]
-    public void LoadedBinary_IsShim20260053_AndRecordLayoutIs24Bytes()
+    [Fact(DisplayName = "T0a: the loaded native binary is at least shim 20260053 (the tap exists) and Ft8SuppressionRecord is 24 bytes")]
+    public void LoadedBinary_HasTheTap_AndRecordLayoutIs24Bytes()
     {
-        ProbeNative.ft8_lib_version_check().Should().Be(20260053,
-            "these tests are for the density-p1-stage1-pass1-probe build (20260052 is reserved, not used)");
+        // decoder-param-readout (shim 20260054): this was `.Be(20260053)`, an IDENTITY pin on the build these
+        // tests were written for. It could not survive the next native change, and re-pointing it to 20260054
+        // would only make it follow the thing it measures. What this precondition really guards is that the
+        // pass-1 tap EXISTS in the loaded binary (introduced at 20260053, unchanged since), so it is stated as
+        // that. The EXACT shim version is enforced elsewhere and strictly: Ft8LibInterop's load-time ABI
+        // self-test (ExpectedShimVersion) throws on any mismatch. No ruling pins this assertion: it was
+        // introduced by the density-p1 change's own commit 3ad5504e and is not in that dev-task's registration list.
+        ProbeNative.ft8_lib_version_check().Should().BeGreaterThanOrEqualTo(20260053,
+            "these tests need the density-p1-stage1-pass1-probe tap, introduced at shim 20260053 (20260052 is reserved, not used)");
         Marshal.SizeOf<SuppressionRecord>().Should().Be(24, "six 4-byte members, no padding");
         Marshal.SizeOf<NativeResult>().Should().Be(48, "FT8Result must stay 48 bytes — nothing that exists changes layout");
     }
