@@ -81,12 +81,26 @@ ROW 0 (any fires => STOP, report, NO re-cut; S14.4):
       FOOTPRINT {(-5,15,0.5),(-5,15,0.0)}: each family must have >= 1 variant with >= 1 scene whose decode sha differs from V0.  Differing-scene
       counts are reported per family (and per variant).  Any family inert => STOP.
   0f  (QA-added) the (Delta x sub-band) coverage above.   0g (QA-added) completeness: every job present, every record count == expected.
-  0h  (QA-ADDED, STRICTER ONLY, HK-021(k)/(o): a clause must be able to be satisfied where it should hold) FP-clause MEANINGFULNESS, evaluated on the
-      CLASSIFICATION set's V0 decodes BEFORE any variant is decoded: V0's FPb (emitted rows not in the scene's truth set, per 1,000 scenes) must be
-      <= 4.0.  Why 4.0: the S5.4 FP clause allows FPb to rise by at most +1.0 per 1,000 scenes.  Between two variants the junk-row count differs by
-      chance alone, about sqrt(2*r*N) rows for r junk rows per scene over N ~ 8,000 scenes = 15.8*sqrt(r) per 1,000; a +1.0 bar is >= 2 noise units
-      only for r <= ~0.004 per scene, i.e. FPb <= ~4 per 1,000.  Above that the clause rejects any variant that perturbs the candidate list, by
-      noise, so 'no finalist' would say nothing.  If 0h fires => STOP, report V0's FPb, and hand the clause to the Architect; NO variant is decoded.
+  0h  FP-CLAUSE PRECONDITION (QA-added; RE-DERIVED and BRANCHED by the Architect, spec S15.2; evaluated on the CLASSIFICATION set's V0 decodes, V0
+      ONLY: no variant data, no G, no H1, so it is a true precondition).  It does NOT stop the arm: it SELECTS the FP clause, both pre-registered here.
+      V0's FPb = 1000 * (junk rows) / (scenes) over the 16,800 classification scenes.  The +1.0 bar of S5.4 is exactly 2 SD of the scene-difference
+      noise (1000*sqrt(2r/N), N = 8,400) at FPb = 1.05; above that it is noise-dominated.
+        BRANCH A  (FPb_V0 < 0.95):  S5.4's clause EXACTLY as written: reject when FPb(v) > FPb(V0) + 1.0.
+        BRANCH B  (FPb_V0 >= 0.95):  the clause is the SCENE-PAIRED one-sided discordant test below.  0.95-1.16 is NEAR-BAR (+-10% of 1.05) and takes
+                  branch B by rule; QA reports that it was near-bar.  Also branch B whenever FPb_V0 > 1.05.
+            A = junk rows in v absent from V0 on that SAME scene;  B = the reverse (multiset difference of junk-row hashes per scene);
+            holds  <=>  (A + B < 25)  or  (A - B)/sqrt(A + B) <= 3.0          [one-sided, hard z = 3.0]
+      For EVERY variant, whichever branch: report A, B, z AND the relative change (A - B)/V0_junk_total.
+      Junk rows are stored ONLY as 12-hex sha1 hashes of the whitespace-normalised text (NFR-021: random decoder output can resemble a real callsign,
+      and reports are committed) and reported as COUNTS.  The rate is a BENCH junk emission on synthetic AWGN with the offline normalisation: cite it only
+      as "bench junk emission, Stage 2 classification set, V0"; NEVER a live FP rate, never comparable to any FP-WORKSTREAM figure (S15.3).
+PHASES / ORDERING (S15.4): PHASE A (classification, V0 only) = 0c, 0f, 0h(branch).  PHASE B (26-variant measurement) = 0a, 0b, 0d, 0e, 0g.  The finalist
+computation runs ONLY after every row is silent; if any row fires NO verdict is computed at all (variant measures are not even evaluated).  0d is
+therefore checked as per-scene identity of sha AND f between VN and V0, which implies G(VN) - G(V0) == 0 exactly without evaluating G.
+TRANSPARENCY (S15.1.2): per variant the report states how many non-excluded cells were GATED vs REPORTED-ONLY, and for every finalist (and the 3rd-ranked)
+lists the UNGATED cells' V0-relative H1 differences, so a breach cannot hide behind the >= 4-pair gate.
+SCOPE LIMITS printed beside any result (HK-026, S15.1.1): (i) reported SNR SATURATES at +16 for nominal >= +15, so the bench cannot show a blocker stronger
+than the "full" band: any snr_max finding speaks to the RAMP INTERIOR only; (ii) bench FP is weak evidence, a gross-junk filter only (S5.3): Stage 3 is the FP primary.
 
 NOT-A-GATE / REPORTING: #excluded units and the near-boundary count; #gated cells; per-family differing-scene counts; which clause rejected each variant.
 
@@ -121,7 +135,9 @@ PROD_EXCLUDED = 0.20
 H1_BAR, H2_BAR, FP_BAR, GAIN_BAR_BENCH = 0.05, 0.01, 1.0, 0.10
 MIN_EXCL_UNITS, MIN_EXCL_CELLS, MIN_EXCL_PAIRS = 24, 3, 4
 H1_GATE_MIN_PAIRS = 4
-FP_BASELINE_MAX = 4.0        # ROW 0h: V0's FPb per 1,000 scenes must not exceed this for the +1.0 FP clause to mean anything
+FP_BRANCH_B_FROM = 0.95     # ROW 0h: FPb_V0 >= this takes branch B (0.95-1.16 near-bar, and > 1.05); below it, branch A
+FP_NEAR_LO, FP_NEAR_HI = 0.95, 1.16
+FP_Z, FP_MIN_DISCORDANT = 3.0, 25
 DEFAULT_TRIPLE = (-5.0, 15.0, 1.0)
 H5_TRIPLE = (-15.0, 5.0, 1.0)
 H5_BRACKET = [(-15.0, 5.0, 0.5), (-15.0, 5.0, 0.0), (-10.0, 5.0, 1.0), (-15.0, 10.0, 1.0)]
@@ -380,7 +396,7 @@ def cmd_job(a):
                 for bi, (_st, fq, msg) in enumerate(others):
                     if PC._f_recovered(rows, fq, msg):
                         mask |= 1 << bi
-                fp = [" ".join(r["message"].split()) for r in rows if " ".join(r["message"].split()) not in truth]
+                fp = [hashlib.sha1(" ".join(r["message"].split()).encode()).hexdigest()[:12] for r in rows if " ".join(r["message"].split()) not in truth]
                 e_row = [r for r in rows if abs(r["freq_hz"] - SR.E_FREQ_HZ) <= PC.FREQ_TOLERANCE_HZ and PC._text_matches(r["message"], pair_msgs(p)[0])]
                 fo.write(json.dumps({"t": t, "v": vi, "f": f, "m": mask, "nfp": len(fp), "fp": fp, "pc": pcl, "e": (e_row[0]["snr"] if e_row else None),
                                      "sha": hashlib.sha256(canon.encode()).hexdigest()[:16]}) + "\n")
@@ -467,7 +483,9 @@ def cmd_classify(a):
     row0["0c"] = (len(excl_units) >= MIN_EXCL_UNITS and len({c for c, _ in excl_units}) >= MIN_EXCL_CELLS and len({p for _, p in excl_units}) >= MIN_EXCL_PAIRS)
     row0["0f"] = SMOKE or all((d, sb) in cov for d in DELTAS for sb in SUBBANDS)
     fpb_v0 = 1000.0 * fp_rows / fp_scenes
-    row0["0h"] = SMOKE or (fpb_v0 <= FP_BASELINE_MAX)
+    fp_branch = "B" if fpb_v0 >= FP_BRANCH_B_FROM else "A"
+    fp_near_bar = FP_NEAR_LO <= fpb_v0 <= FP_NEAR_HI
+    R["fp_branch"], R["fp_near_bar"] = fp_branch, fp_near_bar
     R["v0_class_fpb_per_1000"], R["v0_class_fp_rows"], R["v0_class_scenes"] = fpb_v0, fp_rows, fp_scenes
     R["row0"] = row0
     R["excluded_units"] = [[c, p] for c, p in excl_units]
@@ -482,7 +500,7 @@ def cmd_classify(a):
     with open(p, "w") as f:
         json.dump(R, f, indent=1)
     log(R["verdict"])
-    log("V0 classification FPb = %.2f per 1,000 scenes (%d junk rows in %d scenes); ROW 0h bar <= %.1f" % (fpb_v0, fp_rows, fp_scenes, FP_BASELINE_MAX))
+    log("V0 classification FPb = %.2f per 1,000 scenes (%d junk rows in %d scenes) -> FP clause BRANCH %s%s" % (fpb_v0, fp_rows, fp_scenes, fp_branch, " (NEAR-BAR 0.95-1.16, resolves to B)" if fp_near_bar else ""))
     log("excluded units %d (cells %d, pairs %d); within 1 SE (%.3f) of 0.20: %d of %d units" % (R["n_excluded_units"], R["n_excluded_cells"], R["n_excluded_pairs"], se1, near, len(cells) * N_PAIRS))
     for d in DELTAS:
         log("  delta %5.2f: %s" % (d, "  ".join("%s=%d" % (sb, len(cov.get((d, sb), []))) for sb in SUBBANDS)))
@@ -534,10 +552,29 @@ def cmd_verdict(a):
     # ---- 0c/0f were checked at classification; re-assert
     row0["0c"] = CL["row0"]["0c"]
     row0["0f"] = CL["row0"]["0f"]
-    row0["0h"] = CL["row0"]["0h"]
-    # ---- 0d
-    vn_sha_eq = all(IDX[k]["VN"][t]["sha"] == base[k][t]["sha"] for k in IDX for t in range(N_MEAS))
-    # ---- measures
+    fp_branch = CL["fp_branch"]
+    # ---- 0d: per-scene identity of decode sha AND of F recovery between VN and V0 (=> G(VN) - G(V0) == 0 EXACTLY, without evaluating any G)
+    row0["0d"] = bool(all(IDX[k]["VN"][t]["sha"] == base[k][t]["sha"] and IDX[k]["VN"][t]["f"] == base[k][t]["f"] for k in IDX for t in range(N_MEAS)))
+    # ---- 0e: per-lever sensitivity, from decode-stream identity only (no outcome measure)
+    diff_counts = {}
+    for v in vs:
+        if v == DEFAULT_TRIPLE:
+            continue
+        diff_counts[v] = sum(1 for k in IDX for t in range(N_MEAS) if IDX[k][vname(v)][t]["sha"] != base[k][t]["sha"])
+    fam = {f: {vname(v): diff_counts[v] for v in vl} for f, vl in FAMILIES.items()}
+    row0["0e"] = all(any(n > 0 for n in fam[f].values()) for f in fam)
+    R["0e_family_differing_scenes"] = fam
+    R["0e_all_variant_differing_scenes"] = {vname(v): diff_counts[v] for v in sorted(diff_counts)}
+    R["row0"] = row0
+    if SMOKE:
+        log("SMOKE: ROW 0 as computed = %r -- FORCED to pass so the surface code runs; NOT a verdict" % (row0,))
+        row0 = {k: True for k in row0}
+    if not all(row0.values()):
+        # S15.4: if any row fires, NO verdict is computed at all -- no G, H1, H2 or FP of any variant has been evaluated up to here.
+        R["verdict"] = "ROW 0 STOP: " + ",".join(k for k, v in row0.items() if not v) + " (no verdict computed)"
+        print(json.dumps(R, indent=1, default=str)); sys.exit(1)
+
+    # ---- every row silent: only NOW are the measures evaluated
     def rates(name_of):
         """returns G, H1[c], H2, FPb for a variant key (None => V0)"""
         hits_ex = trials_ex = 0
@@ -560,32 +597,24 @@ def cmd_verdict(a):
     for v in vs:
         if v != DEFAULT_TRIPLE:
             M[vname(v)] = rates(vname(v))
-    M["VN"] = rates("VN")
-    # gated cells: >= H1_GATE_MIN_PAIRS non-excluded pairs
-    nonex_pairs = {}
-    for c in range(len(cells)):
-        nonex_pairs[c] = sum(1 for p in range(N_PAIRS) if (c, p) not in excl)
+    nonex_pairs = {c: sum(1 for p in range(N_PAIRS) if (c, p) not in excl) for c in range(len(cells))}
     gated = sorted(c for c in range(len(cells)) if nonex_pairs[c] >= H1_GATE_MIN_PAIRS)
-    R["h1_gated_cells"] = len(gated)
+    reported_only = sorted(c for c in range(len(cells)) if 1 <= nonex_pairs[c] < H1_GATE_MIN_PAIRS)
+    R["h1_gated_cells"], R["h1_reported_only_cells"] = len(gated), len(reported_only)
     R["h1_cells_not_gated"] = [cells[c]["key"] for c in range(len(cells)) if c not in gated]
-    row0["0d"] = bool(vn_sha_eq and abs(M["VN"]["G"] - M["V0"]["G"]) == 0.0)
-    # ---- 0e
-    diff_counts = {}
-    for v in vs:
-        if v == DEFAULT_TRIPLE:
-            continue
-        diff_counts[v] = sum(1 for k in IDX for t in range(N_MEAS) if IDX[k][vname(v)][t]["sha"] != base[k][t]["sha"])
-    fam = {f: {vname(v): diff_counts[v] for v in vl} for f, vl in FAMILIES.items()}
-    row0["0e"] = all(any(n > 0 for n in fam[f].values()) for f in fam)
-    R["0e_family_differing_scenes"] = fam
-    R["0e_all_variant_differing_scenes"] = {vname(v): diff_counts[v] for v in sorted(diff_counts)}
-    R["row0"] = row0
-    if SMOKE:
-        log("SMOKE: ROW 0 as computed = %r -- FORCED to pass so the surface code runs; NOT a verdict" % (row0,))
-        row0 = {k: True for k in row0}
-    if not all(row0.values()):
-        R["verdict"] = "ROW 0 STOP: " + ",".join(k for k, v in row0.items() if not v)
-        print(json.dumps(R, indent=1, default=str)); sys.exit(1)
+
+    import collections
+
+    def junk_pairs(vkey):
+        A = B = 0
+        for k in base:
+            for t in range(N_MEAS):
+                cv, c0 = collections.Counter(IDX[k][vkey][t]["fp"]), collections.Counter(base[k][t]["fp"])
+                A += sum((cv - c0).values())
+                B += sum((c0 - cv).values())
+        return A, B
+    v0_junk_total = sum(len(base[k][t]["fp"]) for k in base for t in range(N_MEAS))
+    R["fp_branch"], R["v0_measurement_junk_rows"] = fp_branch, v0_junk_total
 
     def paired(v, c):
         b = c_ = n = 0
@@ -611,13 +640,20 @@ def cmd_verdict(a):
         worst_c = max(drops, key=lambda c: (drops[c], -c)) if drops else None
         h1_fail = any(m["H1"][c] < v0["H1"][c] - H1_BAR for c in gated)
         h2_fail = m["H2"] < v0["H2"] - H2_BAR
-        fp_fail = m["FPb"] > v0["FPb"] + FP_BAR
+        jA, jB = junk_pairs(vname(v))
+        jz = ((jA - jB) / math.sqrt(jA + jB)) if (jA + jB) > 0 else 0.0
+        jrel = (jA - jB) / float(v0_junk_total) if v0_junk_total else None
+        if fp_branch == "A":
+            fp_fail = m["FPb"] > v0["FPb"] + FP_BAR                                   # S5.4 exactly as written
+        else:
+            fp_fail = (jA + jB >= FP_MIN_DISCORDANT) and (jz > FP_Z)                   # S15.2 branch B: scene-paired one-sided discordant test
         gain_ok = (m["G"] - v0["G"]) >= GAIN_BAR_BENCH
         clause = "H1" if h1_fail else "H2" if h2_fail else "FP" if fp_fail else "PASS" if gain_ok else "GAIN"
         wd, wse = paired(v, worst_c) if worst_c is not None else (None, None)
         rows.append({"variant": v, "G": m["G"], "dG": m["G"] - v0["G"], "worst_cell": (cells[worst_c]["key"] if worst_c is not None else None),
                      "worst_drop": (drops[worst_c] if worst_c is not None else None), "paired_diff": wd, "paired_se": wse, "H2": m["H2"], "dH2": m["H2"] - v0["H2"],
-                     "FPb": m["FPb"], "dFPb": m["FPb"] - v0["FPb"], "clause": clause, "distance": distance(v),
+                     "FPb": m["FPb"], "dFPb": m["FPb"] - v0["FPb"], "junk_A": jA, "junk_B": jB, "junk_z": jz, "junk_rel": jrel,
+                     "clause": clause, "distance": distance(v),
                      "h1_alone": bool(h1_fail and not h2_fail and not fp_fail and gain_ok)})
         if clause == "PASS":
             finals.append(v)
@@ -636,6 +672,12 @@ def cmd_verdict(a):
     R["instrument_note_fires"] = len(within) >= 3
     R["V0"] = {"G": v0["G"], "H2": v0["H2"], "FPb": v0["FPb"], "trials_excluded": v0["trials_ex"]}
     R["surface"] = sorted(rows, key=lambda r: r["variant"])
+    ung = [c for c in range(len(cells)) if c not in gated and c in v0["H1"]]
+    R["finalist_ungated_cell_h1_diffs"] = {vname(v): {cells[c]["key"]: M[vname(v)]["H1"][c] - v0["H1"][c] for c in ung} for v in ranked[:3]}
+    R["scope_limits"] = ["reported SNR saturates at +16 (nominal >= +15): the bench cannot show a blocker stronger than the 'full' band, so any snr_max finding "
+                         "speaks to the RAMP INTERIOR only (HK-026)",
+                         "bench FP is weak evidence, a gross-junk filter only (S5.3); Stage 3 is the FP primary; bench junk emission is NOT a live FP rate",
+                         "one synthetic 12-station AWGN scene, 8 message pairs; cells are a design, not a sample: no number here is a live estimate"]
     R["prediction_inputs"] = {"p1_0e_all_three": row0["0e"], "p2_0c": row0["0c"], "p3_any_finalist": len(ranked) >= 1,
                               "p4_finalist_with_snr_max_below_15": any(v[1] < 15.0 for v in ranked[:2]) if ranked else None,
                               "p5_footprint_only_(-5,15,0)_pass": (-5.0, 15.0, 0.0) in ranked, "p6_h1_alone_within_2se_ge3": len(within) >= 3}
@@ -650,7 +692,7 @@ def cmd_verdict(a):
     with open(out, "w") as f:
         json.dump(R, f, indent=1, default=str)
     print(json.dumps({k: R[k] for k in ("verdict", "row0", "n_pass", "finalists", "third_ranked", "h5_bracket_pass_count", "h1_alone_count", "h1_alone_within_2se",
-                                        "instrument_note_fires", "h1_gated_cells", "prediction_inputs")}, indent=1, default=str))
+                                        "instrument_note_fires", "h1_gated_cells", "h1_reported_only_cells", "fp_branch", "scope_limits", "finalist_ungated_cell_h1_diffs", "prediction_inputs")}, indent=1, default=str))
     print("%-22s %7s %7s  %-28s %7s %6s %7s %7s %6s %s" % ("variant", "G", "dG", "worst-cell H1 (drop, paired diff+/-SE)", "H2", "dH2", "FPb", "dFPb", "dist", "clause"))
     print("%-22s %7.3f %7s  %-28s %7.3f %6s %7.2f %7s %6s %s" % ("V0 " + vname(DEFAULT_TRIPLE), v0["G"], "-", "-", v0["H2"], "-", v0["FPb"], "-", "0", "-"))
     for r in R["surface"]:
