@@ -500,7 +500,7 @@ def cmd_unit(a):
     ids = re.findall(r'data-literal="([^"]+)"', page)
     # count <li> ELEMENTS only: the page's explanatory HTML comment also quotes the attribute text (line 85), which a bare
     # attribute count double-counted on the first unit run (plumbing fix, bar unchanged: 6 entries).
-    n_notinc = len(re.findall(r'<li[^>]*data-status="not-included"', page))
+    n_notinc = len(re.findall(r'<li\s[^>]*data-status="not-included"', page))
     derived_none = ("derived-none" in ids)
     no_derived_lit = all(not re.search(r"\b3\.125\b", "\n".join(v)) for v in clean.values())
     ref_ok &= chk(no_derived_lit, "S1-f(ii): a `3.125` literal exists in the decode-path sources but the page says none")
