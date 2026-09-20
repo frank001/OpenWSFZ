@@ -98,6 +98,29 @@ S1-g  ROUND-TRIP (unit, fresh process).
 
 REPORTING ONLY (gates nothing): fraction of calls differing under the 0d2 controls; SYNTH/REAL result totals; supp-record counts.
 
+================================================================================
+ADDENDUM -- S1-f(ii) RE-CHECK after the Architect's D12 ruling (spec S13, arch/density cfef8246). REGISTERED 2026-09-20, BEFORE the
+Developer's change exists.  The recorded `unit` run above (bar "6 entries") is NOT edited: it was correct for the tip it measured.
+`recheck --commit <sha>` is a NEW subcommand with its own bars.  Ruling: the noise-floor median `cum * 2 >= total` (ft8_shim.c:1146
+global, :1392 local) is a TUNING literal => DISCLOSE on the page, NO rebuild, NOT tabled; FR-070 6 -> 7; page says "numeric".
+   R1  <sha> is a descendant of 257070d8 (the accepted tip).
+   R2  NO native change: `git diff --name-only 257070d8 <sha>` has NOTHING under native/ or src/OpenWSFZ.Ft8/Native/; the DLL blob at <sha>
+       is still 38a21f84...1cba; every changed path is on the allow-list {web/decoder-params.html, tests/**/DecoderParam*Tests.cs,
+       src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs [COMMENT-ONLY: zero non-comment changed lines], openspec/changes/decoder-param-readout/**,
+       screenshots/decoder-param-readout/**}; a path outside the list FAILS (listed, never ignored).
+   R3  the page at <sha> has EXACTLY 7 `<li data-status="not-included">`, EXACTLY ONE `data-literal="noise-floor-median"` (one id for BOTH
+       sites, so a test can hold them together), the six original ids unchanged, and `derived-none` still present.
+   R4  that <li>'s text names BOTH `1146` and `1392`, and contains every one of: `percentile`, `noise_raw`, `occupancy`, `snr`, `doubt`
+       (keyword PROXY only; the substance -- 50th percentile a free choice not protocol; sets noise_raw and the ramp's SNR input; a
+       median rises with occupancy so in dense scenes it is pulled toward the signals it should exclude; NOT a finding that 50 is wrong,
+       arms no sweep -- is QA's reading, printed in the output).
+   R5  the two sites at <sha> still carry the SAME percentile: exactly two `cum * <n> >=` in ft8_shim.c, both `2`.
+   R6  the page's hint says "every numeric parameter" and no longer claims "every parameter of the native FT8 decoder".
+   R7  (run by hand, quoted in the report) `dotnet test` filter `FullyQualifiedName~DecoderParams` on a scratch checkout of <sha>: 0 failed,
+       and the tally quoted; the FR-070 tests reference `noise-floor-median`.
+NOT a gate: the non-numeric audit blind-spot list (Hann, median-as-estimator, sync metric, `#if 1` max4, BP) goes in the Developer's audit
+report (gitignored); QA READS it, and the estimator-shape doubt must live in the median <li>, not in a second entry.
+
 WHAT THIS CANNOT SEE (stated in advance): Windows DLL only (Linux/macOS = S1-e CI); one thread; the 140-record cap (busiest cycle
 27 pass-0 decodes, inherited from Stage 1); a replay set is evidence, not proof; the table's TRUTHFULNESS for a value the decode
 path reads but that the table names by a *mirror* (decode.c's five `ftx_tune_*` consts) is checked by value here, not by
@@ -660,9 +683,76 @@ def cmd_verdict(a):
     print(json.dumps(R, indent=1, default=str))
 
 
+def cmd_recheck(a):
+    """S1-f(ii) re-check after the Architect's D12 ruling. Bars R1..R6 are in the ADDENDUM of the module docstring."""
+    def git(*args):
+        return subprocess.run(["git", "-C", REPO_ROOT] + list(args), capture_output=True)
+
+    full = git("rev-parse", a.commit).stdout.decode().strip()
+    fails, R = [], {"commit": full, "accepted_tip": NEW_COMMIT}
+
+    def chk(cond, msg):
+        if not cond:
+            fails.append(msg)
+        return bool(cond)
+
+    chk(len(full) == 40, "cannot resolve %s" % a.commit)
+    chk(git("merge-base", "--is-ancestor", NEW_COMMIT, full).returncode == 0, "R1: %s is not a descendant of %s" % (full[:8], NEW_COMMIT[:8]))
+    names = [n for n in git("diff", "--name-only", NEW_COMMIT, full).stdout.decode().splitlines() if n]
+    R["changed_paths"] = names
+    forbidden = [n for n in names if n.startswith("native/") or n.startswith("src/OpenWSFZ.Ft8/Native/")]
+    chk(not forbidden, "R2: native change present: %r" % forbidden)
+    dll = git("show", "%s:src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll" % full).stdout
+    import hashlib
+    chk(hashlib.sha256(dll).hexdigest() == NEW_SHA, "R2: DLL at %s is not the pinned 38a21f84" % full[:8])
+    allowed = lambda n: (n == PAGE or n == "src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs" or re.fullmatch(r"tests/.*/DecoderParam[^/]*Tests\.cs", n)
+                         or n.startswith("openspec/changes/decoder-param-readout/") or n.startswith("screenshots/decoder-param-readout/"))
+    unexpected = [n for n in names if not allowed(n)]
+    chk(not unexpected, "R2: path(s) outside the allow-list: %r" % unexpected)
+    if "src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs" in names:
+        d = git("diff", "-U0", NEW_COMMIT, full, "--", "src/OpenWSFZ.Ft8/Interop/Ft8LibInterop.cs").stdout.decode("utf-8", "replace").splitlines()
+        code = [x for x in d if x[:1] in "+-" and not x.startswith(("+++", "---")) and not re.match(r"^[+-]\s*(///|//|\*|/\*)", x)]
+        chk(not code, "R2: Ft8LibInterop.cs has non-comment changes: %r" % code[:3])
+        R["ft8libinterop_noncomment_changed_lines"] = len(code)
+
+    page = git("show", "%s:%s" % (full, PAGE)).stdout.decode("utf-8", "replace")
+    lis = re.findall(r'<li\s[^>]*data-status="not-included"[^>]*>', page)
+    chk(len(lis) == 7, "R3: %d not-included <li>, expected 7" % len(lis))
+    ids = re.findall(r'data-literal="([^"]+)"', page)
+    six = ["wf-db-quantisation", "hash-probe-multiplier", "hash-ambiguity-rule", "sync-neighbourhood", "waterfall-frontend", "bp-tanh-approximation"]
+    chk(ids.count("noise-floor-median") == 1, "R3: data-literal noise-floor-median occurs %d times" % ids.count("noise-floor-median"))
+    chk(all(ids.count(x) == 1 for x in six) and "derived-none" in ids, "R3: an original id changed or derived-none is gone")
+    m = re.search(r'<li\s[^>]*data-literal="noise-floor-median"[^>]*>(.*?)</li>', page, re.S)
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", m.group(1))).strip() if m else ""
+    low = text.lower()
+    R["median_li_text"] = text
+    for kw in ("1146", "1392", "percentile", "noise_raw", "occupancy", "snr", "doubt"):
+        chk(kw in low, "R4: median <li> lacks %r" % kw)
+
+    shim = git("show", "%s:%s" % (full, SHIM_C)).stdout.decode("utf-8", "replace")
+    pcts = re.findall(r"cum \* (\d+) >=", strip_c(shim))
+    chk(pcts == ["2", "2"], "R5: percentile literals %r != ['2','2']" % pcts)
+    plain = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", page)).lower()
+    chk("every numeric parameter" in plain, "R6: page hint does not say 'every numeric parameter'")
+    chk("every parameter of the native ft8 decoder" not in plain, "R6: page still claims 'every parameter of the native FT8 decoder'")
+    R["failures"], R["pass_all"] = fails, (not fails)
+    out = os.path.join(OUT_DIR, "recheck_%s.json" % full[:8])
+    S1.ensure_ignored(out)
+    with open(out, "w") as f:
+        json.dump(R, f, indent=1, default=str)
+    print("recheck %s: %s  (%d failures)" % (full[:8], "PASS" if not fails else "FAIL", len(fails)))
+    for m_ in fails:
+        print("  FAIL: " + m_)
+    print("changed paths: %s" % names)
+    print("median <li> text: %s" % text)
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
+    rc = sub.add_parser("recheck")
+    rc.add_argument("--commit", required=True)
+    rc.set_defaults(fn=cmd_recheck)
     sub.add_parser("extract").set_defaults(fn=cmd_extract)
     r = sub.add_parser("run")
     r.add_argument("--dll", choices=["OLD", "NEW"], required=True)
