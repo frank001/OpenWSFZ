@@ -4,15 +4,16 @@
 
 | | |
 |---|---|
-| Compiled | 2026-08-27 21:00Z |
-| Native shim | `20260046` |
-| Last full S1–S8 sweep | `22b749c` — overall **PASS** |
-| Open GitHub issues | 6 |
+| Compiled | 2026-08-27 21:00Z — **refreshed 2026-09-21** (new §3a; §6, §7, §8, §9, §10 updated) |
+| Native shim | `20260046` at compile; `main` is now `20260051` (`decoding_improvement` is `20260054`, not on `main`) |
+| Last full S1–S8 sweep in this document | `22b749c` (2026-08-27) — overall **PASS**; §3, §5 and §12 are **as of that sweep and were not re-measured** |
+| Open GitHub issues | 6 at compile → **8** at refresh: #3, #59, #60, #111, #122, #180, #181, #185 (#132 has since closed) |
 
 > **Scope and authority.** This is a navigational document. Where it and a dated report
 > disagree, **the report is authoritative for its own run** and this dossier is stale.
 > Figures in §3 and §5 were re-derived independently from the run's matched CSVs rather
-> than quoted from the report.
+> than quoted from the report. **§3a is the bridge from that sweep to 2026-09-21**: read it
+> together with §3 and §5, not instead of them.
 
 ---
 
@@ -34,6 +35,10 @@ If you read nothing else, read this.
    an established cause and a measured footprint.
 5. **The fix space is narrow because most of it is already closed.** Three of the four
    obvious remedies are under standing prohibition after being tried and reverted.
+6. **Since 2026-08-27 (see §3a):** the decoder default moved (`osdNhardMax` 60→40), the
+   passband change shipped, the live decode gap was re-measured on real audio, and a
+   **near-neighbour remedy was built, measured and rejected — that line is parked by the
+   Product Owner, not closed.** Points 3 and 4 above are as of 2026-08-27.
 
 > **Before proposing any work, read §8 (closed routes) and §9 (prohibitions).**
 > This programme has repeatedly re-derived conclusions that were already on disk, and has
@@ -105,6 +110,42 @@ As measured by the 2026-08-27 full sweep.
   defects (an S8 station-pair collapse, and a verdict printed beside the wrong metric).
 - **Tooling** — `pre_merge_check.py` gained `-h`/`--help`; a Windows console encoding
   crash fixed.
+
+---
+
+## 3a. Since 2026-08-27 (refreshed 2026-09-21)
+
+A **status table, not a measurement**. Each row's evidence is in the dated report it names,
+and that report is authoritative. Figures appear here only where a report sanctions them, and
+always with the qualifiers that travel with them.
+
+| Workstream | State | What to know |
+|---|---|---|
+| **NHARD40-DEFAULT** | Shipped, closed | `osdNhardMax` **60 → 40**, ratified by the Product Owner (`BAR_S = 0.05`); PRs #160–#162 plus a config-migration fix. **The live station has run `nhard` = 40 since 2026-09-12 11:52:18Z**, and 40 is also the code default. 🛑 Live data from before that instant is `nhard` = 60 — **never pool across it.** Report: `qa/rr-study/2026-09-12-1029-architect-nhard40-default-cc-acceptance.md` |
+| **PASSBAND-140** | Shipped, on `main` | PRs #175/#176, shim `20260051`. Reports: `2026-09-14-1707-qa-to-architect-passband-140-result.md`, `2026-09-14-1716-architect-passband-140-acceptance-ruling.md` |
+| **LIVE-GAP-NOW** and **THRESH-A** | Closed | The live decode gap was re-measured on real audio. **Live headline: recovery `A1` = 61.09%** (`R_wild`; `R_base` 59.39%; 91,046 reference rows; corpus C2, 20 m, reference = WSJT-X #1, binary `6b2e16a6`, `nhard` 60). **No candidate-stage follow-up is licensed.** Reports: `2026-09-12-1930-qa-to-architect-live-gap-now-result.md`, `2026-09-13-1117-architect-live-gap-now-acceptance-and-seam-diagnosis.md`, `2026-09-12-1756-qa-to-architect-thresh-a-result.md`, `2026-09-13-1117-architect-thresh-a-acceptance-and-t2-decision-note.md` |
+| **OSD false-accept audit (`OSD-FA-A`) and `F-001` L3** | Audit complete; L3 closed at ROW 3 (#156); the L3 feature is **parked** | The audit's detector is blind to weak stations — read the report's own limits before citing any of its rates. Reports: `2026-09-11-2204-qa-to-architect-osd-fa-a-e3-result.md`, `2026-09-11-2210-architect-osd-fa-a-e3-acceptance.md` |
+| **False-positive regression / parity** | Regression **closed**; parity **parked**, not closed | **There is no supported false-positive regression, and no baseline ever existed to regress from** (Product Owner, 2026-09-05); the two regression multiples once quoted are withdrawn and are not to be cited. FP figures may be cited only through the reports' own guards: `qa/rr-study/2026-09-05-1517-architect-to-qa-ruling-s5-standalone-adjudication.md`, `qa/rr-study/fp-parity/results/` |
+| **`F-001` hash misresolution (#132)** | Fixed, closed 2026-09-12 | PR #138 (unique-match suppression). #60 tracks the two residuals it does not address. Eviction of hash-table entries is de-scoped (§9) |
+| **`NBR-A`, `WIN-A`** | Closed 2026-08-29/30 | See §8 and §9 |
+| **`DENSITY` — the near-neighbour cost** | Measured; remedy **tried and rejected**; **line PARKED by the Product Owner on 2026-09-21 (not closed)** | Live cost priced at **≈ 4.30 pp** of reference recovery, concentrated in the **first decode pass** — 🛑 **always with its qualifiers: corpus C2, `nhard` 60, binary `6b2e16a6`, before PASSBAND-140.** The mechanism arm (`DENSITY-MECH`) is **void**: do not attribute the loss to extraction. The remedy arm (`DENSITY-REMEDY`): a runtime read-out of the suppression parameters shipped (PR #184, on `decoding_improvement` only); the bench ranked narrowing the ±1-bin footprint; **the live replay on real audio (5,222 cycles) rejected both finalists** — the decodes they added were far more often uncorroborated by the reference decoder than what is already emitted, and the recovery gain fell short of the ratified bar. **The suppression-parameter family is closed**; nothing is armed. Reports on `main`: `2026-09-18-1348-qa-to-architect-density-live-result.md`, `2026-09-18-1433-qa-to-architect-density-mech-result.md`, `2026-09-18-1452-qa-to-architect-density-mech-a1-result.md`. The Stage 0–3 reports of the remedy arm are on branch `qa/density-remedy`, **not yet on `main`** |
+| **`E4-STAGE2` — channel fading / drift** | Parked | No result to cite. Fading is **not** established as a common cause of the gap |
+
+**Guards that travel with everything above**
+
+- `A1` is quoted with its qualifiers or not at all. The earlier per-cause components in §8 (`X1`, `T1`, and the
+  `C-GAP-D` figure in the reports) **predate the 2026-08-22 SNR-collapse fix and must not be summed into a
+  gap budget.**
+- **A raw C-ABI replay is not the live path.** The live `ALL.TXT` is written *after* the plausibility filter and
+  text de-duplication, so a replay counts junk the application would have dropped.
+- **Bench figures are never live estimates.** Bench junk emission on synthetic noise is not a live false-positive
+  rate, and reported SNR on the bench saturates at +16 dB, so no bench statement covers a stronger blocker.
+- **"Uncorroborated" is not "false".** It means the one reference decoder has no matching row.
+- **A decoder text difference across processes is not evidence of a decode difference.** The callsign hash
+  table is process-global and session-lived, so a hashed callsign's *rendering* depends on what was decoded
+  earlier in the process. Compare outcome fields, never rendered text; counts are unaffected.
+- The GitHub issue progress comments (in particular [#3](../../issues/3)) are kept current and are the
+  fastest way to see what has moved since this table.
 
 ---
 
@@ -201,11 +242,12 @@ which is exactly what is not established.
 
 ## 6. Defect register
 
-Documents live at repository root as `DEFECT-*.md`.
+Documents live at repository root as `DEFECT-*.md`. The **State** column is **as of 2026-08-27**
+except where a row says *updated 2026-09-21*; verify a row against its issue before relying on it.
 
 | Defect | Severity | Locus | State |
 |---|---|---|---|
-| **12-bit hash misresolution** — the hashed-callsign lookup names the *wrong* station | High, product-facing | `ft8_shim.c:637-655` | **Open** |
+| **12-bit hash misresolution** — the hashed-callsign lookup named the *wrong* station | High, product-facing | `ft8_shim.c` | **Fixed** *(updated 2026-09-21)* — PR #138, unique-match suppression; #132 closed 2026-09-12. Two residuals are tracked in #60 |
 | **Reported SNR carries a gain error**, not an offset — `ours ≈ 0.6865 × ref − 4.742 dB` | Moderate–high, product-facing | `ft8_shim.c` | **Open** |
 | **Decode panel latency** — app consumes ~24% of the actionable QSO window | Moderate | `Ft8Decoder` / web | Filed, not pursued |
 | **Cycle discard on restart** — valid cycles dropped for up to 15 s after restart | High | `Daemon/Program.cs` | **Open** |
@@ -228,12 +270,15 @@ Documents live at repository root as `DEFECT-*.md`.
 
 | # | Title | Substance |
 |---|---|---|
-| [#3](../../issues/3) | D-001 co-channel and weak-signal decode gap | The central issue. **Its stated fix path is now closed** — it proposes successive interference cancellation, which is prohibited. Its headline figures are stale (quotes ~46%; actual 78.6%). |
-| [#132](../../issues/132) | 12-bit hash collisions resolve to the wrong callsign | 16,320 distinct callsigns seen against a 4,096-entry table; 50.9% of resolved queries had ≥2 entries sharing a code. Callsign-level disagreement 51.3% on the measurable subset; decode-level 37.9%. A wrong name is loggable — worse than an honest `<...>`. |
+| [#3](../../issues/3) | D-001 co-channel and weak-signal decode gap | The central issue. **Its stated fix path is now closed** — it proposes successive interference cancellation, which is prohibited. **The issue body's headline figures are stale (quotes ~46%; the 2026-08-27 sweep read 78.6%); its progress comments, the latest dated 2026-09-21, carry the current state — see §3a.** |
+| ~~[#132](../../issues/132)~~ | 12-bit hash collisions resolve to the wrong callsign | **Closed 2026-09-12** by PR #138 (unique-match suppression). The figures below are the **pre-fix** measurements, kept as the record of why it mattered: 16,320 distinct callsigns seen against a 4,096-entry table; 50.9% of resolved queries had ≥2 entries sharing a code; callsign-level disagreement 51.3% on the measurable subset, decode-level 37.9%. A wrong name is loggable — worse than an honest `<...>`. |
 | [#122](../../issues/122) | Decode panel latency consumes ~24% of the QSO window | A budget problem, not a stall. TX occupies 12.64 s of the 15 s slot leaving ~2.36 s; decodes land at p50 ~15.56 s. No work authorised. |
 | [#111](../../issues/111) | D-001 attribution rests on a single session | The "98.5% decoder-side" split — load-bearing for closing the whole capture thread — comes from *one* 21-minute session, one device, one band. Risk is asymmetric. |
 | [#60](../../issues/60) | F-001 ~2–4% genuine hash-resolution gap | Structural cold-start explains 92–95%; a genuine residual of 3.68% / 2.12% persists across two independent nights. Root cause undetermined. |
 | [#59](../../issues/59) | Pooled attribute-κ gate not ratifiable | Its original blocker (a matcher ceiling effect) **is fixed**. A second, independent blocker was raised 2026-08-27: κ is sensitive to the S5 negative count, which has since changed. |
+| [#180](../../issues/180) | Flake: `QsoAnswererServiceTests.TransmitAsync_CancelledMidKeyDown_StillCallsKeyUpAsync` (macOS CI) | Label `flake`. One failure on the macOS leg, not reproduced on the other platforms; the merged diff did not touch the code under test. A CI-reliability issue, not a product defect |
+| [#181](../../issues/181) | Race: `CatPollingService.StopAsync` `NullReferenceException` on `_cts` under concurrent `DisposeAsync` | Label `flake`. Seen once on Ubuntu; the sibling run of the same code passed. Filed as a race in the service's shutdown path |
+| [#185](../../issues/185) | Flake: `BackgroundColdStartE2ETests.ColdStartBackground_CreatesExactlyOneLogFile…` (macOS CI) | Label `flake`. The test asserts the `logs` directory immediately after the orchestrator exits, without waiting for the detached worker that creates it — a check-then-act race read from the test source, **not reproduced**; one red then green on the same commit. Fix proposed in the issue (poll, do not assert once) |
 
 ---
 
@@ -247,12 +292,19 @@ re-proposing one wastes it twice.
 | Arm | Question | Outcome |
 |---|---|---|
 | `F-NBR-A` | Why does one S8 station never decode? | **Neighbour is causally necessary and sufficient** (0/100 → 100/100 on ablation). Zone 3–5 tone bins; ~3 dB knife-edge; locus = extraction |
-| `X1` | Is band a first-order term in the gap? | **Yes** — +5.70 pp standardised, falling only to +4.83 pp under the finest SNR stratification the corpus supports |
+| `X1` | Is band a first-order term in the gap? | **Yes** — +5.70 pp standardised, falling only to +4.83 pp under the finest SNR stratification the corpus supports. *(Predates the 2026-08-22 SNR-collapse fix — do not sum with other components into a gap budget; §3a.)* |
 | `X2` | Does crowding drive recovery? | **Yes** — +17.22 pp at the density floor vs the crowded regime, and *not* an SNR-composition artefact |
-| `T1` | Does frequency quantisation cost decodes? | Real but small — 3.16 pp, **a floor not a point estimate**. Never publish a "corrected" version of this figure |
+| `T1` | Does frequency quantisation cost decodes? | Real but small — 3.16 pp, **a floor not a point estimate**. Never publish a "corrected" version of this figure. *(Predates the 2026-08-22 SNR-collapse fix — do not sum into a gap budget; §3a.)* |
 | `C.1` | Does the candidate cap bind? | Swept 140/300/600 → +0.93% at 300, byte-identical at 600. The family is **bounded** |
 | `P2` | Does PCM input scale cost decodes? | **No** (≤0.5 pp across ±18 dB). Closes input scaling permanently |
 | `D-009` | Can parameters close the gap? | 45 parameter points bought **+0.109 pp**. This established the gap as architectural |
+| `NBR-A` *(2026-08-29/30)* | Can the neighbour-exclusion mechanism be calibrated on the bench? | **No — calibration closed, not to be re-specified a third time.** No level sustained a readable run of five contiguous points, so the mechanism question (tone-set contention vs tile artefact) stays **unresolved**; this closes a calibration question, not the mechanism question. Report: `qa/rr-study/2026-08-30-0056-qa-to-architect-nbr-a-amendment-2-result-row0c-prime-fires-hard-close.md` |
+| `WIN-A` *(2026-08-29)* | Would a different analysis window (Hamming, Blackman) help? | **Closed by the Product Owner — Hann stays.** Closed on a failed pre-registered precondition, **not** on a decode verdict, so none is quoted. Hamming helps only near one geometry and *hurts* outside it. Blackman was never built. Reopening needs a fresh pre-registration with the leakage metric shipped as code |
+| Eviction from the hash table *(2026-08-30)* | Would clearing the oldest entries when the table fills recover callsigns? | **De-scoped.** Every eviction policy measured was worse than doing nothing on decode-level net, although a callsign-level view looked better (the population was selected on the outcome). A named bar remains: beat fill-and-freeze at equal memory on decode-level net |
+| `LIVE-GAP-NOW`, `THRESH-A` *(2026-09-12/13)* | What is the live gap now, and does a candidate-stage threshold close it? | **Closed; no candidate-stage follow-up licensed** (§3a) |
+| `FP-REGRESSION` *(2026-09-05)* | Did the false-positive rate regress? | **Closed: no supported regression, and no baseline ever existed.** This is *not* a finding that no small regression exists — the study was nearly blind below about 2.25×. Read the ruling's guards before describing it |
+| `DENSITY-MECH` *(2026-09-18)* | Which mechanism causes the near-neighbour loss? | **Void** — the oracle it used is not the production path. Do not attribute the loss to extraction. Reports under `qa/rr-study/2026-09-18-14*` |
+| `DENSITY-REMEDY` *(2026-09-19 → 21)* | Can a suppression-parameter change remove the near-neighbour cost? | **Tried and rejected on real audio; parameter family closed; line parked (§3a).** On real audio the bench effect does appear where a strong neighbour is visible, but it is small, and the variants' added decodes were far less often corroborated by the reference decoder than existing output |
 
 ### Void, retracted or abandoned — read before re-deriving
 
@@ -279,7 +331,17 @@ closure — which is why they are stated this bluntly.
 - **Input scaling is CLOSED** — normalisation, AGC, softmax/temperature, equalisation.
 - **Oversampling ratio 2 → 4 is not closed**, but earns its own pre-registration *with
   false positives as the primary metric*, not recall.
+- **The analysis-window family is CLOSED — Hann stays** (Product Owner, 2026-08-29). Covers Hamming and
+  Blackman together.
+- **Hash-table eviction is DE-SCOPED** (2026-08-30). Only a named bar reopens it: beat fill-and-freeze at
+  equal memory, on decode-level net.
+- **`NBR-A` calibration is CLOSED.** Do not re-specify it a third time.
+- **The `DENSITY-REMEDY` suppression-parameter family is CLOSED, and the density line is PARKED by the
+  Product Owner (2026-09-21).** Do not arm a variant run, a new family or a diagnostic on it without the
+  Product Owner reopening it.
 - **Never re-read a closed gate with a better metric.** That earns a new pre-registration.
+- **Never treat a rendered-text difference across processes as a decode difference** (§3a) — compare outcome
+  fields.
 - **Privacy:** only synthetic `Q`-prefix callsigns in version control. Real-callsign text
   appears in matched CSVs and raw logs — all gitignored; verify per file, never assume.
 
@@ -291,9 +353,9 @@ Owed by the Product Owner. Work is blocked or ambiguous until each is answered.
 
 | Decision | Options / recommendation | Blocks |
 |---|---|---|
-| **Near-neighbour route** | (a) run one bounded discriminator arm *(recommended)*; (b) go straight at the blocked coherent-extraction precondition; (c) accept the gap and stop proposing arms | All decode-yield work |
+| **Near-neighbour route** *(updated 2026-09-21)* | **Answered for now: PARKED by the Product Owner.** The bounded arm was run (`DENSITY-REMEDY`) and its candidate was rejected on real audio (§3a). Still open, and the Product Owner's alone to reopen: a new family starting from a bench mechanism, or a diagnostic of the decodes lost where no stronger neighbour exists | Nothing is armed |
 | **Fixed κ negative count** | Ratify a fixed S5 negative count, or accept that pooled κ stays non-comparable across the battery change | #59; any κ-based gate |
-| **Hash misresolution remedy** | Shape not chosen. A wrong name is worse than `<...>` — "refuse to resolve on ambiguity" is the obvious candidate | #132 |
+| ~~**Hash misresolution remedy**~~ *(resolved 2026-09-12)* | Chosen and shipped: unique-match suppression (PR #138) — a wrong name is worse than `<...>`. Two residuals remain, tracked in #60 | — |
 | **SNR gain-error correction shape** | The correction form is itself the open question — recalibrate the formula vs. correct downstream | Product-facing SNR, spots |
 | **Shim version renumbering** | Versions collide across unmerged branches; a renumbering proposal awaits sign-off | Branch merges |
 | **Git history purge** | ~96 MB of per-row JSON dumps. Explicitly *not urgent*; must not pre-empt decode work. A rewrite invalidates every commit SHA cited in reports | Nothing — deferred |
@@ -306,13 +368,13 @@ Owed by the Product Owner. Work is blocked or ambiguous until each is answered.
 
 | Improvement | Prize | Cost / risk |
 |---|---|---|
-| **Close the near-neighbour exclusion zone** | Up to +12.1 pp S7, +8.3 pp S8 — would pass the reference decoder on S8 | Mechanism unresolved; most remedies prohibited. One bounded arm first |
-| **Coherent multi-symbol extraction** (the known architectural limb) | Addresses the root architectural gap rather than a symptom | **Built but not shippable** — no production call site, and its own gate has not cleared. Clearing that precondition is the real task |
+| **Close the near-neighbour exclusion zone** | Up to +12.1 pp S7, +8.3 pp S8 (as of 2026-08-27) — would pass the reference decoder on S8 | Mechanism unresolved; most remedies prohibited. *Updated 2026-09-21:* the one bounded arm was run and its candidate rejected on real audio; **the line is parked by the Product Owner** (§3a) |
+| **Coherent multi-symbol extraction** (the known architectural limb) | Bounded: `C-GAP-D` (2026-08-22) found extraction quality is not the route for the main gap (#3), so it may not be described as a treatment for it. Only a sensitivity case remains, and that is the Product Owner's call | **Built but not shippable** — no production call site, its own gate has not cleared, and the coherent extractor still failed its precondition in `THRESH-A` (2026-09-13) |
 
 ### Tier 2 — product quality, independent of decode yield
 
-- **Hash misresolution** — stop emitting confidently wrong callsigns. High user-visible
-  value, self-contained, and the measurement already exists.
+- ~~**Hash misresolution** — stop emitting confidently wrong callsigns.~~ **Done 2026-09-12** (PR #138,
+  unique-match suppression); two residuals remain in #60.
 - **SNR gain error** — reported SNR is systematically compressed; affects logs, display and
   outbound spots. Also interacts with a suppression threshold that assumes absolute dB.
 - **Restart correctness** — cycle discard and the WebSocket state mismatch are both
