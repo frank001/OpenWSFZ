@@ -26,6 +26,7 @@ POLL_S = 30
 MAX_CONSEC_RESTARTS = 5
 WSJTX_WAIT_S = 3 * 3600          # how long to wait for the Captain to switch monitoring on
 CYCLE_S = 15
+NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)   # every child process: no console window (a detached parent has no console, so each child would otherwise open a visible one)
 
 
 def utcnow():
@@ -100,14 +101,14 @@ def sha256(p):
 def ps(cmd, timeout=60):
     """Never raises: a hung/failed PowerShell call returns '' so a transient error cannot end supervision (a check that needs the value then FAILS, which is the safe direction)."""
     try:
-        r = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True, timeout=timeout, creationflags=NOWIN)
         return r.stdout.strip()
     except Exception:
         return ""
 
 
 def kill_tree(pid):
-    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, text=True)
+    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, text=True, creationflags=NOWIN)
 
 
 def daemons_running():
@@ -255,11 +256,14 @@ def first_row_cycle_start(path, offset0):
 
 
 def main():
+    global PORT
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", required=True)
+    ap.add_argument("--port", type=int, default=8080)               # only so the resume path can be tested on a scratch corpus without touching the live daemon's port
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--harness", default=None, help="path to the committed lgm_harness.py (default: <corpus>/tools/lgm_harness.py)")
     a = ap.parse_args()
+    PORT = a.port
     run = Run(a.corpus)
     for d in ("openwsfz", "cycle-audio", "daemon-logs", "wsjtx-1-ft991a", "results", "tools"):
         os.makedirs(os.path.join(a.corpus, d), exist_ok=True)
@@ -288,7 +292,9 @@ def main():
                 stop_daemon(run, "ROW 0 failed"); run.state["phase"] = "ROW0_FAILED"; run.save(); run.handoff("ROW0_FAILED", "see row0.json"); return 5
         else:
             # RESUME: we hold no process handle for a daemon a previous supervisor started, so stop any stray one and start our own (a short, logged gap)
-            subprocess.run(["taskkill", "/F", "/T", "/IM", "OpenWSFZ.Daemon.exe"], capture_output=True, text=True)
+            old = run.state.get("daemon_pid")                      # ONLY the daemon this run recorded, and only if that pid still IS an OpenWSFZ.Daemon (never by image name, never a reused pid)
+            if old and ps("(Get-Process -Id %d -ErrorAction SilentlyContinue).ProcessName" % int(old)) == "OpenWSFZ.Daemon":
+                run.log("RESUME: stopping the recorded daemon pid %s" % old); kill_tree(int(old))
             time.sleep(5)
             run.event("resume_restart")
             start_daemon(run, cfg_path); wait_ready(run)
@@ -378,7 +384,7 @@ def main():
         run.state["phase"] = "ANALYSIS"; run.save(); run.handoff("ANALYSIS")
         if os.path.exists(harness):
             run.log("running harness %s" % harness)
-            r = subprocess.run([sys.executable, harness, "--corpus", a.corpus], capture_output=True, text=True, timeout=6 * 3600)
+            r = subprocess.run([sys.executable, harness, "--corpus", a.corpus], capture_output=True, text=True, timeout=6 * 3600, creationflags=NOWIN)
             with open(os.path.join(a.corpus, "results", "lgm_stdout.txt"), "w", encoding="utf-8") as f:
                 f.write(r.stdout + "\n--- stderr ---\n" + r.stderr)
             run.log("harness exit %d" % r.returncode)
