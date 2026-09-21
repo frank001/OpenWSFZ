@@ -208,6 +208,11 @@ D7 would be that second stratification. It is useful (it says how much of the st
 stronger signal on today's decoder), but **the capture and every M-row run without it.** Yes ⇒ D7 is reported,
 descriptive, and gates nothing. No or unanswered ⇒ D7 is dropped and never computed.
 
+✅ **ANSWERED: YES.** The Captain, 2026-09-21, before any datum: *"the breakdown may also split the strong
+misses"*. **D7 runs.** This is a new ruling for **this arm's D7 only**, with the `DENSITY-LIVE` classifier
+unchanged. It is descriptive and gates nothing. 🛑 It does not re-open spectral locality as a route, and it
+licenses no further live stratification.
+
 ---
 
 ## §6. What this arm does NOT do
@@ -231,7 +236,7 @@ before committing.
 |---|---|
 | Capture shape (20m, 24 h, one radio) | ✅ Captain, 2026-09-21 |
 | Build | ✅ `decoding_improvement` `fa8a56ae` (§2) |
-| §5 Q1 (D7) | ⏳ Captain, before the first datum; the arm runs either way |
+| §5 Q1 (D7) | ✅ Captain: YES (2026-09-21, before any datum) |
 | ROW 0f on C2, then 0a–0d on the live station | QA |
 | Arm the capture: supervisor (HK-013), detached with a log tail (HK-023), `captureActive` checked | QA, with the Captain present at arm time |
 | 24 h window, then snapshot `ALL.TXT`, teardown (HK-019), `README.md`'d artefacts dir (HK-016) | QA |
