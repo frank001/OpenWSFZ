@@ -5,8 +5,8 @@
 
 **Status: the Captain has cleared the capture and its shape.** On 2026-09-21 he parked DENSITY, held the
 decode-panel latency defect, and chose this measurement: *"20m for 24h should be enough"* and *"24h is
-managable"*. He left the choice of build to the Architect and QA (§2). **One question is open to him before the
-first datum (§5 Q1). It gates one descriptive table only, not the capture.**
+managable"*. He left the choice of build to the Architect and QA (§2). ~~One question is open to him before the
+first datum (§5 Q1).~~ **§5 Q1 is answered YES: D7 runs.**
 
 ---
 
