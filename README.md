@@ -36,13 +36,13 @@ closed*, standing prohibitions, open decisions and the ranked improvement set. I
 this project up, resuming after a break, or about to propose decoder work, read it first: several
 of the obvious avenues are already closed by measurement, and the dossier says which.
 
-> **Currency.** The dossier was **compiled 2026-08-27** (native shim `20260046`) and is a
-> navigational document: where a dated report under [`qa/`](qa/) disagrees with it, the report
-> is authoritative for its own run. Later work is **not yet folded into it** — including the
-> `osdNhardMax` 60→40 default change, the OSD false-accept audit, the PASSBAND-140 change, the
-> LIVE-GAP-NOW measurements and the 2026-09 density investigation. For those, follow the open
-> GitHub issues (in particular [#3](https://github.com/frank001/OpenWSFZ/issues/3), whose
-> progress comments are kept current) and the dated reports under `qa/`.
+> **Currency.** The dossier was compiled **2026-08-27** and **refreshed 2026-09-21**: its
+> section 3a bridges the two dates, while its sweep figures (§3, §5 and §12) remain **as of
+> 2026-08-27** and were not re-measured. It is a navigational document: where a dated report
+> under [`qa/`](qa/) disagrees with it, the report is authoritative for its own run. For anything
+> newer, follow the open GitHub issues (in particular
+> [#3](https://github.com/frank001/OpenWSFZ/issues/3), whose progress comments are kept current)
+> and the dated reports under `qa/`.
 
 All development phases to date are merged and archived. FT8 decoding
 **and transmitting** are fully functional against live audio and recorded fixtures.
