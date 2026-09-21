@@ -108,7 +108,8 @@ the Captain** (a native change needs the daemon stopped). QA does not deploy sil
 | **0b** params | the daemon's parameter read-out (#184) returns `nhard` = 40 and the default suppression triple | STOP |
 | **0c** one audio stream | `audioDeviceFriendlyName` in the daemon's `config.json` **and** `SoundInName` in the WSJT-X `- FT991A` profile `.ini` name the **same endpoint**. Both are quoted in the report. Expected: `Voicemeeter Out B1`, the FT-991A chain C2 used | STOP. Hand to the Captain; routing is his |
 | **0d** reference depth | the same `.ini` has `NDepth=3` with **no AP bit**; the WSJT-X version is recorded | STOP |
-| **0e** coverage (after the window) | share of window cycles with an archived OpenWSFZ WAV **and** ≥ 1 REF row within ±1 cycle ≥ **0.95**; `captureActive = true` at arm time (memory: stale endpoint GUIDs archive nothing, silently) | < 0.95 ⇒ all §3.6 rows **VOID**; report the gaps |
+| ~~**0e** coverage~~ | ~~share of window cycles with an archived OpenWSFZ WAV **and** ≥ 1 REF row within ±1 cycle ≥ 0.95~~ **REFUSED by QA under HK-025, refusal upheld: replaced by 0e′ (Amendment 2, §3.8)** | — |
+| **0e′** liveness (after the window) | (i) archive: archived OpenWSFZ WAVs / wall-clock cycles ≥ **0.99**, plus `captureActive = true` at arm time · (ii) **OpenWSFZ decoding:** of the cycles with ≥ 5 REF rows, the share with ≥ 1 OpenWSFZ live decode ≥ **0.99** · (iii) **WSJT-X alive:** in every UTC hour where OpenWSFZ's own live log has ≥ 240 decodes, the share of that hour's cycles with ≥ 1 REF row within ±1 cycle ≥ **0.99** | any of (i)–(iii) fails ⇒ all §3.6 rows **VOID**; report the gaps |
 | **0f** matcher | the harness, pointed at C2's live logs, returns `n_ref` 91,046, `R_wild` 61.09% and `H10` 17.96 exactly | STOP. The metric is not the one the baseline was computed with |
 | **0g** power (after the window) | `n_ref(C3)` ≥ **40,000** | → **M4** (underpowered), not VOID |
 
@@ -145,7 +146,7 @@ not a false-positive rate (FP citation guards §0).
 - **D2: E4 §0.2's eight-band SNR table on C3, in the same columns, beside C2's.** HK-034: same format.
 - **D3: frequency bands.** Recovery and miss counts below 200 Hz, 200–3000 Hz, and above 3000 Hz.
 - **D4: cycle load.** Recovery by the number of REF decodes in the cycle, in quintiles fixed on C3's own REF
-  counts. This is X1's density axis, a cycle count, **not spectral locality**.
+  counts **over cycles with ≥ 1 REF row** (Amendment 2). This is X1's density axis, a cycle count, **not spectral locality**.
 - **D5: time of day.** Recovery by UTC hour, to show whether the pool moves with band conditions.
 - **D6: what we decoded that WSJT-X did not.** Counts only, labelled "uncorroborated, not false".
 - **D7 (only if the Captain answers yes to §5 Q1): strong misses by nearby-signal exposure.** The `DENSITY-LIVE`
@@ -177,6 +178,35 @@ first by order.
   grounds (THRESH-A's T2, parked 2026-09-14), or stop decode-rate work here.
 - **M3/M4** ⇒ every figure is reported and nothing is re-based. D1 still replaces A1 as the current live figure,
   **with its qualifiers**, because it is read from live logs and needs no row.
+
+### 3.8 Amendment 2 (2026-09-21, before any C3 datum): QA's HK-025 pass, accepted in full
+
+**ROW 0e was defective, and the defect was mine.** Its "≥ 1 REF row within ±1 cycle" term measures band
+conditions, not capture health. On C2, a capture with **zero** archive gaps, it reads **0.7968** against my 0.95
+bar, because 20m here is dead roughly 23–03 UTC (1,110 of 5,222 cycles hold no REF row; the longest empty run is
+79 min). A healthy 24 h capture would have voided every M-row. That is HK-021(aa) exactly: an absolute bar
+registered without measuring its baseline. I cited that rule in §3.3 and didn't apply it to 0e. QA also found the
+opposite gap: 0e checked that WAVs were **archived**, never that OpenWSFZ **decoded**.
+
+- **0e′ replaces 0e** (table above), as QA proposed. Every baseline was measured on C2: (i) 1.0000, 0 gaps;
+  (ii) 3,761 cycles with ≥ 5 REF rows, 0 without an OpenWSFZ decode, so 1.0000; (iii) 18 hours / 4,022 cycles,
+  pooled 0.9998, worst hour 0.9958.
+- **(iii)'s 240-decode floor was set after seeing C2, and that is disclosed.** It stands, because C2 is the
+  **calibration** corpus and C3 is the one the rows read. The floor only chooses which hours are checked for
+  liveness. The hours it leaves out held 219 of 91,046 REF rows (0.24%), so it cannot move `n_ref` or `H10`.
+  (iii) is hour-level and reads our own decode count, never a single cycle's outcome or `R`.
+- **0c:** also quote WSJT-X's `SoundInChan` and both endpoints' **device IDs** (not only friendly names; names
+  collide and IDs go stale silently), plus the daemon's channel and sample-rate handling.
+- **0a:** also record the running daemon's **product version** (expected 0.50). The live `ALL.TXT` passes through
+  managed code (`IsPlausibleMessage`, text dedup) that the DLL pin does not cover.
+- **D4:** quintiles are fixed on cycles with **≥ 1 REF row**. On C2, 21% of cycles have none, which would make
+  quintile 1 an all-zero bin.
+- **0g** stands, and its baseline is now measured: C2 ran 4,184 REF rows per hour, so a 24 h run gives about
+  100,000 against the 40,000 floor.
+- **Precision note, QA's, recorded:** one 24 h window carries no day-to-day variance. `H10`'s CI describes **this
+  day**, and "the pool is X" means "on this day". §3.3 already keeps C3 − C2 out of any build reading.
+- **ROW 0f** reproduced C2 exactly in QA's scratch probe (91,046 / 61.0856 / 17.9634). L1 is scored when the
+  pre-registered harness runs it, not on the probe.
 
 ---
 
