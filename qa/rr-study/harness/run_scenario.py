@@ -441,6 +441,115 @@ def _render_band_scene(scenario: dict,
 
 
 # ---------------------------------------------------------------------------
+# PCM rendering — E4 (channel-impairment bench: DRIFT + FADE)
+# ---------------------------------------------------------------------------
+
+def _render_e4_scene(scenario: dict, trial_index: int,
+                     seed: int) -> "tuple[numpy.ndarray, list[dict]]":
+    """Render one E4-BENCH slot: 15 isolated stations (DRIFT's 7 doses + FADE's 8),
+    Latin-rotated by position (qa/rr-study/2026-09-15-1645-architect-to-qa-spec-e4-
+    channel-impairment-bench.md Sec.2.4 + amendment A1).
+
+    All rotation/jitter/sign/message-stride arithmetic derives from `trial_index`
+    alone, split into (block, block_local_index) below -- "P,P,P,S repeating 50
+    times" (Sec.2.5) is a PLAY-ORDER interleaving of two otherwise-independent
+    150-trial (P) and 50-trial (S) sequences, and it is `block_local_index` (0..149
+    or 0..49), not the global `trial_index` (0..199), that drives the rotation. This
+    is what makes ROW 0g's balance (every (item, position) pair exactly 10 times in
+    block P, DRIFT signs 75/75) hold BY CONSTRUCTION: block P's own 150 block-local
+    indices are exactly 10 full 15-position rotation cycles, and split evenly by
+    parity into 75 even / 75 odd.
+
+    Returns ``(mixed_samples, signals_meta)`` -- one truth row per station, same
+    shape as :func:`_render_band_scene`'s ``s8_signals_meta``.
+    """
+    import numpy as np
+    from synth import channel, encoder, fade as fade_mod, modulator
+
+    drift_doses = scenario["drift_doses_hz"]        # 7 doses, dose 0 first (Sec.2.2)
+    fade_doses = scenario["fade_spread_doses_hz"]    # 8 doses (Sec.2.3)
+    n_drift = len(drift_doses)
+    n_items = n_drift + len(fade_doses)              # 15 (Sec.2.4)
+
+    base_freq0 = float(scenario["position_base_freq_hz"])
+    spacing = float(scenario["position_spacing_hz"])
+    jitter_half = float(scenario["lattice_jitter_hz"])
+    stride = int(scenario["message_stride"])
+
+    # Block / block-local trial index -- "Interleaved P, P, P, S, repeating 50
+    # times; the order is fixed before the run" (Sec.2.5).
+    group, slot_in_group = divmod(trial_index, 4)
+    if slot_in_group == 3:
+        block = "S"
+        block_local = group
+        snr_db = float(scenario["block_s_snr_db"])
+    else:
+        block = "P"
+        block_local = group * 3 + slot_in_group
+        snr_db = float(scenario["block_p_snr_db"])
+
+    # DRIFT sign: "alternates by trial (+ on even trials, - on odd)" (Sec.2.2) --
+    # by BLOCK-LOCAL trial, so block P's own 150 trials split 75/75 (ROW 0g).
+    sign = 1.0 if (block_local % 2 == 0) else -1.0
+
+    msg_ids = scenario["message_ids"]
+    message_texts = scenario["message_texts"]
+
+    clean_signals: list = []
+    snr_list: list[float] = []
+    signals_meta: list[dict] = []
+
+    for position in range(n_items):
+        # Latin rotation: "ladder item i sits at position (i + t) mod 15" (Sec.2.4)
+        # -- inverted here to find which item sits at THIS position.
+        item = (position - block_local) % n_items
+
+        # Lattice jitter: U(-1.5625, +1.5625) Hz, seeded per (block-local trial,
+        # position) (Sec.2.4). Keyed on `block` too so P's and S's own trial-0
+        # don't collide on the same jitter draw.
+        jitter_seed = compute_seed(f"E4-JITTER-{block}", position, block_local)
+        jitter_rng = np.random.default_rng(jitter_seed)
+        jitter_hz = float(jitter_rng.uniform(-jitter_half, jitter_half))
+        freq_hz = base_freq0 + spacing * position + jitter_hz
+
+        # Message assignment: "rotates with a stride independent of the dose
+        # rotation" (Sec.2.4) -- the position rotation's own stride is 1.
+        msg_index = (item + stride * block_local) % n_items
+        text = message_texts[msg_ids[msg_index]]
+        tones = encoder.message_to_tones(text)
+
+        if item < n_drift:
+            family = "DRIFT"
+            delta = float(drift_doses[item])
+            drift_hz = sign * delta if delta != 0.0 else 0.0  # never -0.0 at dose 0
+            fade_spread_hz = ""
+            clean = modulator.modulate(tones, freq_hz, 0.0, DEFAULT_SAMPLE_RATE_HZ,
+                                       drift_hz=drift_hz)
+        else:
+            family = "FADE"
+            spread = float(fade_doses[item - n_drift])
+            drift_hz = ""
+            fade_spread_hz = spread
+            # Independent of the AWGN seed (Sec.2.3) -- own compute_seed() call.
+            fade_seed = compute_seed("E4-FADE", position, block_local)
+            clean = fade_mod.modulate_faded(tones, freq_hz, spread, 0.0,
+                                            DEFAULT_SAMPLE_RATE_HZ, seed=fade_seed)
+
+        clean_signals.append(clean)
+        snr_list.append(snr_db)
+        signals_meta.append({
+            "message_text": text, "freq_hz": freq_hz, "dt_s": 0.0, "snr_db": snr_db,
+            "station": item, "position": position, "block": block,
+            "family": family, "drift_hz": drift_hz, "fade_spread_hz": fade_spread_hz,
+        })
+
+    mixed = channel.mix_to_shared_floor(clean_signals, snr_list, seed,
+                                        sample_rate_hz=DEFAULT_SAMPLE_RATE_HZ,
+                                        noise_cutoff_hz=_NOISE_CUTOFF_HZ)
+    return mixed, signals_meta
+
+
+# ---------------------------------------------------------------------------
 # PCM rendering — S7 (compounding / co-channel overlap)
 # ---------------------------------------------------------------------------
 
@@ -825,6 +934,16 @@ _PAIR_TRUTH_EXTRA_COLUMNS = [
 ]
 _TRUTH_COLUMNS = _TRUTH_COLUMNS + _PAIR_TRUTH_EXTRA_COLUMNS
 
+# E4-BENCH (qa/rr-study/2026-09-15-1645-architect-to-qa-spec-e4-channel-impairment-
+# bench.md + amendment A1): one truth row per station, same "extra columns appended
+# alongside, never replacing" convention as _PAIR_TRUTH_EXTRA_COLUMNS above -- other
+# scenario types leave these blank via csv.DictWriter's default restval.
+_E4_TRUTH_EXTRA_COLUMNS = [
+    "e4_station", "e4_position", "e4_block", "e4_family",
+    "e4_drift_hz", "e4_fade_spread_hz",
+]
+_TRUTH_COLUMNS = _TRUTH_COLUMNS + _E4_TRUTH_EXTRA_COLUMNS
+
 # Placeholder text ft8_lib's lookup_callsign() emits for an unresolved hash
 # (confirmed by inspection of the vendored ft8_lib submodule's git history —
 # message.c's lookup_callsign: `strcpy(callsign, "<...>");` — a real,
@@ -898,6 +1017,7 @@ def _run(args: argparse.Namespace) -> None:
     # matching comment above.
     is_s8 = "signals" in scenario
     is_pairs = "pairs" in scenario
+    is_e4 = "e4_ladder" in scenario
 
     # ── Part filter ────────────────────────────────────────────────────────────
     # --parts 0,2,5  selects specific parts by part_index.
@@ -910,7 +1030,7 @@ def _run(args: argparse.Namespace) -> None:
     # index other than 0, which would be actively misleading (S9 has 2 valid
     # pairs) rather than merely inapplicable.
     _requested_parts = getattr(args, "parts", None)
-    if _requested_parts is not None and not is_s8 and not is_pairs:
+    if _requested_parts is not None and not is_s8 and not is_pairs and not is_e4:
         requested_indices: set[int] = set()
         for _tok in _requested_parts.split(","):
             _tok = _tok.strip()
@@ -1042,6 +1162,18 @@ def _run(args: argparse.Namespace) -> None:
                     "true_freq_hz": sig["freq_hz"], "message_text": sig["message_text"],
                     "cycle_utc": cycle_utc_str,
                 })
+        elif is_e4 and item["e4_signals_meta"] is not None:
+            for sig in item["e4_signals_meta"]:
+                _append_truth(run_dir, {
+                    "scenario_id": scenario_id, "part_index": item["part_index"],
+                    "trial_index": item["trial_index"], "seed": item["seed"],
+                    "true_snr_db": sig["snr_db"], "true_dt_s": sig["dt_s"],
+                    "true_freq_hz": sig["freq_hz"], "message_text": sig["message_text"],
+                    "cycle_utc": cycle_utc_str,
+                    "e4_station": sig["station"], "e4_position": sig["position"],
+                    "e4_block": sig["block"], "e4_family": sig["family"],
+                    "e4_drift_hz": sig["drift_hz"], "e4_fade_spread_hz": sig["fade_spread_hz"],
+                })
         else:
             _append_truth(run_dir, {
                 "scenario_id": scenario_id, "part_index": item["part_index"],
@@ -1101,9 +1233,10 @@ def _run(args: argparse.Namespace) -> None:
 
             # Render PCM
             import numpy as np
-            s7_signals_meta = None  # populated only for S7/S8/S4 (one truth row per signal)
+            s7_signals_meta = None  # populated only for S7/S8/S4/E4 (one truth row per signal)
             s8_signals_meta = None
             s4_signals_meta = None
+            e4_signals_meta = None
             # buffer_start_s: seconds `samples`' sample-0 sits relative to the nominal
             # cycle boundary. 0.0 for every rendering path except the extended-DT (C2/C3)
             # single-signal path below, where it may be negative (S3b) or, in principle,
@@ -1141,6 +1274,13 @@ def _run(args: argparse.Namespace) -> None:
                 true_dt_s = ""
                 true_freq_hz = ""
                 msg_text = ""
+            elif is_e4:
+                samples, e4_signals_meta = _render_e4_scene(scenario, trial_index, seed)
+                # Per-slot truth fields unused for E4 (logged per station below).
+                true_snr_db = ""
+                true_dt_s = ""
+                true_freq_hz = ""
+                msg_text = "; ".join(s["message_text"] for s in e4_signals_meta)
             else:
                 # S1, S1b, S2, S3, S3b — single signal
                 fixed = scenario.get("fixed", {})
@@ -1188,7 +1328,7 @@ def _run(args: argparse.Namespace) -> None:
                 "true_snr_db": true_snr_db, "true_dt_s": true_dt_s,
                 "true_freq_hz": true_freq_hz, "msg_text": msg_text,
                 "s7_signals_meta": s7_signals_meta, "s8_signals_meta": s8_signals_meta,
-                "s4_signals_meta": s4_signals_meta,
+                "s4_signals_meta": s4_signals_meta, "e4_signals_meta": e4_signals_meta,
                 "n_trials_for_part": part_n_trials,
             }
 

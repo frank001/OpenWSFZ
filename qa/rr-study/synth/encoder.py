@@ -43,6 +43,7 @@ def render_tones(
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
     *,
     extended: bool = False,
+    drift_hz: float = 0.0,
 ):
     """Modulate an explicit 79-tone vector (and optionally add seeded noise).
 
@@ -53,8 +54,12 @@ def render_tones(
     default `False` returns a single-slot array or raises; `True` returns
     `(buffer, buffer_start_s)`. Noise, when requested, is added to the signal array either
     way — the offset passes through untouched.
+
+    `drift_hz` is forwarded to `modulator.modulate` unchanged (E4-BENCH DRIFT family, default
+    0.0, byte-identical to omitting it — see that function's docstring).
     """
-    clean = modulator.modulate(tones, base_freq_hz, dt_s, sample_rate_hz, extended=extended)
+    clean = modulator.modulate(tones, base_freq_hz, dt_s, sample_rate_hz, extended=extended,
+                               drift_hz=drift_hz)
     if extended:
         clean_signal, buffer_start_s = clean
     else:
@@ -78,11 +83,12 @@ def encode_message(
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
     *,
     extended: bool = False,
+    drift_hz: float = 0.0,
 ):
     """text -> rendered audio (all layers L2–L8 are implemented and operational)."""
     return render_tones(
         message_to_tones(text), base_freq_hz, dt_s, snr_db, seed, sample_rate_hz,
-        extended=extended,
+        extended=extended, drift_hz=drift_hz,
     )
 
 

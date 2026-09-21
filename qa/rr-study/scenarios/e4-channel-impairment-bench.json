@@ -1,0 +1,34 @@
+{
+  "_comment": "E4-BENCH -- channel-impairment bench (DRIFT + FADE), pre-registration qa/rr-study/2026-09-15-1645-architect-to-qa-spec-e4-channel-impairment-bench.md + amendment A1 (90922d63 on arch/e4-channel-impairments). Synthetic-only: 15 isolated stations/slot (DRIFT's 7 doses + FADE's 8), Latin-rotated by position, block P (-8dB x 150 trials, gated) interleaved P,P,P,S with block S (0dB x 50 trials, descriptive). Recognised by run_scenario.py via the 'e4_ladder' marker (schema-keyed, Sec.2.1/2.4/2.5 -- all per-trial rotation/jitter/sign/message-stride arithmetic lives in harness/run_scenario.py's _render_e4_scene, not here; this file carries only the static configuration and the message pool declaration so _load_scenario resolves MSG-01..MSG-15 into scenario['message_texts'].",
+  "_format_version": "1",
+
+  "id": "E4",
+  "name": "Channel-Impairment Bench -- DRIFT + FADE (Sec.2)",
+  "description": "15 isolated stations per slot: DRIFT (linear TX-drift ramp, 7 doses incl. 0 control, Sec.2.2) and FADE (two-path Watterson fading, 8 doses, Sec.2.3), Latin-rotated across trials so no dose is tied to a frequency (Sec.2.4). Block P: -8 dB x 150 trials, gated (F1-F4, Sec.3.6). Block S: 0 dB x 50 trials, descriptive only (Sec.3.5 A3). Interleaved P,P,P,S repeating 50 times; block-local trial indices (not the global play-order index) drive the rotation/jitter/sign/message-stride formulas, so ROW 0g's balance (10x per (item,position) in block P, 75/75 DRIFT signs) holds by construction.",
+
+  "e4_ladder": true,
+  "trials": 200,
+  "parts": [{"part_index": 0}],
+
+  "drift_doses_hz": [0, 0.5, 1, 2, 4, 8, 16],
+  "fade_spread_doses_hz": [0.1, 0.25, 0.5, 1, 2, 5, 10, 20],
+
+  "block_p_snr_db": -8,
+  "block_p_trials": 150,
+  "block_s_snr_db": 0,
+  "block_s_trials": 50,
+
+  "position_base_freq_hz": 300,
+  "position_spacing_hz": 170,
+  "lattice_jitter_hz": 1.5625,
+
+  "message_stride": 7,
+
+  "message_ids": [
+    "MSG-01", "MSG-02", "MSG-03", "MSG-04", "MSG-05",
+    "MSG-06", "MSG-07", "MSG-08", "MSG-09", "MSG-10",
+    "MSG-11", "MSG-12", "MSG-13", "MSG-14", "MSG-15"
+  ],
+
+  "seed_formula": "compute_seed('E4-P'|'E4-S', 0, block_local_trial_index) for the shared AWGN floor; compute_seed('E4-FADE', position, block_local_trial_index) for each FADE station's (g1,g2), independent of the AWGN seed (Sec.2.3)."
+}
