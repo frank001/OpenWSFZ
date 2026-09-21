@@ -1,0 +1,187 @@
+{
+ "gain_bar_pp": 0.5,
+ "U_base": 0.05532313665115968,
+ "ratified": {
+  "ratified_by": "the Captain (PO), in session",
+  "ratified_at_utc": "2026-09-21T12:03Z",
+  "spec": "DENSITY-REMEDY spec S6.4 / S18(d)",
+  "u_base_rule": "U_base = (V0 decodes not STRICTLY corroborated) / (all V0 decodes); point estimate; a match that succeeds only through the <...> wildcard counts as UNCORROBORATED (wildcard-only => uncorroborated); frozen on ratification",
+  "u_base_value": 0.05532313665115968,
+  "u_base_derivation": {
+   "V0_decodes": 59758,
+   "corroborated_K": 56452,
+   "uncorroborated_U": 1561,
+   "wildcard_only_W_counted_uncorroborated": 1745,
+   "source": "results/stage3_row0.json (commit b13f26da)"
+  },
+  "gain_bar_pp": 0.5,
+  "gain_bar_definition": "DeltaR = R_wild(variant) - R_wild(V0), percentage points, matcher.recovery() vs REF; 0.5 pp of R_wild (= 455 of 91,046 REF rows)",
+  "recorded_together": true,
+  "moving_either_after_a_finalist_leg_exists_VOIDS_Stage_3": true
+ },
+ "row0_fires": false,
+ "denominator_cycles_V0": 5222,
+ "finalists": {
+  "F1": {
+   "supp": [
+    -5.0,
+    15.0,
+    0.0
+   ],
+   "verdict": "ROW F - REJECT: the additions are dirtier than what we already emit",
+   "u_add": 579,
+   "k_add": 301,
+   "k_rem": 580,
+   "u_add_cp95": [
+    0.6255543015250731,
+    0.6892927744962271
+   ],
+   "dR_pp": -0.25701293851459184,
+   "R_wild_V0": 63.93141928256046,
+   "R_wild_variant": 63.67440634404587,
+   "dC_pp": 0.11569699462950389,
+   "C_V0_pp": 4.413180756602938,
+   "C_variant_pp": 4.297483761973434,
+   "churn": {
+    "added_K": 301,
+    "added_W": 5,
+    "added_U": 574,
+    "removed_K": 580,
+    "removed_W": 20,
+    "removed_U": 552
+   },
+   "wildcard_dependent": {
+    "added_W": 5,
+    "share_of_u_add": 0.008635578583765112,
+    "removed_W": 20
+   },
+   "pairing": {
+    "tiebreak_events": 394,
+    "tiebreak_used_text": 393
+   },
+   "stratification_by_blocker_snr_V0_REPORT_ONLY": {
+    "< +5": {
+     "gained": 40,
+     "lost": 39,
+     "net": 1
+    },
+    ">= +5": {
+     "gained": 95,
+     "lost": 7,
+     "net": 88
+    },
+    "N0 (blocker not decoded by V0)": {
+     "gained": 0,
+     "lost": 1,
+     "net": -1
+    },
+    "no neighbour": {
+     "gained": 169,
+     "lost": 491,
+     "net": -322
+    }
+   },
+   "stratification_by_df_band_REPORT_ONLY": {
+    "0-6": {
+     "gained": 33,
+     "lost": 7,
+     "net": 26
+    },
+    "13-18": {
+     "gained": 73,
+     "lost": 30,
+     "net": 43
+    },
+    "7-12": {
+     "gained": 29,
+     "lost": 10,
+     "net": 19
+    },
+    "no neighbour": {
+     "gained": 169,
+     "lost": 491,
+     "net": -322
+    }
+   },
+   "executed_cycles": 5222
+  },
+  "F2": {
+   "supp": [
+    -5.0,
+    15.0,
+    0.5
+   ],
+   "verdict": "ROW F - REJECT: the additions are dirtier than what we already emit",
+   "u_add": 473,
+   "k_add": 325,
+   "k_rem": 236,
+   "u_add_cp95": [
+    0.5577252344218401,
+    0.6270507656915275
+   ],
+   "dR_pp": 0.19330887683148745,
+   "R_wild_V0": 63.93141928256046,
+   "R_wild_variant": 64.12472815939195,
+   "dC_pp": 0.0895255082366635,
+   "C_V0_pp": 4.413180756602938,
+   "C_variant_pp": 4.323655248366275,
+   "churn": {
+    "added_K": 325,
+    "added_W": 5,
+    "added_U": 468,
+    "removed_K": 236,
+    "removed_W": 8,
+    "removed_U": 524
+   },
+   "wildcard_dependent": {
+    "added_W": 5,
+    "share_of_u_add": 0.010570824524312896,
+    "removed_W": 8
+   },
+   "pairing": {
+    "tiebreak_events": 397,
+    "tiebreak_used_text": 396
+   },
+   "stratification_by_blocker_snr_V0_REPORT_ONLY": {
+    "< +5": {
+     "gained": 55,
+     "lost": 16,
+     "net": 39
+    },
+    ">= +5": {
+     "gained": 52,
+     "lost": 1,
+     "net": 51
+    },
+    "no neighbour": {
+     "gained": 228,
+     "lost": 142,
+     "net": 86
+    }
+   },
+   "stratification_by_df_band_REPORT_ONLY": {
+    "0-6": {
+     "gained": 21,
+     "lost": 4,
+     "net": 17
+    },
+    "13-18": {
+     "gained": 64,
+     "lost": 11,
+     "net": 53
+    },
+    "7-12": {
+     "gained": 22,
+     "lost": 2,
+     "net": 20
+    },
+    "no neighbour": {
+     "gained": 228,
+     "lost": 142,
+     "net": 86
+    }
+   },
+   "executed_cycles": 5222
+  }
+ }
+}
