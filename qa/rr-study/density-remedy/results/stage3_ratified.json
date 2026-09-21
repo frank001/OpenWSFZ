@@ -1,0 +1,18 @@
+{
+  "ratified_by": "the Captain (PO), in session",
+  "ratified_at_utc": "2026-09-21T12:03Z",
+  "spec": "DENSITY-REMEDY spec S6.4 / S18(d)",
+  "u_base_rule": "U_base = (V0 decodes not STRICTLY corroborated) / (all V0 decodes); point estimate; a match that succeeds only through the <...> wildcard counts as UNCORROBORATED (wildcard-only => uncorroborated); frozen on ratification",
+  "u_base_value": 0.05532313665115968,
+  "u_base_derivation": {
+    "V0_decodes": 59758,
+    "corroborated_K": 56452,
+    "uncorroborated_U": 1561,
+    "wildcard_only_W_counted_uncorroborated": 1745,
+    "source": "results/stage3_row0.json (commit b13f26da)"
+  },
+  "gain_bar_pp": 0.5,
+  "gain_bar_definition": "DeltaR = R_wild(variant) - R_wild(V0), percentage points, matcher.recovery() vs REF; 0.5 pp of R_wild (= 455 of 91,046 REF rows)",
+  "recorded_together": true,
+  "moving_either_after_a_finalist_leg_exists_VOIDS_Stage_3": true
+}
