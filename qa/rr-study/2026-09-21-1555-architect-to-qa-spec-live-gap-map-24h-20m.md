@@ -77,6 +77,13 @@ Chosen by QA and the Architect, as the Captain directed. The reasons were checke
 - **Its read-out lets the running daemon report its own parameters**, so ROW 0b reads them instead of assuming
   them.
 
+🔴 **Amendment 1 (2026-09-21, before any datum): the pin is the DLL, not the commit.** `decoding_improvement` is
+now `84cac119`, a docs-only merge of `main` into `fa8a56ae`. I checked this myself, not from QA's word:
+`git diff --stat fa8a56ae 84cac119 -- src/ native/ tests/ web/ openspec/ .github/ VERSION` is empty, the
+`libft8.dll` blob is `3bc4b742…` at both, and `fa8a56ae` is an ancestor of `84cac119`. **The build is identified
+by the DLL SHA-256 `38a21f84…1cba` and shim `20260054`.** Either `fa8a56ae` or any docs-only descendant of it
+(currently `84cac119`) qualifies. ROW 0a asserts the SHA, unchanged.
+
 ⚠️ If the station is running a different build when QA arms, **deploying `fa8a56ae` is an operational step for
 the Captain** (a native change needs the daemon stopped). QA does not deploy silently.
 
