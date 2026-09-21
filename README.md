@@ -36,6 +36,14 @@ closed*, standing prohibitions, open decisions and the ranked improvement set. I
 this project up, resuming after a break, or about to propose decoder work, read it first: several
 of the obvious avenues are already closed by measurement, and the dossier says which.
 
+> **Currency.** The dossier was **compiled 2026-08-27** (native shim `20260046`) and is a
+> navigational document: where a dated report under [`qa/`](qa/) disagrees with it, the report
+> is authoritative for its own run. Later work is **not yet folded into it** — including the
+> `osdNhardMax` 60→40 default change, the OSD false-accept audit, the PASSBAND-140 change, the
+> LIVE-GAP-NOW measurements and the 2026-09 density investigation. For those, follow the open
+> GitHub issues (in particular [#3](https://github.com/frank001/OpenWSFZ/issues/3), whose
+> progress comments are kept current) and the dated reports under `qa/`.
+
 All development phases to date are merged and archived. FT8 decoding
 **and transmitting** are fully functional against live audio and recorded fixtures.
 A complete automated six-message FT8 QSO exchange has been validated via
@@ -51,7 +59,7 @@ VoiceMeeter software loopback.
 | p5 — FT8 decoder | Cycle framer, spectrum analyser, initial decode pipeline | ✅ merged |
 | p6 — File logging | Per-session log files, retention, log-level config | ✅ merged |
 | p7 — Device display name | Friendly device names; legacy config migration | ✅ merged |
-| p8 — FT8 decode performance | kgoba/ft8_lib submodule, P/Invoke shim, SNR calibration | ✅ merged |
+| p8 — FT8 decode performance | kgoba/ft8_lib (a submodule at the time; since vendored), P/Invoke shim, SNR calibration | ✅ merged |
 | p9 — Decode logging | all.txt-style per-cycle decode log | ✅ merged |
 | p10 — Ground truth | Replay harness; G6 gate; WSJT-X corpus recovery-rate test | ✅ merged |
 | p12 — ft8_lib port | Production P/Invoke decoder; full UAT-01 sign-off | ✅ merged |
@@ -71,9 +79,17 @@ VoiceMeeter software loopback.
 | decoder-settings-page — live OSD tuning | The three D-009 OSD gate parameters (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) exposed as live-configurable settings — false-positive/sensitivity trade-off tunable without a native rebuild | ✅ merged |
 | lan-remote-access — LAN + passphrase auth | Kestrel bind-address selectable via config; `LanBindPolicy` + `PassphraseAuthPolicy` (`X-Api-Key` / `?key=`); login page; Remote Access settings section. Loopback always trusted; internet exposure out of scope | ✅ merged |
 | f-002 — callsign-structure region lookup | Shape-aware callsign parsing and region/entity lookup surfaced to the operator | ✅ merged |
-| f-001 — hashed-callsign resolution | Session-scoped 22-bit hash table resolves nonstandard/compound callsigns (`PJ4/K1ABC`, special-event calls) announced once via a Type 4 message and later referenced by hash | ✅ merged |
+| f-001 — hashed-callsign resolution | Session-scoped 22-bit hash table resolves nonstandard/compound callsigns (`PJ4/Q1ABC`, special-event calls) announced once via a Type 4 message and later referenced by hash | ✅ merged |
 | f-003 — AP-assist for nonstandard callsigns | AP-assisted decode of nonstandard callsigns (Gap B) building on the f-001 hash table | ✅ merged |
 | f-004 — operator visibility | Native shim ABI version exposed in the UI; TX/Call-CQ button visual states (armed vs transmitting); log viewer (Settings Logs tab + standalone full-log page); waterfall display modifiers | ✅ merged |
+| gridtracker-udp-reporting — external reporting | Speaks the WSJT-X UDP network protocol so GridTracker2, JTAlert and similar tools can plot spots and log QSOs; inbound Reply is opt-in, while Halt Tx is always honoured as a safety path; multiple simultaneous targets; off by default. Later: a leader/follower role lets two running instances present as a single connection | ✅ merged |
+| remote-daemon-restart — restart from the UI | `POST /api/v1/system/restart` restarts the daemon in place, so settings that only apply after a restart (PTT method, LAN bind) can be applied from a remote browser | ✅ merged |
+| daemon-background-mode — detached daemon | `--background` starts the daemon detached from its console so the terminal can be closed | ✅ merged |
+| cat-tx-ptt — transmitter keying | Operator-selectable PTT method (`AudioVox` default, `CatCommand`, `SerialRtsDtr`) with a hard watchdog ceiling and guaranteed release on exception, dispose and shutdown paths | ✅ merged |
+| engage-window — late-click engage | A manual engage fires whenever the cycle phase is right and stops at the window boundary if the click was late, instead of deferring a whole cycle | ✅ merged |
+| engagement-target-validation — TX target gate | A decoded token that is not a plausible callsign is refused as a TX target (checked against the region prefix table when real region data is loaded) | ✅ merged |
+| qso-transcript-panel — QSO transcript | The TX panel shows the actual messages of the live QSO, so the thread is not lost when a decode-panel filter hides the rows | ✅ merged |
+| cycle-audio-archive — per-cycle recordings | Optional `.wav` capture of each 15-second receive window (`Off` default, `All`, `Decoded`, `NoDecodes`), in WSJT-X-compatible 12 kHz mono 16-bit PCM | ✅ merged |
 
 ## Decoder Measurement System Analysis (Gage R&R)
 
@@ -131,6 +147,12 @@ and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedu
 > identical recordings. Measured against a fixed 42-cycle corpus (887 total
 > WSJT-X decodes, 40 m band, real off-air recordings). Higher is better;
 > false-positive rate must stay ≤ 6%.
+>
+> **Note.** The table and figures in this section are a **historical snapshot** (v0.10–v0.21)
+> and are not refreshed. They are not the current decode rate: later work changed the decoder
+> defaults and was measured on different corpora and metrics. For the current standing see
+> issue [#3](https://github.com/frank001/OpenWSFZ/issues/3) and the
+> [Programme Dossier](docs/programme-dossier.md) (mind its compile date, above).
 
 | Version | Phase / run | Recovery rate | Raw | False-positive rate | Approach |
 |---|---|---|---|---|---|
@@ -177,7 +199,7 @@ callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
   with correct `TIME_ON`/`TIME_OFF` in `HHMMSS` format, ITU band derivation
   from dial frequency, and graceful handling of write failures.
 - **Nonstandard-callsign resolution** — a session-scoped 22-bit hash table
-  resolves nonstandard/compound callsigns (`PJ4/K1ABC`, special-event calls)
+  resolves nonstandard/compound callsigns (`PJ4/Q1ABC`, special-event calls)
   announced once via a Type 4 message and later referenced by hash, with
   AP-assisted decode and shape-aware callsign/region lookup surfaced to the
   operator.
@@ -192,6 +214,20 @@ callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
   (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) are configurable
   at runtime from the Decoder settings page, so the false-positive/sensitivity
   trade-off can be adjusted without a native rebuild.
+- **External reporting** — optional and **off by default**: the daemon speaks the WSJT-X UDP
+  network protocol (heartbeat, status, decodes, logged QSOs) to GridTracker2 and similar tools,
+  to one or more configured targets. An inbound *Halt Tx* is always honoured as a safety path;
+  an inbound *Reply* is acted on only if `honourInboundCommands` is enabled.
+- **PTT methods** — `AudioVox` (default), `CatCommand` (CAT `TX;`/`RX;`) or `SerialRtsDtr`
+  (a control line on a separate serial port), each with a hard watchdog ceiling so a stuck
+  key-down cannot leave the rig transmitting.
+- **Detached operation and remote restart** — `--background` runs the daemon detached from its
+  console; `POST /api/v1/system/restart` restarts it in place (also available from Settings →
+  Advanced), which is how restart-only settings such as the PTT method or LAN bind are applied
+  remotely.
+- **Cycle audio archive** — optionally saves each 15-second receive window as a WSJT-X-compatible
+  12 kHz mono 16-bit `.wav` (`Off` by default; `All`, `Decoded`, or `NoDecodes` — the cycles
+  where nothing was decoded, useful for diagnosing a quiet receiver).
 - **Audio device enumeration** returns real devices on Windows (WASAPI),
   Linux (ALSA via `arecord`), and macOS (sox).
 - **PCM audio capture** streams 32-bit float mono at 12 000 Hz from the
@@ -240,8 +276,8 @@ callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
 ## Build & run
 
 ```bash
-# Clone (including the ft8_lib submodule)
-git clone --recurse-submodules https://github.com/Frank0x01/OpenWSFZ.git
+# Clone (the ft8_lib source is vendored in the repository; no submodules to fetch)
+git clone https://github.com/frank001/OpenWSFZ.git
 cd OpenWSFZ
 
 # Build everything (daemon + web + tools + tests)
@@ -261,6 +297,8 @@ Optional flags:
 ```
 --port <n>        Override the HTTP port (default: 8080)
 --config <path>   Override the config file path
+--background      Run detached: spawn a background worker, report its PID, and
+                  return — the terminal can then be closed without stopping the daemon
 ```
 
 The config file is created automatically on first run at the platform default
@@ -321,7 +359,10 @@ The build and test suite has been verified on all three target platforms:
 | Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ all green | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
 
-All six active CI gates pass on every platform:
+Eight CI gates are active. The build-and-test gate (G1) and the real-signal gate (G6) run
+on all three platforms; the pure text-scan gates (G3, G5, G8, G10) run once, on Linux, since
+repeating them per platform would prove nothing new; G9 runs on pull requests targeting
+`main` only:
 
 - **G1** — `dotnet build` with zero warnings
 - **G3** — Requirement traceability (every FR/NFR ID mapped to a test)
@@ -331,6 +372,12 @@ All six active CI gates pass on every platform:
 - **G6** — Real off-air signal recovery: three committed 40 m band fixture WAVs decoded against WSJT-X answer keys on Windows x64, Linux x64, and macOS ARM64
 - **G7** — Secrets scan (gitleaks over full commit history; any credential finding fails the build)
 - **G8** — OpenSpec validation (`openspec validate --strict --all` across every spec and active change)
+- **G9** — Version governance: the version cited in this README and in `REQUIREMENTS.md` must match
+  the root `VERSION` file, and a pull request that first introduces a `**User-facing:** yes`
+  OpenSpec change must also bump `VERSION`
+- **G10** — Test-synchronisation lint: a bare `Task.Delay(<numeric literal>)` used as a
+  synchronisation barrier in test code fails the build unless it is already tracked as
+  pre-existing debt (`test-delay-debt.md`)
 
 (G2 performance and G4 UI-visibility are inert placeholders, awaiting the tests they will gate.)
 
@@ -352,11 +399,14 @@ OpenWSFZ v0.x is a single native executable with four concurrent roles:
 4. **Configuration manager** — reads and writes a JSON config file; propagates
    changes to the running daemon without a restart.
 
-The FT8 decode engine is [kgoba/ft8_lib](https://github.com/kgoba/ft8_lib),
-included as a git submodule and accessed via P/Invoke through a thin C shim
-(`native/ft8_lib/ft8_shim.c`). Pre-built shared libraries for Windows, Linux,
-and macOS are committed to the repository so that building from source requires
-no native toolchain.
+The FT8 decode engine is derived from [kgoba/ft8_lib](https://github.com/kgoba/ft8_lib)
+(MIT). Its source is **vendored** in the repository under
+[`native/ft8_lib_vendor/`](native/ft8_lib_vendor/) — it is not a git submodule — with
+the upstream commit, the fork it comes from and the content-identity check recorded in
+[`PROVENANCE.md`](native/ft8_lib_vendor/PROVENANCE.md). It is accessed via P/Invoke
+through a thin C shim ([`src/OpenWSFZ.Ft8/Native/ft8_shim.c`](src/OpenWSFZ.Ft8/Native/ft8_shim.c)). Pre-built shared libraries for
+Windows, Linux, and macOS are committed to the repository so that building from source
+requires no native toolchain.
 
 See [`TECHNICAL_SPEC.md`](TECHNICAL_SPEC.md) for the full architecture and
 [`REQUIREMENTS.md`](REQUIREMENTS.md) for the v0.x scope and versioning scheme.
