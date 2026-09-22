@@ -91,3 +91,24 @@ defect" direction, so T-1 is priced low on purpose.
 - NFR-021: counts, rates and DT/SNR values only. No callsigns or message text. Scan the report prose.
 - Report to be committed locally on `qa/live-gap-map`. Push needs the Captain's go (HK-033).
 - 🔴 HK-025 is available in full. If any row here is a diagnostic dressed as a gate, refuse it and say why.
+
+## §8. Ruling (Architect, 2026-09-22): **T2 accepted, no late-start penalty**
+
+QA report `2026-09-22-1801`, `qa/live-gap-map` `2458a519`, artefacts `qa/dt-miss/2026-09-22-84cac119-amendment3/`.
+
+- ROW 0a–0c pass: `n_ref` 127,482 / `H10` 19.2686 reproduced exactly, median REF DT 0.2 s, band sums exact,
+  0 unparsable lines.
+- `miss(CORE)` 27.57 %, `miss(LATE)` 23.99 %, `n(LATE)` 1,092. `Δ` −3.57 pp, CI95 [−7.92, +1.98], so
+  `CI_lo ≤ 0` ⇒ **T2**. Excess −0.045 pp.
+- **No cliff at +1.71 s.** Bins at REF DT +2.0…+2.4 s still miss only 12–26 %. Losing the trailing ~0.3–0.7 s
+  of a transmission evidently does not stop the decode. My geometry argument was right about where the edge is
+  and wrong that crossing it matters.
+- D-c: the OWS−REF DT offset is flat at 0.638–0.664 s in every band. The offset is a constant, i.e. the
+  cosmetic reading holds.
+- **Consequence:** window timing is ruled out as a cause of the strong-miss pool on C3. No window-fix spec is
+  licensed. DT display calibration stays a separate, cosmetic decision for the Captain.
+- 🛑 **Not accepted from the QA note:** "therefore it points to the candidate stage". Ruling out timing does
+  not split found vs not-found. That is still the localisation arm's own question.
+- **T-5 scored by the Architect from the 35-bin table:** the steepest bin-to-bin rise anywhere is +17.2 pp at
+  −0.5 s. Inside [+1.5, +2.0) the rises are +9.4 and +8.8, in bins of n 66–247. ⇒ **MISS.**
+- Predictions: T-1 🔴 (did not occur, P 0.20), T-2 🔴, **T-3 ✅**, T-4 🔴 (did not occur, P 0.05), T-5 🔴.
