@@ -65,6 +65,7 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUPERVISOR_RUNS_DIR = os.path.join(HERE, "results", "_supervisor_runs")
@@ -77,7 +78,8 @@ from harness.common import make_run_dir  # noqa: E402  (same call run_study.py m
                                           # deterministic, so calling it here first predicts
                                           # run_study.py's own run_dir exactly)
 
-_RESULTS = os.path.join(HERE, "results")
+_RESULTS = Path(HERE) / "results"  # make_run_dir (harness.common) does path-object "/" joins,
+                                    # not os.path.join -- found live, first collision-check test
 
 
 def run_gatherer(sup_dir, arm, start_dt, end_dt, out_name):
@@ -141,6 +143,34 @@ def main():
                   "pid": os.getpid(), "args": forwarded}
         _write_status(status_path, status)
 
+        # Predict run_study.py's own run_dir (deterministic -- see module docstring) and
+        # REFUSE on a collision BEFORE touching the daemon at all (Architect, 2026-09-22,
+        # reading this file before it was live-tested): make_run_dir's determinism is a
+        # COLLISION risk, not only a convenience -- a second battery on the same UTC day AND
+        # the same commit resolves to the SAME dir as the first, silently, and this has
+        # already happened in practice (results/2026-09-13-4584900{,-2,-3,-4,-5} -- six
+        # sweeps in one day, the -N suffixes added by hand afterwards because nothing caught
+        # it at the time). A standard script makes repeat runs routine, so this needs to
+        # refuse, not just predict -- and checking it FIRST (before PRECHECK/daemon start)
+        # means a refusal never spins up a daemon just to tear it down again, and this whole
+        # check is independently testable without any daemon at all.
+        # make_run_dir() itself already created predicted_run_dir if it didn't exist (its own
+        # mkdir(exist_ok=True)) -- it adds no content, so any entries found here mean a PRIOR
+        # run left them, not this call. --resume is the deliberate exception: there the dir is
+        # SUPPOSED to already exist and hold the interrupted run's own data.
+        predicted_run_dir = make_run_dir(_RESULTS)
+        if not a.resume and os.path.isdir(predicted_run_dir) and os.listdir(predicted_run_dir):
+            status.update(phase="ABORTED", ended_utc=ES.iso(ES.utcnow()),
+                          predicted_run_dir=str(predicted_run_dir),
+                          note=("run_dir collision: %s already exists and is non-empty (same "
+                                "UTC day + same commit as an earlier run -- make_run_dir has "
+                                "no counter). Rename/move that directory, wait for a new "
+                                "commit, or wait for the next UTC day, then re-run. If this IS "
+                                "that earlier run continuing, use --resume instead."
+                                % predicted_run_dir))
+            _write_status(status_path, status)
+            return 3
+
         run, arm = rr_precheck.precheck(sup_dir, a.daemon_exe, a.config, a.port, a.wsjtx_ini,
                                          allow_existing=a.resume)
         if not arm["checks"].get("all_pass"):
@@ -149,11 +179,6 @@ def main():
             _write_status(status_path, status)
             return 3
 
-        # Predict run_study.py's own run_dir (deterministic -- see module docstring) so the
-        # gatherer knows where the battery's captured audio should be traceable from, and so
-        # ALL.TXT paths derived from PRECHECK's own findings can be handed to it explicitly
-        # (unless the operator already forwarded their own --wsjt-all-txt/--owsfz-all-txt).
-        predicted_run_dir = make_run_dir(_RESULTS)
         d = arm.get("daemon", {})
         wsjtx_all_txt = os.path.join(os.path.dirname(a.wsjtx_ini), "ALL.TXT")
         owsfz_all_txt = d.get("config_decode_log_path")
