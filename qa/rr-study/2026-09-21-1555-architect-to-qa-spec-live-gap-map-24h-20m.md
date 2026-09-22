@@ -8,6 +8,9 @@ decode-panel latency defect, and chose this measurement: *"20m for 24h should be
 managable"*. He left the choice of build to the Architect and QA (§2). ~~One question is open to him before the
 first datum (§5 Q1).~~ **§5 Q1 is answered YES: D7 runs.**
 
+**2026-09-22: C3 is not voided, and the episode is cut (Amendment 3, §3.9).** The Captain ruled after the
+0e′(iii) VOID: the 23:00–00:15Z interference episode comes out, and the rows are read on everything else.
+
 ---
 
 ## §0. What this is, why now, and what it reuses
@@ -207,6 +210,45 @@ opposite gap: 0e checked that WAVs were **archived**, never that OpenWSFZ **deco
   day**, and "the pool is X" means "on this day". §3.3 already keeps C3 − C2 out of any build reading.
 - **ROW 0f** reproduced C2 exactly in QA's scratch probe (91,046 / 61.0856 / 17.9634). L1 is scored when the
   pre-registered harness runs it, not on the probe.
+
+### 3.9 Amendment 3 (2026-09-22 17:30Z, AFTER the C3 datum): the Captain's ruling, cut the episode
+
+**Ruling (Captain):** C3 is not thrown away. The interval QA identified as a local interference episode is
+excluded, and the §3.6 rows are read on the rest.
+
+**Why this is sound, and not just allowed.** 0e′(iii) exists to catch **WSJT-X dying while OpenWSFZ keeps
+decoding**. That did not happen: in all 9 failing cycles, **both** decoders were silent (QA report §4). So the check
+fired on a noise episode, which is outside what it was built to detect. In the same edit I note that its 0.99 bar
+was calibrated on a single corpus (C2) that had no such episode.
+
+**The cut, as code:**
+
+```python
+EXCLUDE = (datetime(2026, 9, 21, 23, 0, 0, tzinfo=UTC), datetime(2026, 9, 22, 0, 15, 0, tzinfo=UTC))
+included = [c for c in cycles if not (EXCLUDE[0] <= c.start < EXCLUDE[1])]   # 300 cycles removed
+```
+
+The bounds come from QA's full-run scan (report §4, spectral artifact): the episode starts in the 23:00 bin and
+tapers to zero by 00:10–00:15Z. The cut takes the **whole** failing hour, not just the 9 failing cycles.
+Removed cycles count on neither side, in the same way as the 19:05:00Z supervisor-swap cycle.
+
+**QA then runs, in this order:**
+1. **0e′(i)–(iii) on the included cycles.** They must pass as written; the 0.99 bar is unchanged. If (iii) fails in
+   another hour, the rows are VOID and that is final. There is no second cut.
+2. **§3.6 M-row** on the included cycles.
+3. **Sensitivity (reported, not a row):** `CI_lo(H10)` / `CI_hi(H10)` on the **full** C3 as well, beside the cut
+   figure. If both land in the same M-row, the cut did not decide the verdict. Say so either way.
+4. **D1–D7:** report on the included cycles, **and** quote the full-corpus D1 already reported (59.90%,
+   `H10` 19.21 pp). The removed cycles' `n_ref` must be stated.
+
+**Disclosure, once (my one concern, recorded and overruled):** the interval was chosen after seeing the data. The
+protection is item 3. The full-corpus `CI_lo(H10)` was 18.51 against the 10.0 bar, and the cut removes about 5% of
+cycles, most of them near-empty. So it is very unlikely to change the M-row. If it does, the report must say so
+first.
+
+**For future runs, not C3:** 0e′(iii) is amended to score only cycles where **OpenWSFZ decoded ≥ 1** within ±1
+cycle ("REF silent while OWS active"). That is the failure it exists for. Its bar is set from C2 + C3 before the
+next arm.
 
 ---
 
