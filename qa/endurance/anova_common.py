@@ -706,6 +706,99 @@ def render_report(response_results: list[tuple[dict, dict, tuple[str | None, str
     return "\n".join(L) + "\n"
 
 
+def write_run_meta(path: str, meta: dict) -> None:
+    """Writes the historical-table sidecar for one endurance run (Captain's standardisation
+    instruction, 2026-09-22; format/rules per Architect constraint (c), HK-034 -- same
+    qualifier columns as R&R's own Section 6). Callers (endurance_anova_wsjtx.py) build
+    `meta`; this function only serialises it. Required keys: date (YYYY-MM-DD), band, hours
+    (float), dll_sha256, shim, nhard, reference ("live_wsjtx" | "offline_jt9"), radio_chain,
+    grid_gate_g (the lower of the two appraisers' G, i.e. the binding one), comparable (bool
+    -- False for "offline_jt9", per HK-031's own ruling that jt9 -d 3 is not a valid
+    reference), drift_contaminated (bool), drift_note (str, required if contaminated),
+    n_pairs, snr_gap_db, dt_gap_s, run_dir."""
+    import json
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=1)
+
+
+def scan_historical_runs(endurance_root: str) -> list[dict]:
+    """Every `*.meta.json` sidecar under endurance_root/*/ (written by write_run_meta),
+    oldest first by `date`. A run directory with no sidecar simply doesn't appear -- this is
+    NOT a claim that no other endurance runs exist (HK-026: this scanner cannot see what it
+    was never told about); it only lists runs that have been through the standard analysis
+    step since this table existed. Never back-computes a count from anything else
+    (HK-031's own rule, applied here too)."""
+    import glob
+    import json
+    entries = []
+    for meta_path in sorted(glob.glob(os.path.join(endurance_root, "*", "*.meta.json"))):
+        try:
+            entries.append(json.load(open(meta_path, encoding="utf-8")))
+        except (OSError, json.JSONDecodeError):
+            continue
+    entries.sort(key=lambda e: (e.get("date", ""), e.get("run_dir", "")))
+    return entries
+
+
+def render_historical_section(entries: list[dict], section_number: int = 4) -> str:
+    """Historical-runs table, R&R Section 6 format and rules (HK-034: match the standing
+    document, don't invent one; HK-031: routine batteries only, never back-compute counts).
+    DESCRIPTIVE ONLY, per Architect constraint (c): no trend line, no "build effect" wording
+    -- reading it that way is Architect/Captain territory, same discipline as every other
+    table this module renders."""
+    L = [f"## Section {section_number} -- Historical trend: every standardised endurance run to date", ""]
+    if not entries:
+        L.append("No standardised runs recorded yet (no `*.meta.json` sidecar under "
+                  "`qa/endurance/*/`). This section is empty by construction, not by error -- "
+                  "it fills in as runs go through the standard analysis step from here on. "
+                  "Older, pre-standardisation runs are not back-filled by guesswork; if their "
+                  "arm-time configuration is independently recoverable, add their sidecars "
+                  "separately and re-run this report.")
+        L.append("")
+        return "\n".join(L) + "\n"
+
+    L.append(f"{len(entries)} standardised run(s). `G` is the grid-alignment gate (the lower "
+              "of the two appraisers', i.e. the binding one; ROW 1 PASS >= 0.99). `Ref.` is "
+              "the second appraiser: live WSJT-X on the same feed, or an offline `jt9 -d 3` "
+              "re-decode -- **offline rows are marked non-comparable** (HK-031: `jt9 -d 3` "
+              "offline is not a valid reference decoder) and must not be pooled or compared "
+              "against live-WSJT-X rows. **Never pool `nhard` 60 and `nhard` 40 runs "
+              "together** -- read the `nhard` column before comparing any two rows. Footnote "
+              "numbering runs in table order, first-needed.")
+    L.append("")
+    L.append("| Date | Band | Hours | DLL SHA (short) | Shim | nhard | Ref. | Radio chain | G | "
+              "Matched pairs | SNR gap (dB) | DT gap (s) |")
+    L.append("|---|---|---:|---|---:|---:|---|---|---:|---:|---:|---:|")
+    footnotes = []
+    for e in entries:
+        ref_label = "live WSJT-X" if e.get("reference") == "live_wsjtx" else "offline `jt9 -d 3`"
+        flags = ""
+        if e.get("reference") != "live_wsjtx" or not e.get("comparable", True):
+            footnotes.append(f"non-comparable reference ({ref_label}, not a valid decoder "
+                              f"per HK-031) -- {e.get('date')} {e.get('band')}")
+            flags += f"<sup>{len(footnotes)}</sup>"
+        if e.get("drift_contaminated"):
+            footnotes.append(f"drift-contaminated: {e.get('drift_note', 'see run README')} -- "
+                              f"{e.get('date')} {e.get('band')}")
+            flags += f"<sup>{len(footnotes)}</sup>"
+        dll_short = (e.get("dll_sha256") or "?")[:8]
+        L.append(f"| {e.get('date', '?')} | {e.get('band', '?')} | {e.get('hours', 0):.1f} | "
+                  f"`{dll_short}…` | {e.get('shim', '?')} | {e.get('nhard', '?')} | "
+                  f"{ref_label}{flags} | {e.get('radio_chain', '?')} | "
+                  f"{e.get('grid_gate_g', float('nan')):.4f} | {e.get('n_pairs', '?')} | "
+                  f"{e.get('snr_gap_db', float('nan')):+.3f} | {e.get('dt_gap_s', float('nan')):+.4f} |")
+    L.append("")
+    for i, note in enumerate(footnotes, 1):
+        L.append(f"{i}. {note}")
+    if footnotes:
+        L.append("")
+    L.append("**Descriptive only.** No trend line and no \"build effect\" reading is drawn "
+              "here -- interpretation across runs is Architect/Captain territory, same as "
+              "every other cross-run comparison this module produces.")
+    L.append("")
+    return "\n".join(L) + "\n"
+
+
 def run_responses(pairs: list[dict], out_dir: str, out_stem: str,
                    a_label: str = "OpenWSFZ", b_label: str = "jt9",
                    ) -> list[tuple[dict, dict, tuple[str | None, str | None]]]:

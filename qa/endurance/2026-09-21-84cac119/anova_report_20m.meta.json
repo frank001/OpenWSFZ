@@ -1,0 +1,18 @@
+{
+ "date": "2026-09-21",
+ "band": "20m",
+ "hours": 24.0,
+ "dll_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+ "shim": 20260054,
+ "nhard": 40,
+ "reference": "live_wsjtx",
+ "radio_chain": "Yaesu FT-991A -> Voicemeeter Out B1",
+ "comparable": true,
+ "grid_gate_g": 1.0,
+ "n_pairs": 76961,
+ "snr_gap_db": -2.6628552123802964,
+ "dt_gap_s": 0.65327633476696,
+ "drift_contaminated": false,
+ "drift_note": "",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-09-21-84cac119"
+}

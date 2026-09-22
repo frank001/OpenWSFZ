@@ -353,7 +353,7 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 </table>
 <h1 id="endurance-session-anova-matched-decode-metrics-openwsfz-vs-wsjt-x">Endurance-session ANOVA -- matched-decode metrics (OpenWSFZ vs WSJT-X)</h1>
 <p><strong>Run:</strong> 2026-09-21/22 20m LIVE-GAP-MAP endurance run (OpenWSFZ decoding_improvement 84cac119 vs live WSJT-X, same audio feed, FT-991A)<br />
-<strong>Generated:</strong> 2026-09-22T17:14:45Z (<code>date -u</code>, HK-017)<br />
+<strong>Generated:</strong> 2026-09-22T18:52:41Z (<code>date -u</code>, HK-017)<br />
 <strong>Design:</strong> two-way ANOVA without replication (randomized complete block design) -- Part (matched decode instance) x Appraiser (OpenWSFZ, WSJT-X), run separately for each paired numeric response below (SNR, DT, frequency offset) over the identical matched Parts. See anova_common.py's module docstring for why this design applies to single-pass live data, and not the replicated design in <code>qa/rr-study/harness/anova_compute.py</code>.</p>
 <p>Both appraisers' decode logs come from the same live session already on disk -- OpenWSFZ's own ALL.TXT and the real WSJT-X application's own ALL.TXT, both listening to the same physical radio feed throughout. No re-decoding was performed (contrast endurance_anova_jt9.py, used when there is no live third-party log to read).</p>
 <ul>
@@ -521,6 +521,43 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 <h2 id="caveat-structural-not-a-defect">Caveat (structural, not a defect)</h2>
 <p>With one observation per Part x Appraiser cell -- a live signal happens once -- the interaction term and the residual/error term are mathematically confounded (standard property of an unreplicated factorial design), for every response above. Each table can say whether the two appraisers' <em>mean</em> value differs after removing part-to-part variation (the Appraiser row); none of them can separately test whether that difference itself varies signal-to-signal.</p>
 <p>Cross-run comparison and interpretation of these numbers is Architect/Captain territory, not this module's.</p>
+<h2 id="section-4-historical-trend-every-standardised-endurance-run-to-date">Section 4 -- Historical trend: every standardised endurance run to date</h2>
+<p>1 standardised run(s). <code>G</code> is the grid-alignment gate (the lower of the two appraisers', i.e. the binding one; ROW 1 PASS &gt;= 0.99). <code>Ref.</code> is the second appraiser: live WSJT-X on the same feed, or an offline <code>jt9 -d 3</code> re-decode -- <strong>offline rows are marked non-comparable</strong> (HK-031: <code>jt9 -d 3</code> offline is not a valid reference decoder) and must not be pooled or compared against live-WSJT-X rows. <strong>Never pool <code>nhard</code> 60 and <code>nhard</code> 40 runs together</strong> -- read the <code>nhard</code> column before comparing any two rows. Footnote numbering runs in table order, first-needed.</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Band</th>
+<th style="text-align: right;">Hours</th>
+<th>DLL SHA (short)</th>
+<th style="text-align: right;">Shim</th>
+<th style="text-align: right;">nhard</th>
+<th>Ref.</th>
+<th>Radio chain</th>
+<th style="text-align: right;">G</th>
+<th style="text-align: right;">Matched pairs</th>
+<th style="text-align: right;">SNR gap (dB)</th>
+<th style="text-align: right;">DT gap (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-09-21</td>
+<td>20m</td>
+<td style="text-align: right;">24.0</td>
+<td><code>38a21f84…</code></td>
+<td style="text-align: right;">20260054</td>
+<td style="text-align: right;">40</td>
+<td>live WSJT-X</td>
+<td>Yaesu FT-991A -&gt; Voicemeeter Out B1</td>
+<td style="text-align: right;">1.0000</td>
+<td style="text-align: right;">76961</td>
+<td style="text-align: right;">-2.663</td>
+<td style="text-align: right;">+0.6533</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Descriptive only.</strong> No trend line and no "build effect" reading is drawn here -- interpretation across runs is Architect/Captain territory, same as every other cross-run comparison this module produces.</p>
   </div>
   <script>
     // Colour verdict cells: PASS / FAIL / MARGINAL / informational

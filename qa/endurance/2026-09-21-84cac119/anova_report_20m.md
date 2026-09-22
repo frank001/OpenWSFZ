@@ -8,7 +8,7 @@
 # Endurance-session ANOVA -- matched-decode metrics (OpenWSFZ vs WSJT-X)
 
 **Run:** 2026-09-21/22 20m LIVE-GAP-MAP endurance run (OpenWSFZ decoding_improvement 84cac119 vs live WSJT-X, same audio feed, FT-991A)  
-**Generated:** 2026-09-22T17:14:45Z (`date -u`, HK-017)  
+**Generated:** 2026-09-22T18:52:41Z (`date -u`, HK-017)  
 **Design:** two-way ANOVA without replication (randomized complete block design) -- Part (matched decode instance) x Appraiser (OpenWSFZ, WSJT-X), run separately for each paired numeric response below (SNR, DT, frequency offset) over the identical matched Parts. See anova_common.py's module docstring for why this design applies to single-pass live data, and not the replicated design in `qa/rr-study/harness/anova_compute.py`.
 
 Both appraisers' decode logs come from the same live session already on disk -- OpenWSFZ's own ALL.TXT and the real WSJT-X application's own ALL.TXT, both listening to the same physical radio feed throughout. No re-decoding was performed (contrast endurance_anova_jt9.py, used when there is no live third-party log to read).
@@ -74,4 +74,14 @@ Appraiser means (Frequency offset, Hz): OpenWSFZ 1486.6 Hz, WSJT-X 1486.5 Hz, gr
 With one observation per Part x Appraiser cell -- a live signal happens once -- the interaction term and the residual/error term are mathematically confounded (standard property of an unreplicated factorial design), for every response above. Each table can say whether the two appraisers' *mean* value differs after removing part-to-part variation (the Appraiser row); none of them can separately test whether that difference itself varies signal-to-signal.
 
 Cross-run comparison and interpretation of these numbers is Architect/Captain territory, not this module's.
+
+## Section 4 -- Historical trend: every standardised endurance run to date
+
+1 standardised run(s). `G` is the grid-alignment gate (the lower of the two appraisers', i.e. the binding one; ROW 1 PASS >= 0.99). `Ref.` is the second appraiser: live WSJT-X on the same feed, or an offline `jt9 -d 3` re-decode -- **offline rows are marked non-comparable** (HK-031: `jt9 -d 3` offline is not a valid reference decoder) and must not be pooled or compared against live-WSJT-X rows. **Never pool `nhard` 60 and `nhard` 40 runs together** -- read the `nhard` column before comparing any two rows. Footnote numbering runs in table order, first-needed.
+
+| Date | Band | Hours | DLL SHA (short) | Shim | nhard | Ref. | Radio chain | G | Matched pairs | SNR gap (dB) | DT gap (s) |
+|---|---|---:|---|---:|---:|---|---|---:|---:|---:|---:|
+| 2026-09-21 | 20m | 24.0 | `38a21f84…` | 20260054 | 40 | live WSJT-X | Yaesu FT-991A -> Voicemeeter Out B1 | 1.0000 | 76961 | -2.663 | +0.6533 |
+
+**Descriptive only.** No trend line and no "build effect" reading is drawn here -- interpretation across runs is Architect/Captain territory, same as every other cross-run comparison this module produces.
 
