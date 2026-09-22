@@ -394,9 +394,22 @@ def precheck(run, daemon_exe, config_path, port, wsjtx_ini):
         "sound_in_name": wname,
         "sound_in_chan": ini_value(wsjtx_ini, "SoundInChan") or "ABSENT (WSJT-X default applies)",
     }
-    dial_hz = res["wsjtx"]["dial_freq_hz"]
-    dial_mhz = (int(dial_hz) / 1e6) if dial_hz and str(dial_hz).isdigit() else None
-    res["band"] = band_label(dial_mhz)
+    # band/dial frequency: authoritative source is the DAEMON's own live status
+    # (st["dialFrequencyMHz"], which reflects the config's decodeLog.dialFrequencyMHz -- what
+    # this run is actually logging against), NOT WSJT-X's ini file. Found live, first real
+    # overnight run (2026-09-22, 40m): the ini only gets rewritten by WSJT-X on certain
+    # triggers, not on every live GUI change -- an operator switching bands in the running
+    # app can leave the ini showing the PREVIOUS band for a long time, and the old code here
+    # derived `band` straight from that stale ini value. The two are cross-checked (disclosure
+    # only, not a gate -- ini staleness is a normal, benign WSJT-X quirk, not a real mismatch)
+    # so a future silent drift like this one is visible in arm_config.json instead of wrong.
+    res["daemon"]["dial_freq_mhz"] = st.get("dialFrequencyMHz")
+    res["band"] = band_label(st.get("dialFrequencyMHz"))
+    wsjtx_dial_hz = res["wsjtx"]["dial_freq_hz"]
+    wsjtx_dial_mhz = (int(wsjtx_dial_hz) / 1e6) if wsjtx_dial_hz and str(wsjtx_dial_hz).isdigit() else None
+    res["checks"]["wsjtx_ini_dial_freq_matches_daemon"] = (
+        wsjtx_dial_mhz is not None and st.get("dialFrequencyMHz") is not None
+        and abs(wsjtx_dial_mhz - st.get("dialFrequencyMHz")) < 0.001)
 
     # This IS the meaningful mismatch check now that the script starts the daemon itself:
     # is WSJT-X actually listening to the SAME physical device the daemon's own config names?
@@ -461,23 +474,31 @@ def run_gatherer(run, arm, window_start, window_end):
 
 def write_readme(run, arm):
     d, w = arm.get("daemon", {}), arm.get("wsjtx", {})
+    ini_match_note = "" if arm.get("checks", {}).get("wsjtx_ini_dial_freq_matches_daemon", True) else \
+        " **[WSJT-X's ini dial freq disagrees with the daemon's own live status -- the ini is " \
+        "likely stale (WSJT-X doesn't always re-save on a live GUI change); band above is the " \
+        "daemon's own reported value, trust that one]**"
     txt = """# %s (HK-016)
 
-Standard endurance run. Band: %s (recorded from WSJT-X's own dial frequency; NOT configured by
-this script). Daemon exe/config/port were given to this script as input -- everything below is a
-RECORD of what actually came up when they were used, not something this script decided.
+Standard endurance run. Band: %s (recorded from the DAEMON's own live status --
+dialFrequencyMHz, which reflects its config's decodeLog.dialFrequencyMHz -- NOT from WSJT-X's
+ini file, which can go stale; see arm_config.json's wsjtx.dial_freq_hz for that file's own raw
+value and checks.wsjtx_ini_dial_freq_matches_daemon for the cross-check). Daemon exe/config/port
+were given to this script as input -- everything below is a RECORD of what actually came up when
+they were used, not something this script decided.%s
 
 - Window (UTC): %s -> %s.
 - OpenWSFZ: DLL SHA-256 `%s`, built from branch `%s` commit `%s` (clean tree, required --
   PRECHECK refuses to arm on a dirty tree or a missing build_provenance.json); shim %s, daemon
   version %s; nhard %s; suppression triple %s; port %s; exe `%s`; config `%s`.
-- WSJT-X: NDepth=%s, AP=%s, dial %s Hz, mode %s.
+- WSJT-X: NDepth=%s, AP=%s, ini dial %s Hz (see note above re: staleness), mode %s.
 - `state.json`, `arm_config.json`, `events.jsonl`, `supervisor.log`, `heartbeat.json` record
   the run. `arm_config.json` is the full ROW-0-style record (Architect constraint (a)).
 - Gathered artefacts: see `events.jsonl`'s `gathered` event for the output directory name
   (`tools/gather_live_run_artefacts.py`, the standard gatherer, HK-016).
 - Analysis (ANOVA report, historical table) is a SEPARATE step -- see HANDOFF.md.
-""" % (os.path.basename(run.c), arm.get("band"), run.state.get("window_start"), run.state.get("window_end"),
+""" % (os.path.basename(run.c), arm.get("band"), ini_match_note,
+       run.state.get("window_start"), run.state.get("window_end"),
        d.get("dll_sha256"), d.get("build_branch"), d.get("build_commit"), d.get("shim_version"),
        d.get("daemon_version"), d.get("osd_nhard_max"),
        d.get("suppression_triple"), d.get("port"), d.get("exe"), d.get("config_path"),
