@@ -1,0 +1,52 @@
+{
+  "audioDeviceId": "{0.0.1.00000000}.{8dbb88e8-fd07-44b8-9ee9-88b906b8d11f}",
+  "audioDeviceFriendlyName": "Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)",
+  "port": 8080,
+  "showCycleCountdown": false,
+  "decodingEnabled": true,
+  "logLevel": "Information",
+  "logging": {
+    "fileEnabled": true,
+    "directory": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/_rr_dryrun_daemon_output/daemon-logs",
+    "fileLogLevel": "Information",
+    "rotationSchedule": "daily",
+    "rotationTime": "00:00",
+    "rotationDayOfWeek": "Monday",
+    "maxFiles": 7
+  },
+  "decodeLog": {
+    "enabled": true,
+    "path": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/_rr_dryrun_daemon_output/ALL.TXT",
+    "dialFrequencyMHz": 14.074
+  },
+  "cycleAudioArchive": {
+    "mode": "all",
+    "directory": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/_rr_dryrun_daemon_output/cycle-audio",
+    "maxSizeMb": 512,
+    "maxAgeHours": 2,
+    "writeManifest": true
+  },
+  "cat": {
+    "enabled": false,
+    "rigModel": "SerialCat",
+    "serialPort": "COM6",
+    "baudRate": 9600,
+    "rigctldHost": "127.0.0.1",
+    "rigctldPort": 4532,
+    "pollIntervalSeconds": 1,
+    "lastPolledFrequencyMHz": null
+  },
+  "externalReporting": {
+    "enabled": false
+  },
+  "ptt": {
+    "method": "AudioVox"
+  },
+  "tx": {
+    "autoAnswer": false
+  },
+  "remoteAccess": {
+    "enabled": false,
+    "passphrase": ""
+  }
+}

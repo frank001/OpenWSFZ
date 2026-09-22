@@ -49,10 +49,14 @@ _SCENARIO_FILES = {
 }
 
 
+_NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # a no-op on non-Windows; see run_study.py's
+                                                      # own comment on this same fix
+
+
 def run(*args: str, device: str) -> None:
     cmd = [str(_VENV_PYTHON)] + list(args) + ["--device", device]
     print(f"\n>>> {' '.join(cmd)}\n", flush=True)
-    subprocess.run(cmd, cwd=str(_HERE), check=True)
+    subprocess.run(cmd, cwd=str(_HERE), check=True, creationflags=_NOWIN)
 
 
 def find_run_dir() -> Path:
@@ -182,6 +186,7 @@ def main() -> None:
             ],
             cwd=str(_HERE),
             check=True,
+            creationflags=_NOWIN,
         )
         print(f"[OK] {scen_id} matched", flush=True)
 

@@ -82,11 +82,20 @@ _RESULTS = Path(HERE) / "results"  # make_run_dir (harness.common) does path-obj
                                     # not os.path.join -- found live, first collision-check test
 
 
-def run_gatherer(sup_dir, arm, start_dt, end_dt, out_name):
+def run_gatherer(sup_dir, arm, start_dt, end_dt, out_name, out_root):
     """The standard gatherer (tools/gather_live_run_artefacts.py) -- always this one, per the
     Captain's instruction, same as the endurance side. Repo root is a fixed two levels up from
     THIS file's own location (qa/rr-study/), which -- unlike endurance_supervisor.py -- is
-    never copied elsewhere, so a __file__-relative path is safe here."""
+    never copied elsewhere, so a __file__-relative path is safe here.
+
+    out_root is passed explicitly -- found live, first real dry run: the gatherer's own
+    --out-root DEFAULTS to <repo>/artefacts/ (its usual home for endurance-style runs), which
+    for an R&R battery leaves the captured audio disconnected from that battery's own
+    results/<date>-<sha7>/ dir (truth.csv, *_matched.csv, eventually report.md) -- confirmed
+    by checking where it actually landed (artefacts/<name>/, not next to the run's own data)
+    before this fix. Caller passes qa/rr-study/results/ so the gathered folder sits as a
+    SIBLING of the run dir, not inside it (keeping the gatherer's own contents.md/ALL.TXT
+    copies out of whatever harness/analyse.py globs over inside the run dir itself)."""
     repo = os.path.normpath(os.path.join(HERE, "..", ".."))
     gatherer = os.path.join(repo, "tools", "gather_live_run_artefacts.py")
     if not os.path.isfile(gatherer):
@@ -94,6 +103,7 @@ def run_gatherer(sup_dir, arm, start_dt, end_dt, out_name):
     cmd = [sys.executable, gatherer,
            "--start", start_dt.strftime("%Y-%m-%d %H:%M:%S"),
            "--end", end_dt.strftime("%Y-%m-%d %H:%M:%S"),
+           "--out-root", str(out_root),
            "--name", out_name]
     d = arm.get("daemon", {})
     if d.get("config_decode_log_path"):
@@ -105,7 +115,8 @@ def run_gatherer(sup_dir, arm, start_dt, end_dt, out_name):
     wsjtx_dir = os.path.dirname(arm.get("wsjtx", {}).get("ini_path") or "")
     if wsjtx_dir:
         cmd += ["--wsjtx-root", wsjtx_dir]
-    r = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, timeout=3600)
+    r = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, timeout=3600,
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     with open(os.path.join(sup_dir, "gatherer.stdout.log"), "w", encoding="utf-8") as f:
         f.write(r.stdout + "\n--- stderr ---\n" + r.stderr)
     return {"ok": r.returncode == 0, "exit_code": r.returncode, "out_name": out_name}
@@ -133,6 +144,13 @@ def main():
                      help="internal: this is what the detached child actually runs; not for interactive use")
     ap.add_argument("--supervisor-dir", default=None, help="internal: paired with --poll")
     a, forwarded = ap.parse_known_args()
+    # A leading "--" (the conventional "end of my own flags" separator) is NOT stripped by
+    # parse_known_args() -- it stays in `forwarded` verbatim and gets passed straight through
+    # to run_study.py's/resume_study.py's own argparse, which chokes on it outright ("error:
+    # unrecognized arguments: --", exit 2). Found live, first real dry-run attempt (a genuine
+    # PRECHECK+teardown+gatherer pass, on a real -- if trivially fast -- argparse failure).
+    if forwarded and forwarded[0] == "--":
+        forwarded = forwarded[1:]
     target = "resume_study.py" if a.resume else "run_study.py"
 
     if a.poll:
@@ -193,9 +211,17 @@ def main():
                       battery_started_utc=ES.iso(battery_start))
         _write_status(status_path, status)
 
+        # CREATE_NO_WINDOW at every level of this chain, not just here -- this process is
+        # itself console-less (launched fully detached below), and Windows allocates a FRESH
+        # console for each child that doesn't request none, not just this one but every
+        # grandchild run_study.py's own _py() helper spawns too (fixed there separately).
+        # Found live, first real dry run (2026-09-22): a visible empty console sat on screen
+        # for the whole battery, spotted by the Captain mid-run -- same bug class the
+        # LIVE-GAP-MAP supervisor already had to fix for its own child processes.
+        nowin = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         with open(log_path, "ab") as logf:
             rc = subprocess.call([sys.executable, target] + forwarded + extra, cwd=HERE,
-                                  stdout=logf, stderr=subprocess.STDOUT)
+                                  stdout=logf, stderr=subprocess.STDOUT, creationflags=nowin)
         battery_end = ES.utcnow()
 
         # ---------------- TEARDOWN: stop the daemon, orphan check, gather captured audio
@@ -204,8 +230,8 @@ def main():
         time.sleep(3)
         orphans = [p for p in ES.daemon_processes() if p not in pre_teardown_others]
 
-        gather_out_name = os.path.basename(sup_dir) + "-gathered"
-        gathered = run_gatherer(sup_dir, arm, battery_start, battery_end, gather_out_name)
+        gather_out_name = os.path.basename(str(predicted_run_dir)) + "-captured-audio"
+        gathered = run_gatherer(sup_dir, arm, battery_start, battery_end, gather_out_name, _RESULTS)
 
         status.update(phase="DONE" if rc == 0 else "FAILED", exit_code=rc,
                       ended_utc=ES.iso(battery_end), orphans_after_teardown=orphans,

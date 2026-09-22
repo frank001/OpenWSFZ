@@ -109,11 +109,20 @@ _CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7"]
 _DEFAULT_BATTERY_PART_OVERRIDES: dict[str, str] = {}
 
 
+_NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # a no-op on non-Windows
+
+
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command via the venv Python, streaming output in real time."""
     cmd = [str(_VENV_PYTHON), *args]
     print(f"\n>>> {' '.join(cmd)}\n", flush=True)
-    result = subprocess.run(cmd, cwd=str(_HERE), check=check)
+    # CREATE_NO_WINDOW: this process may itself be console-less (run_study_detached.py's
+    # --poll child, launched fully detached) -- without this flag, Windows allocates each
+    # child a FRESH empty console window instead of inheriting none, one per scenario/matcher
+    # invocation. Found live, first real dry run under run_study_detached.py (2026-09-22): an
+    # empty console sat on screen for the run's duration, spotted by the Captain mid-run. Same
+    # bug class the LIVE-GAP-MAP supervisor already had to fix for its own child processes.
+    result = subprocess.run(cmd, cwd=str(_HERE), check=check, creationflags=_NOWIN)
     return result
 
 
