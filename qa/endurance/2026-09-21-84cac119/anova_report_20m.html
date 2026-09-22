@@ -353,7 +353,7 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 </table>
 <h1 id="endurance-session-anova-matched-decode-metrics-openwsfz-vs-wsjt-x">Endurance-session ANOVA -- matched-decode metrics (OpenWSFZ vs WSJT-X)</h1>
 <p><strong>Run:</strong> 2026-09-21/22 20m LIVE-GAP-MAP endurance run (OpenWSFZ decoding_improvement 84cac119 vs live WSJT-X, same audio feed, FT-991A)<br />
-<strong>Generated:</strong> 2026-09-22T18:52:41Z (<code>date -u</code>, HK-017)<br />
+<strong>Generated:</strong> 2026-09-22T19:30:44Z (<code>date -u</code>, HK-017)<br />
 <strong>Design:</strong> two-way ANOVA without replication (randomized complete block design) -- Part (matched decode instance) x Appraiser (OpenWSFZ, WSJT-X), run separately for each paired numeric response below (SNR, DT, frequency offset) over the identical matched Parts. See anova_common.py's module docstring for why this design applies to single-pass live data, and not the replicated design in <code>qa/rr-study/harness/anova_compute.py</code>.</p>
 <p>Both appraisers' decode logs come from the same live session already on disk -- OpenWSFZ's own ALL.TXT and the real WSJT-X application's own ALL.TXT, both listening to the same physical radio feed throughout. No re-decoding was performed (contrast endurance_anova_jt9.py, used when there is no live third-party log to read).</p>
 <ul>
@@ -522,7 +522,7 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 <p>With one observation per Part x Appraiser cell -- a live signal happens once -- the interaction term and the residual/error term are mathematically confounded (standard property of an unreplicated factorial design), for every response above. Each table can say whether the two appraisers' <em>mean</em> value differs after removing part-to-part variation (the Appraiser row); none of them can separately test whether that difference itself varies signal-to-signal.</p>
 <p>Cross-run comparison and interpretation of these numbers is Architect/Captain territory, not this module's.</p>
 <h2 id="section-4-historical-trend-every-standardised-endurance-run-to-date">Section 4 -- Historical trend: every standardised endurance run to date</h2>
-<p>1 standardised run(s). <code>G</code> is the grid-alignment gate (the lower of the two appraisers', i.e. the binding one; ROW 1 PASS &gt;= 0.99). <code>Ref.</code> is the second appraiser: live WSJT-X on the same feed, or an offline <code>jt9 -d 3</code> re-decode -- <strong>offline rows are marked non-comparable</strong> (HK-031: <code>jt9 -d 3</code> offline is not a valid reference decoder) and must not be pooled or compared against live-WSJT-X rows. <strong>Never pool <code>nhard</code> 60 and <code>nhard</code> 40 runs together</strong> -- read the <code>nhard</code> column before comparing any two rows. Footnote numbering runs in table order, first-needed.</p>
+<p>12 run(s). <code>G</code> is the grid-alignment gate (the lower of the two appraisers' where both are known; ROW 1 PASS &gt;= 0.99). <code>Ref.</code> is the second appraiser: live WSJT-X on the same feed, an offline <code>jt9 -d 3</code> re-decode, or n/a for a comparison that wasn't against a reference decoder at all (e.g. OpenWSFZ vs OpenWSFZ) -- <strong>offline and n/a rows are marked non-comparable</strong> (HK-031: <code>jt9 -d 3</code> offline is not a valid reference decoder) and must not be pooled or compared against live-WSJT-X rows. <strong>Never pool <code>nhard</code> 60 and <code>nhard</code> 40 runs together.</strong> <code>Matched %</code> and <code>OWS-only %</code> are each source report's own stated decode-coverage figures (matched as a share of the reference's own decodes; OpenWSFZ-only as a share of OpenWSFZ's own decodes), not recomputed here. <code>DT gap</code> has no <code>+/- SD</code> column: none of the pre-standardisation reports computed a standalone SD of the DT offset (only appraiser means), and deriving one now from raw logs would be new analysis, not backfill -- it is left out rather than invented. <code>Source</code> cites the file(s) every other field in that row was read from, repo-relative. Footnote numbering runs in table order, first-needed.</p>
 <table>
 <thead>
 <tr>
@@ -536,27 +536,233 @@ span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 
 <th>Radio chain</th>
 <th style="text-align: right;">G</th>
 <th style="text-align: right;">Matched pairs</th>
+<th style="text-align: right;">Matched % of ref</th>
+<th style="text-align: right;">OWS-only %</th>
 <th style="text-align: right;">SNR gap (dB)</th>
 <th style="text-align: right;">DT gap (s)</th>
+<th>Source</th>
 </tr>
 </thead>
 <tbody>
 <tr>
+<td>2026-07-28</td>
+<td>10m</td>
+<td style="text-align: right;">9.6</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>offline <code>jt9 -d 3</code><sup>1</sup></td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">5781</td>
+<td style="text-align: right;">68.9</td>
+<td style="text-align: right;">10.8</td>
+<td style="text-align: right;">-14.780</td>
+<td style="text-align: right;">+0.6662</td>
+<td><code>qa/endurance/2026-07-28-031fb37/anova_report_10m.md</code></td>
+</tr>
+<tr>
+<td>2026-07-28</td>
+<td>20m</td>
+<td style="text-align: right;">4.8</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>offline <code>jt9 -d 3</code><sup>2</sup></td>
+<td>Voicemeeter-fed second receiver</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">24658</td>
+<td style="text-align: right;">48.4</td>
+<td style="text-align: right;">3.3</td>
+<td style="text-align: right;">-6.250</td>
+<td style="text-align: right;">+0.6543</td>
+<td><code>qa/endurance/2026-07-28-031fb37/anova_report_20m.md</code></td>
+</tr>
+<tr>
+<td>2026-07-28/29</td>
+<td>20m(originally 80m)</td>
+<td style="text-align: right;">not recorded</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>n/a (no audio archived, zero decodes)<sup>3</sup></td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td><code>qa/endurance/2026-07-29-489135a/anova_report_20m_no_audio.md</code></td>
+</tr>
+<tr>
+<td>2026-07-28/29</td>
+<td>40m</td>
+<td style="text-align: right;">not recorded</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>offline <code>jt9 -d 3</code><sup>4</sup></td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">42668</td>
+<td style="text-align: right;">60.2</td>
+<td style="text-align: right;">3.5</td>
+<td style="text-align: right;">-10.419</td>
+<td style="text-align: right;">-0.2733</td>
+<td><code>qa/endurance/2026-07-29-489135a/anova_report_40m.md</code></td>
+</tr>
+<tr>
+<td>2026-07-29</td>
+<td>20m</td>
+<td style="text-align: right;">not recorded</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>offline <code>jt9 -d 3</code><sup>5</sup></td>
+<td>SDR Uno / Voicemeeter B1</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">24201</td>
+<td style="text-align: right;">48.9</td>
+<td style="text-align: right;">8.2</td>
+<td style="text-align: right;">-5.602</td>
+<td style="text-align: right;">+0.6541</td>
+<td><code>qa/endurance/2026-07-29-5016363/anova_report_20m.md</code>, <code>qa/endurance/2026-07-29-5016363/CONTAMINATION-NOTE.md</code></td>
+</tr>
+<tr>
+<td>2026-07-29</td>
+<td>80m</td>
+<td style="text-align: right;">not recorded</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>offline <code>jt9 -d 3</code><sup>6</sup><sup>7</sup></td>
+<td>SDR Uno / Voicemeeter B1</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">8290</td>
+<td style="text-align: right;">84.2</td>
+<td style="text-align: right;">8.1</td>
+<td style="text-align: right;">-8.037</td>
+<td style="text-align: right;">+0.6675</td>
+<td><code>qa/endurance/2026-07-29-5016363/anova_report_80m.md</code>, <code>qa/endurance/2026-07-29-5016363/CONTAMINATION-NOTE.md</code></td>
+</tr>
+<tr>
+<td>2026-07-29/30</td>
+<td>10m</td>
+<td style="text-align: right;">not recorded</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>offline <code>jt9 -d 3</code><sup>8</sup></td>
+<td>SDR Uno / Voicemeeter B1</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">9177</td>
+<td style="text-align: right;">72.3</td>
+<td style="text-align: right;">7.0</td>
+<td style="text-align: right;">-3.195</td>
+<td style="text-align: right;">+0.6503</td>
+<td><code>qa/endurance/2026-07-29-5016363/anova_report_10m.md</code></td>
+</tr>
+<tr>
+<td>2026-07-29/30</td>
+<td>40m</td>
+<td style="text-align: right;">24.0</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>live WSJT-X</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">52736</td>
+<td style="text-align: right;">47.8</td>
+<td style="text-align: right;">4.2</td>
+<td style="text-align: right;">-12.498</td>
+<td style="text-align: right;">-0.6410</td>
+<td><code>qa/endurance/2026-07-29-5016363/anova_report_40m.md</code>, <code>qa/endurance/2026-07-29-5016363/CONTAMINATION-NOTE.md</code></td>
+</tr>
+<tr>
+<td>2026-07-31/08-02</td>
+<td>20m</td>
+<td style="text-align: right;">43.8</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>n/a (OpenWSFZ-8080 vs OpenWSFZ-8081, same decoder both sides, hardware-chain comparison)<sup>9</sup><sup>10</sup></td>
+<td>8080: FT-991A; 8081: SDR Uno -&gt; Voicemeeter B1 (split antenna)</td>
+<td style="text-align: right;">0.3472</td>
+<td style="text-align: right;">62775</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">-3.467</td>
+<td style="text-align: right;">-0.4903</td>
+<td><code>qa/endurance/2026-08-02-multiday-20m-anova/anova_report_8080_vs_8081.md</code>, <code>qa/endurance/2026-08-02-multiday-20m-anova/table_a_8080_vs_8081_grid_snapped.md</code></td>
+</tr>
+<tr>
+<td>2026-07-31/08-02</td>
+<td>20m</td>
+<td style="text-align: right;">43.8</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>live WSJT-X<sup>11</sup></td>
+<td>FT-991A</td>
+<td style="text-align: right;">0.3472</td>
+<td style="text-align: right;">64275</td>
+<td style="text-align: right;">18.1</td>
+<td style="text-align: right;">65.2</td>
+<td style="text-align: right;">-5.431</td>
+<td style="text-align: right;">+0.1093</td>
+<td><code>qa/endurance/2026-08-02-multiday-20m-anova/anova_report_8080_vs_wsjtx.md</code>, <code>qa/endurance/2026-08-02-multiday-20m-anova/table_a_8080_vs_wsjtx_grid_snapped.md</code></td>
+</tr>
+<tr>
+<td>2026-07-31/08-02</td>
+<td>20m</td>
+<td style="text-align: right;">43.8</td>
+<td>not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td style="text-align: right;">not recorded</td>
+<td>live WSJT-X</td>
+<td>OpenWSFZ-8081: SDR Uno -&gt; Voicemeeter B1; WSJT-X: separate FT-991A instance (cross-hardware, split-antenna feed, NOT the same receiver)</td>
+<td style="text-align: right;">0.9984</td>
+<td style="text-align: right;">201834</td>
+<td style="text-align: right;">56.9</td>
+<td style="text-align: right;">5.0</td>
+<td style="text-align: right;">-1.789</td>
+<td style="text-align: right;">+0.5635</td>
+<td><code>qa/endurance/2026-08-02-multiday-20m-anova/anova_report_8081_vs_wsjtx.md</code>, <code>qa/endurance/2026-08-02-multiday-20m-anova/table_a_8080_vs_8081_grid_snapped.md</code></td>
+</tr>
+<tr>
 <td>2026-09-21</td>
 <td>20m</td>
 <td style="text-align: right;">24.0</td>
-<td><code>38a21f84…</code></td>
+<td>38a21f84…</td>
 <td style="text-align: right;">20260054</td>
 <td style="text-align: right;">40</td>
 <td>live WSJT-X</td>
 <td>Yaesu FT-991A -&gt; Voicemeeter Out B1</td>
 <td style="text-align: right;">1.0000</td>
 <td style="text-align: right;">76961</td>
+<td style="text-align: right;">60.0</td>
+<td style="text-align: right;">1.3</td>
 <td style="text-align: right;">-2.663</td>
 <td style="text-align: right;">+0.6533</td>
+<td><code>2026-09-21-84cac119/anova_report_20m.md</code></td>
 </tr>
 </tbody>
 </table>
+<ol>
+<li>non-comparable reference (offline <code>jt9 -d 3</code>) -- 2026-07-28 10m</li>
+<li>non-comparable reference (offline <code>jt9 -d 3</code>) -- 2026-07-28 20m</li>
+<li>non-comparable reference (n/a (no audio archived, zero decodes)) -- 2026-07-28/29 20m(originally 80m)</li>
+<li>non-comparable reference (offline <code>jt9 -d 3</code>) -- 2026-07-28/29 40m</li>
+<li>non-comparable reference (offline <code>jt9 -d 3</code>) -- 2026-07-29 20m</li>
+<li>non-comparable reference (offline <code>jt9 -d 3</code>) -- 2026-07-29 80m</li>
+<li>drift/audio-contaminated: audio-leak contamination (other Windows-app audio bleeding into the Voicemeeter B1 bus), ~60% of sampled cycles elevated in the 21:18-23:07:30Z portion of this window -- see CONTAMINATION-NOTE.md's own timeline; report's own title flags it explicitly -- 2026-07-29 80m</li>
+<li>non-comparable reference (offline <code>jt9 -d 3</code>) -- 2026-07-29/30 10m</li>
+<li>non-comparable reference (n/a (OpenWSFZ-8080 vs OpenWSFZ-8081, same decoder both sides, hardware-chain comparison)) -- 2026-07-31/08-02 20m</li>
+<li>drift/audio-contaminated: 8080's cycle-clock drifts off the FT8 15s grid at ~0.18s/h; the 62,775 matched pairs here are the +0s (on-grid) stratum only, 33.9% of the run's OpenWSFZ-8080 decodes -- see report banner and table_a_8080_vs_8081_grid_snapped.md -- 2026-07-31/08-02 20m</li>
+<li>drift/audio-contaminated: 8080's cycle-clock drifts off the FT8 15s grid at ~0.18s/h; the 64,275 matched pairs here are the +0s (on-grid) stratum only, 34.8% of the run -- see report banner and table_a_8080_vs_wsjtx_grid_snapped.md -- 2026-07-31/08-02 20m</li>
+</ol>
 <p><strong>Descriptive only.</strong> No trend line and no "build effect" reading is drawn here -- interpretation across runs is Architect/Captain territory, same as every other cross-run comparison this module produces.</p>
   </div>
   <script>

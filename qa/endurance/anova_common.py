@@ -706,16 +706,47 @@ def render_report(response_results: list[tuple[dict, dict, tuple[str | None, str
     return "\n".join(L) + "\n"
 
 
+NOT_RECORDED = "not recorded"
+
+
+def _fmt(v, spec=None, na=NOT_RECORDED):
+    """Null/"not recorded"-safe formatter for the historical table -- every field in it may
+    legitimately be absent (Architect's backfill rule: mark missing, never infer), so no
+    f-string in render_historical_section may assume a real number is present."""
+    if v is None or v == NOT_RECORDED or (isinstance(v, float) and v != v):  # NaN check
+        return na
+    if spec:
+        try:
+            return format(v, spec)
+        except (ValueError, TypeError):
+            return str(v)
+    return str(v)
+
+
 def write_run_meta(path: str, meta: dict) -> None:
     """Writes the historical-table sidecar for one endurance run (Captain's standardisation
     instruction, 2026-09-22; format/rules per Architect constraint (c), HK-034 -- same
-    qualifier columns as R&R's own Section 6). Callers (endurance_anova_wsjtx.py) build
-    `meta`; this function only serialises it. Required keys: date (YYYY-MM-DD), band, hours
-    (float), dll_sha256, shim, nhard, reference ("live_wsjtx" | "offline_jt9"), radio_chain,
-    grid_gate_g (the lower of the two appraisers' G, i.e. the binding one), comparable (bool
-    -- False for "offline_jt9", per HK-031's own ruling that jt9 -d 3 is not a valid
-    reference), drift_contaminated (bool), drift_note (str, required if contaminated),
-    n_pairs, snr_gap_db, dt_gap_s, run_dir."""
+    qualifier columns as R&R's own Section 6). Callers (endurance_anova_wsjtx.py, or a
+    one-off backfill script per the Architect's 2026-09-22 read of the first cut) build
+    `meta`; this function only serialises it.
+
+    Keys (any may be the literal string "not recorded" -- see NOT_RECORDED -- rather than
+    omitted, so the table can show a citable gap instead of a missing row; NEVER infer a
+    value that isn't stated in the source):
+    date (YYYY-MM-DD), band, hours (float or "not recorded"), dll_sha256, shim, nhard,
+    reference ("live_wsjtx" | "offline_jt9" | "n/a" -- "n/a" for a comparison that isn't
+    against a reference decoder at all, e.g. OpenWSFZ vs OpenWSFZ; give reference_note in
+    that case), radio_chain, grid_gate_g (the lower of the two appraisers' G where both are
+    known), comparable (bool -- False for "offline_jt9" or "n/a", per HK-031's own ruling
+    that jt9 -d 3 is not a valid reference), drift_contaminated (bool), drift_note (str,
+    required if contaminated), n_pairs, matched_pct_of_ref (the source report's own stated
+    "X% of <reference>'s decodes" figure), ows_only_pct (the source's own stated "X% of
+    OpenWSFZ's total"), snr_gap_db, dt_gap_s, dt_gap_sd_s (usually "not recorded" -- none of
+    the pre-standardisation reports compute a standalone SD of the DT gap, only appraiser
+    means; recomputing one from raw ALL.TXT would be new analysis, not backfill, so it is
+    left "not recorded" rather than derived), run_dir, source_files (list[str], repo-relative
+    -- EVERY field above must be traceable to one of these; this is the "citing FILE for each
+    row" the Architect's backfill instruction requires)."""
     import json
     with open(path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=1)
@@ -725,9 +756,9 @@ def scan_historical_runs(endurance_root: str) -> list[dict]:
     """Every `*.meta.json` sidecar under endurance_root/*/ (written by write_run_meta),
     oldest first by `date`. A run directory with no sidecar simply doesn't appear -- this is
     NOT a claim that no other endurance runs exist (HK-026: this scanner cannot see what it
-    was never told about); it only lists runs that have been through the standard analysis
-    step since this table existed. Never back-computes a count from anything else
-    (HK-031's own rule, applied here too)."""
+    was never told about); it only lists runs whose sidecar has been written, whether by the
+    standard analysis step or by a cited backfill. Never back-computes a count from anything
+    else (HK-031's own rule, applied here too)."""
     import glob
     import json
     entries = []
@@ -745,48 +776,63 @@ def render_historical_section(entries: list[dict], section_number: int = 4) -> s
     document, don't invent one; HK-031: routine batteries only, never back-compute counts).
     DESCRIPTIVE ONLY, per Architect constraint (c): no trend line, no "build effect" wording
     -- reading it that way is Architect/Captain territory, same discipline as every other
-    table this module renders."""
+    table this module renders. Every field a source didn't state is rendered as "not
+    recorded", never inferred (Architect's 2026-09-22 backfill rules) -- gap rows stay in the
+    table rather than being dropped."""
     L = [f"## Section {section_number} -- Historical trend: every standardised endurance run to date", ""]
     if not entries:
-        L.append("No standardised runs recorded yet (no `*.meta.json` sidecar under "
-                  "`qa/endurance/*/`). This section is empty by construction, not by error -- "
-                  "it fills in as runs go through the standard analysis step from here on. "
-                  "Older, pre-standardisation runs are not back-filled by guesswork; if their "
-                  "arm-time configuration is independently recoverable, add their sidecars "
-                  "separately and re-run this report.")
+        L.append("No runs recorded yet (no `*.meta.json` sidecar under `qa/endurance/*/`). "
+                  "This section is empty by construction, not by error.")
         L.append("")
         return "\n".join(L) + "\n"
 
-    L.append(f"{len(entries)} standardised run(s). `G` is the grid-alignment gate (the lower "
-              "of the two appraisers', i.e. the binding one; ROW 1 PASS >= 0.99). `Ref.` is "
-              "the second appraiser: live WSJT-X on the same feed, or an offline `jt9 -d 3` "
-              "re-decode -- **offline rows are marked non-comparable** (HK-031: `jt9 -d 3` "
-              "offline is not a valid reference decoder) and must not be pooled or compared "
-              "against live-WSJT-X rows. **Never pool `nhard` 60 and `nhard` 40 runs "
-              "together** -- read the `nhard` column before comparing any two rows. Footnote "
+    L.append(f"{len(entries)} run(s). `G` is the grid-alignment gate (the lower of the two "
+              "appraisers' where both are known; ROW 1 PASS >= 0.99). `Ref.` is the second "
+              "appraiser: live WSJT-X on the same feed, an offline `jt9 -d 3` re-decode, or "
+              "n/a for a comparison that wasn't against a reference decoder at all (e.g. "
+              "OpenWSFZ vs OpenWSFZ) -- **offline and n/a rows are marked non-comparable** "
+              "(HK-031: `jt9 -d 3` offline is not a valid reference decoder) and must not be "
+              "pooled or compared against live-WSJT-X rows. **Never pool `nhard` 60 and "
+              "`nhard` 40 runs together.** `Matched %` and `OWS-only %` are each source "
+              "report's own stated decode-coverage figures (matched as a share of the "
+              "reference's own decodes; OpenWSFZ-only as a share of OpenWSFZ's own decodes), "
+              "not recomputed here. `DT gap` has no `+/- SD` column: none of the "
+              "pre-standardisation reports computed a standalone SD of the DT offset (only "
+              "appraiser means), and deriving one now from raw logs would be new analysis, "
+              "not backfill -- it is left out rather than invented. `Source` cites the "
+              "file(s) every other field in that row was read from, repo-relative. Footnote "
               "numbering runs in table order, first-needed.")
     L.append("")
     L.append("| Date | Band | Hours | DLL SHA (short) | Shim | nhard | Ref. | Radio chain | G | "
-              "Matched pairs | SNR gap (dB) | DT gap (s) |")
-    L.append("|---|---|---:|---|---:|---:|---|---|---:|---:|---:|---:|")
+              "Matched pairs | Matched % of ref | OWS-only % | SNR gap (dB) | DT gap (s) | Source |")
+    L.append("|---|---|---:|---|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---|")
     footnotes = []
     for e in entries:
-        ref_label = "live WSJT-X" if e.get("reference") == "live_wsjtx" else "offline `jt9 -d 3`"
-        flags = ""
-        if e.get("reference") != "live_wsjtx" or not e.get("comparable", True):
-            footnotes.append(f"non-comparable reference ({ref_label}, not a valid decoder "
-                              f"per HK-031) -- {e.get('date')} {e.get('band')}")
-            flags += f"<sup>{len(footnotes)}</sup>"
+        ref = e.get("reference")
+        ref_label = {"live_wsjtx": "live WSJT-X", "offline_jt9": "offline `jt9 -d 3`",
+                     "n/a": "n/a" + (f" ({e['reference_note']})" if e.get("reference_note") else "")
+                     }.get(ref, _fmt(ref))
+        flag_nums = []
+        if ref != "live_wsjtx":
+            footnotes.append(f"non-comparable reference ({ref_label}) -- {e.get('date')} {e.get('band')}")
+            flag_nums.append(len(footnotes))
         if e.get("drift_contaminated"):
-            footnotes.append(f"drift-contaminated: {e.get('drift_note', 'see run README')} -- "
-                              f"{e.get('date')} {e.get('band')}")
-            flags += f"<sup>{len(footnotes)}</sup>"
-        dll_short = (e.get("dll_sha256") or "?")[:8]
-        L.append(f"| {e.get('date', '?')} | {e.get('band', '?')} | {e.get('hours', 0):.1f} | "
-                  f"`{dll_short}…` | {e.get('shim', '?')} | {e.get('nhard', '?')} | "
-                  f"{ref_label}{flags} | {e.get('radio_chain', '?')} | "
-                  f"{e.get('grid_gate_g', float('nan')):.4f} | {e.get('n_pairs', '?')} | "
-                  f"{e.get('snr_gap_db', float('nan')):+.3f} | {e.get('dt_gap_s', float('nan')):+.4f} |")
+            footnotes.append(f"drift/audio-contaminated: {e.get('drift_note', 'see source file(s)')} "
+                              f"-- {e.get('date')} {e.get('band')}")
+            flag_nums.append(len(footnotes))
+        flags = "<sup>" + ",".join(str(n) for n in flag_nums) + "</sup>" if flag_nums else ""
+        dll = e.get("dll_sha256")
+        dll_short = (dll[:8] + "…") if dll and dll != NOT_RECORDED else NOT_RECORDED
+        src = ", ".join(f"`{s}`" for s in e.get("source_files", [])) or NOT_RECORDED
+        L.append(f"| {_fmt(e.get('date'))} | {_fmt(e.get('band'))} | {_fmt(e.get('hours'), '.1f')} | "
+                  f"{dll_short} | {_fmt(e.get('shim'))} | {_fmt(e.get('nhard'))} | "
+                  f"{ref_label}{flags} | {_fmt(e.get('radio_chain'))} | "
+                  f"{_fmt(e.get('grid_gate_g'), '.4f')} | {_fmt(e.get('n_pairs'))} | "
+                  f"{_fmt(e.get('matched_pct_of_ref'), '.1f') if isinstance(e.get('matched_pct_of_ref'), (int, float)) else _fmt(e.get('matched_pct_of_ref'))} | "
+                  f"{_fmt(e.get('ows_only_pct'), '.1f') if isinstance(e.get('ows_only_pct'), (int, float)) else _fmt(e.get('ows_only_pct'))} | "
+                  f"{_fmt(e.get('snr_gap_db'), '+.3f') if isinstance(e.get('snr_gap_db'), (int, float)) else _fmt(e.get('snr_gap_db'))} | "
+                  f"{_fmt(e.get('dt_gap_s'), '+.4f') if isinstance(e.get('dt_gap_s'), (int, float)) else _fmt(e.get('dt_gap_s'))} | "
+                  f"{src} |")
     L.append("")
     for i, note in enumerate(footnotes, 1):
         L.append(f"{i}. {note}")

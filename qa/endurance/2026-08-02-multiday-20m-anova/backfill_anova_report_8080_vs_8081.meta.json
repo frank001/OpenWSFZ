@@ -1,0 +1,25 @@
+{
+ "date": "2026-07-31/08-02",
+ "band": "20m",
+ "hours": 43.8,
+ "dll_sha256": "not recorded",
+ "shim": "not recorded",
+ "nhard": "not recorded",
+ "reference": "n/a",
+ "reference_note": "OpenWSFZ-8080 vs OpenWSFZ-8081, same decoder both sides, hardware-chain comparison",
+ "radio_chain": "8080: FT-991A; 8081: SDR Uno -> Voicemeeter B1 (split antenna)",
+ "grid_gate_g": 0.3472,
+ "n_pairs": 62775,
+ "matched_pct_of_ref": "not recorded",
+ "ows_only_pct": "not recorded",
+ "snr_gap_db": -3.4669999999999996,
+ "dt_gap_s": -0.4903,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": true,
+ "drift_note": "8080's cycle-clock drifts off the FT8 15s grid at ~0.18s/h; the 62,775 matched pairs here are the +0s (on-grid) stratum only, 33.9% of the run's OpenWSFZ-8080 decodes -- see report banner and table_a_8080_vs_8081_grid_snapped.md",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-08-02-multiday-20m-anova",
+ "source_files": [
+  "qa/endurance/2026-08-02-multiday-20m-anova/anova_report_8080_vs_8081.md",
+  "qa/endurance/2026-08-02-multiday-20m-anova/table_a_8080_vs_8081_grid_snapped.md"
+ ]
+}

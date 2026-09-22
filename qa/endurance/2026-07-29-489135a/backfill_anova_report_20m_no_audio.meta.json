@@ -1,0 +1,24 @@
+{
+ "date": "2026-07-28/29",
+ "band": "20m(originally 80m)",
+ "hours": "not recorded",
+ "dll_sha256": "not recorded",
+ "shim": "not recorded",
+ "nhard": "not recorded",
+ "reference": "n/a",
+ "reference_note": "no audio archived, zero decodes",
+ "radio_chain": "not recorded",
+ "grid_gate_g": "not recorded",
+ "n_pairs": 0,
+ "matched_pct_of_ref": "not recorded",
+ "ows_only_pct": "not recorded",
+ "snr_gap_db": "not recorded",
+ "dt_gap_s": "not recorded",
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": false,
+ "drift_note": "",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-07-29-489135a",
+ "source_files": [
+  "qa/endurance/2026-07-29-489135a/anova_report_20m_no_audio.md"
+ ]
+}

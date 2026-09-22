@@ -8,38 +8,44 @@ stamp... single script to kick off and let go... daemon startup, port, decoder v
 and/or settings are to be configured before the run and are not to be included in the
 script... band selection shall be agreed beforehand... any analysis shall be separate from
 the run-script... the standard gatherer script should be used always afterwards").
+**CORRECTION (Captain, direct, after the first cut of this file): daemon startup IS part of
+this script. What stays OUTSIDE the script is the CONFIGURATION -- the daemon exe path, the
+config file, the port -- which are INPUT to the script (CLI args), not hardcoded constants the
+way qa/rr-study/live-gap-map/lgm_supervisor.py baked in PIN_SHA/BIN/EXE/USER_CFG. The first cut
+of this file had that backwards (attach-to-already-running, never start) and was rejected.**
 
-THIS SCRIPT DOES NOT START, CONFIGURE, OR TUNE THE DAEMON. The operator starts
-OpenWSFZ.Daemon.exe by hand, however they like, before running this script -- whatever port,
-config file, decoder version, nhard/suppression settings and band it comes up with are
-whatever the operator set. This script's PRECHECK only *records* what it finds (Architect's
-constraint (a), the LIVE-GAP-MAP ROW 0a-0d pattern) and REFUSES TO ARM if it can detect an
-internal mismatch (not exactly one daemon running; WSJT-X's own audio-device name disagreeing
-with the daemon's; captureActive false) -- recording is not configuring.
+This script starts OpenWSFZ.Daemon.exe itself, using EXACTLY the exe path, config file and port
+it was given on the command line -- it never constructs, edits, or overrides the config (no
+make_config()-style logic). Decoder version, nhard/suppression settings, audio device, band --
+whatever the given config file says -- are entirely the operator's choice, prepared before this
+script runs. PRECHECK then RECORDS what actually came up (Architect's constraint (a), the
+LIVE-GAP-MAP ROW 0a-0d pattern) and REFUSES TO ARM if it can detect an internal mismatch
+(another daemon already running; WSJT-X's own audio-device name disagreeing with the config's;
+captureActive/decodingEnabled false after startup) -- recording is not configuring, and
+refusing on a detected mismatch is not configuring either.
 
 Reused verbatim in spirit from qa/rr-study/live-gap-map/lgm_supervisor.py (HK-018): the ps()/
-sha256()/kill_tree()/daemons_running()/newest_wav_age() helpers, the HK-013 health-loop shape,
-the HANDOFF.md/README.md convention, CREATE_NO_WINDOW on every child process. What's NEW here:
-no start_daemon()/make_config() -- PRECHECK attaches to an already-running daemon and records
-its actual command line (via WMI) so a crash-restart can relaunch it VERBATIM, never with a
-script-constructed config; TEARDOWN calls the standard gatherer
-(tools/gather_live_run_artefacts.py) instead of a bespoke snapshot; ANALYSIS is not run here
-at all -- a separate report generator (qa/endurance/endurance_anova_wsjtx.py) is the next step,
-by hand or by a follow-up script, never bundled into this one (Captain's "analysis shall be
-separate from the run-script").
+sha256()/kill_tree()/daemons_running()/newest_wav_age() helpers, the start_daemon()/wait_ready()
+shape, the HK-013 health-loop, the HANDOFF.md/README.md convention, CREATE_NO_WINDOW on every
+child process. What's different here: daemon-exe/config/port are CLI inputs instead of hardcoded
+module constants, so a crash-restart just calls start_daemon() again with the SAME given
+arguments (no WMI command-line archaeology needed -- we already know exactly what we launched);
+TEARDOWN calls the standard gatherer (tools/gather_live_run_artefacts.py) instead of a bespoke
+snapshot; ANALYSIS is not run here at all -- a separate report generator
+(qa/endurance/endurance_anova_wsjtx.py) is the next step, by hand or by a follow-up script,
+never bundled into this one (Captain's "analysis shall be separate from the run-script").
 
 NFR-021: ALL.TXT and WAVs carry real callsigns. They stay under artefacts/ (gitignored). This
 script never prints message text.
 """
-import argparse, ctypes, datetime, hashlib, json, os, re, shutil, subprocess, sys, time, traceback, urllib.request
+import argparse, ctypes, datetime, hashlib, json, os, shutil, subprocess, sys, time, traceback, urllib.request
 
 NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)  # every child process: no console window
-WINDOW_S_DEFAULT = 24 * 3600
 POLL_S = 30
 MAX_CONSEC_RESTARTS = 5
-CYCLE_S = 15
 STALE_WAV_STRIKES = 3
 STALE_WAV_AGE_S = 60
+DAEMON_READY_TIMEOUT_S = 120
 
 # 12.5 kHz-rounded band edges (MHz), for a display label only -- never used to configure
 # anything. Matches this project's own dial frequencies (10/20/40/80 m have been used).
@@ -98,18 +104,9 @@ def daemon_processes():
     return [int(x) for x in out.splitlines() if x.strip().isdigit()]
 
 
-def process_command_line(pid):
-    return ps("(Get-CimInstance Win32_Process -Filter \"ProcessId=%d\").CommandLine" % pid)
-
-
-def parse_flag(cmdline, flag):
-    """Extract --flag VALUE (or --flag=VALUE) from a Windows command-line string, handling a
-    double-quoted value. Returns None if not present."""
-    m = re.search(re.escape(flag) + r'(?:\s+|=)"([^"]*)"', cmdline)
-    if m:
-        return m.group(1)
-    m = re.search(re.escape(flag) + r'(?:\s+|=)(\S+)', cmdline)
-    return m.group(1) if m else None
+def pid_alive(pid):
+    return pid is not None and ps(
+        "(Get-Process -Id %d -ErrorAction SilentlyContinue).Id" % pid) != ""
 
 
 def ini_value(ini_path, key):
@@ -131,8 +128,7 @@ class Run:
         self.state_f = os.path.join(corpus, "state.json")
         self.state = {}
         self.daemon_pid = None
-        self.daemon_cmdline = None
-        self.daemon_exe = None
+        self.daemon_proc = None  # a live Popen handle, only for the process THIS instance started
 
     def log(self, m):
         line = "%s %s" % (iso(utcnow()), m)
@@ -170,11 +166,10 @@ This run is UNATTENDED. Corpus dir: `%s`
    (its output dir is recorded in `events.jsonl`'s `gathered` event). Run the ANOVA report
    generator (above), which appends this run to the historical table automatically.
 3. If the supervisor is DEAD before DONE: the daemon may still be capturing. Do NOT delete
-   anything. `python <corpus>\\tools\\endurance_supervisor.py --resume <corpus>` re-attaches
-   from `state.json` and relaunches the daemon with the EXACT command line recorded at arm
-   time (never a script-constructed config).
-4. HK-019 at the end: no OpenWSFZ.Daemon.exe left running (or exactly the count that was
-   running before this script ever touched anything, if the operator runs more than one).
+   anything. `python <corpus>\\tools\\endurance_supervisor.py --resume <corpus> --daemon-exe
+   ... --config ... --port ... --wsjtx-ini ...` (same arguments as the original arm) re-attaches
+   from `state.json`.
+4. HK-019 at the end: no OpenWSFZ.Daemon.exe left running.
 """ % (iso(utcnow()), phase, extra, self.c, s.get("window_start"), s.get("window_end"), self.c)
         with open(os.path.join(self.c, "HANDOFF.md"), "w", encoding="utf-8") as f:
             f.write(txt)
@@ -192,28 +187,94 @@ def newest_wav_age(cyc_dir):
         return 1e9
 
 
+# --------------------------------------------------------------- daemon lifecycle (script-owned)
+def start_daemon(run, daemon_exe, config_path, port):
+    """Starts the daemon with EXACTLY the given exe/config/port -- no construction, no edits.
+    This is the one place in the whole script that launches a process on the operator's
+    behalf; the values it launches with are 100% CLI input."""
+    out = open(os.path.join(run.c, "daemon.stdout.log"), "ab")
+    flags = subprocess.CREATE_NEW_PROCESS_GROUP | NOWIN
+    proc = subprocess.Popen([daemon_exe, "--config", config_path, "--port", str(port)],
+                             stdout=out, stderr=subprocess.STDOUT, creationflags=flags)
+    run.daemon_pid = proc.pid
+    run.daemon_proc = proc
+    run.state["daemon_pid"] = proc.pid
+    run.save()
+    run.log("daemon started pid %d (exe=%s config=%s port=%d)" % (proc.pid, daemon_exe, config_path, port))
+    run.event("daemon_start", pid=proc.pid, exe=daemon_exe, config=config_path, port=port)
+    return proc
+
+
+def stop_daemon(run, why):
+    if run.daemon_pid:
+        run.log("stopping daemon pid %d (%s)" % (run.daemon_pid, why))
+        kill_tree(run.daemon_pid)
+        if run.daemon_proc is not None:
+            try:
+                run.daemon_proc.wait(timeout=30)
+            except Exception:
+                pass
+    run.event("daemon_stop", why=why)
+
+
+def wait_ready(run, port, timeout=DAEMON_READY_TIMEOUT_S):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if run.daemon_proc is not None and run.daemon_proc.poll() is not None:
+            return False
+        if run.daemon_proc is None and not pid_alive(run.daemon_pid):
+            return False
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:%s/api/v1/status" % port, timeout=4) as r:
+                s = json.loads(r.read().decode("utf-8"))
+            if s.get("captureActive") and s.get("decodingEnabled"):
+                return True
+        except Exception:
+            pass
+        time.sleep(3)
+    return False
+
+
 # --------------------------------------------------------------- PRECHECK (record, don't configure)
-def precheck(run, port_hint, wsjtx_ini):
-    """Attach to the ALREADY-RUNNING daemon and record everything, per Architect constraint
-    (a). Refuses (all_pass=False) on any internally-detectable mismatch. Writes
-    arm_config.json and returns it."""
-    res = {"recorded_utc": iso(utcnow())}
-    pids = daemon_processes()
-    res["daemon_pids_found"] = pids
-    single_daemon = len(pids) == 1
-    res["checks"] = {"single_daemon": single_daemon}
-    if not single_daemon:
+def precheck(run, daemon_exe, config_path, port, wsjtx_ini):
+    """Starts the daemon with the GIVEN (never constructed) exe/config/port, then RECORDS
+    everything about what came up -- Architect constraint (a). Refuses (all_pass=False) on any
+    internally-detectable mismatch. Writes arm_config.json and returns it. Does not leave a
+    daemon it started running if PRECHECK itself fails."""
+    res = {"recorded_utc": iso(utcnow()), "checks": {}}
+
+    existing = daemon_processes()
+    if existing:
+        res["checks"]["no_other_daemon_running"] = False
+        res["checks"]["all_pass"] = False
+        res["daemon_pids_found_before_start"] = existing
+        return res
+    res["checks"]["no_other_daemon_running"] = True
+
+    if not os.path.isfile(daemon_exe):
+        res["checks"]["daemon_exe_exists"] = False
         res["checks"]["all_pass"] = False
         return res
+    if not os.path.isfile(config_path):
+        res["checks"]["config_exists"] = False
+        res["checks"]["all_pass"] = False
+        return res
+    res["checks"]["daemon_exe_exists"] = True
+    res["checks"]["config_exists"] = True
 
-    pid = pids[0]
-    cmdline = process_command_line(pid)
-    config_path = parse_flag(cmdline, "--config")
-    port = parse_flag(cmdline, "--port") or str(port_hint)
-    res["daemon"] = {"pid": pid, "command_line": cmdline, "config_path": config_path, "port": port}
+    start_daemon(run, daemon_exe, config_path, port)
+    if not wait_ready(run, port):
+        res["checks"]["became_ready"] = False
+        res["checks"]["all_pass"] = False
+        stop_daemon(run, "PRECHECK: never became ready")
+        return res
+    res["checks"]["became_ready"] = True
 
-    # DLL identity, from the loaded module (never from a hardcoded path -- the daemon may run
-    # from any published location the operator chose).
+    pid = run.daemon_pid
+    res["daemon"] = {"pid": pid, "exe": daemon_exe, "config_path": config_path, "port": port}
+
+    # DLL identity, from the loaded module (never assumed from a fixed path -- read whatever
+    # this daemon actually mapped).
     dll = None
     for _ in range(24):  # native library is mapped on first use; allow up to ~2 min
         mod = ps("(Get-Process -Id %d).Modules | Where-Object { $_.ModuleName -eq "
@@ -231,6 +292,7 @@ def precheck(run, port_hint, wsjtx_ini):
         res["checks"]["status_endpoint_ok"] = False
         res["checks"]["status_endpoint_error"] = type(e).__name__
         res["checks"]["all_pass"] = False
+        stop_daemon(run, "PRECHECK: status endpoint failed")
         return res
     res["checks"]["status_endpoint_ok"] = True
     res["daemon"]["shim_version"] = st.get("shimVersion")
@@ -250,18 +312,15 @@ def precheck(run, port_hint, wsjtx_ini):
         res["daemon"]["osd_nhard_max"] = None
         res["daemon"]["suppression_triple"] = None
 
-    cfgobj = {}
-    if config_path and os.path.exists(config_path):
-        try:
-            cfgobj = json.load(open(config_path, encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            cfgobj = {}
+    try:
+        cfgobj = json.load(open(config_path, encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        cfgobj = {}
     res["daemon"]["config_audio_device_friendly_name"] = cfgobj.get("audioDeviceFriendlyName")
     res["daemon"]["config_audio_device_id"] = cfgobj.get("audioDeviceId")
     res["daemon"]["config_decode_log_path"] = (cfgobj.get("decodeLog") or {}).get("path")
     res["daemon"]["config_cycle_audio_dir"] = (cfgobj.get("cycleAudioArchive") or {}).get("directory")
     res["daemon"]["config_log_dir"] = (cfgobj.get("logging") or {}).get("directory")
-    res["daemon"]["config_dial_freq_mhz"] = (cfgobj.get("decodeLog") or {}).get("dialFrequencyMHz")
 
     wname = ini_value(wsjtx_ini, "SoundInName")
     res["wsjtx"] = {
@@ -277,77 +336,47 @@ def precheck(run, port_hint, wsjtx_ini):
     dial_mhz = (int(dial_hz) / 1e6) if dial_hz and str(dial_hz).isdigit() else None
     res["band"] = band_label(dial_mhz)
 
-    device_match = bool(res["daemon"].get("config_audio_device_friendly_name") == wname
-                         and res["daemon"].get("audio_device") == wname)
+    # This IS the meaningful mismatch check now that the script starts the daemon itself:
+    # is WSJT-X actually listening to the SAME physical device the daemon's own config names?
+    device_match = bool(res["daemon"].get("config_audio_device_friendly_name") == wname)
     res["checks"]["device_names_match"] = device_match
     res["checks"]["captureActive"] = bool(res["daemon"].get("captureActive"))
     res["checks"]["decodingEnabled"] = bool(res["daemon"].get("decodingEnabled"))
     res["checks"]["dll_readable"] = bool(res["daemon"].get("dll_sha256"))
-    res["checks"]["all_pass"] = all([single_daemon, device_match, res["checks"]["captureActive"],
+    res["checks"]["all_pass"] = all([device_match, res["checks"]["captureActive"],
                                       res["checks"]["decodingEnabled"], res["checks"]["dll_readable"]])
 
     with open(os.path.join(run.c, "arm_config.json"), "w", encoding="utf-8") as f:
         json.dump(res, f, indent=1)
-    run.daemon_pid, run.daemon_cmdline = pid, cmdline
-    run.daemon_exe = (re.match(r'\s*"?([^"]+\.exe)"?', cmdline).group(1) if cmdline else None)
+    if not res["checks"]["all_pass"]:
+        stop_daemon(run, "PRECHECK: mismatch detected, see arm_config.json")
     return res
-
-
-def restart_daemon_verbatim(run):
-    """Relaunch the daemon with the EXACT command line PRECHECK recorded. Never constructs or
-    edits a config -- if the operator's own launch used one, this uses the identical one."""
-    if not run.daemon_exe or not run.daemon_cmdline:
-        run.log("CANNOT RESTART: no recorded command line (PRECHECK never captured one)")
-        return None
-    args = run.daemon_cmdline[len(run.daemon_exe):].strip()
-    # shlex-lite: PowerShell already gave us a single string; re-split via cmd's own quoting
-    # rules is unnecessary here since Popen(str) with shell semantics isn't used -- use
-    # subprocess with the raw string via PowerShell's own Start-Process for exact fidelity.
-    out = open(os.path.join(run.c, "daemon.stdout.log"), "ab")
-    cmd = 'Start-Process -FilePath "%s" -ArgumentList \'%s\' -WindowStyle Hidden -PassThru | ' \
-          'Select-Object -ExpandProperty Id' % (run.daemon_exe, args.replace("'", "''"))
-    pid_s = ps(cmd, timeout=30)
-    try:
-        pid = int(pid_s.strip())
-    except ValueError:
-        run.log("RESTART FAILED: could not parse new pid from '%s'" % pid_s)
-        return None
-    run.daemon_pid = pid
-    run.state["daemon_pid"] = pid
-    run.save()
-    run.log("daemon restarted verbatim, new pid %d" % pid)
-    run.event("daemon_restart", pid=pid)
-    return pid
-
-
-def wait_ready(run, port, timeout=120):
-    t0 = time.time()
-    while time.time() - t0 < timeout:
-        if run.daemon_pid and ps("(Get-Process -Id %d -ErrorAction SilentlyContinue).Id" % run.daemon_pid) == "":
-            return False
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:%s/api/v1/status" % port, timeout=4) as r:
-                s = json.loads(r.read().decode("utf-8"))
-            if s.get("captureActive") and s.get("decodingEnabled"):
-                return True
-        except Exception:
-            pass
-        time.sleep(3)
-    return False
 
 
 def run_gatherer(run, arm, window_start, window_end):
     """The standard gatherer, per the Captain's instruction -- always this one script, never a
-    bespoke snapshot."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    repo = os.path.abspath(os.path.join(here, "..", ".."))
+    bespoke snapshot.
+
+    Repo root is derived from run.c (the corpus path), NOT from __file__ -- this script is
+    COPIED into <corpus>/tools/ by run_endurance.py and runs from there (HK-018/branch-switch
+    safety, same as the LIVE-GAP-MAP precedent), so a __file__-relative "../.." would resolve
+    two levels up from the wrong depth once relocated (found live, first dry run,
+    2026-09-22: it pointed at artefacts/tools/ instead of <repo>/tools/). run.c is always
+    "<repo>/artefacts/<name>" (run_endurance.py's own construction), so its grandparent IS the
+    repo root regardless of where this file itself was copied to."""
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(run.c)))
     gatherer = os.path.join(repo, "tools", "gather_live_run_artefacts.py")
     if not os.path.isfile(gatherer):
         run.log("GATHERER NOT FOUND at %s -- artefacts NOT gathered, do this by hand" % gatherer)
         return None
     out_name = os.path.basename(run.c) + "-gathered"
+    # The gatherer takes "YYYY-MM-DD HH:MM:SS" (space, no "T"/"Z"), not this script's own ISO
+    # 8601 "YYYY-MM-DDTHH:MM:SSZ" -- found live, first dry run, 2026-09-22 (its own
+    # parse_datetime_arg rejected the ISO form outright).
+    def _gatherer_ts(iso_ts):
+        return iso_ts.replace("T", " ").rstrip("Z")
     cmd = [sys.executable, gatherer,
-           "--start", window_start, "--end", window_end,
+           "--start", _gatherer_ts(window_start), "--end", _gatherer_ts(window_end),
            "--name", out_name]
     d = arm.get("daemon", {})
     if d.get("config_decode_log_path"):
@@ -373,13 +402,12 @@ def write_readme(run, arm):
     txt = """# %s (HK-016)
 
 Standard endurance run. Band: %s (recorded from WSJT-X's own dial frequency; NOT configured by
-this script). Daemon config, port and decoder settings were set up by the operator BEFORE this
-script ran -- everything below is a RECORD of what was found at arm time, not something this
-script chose.
+this script). Daemon exe/config/port were given to this script as input -- everything below is a
+RECORD of what actually came up when they were used, not something this script decided.
 
 - Window (UTC): %s -> %s.
 - OpenWSFZ: DLL SHA-256 `%s`, shim %s, daemon version %s; nhard %s; suppression triple %s;
-  port %s; config `%s`.
+  port %s; exe `%s`; config `%s`.
 - WSJT-X: NDepth=%s, AP=%s, dial %s Hz, mode %s.
 - `state.json`, `arm_config.json`, `events.jsonl`, `supervisor.log`, `heartbeat.json` record
   the run. `arm_config.json` is the full ROW-0-style record (Architect constraint (a)).
@@ -388,7 +416,7 @@ script chose.
 - Analysis (ANOVA report, historical table) is a SEPARATE step -- see HANDOFF.md.
 """ % (os.path.basename(run.c), arm.get("band"), run.state.get("window_start"), run.state.get("window_end"),
        d.get("dll_sha256"), d.get("shim_version"), d.get("daemon_version"), d.get("osd_nhard_max"),
-       d.get("suppression_triple"), d.get("port"), d.get("config_path"),
+       d.get("suppression_triple"), d.get("port"), d.get("exe"), d.get("config_path"),
        w.get("NDepth"), w.get("ap_enabled"), w.get("dial_freq_hz"), w.get("mode"))
     with open(os.path.join(run.c, "README.md"), "w", encoding="utf-8") as f:
         f.write(txt)
@@ -397,9 +425,13 @@ script chose.
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", required=True)
+    ap.add_argument("--daemon-exe", required=True, help="path to OpenWSFZ.Daemon.exe -- INPUT, "
+                     "never hardcoded")
+    ap.add_argument("--config", required=True, help="path to an ALREADY-PREPARED config.json -- "
+                     "decoder settings, audio device etc. are whatever this file says; this "
+                     "script never edits it")
+    ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--hours", type=float, default=24.0, help="wall-clock window length (default 24h)")
-    ap.add_argument("--port", type=int, default=8080, help="where to LOOK for the already-running "
-                     "daemon's status API -- not something this script configures")
     ap.add_argument("--wsjtx-ini", required=True, help="path to the WSJT-X .ini this run should "
                      "read (the operator's own profile, agreed beforehand)")
     ap.add_argument("--resume", action="store_true")
@@ -416,10 +448,15 @@ def main():
         arm = json.load(open(os.path.join(a.corpus, "arm_config.json"), encoding="utf-8"))
         run.log("RESUME from state.json: %s" % json.dumps({k: run.state.get(k) for k in
                                                             ("phase", "window_start", "window_end")}))
+        run.daemon_pid = run.state.get("daemon_pid")
+        if not pid_alive(run.daemon_pid):
+            run.log("RESUME: recorded daemon pid %s is not running -- restarting" % run.daemon_pid)
+            start_daemon(run, a.daemon_exe, a.config, a.port)
+            wait_ready(run, a.port)
     else:
         run.log("supervisor start pid %d, corpus %s" % (os.getpid(), a.corpus))
         run.state["phase"] = "PRECHECK"; run.save(); run.handoff("PRECHECK")
-        arm = precheck(run, a.port, a.wsjtx_ini)
+        arm = precheck(run, a.daemon_exe, a.config, a.port, a.wsjtx_ini)
         run.log("PRECHECK " + json.dumps(arm.get("checks", {})))
         if not arm["checks"].get("all_pass"):
             run.state["phase"] = "ABORTED"; run.save(); run.handoff("ABORTED", "see arm_config.json")
@@ -431,14 +468,14 @@ def main():
         run.log("WINDOW OPEN: %s -> %s" % (iso(ws), iso(we)))
         run.event("window_open", start=iso(ws), end=iso(we))
 
-    port = arm["daemon"]["port"]
+    port = a.port
     try:
         we = datetime.datetime.strptime(run.state["window_end"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
         consec = 0; healthy_since = time.time(); cap_false_since = None; stale_strikes = 0
         cyc_dir = arm.get("daemon", {}).get("config_cycle_audio_dir") or ""
         while utcnow() < we:
             time.sleep(POLL_S)
-            alive = run.daemon_pid and ps("(Get-Process -Id %d -ErrorAction SilentlyContinue).Id" % run.daemon_pid) != ""
+            alive = pid_alive(run.daemon_pid)
             problem = None
             if not alive:
                 problem = "daemon process exited"
@@ -478,10 +515,9 @@ def main():
                 if consec >= MAX_CONSEC_RESTARTS:
                     run.log("GIVING UP: %d consecutive restarts; leaving the window as is" % consec)
                     run.event("giving_up"); break
-                if run.daemon_pid:
-                    kill_tree(run.daemon_pid)
+                stop_daemon(run, problem)
                 time.sleep(20)
-                restart_daemon_verbatim(run)
+                start_daemon(run, a.daemon_exe, a.config, a.port)
                 ok = wait_ready(run, port)
                 consec += 1; stale_strikes = 0; cap_false_since = None; healthy_since = time.time()
                 run.event("restart", ok=ok, consecutive=consec)
@@ -492,10 +528,7 @@ def main():
         run.state["phase"] = "TEARDOWN"; run.save(); run.handoff("TEARDOWN")
         time.sleep(35)  # let the last cycle's row land in both logs
         pre_teardown_others = [p for p in daemon_processes() if p != run.daemon_pid]
-        if run.daemon_pid:
-            run.log("stopping daemon pid %d (window end)" % run.daemon_pid)
-            kill_tree(run.daemon_pid)
-        run.event("daemon_stop", why="window end")
+        stop_daemon(run, "window end")
         time.sleep(3)
         orphans = [p for p in daemon_processes() if p not in pre_teardown_others]
         if orphans:

@@ -1,0 +1,24 @@
+{
+ "date": "2026-07-31/08-02",
+ "band": "20m",
+ "hours": 43.8,
+ "dll_sha256": "not recorded",
+ "shim": "not recorded",
+ "nhard": "not recorded",
+ "reference": "live_wsjtx",
+ "radio_chain": "FT-991A",
+ "grid_gate_g": 0.3472,
+ "n_pairs": 64275,
+ "matched_pct_of_ref": 18.1,
+ "ows_only_pct": 65.2,
+ "snr_gap_db": -5.431,
+ "dt_gap_s": 0.10930000000000001,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": true,
+ "drift_note": "8080's cycle-clock drifts off the FT8 15s grid at ~0.18s/h; the 64,275 matched pairs here are the +0s (on-grid) stratum only, 34.8% of the run -- see report banner and table_a_8080_vs_wsjtx_grid_snapped.md",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-08-02-multiday-20m-anova",
+ "source_files": [
+  "qa/endurance/2026-08-02-multiday-20m-anova/anova_report_8080_vs_wsjtx.md",
+  "qa/endurance/2026-08-02-multiday-20m-anova/table_a_8080_vs_wsjtx_grid_snapped.md"
+ ]
+}

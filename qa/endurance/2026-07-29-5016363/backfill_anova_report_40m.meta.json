@@ -1,0 +1,24 @@
+{
+ "date": "2026-07-29/30",
+ "band": "40m",
+ "hours": 24.0,
+ "dll_sha256": "not recorded",
+ "shim": "not recorded",
+ "nhard": "not recorded",
+ "reference": "live_wsjtx",
+ "radio_chain": "not recorded",
+ "grid_gate_g": "not recorded",
+ "n_pairs": 52736,
+ "matched_pct_of_ref": 47.8,
+ "ows_only_pct": 4.2,
+ "snr_gap_db": -12.498,
+ "dt_gap_s": -0.641,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": false,
+ "drift_note": "checked clean: CONTAMINATION-NOTE.md states the 40m instance (separate USB Audio CODEC device, never touched Voicemeeter) is unaffected",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-07-29-5016363",
+ "source_files": [
+  "qa/endurance/2026-07-29-5016363/anova_report_40m.md",
+  "qa/endurance/2026-07-29-5016363/CONTAMINATION-NOTE.md"
+ ]
+}

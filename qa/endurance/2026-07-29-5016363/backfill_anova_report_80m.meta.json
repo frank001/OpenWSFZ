@@ -1,0 +1,24 @@
+{
+ "date": "2026-07-29",
+ "band": "80m",
+ "hours": "not recorded",
+ "dll_sha256": "not recorded",
+ "shim": "not recorded",
+ "nhard": "not recorded",
+ "reference": "offline_jt9",
+ "radio_chain": "SDR Uno / Voicemeeter B1",
+ "grid_gate_g": "not recorded",
+ "n_pairs": 8290,
+ "matched_pct_of_ref": 84.2,
+ "ows_only_pct": 8.1,
+ "snr_gap_db": -8.037,
+ "dt_gap_s": 0.6675,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": true,
+ "drift_note": "audio-leak contamination (other Windows-app audio bleeding into the Voicemeeter B1 bus), ~60% of sampled cycles elevated in the 21:18-23:07:30Z portion of this window -- see CONTAMINATION-NOTE.md's own timeline; report's own title flags it explicitly",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-07-29-5016363",
+ "source_files": [
+  "qa/endurance/2026-07-29-5016363/anova_report_80m.md",
+  "qa/endurance/2026-07-29-5016363/CONTAMINATION-NOTE.md"
+ ]
+}

@@ -1,0 +1,24 @@
+{
+ "date": "2026-07-31/08-02",
+ "band": "20m",
+ "hours": 43.8,
+ "dll_sha256": "not recorded",
+ "shim": "not recorded",
+ "nhard": "not recorded",
+ "reference": "live_wsjtx",
+ "radio_chain": "OpenWSFZ-8081: SDR Uno -> Voicemeeter B1; WSJT-X: separate FT-991A instance (cross-hardware, split-antenna feed, NOT the same receiver)",
+ "grid_gate_g": 0.9984,
+ "n_pairs": 201834,
+ "matched_pct_of_ref": 56.9,
+ "ows_only_pct": 5.0,
+ "snr_gap_db": -1.7889999999999997,
+ "dt_gap_s": 0.5635,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": false,
+ "drift_note": "checked clean: report's own text states 8081 ran on a single continuous daemon instance throughout, no restart-induced drift reset",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-08-02-multiday-20m-anova",
+ "source_files": [
+  "qa/endurance/2026-08-02-multiday-20m-anova/anova_report_8081_vs_wsjtx.md",
+  "qa/endurance/2026-08-02-multiday-20m-anova/table_a_8080_vs_8081_grid_snapped.md"
+ ]
+}

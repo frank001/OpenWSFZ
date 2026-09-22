@@ -1,0 +1,23 @@
+{
+ "date": "2026-07-29/30",
+ "band": "10m",
+ "hours": "not recorded",
+ "dll_sha256": "not recorded",
+ "shim": "not recorded",
+ "nhard": "not recorded",
+ "reference": "offline_jt9",
+ "radio_chain": "SDR Uno / Voicemeeter B1",
+ "grid_gate_g": "not recorded",
+ "n_pairs": 9177,
+ "matched_pct_of_ref": 72.3,
+ "ows_only_pct": 7.0,
+ "snr_gap_db": -3.1950000000000003,
+ "dt_gap_s": 0.6503000000000001,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": false,
+ "drift_note": "",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-07-29-5016363",
+ "source_files": [
+  "qa/endurance/2026-07-29-5016363/anova_report_10m.md"
+ ]
+}

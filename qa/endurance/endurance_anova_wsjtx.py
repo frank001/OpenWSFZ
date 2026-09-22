@@ -261,11 +261,15 @@ def main() -> int:
             "comparable": args.reference == "live_wsjtx",
             "grid_gate_g": min(gate_a["g"], gate_b["g"]),
             "n_pairs": len(pairs),
+            "matched_pct_of_ref": (100.0 * len(pairs) / meta["n_b"]) if meta["n_b"] else float("nan"),
+            "ows_only_pct": (100.0 * (meta["n_a"] - len(pairs)) / meta["n_a"]) if meta["n_a"] else float("nan"),
             "snr_gap_db": (snr_stats["appraiser_means"]["a"] - snr_stats["appraiser_means"]["b"]) if snr_stats and "appraiser_means" in snr_stats else float("nan"),
             "dt_gap_s": (dt_stats["appraiser_means"]["a"] - dt_stats["appraiser_means"]["b"]) if dt_stats and "appraiser_means" in dt_stats else float("nan"),
+            "dt_gap_sd_s": ac.NOT_RECORDED,
             "drift_contaminated": bool(args.drift_contaminated),
             "drift_note": args.drift_contaminated or "",
             "run_dir": os.path.dirname(os.path.abspath(args.out)),
+            "source_files": [os.path.relpath(os.path.abspath(args.out), start=os.getcwd()).replace("\\", "/")],
         }
         if hours is not None:
             ac.write_run_meta(os.path.splitext(args.out)[0] + ".meta.json", this_meta)

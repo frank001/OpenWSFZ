@@ -10,9 +10,15 @@
  "comparable": true,
  "grid_gate_g": 1.0,
  "n_pairs": 76961,
+ "matched_pct_of_ref": 59.9529481416853,
+ "ows_only_pct": 1.3130730268641406,
  "snr_gap_db": -2.6628552123802964,
  "dt_gap_s": 0.65327633476696,
+ "dt_gap_sd_s": "not recorded",
  "drift_contaminated": false,
  "drift_note": "",
- "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-09-21-84cac119"
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\2026-09-21-84cac119",
+ "source_files": [
+  "2026-09-21-84cac119/anova_report_20m.md"
+ ]
 }
