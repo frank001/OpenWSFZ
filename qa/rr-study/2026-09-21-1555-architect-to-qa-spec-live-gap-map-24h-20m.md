@@ -10,6 +10,8 @@ first datum (§5 Q1).~~ **§5 Q1 is answered YES: D7 runs.**
 
 **2026-09-22: C3 is not voided, and the episode is cut (Amendment 3, §3.9).** The Captain ruled after the
 0e′(iii) VOID: the 23:00–00:15Z interference episode comes out, and the rows are read on everything else.
+**Result: M1, ruled (§3.10).** The strong-miss pool is still large (`H10` CI [18.59, 19.97] pp), and the full
+corpus gives the same row.
 
 ---
 
@@ -249,6 +251,25 @@ first.
 **For future runs, not C3:** 0e′(iii) is amended to score only cycles where **OpenWSFZ decoded ≥ 1** within ±1
 cycle ("REF silent while OWS active"). That is the failure it exists for. Its bar is set from C2 + C3 before the
 next arm.
+
+### 3.10 Ruling (Architect, 2026-09-22): **M1 accepted**
+
+QA report `2026-09-22-1720` §0, `qa/live-gap-map` `c8337a32`, harness `4ab4612f` (the cut is in the code as
+`AMD3_EXCLUDE`).
+
+- **0e′(i)–(iii) pass** on the included cycles. The whole 23:00Z hour is inside the cut, and the worst remaining
+  hour reads 1.0000. **0g passes**: `n_ref` 127,482 on the cut corpus. 300 cycles and 689 REF rows (0.54 %) were
+  removed.
+- **M1 fires:** `CI_lo(H10)` = **18.586** ≥ 10.0. `H10` = 19.27 pp, CI95 [18.586, 19.967]; `R_wild` 59.90 %.
+- **The cut did not decide it.** On the full corpus, the same code path and seed give CI [18.509, 19.902], which is
+  also M1.
+- **Reading:** on this day, on `fa8a56ae`, the strong-miss pool is still large: about 19 pp of REF rows at SNR
+  ≥ −10 dB that WSJT-X decodes and we do not. 🛑 This is **one day**. It is not a build effect against C2 or `A1`
+  (§3.3). 🛑 Always quote it as the **cut** figure, with the Amendment 3 qualifier.
+- **Consequence (§3.7):** the Architect specs a localisation arm on C3's archive. Is each strong miss not found
+  (candidate stage), or found and misread (decode stage)? No `src/` change is implied.
+- Predictions scored in the ledger at ruling time: L1 ✅, L2 🔴, L3 ✅, L4 🔴 (a correct 0.03 call, scored by the
+  "event occurred" convention), L5 ✅.
 
 ---
 
