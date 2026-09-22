@@ -38,6 +38,9 @@ def main():
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--wsjtx-ini", required=True)
     ap.add_argument("--hours", type=float, default=24.0)
+    ap.add_argument("--expected-build-branch", default="decoding_improvement",
+                     help="passed through to endurance_supervisor.py -- Captain's ruling, "
+                          "2026-09-22: standard endurance runs build from decoding_improvement")
     a = ap.parse_args()
 
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -48,7 +51,8 @@ def main():
 
     cmd = [sys.executable, os.path.join(corpus, "tools", "endurance_supervisor.py"),
            "--corpus", corpus, "--daemon-exe", a.daemon_exe, "--config", a.config,
-           "--port", str(a.port), "--hours", str(a.hours), "--wsjtx-ini", a.wsjtx_ini]
+           "--port", str(a.port), "--hours", str(a.hours), "--wsjtx-ini", a.wsjtx_ini,
+           "--expected-build-branch", a.expected_build_branch]
     out = open(os.path.join(corpus, "supervisor.stdout.log"), "ab")
     DETACHED, NEWGROUP, BREAKAWAY = 0x00000008, 0x00000200, 0x01000000
     try:

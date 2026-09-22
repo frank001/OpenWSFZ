@@ -18,6 +18,16 @@ worktree, before anything else touches the tree (a checkout, a stash, a new
 commit) -- it records the state of the tree at the moment it is called, which
 is only meaningful if that is still the state the binary was built from.
 
+STANDARD BRANCH (Captain's ruling, 2026-09-22, relayed via Architect): standard
+endurance runs build from decoding_improvement, not main. Git worktrees cannot
+share a checked-out branch (`git worktree list` at ruling time: no worktree
+held decoding_improvement by name, though C:/Users/Frank/w-di-run sat at one
+of its older commits in detached HEAD) -- if your own worktree isn't already
+on decoding_improvement, use a SCRATCH worktree or a detached checkout of it
+(`git worktree add <scratch-path> decoding_improvement`), publish and capture
+from there, then remove the scratch worktree afterwards (HK-019: no stray
+worktrees left behind), rather than switching your own worktree's branch.
+
 GATE SCOPE (Architect ruling, 2026-09-22, reading commit c1a27a67's whole-tree
 version -- "a whole-tree check blocks on files that can't reach the binary,
 and a gate that fires on irrelevant state gets bypassed, HK-021(k)"):
