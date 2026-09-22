@@ -2,15 +2,19 @@
 """Resume an R&R study run from a specified scenario.
 
 Use this script when a run was interrupted after S1 has already been played.
-It plays the remaining scenarios, then collects logs, matches every scenario
+It plays the remaining scenarios, then collects logs and matches every scenario
 already present in the run directory's truth.csv (whatever combination of
 S8/S1/S1b/S2/... completed before the interruption, plus whatever this
-invocation replays), and runs the analyser.
+invocation replays).
+
+Analysis (harness/analyse.py) is a SEPARATE step, printed at the end, not run
+automatically (Captain's standardisation instruction, 2026-09-22, same as run_study.py).
 
 Usage (from qa/rr-study/):
     python resume_study.py                         # resume from S2 (default)
     python resume_study.py --from-scenario S4      # resume from S4 onwards
     python resume_study.py --device "Line 1"       # custom audio device
+    python resume_study.py --wsjt-all-txt <path> --owsfz-all-txt <path>
 """
 from __future__ import annotations
 
@@ -27,6 +31,8 @@ _VENV_PYTHON = _HERE / ".venv" / "Scripts" / "python.exe"
 _SCENARIOS = _HERE / "scenarios"
 _RESULTS = _HERE / "results"
 
+# Defaults only -- overridable via --wsjt-all-txt/--owsfz-all-txt (same principle as
+# run_study.py: "configured before the run", not hardcoded in the script).
 WSJT_ALL_TXT  = Path(r"C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT")
 OWSFZ_ALL_TXT = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 
@@ -100,7 +106,13 @@ def main() -> None:
             f"Valid values: {', '.join(_RESUMABLE_ORDER)}. Default: S2"
         ),
     )
+    parser.add_argument("--wsjt-all-txt", default=str(WSJT_ALL_TXT), metavar="PATH",
+                        help=f"Path to WSJT-X's ALL.TXT. Default: {WSJT_ALL_TXT}.")
+    parser.add_argument("--owsfz-all-txt", default=str(OWSFZ_ALL_TXT), metavar="PATH",
+                        help=f"Path to OpenWSFZ's ALL.TXT. Default: {OWSFZ_ALL_TXT}.")
     args = parser.parse_args()
+    wsjt_all_txt = Path(args.wsjt_all_txt)
+    owsfz_all_txt = Path(args.owsfz_all_txt)
 
     # Derive the play set from the resume point. The match set is NOT
     # derived here -- see the comment above Step 4 below. A resume can
@@ -133,15 +145,15 @@ def main() -> None:
 
     # Step 3: Collect logs
     print("\nCollecting decode logs ...", flush=True)
-    if not WSJT_ALL_TXT.exists():
-        sys.exit(f"ERROR: WSJT-X ALL.TXT not found at {WSJT_ALL_TXT}")
-    if not OWSFZ_ALL_TXT.exists():
-        sys.exit(f"ERROR: OpenWSFZ ALL.TXT not found at {OWSFZ_ALL_TXT}")
+    if not wsjt_all_txt.exists():
+        sys.exit(f"ERROR: WSJT-X ALL.TXT not found at {wsjt_all_txt}")
+    if not owsfz_all_txt.exists():
+        sys.exit(f"ERROR: OpenWSFZ ALL.TXT not found at {owsfz_all_txt}")
 
     wsjt_dest  = run_dir / "wsjt-all.txt"
     owsfz_dest = run_dir / "owsfz-all.txt"
-    shutil.copy2(WSJT_ALL_TXT,  wsjt_dest)
-    shutil.copy2(OWSFZ_ALL_TXT, owsfz_dest)
+    shutil.copy2(wsjt_all_txt,  wsjt_dest)
+    shutil.copy2(owsfz_all_txt, owsfz_dest)
     print(f"  Copied WSJT-X   -> {wsjt_dest.name}", flush=True)
     print(f"  Copied OpenWSFZ -> {owsfz_dest.name}", flush=True)
 
@@ -173,16 +185,13 @@ def main() -> None:
         )
         print(f"[OK] {scen_id} matched", flush=True)
 
-    # Step 5: Analyse
-    print("\nRunning analyser ...", flush=True)
-    subprocess.run(
-        [str(_VENV_PYTHON), "harness/analyse.py", "--run-dir", str(run_dir)],
-        cwd=str(_HERE),
-        check=True,
-    )
-
+    # Analysis is a SEPARATE step -- see run_study.py's own comment for the rationale.
     print("\n" + "=" * 70, flush=True)
-    print(f"Study complete.  Report: {run_dir / 'report.md'}", flush=True)
+    print("Resumed run's data collection complete (scenarios played, logs collected, matched).")
+    print(f"Run directory: {run_dir}")
+    print()
+    print("Analysis is a separate step -- run it explicitly:")
+    print(f"    python harness/analyse.py --run-dir {run_dir}")
     print("=" * 70, flush=True)
 
 

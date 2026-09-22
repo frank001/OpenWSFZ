@@ -290,18 +290,36 @@ Record, in the run's report header, the **WSJT-X version** and the **OpenWSFZ gi
 
 ## 3. Running the study
 
-> ⏳ The harness (synthesizer, generator driver, matcher, analysis) is not yet built — see
-> `STUDY-SPEC.md` §12 and §15. This section will be completed as those components land. For now,
-> the runbook covers the **audio-routing prerequisite** required before any run.
+**Current, updated 2026-09-22 (Captain's standardisation instruction).** The harness (generator
+driver, matcher, analysis) has been built since 2026-06/07 and is exercised routinely — the
+"planned procedure" this section used to describe (pre-dating `run_study.py` entirely) is
+superseded by what's below. Both scripts live in `qa/rr-study/`, run from that directory.
 
-Planned procedure (subject to harness implementation):
-
-1. Complete the VB-CABLE setup in §1 and the application settings in §2.
-2. Run the synthesizer **self-validation gate** (`STUDY-SPEC.md` §5): WSJT-X must decode a clean
-   (+10 dB) rendering of every message used, or the run aborts.
-3. Execute the chosen scenario(s) from `STUDY-SPEC.md` §6 (S1–S6).
-4. Regenerate the Minitab-style report from the raw `ALL.TXT` logs with the single analysis command
-   (`STUDY-SPEC.md` §9, §11).
+1. Complete the VB-CABLE setup in §1 and the application settings in §2 above — this script does
+   not do either for you (WSJT-X Monitor/decode state, OpenWSFZ's own decode/logging config, the
+   audio device — all your own setup, done first, same principle as the endurance side's
+   standardisation).
+2. Kick off the controlled S1–S8 battery, detached so it survives the session closing (a full
+   battery, or `--scenarios S3b`/`S8HN`, can run for hours unattended):
+   ```
+   python run_study_detached.py [-- args forwarded to run_study.py, e.g. --skip-s8 --device "Line 1"]
+   ```
+   Or run it directly, attended, exactly as before: `python run_study.py`. Both accept
+   `--wsjt-all-txt`/`--owsfz-all-txt` to override the default `ALL.TXT` locations. Watch an
+   unattended run with the printed `Get-Content ... -Wait -Tail 20` command — a log tail, not a
+   scheduler (HK-023). `run_study_detached.py` does **not** auto-restart on a crash — see its own
+   module docstring for why a scenario-battery mid-run crash needs a deliberate resume, not a
+   blind restart.
+3. If a run is interrupted partway through, resume it deliberately from the correct scenario
+   (`resume_study.py` reads `truth.csv` back to find out what already landed, rather than
+   assuming): `python resume_study.py --from-scenario <ID>`, or detached:
+   `python run_study_detached.py --resume -- --from-scenario <ID>`.
+4. **Analysis is a separate step** (Captain's standardisation instruction: "any analysis shall be
+   separate from the run-script" — neither script above runs it automatically any more):
+   ```
+   python harness/analyse.py --run-dir <the run directory printed at the end of step 2/3>
+   ```
+   This regenerates `report.md`, including its own Section 6 historical-trend table.
 
 ---
 

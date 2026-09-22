@@ -2,13 +2,22 @@
 """Master R&R study runner.
 
 Runs scenarios in sequence (live playback into VB-CABLE), then collects
-the WSJT-X and OpenWSFZ ALL.TXT logs, runs the matcher for every scenario,
-and runs the analyser.
+the WSJT-X and OpenWSFZ ALL.TXT logs and runs the matcher for every scenario.
+
+Analysis (harness/analyse.py -- the ANOVA-style stats/verdict computation and report.md
+generation) is a SEPARATE step, printed at the end, not run automatically (Captain's
+standardisation instruction, 2026-09-22: "any analysis shall be separate from the
+run-script" -- same principle already applied to the endurance side).
+
+Application settings (audio device, Monitor/decode state, logging) are the operator's own
+setup, done BEFORE running this script -- see qa/rr-study/RUNBOOK.md section 2 for the
+current, authoritative settings table; this script does not duplicate or enforce it.
 
 Run from qa/rr-study/:
     python run_study.py                          # full run (prompts for S8)
     python run_study.py --skip-s8                # full run, S8 excluded
     python run_study.py --scenarios S1,S1b       # targeted run
+    python run_study.py --wsjt-all-txt <path> --owsfz-all-txt <path>   # non-default ALL.TXT locations
 """
 from __future__ import annotations
 
@@ -37,6 +46,12 @@ _VENV_PYTHON = _HERE / ".venv" / "Scripts" / "python.exe"
 _SCENARIOS = _HERE / "scenarios"
 _RESULTS = _HERE / "results"
 
+# Defaults only -- both are overridable via --wsjt-all-txt/--owsfz-all-txt (Captain's
+# standardisation instruction, 2026-09-22, same principle applied to the endurance side first:
+# "configured before the run", not hardcoded in the script). The values below are this
+# project's current standard setup and stay as the default so no existing invocation changes
+# behaviour; see qa/rr-study/RUNBOOK.md section 2 for the current, authoritative app settings this
+# script does not itself duplicate or enforce.
 WSJT_ALL_TXT    = Path(r"C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT")
 # 2026-08-05 (repeat of 2026-06-22-f11f438 on newest build): the Captain now runs WSJT-X
 # under the multi-instance "WSJT-X - FT991A" profile (three-decoder antenna-split setup),
@@ -124,7 +139,15 @@ def main() -> None:
                              "of a single scenario (e.g. --scenarios S7 --parts 0,1,2). "
                              "Applied to every scenario when multiple are selected — use "
                              "with care. Not applicable to S8 (silently ignored).")
+    parser.add_argument("--wsjt-all-txt", default=str(WSJT_ALL_TXT), metavar="PATH",
+                        help=f"Path to WSJT-X's ALL.TXT. Default: {WSJT_ALL_TXT} "
+                             "(this project's current standard profile; override if yours "
+                             "differs -- see RUNBOOK.md section 2).")
+    parser.add_argument("--owsfz-all-txt", default=str(OWSFZ_ALL_TXT), metavar="PATH",
+                        help=f"Path to OpenWSFZ's ALL.TXT. Default: {OWSFZ_ALL_TXT}.")
     args = parser.parse_args()
+    wsjt_all_txt = Path(args.wsjt_all_txt)
+    owsfz_all_txt = Path(args.owsfz_all_txt)
 
     # ── Build scenario list ────────────────────────────────────────────────
     scenario_part_overrides: dict[str, str] = {}
@@ -178,8 +201,8 @@ def main() -> None:
     print("=" * 70)
     print("OpenWSFZ R&R Study -- live run")
     print("=" * 70)
-    print(f"  WSJT-X ALL.TXT  : {WSJT_ALL_TXT}")
-    print(f"  OpenWSFZ ALL.TXT: {OWSFZ_ALL_TXT}")
+    print(f"  WSJT-X ALL.TXT  : {wsjt_all_txt}")
+    print(f"  OpenWSFZ ALL.TXT: {owsfz_all_txt}")
     print(f"  Device          : {args.device}")
     print(f"  Scenarios       : {', '.join(scenario_ids)}")
     print(f"  Run directory   : {run_dir.relative_to(_HERE)}  (pinned for the whole battery)")
@@ -223,21 +246,21 @@ def main() -> None:
 
     # ── Step 3: Collect log files ──────────────────────────────────────────
     print("\nCollecting decode logs ...")
-    if not WSJT_ALL_TXT.exists():
+    if not wsjt_all_txt.exists():
         sys.exit(
-            f"ERROR: WSJT-X ALL.TXT not found at {WSJT_ALL_TXT}\n"
+            f"ERROR: WSJT-X ALL.TXT not found at {wsjt_all_txt}\n"
             "       Was Monitor ON and did WSJT-X decode anything?"
         )
-    if not OWSFZ_ALL_TXT.exists():
+    if not owsfz_all_txt.exists():
         sys.exit(
-            f"ERROR: OpenWSFZ ALL.TXT not found at {OWSFZ_ALL_TXT}\n"
+            f"ERROR: OpenWSFZ ALL.TXT not found at {owsfz_all_txt}\n"
             "       Is decodeLog.enabled = true in config?"
         )
 
     wsjt_dest  = run_dir / "wsjt-all.txt"
     owsfz_dest = run_dir / "owsfz-all.txt"
-    shutil.copy2(WSJT_ALL_TXT,  wsjt_dest)
-    shutil.copy2(OWSFZ_ALL_TXT, owsfz_dest)
+    shutil.copy2(wsjt_all_txt,  wsjt_dest)
+    shutil.copy2(owsfz_all_txt, owsfz_dest)
     print(f"  Copied WSJT-X   -> {wsjt_dest.name}")
     print(f"  Copied OpenWSFZ -> {owsfz_dest.name}")
 
@@ -257,12 +280,18 @@ def main() -> None:
         )
         print(f"  [OK] {scen_id} matched\n", flush=True)
 
-    # ── Step 5: Analyse ────────────────────────────────────────────────────
-    print("\nRunning analyser ...")
-    _py("harness/analyse.py", "--run-dir", str(run_dir))
-
+    # Analysis is a SEPARATE step (Captain's standardisation instruction, 2026-09-22, same
+    # principle already applied to the endurance side: "any analysis shall be separate from
+    # the run-script"). matcher.py above stays here -- it builds each scenario's own
+    # matched.csv, which is data preparation for THIS run, the same role the endurance
+    # gatherer plays -- but harness/analyse.py (the ANOVA-style stats/verdict computation and
+    # report.md generation) does not run automatically any more.
     print("\n" + "=" * 70)
-    print(f"Study complete.  Report: {run_dir / 'report.md'}")
+    print("Study data collection complete (scenarios run, logs collected, matched).")
+    print(f"Run directory: {run_dir}")
+    print()
+    print("Analysis is a separate step -- run it explicitly:")
+    print(f"    python harness/analyse.py --run-dir {run_dir}")
     print("=" * 70)
 
 
