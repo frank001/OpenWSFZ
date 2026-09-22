@@ -733,7 +733,11 @@ def write_run_meta(path: str, meta: dict) -> None:
     Keys (any may be the literal string "not recorded" -- see NOT_RECORDED -- rather than
     omitted, so the table can show a citable gap instead of a missing row; NEVER infer a
     value that isn't stated in the source):
-    date (YYYY-MM-DD), band, hours (float or "not recorded"), dll_sha256, shim, nhard,
+    date (YYYY-MM-DD), band, hours (float or "not recorded"), dll_sha256, build_branch,
+    build_commit (Architect, 2026-09-22: required going forward, next to dll_sha256 -- "the
+    latest binary" is ambiguous once more than one branch carries decoder-affecting work;
+    "not recorded" only for pre-standardisation backfilled rows, where no such record exists
+    to cite), shim, nhard,
     reference ("live_wsjtx" | "offline_jt9" | "n/a" -- "n/a" for a comparison that isn't
     against a reference decoder at all, e.g. OpenWSFZ vs OpenWSFZ; give reference_note in
     that case), radio_chain, grid_gate_g (the lower of the two appraisers' G where both are
@@ -803,9 +807,10 @@ def render_historical_section(entries: list[dict], section_number: int = 4) -> s
               "file(s) every other field in that row was read from, repo-relative. Footnote "
               "numbering runs in table order, first-needed.")
     L.append("")
-    L.append("| Date | Band | Hours | DLL SHA (short) | Shim | nhard | Ref. | Radio chain | G | "
-              "Matched pairs | Matched % of ref | OWS-only % | SNR gap (dB) | DT gap (s) | Source |")
-    L.append("|---|---|---:|---|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---|")
+    L.append("| Date | Band | Hours | DLL SHA (short) | Build branch | Build commit (short) | "
+              "Shim | nhard | Ref. | Radio chain | G | Matched pairs | Matched % of ref | "
+              "OWS-only % | SNR gap (dB) | DT gap (s) | Source |")
+    L.append("|---|---|---:|---|---|---|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---|")
     footnotes = []
     for e in entries:
         ref = e.get("reference")
@@ -823,9 +828,12 @@ def render_historical_section(entries: list[dict], section_number: int = 4) -> s
         flags = "<sup>" + ",".join(str(n) for n in flag_nums) + "</sup>" if flag_nums else ""
         dll = e.get("dll_sha256")
         dll_short = (dll[:8] + "…") if dll and dll != NOT_RECORDED else NOT_RECORDED
+        commit = e.get("build_commit")
+        commit_short = (commit[:8] + "…") if commit and commit != NOT_RECORDED else _fmt(commit)
         src = ", ".join(f"`{s}`" for s in e.get("source_files", [])) or NOT_RECORDED
         L.append(f"| {_fmt(e.get('date'))} | {_fmt(e.get('band'))} | {_fmt(e.get('hours'), '.1f')} | "
-                  f"{dll_short} | {_fmt(e.get('shim'))} | {_fmt(e.get('nhard'))} | "
+                  f"{dll_short} | {_fmt(e.get('build_branch'))} | {commit_short} | "
+                  f"{_fmt(e.get('shim'))} | {_fmt(e.get('nhard'))} | "
                   f"{ref_label}{flags} | {_fmt(e.get('radio_chain'))} | "
                   f"{_fmt(e.get('grid_gate_g'), '.4f')} | {_fmt(e.get('n_pairs'))} | "
                   f"{_fmt(e.get('matched_pct_of_ref'), '.1f') if isinstance(e.get('matched_pct_of_ref'), (int, float)) else _fmt(e.get('matched_pct_of_ref'))} | "

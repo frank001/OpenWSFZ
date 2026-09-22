@@ -236,6 +236,26 @@ def wait_ready(run, port, timeout=DAEMON_READY_TIMEOUT_S):
 
 
 # --------------------------------------------------------------- PRECHECK (record, don't configure)
+def load_build_provenance(daemon_exe):
+    """Reads <dirname(daemon_exe)>/build_provenance.json, written by
+    tools/capture_build_provenance.py immediately after a publish. Architect, 2026-09-22
+    (reading commit 85c43a77): "the latest binary" is ambiguous once more than one branch
+    carries decoder-affecting work (qa/live-gap-map/main, shim 20260051, vs
+    decoding_improvement, shim 20260054 + Stage 1 suppression -- both "latest" on their own
+    branch, not the same decoder), and the running daemon's own /api/v1/status doesn't carry
+    git provenance in this build (confirmed live: "0.49", no commit suffix). So this is a
+    REQUIRED, independently-captured field, not optional metadata -- returns (None, "missing")
+    if the file doesn't exist, (None, "unreadable") if it exists but won't parse, else the
+    parsed dict."""
+    p = os.path.join(os.path.dirname(os.path.abspath(daemon_exe)), "build_provenance.json")
+    if not os.path.isfile(p):
+        return None, "missing", p
+    try:
+        return json.load(open(p, encoding="utf-8")), None, p
+    except (OSError, json.JSONDecodeError):
+        return None, "unreadable", p
+
+
 def precheck(run, daemon_exe, config_path, port, wsjtx_ini):
     """Starts the daemon with the GIVEN (never constructed) exe/config/port, then RECORDS
     everything about what came up -- Architect constraint (a). Refuses (all_pass=False) on any
@@ -262,6 +282,24 @@ def precheck(run, daemon_exe, config_path, port, wsjtx_ini):
     res["checks"]["daemon_exe_exists"] = True
     res["checks"]["config_exists"] = True
 
+    # Build provenance -- REQUIRED (Architect, 2026-09-22, interim rule pending the Captain's
+    # answer on which branch's binary is "the" standard one). Checked before starting anything,
+    # so a missing/dirty build never even spins up the daemon.
+    provenance, prov_error, prov_path = load_build_provenance(daemon_exe)
+    res["checks"]["build_provenance_present"] = provenance is not None
+    res["build_provenance_path"] = prov_path
+    if provenance is None:
+        res["checks"]["build_provenance_error"] = prov_error
+        res["checks"]["all_pass"] = False
+        return res
+    res["build"] = {"branch": provenance.get("branch"), "commit": provenance.get("commit"),
+                     "dirty": provenance.get("dirty"), "captured_utc": provenance.get("captured_utc")}
+    res["checks"]["build_tree_clean"] = not provenance.get("dirty")
+    if provenance.get("dirty"):
+        res["build"]["dirty_files"] = provenance.get("dirty_files")
+        res["checks"]["all_pass"] = False
+        return res
+
     start_daemon(run, daemon_exe, config_path, port)
     if not wait_ready(run, port):
         res["checks"]["became_ready"] = False
@@ -284,6 +322,11 @@ def precheck(run, daemon_exe, config_path, port, wsjtx_ini):
         time.sleep(5)
     res["daemon"]["dll_path"] = dll
     res["daemon"]["dll_sha256"] = sha256(dll) if dll and os.path.exists(dll) else None
+    # Build source branch/commit, next to the DLL SHA-256 (Architect, 2026-09-22): "the latest
+    # binary" is ambiguous across branches that both carry decoder-affecting work. Already
+    # validated clean/present above -- this just brings it alongside the hash it identifies.
+    res["daemon"]["build_branch"] = res["build"]["branch"]
+    res["daemon"]["build_commit"] = res["build"]["commit"]
 
     try:
         with urllib.request.urlopen("http://127.0.0.1:%s/api/v1/status" % port, timeout=6) as r:
@@ -406,8 +449,9 @@ this script). Daemon exe/config/port were given to this script as input -- every
 RECORD of what actually came up when they were used, not something this script decided.
 
 - Window (UTC): %s -> %s.
-- OpenWSFZ: DLL SHA-256 `%s`, shim %s, daemon version %s; nhard %s; suppression triple %s;
-  port %s; exe `%s`; config `%s`.
+- OpenWSFZ: DLL SHA-256 `%s`, built from branch `%s` commit `%s` (clean tree, required --
+  PRECHECK refuses to arm on a dirty tree or a missing build_provenance.json); shim %s, daemon
+  version %s; nhard %s; suppression triple %s; port %s; exe `%s`; config `%s`.
 - WSJT-X: NDepth=%s, AP=%s, dial %s Hz, mode %s.
 - `state.json`, `arm_config.json`, `events.jsonl`, `supervisor.log`, `heartbeat.json` record
   the run. `arm_config.json` is the full ROW-0-style record (Architect constraint (a)).
@@ -415,7 +459,8 @@ RECORD of what actually came up when they were used, not something this script d
   (`tools/gather_live_run_artefacts.py`, the standard gatherer, HK-016).
 - Analysis (ANOVA report, historical table) is a SEPARATE step -- see HANDOFF.md.
 """ % (os.path.basename(run.c), arm.get("band"), run.state.get("window_start"), run.state.get("window_end"),
-       d.get("dll_sha256"), d.get("shim_version"), d.get("daemon_version"), d.get("osd_nhard_max"),
+       d.get("dll_sha256"), d.get("build_branch"), d.get("build_commit"), d.get("shim_version"),
+       d.get("daemon_version"), d.get("osd_nhard_max"),
        d.get("suppression_triple"), d.get("port"), d.get("exe"), d.get("config_path"),
        w.get("NDepth"), w.get("ap_enabled"), w.get("dial_freq_hz"), w.get("mode"))
     with open(os.path.join(run.c, "README.md"), "w", encoding="utf-8") as f:

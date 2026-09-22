@@ -254,6 +254,8 @@ def main() -> int:
             "band": arm.get("band") or "?",
             "hours": hours,
             "dll_sha256": d.get("dll_sha256") or "?",
+            "build_branch": d.get("build_branch") or ac.NOT_RECORDED,
+            "build_commit": d.get("build_commit") or ac.NOT_RECORDED,
             "shim": d.get("shim_version") or "?",
             "nhard": d.get("osd_nhard_max") or "?",
             "reference": args.reference,
