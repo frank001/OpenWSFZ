@@ -256,7 +256,7 @@ def load_build_provenance(daemon_exe):
         return None, "unreadable", p
 
 
-def precheck(run, daemon_exe, config_path, port, wsjtx_ini, expected_build_branch):
+def precheck(run, daemon_exe, config_path, port, wsjtx_ini):
     """Starts the daemon with the GIVEN (never constructed) exe/config/port, then RECORDS
     everything about what came up -- Architect constraint (a). Refuses (all_pass=False) on any
     internally-detectable mismatch. Writes arm_config.json and returns it. Does not leave a
@@ -312,14 +312,12 @@ def precheck(run, daemon_exe, config_path, port, wsjtx_ini, expected_build_branc
     if provenance.get("build_dirty"):
         res["checks"]["all_pass"] = False
         return res
-    # Branch check (Captain's ruling, 2026-09-22, relayed via Architect): the standard build is
-    # decoding_improvement's tip, not main/qa-*. Configurable (--expected-build-branch) so a
-    # deliberate off-branch run can still be requested explicitly, but the default enforces it.
-    res["checks"]["build_branch_expected"] = expected_build_branch
-    res["checks"]["build_branch_matches"] = (provenance.get("branch") == expected_build_branch)
-    if not res["checks"]["build_branch_matches"]:
-        res["checks"]["all_pass"] = False
-        return res
+    # NOT a gate (Captain, direct, 2026-09-22, URGENT reversal of the branch check this session
+    # briefly added: "I really don't want that hard check on the branch. It should be able to
+    # run on whatever we want."). Branch/commit are recorded above in res["build"] regardless --
+    # that's disclosure, and the historical table can't be read without it. Which branch QA
+    # should build from (decoding_improvement, currently) is operator guidance, not something
+    # this script enforces.
 
     start_daemon(run, daemon_exe, config_path, port)
     if not wait_ready(run, port):
@@ -500,11 +498,6 @@ def main():
     ap.add_argument("--hours", type=float, default=24.0, help="wall-clock window length (default 24h)")
     ap.add_argument("--wsjtx-ini", required=True, help="path to the WSJT-X .ini this run should "
                      "read (the operator's own profile, agreed beforehand)")
-    ap.add_argument("--expected-build-branch", default="decoding_improvement",
-                     help="PRECHECK refuses to arm unless build_provenance.json's recorded "
-                          "branch matches this exactly (Captain's ruling, 2026-09-22: standard "
-                          "endurance runs build from decoding_improvement, not main). "
-                          "Overridable for a deliberate off-branch run.")
     ap.add_argument("--resume", action="store_true")
     a = ap.parse_args()
     run = Run(a.corpus)
@@ -527,7 +520,7 @@ def main():
     else:
         run.log("supervisor start pid %d, corpus %s" % (os.getpid(), a.corpus))
         run.state["phase"] = "PRECHECK"; run.save(); run.handoff("PRECHECK")
-        arm = precheck(run, a.daemon_exe, a.config, a.port, a.wsjtx_ini, a.expected_build_branch)
+        arm = precheck(run, a.daemon_exe, a.config, a.port, a.wsjtx_ini)
         run.log("PRECHECK " + json.dumps(arm.get("checks", {})))
         if not arm["checks"].get("all_pass"):
             run.state["phase"] = "ABORTED"; run.save(); run.handoff("ABORTED", "see arm_config.json")

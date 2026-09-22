@@ -21,10 +21,15 @@ from this worktree's then-current HEAD:
 
 **Captain's ruling (2026-09-22, relayed via Architect, after these runs):** standard endurance
 runs build from **`decoding_improvement`** (currently shim `20260054`, with the Stage 1
-suppression), not `main`/`qa/live-gap-map`. `endurance_supervisor.py`'s PRECHECK now asserts
-`build_provenance.json`'s recorded branch equals `decoding_improvement` by default (commit
-`<next commit after this note>`) and refuses to arm otherwise — these two dry runs would **not**
-pass that check today, which is correct: they were never claiming to be a standard run.
+suppression), not `main`/`qa/live-gap-map`. A PRECHECK assertion enforcing this branch was
+briefly added (commit `f51e2a80`), then the Captain reversed the enforcement URGENTLY, same
+session, direct: *"I really don't want that hard check on the branch. It should be able to run
+on whatever we want."* The assertion was removed; branch/commit stay a **required recorded
+field** (`arm_config.json`, README, the historical table) but the script now arms on a build
+from any branch. `decoding_improvement` remains standing guidance for which binary QA should
+build, not something PRECHECK enforces. These two dry runs' branch (`qa/live-gap-map`) was
+never an issue either way — they were never claiming to be a standard run regardless of which
+policy was current when they ran.
 
 **Consequence for these two runs, unchanged from when they happened:** both are test runs, not
 endurance sessions. Neither was added to `anova_common.py`'s Section 4 historical table
