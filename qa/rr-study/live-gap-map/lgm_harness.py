@@ -40,6 +40,18 @@ C2_EXPECT = {"n_ref": 91046, "R_wild_2dp": 61.09, "H10_2dp": 17.96, "misses": 35
 QUALIFIERS = ("binary libft8.dll SHA-256 38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba / shim 20260054 / decoding_improvement fa8a56ae or its docs-only descendant 84cac119, "
               "nhard 40, 20m (14.074), REF = WSJT-X FT991A alone (NDepth 3), one radio and one audio stream")
 
+# Amendment 3 (arch/live-gap-map c1c59c65, Captain's ruling 2026-09-22T17:30Z): C3 is not voided; the
+# 23:00-00:15Z interference episode is cut and the rows are read on the rest. Bounds are QA's report
+# §4 full-run scan (episode starts in the 23:00 bin, tapers to zero by 00:10-00:15Z); the cut takes the
+# WHOLE failing hour, not just the 9 failing cycles. Pre-registered as code here -- do not hand-filter.
+AMD3_EXCLUDE = (datetime.datetime(2026, 9, 21, 23, 0, 0, tzinfo=datetime.timezone.utc),
+                 datetime.datetime(2026, 9, 22, 0, 15, 0, tzinfo=datetime.timezone.utc))
+
+
+def _in_amd3_window(cycle_ts):
+    t = datetime.datetime.strptime(cycle_ts[:13], "%y%m%d_%H%M%S").replace(tzinfo=datetime.timezone.utc)
+    return AMD3_EXCLUDE[0] <= t < AMD3_EXCLUDE[1]
+
 
 def cyc_index(ts):
     return int(datetime.datetime.strptime(ts[:13], "%y%m%d_%H%M%S").replace(tzinfo=datetime.timezone.utc).timestamp()) // 15
@@ -72,25 +84,35 @@ def load_c2():
     return {"ref": ref, "live": live, "cycles": W, "wall_cycles": idx[-1] - idx[0] + 1, "row0": None, "window": {"start": W[0], "end": W[-1]}, "label": "C2 (SELFTEST, not a result)"}
 
 
-def load_c3(corpus_dir):
+def load_c3(corpus_dir, cut_amendment3=False):
     st = json.load(open(os.path.join(corpus_dir, "state.json"), encoding="utf-8"))
     ws = datetime.datetime.strptime(st["window_start"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
     we = datetime.datetime.strptime(st["window_end"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
-    W = []
+    W_all = []
     with open(os.path.join(corpus_dir, "cycle-audio", "cycle-archive.csv"), encoding="utf-8", newline="") as fh:
         for row in csv.DictReader(fh):
             t = datetime.datetime.strptime(row["cycle_start_utc"][:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=datetime.timezone.utc)
             if ws <= t < we and row["dial_mhz"] == "14.074" and row["filename"].endswith(".wav") and not row["filename"].endswith("_2.wav"):
-                W.append(row["filename"][:-4])
-    W = sorted(set(W)); S = set(W)
-    lo, hi = min(W), max(W)
+                W_all.append(row["filename"][:-4])
+    W_all = sorted(set(W_all))
+    removed = [w for w in W_all if _in_amd3_window(w)] if cut_amendment3 else []
+    removed_set = set(removed)
+    W = [w for w in W_all if w not in removed_set]
+    S = set(W)
+    lo, hi = min(W_all), max(W_all)
     ref = matcher.load_all(os.path.join(corpus_dir, "wsjtx-1-ft991a", "ALL.TXT"), lo, hi)
     live = matcher.load_all(os.path.join(corpus_dir, "openwsfz", "ALL.TXT"), lo, hi)
+    removed_ref_n = sum(1 for k in ref if k[0] in removed_set)
     ref = {k: v for k, v in ref.items() if k[0] in S}
     live = {k: v for k, v in live.items() if k[0] in S}
     row0 = json.load(open(os.path.join(corpus_dir, "row0.json"), encoding="utf-8"))
-    return {"ref": ref, "live": live, "cycles": W, "wall_cycles": int(round((we - ws).total_seconds() / 15)), "row0": row0,
-            "window": {"start": st["window_start"], "end": st["window_end"]}, "label": os.path.basename(corpus_dir)}
+    # Amendment 3: a removed cycle counts on neither side (same convention as the 19:05:00Z supervisor
+    # swap) -- both the archived-cycle numerator and the wall-clock denominator drop the cut interval.
+    wall_cycles = int(round((we - ws).total_seconds() / 15)) - len(removed)
+    return {"ref": ref, "live": live, "cycles": W, "wall_cycles": wall_cycles, "row0": row0,
+            "window": {"start": st["window_start"], "end": st["window_end"]}, "label": os.path.basename(corpus_dir),
+            "cut_amendment3": cut_amendment3, "removed_cycles": len(removed), "removed_ref_n": removed_ref_n,
+            "amd3_exclude_window_utc": [AMD3_EXCLUDE[0].strftime("%Y-%m-%dT%H:%M:%SZ"), AMD3_EXCLUDE[1].strftime("%Y-%m-%dT%H:%M:%SZ")]}
 
 
 # ------------------------------------------------------------------ measures
@@ -204,6 +226,9 @@ def analyse(d, n_boot):
     e = row0e_prime(d, hit)
     g_ok = n >= POWER_MIN
     lo, hi = bs["H10"]["ci95"]
+    # the bar-only verdict, ignoring 0e'/0g -- used for Amendment 3 §3.9 item 3 (sensitivity: does the
+    # cut decide the M-row, or would the full corpus have landed on the same one had 0e' passed?)
+    bars_only_row = ("M1" if lo >= BAR_M1 else ("M2" if hi < BAR_M2 else "M3"))
     if not e["all_pass"]:
         verdict = "VOID"
     elif not g_ok:
@@ -222,6 +247,9 @@ def analyse(d, n_boot):
            "verdict_row": verdict, "verdict_meaning": {"VOID": "0e' failed: all gate rows void, report the gaps", "M4": "underpowered: report everything, route nothing", "M1": "strong-miss pool is still large: the next target",
                                                        "M2": "pool has largely closed: the question is the Captain's", "M3": "between the bars: report, route nothing on it alone"}[verdict],
            "bars": {"M1_CI_lo_ge": BAR_M1, "M2_CI_hi_lt": BAR_M2, "C2_baseline_H10": 17.96},
+           "bars_only_row_ignoring_0e_prime_and_0g": bars_only_row,
+           "amendment3": {"cut_applied": d.get("cut_amendment3", False), "removed_cycles": d.get("removed_cycles", 0),
+                          "removed_ref_n": d.get("removed_ref_n", 0), "exclude_window_utc": d.get("amd3_exclude_window_utc")},
            "D1": D1}
     res.update(descriptives(d, hit, miss, strong, rec))
     res["prediction_inputs_Architect"] = {"L3_M1_fires": verdict == "M1", "L4_M2_fires": verdict == "M2", "L5_R_wild_in_[57,65]": bool(57.0 <= rec["R_wild"] <= 65.0),
@@ -232,6 +260,8 @@ def analyse(d, n_boot):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus"); ap.add_argument("--selftest-c2", action="store_true"); ap.add_argument("--out"); ap.add_argument("--draws", type=int, default=None)
+    ap.add_argument("--amendment3-cut", action="store_true", help="apply spec Amendment 3 (arch/live-gap-map c1c59c65): cut the 23:00-00:15Z interference episode, "
+                                                                    "then also run the full (uncut) corpus in the same invocation and attach it as amendment3_sensitivity_full_corpus (§3.9 item 3)")
     a = ap.parse_args()
     f = row0f()
     print("ROW 0f pass=%s got=%s" % (f["pass"], json.dumps(f["got"])), flush=True)
@@ -242,12 +272,19 @@ def main():
     else:
         if not a.corpus:
             sys.exit("need --corpus or --selftest-c2")
-        out = a.out or os.path.join(a.corpus, "results", "lgm_result.json")
+        out = a.out or os.path.join(a.corpus, "results", ("lgm_result_amendment3.json" if a.amendment3_cut else "lgm_result.json"))
         os.makedirs(os.path.dirname(out), exist_ok=True)
         if not f["pass"]:
             res = {"verdict_row": "STOP_0f", "ROW_0f": f, "note": "the matcher does not reproduce C2's baseline: the metric is not the one A1 was computed with; nothing else is reported"}
         else:
-            res = analyse(load_c3(a.corpus), a.draws or N_BOOT)
+            res = analyse(load_c3(a.corpus, cut_amendment3=a.amendment3_cut), a.draws or N_BOOT)
+            if a.amendment3_cut:
+                sens = analyse(load_c3(a.corpus, cut_amendment3=False), a.draws or N_BOOT)
+                res["amendment3_sensitivity_full_corpus"] = {
+                    "note": "full (uncut) C3, same code path, same seed, run fresh in this invocation -- spec §3.9 item 3: does the cut decide the M-row?",
+                    "H10_ci95": sens["D1"]["H10_ci95"], "R_wild": sens["D1"]["R_wild"], "n_ref": sens["D1"]["n_ref"],
+                    "bars_only_row_ignoring_0e_prime_and_0g": sens["bars_only_row_ignoring_0e_prime_and_0g"],
+                    "same_M_row_as_cut": sens["bars_only_row_ignoring_0e_prime_and_0g"] == res["bars_only_row_ignoring_0e_prime_and_0g"]}
     res["ROW_0f"] = f
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, default=str)
