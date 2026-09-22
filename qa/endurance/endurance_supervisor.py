@@ -284,7 +284,11 @@ def precheck(run, daemon_exe, config_path, port, wsjtx_ini):
 
     # Build provenance -- REQUIRED (Architect, 2026-09-22, interim rule pending the Captain's
     # answer on which branch's binary is "the" standard one). Checked before starting anything,
-    # so a missing/dirty build never even spins up the daemon.
+    # so a missing/build-dirty build never even spins up the daemon. GATE SCOPE (Architect
+    # ruling, 2026-09-22, narrowing the first cut's whole-tree check, HK-021(k) -- "a gate that
+    # fires on irrelevant state gets bypassed"): only build_dirty (the src/native/build-input
+    # subset tools/capture_build_provenance.py's own BUILD_RELEVANT_* lists compute) gates.
+    # The WHOLE-tree dirty/dirty_files is still recorded below, every time, as disclosure only.
     provenance, prov_error, prov_path = load_build_provenance(daemon_exe)
     res["checks"]["build_provenance_present"] = provenance is not None
     res["build_provenance_path"] = prov_path
@@ -292,11 +296,20 @@ def precheck(run, daemon_exe, config_path, port, wsjtx_ini):
         res["checks"]["build_provenance_error"] = prov_error
         res["checks"]["all_pass"] = False
         return res
+    if "build_dirty" not in provenance:
+        # Stale-format capture (pre-scoping ruling) -- can't tell which subset is build-relevant,
+        # so don't guess either way. Re-capture, don't arm on an unreadable gate.
+        res["checks"]["build_provenance_present"] = False
+        res["checks"]["build_provenance_error"] = "stale format (no build_dirty field) -- re-run tools/capture_build_provenance.py"
+        res["checks"]["all_pass"] = False
+        return res
     res["build"] = {"branch": provenance.get("branch"), "commit": provenance.get("commit"),
-                     "dirty": provenance.get("dirty"), "captured_utc": provenance.get("captured_utc")}
-    res["checks"]["build_tree_clean"] = not provenance.get("dirty")
-    if provenance.get("dirty"):
-        res["build"]["dirty_files"] = provenance.get("dirty_files")
+                     "dirty": provenance.get("dirty"), "dirty_files": provenance.get("dirty_files", []),
+                     "build_dirty": provenance.get("build_dirty"),
+                     "build_dirty_files": provenance.get("build_dirty_files", []),
+                     "captured_utc": provenance.get("captured_utc")}
+    res["checks"]["build_tree_clean"] = not provenance.get("build_dirty")
+    if provenance.get("build_dirty"):
         res["checks"]["all_pass"] = False
         return res
 

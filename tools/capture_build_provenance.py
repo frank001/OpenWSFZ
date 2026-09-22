@@ -18,15 +18,23 @@ worktree, before anything else touches the tree (a checkout, a stash, a new
 commit) -- it records the state of the tree at the moment it is called, which
 is only meaningful if that is still the state the binary was built from.
 
-Writes <publish_dir>/build_provenance.json:
-  {"branch": <str>, "commit": <40-hex str>, "dirty": <bool>,
-   "dirty_files": [<paths>] (only if dirty), "captured_utc": <ISO8601>}
+GATE SCOPE (Architect ruling, 2026-09-22, reading commit c1a27a67's whole-tree
+version -- "a whole-tree check blocks on files that can't reach the binary,
+and a gate that fires on irrelevant state gets bypassed, HK-021(k)"):
+endurance_supervisor.py's PRECHECK refuses to arm only when a change (tracked
+or untracked) exists under BUILD_RELEVANT_PREFIXES/BUILD_RELEVANT_ROOT_NAMES
+below -- src/, native/, repo-root build inputs (*.sln, Directory.Build.*,
+Directory.Packages.props, global.json, NuGet.config), and this project's own
+publish script. The WHOLE-tree dirty_files list is still recorded in full,
+every time, as disclosure -- it is just not what gates.
 
-endurance_supervisor.py's PRECHECK reads this file (same directory as
---daemon-exe) and REQUIRES it (refuses to arm if missing) and REFUSES to arm
-if dirty=True -- until the Captain has ruled on which branch's binary is "the"
-standard one, provenance is recorded and a dirty tree is refused outright, per
-the Architect's interim instruction.
+Writes <publish_dir>/build_provenance.json:
+  {"branch": <str>, "commit": <40-hex str>,
+   "dirty": <bool>            -- WHOLE-tree, disclosure only, never gates,
+   "dirty_files": [<paths>]   -- WHOLE-tree, disclosure only,
+   "build_dirty": <bool>      -- build-relevant subset, THIS is the gate,
+   "build_dirty_files": [<paths>],   -- the subset that set build_dirty,
+   "captured_utc": <ISO8601>}
 
 Usage:
   python3 tools/capture_build_provenance.py [--rid <rid>]
@@ -48,6 +56,36 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DAEMON_PROJECT = os.path.join("src", "OpenWSFZ.Daemon")
+
+# Path-prefix list, in code, not prose (Architect ruling, 2026-09-22). A repo-relative path
+# (forward slashes, as git status --porcelain reports) is build-relevant if it starts with one
+# of these prefixes...
+BUILD_RELEVANT_PREFIXES = ("src/", "native/")
+# ...or is this exact repo-root file...
+BUILD_RELEVANT_EXACT = {"tools/publish_selfcontained.py"}
+# ...or is a repo-ROOT-level file (no "/" in it) matching one of these build-input patterns.
+BUILD_RELEVANT_ROOT_SUFFIXES = (".sln",)
+BUILD_RELEVANT_ROOT_PREFIXES = ("directory.build.",)
+BUILD_RELEVANT_ROOT_EXACT = {"directory.packages.props", "global.json", "nuget.config"}
+
+
+def is_build_relevant(path):
+    """path is repo-relative, as returned by git status --porcelain (forward or back slashes
+    both handled)."""
+    p = path.replace("\\", "/")
+    if p in BUILD_RELEVANT_EXACT:
+        return True
+    if any(p.startswith(prefix) for prefix in BUILD_RELEVANT_PREFIXES):
+        return True
+    if "/" not in p:
+        low = p.lower()
+        if low.endswith(BUILD_RELEVANT_ROOT_SUFFIXES):
+            return True
+        if low.startswith(BUILD_RELEVANT_ROOT_PREFIXES):
+            return True
+        if low in BUILD_RELEVANT_ROOT_EXACT:
+            return True
+    return False
 
 
 def local_rid():
@@ -102,11 +140,14 @@ def main():
         return 1
 
     dirty_files = [line[3:] for line in status.splitlines() if line.strip()]
+    build_dirty_files = [p for p in dirty_files if is_build_relevant(p)]
     provenance = {
         "branch": branch,
         "commit": commit,
         "dirty": bool(dirty_files),
         "dirty_files": dirty_files,
+        "build_dirty": bool(build_dirty_files),
+        "build_dirty_files": build_dirty_files,
         "captured_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     out = os.path.join(pdir, "build_provenance.json")
@@ -114,10 +155,13 @@ def main():
         json.dump(provenance, f, indent=1)
     print(f"wrote {out}")
     print(json.dumps(provenance, indent=1))
-    if provenance["dirty"]:
-        print(f"\nWARNING: working tree is DIRTY ({len(dirty_files)} file(s)). "
+    if provenance["build_dirty"]:
+        print(f"\nWARNING: {len(build_dirty_files)} BUILD-RELEVANT file(s) dirty. "
               f"endurance_supervisor.py's PRECHECK will refuse to arm against this build.",
               file=sys.stderr)
+    elif provenance["dirty"]:
+        print(f"\nNote: {len(dirty_files)} file(s) dirty, none build-relevant -- recorded for "
+              f"disclosure, does not gate.", file=sys.stderr)
     return 0
 
 
