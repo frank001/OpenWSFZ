@@ -291,6 +291,20 @@ body {{
 }}
 
 /* ── Tables ──────────────────────────────────────────────────────── */
+/* A many-column table (e.g. Section 4's 17-column endurance history) is wider than the
+   980px-wide reading column .markdown-body is capped at -- constraining it to
+   `max-width: 100%` (i.e. .markdown-body's own ~890px content box, minus its 45px side
+   padding) left most of a wide table permanently scrolled out of view, readable only via
+   a scrollbar easy to miss against the dark canvas even once made visible (found live,
+   2026-09-23: an explicit scrollbar alone was NOT enough -- the Captain still saw the last
+   columns as unreadable). Fix: break the table out of the narrow reading column to use
+   nearly the full browser viewport width instead, regardless of .markdown-body's own
+   980px cap -- centered via the standard `left: 50%; transform: translateX(-50%)`
+   full-bleed technique (doesn't depend on knowing the parent's width, unlike the
+   negative-margin variant of this trick). `width: max-content` keeps a narrow table (most
+   of this repo's tables) sized to its own content rather than stretched to fill the
+   viewport; only a table whose natural width exceeds the viewport is capped (and, only
+   then, still horizontally scrollable via overflow: auto below) at `100vw - 32px`. */
 .markdown-body table {{
   border-collapse: collapse;
   border-spacing: 0;
@@ -298,9 +312,12 @@ body {{
   font-size: 14px;
   margin-bottom: 16px;
   margin-top: 0;
-  max-width: 100%;
   overflow: auto;
   width: max-content;
+  max-width: calc(100vw - 32px);
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
 }}
 .markdown-body table th {{
   font-weight: 600;
