@@ -756,21 +756,40 @@ def write_run_meta(path: str, meta: dict) -> None:
         json.dump(meta, f, indent=1)
 
 
+_REQUIRED_META_KEYS = ("date", "band", "reference", "n_pairs", "source_files")
+
+
 def scan_historical_runs(endurance_root: str) -> list[dict]:
     """Every `*.meta.json` sidecar under endurance_root/*/ (written by write_run_meta),
     oldest first by `date`. A run directory with no sidecar simply doesn't appear -- this is
     NOT a claim that no other endurance runs exist (HK-026: this scanner cannot see what it
     was never told about); it only lists runs whose sidecar has been written, whether by the
     standard analysis step or by a cited backfill. Never back-computes a count from anything
-    else (HK-031's own rule, applied here too)."""
+    else (HK-031's own rule, applied here too).
+
+    Schema-guarded (found live 2026-09-23): a bare `endurance_root/*/*.meta.json` glob has no
+    way to distinguish this module's own sidecars from an unrelated `*.meta.json` file that
+    happens to share a sibling directory under a broader root -- e.g. a density-remedy leg's
+    own per-leg metadata file. Silently swallowing those (old behaviour: only OSError/
+    JSONDecodeError were caught) renders them as phantom all-"not recorded" historical rows,
+    with any coincidentally-matching key names (this project's schemas both happen to use
+    `nhard`) leaking real numbers from the wrong workstream into this one's table. A file
+    missing any of `_REQUIRED_META_KEYS` is skipped with a stderr warning instead."""
     import glob
     import json
+    import sys
     entries = []
     for meta_path in sorted(glob.glob(os.path.join(endurance_root, "*", "*.meta.json"))):
         try:
-            entries.append(json.load(open(meta_path, encoding="utf-8")))
+            entry = json.load(open(meta_path, encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        missing = [k for k in _REQUIRED_META_KEYS if k not in entry]
+        if missing:
+            print(f"[WARN] scan_historical_runs: {meta_path} is missing "
+                  f"{missing} -- not an endurance-run sidecar, skipped.", file=sys.stderr)
+            continue
+        entries.append(entry)
     entries.sort(key=lambda e: (e.get("date", ""), e.get("run_dir", "")))
     return entries
 

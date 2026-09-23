@@ -123,6 +123,19 @@ def main() -> int:
     ap.add_argument("--no-historical", action="store_true",
                      help="Skip Section 4 (historical table) and the meta.json sidecar this "
                           "run would otherwise write for future reports to pick up.")
+    ap.add_argument("--endurance-root", default=None,
+                     help="Root directory to scan for historical *.meta.json sidecars "
+                          "(Section 4) and to also write this run's own sidecar into. "
+                          "Defaults to this script's own directory (qa/endurance/), which is "
+                          "correct regardless of where --out lands -- deliberately NOT "
+                          "derived from --out's parent: the standardised run_endurance.py "
+                          "pipeline writes --out under artefacts/<run>-gathered/, a sibling "
+                          "of unrelated artefacts/ subdirectories (other workstreams' own "
+                          "*.meta.json files), not qa/endurance/<run>/ the way every "
+                          "pre-standardisation invocation did. Found live 2026-09-23: "
+                          "out_dir-derived root silently (a) missed all pre-existing "
+                          "historical rows and (b) picked up 7 unrelated density-remedy "
+                          "*.meta.json files as phantom endurance rows.")
     ap.add_argument("--stratum", type=int, default=None,
                      help="After matching, keep only pairs whose snapped side's ORIGINAL "
                           "(pre-snap) offset equals this many seconds (e.g. 0 for the "
@@ -273,11 +286,23 @@ def main() -> int:
             "run_dir": os.path.dirname(os.path.abspath(args.out)),
             "source_files": [os.path.relpath(os.path.abspath(args.out), start=os.getcwd()).replace("\\", "/")],
         }
+        # Root for the historical scan/write, independent of --out's own location (see
+        # --endurance-root's help for why: --out no longer reliably lives directly under
+        # qa/endurance/<run>/ now that the standardised pipeline gathers into
+        # artefacts/<run>-gathered/ instead).
+        endurance_root = args.endurance_root or os.path.dirname(os.path.abspath(__file__))
         if hours is not None:
+            # Always co-write next to the report itself (convenience, local reference --
+            # this copy may land in a gitignored artefacts/ dir and not persist to VCS).
             ac.write_run_meta(os.path.splitext(args.out)[0] + ".meta.json", this_meta)
-        # out_dir is this run's own subfolder (qa/endurance/<run>/); its parent is qa/endurance/
-        # itself, the root every run's meta.json sidecar lives directly under.
-        endurance_root = os.path.normpath(os.path.join(out_dir, ".."))
+            # Also write into a stable, git-tracked location under endurance_root so this
+            # run's sidecar is discoverable by future scans regardless of where --out was
+            # pointed -- aggregate stats only (no callsigns), NFR-021-safe to commit.
+            history_dir = os.path.join(endurance_root, "history")
+            os.makedirs(history_dir, exist_ok=True)
+            history_name = os.path.basename(out_dir.rstrip("\\/")) or out_stem
+            history_path = os.path.join(history_dir, f"{history_name}.meta.json")
+            ac.write_run_meta(history_path, this_meta)
         entries = ac.scan_historical_runs(endurance_root)
         report += ac.render_historical_section(entries)
 
