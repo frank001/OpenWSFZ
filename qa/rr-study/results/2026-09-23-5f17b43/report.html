@@ -1492,16 +1492,20 @@ realization per trial. H0(regression net) — see Sections 5 and 6 below.</p>
   confusion-matrix cell that moved is OpenWSFZ's own FP/TN split (0/180 here vs <code>db3a308</code>'s
   1/179), which is the trailing-window's "no new S5 event this sweep" already covered above, not
   a fresh finding.</li>
-<li>🔴 <strong>S7 P2 (co_channel 3-stack, equal 0 dB) — new WSJT-X-side movement, not just the already-
-  tracked OpenWSFZ one.</strong> OpenWSFZ 0/15 continues the pattern unbroken since <code>fbf8c0b5</code> (every
-  row in Section 6 from that point reads OpenWSFZ 0/15 on this cell — not new). <strong>WSJT-X itself
-  dropped to 3/15 this sweep</strong>, against a constant 15/15 in <code>db3a308</code> and every prior row this
-  report's own author has directly compared it to. This is the <strong>first time WSJT-X itself has
-  failed this cell</strong> in the runs this report references — worth the Architect's attention as a
-  possibly-real appraiser-agnostic difficulty at this specific 3-stack asymmetric-offset
-  condition, not (as previously framed) an OpenWSFZ-only cell. Flagged, not diagnosed — a single
-  sweep is not enough to separate "genuinely harder this time" (co-channel timing is randomised
-  seed-to-seed) from a real regression in either app.</li>
+<li>~~🔴 <strong>S7 P2 (co_channel 3-stack, equal 0 dB) — new WSJT-X-side movement... worth the
+  Architect's attention as a possibly-real appraiser-agnostic difficulty... not
+  (as previously framed) an OpenWSFZ-only cell.</strong>~~ <strong>CORRECTED (Architect, 2026-09-23) —
+  struck, not merely reworded: this was exactly the single-sweep, cross-appraiser-pairing
+  narrative this project's own standing S7 rule exists to prevent.</strong> Per standing practice
+  (the 2026-08-31 S7 jump traced to the harness, not either decoder — any S7 movement is
+  <strong>instrument-suspect</strong>, not decoder-suspect), a same-sweep drop in the REFERENCE decoder
+  (WSJT-X, 3/15 here vs a constant 15/15 in every prior row compared) points toward the test
+  setup if anything more than a drop in OpenWSFZ's own reading would — it is not a
+  appraiser-agnostic decoder finding, and it is specifically not to be read alongside
+  OpenWSFZ's own 0/15 on the same cell as though the two corroborate each other (OpenWSFZ's
+  0/15 continues its own already-tracked pattern unbroken since <code>fbf8c0b5</code>, unrelated). <strong>No
+  action taken.</strong> If this cell misbehaves again, check the harness/capture setup first, not
+  either decoder. Left in the record as a data point only.</li>
 <li>ℹ️ <strong>S8 station F (OpenWSFZ 0/5) continues the pattern</strong> tracked since <code>fbf8c0b5</code>'s own Section 5
   and repeated in <code>db3a308</code> — not new, not attributable to this branch change.</li>
 <li>ℹ️ <strong>S8 station H — WSJT-X reading (0/5) returns to a value already seen in the historical set</strong>
