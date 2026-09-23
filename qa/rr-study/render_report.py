@@ -319,6 +319,30 @@ body {{
 .markdown-body table tbody tr:nth-child(even) {{
   background-color: var(--color-canvas-subtle);
 }}
+/* A table wider than .markdown-body's 980px (e.g. Section 4's 17-column historical
+   trend table) scrolls within itself (overflow: auto above) rather than being clipped by
+   the page -- but the default OS/browser overlay scrollbar is thin, auto-hiding, and easy
+   to miss entirely against this dark background, so a wide table can look simply cut off
+   with no visible way to reach the rest of it (found live, 2026-09-23, reading the
+   endurance historical table). Force a scrollbar that's always visible and easy to see. */
+.markdown-body table {{
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-border-default) var(--color-canvas-subtle);
+}}
+.markdown-body table::-webkit-scrollbar {{
+  height: 14px;
+}}
+.markdown-body table::-webkit-scrollbar-track {{
+  background: var(--color-canvas-subtle);
+}}
+.markdown-body table::-webkit-scrollbar-thumb {{
+  background-color: var(--color-fg-subtle);
+  border-radius: 7px;
+  border: 3px solid var(--color-canvas-subtle);
+}}
+.markdown-body table::-webkit-scrollbar-thumb:hover {{
+  background-color: var(--color-fg-muted);
+}}
 
 /* ── Verdict badge colours (applied by JS below) ─────────────────── */
 .verdict-pass     {{ color: var(--color-success-fg);   font-weight: 600; }}
