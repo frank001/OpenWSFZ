@@ -1,0 +1,52 @@
+[
+  {
+    "protocol": "FT8",
+    "value": "",
+    "description": "Not specified"
+  },
+  {
+    "protocol": "FT8",
+    "value": "TR",
+    "description": "Tropospheric Ducting"
+  },
+  {
+    "protocol": "FT8",
+    "value": "ES",
+    "description": "Sporadic E"
+  },
+  {
+    "protocol": "FT8",
+    "value": "F2",
+    "description": "F2 Reflection"
+  },
+  {
+    "protocol": "FT8",
+    "value": "EME",
+    "description": "Earth-Moon-Earth"
+  },
+  {
+    "protocol": "FT8",
+    "value": "MS",
+    "description": "Meteor Scatter"
+  },
+  {
+    "protocol": "FT8",
+    "value": "TEP",
+    "description": "Trans-Equatorial"
+  },
+  {
+    "protocol": "FT8",
+    "value": "SAT",
+    "description": "Satellite"
+  },
+  {
+    "protocol": "FT8",
+    "value": "LOS",
+    "description": "Line of Sight"
+  },
+  {
+    "protocol": "FT8",
+    "value": "INTERNET",
+    "description": "Internet-assisted"
+  }
+]

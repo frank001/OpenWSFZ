@@ -153,6 +153,37 @@ def main():
         forwarded = forwarded[1:]
     target = "resume_study.py" if a.resume else "run_study.py"
 
+    # run_study.py's default behaviour (no --skip-warmup) calls harness/warmup.py, which
+    # blocks on input() asking the operator to confirm both apps decoded the warm-up cycle
+    # before the battery proper begins. Found live, 2026-09-23, first real (non-dry-run)
+    # detached S1-S8 battery: this script's own child is launched with stdin=DEVNULL at the
+    # top level and the grandchild inherits it, but that did NOT fail fast with EOFError as
+    # warmup.py's own `except EOFError: ans = "n"` fallback implies it should -- the battery
+    # was observed genuinely stuck (0 CPU, no further log output, status.json stuck at
+    # RUNNING) for well over a minute with no operator able to answer (a fully detached,
+    # console-less process has no one to ask). Whatever the exact stdin-inheritance
+    # mechanics, an interactive confirmation is fundamentally incompatible with "detached,
+    # unattended, survives the terminal closing" -- the whole point of this script -- so
+    # rather than debug exactly why the EOFError path didn't fire, refuse outright, BEFORE
+    # starting anything, and tell the operator what to do instead: run the warm-up check
+    # attended themselves first (this also genuinely exercises whatever changed in the
+    # audio chain, e.g. a Voicemeeter reroute -- not a check to bypass blindly), then pass
+    # --skip-warmup once it is confirmed. resume_study.py has no warmup step at all (see its
+    # own source -- a resume is by definition mid-battery), so this only applies fresh.
+    if not a.resume and "--skip-warmup" not in forwarded:
+        print("REFUSING: run_study.py's default warm-up check is interactive (input()) and "
+              "will hang forever in this script's fully detached, console-less child -- "
+              "found live, 2026-09-23 (stuck >1 min, 0 CPU, no operator able to answer).")
+        print()
+        print("Do the warm-up check ATTENDED first, with the daemon already running on the "
+              "same --config/--port you're about to pass here:")
+        print('    python harness/warmup.py --device "<same --device you will pass below>"')
+        print("Confirm 'y' only after checking BOTH apps' ALL.TXT actually show the warm-up "
+              "message (CQ Q1ABC FN42) at the cycle it just played -- this is a genuine check "
+              "of whatever changed in the audio chain, not a formality to rubber-stamp.")
+        print("Then re-run this command with --skip-warmup added to the forwarded args (after --).")
+        return 2
+
     if a.poll:
         sup_dir = a.supervisor_dir
         status_path = os.path.join(sup_dir, "status.json")
