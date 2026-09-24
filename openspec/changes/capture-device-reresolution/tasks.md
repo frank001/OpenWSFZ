@@ -219,8 +219,9 @@ must NOT be touched by this change:
 
 ## 10. Out of scope (recorded, not this change)
 
-- The TX output device (`audioOutputDeviceId`) has the same defect class — tracked as a separate new
-  GitHub issue (handoff §1 task 1.7), not fixed here.
+- The TX output device (`audioOutputDeviceId`) has the same defect class, with a different (loud,
+  per-attempt-failure) severity profile — tracked as
+  [issue #189](https://github.com/frank001/OpenWSFZ/issues/189) (handoff §1 task 1.7), not fixed here.
 - The Windows container-ID matching key (`PKEY_Device_ContainerId`) as a more-stable-than-name
   fallback — deferred per design D2, upgrade path only if a future incident shows the friendly-name
   prefix itself renumbering (`"2-"` → `"3-"`).

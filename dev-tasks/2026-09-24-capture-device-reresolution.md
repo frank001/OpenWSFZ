@@ -227,8 +227,9 @@ endurance window (WSJT-X shares the physical device and has no equivalent recove
 ## 11. What this handoff does NOT authorize
 
 - 🛑 No push, no merge, no `pre_merge_check.py`.
-- 🛑 No work on the TX output device (`audioOutputDeviceId`) — same defect class, a separate GitHub
-  issue, not this change.
+- 🛑 No work on the TX output device (`audioOutputDeviceId`) — same defect class, different (loud,
+  per-attempt) failure mode, tracked as
+  [issue #189](https://github.com/frank001/OpenWSFZ/issues/189), not this change.
 - 🛑 No Windows container-ID matching key — deferred (design D2), only becomes the upgrade path if a
   future incident shows the friendly-name prefix itself renumbering.
 - 🛑 No touching `Program.cs:897-912`'s operator-save path — re-resolution there is explicitly out of
