@@ -119,4 +119,61 @@ public sealed class AudioWatchdogTests
         // Assert
         restarts.Should().Be(0, "counter must reset on any data-flowing window before threshold is reached");
     }
+
+    // ── FR-068: RestartCount (design.md Decision 7, capture-stall-detection-unattended #188) ──
+
+    [Fact(DisplayName = "FR-068: RestartCount starts at 0")]
+    public void RestartCount_StartsAtZero()
+    {
+        var watchdog = new AudioWatchdog(
+            isCapturing: () => true,
+            onRestart:   () => Task.CompletedTask,
+            threshold:   3);
+
+        watchdog.RestartCount.Should().Be(0, "no restart has fired yet");
+    }
+
+    [Fact(DisplayName = "FR-068: RestartCount increments by exactly 1 per fired restart")]
+    public async Task RestartCount_IncrementsByOne_PerFiredRestart()
+    {
+        var watchdog = new AudioWatchdog(
+            isCapturing: () => true,
+            onRestart:   () => Task.CompletedTask,
+            threshold:   3);
+
+        await watchdog.TickAsync(dataWasFlowing: false);
+        await watchdog.TickAsync(dataWasFlowing: false);
+        watchdog.RestartCount.Should().Be(0, "the threshold has not been reached yet");
+
+        await watchdog.TickAsync(dataWasFlowing: false); // 3rd consecutive silent window — fires
+        watchdog.RestartCount.Should().Be(1, "exactly one restart fired at the threshold");
+
+        // A second, independent threshold-cross after the counter resets must increment again —
+        // proving RestartCount counts every fired trigger, not just a one-shot latch.
+        await watchdog.TickAsync(dataWasFlowing: false);
+        await watchdog.TickAsync(dataWasFlowing: false);
+        await watchdog.TickAsync(dataWasFlowing: false);
+        watchdog.RestartCount.Should().Be(2, "a second independent threshold-cross must fire a second restart");
+    }
+
+    [Fact(DisplayName = "FR-068: RestartCount counts fired attempts, not successful reconnects — it is unaffected by whether onRestart's own recovery succeeds")]
+    public async Task RestartCount_CountsAttempts_NotSuccesses()
+    {
+        // The watchdog's onRestart contract (see its own doc comment) is to catch its own
+        // exceptions and never throw — a restart that fires but fails to reconnect (e.g. the
+        // device is genuinely gone) still completes onRestart normally. RestartCount must still
+        // have incremented for that attempt, since it counts triggers fired, not outcomes.
+        var restartsAttempted = 0;
+        var watchdog = new AudioWatchdog(
+            isCapturing: () => true,
+            onRestart:   () => { restartsAttempted++; return Task.CompletedTask; }, // "recovery" never actually reconnects
+            threshold:   3);
+
+        await watchdog.TickAsync(dataWasFlowing: false);
+        await watchdog.TickAsync(dataWasFlowing: false);
+        await watchdog.TickAsync(dataWasFlowing: false); // fires — but the device stays dead
+
+        watchdog.RestartCount.Should().Be(1, "the attempt was fired regardless of reconnection outcome");
+        restartsAttempted.Should().Be(1, "sanity check — onRestart itself was invoked exactly once");
+    }
 }

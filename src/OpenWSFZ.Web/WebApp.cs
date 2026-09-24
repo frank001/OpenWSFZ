@@ -68,6 +68,17 @@ public static class WebApp
     /// call will register. Defaults to <c>null</c>, in which case a fresh GUID is minted, as
     /// before.
     /// </param>
+    /// <param name="captureHealthMonitor">
+    /// Daemon-lifetime capture-health ticker (capture-stall-detection-unattended #188). The
+    /// single source of <see cref="DaemonStatus.CaptureActive"/>/<see cref="DaemonStatus.AudioActive"/>/
+    /// <see cref="DaemonStatus.DataFlowing"/>/<see cref="DaemonStatus.WatchdogRestartCount"/> on
+    /// <c>GET /api/v1/status</c>, the initial WebSocket <c>status</c> event, and every WebSocket
+    /// <c>heartbeat</c> frame — construction, starting and stopping are the caller's
+    /// responsibility (<c>Program.cs</c>), since its stop must be sequenced inside the same
+    /// shutdown guard that protects <paramref name="captureManager"/>'s teardown (design.md
+    /// Risk 4). Defaults to <c>null</c> for callers (e.g. minimal test fixtures) that do not
+    /// wire up capture health — every surface then reports <see cref="CaptureHealthSnapshot.Empty"/>.
+    /// </param>
     public static WebApplication Create(
         int port,
         IBindPolicy?                                        bindPolicy                  = null,
@@ -80,11 +91,10 @@ public static class WebApp
         IAudioOutputDeviceProvider?                         audioOutputProvider         = null,
         Func<IServiceProvider, IAudioOutputDeviceProvider>? audioOutputProviderFactory  = null,
         CaptureManager?                                     captureManager              = null,
-        AudioActivityMonitor?                               audioMonitor                = null,
         DataFlowMonitor?                                    dataFlowMonitor             = null,
+        CaptureHealthMonitor?                                captureHealthMonitor        = null,
         ICatState?                                          catState                    = null,
         Action<ILoggingBuilder>?                            configureLogging            = null,
-        Func<Task>?                                         restartPipeline             = null,
         Action<IServiceCollection>?                         configureServices           = null,
         int                                                  shimVersion                 = 0,
         Func<int>?                                           hashTableRejectCountProvider = null,
@@ -299,18 +309,27 @@ public static class WebApp
         app.MapGet("/api/v1/status", (IConfigStore store) =>
         {
             var effectiveFreq = ResolveEffectiveFrequency(catState, store.Current);
+            // capture-stall-detection-unattended #188 (FR-067/068/069): captureHealthSnapshot is
+            // the single source for audioActive/dataFlowing/watchdogRestartCount on every
+            // surface. lastChunkAgeMs is computed fresh here, at request time, from
+            // DataFlowMonitor's own monotonic timestamp — not carried on the snapshot itself
+            // (design D2), so it is correct to the millisecond at the moment of this poll.
+            var captureHealthSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
                 AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
                 CaptureActive:       captureManager?.IsCapturing ?? false,
-                AudioActive:         audioMonitor?.IsActive ?? false,
+                AudioActive:         captureHealthSnapshot.AudioActive,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    effectiveFreq,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
-                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0));
+                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
+                DataFlowing:         captureHealthSnapshot.DataFlowing,
+                LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
+                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0));
         });
 
         app.MapGet("/api/v1/audio/devices", async (
@@ -762,18 +781,22 @@ public static class WebApp
 
             await store.SaveAsync(store.Current with { DecodingEnabled = true }, ct);
             var freqStart = ResolveEffectiveFrequency(catState, store.Current);
+            var startSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
                 AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
                 CaptureActive:       captureManager?.IsCapturing ?? false,
-                AudioActive:         audioMonitor?.IsActive ?? false,
+                AudioActive:         startSnapshot.AudioActive,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStart,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
-                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0));
+                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
+                DataFlowing:         startSnapshot.DataFlowing,
+                LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
+                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0));
         });
 
         app.MapPost("/api/v1/decode/stop", async (
@@ -782,18 +805,22 @@ public static class WebApp
         {
             await store.SaveAsync(store.Current with { DecodingEnabled = false }, ct);
             var freqStop = ResolveEffectiveFrequency(catState, store.Current);
+            var stopSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
                 AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
                 CaptureActive:       captureManager?.IsCapturing ?? false,
-                AudioActive:         audioMonitor?.IsActive ?? false,
+                AudioActive:         stopSnapshot.AudioActive,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStop,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
-                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0));
+                CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
+                DataFlowing:         stopSnapshot.DataFlowing,
+                LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
+                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0));
         });
 
         // ── Decode filter endpoints (decode-panel-filtering) ──────────────────
@@ -1937,7 +1964,7 @@ public static class WebApp
         // ── WebSocket Endpoint ────────────────────────────────────────────────
 
         // Create a per-class logger from the DI container after the app is built.
-        // audioMonitor is captured from the outer scope (closure); it is null in tests
+        // captureHealthMonitor is captured from the outer scope (closure); it is null in tests
         // that don't wire up audio capture.
         var wsLogger = app.Services.GetRequiredService<ILoggerFactory>()
                                    .CreateLogger("OpenWSFZ.Web.WebSocketHub");
@@ -1945,15 +1972,12 @@ public static class WebApp
         // Wire the static broadcast logger used by the fire-and-forget path.
         WebSocketHub.SetBroadcastLogger(wsLogger);
 
-        // B3: construct a singleton AudioWatchdog so all connected clients share one
-        // instance. Per-connection watchdogs would cause N concurrent pipeline restarts
-        // when N clients are connected and the audio goes silent.
-        var audioWatchdog = captureManager is not null && restartPipeline is not null
-            ? new AudioWatchdog(
-                  isCapturing: () => captureManager.IsCapturing,
-                  onRestart:   restartPipeline,
-                  threshold:   3)
-            : null;
+        // capture-stall-detection-unattended #188 (design.md Decision 1): the daemon-lifetime
+        // CaptureHealthMonitor — not this method — owns constructing/starting/stopping the
+        // singleton AudioWatchdog and the per-window ticker. Its stop must be sequenced inside
+        // the same shutdown guard that protects captureManager's teardown (design Risk 4), which
+        // only the caller (Program.cs) can do, so ownership lives there; this method only reads
+        // the ticker's published snapshot via captureHealthMonitor?.Current.
 
         // S1: abort only this app instance's WebSocket connections at the start of
         // ApplicationStopping so the browser UI goes dark immediately at Ctrl+C.
@@ -2004,11 +2028,11 @@ public static class WebApp
             }
 
             await WebSocketHub.HandleAsync(
-                ws, store, audioMonitor, dataFlowMonitor,
-                captureManager, audioWatchdog, catState,
+                ws, store, captureHealthMonitor, catState,
                 wsLogger, scope, shimVersion,
                 hashTableRejectCountProvider?.Invoke() ?? 0,
-                cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0, ctx.RequestAborted);
+                cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
+                dataFlowMonitor?.LastChunkAgeMs, ctx.RequestAborted);
         });
 
         return app;
