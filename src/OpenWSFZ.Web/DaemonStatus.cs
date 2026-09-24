@@ -88,4 +88,33 @@ public sealed record DaemonStatus(
     /// Process-lifetime count of times the capture watchdog has triggered a pipeline restart
     /// (FR-068). Counts fired triggers, not successful reconnects.
     /// </summary>
-    int     WatchdogRestartCount = 0);
+    int     WatchdogRestartCount = 0,
+    /// <summary>
+    /// Capture recovery state (FR-072, capture-device-reresolution #187): <c>"Idle"</c> (no device
+    /// configured, or decoding disabled), <c>"Capturing"</c> (a session is running with zero
+    /// consecutive failures), <c>"Recovering"</c> (one or more consecutive failures, and the last
+    /// resolution identified a usable device or could not resolve), or <c>"DeviceUnavailable"</c>
+    /// (the last resolution found no uniquely matching available device).
+    /// </summary>
+    string  CaptureState = "Idle",
+    /// <summary>
+    /// Automatic capture-restart attempts since process start (FR-072). Includes attempts whose
+    /// resolution found no uniquely matching device (no capture session was ever opened for
+    /// those), not only attempts that opened a session and then failed.
+    /// </summary>
+    int     CaptureRestartCount = 0,
+    /// <summary>
+    /// The current consecutive-failure count (FR-072) — 0 while healthy. Drives the automatic
+    /// restart backoff schedule (<c>CaptureBackoffSchedule.DelayFor</c>); resets to 0 the moment a
+    /// restarted session delivers its first audio chunk.
+    /// </summary>
+    int     ConsecutiveCaptureFailures = 0,
+    /// <summary>
+    /// The message of the most recent capture failure or failed resolution, truncated to 500
+    /// characters, or <c>null</c> if neither has occurred since process start (FR-072). A failed
+    /// resolution's message names the configured friendly name and the match count (0 or ≥2).
+    /// Deliberately NOT cleared on recovery — the last failure stays visible after the fact; read
+    /// alongside <see cref="ConsecutiveCaptureFailures"/> (0 once healthy) to distinguish "recovered,
+    /// but here's the last failure" from "currently failing".
+    /// </summary>
+    string? LastCaptureError = null);
