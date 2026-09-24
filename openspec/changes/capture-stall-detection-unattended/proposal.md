@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 GitHub issue **#188**. The capture watchdog and the live data-flow signal only work while a browser
