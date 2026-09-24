@@ -418,6 +418,32 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
     }
 });
 
+// ── Capture-health ticker (capture-stall-detection-unattended #188, design.md Decision 1) ──
+//
+// B3/S6: AudioWatchdog is the singleton restart trigger — one instance shared by every window
+// evaluation, never per-connection (a per-connection instance would let N connected clients each
+// independently reach the threshold, causing N concurrent restarts).
+//
+// CaptureHealthMonitor is the single daemon-lifetime owner of the 5 s per-window evaluation: it
+// consumes dataFlowMonitor and ticks audioWatchdog exactly once per window, regardless of
+// connected WebSocket client count (including zero) — replacing the old per-connection heartbeat
+// loop in WebSocketHub.HandleAsync, which ran zero times unattended and over-ticked the watchdog
+// with N ≥ 2 clients connected. Constructed here (not inside WebApp.Create) so its stop can be
+// sequenced inside the existing restartSemaphore shutdown guard below, before captureManager is
+// disposed (design Risk 4) — ownership of that ordering belongs to this file, which already owns
+// the guard, not to WebApp.Create.
+var audioWatchdog = new AudioWatchdog(
+    isCapturing: () => captureManager.IsCapturing,
+    onRestart:   restartPipeline,
+    threshold:   3);
+
+var captureHealthMonitor = new CaptureHealthMonitor(
+    isCapturing:     () => captureManager.IsCapturing,
+    dataFlowMonitor: dataFlowMonitor,
+    watchdog:        audioWatchdog,
+    logger:          loggerFactory.CreateLogger<CaptureHealthMonitor>());
+captureHealthMonitor.Start();
+
 // ── LAN remote-access policy selection (lan-remote-access phase) ──────────────
 //
 // Read RemoteAccessConfig from the loaded config and register the appropriate
@@ -469,11 +495,10 @@ var app = WebApp.Create(
     audioOutputProviderFactory: sp => new PlatformAudioOutputDeviceProvider(
                                           sp.GetRequiredService<ILoggerFactory>()),
     captureManager:       captureManager,
-    audioMonitor:         audioMonitor,
     dataFlowMonitor:      dataFlowMonitor,
+    captureHealthMonitor: captureHealthMonitor,
     catState:             catState,
     configureLogging:     ConfigureLogging,
-    restartPipeline:      restartPipeline,
     shimVersion:          shimVersion,
     // f-005-hash-table-saturation-diagnostic (D2): live provider so GET /api/v1/status can
     // report the native hash-table reject count mid-session (it changes over time, unlike
@@ -980,6 +1005,11 @@ app.Lifetime.ApplicationStopping.Register(() =>
     restartSemaphore.Wait();
     try
     {
+        // capture-stall-detection-unattended #188 (design.md Risk 4): stop the ticker BEFORE
+        // captureManager is disposed, inside this same restartSemaphore guard — otherwise the
+        // watchdog could fire a restart into a pipeline that is mid-teardown.
+        captureHealthMonitor.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
         StopFramerAsync().GetAwaiter().GetResult();
         captureManager.StopAsync().GetAwaiter().GetResult();
         captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();

@@ -9,8 +9,12 @@ public sealed record DaemonStatus(
     string? AudioDevice    = null,
     bool    CaptureActive  = false,
     /// <summary>
-    /// True if at least one audio sample with |value| > 1×10⁻⁶ was received
-    /// since application start or the last pipeline restart (FR-020).
+    /// The <c>dataFlowing</c> value of the most recently completed 5-second capture-health
+    /// window — <c>true</c> if at least one audio chunk (of any amplitude) was received during
+    /// that window (FR-020, amended by capture-stall-detection-unattended #188; FR-069). Does
+    /// not latch: always reflects the last completed window, and carries the same value as
+    /// <see cref="DataFlowing"/> and as the initial WebSocket <c>status</c> event and every
+    /// WebSocket <c>heartbeat</c> frame.
     /// </summary>
     bool    AudioActive    = false,
     /// <summary>
@@ -65,4 +69,23 @@ public sealed record DaemonStatus(
     /// mode. Read live per request; resets to 0 only on daemon restart. Defaults to 0 for callers
     /// that do not wire up the archive.
     /// </summary>
-    long    CycleArchiveDroppedCycles = 0);
+    long    CycleArchiveDroppedCycles = 0,
+    /// <summary>
+    /// Whether at least one audio chunk (of any amplitude) was received during the most
+    /// recently completed 5-second capture-health window (FR-068, capture-stall-detection-
+    /// unattended #188). <c>false</c> before the first window completes or while no capture
+    /// session is running. Does not latch — always reflects the last completed window.
+    /// </summary>
+    bool    DataFlowing = false,
+    /// <summary>
+    /// Milliseconds elapsed since the most recent audio chunk was received, computed at the
+    /// moment this response is built from a monotonic clock (FR-068). <c>null</c> only before
+    /// the first chunk of the process. A pipeline restart does NOT reset it — a restart that
+    /// delivers nothing keeps ageing rather than reading back as newly healthy.
+    /// </summary>
+    int?    LastChunkAgeMs = null,
+    /// <summary>
+    /// Process-lifetime count of times the capture watchdog has triggered a pipeline restart
+    /// (FR-068). Counts fired triggers, not successful reconnects.
+    /// </summary>
+    int     WatchdogRestartCount = 0);
