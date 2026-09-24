@@ -1,3 +1,5 @@
+**User-facing:** yes
+
 ## Why
 
 GitHub issue **#187**. `config.json`'s `audioDeviceId` holds a Windows MMDevice **endpoint ID**
