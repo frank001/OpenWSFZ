@@ -64,8 +64,12 @@ internal sealed class WasapiAudioDeviceProvider : IAudioDeviceProvider
             foreach (var ep in endpoints)
             {
                 devices.Add(new AudioDeviceInfo(
-                    Id:   ep.ID,
-                    Name: ep.FriendlyName));
+                    Id:        ep.ID,
+                    Name:      ep.FriendlyName,
+                    // FR-073 (capture-device-reresolution #187): the resolver needs to tell an
+                    // active endpoint from a disabled one — enumeration alone (Active | Disabled
+                    // above) could not previously say which.
+                    Available: ep.State == DeviceState.Active));
             }
         }
         catch (Exception ex)

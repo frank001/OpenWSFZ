@@ -219,6 +219,18 @@ var captureManager = new CaptureManager(audioSource, loggerFactory.CreateLogger<
 var audioMonitor    = new AudioActivityMonitor();
 var dataFlowMonitor = new DataFlowMonitor();
 
+// ── Capture device re-resolution (capture-device-reresolution #187) ──────────
+//
+// A provider dedicated to the automatic-start paths' own device enumeration (design.md
+// Decision 1: "enumerate once per automatic attempt, immediately before it"). Deliberately a
+// separate instance from the one WebApp.Create registers for GET /api/v1/audio/devices — both
+// are thin wrappers with no persistent per-instance cost (StaThread.Run spins up a fresh
+// short-lived thread per call, not per instance), so there is no real duplication cost, and
+// keeping them separate means this resolver-only wiring never risks the HTTP endpoint's own
+// existing DI registration.
+var captureDeviceProvider = new PlatformAudioDeviceProvider(loggerFactory);
+var captureRecoveryState  = new CaptureRecoveryState();
+
 var appScope = Guid.NewGuid();
 
 // ── Spectrum analyser ─────────────────────────────────────────────────────
@@ -234,6 +246,18 @@ captureManager.ChunkReceived = chunk =>
     audioMonitor.ObserveSamples(chunk);
     dataFlowMonitor.OnChunkReceived();
     spectrumAnalyser.Push(chunk);
+
+    // capture-device-reresolution #187 (design.md Decision 4): the consecutive-failure count
+    // resets the moment a restarted session delivers its first chunk. Calling this on every
+    // chunk (not just detectably-the-first) is equivalent and simpler — see
+    // CaptureRecoveryState.RecordChunkReceived's own remarks. Only logs (recovery Warning,
+    // design D6) when a failure streak genuinely just ended; a null result (the overwhelming
+    // common case) is silent.
+    var recovery = captureRecoveryState.RecordChunkReceived();
+    if (recovery is not null)
+        startupLogger.LogWarning(
+            "Capture recovered after {Attempts} automatic attempt(s), {Seconds:F1} s without audio.",
+            recovery.Attempts, recovery.Downtime.TotalSeconds);
 };
 
 spectrumAnalyser.SpectrumReady += magnitudes =>
@@ -349,15 +373,38 @@ var framerOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart, doub
     SingleReader = true,
 });
 
-CancellationTokenSource? framerCts          = null;
-Task?                    framerTask         = null;
-var                      captureRestartCount = 0; // L-13 (DIAG): counts auto-restart attempts
-var                      restartSemaphore   = new SemaphoreSlim(1, 1); // B2: serialise concurrent restart paths
+CancellationTokenSource? framerCts        = null;
+Task?                    framerTask       = null;
+var                      restartSemaphore = new SemaphoreSlim(1, 1); // B2: serialise concurrent restart paths
+
+// capture-device-reresolution #187: the one place all three automatic capture-start paths
+// (startup, CaptureFailed, watchdog — the latter two registered just below) converge — see
+// CaptureAutoStartCoordinator's own doc comment for the no-double-restart/no-deadlock reasoning.
+// startCaptureAsync forwards to RestartPipelineAsync (defined further down as a local function;
+// local functions are hoisted, so this forward reference is fine). Declared here, after every
+// variable RestartPipelineAsync transitively captures (spectrumAnalyser, catState, clock,
+// framerOutput, framerCts, framerTask, restartSemaphore — all declared above this point) is
+// already assigned: top-level statements' definite-assignment analysis requires that for a
+// delegate value created here, even though the local function itself may be called out of
+// textual order. Must also be declared before CaptureFailed/restartPipeline below, which
+// reference it directly (a local *variable*, unlike a local function, is not itself hoisted).
+var captureAutoStart = new CaptureAutoStartCoordinator(
+    configStore,
+    captureDeviceProvider,
+    captureRecoveryState,
+    isCapturing:       () => captureManager.IsCapturing,
+    startCaptureAsync: (id, _) => RestartPipelineAsync(id, stopCaptureManager: true),
+    logger:            startupLogger);
 
 // Surface inner capture faults to the operator and auto-restart the pipeline.
 // Audio capture must always be running (Captain's directive).
 // Registered here (after all closed-over variables are declared) so the
 // lambda's forward references resolve correctly at compile time.
+//
+// capture-device-reresolution #187 (design.md Decisions 1/4): the actual retry — re-resolving
+// the device, backing off, and re-attempting — is delegated to captureAutoStart. This replaces
+// the old flat-5s-delay, no-re-resolution retry that let a rotated device ID retry forever with
+// nothing to show for it.
 captureManager.CaptureFailed += ex =>
 {
     startupLogger.LogError(ex,
@@ -365,39 +412,17 @@ captureManager.CaptureFailed += ex =>
         configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
         ex.Message);
 
-    // Auto-restart: schedule a restart with a 5-second backoff to prevent
-    // rapid restart loops on persistent failures (e.g. device genuinely
-    // unavailable) while keeping recovery prompt for transient stops
-    // (driver power-management, format re-negotiation, session expiry).
-    var device = configStore.Current.AudioDeviceId;
-    if (device is null) return;
+    if (configStore.Current.AudioDeviceId is null) return;
 
-    _ = Task.Run(async () =>
-    {
-        await Task.Delay(TimeSpan.FromSeconds(5));
-
-        // L-14 (DIAG): log the IsCapturing guard result so we can tell whether
-        // the restart was skipped because another path already recovered.
-        var isCapturing = captureManager.IsCapturing;
-        startupLogger.LogDebug(
-            "Restart guard check on '{Device}': IsCapturing={IsCapturing}.",
-            device, isCapturing);
-        if (isCapturing) return;
-
-        // L-13 (DIAG): increment and log restart attempt number.
-        captureRestartCount++;
-        startupLogger.LogInformation(
-            "Auto-restarting audio capture on device '{Device}' after failure " +
-            "(attempt #{RestartCount}).", device, captureRestartCount);
-
-        await RestartPipelineAsync(device, stopCaptureManager: false);
-    });
+    captureRecoveryState.RecordFailedAttempt(ex.Message, deviceUnavailable: false);
+    _ = Task.Run(() => captureAutoStart.RunAsync(applyBackoffDelay: true));
 };
 
-// S6: watchdog restart action. Wraps StopFramerAsync / StopAsync / StartPipeline
-// so the heartbeat loop can fire-and-forget it without blocking.
-// The top-level try-catch ensures restart failures are logged rather than
-// silently swallowed by the discarded ValueTask at the call site.
+// S6: watchdog restart action. Wraps the re-resolution + restart attempt so the ticker
+// (CaptureHealthMonitor.TickOnceAsync, #188) can await it without itself sleeping.
+// capture-device-reresolution #187 (design.md Decision 4): the watchdog now shares the same
+// backoff-delayed retry as CaptureFailed above, rather than restarting immediately — both
+// increment the one consecutiveCaptureFailures counter the backoff schedule reads.
 Func<Task> restartPipeline = () => Task.Run(async () =>
 {
     try
@@ -407,7 +432,9 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
         startupLogger.LogWarning(
             "Watchdog: audio silent for 15 s while capturing on '{Device}' — restarting pipeline.",
             displayName);
-        await RestartPipelineAsync(device, stopCaptureManager: true);
+        captureRecoveryState.RecordFailedAttempt(
+            $"Watchdog: no audio chunk received for 15 s on '{displayName}'.", deviceUnavailable: false);
+        await captureAutoStart.RunAsync(applyBackoffDelay: true);
     }
     catch (Exception ex)
     {
@@ -497,6 +524,7 @@ var app = WebApp.Create(
     captureManager:       captureManager,
     dataFlowMonitor:      dataFlowMonitor,
     captureHealthMonitor: captureHealthMonitor,
+    captureRecoveryState: captureRecoveryState,
     catState:             catState,
     configureLogging:     ConfigureLogging,
     shimVersion:          shimVersion,
@@ -766,7 +794,12 @@ app.Lifetime.ApplicationStarted.Register(() =>
     var autoStartConfigStore = app.Services.GetRequiredService<IConfigStore>();
     var deviceName = autoStartConfigStore.Current.AudioDeviceId;
     if (deviceName is not null && autoStartConfigStore.Current.DecodingEnabled)
-        StartPipeline(deviceName);
+        // capture-device-reresolution #187: startup auto-start now goes through the same
+        // resolve-then-act path as the other two automatic paths (design.md Decision 1's outcome
+        // table), so a device ID that rotated while the daemon was stopped (the 2026-08-03
+        // incident) is adopted on start rather than retried dead forever. applyBackoffDelay:
+        // false — "the first startup attempt SHALL NOT be delayed" (design D4).
+        _ = Task.Run(() => captureAutoStart.RunAsync(applyBackoffDelay: false));
 
     // Decode-pump: reads completed PCM windows, decodes, broadcasts results.
     // A3: pass the application stopping token so ReadAllAsync exits promptly on

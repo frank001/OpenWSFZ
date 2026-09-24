@@ -120,6 +120,25 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
         first.GetProperty("name").GetString().Should().Be("HDA Intel PCH");
     }
 
+    // ── FR-073 (capture-device-reresolution #187) ──────────────────────────────
+
+    [Fact(DisplayName = "FR-073: GET /api/v1/audio/devices includes an available boolean field on each device")]
+    public async Task GetAudioDevices_IncludesAvailableField()
+    {
+        var response = await _client.GetAsync("/api/v1/audio/devices");
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+
+        foreach (var device in doc.RootElement.EnumerateArray())
+        {
+            device.TryGetProperty("available", out var availableProp).Should().BeTrue(
+                "FR-073 requires an 'available' field on every enumerated device");
+            availableProp.ValueKind.Should().Be(JsonValueKind.True,
+                "TestAudioProvider's devices use AudioDeviceInfo's default (Available = true)");
+        }
+    }
+
     // ── Task 9.2 ─────────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-004: GET /api/v1/config returns 200 with current config")]
@@ -223,6 +242,32 @@ public sealed class AudioConfigIntegrationTests : IClassFixture<AudioConfigFixtu
             "the status response must include the captureActive boolean field");
         captureProp.ValueKind.Should().Be(JsonValueKind.False,
             "captureActive should be false when no CaptureManager is wired into the test fixture");
+    }
+
+    // ── FR-072 (capture-device-reresolution #187) ──────────────────────────────
+
+    [Fact(DisplayName = "FR-072: GET /api/v1/status includes the four capture-recovery fields, all at their default when no CaptureRecoveryState is wired")]
+    public async Task GetStatus_IncludesCaptureRecoveryFields_DefaultingToIdle()
+    {
+        var response = await _client.GetAsync("/api/v1/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+
+        doc.RootElement.TryGetProperty("captureState", out var stateProp).Should().BeTrue(
+            "FR-072 requires a captureState field on GET /api/v1/status");
+        stateProp.GetString().Should().Be("Idle",
+            "no CaptureRecoveryState is wired into this test fixture — every surface must fall back to \"Idle\"");
+
+        doc.RootElement.TryGetProperty("captureRestartCount", out var restartProp).Should().BeTrue();
+        restartProp.GetInt32().Should().Be(0);
+
+        doc.RootElement.TryGetProperty("consecutiveCaptureFailures", out var failuresProp).Should().BeTrue();
+        failuresProp.GetInt32().Should().Be(0);
+
+        doc.RootElement.TryGetProperty("lastCaptureError", out var errorProp).Should().BeTrue();
+        errorProp.ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     // ── FR-019: console log level round-trip ─────────────────────────────────

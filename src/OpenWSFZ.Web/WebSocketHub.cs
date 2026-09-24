@@ -277,6 +277,16 @@ internal static class WebSocketHub
     /// convention as <paramref name="hashTableRejectCount"/> above; a live value is served on
     /// <c>GET /api/v1/status</c>.
     /// </param>
+    /// <param name="captureRecovery">
+    /// Capture-recovery counters (capture-device-reresolution #187, design.md Decision 5;
+    /// FR-072). May be <c>null</c> in tests that don't wire up capture — every surface then
+    /// reports <c>"Idle"</c>/all-zero, matching <paramref name="captureHealth"/>'s null fallback.
+    /// </param>
+    /// <param name="deviceConfiguredAndDecodingEnabled">
+    /// Point-in-time snapshot of whether a capture device is configured and decoding is enabled
+    /// (FR-072's <c>"Idle"</c> condition) — computed by the caller from <see cref="IConfigStore"/>,
+    /// same point-in-time-snapshot convention as <paramref name="hashTableRejectCount"/> above.
+    /// </param>
     /// <param name="ct">Cancellation token tied to the HTTP request lifetime.</param>
     public static async Task HandleAsync(
         WebSocket ws,
@@ -289,6 +299,8 @@ internal static class WebSocketHub
         int hashTableRejectCount,
         long cycleArchiveDroppedCycles,
         int? lastChunkAgeMs,
+        CaptureRecoveryState? captureRecovery,
+        bool deviceConfiguredAndDecodingEnabled,
         CancellationToken ct)
     {
         RegisterSocket(ws, scope);
@@ -321,7 +333,15 @@ internal static class WebSocketHub
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCycles,
                 DataFlowing:         initialSnapshot.DataFlowing,
                 LastChunkAgeMs:      lastChunkAgeMs,
-                WatchdogRestartCount: captureHealth?.WatchdogRestartCount ?? 0);
+                WatchdogRestartCount: captureHealth?.WatchdogRestartCount ?? 0,
+                // capture-device-reresolution #187 (FR-072): same source GET /api/v1/status reads.
+                // initialSnapshot.CaptureActive stands in for the live CaptureManager.IsCapturing
+                // here — it already mirrors it as of the ticker's last window (#188).
+                CaptureState: captureRecovery?.DeriveCaptureState(
+                    deviceConfiguredAndDecodingEnabled, initialSnapshot.CaptureActive) ?? "Idle",
+                CaptureRestartCount: captureRecovery?.CaptureRestartCount ?? 0,
+                ConsecutiveCaptureFailures: captureRecovery?.ConsecutiveCaptureFailures ?? 0,
+                LastCaptureError: captureRecovery?.LastCaptureError);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);

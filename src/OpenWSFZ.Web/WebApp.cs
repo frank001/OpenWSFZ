@@ -79,6 +79,15 @@ public static class WebApp
     /// Risk 4). Defaults to <c>null</c> for callers (e.g. minimal test fixtures) that do not
     /// wire up capture health — every surface then reports <see cref="CaptureHealthSnapshot.Empty"/>.
     /// </param>
+    /// <param name="captureRecoveryState">
+    /// Capture-recovery counters (capture-device-reresolution #187, design.md Decision 5;
+    /// FR-072). The single source of <see cref="DaemonStatus.CaptureState"/>/
+    /// <see cref="DaemonStatus.CaptureRestartCount"/>/<see cref="DaemonStatus.ConsecutiveCaptureFailures"/>/
+    /// <see cref="DaemonStatus.LastCaptureError"/> on <c>GET /api/v1/status</c> and the initial
+    /// WebSocket <c>status</c> event. Construction and updates are the caller's responsibility
+    /// (<c>Program.cs</c>'s automatic capture-start paths). Defaults to <c>null</c> for callers
+    /// that do not wire up capture recovery — every surface then reports <c>"Idle"</c>/all-zero.
+    /// </param>
     public static WebApplication Create(
         int port,
         IBindPolicy?                                        bindPolicy                  = null,
@@ -93,6 +102,7 @@ public static class WebApp
         CaptureManager?                                     captureManager              = null,
         DataFlowMonitor?                                    dataFlowMonitor             = null,
         CaptureHealthMonitor?                                captureHealthMonitor        = null,
+        CaptureRecoveryState?                                captureRecoveryState        = null,
         ICatState?                                          catState                    = null,
         Action<ILoggingBuilder>?                            configureLogging            = null,
         Action<IServiceCollection>?                         configureServices           = null,
@@ -306,6 +316,23 @@ public static class WebApp
 
         // ── REST Endpoints ────────────────────────────────────────────────────
 
+        // capture-device-reresolution #187 (FR-072): shared by all three DaemonStatus construction
+        // sites below plus the WebSocket initial status event, so the four capture-recovery fields
+        // are derived identically everywhere. "Idle" per design D5's table needs config (a device
+        // configured, decoding enabled) alongside captureRecoveryState's own counters and
+        // isCapturing — none of which captureRecoveryState holds a reference to itself.
+        (string CaptureState, int CaptureRestartCount, int ConsecutiveCaptureFailures, string? LastCaptureError)
+            BuildCaptureRecoveryFields(AppConfig config, bool isCapturing)
+        {
+            var deviceConfiguredAndDecodingEnabled =
+                config.AudioDeviceId is not null && config.DecodingEnabled;
+            return (
+                captureRecoveryState?.DeriveCaptureState(deviceConfiguredAndDecodingEnabled, isCapturing) ?? "Idle",
+                captureRecoveryState?.CaptureRestartCount ?? 0,
+                captureRecoveryState?.ConsecutiveCaptureFailures ?? 0,
+                captureRecoveryState?.LastCaptureError);
+        }
+
         app.MapGet("/api/v1/status", (IConfigStore store) =>
         {
             var effectiveFreq = ResolveEffectiveFrequency(catState, store.Current);
@@ -315,11 +342,13 @@ public static class WebApp
             // DataFlowMonitor's own monotonic timestamp — not carried on the snapshot itself
             // (design D2), so it is correct to the millisecond at the moment of this poll.
             var captureHealthSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
+            var isCapturing = captureManager?.IsCapturing ?? false;
+            var recovery = BuildCaptureRecoveryFields(store.Current, isCapturing);
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
                 AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:       captureManager?.IsCapturing ?? false,
+                CaptureActive:       isCapturing,
                 AudioActive:         captureHealthSnapshot.AudioActive,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    effectiveFreq,
@@ -329,7 +358,11 @@ public static class WebApp
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
                 DataFlowing:         captureHealthSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
-                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0));
+                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0,
+                CaptureState:        recovery.CaptureState,
+                CaptureRestartCount: recovery.CaptureRestartCount,
+                ConsecutiveCaptureFailures: recovery.ConsecutiveCaptureFailures,
+                LastCaptureError:    recovery.LastCaptureError));
         });
 
         app.MapGet("/api/v1/audio/devices", async (
@@ -782,11 +815,13 @@ public static class WebApp
             await store.SaveAsync(store.Current with { DecodingEnabled = true }, ct);
             var freqStart = ResolveEffectiveFrequency(catState, store.Current);
             var startSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
+            var startIsCapturing = captureManager?.IsCapturing ?? false;
+            var startRecovery = BuildCaptureRecoveryFields(store.Current, startIsCapturing);
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
                 AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:       captureManager?.IsCapturing ?? false,
+                CaptureActive:       startIsCapturing,
                 AudioActive:         startSnapshot.AudioActive,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStart,
@@ -796,7 +831,11 @@ public static class WebApp
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
                 DataFlowing:         startSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
-                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0));
+                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0,
+                CaptureState:        startRecovery.CaptureState,
+                CaptureRestartCount: startRecovery.CaptureRestartCount,
+                ConsecutiveCaptureFailures: startRecovery.ConsecutiveCaptureFailures,
+                LastCaptureError:    startRecovery.LastCaptureError));
         });
 
         app.MapPost("/api/v1/decode/stop", async (
@@ -806,11 +845,13 @@ public static class WebApp
             await store.SaveAsync(store.Current with { DecodingEnabled = false }, ct);
             var freqStop = ResolveEffectiveFrequency(catState, store.Current);
             var stopSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
+            var stopIsCapturing = captureManager?.IsCapturing ?? false;
+            var stopRecovery = BuildCaptureRecoveryFields(store.Current, stopIsCapturing);
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
                 AudioDevice:         store.Current.AudioDeviceFriendlyName ?? store.Current.AudioDeviceId,
-                CaptureActive:       captureManager?.IsCapturing ?? false,
+                CaptureActive:       stopIsCapturing,
                 AudioActive:         stopSnapshot.AudioActive,
                 DecodingEnabled:     store.Current.DecodingEnabled,
                 DialFrequencyMHz:    freqStop,
@@ -820,7 +861,11 @@ public static class WebApp
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
                 DataFlowing:         stopSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
-                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0));
+                WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0,
+                CaptureState:        stopRecovery.CaptureState,
+                CaptureRestartCount: stopRecovery.CaptureRestartCount,
+                ConsecutiveCaptureFailures: stopRecovery.ConsecutiveCaptureFailures,
+                LastCaptureError:    stopRecovery.LastCaptureError));
         });
 
         // ── Decode filter endpoints (decode-panel-filtering) ──────────────────
@@ -2032,7 +2077,10 @@ public static class WebApp
                 wsLogger, scope, shimVersion,
                 hashTableRejectCountProvider?.Invoke() ?? 0,
                 cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
-                dataFlowMonitor?.LastChunkAgeMs, ctx.RequestAborted);
+                dataFlowMonitor?.LastChunkAgeMs,
+                captureRecoveryState,
+                store.Current.AudioDeviceId is not null && store.Current.DecodingEnabled,
+                ctx.RequestAborted);
         });
 
         return app;
