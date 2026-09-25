@@ -10,7 +10,7 @@ namespace OpenWSFZ.Web.Tests;
 
 /// <summary>
 /// Tests for the read-only decoder-parameter page, <c>web/decoder-params.html</c>
-/// (decoder-param-readout, shim 20260054, FR-070).
+/// (decoder-param-readout, shim 20260054, FR-077).
 /// <para>
 /// This project's web tests are integration tests over the SERVED HTML and static assets
 /// (<see cref="StaticAssetsIntegrationTests"/>); there is no DOM library. So these tests assert what a
@@ -60,7 +60,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
 
     // ── the page is served and carries no control ────────────────────────────
 
-    [Fact(DisplayName = "FR-070: GET /decoder-params.html returns 200 text/html and loads the page script and the shared stylesheet")]
+    [Fact(DisplayName = "FR-077: GET /decoder-params.html returns 200 text/html and loads the page script and the shared stylesheet")]
     public async Task Page_IsServed_AndReferencesItsAssets()
     {
         var response = await _client.GetAsync("/decoder-params.html");
@@ -73,7 +73,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
         (await _client.GetAsync("/js/decoderParams.js")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    [Fact(DisplayName = "FR-070: the page contains no input, select, textarea, button or form element")]
+    [Fact(DisplayName = "FR-077: the page contains no input, select, textarea, button or form element")]
     public async Task Page_HasNoEditableControl()
     {
         string html = await GetText("/decoder-params.html");
@@ -86,7 +86,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
              .Should().BeEmpty("no inline handler either");
     }
 
-    [Fact(DisplayName = "FR-070: the page script builds no form control and can issue only the one GET (no other verb, no direct fetch)")]
+    [Fact(DisplayName = "FR-077: the page script builds no form control and can issue only the one GET (no other verb, no direct fetch)")]
     public async Task PageScript_CanOnlyReadThroughTheGetWrapper()
     {
         string js = await GetText("/js/decoderParams.js");
@@ -106,7 +106,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
 
     // ── the "Not included" note ──────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-070: the page carries a static \"Not included\" note listing exactly the literals the audit left out, and says no value is derived")]
+    [Fact(DisplayName = "FR-077: the page carries a static \"Not included\" note listing exactly the literals the audit left out, and says no value is derived")]
     public async Task Page_CarriesTheNotIncludedNote()
     {
         string html = await GetText("/decoder-params.html");
@@ -123,7 +123,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
             "the 3.125 Hz sub-bin and the half-symbol step are derived from these, not protocol");
     }
 
-    [Fact(DisplayName = "FR-070: every \"Not included\" entry states its location and a reason, and each doubt is marked")]
+    [Fact(DisplayName = "FR-077: every \"Not included\" entry states its location and a reason, and each doubt is marked")]
     public async Task NotIncludedEntries_StateLocationAndReason()
     {
         string html = await GetText("/decoder-params.html");
@@ -138,7 +138,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
         }
     }
 
-    [Fact(DisplayName = "FR-070: there is exactly ONE noise-floor-median entry, naming both sites and stating the percentile, noise_raw, occupancy and SNR doubt without claiming a defect")]
+    [Fact(DisplayName = "FR-077: there is exactly ONE noise-floor-median entry, naming both sites and stating the percentile, noise_raw, occupancy and SNR doubt without claiming a defect")]
     public async Task NoiseFloorMedianEntry_CoversBothSites_AndStatesTheDoubt()
     {
         string html = await GetText("/decoder-params.html");
@@ -161,7 +161,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
         html.Should().Contain("data-literal=\"derived-none\"", "the derived-values statement is kept");
     }
 
-    [Fact(DisplayName = "FR-070: the page says it lists every NUMERIC parameter, and says non-numeric choices are not shown")]
+    [Fact(DisplayName = "FR-077: the page says it lists every NUMERIC parameter, and says non-numeric choices are not shown")]
     public async Task Page_ClaimsNumericParametersOnly()
     {
         string html = await GetText("/decoder-params.html");
@@ -186,7 +186,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
         => Regex.Replace(source, @"/\*.*?\*/|//[^\r\n]*|""(?:\\.|[^""\\])*""",
                          m => Regex.Replace(m.Value, @"[^\r\n]", " "), RegexOptions.Singleline);
 
-    [Fact(DisplayName = "FR-070: each literal the \"Not included\" note cites still exists in the source it cites (the note cannot go stale silently)")]
+    [Fact(DisplayName = "FR-077: each literal the \"Not included\" note cites still exists in the source it cites (the note cannot go stale silently)")]
     public void NotIncludedNote_CitesLiteralsThatStillExist()
     {
         string shim    = CodeOnly(RepoText("src/OpenWSFZ.Ft8/Native/ft8_shim.c"));
@@ -231,7 +231,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
     private const string AdvancedBlockSha256BeforeThisChange =
         "d564ed25a3739b5410183558a54417202fbcde9e00dd57e5b4c9f67a938255fc";
 
-    [Fact(DisplayName = "FR-070: settings.html links to the page, and its #advanced-decoder-settings block is byte-for-byte unchanged")]
+    [Fact(DisplayName = "FR-077: settings.html links to the page, and its #advanced-decoder-settings block is byte-for-byte unchanged")]
     public async Task SettingsPage_HasOneLink_AndTheEditableBlockIsUnchanged()
     {
         string html = (await GetText("/settings.html")).Replace("\r\n", "\n");

@@ -37,18 +37,18 @@
 
 ## 5. Tests (each requirement gets a test whose `DisplayName` starts `FR-0xx:`, G3)
 
-- [x] 5.1 `tests/OpenWSFZ.Ft8.Tests/`: **FR-067** table completeness and truth. Test-local P/Invoke (no `DllImport` in `src/` for the setters). Assert `ft8_get_decoder_params(NULL, 0)` returns the total; each compile-time entry equals its `#define`; `osd_nhard_max` reads `default_value == 60`.
-- [x] 5.2 `tests/OpenWSFZ.Ft8.Tests/`: **FR-068** suppression setter/getter. Set then get returns exactly; **each of the four invalid classes** (non-finite; `min >= max`; `side_weight < 0`; `side_weight > 1`) returns `-1` **and leaves the prior triple unchanged**; `snr_max = 30` is accepted; **round-trip in the table**: after `ft8_set_decode_params(7, 0.15f, 50)` and `ft8_set_supp_params(-10, 15, 0.5)`, `ft8_get_decoder_params` reports exactly those values, and after resetting to defaults, the defaults.
+- [x] 5.1 `tests/OpenWSFZ.Ft8.Tests/`: **FR-074** table completeness and truth. Test-local P/Invoke (no `DllImport` in `src/` for the setters). Assert `ft8_get_decoder_params(NULL, 0)` returns the total; each compile-time entry equals its `#define`; `osd_nhard_max` reads `default_value == 60`.
+- [x] 5.2 `tests/OpenWSFZ.Ft8.Tests/`: **FR-075** suppression setter/getter. Set then get returns exactly; **each of the four invalid classes** (non-finite; `min >= max`; `side_weight < 0`; `side_weight > 1`) returns `-1` **and leaves the prior triple unchanged**; `snr_max = 30` is accepted; **round-trip in the table**: after `ft8_set_decode_params(7, 0.15f, 50)` and `ft8_set_supp_params(-10, 15, 0.5)`, `ft8_get_decoder_params` reports exactly those values, and after resetting to defaults, the defaults.
 - [x] 5.2b `tests/OpenWSFZ.Ft8.Tests/`: **default-path identity.** With the setter never called, and with `(−5, 15, 1.0)` set explicitly, decode of a fixed synthetic scene is bit-identical.
-- [x] 5.3 `tests/OpenWSFZ.Web.Tests/`: **FR-069** endpoint: `200` with the entries and `shimVersion`; values come from the (faked) native interop, **not** from `AppConfig` (a config value that differs from the fake's must not appear); `405` on `POST`/`PUT`/`DELETE`; `503` when the interop throws.
-- [x] 5.4 **FR-070** GUI page. A DOM-level test in the project's existing web-test style: every entry the API returns appears with its value; **no editable control**; the settings page's `#advanced-decoder-settings` markup is unchanged; **the "Not included" note is present** and lists exactly the literals the completion record reports as not tabled.
+- [x] 5.3 `tests/OpenWSFZ.Web.Tests/`: **FR-076** endpoint: `200` with the entries and `shimVersion`; values come from the (faked) native interop, **not** from `AppConfig` (a config value that differs from the fake's must not appear); `405` on `POST`/`PUT`/`DELETE`; `503` when the interop throws.
+- [x] 5.4 **FR-077** GUI page. A DOM-level test in the project's existing web-test style: every entry the API returns appears with its value; **no editable control**; the settings page's `#advanced-decoder-settings` markup is unchanged; **the "Not included" note is present** and lists exactly the literals the completion record reports as not tabled.
 - [x] 5.5 Run the full suite (`dotnet test OpenWSFZ.slnx -c Release`) and report the tally. Treat any decode-output test failure as a real finding. `Category=AwgnFpReplay` is CI-excluded and its stale SHA-pinned tests are not a new hazard.
 
 ## 6. Governance (gates G9a / G9b / G3 / G8)
 
 - [x] 6.1 `VERSION` `0.49` → `0.50`.
 - [x] 6.2 `README.md` and `REQUIREMENTS.md` "current release" anchor sentences → `v0.50`; a `REQUIREMENTS.md` version-history row.
-- [x] 6.3 `REQUIREMENTS.md`: add **FR-067 … FR-070** (native table; suppression setter/getter; read-only endpoint; read-only page). Highest today is `FR-066`.
+- [x] 6.3 `REQUIREMENTS.md`: add **FR-074 … FR-077** (native table; suppression setter/getter; read-only endpoint; read-only page). Highest at proposal time was `FR-066`; renumbered from the originally-used `FR-067…FR-070` on 2026-09-25 (see proposal.md's G3 note).
 - [x] 6.4 `openspec/specs/ft8lib-interop/spec.md`: update the ABI requirement's `SHALL be` constant to `20260054` and append a history entry mirroring the `20260053` one. **A direct edit**, as `PASSBAND-140` and `DENSITY-P1` Stage 1 did: a MODIFIED delta would have to restate the whole 13 KB requirement.
 - [x] 6.5 `traceability-debt.md` only if a new requirement is deliberately left without a test (it should not be).
 - [x] 6.6 `openspec validate decoder-param-readout --strict` and `openspec validate --strict --all` (G8).

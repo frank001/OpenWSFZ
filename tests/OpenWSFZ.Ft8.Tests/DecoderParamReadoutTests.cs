@@ -254,10 +254,10 @@ public sealed class DecoderParamReadoutTests
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // FR-067 — the parameter table
+    // FR-074 — the parameter table
     // ═════════════════════════════════════════════════════════════════════════
 
-    [Fact(DisplayName = "FR-067: the loaded native binary is at least shim 20260054 and Ft8ParamEntry is 72 bytes")]
+    [Fact(DisplayName = "FR-074: the loaded native binary is at least shim 20260054 and Ft8ParamEntry is 72 bytes")]
     public void LoadedBinary_HasTheTable_AndEntryLayoutIs72Bytes()
     {
         // A capability precondition, not an identity pin: the table exists from 20260054 onwards.
@@ -267,7 +267,7 @@ public sealed class DecoderParamReadoutTests
         Marshal.SizeOf<Ft8NativeParamEntry>().Should().Be(72, "the production mirror must match the native struct");
     }
 
-    [Fact(DisplayName = "FR-067: ft8_get_decoder_params(NULL, 0) returns the total and writes nothing; a short buffer is filled only to capacity")]
+    [Fact(DisplayName = "FR-074: ft8_get_decoder_params(NULL, 0) returns the total and writes nothing; a short buffer is filled only to capacity")]
     public void GetDecoderParams_SizingAndCapacityContract()
     {
         int total = ParamNative.ft8_get_decoder_params(null, 0);
@@ -291,7 +291,7 @@ public sealed class DecoderParamReadoutTests
         few.Skip(3).Should().OnlyContain(e => e.Name == "SENTINEL" && e.Kind == 99, "entries beyond `capacity` must not be written");
     }
 
-    [Fact(DisplayName = "FR-067: every table entry is well-formed, names are unique, and the table matches the completeness ledger exactly")]
+    [Fact(DisplayName = "FR-074: every table entry is well-formed, names are unique, and the table matches the completeness ledger exactly")]
     public void Table_IsWellFormed_AndMatchesTheLedger()
     {
         var t = ReadTable();
@@ -309,7 +309,7 @@ public sealed class DecoderParamReadoutTests
         t.Should().OnlyContain(e => !double.IsNaN(e.Value) && !double.IsInfinity(e.Value));
     }
 
-    [Fact(DisplayName = "FR-067: the table reports what the decoder is running with, not what the application configured (osd_nhard_max 40, default 60)")]
+    [Fact(DisplayName = "FR-074: the table reports what the decoder is running with, not what the application configured (osd_nhard_max 40, default 60)")]
     public void Table_ReportsNativeValue_NotTheConfiguredOne()
     {
         using var guard = new NativeStateGuard();
@@ -322,7 +322,7 @@ public sealed class DecoderParamReadoutTests
         e.DefaultValue.Should().Be(60, "the compiled-in default is unchanged by a set: that split is the point of the feature");
     }
 
-    [Fact(DisplayName = "FR-067: every compile-time value in the table equals the #define the decode path reads (ft8_shim.c and patched decode.c)")]
+    [Fact(DisplayName = "FR-074: every compile-time value in the table equals the #define the decode path reads (ft8_shim.c and patched decode.c)")]
     public void CompileTimeEntries_EqualTheirDefines()
     {
         var t = ReadTable();
@@ -358,7 +358,7 @@ public sealed class DecoderParamReadoutTests
             Entry(t, name).Value.Should().BeApproximately(DefineValue(decode, name)!.Value, 1e-6, $"{name} must equal decode.c's #define");
     }
 
-    [Fact(DisplayName = "FR-067: the runtime defaults in the table are the compiled-in defaults, and every setter's parameters are tabled")]
+    [Fact(DisplayName = "FR-074: the runtime defaults in the table are the compiled-in defaults, and every setter's parameters are tabled")]
     public void RuntimeDefaults_AreTheCompiledDefaults()
     {
         var t = ReadTable();
@@ -374,7 +374,7 @@ public sealed class DecoderParamReadoutTests
         Entry(t, "supp_snr_max_db").DefaultValue.Should().Be(Entry(t, "K_SOFT_SUPP_SNR_MAX_DB").Value);
     }
 
-    [Fact(DisplayName = "FR-067: no decode-path tuning value is a bare literal any more (passband, OSD depth, SNR offset, footprint)")]
+    [Fact(DisplayName = "FR-074: no decode-path tuning value is a bare literal any more (passband, OSD depth, SNR offset, footprint)")]
     public void TuningValues_AreNamedConstants_UsedAtEverySite()
     {
         // CODE only: a comment may quote an old literal to explain what a constant replaced.
@@ -398,7 +398,7 @@ public sealed class DecoderParamReadoutTests
         shim.Should().Contain("d = -K_SUPP_FOOTPRINT_HALF_BINS; d <= K_SUPP_FOOTPRINT_HALF_BINS");
     }
 
-    [Fact(DisplayName = "FR-067: the managed reader returns every native row with the right kind, floats as their shortest decimal, and never an empty table")]
+    [Fact(DisplayName = "FR-074: the managed reader returns every native row with the right kind, floats as their shortest decimal, and never an empty table")]
     public void ManagedReader_ReturnsTheNativeTable()
     {
         IReadOnlyList<DecoderParamEntry> managed = Ft8LibInterop.GetDecoderParams();
@@ -420,7 +420,7 @@ public sealed class DecoderParamReadoutTests
         corr.Default.Should().Be(0.1);
     }
 
-    [Theory(DisplayName = "FR-067: NormaliseFloatValue gives an exact float its shortest decimal and leaves every other value untouched")]
+    [Theory(DisplayName = "FR-074: NormaliseFloatValue gives an exact float its shortest decimal and leaves every other value untouched")]
     [InlineData(0.10000000149011612, 0.1)]      // (double)0.1f
     [InlineData(0.15000000596046448, 0.15)]     // (double)0.15f
     [InlineData(40.0, 40.0)]
@@ -432,7 +432,7 @@ public sealed class DecoderParamReadoutTests
     public void NormaliseFloatValue_OnlyRespellsExactFloats(double input, double expected)
         => Ft8LibInterop.NormaliseFloatValue(input).Should().Be(expected);
 
-    [Fact(DisplayName = "FR-067: NormaliseFloatValue leaves NaN and infinities untouched")]
+    [Fact(DisplayName = "FR-074: NormaliseFloatValue leaves NaN and infinities untouched")]
     public void NormaliseFloatValue_LeavesNonFiniteAlone()
     {
         Ft8LibInterop.NormaliseFloatValue(double.PositiveInfinity).Should().Be(double.PositiveInfinity);
@@ -441,10 +441,10 @@ public sealed class DecoderParamReadoutTests
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // FR-068 — the suppression ramp's runtime setter / getter
+    // FR-075 — the suppression ramp's runtime setter / getter
     // ═════════════════════════════════════════════════════════════════════════
 
-    [Fact(DisplayName = "FR-068: the defaults are -5 / 15 / 1.0 and a valid triple is stored and read back exactly")]
+    [Fact(DisplayName = "FR-075: the defaults are -5 / 15 / 1.0 and a valid triple is stored and read back exactly")]
     public void SuppParams_DefaultsAndExactReadBack()
     {
         using var guard = new NativeStateGuard();
@@ -459,7 +459,7 @@ public sealed class DecoderParamReadoutTests
         ParamNative.ft8_set_supp_params(-5.0f, 15.0f, 1.0f).Should().Be(0, "side_weight 1 is the upper bound and is valid");
     }
 
-    [Fact(DisplayName = "FR-068: snr_max has no upper bound beyond being finite and above snr_min (30 and 1000 are accepted)")]
+    [Fact(DisplayName = "FR-075: snr_max has no upper bound beyond being finite and above snr_min (30 and 1000 are accepted)")]
     public void SuppParams_SnrMax_HasNoUpperBound()
     {
         using var guard = new NativeStateGuard();
@@ -484,7 +484,7 @@ public sealed class DecoderParamReadoutTests
         { "side_weight > 1",     -5.0f,                   15.0f,                    1.001f },
     };
 
-    [Theory(DisplayName = "FR-068: each invalid class returns -1 and leaves ALL THREE prior values unchanged")]
+    [Theory(DisplayName = "FR-075: each invalid class returns -1 and leaves ALL THREE prior values unchanged")]
     [MemberData(nameof(InvalidTriples))]
     public void SuppParams_InvalidInput_IsRejected_AndLeavesPriorValuesUnchanged(string why, float min, float max, float side)
     {
@@ -496,11 +496,11 @@ public sealed class DecoderParamReadoutTests
         ReadSupp().Should().Equal(new[] { -12.5f, 22.5f, 0.25f }, $"a rejected call ({why}) must not change ANY of the three values");
     }
 
-    [Fact(DisplayName = "FR-068: ft8_get_supp_params(NULL) returns -1 and does not crash")]
+    [Fact(DisplayName = "FR-075: ft8_get_supp_params(NULL) returns -1 and does not crash")]
     public void GetSuppParams_NullBuffer_IsRejected()
         => ParamNative.ft8_get_supp_params(null).Should().Be(-1);
 
-    [Fact(DisplayName = "FR-068: round trip through the table — a set is reported exactly, the defaults are untouched, and a reset reports the defaults")]
+    [Fact(DisplayName = "FR-075: round trip through the table — a set is reported exactly, the defaults are untouched, and a reset reports the defaults")]
     public void Table_RoundTrips_ThroughTheSetters()
     {
         using var guard = new NativeStateGuard();
@@ -594,7 +594,7 @@ public sealed class DecoderParamReadoutTests
             loc.Take(nst).Select(BitConverter.SingleToInt32Bits).ToArray());
     }
 
-    [Fact(DisplayName = "FR-068: decode output is bit-identical with the setter never called and with (-5, 15, 1.0) set explicitly")]
+    [Fact(DisplayName = "FR-075: decode output is bit-identical with the setter never called and with (-5, 15, 1.0) set explicitly")]
     public void DefaultPath_IsIdentical_WithSetterNeverCalledAndExplicitDefaults()
     {
         using var guard = new NativeStateGuard();
@@ -620,7 +620,7 @@ public sealed class DecoderParamReadoutTests
         neverCalled.CandidateCounts[1].Should().BeGreaterThan(0, "pass 1 must have run, so the suppression path was exercised");
     }
 
-    [Theory(DisplayName = "FR-068: a non-default suppression setting DOES change the decode (the setter is live, so the identity above is not vacuous)")]
+    [Theory(DisplayName = "FR-075: a non-default suppression setting DOES change the decode (the setter is live, so the identity above is not vacuous)")]
     [InlineData(-25.0f, 15.0f, 1.0f)]     // a lower floor: E at low SNR is now suppressed
     [InlineData(-5.0f,  15.0f, 0.0f)]     // side bins untouched: the footprint shrinks to the tone bin
     [InlineData(-5.0f,  30.0f, 1.0f)]     // a higher ceiling: the ramp is stretched

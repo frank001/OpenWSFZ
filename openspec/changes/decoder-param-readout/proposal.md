@@ -28,7 +28,7 @@ This is a **user-visible feature on `decoding_improvement`**, so the project's m
 
 - **G9b:** this proposal declares `**User-facing:** yes`, so the implementing PR **MUST bump `VERSION`** (`0.49` → `0.50`). The proposal first appears **in that PR**, not before (do not land this file on a branch that reaches `main` without the bump).
 - **G9a:** the `README.md` and `REQUIREMENTS.md` "current release" anchor sentences and a `REQUIREMENTS.md` version-history row move with the bump.
-- **G3:** new requirements need `FR-` identifiers (the highest today is `FR-066`, so start at `FR-067`) and at least one test whose `DisplayName` starts `FR-0xx:` for each.
+- **G3:** new requirements need `FR-` identifiers (the highest at proposal time was `FR-066`, so this change originally used `FR-067`–`FR-070`; renumbered to `FR-074`–`FR-077` on 2026-09-25 when syncing with `main`, which had independently shipped `FR-067`–`FR-073` for an unrelated pair of changes (#187/#188) in the meantime — see this change's own `tasks.md` for the full rename) and at least one test whose `DisplayName` starts `FR-0xx:` for each.
 - **G8:** `openspec validate --strict --all` must stay green.
 - **HK-005 / HK-007:** before/after screenshots of the **existing** settings page (proving the editable section is unchanged), and a Playwright check of the new page.
 
