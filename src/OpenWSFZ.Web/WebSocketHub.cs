@@ -236,8 +236,14 @@ internal static class WebSocketHub
     /// </summary>
     /// <param name="ws">Accepted WebSocket.</param>
     /// <param name="configStore">Config store for the initial status event.</param>
-    /// <param name="audioMonitor">
-    /// Tracks audio activity since the last heartbeat. May be <c>null</c> in tests.
+    /// <param name="captureHealth">
+    /// Daemon-lifetime capture-health ticker (capture-stall-detection-unattended #188,
+    /// design.md Decisions 1/6). This connection's loop is a pure reader of
+    /// <see cref="CaptureHealthMonitor.Current"/> — it must not itself consume
+    /// <c>DataFlowMonitor</c>/<c>AudioActivityMonitor</c> state or tick the watchdog (that
+    /// over-ticked the shared watchdog once per connected client before this change). May be
+    /// <c>null</c> in tests that don't wire up capture — every surface then reports
+    /// <see cref="CaptureHealthSnapshot.Empty"/>.
     /// </param>
     /// <param name="logger">Per-connection logger.</param>
     /// <param name="scope">
@@ -263,42 +269,59 @@ internal static class WebSocketHub
     /// <c>GET /api/v1/status</c>; this is a point-in-time snapshot for the WS handshake.
     /// Defaults to 0 when the caller does not wire up the archive.
     /// </param>
+    /// <param name="lastChunkAgeMs">
+    /// Snapshot of <c>DataFlowMonitor.LastChunkAgeMs</c> at connection time (FR-068,
+    /// capture-stall-detection-unattended #188), included in the initial <c>status</c> event.
+    /// Computed by the caller from a monotonic clock, not stored on
+    /// <see cref="CaptureHealthSnapshot"/> itself (design D2) — same point-in-time-snapshot
+    /// convention as <paramref name="hashTableRejectCount"/> above; a live value is served on
+    /// <c>GET /api/v1/status</c>.
+    /// </param>
+    /// <param name="captureRecovery">
+    /// Capture-recovery counters (capture-device-reresolution #187, design.md Decision 5;
+    /// FR-072). May be <c>null</c> in tests that don't wire up capture — every surface then
+    /// reports <c>"Idle"</c>/all-zero, matching <paramref name="captureHealth"/>'s null fallback.
+    /// </param>
+    /// <param name="deviceConfiguredAndDecodingEnabled">
+    /// Point-in-time snapshot of whether a capture device is configured and decoding is enabled
+    /// (FR-072's <c>"Idle"</c> condition) — computed by the caller from <see cref="IConfigStore"/>,
+    /// same point-in-time-snapshot convention as <paramref name="hashTableRejectCount"/> above.
+    /// </param>
     /// <param name="ct">Cancellation token tied to the HTTP request lifetime.</param>
     public static async Task HandleAsync(
         WebSocket ws,
         IConfigStore configStore,
-        AudioActivityMonitor? audioMonitor,
-        DataFlowMonitor? dataFlowMonitor,
-        CaptureManager? captureManager,
-        AudioWatchdog? watchdog,
+        CaptureHealthMonitor? captureHealth,
         ICatState? catState,
         ILogger logger,
         Guid scope,
         int shimVersion,
         int hashTableRejectCount,
         long cycleArchiveDroppedCycles,
+        int? lastChunkAgeMs,
+        CaptureRecoveryState? captureRecovery,
+        bool deviceConfiguredAndDecodingEnabled,
         CancellationToken ct)
     {
         RegisterSocket(ws, scope);
         logger.LogInformation("WebSocket connection accepted.");
 
-        // B3: watchdog is a singleton constructed once in WebApp.Create and injected here.
-        // Do not construct per-connection — multiple clients sharing independent watchdogs
-        // would each trigger a restart after the threshold, causing N concurrent restarts.
-
         try
         {
-            // Build initial status event. AudioActive mirrors IsCapturing for consistency
-            // with the heartbeat: audioActive is true whenever WASAPI is delivering buffers,
-            // not when amplitude exceeds an arbitrary threshold.
+            // Build initial status event. captureActive/audioActive both come from the
+            // daemon-lifetime CaptureHealthMonitor's latest snapshot (capture-stall-detection-
+            // unattended #188, design.md Decision 6) — the same source GET /api/v1/status reads,
+            // so both surfaces agree from the very first frame. This fixes the previous
+            // IsCapturing stand-in for audioActive (WebSocketHub.cs:301 before this change).
+            var initialSnapshot = captureHealth?.Current ?? CaptureHealthSnapshot.Empty;
             var effectiveFreq = WebApp.ResolveEffectiveFrequency(catState, configStore.Current);
             var txCfg     = configStore.Current.Tx ?? new TxConfig();
             var status    = new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
                 AudioDevice:         configStore.Current.AudioDeviceFriendlyName ?? configStore.Current.AudioDeviceId,
-                CaptureActive:       captureManager?.IsCapturing ?? false,
-                AudioActive:         captureManager?.IsCapturing ?? false,
+                CaptureActive:       initialSnapshot.CaptureActive,
+                AudioActive:         initialSnapshot.AudioActive,
                 DecodingEnabled:     configStore.Current.DecodingEnabled,
                 DialFrequencyMHz:    effectiveFreq,
                 CatConnectionStatus: catState?.Status.ToString() ?? "Disabled",
@@ -307,7 +330,18 @@ internal static class WebSocketHub
                 HoldTxFreq:          txCfg.HoldTxFreq,
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCount,
-                CycleArchiveDroppedCycles: cycleArchiveDroppedCycles);
+                CycleArchiveDroppedCycles: cycleArchiveDroppedCycles,
+                DataFlowing:         initialSnapshot.DataFlowing,
+                LastChunkAgeMs:      lastChunkAgeMs,
+                WatchdogRestartCount: captureHealth?.WatchdogRestartCount ?? 0,
+                // capture-device-reresolution #187 (FR-072): same source GET /api/v1/status reads.
+                // initialSnapshot.CaptureActive stands in for the live CaptureManager.IsCapturing
+                // here — it already mirrors it as of the ticker's last window (#188).
+                CaptureState: captureRecovery?.DeriveCaptureState(
+                    deviceConfiguredAndDecodingEnabled, initialSnapshot.CaptureActive) ?? "Idle",
+                CaptureRestartCount: captureRecovery?.CaptureRestartCount ?? 0,
+                ConsecutiveCaptureFailures: captureRecovery?.ConsecutiveCaptureFailures ?? 0,
+                LastCaptureError: captureRecovery?.LastCaptureError);
             var statusMsg = new WsMessage(Type: "status", Payload: status);
 
             await SendStatusAsync(ws, statusMsg, ct);
@@ -325,33 +359,20 @@ internal static class WebSocketHub
                     if (completed == receiveTask || ws.State != WebSocketState.Open)
                         break;
 
-                    // Reset the amplitude window each tick — result is no longer used for
-                    // audioActive; kept so AudioActivityMonitor doesn't accumulate stale state.
-                    audioMonitor?.ConsumeAndReset();
-
-                    // B18 / B21: watchdog and audioActive both use data-flow (any chunk
-                    // received), not amplitude. A quiet radio band is not an application
-                    // failure — audioActive must be true whenever WASAPI is delivering buffers.
-                    var dataFlowing = dataFlowMonitor?.ConsumeAndReset() ?? false;
-                    var active      = dataFlowing; // audioActive = WASAPI is delivering data
-
-                    // P-2 (DIAG): log heartbeat state to the server log so the distinction
-                    // between a silent-but-running capture and a genuinely stopped capture
-                    // is visible without needing to watch the browser WebSocket stream.
-                    logger.LogInformation(
-                        "Heartbeat: captureActive={CaptureActive}, audioActive={AudioActive}, dataFlowing={DataFlowing}",
-                        captureManager?.IsCapturing ?? false, active, dataFlowing);
-
-                    // S6: tick the watchdog with the data-flow flag.
-                    // Fire-and-forget — does not block heartbeat emission.
-                    if (watchdog is not null)
-                        _ = watchdog.TickAsync(dataFlowing);
+                    // design.md Decision 6: this connection is a pure reader — it consumes no
+                    // monitor state and ticks no watchdog. It sends the daemon-lifetime
+                    // CaptureHealthMonitor's latest published snapshot, which may therefore be
+                    // up to one window (5 s) old. That is accepted: the value was already a
+                    // window-old aggregate before this change. The Heartbeat: log line itself
+                    // moved to the ticker (CaptureHealthMonitor.TickOnceAsync) — it is written
+                    // once per window regardless of client count, not once per connection.
+                    var snapshot = captureHealth?.Current ?? CaptureHealthSnapshot.Empty;
 
                     var heartbeatMsg = new WsHeartbeatMessage(
                         Type:    "heartbeat",
                         Payload: new HeartbeatPayload(
-                            AudioActive:   active,
-                            CaptureActive: captureManager?.IsCapturing ?? false));
+                            AudioActive:   snapshot.AudioActive,
+                            CaptureActive: snapshot.CaptureActive));
 
                     await SendHeartbeatAsync(ws, heartbeatMsg, ct);
                 }

@@ -168,6 +168,16 @@ qa/rr-study/results/*/owsfz-all.txt
 qa/rr-study/results/*/wsjt-all.txt
 qa/rr-study/results/*/*_matched.csv
 
+# run_study_detached.py's own gatherer output (Captain's "R&R keeps WAVs" decision,
+# 2026-09-22) lands as a SIBLING of the run dir it gathered, inside qa/rr-study/results/
+# itself, not under the blanket-ignored artefacts/ the endurance side uses -- found live,
+# 2026-09-23, first real S1-S8 battery: 302MB / 875 WAV files, and (S5/S7 noise-floor +
+# WSJT-X's own cumulative, unfiltered ALL.TXT copy carrying real off-air audio from
+# whatever the radio heard before/around the battery) not something to ever stage. Nothing
+# currently stopped a `git add qa/rr-study/results/<run>/` from also sweeping this sibling
+# dir in by accident. Same NFR-021 risk class as the raw logs above; never commit.
+qa/rr-study/results/*-captured-audio/
+
 # Fourth naming convention, found 2026-08-22: a harness wrote a SUFFIXED copy
 # ("owsfz-all.txt.livecopy-preclear") of an ignored file. The exact-filename rules above
 # matched the original and walked straight past the copy, leaving real off-air callsigns

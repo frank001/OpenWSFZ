@@ -19,6 +19,18 @@ internal sealed class AudioWatchdog
     private readonly Func<Task> _onRestart;
     private readonly int        _threshold;
     private int                 _silentWindows;
+    private int                 _restartCount;
+
+    /// <summary>
+    /// Process-lifetime count of times the watchdog's threshold has fired and a restart was
+    /// invoked (design.md Decision 7, capture-stall-detection-unattended #188). Counts fired
+    /// triggers, not successful reconnects — a restart that itself fails to reconnect still
+    /// counts, since the ticker has attempted one restart either way. Incremented at the moment
+    /// the threshold is reached, before <c>_onRestart</c> is awaited, so a caller can read the
+    /// updated count immediately after <see cref="TickAsync"/> returns without racing a
+    /// slow-to-complete restart action.
+    /// </summary>
+    public int RestartCount => Volatile.Read(ref _restartCount);
 
     /// <param name="isCapturing">
     /// Returns true while the capture pipeline is active.
@@ -67,6 +79,7 @@ internal sealed class AudioWatchdog
         if (++_silentWindows >= _threshold)
         {
             _silentWindows = 0;
+            Interlocked.Increment(ref _restartCount);
             await _onRestart();
         }
     }

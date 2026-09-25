@@ -72,4 +72,22 @@ public sealed class SubprocessAudioDeviceProviderTests
         devices[1].Id.Should().Be("hw:1,0");
         devices[1].Name.Should().Be("Generic USB Audio");
     }
+
+    // ── FR-073 (capture-device-reresolution #187, tasks.md 1.4) ────────────────
+
+    [Fact(DisplayName = "FR-073: ParseArecordOutput reports Available: true for every device (a subprocess provider only lists devices it can currently see)")]
+    public void ParseArecordOutput_ReportsAvailableTrue_ForEveryDevice()
+    {
+        const string sample = """
+            **** List of CAPTURE Hardware Devices ****
+            card 0: PCH [HDA Intel PCH], device 0: ALC892 Analog [ALC892 Analog]
+              Subdevices: 1/1
+              Subdevice #0: subdevice #0
+            """;
+
+        var devices = SubprocessAudioDeviceProvider.ParseArecordOutput(sample);
+
+        devices.Should().ContainSingle().Which.Available.Should().BeTrue(
+            "design D7: a provider that only lists devices it can currently see reports Available = true unconditionally");
+    }
 }
