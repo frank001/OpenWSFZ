@@ -188,20 +188,6 @@ body {
 }
 
 /* ── Tables ──────────────────────────────────────────────────────── */
-/* A many-column table (e.g. Section 4's 17-column endurance history) is wider than the
-   980px-wide reading column .markdown-body is capped at -- constraining it to
-   `max-width: 100%` (i.e. .markdown-body's own ~890px content box, minus its 45px side
-   padding) left most of a wide table permanently scrolled out of view, readable only via
-   a scrollbar easy to miss against the dark canvas even once made visible (found live,
-   2026-09-23: an explicit scrollbar alone was NOT enough -- the Captain still saw the last
-   columns as unreadable). Fix: break the table out of the narrow reading column to use
-   nearly the full browser viewport width instead, regardless of .markdown-body's own
-   980px cap -- centered via the standard `left: 50%; transform: translateX(-50%)`
-   full-bleed technique (doesn't depend on knowing the parent's width, unlike the
-   negative-margin variant of this trick). `width: max-content` keeps a narrow table (most
-   of this repo's tables) sized to its own content rather than stretched to fill the
-   viewport; only a table whose natural width exceeds the viewport is capped (and, only
-   then, still horizontally scrollable via overflow: auto below) at `100vw - 32px`. */
 .markdown-body table {
   border-collapse: collapse;
   border-spacing: 0;
@@ -209,12 +195,9 @@ body {
   font-size: 14px;
   margin-bottom: 16px;
   margin-top: 0;
+  max-width: 100%;
   overflow: auto;
   width: max-content;
-  max-width: calc(100vw - 32px);
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
 }
 .markdown-body table th {
   font-weight: 600;
@@ -232,30 +215,6 @@ body {
 }
 .markdown-body table tbody tr:nth-child(even) {
   background-color: var(--color-canvas-subtle);
-}
-/* A table wider than .markdown-body's 980px (e.g. Section 4's 17-column historical
-   trend table) scrolls within itself (overflow: auto above) rather than being clipped by
-   the page -- but the default OS/browser overlay scrollbar is thin, auto-hiding, and easy
-   to miss entirely against this dark background, so a wide table can look simply cut off
-   with no visible way to reach the rest of it (found live, 2026-09-23, reading the
-   endurance historical table). Force a scrollbar that's always visible and easy to see. */
-.markdown-body table {
-  scrollbar-width: auto;
-  scrollbar-color: var(--color-border-default) var(--color-canvas-subtle);
-}
-.markdown-body table::-webkit-scrollbar {
-  height: 14px;
-}
-.markdown-body table::-webkit-scrollbar-track {
-  background: var(--color-canvas-subtle);
-}
-.markdown-body table::-webkit-scrollbar-thumb {
-  background-color: var(--color-fg-subtle);
-  border-radius: 7px;
-  border: 3px solid var(--color-canvas-subtle);
-}
-.markdown-body table::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-fg-muted);
 }
 
 /* ── Verdict badge colours (applied by JS below) ─────────────────── */
@@ -1766,7 +1725,7 @@ such (never "the first" of anything, which by definition cannot describe more th
 <td>0.0% / 0.0%¹⁰</td>
 <td>87.44% / 82.79%</td>
 <td>93.33% / 91.67%</td>
-<td>95.49%</td>
+<td>95.49%¹¹</td>
 </tr>
 <tr>
 <td>2026-09-12/13</td>
@@ -1774,7 +1733,7 @@ such (never "the first" of anything, which by definition cannot describe more th
 <td>0.18%</td>
 <td>0.0%</td>
 <td>0.55%</td>
-<td>0.0% / 0.0%¹¹</td>
+<td>0.0% / 0.0%¹³</td>
 <td>95.35% / 76.74%</td>
 <td>98.33% / 91.67%</td>
 <td>83.33%</td>
@@ -1785,7 +1744,7 @@ such (never "the first" of anything, which by definition cannot describe more th
 <td>0.20%</td>
 <td>0.0%</td>
 <td>0.43%</td>
-<td>0.0% / 0.0%¹¹</td>
+<td>0.0% / 0.0%¹³</td>
 <td>100.00% / 80.00%</td>
 <td>91.67% / 91.67%</td>
 <td>84.07%</td>
@@ -1796,7 +1755,7 @@ such (never "the first" of anything, which by definition cannot describe more th
 <td>0.20%</td>
 <td>0.0%</td>
 <td>0.43%</td>
-<td>0.0% / 0.0%¹¹</td>
+<td>0.0% / 0.0%¹³</td>
 <td>95.35% / 82.79%</td>
 <td>95.00% / 91.67%</td>
 <td>88.93%</td>
@@ -1807,7 +1766,7 @@ such (never "the first" of anything, which by definition cannot describe more th
 <td>0.30%</td>
 <td>0.0%</td>
 <td>0.60%</td>
-<td>0.0% / 0.0%¹¹</td>
+<td>0.0% / 0.0%¹³</td>
 <td>96.28% / 82.33%</td>
 <td>91.67% / 91.67%</td>
 <td>88.55%</td>
@@ -1818,7 +1777,7 @@ such (never "the first" of anything, which by definition cannot describe more th
 <td>0.20%</td>
 <td>0.0%</td>
 <td>0.60%</td>
-<td>0.0% / 0.0%¹¹</td>
+<td>0.0% / 0.0%¹³</td>
 <td>99.07% / 84.19%</td>
 <td>95.00% / 91.67%</td>
 <td>87.41%</td>
@@ -1829,7 +1788,7 @@ such (never "the first" of anything, which by definition cannot describe more th
 <td>0.20%</td>
 <td>0.0%</td>
 <td>0.50%</td>
-<td>0.0% / 0.0%¹¹</td>
+<td>0.0% / 0.0%¹³</td>
 <td>97.21% / 80.47%</td>
 <td>91.67% / 91.67%</td>
 <td>86.36%</td>
@@ -1840,21 +1799,21 @@ such (never "the first" of anything, which by definition cannot describe more th
 <td>0.19%</td>
 <td>0.0%</td>
 <td>0.75%</td>
-<td>0.0% / 0.83%¹²</td>
+<td>0.0% / 0.83%¹⁴</td>
 <td>94.42% / 81.86%</td>
 <td>96.67% / 91.67%</td>
 <td>88.51%</td>
 </tr>
 <tr>
 <td><strong>2026-09-23</strong></td>
-<td><strong><code>decoding_improvement@84cac119</code>¹³</strong></td>
+<td><strong><code>decoding_improvement@84cac119</code>¹⁵</strong></td>
 <td><strong>0.19%</strong></td>
 <td><strong>0.0%</strong></td>
 <td><strong>0.72%</strong></td>
-<td><strong>0.0% / 0.0%¹¹</strong></td>
+<td><strong>0.0% / 0.0%¹³</strong></td>
 <td><strong>90.70% / 83.72%</strong></td>
 <td><strong>91.67% / 91.67%</strong></td>
-<td><strong>94.00%</strong></td>
+<td><strong>94.00%¹¹ ¹²</strong></td>
 </tr>
 </tbody>
 </table>
@@ -1887,7 +1846,25 @@ S5-only confirmatory run, 8/300, PASS) is not in this table — not a full batte
 <p>¹⁰ <strong>The one and only first run under R&amp;R-011</strong> (2026-09-08): per-sweep Gate A becomes INFO only
 from here on, superseded by the trailing-window Gate A-W/Gate A-Δ (≥480-AWGN-slot window). Gate
 A-W PASS (14/480=2.917%, 95% UB 4.522%), FRAGILE (leave-one-out flips the verdict).</p>
-<p>¹¹ <strong>The <code>4584900d</code> same-build repeat-measurement batch (sweeps #1–#6), not itself a "first" of
+<p>¹¹ <strong>Reference-driven, not an OpenWSFZ improvement — this row and the <code>2026-09-23</code> row below
+share the same mechanism and reuse this note (Architect finding, 2026-09-23 16:34Z; QA
+footnoted 2026-09-25, HK-022, fixed where it lives — previously this cell carried no
+qualifier at all).</strong> This row's 95.49% (the series high until the row below) is carried by
+WSJT-X's own S7 recovery dropping to 87.44% — the N=215-era low for that appraiser: every row
+from <code>6e821fa</code> onward, once S7 moved to its current 215-message design, sat ≥92.6%, and the
+earlier N=93-era sweeps ran 76.3–78.5%, below this reading — not by OpenWSFZ moving (82.79%,
+within its established 170–180/215 range since <code>2e60949</code>). 🛑 <strong>Do not cite 95.49% (or the row
+below's 94.00%) as an OpenWSFZ-vs-WSJT-X gain</strong> — read both through the same S7 instrument-suspect
+flag every S7 movement carries under this table's own standing rule, not as narrowing the gap.</p>
+<p>¹² <strong><code>2026-09-23</code>'s own counterfactual (Architect arithmetic, 2026-09-23 16:34Z, from this row's
+own integers; footnote 11 above is the general framing this specific number supports — Section 5
+of this report separately struck the underlying S7 P2 cell as instrument-suspect, no action
+needed).</strong> WSJT-X's S7 fall on this row is concentrated almost entirely in one cell: P2 read 3/15
+against a constant 15/15 in every comparable row. Restoring P2 to its usual 15/15 (+12) gives a
+counterfactual WSJT-X S7 of 207/215 and a counterfactual pooled ratio of 235/262 ≈ <strong>89.7%</strong> — in
+line with the <code>db3a3085</code> row's 88.51%, not a step up. The published 94.00% is not wrong, but it is
+this row's noisiest single input, not evidence of an OpenWSFZ gain.</p>
+<p>¹³ <strong>The <code>4584900d</code> same-build repeat-measurement batch (sweeps #1–#6), not itself a "first" of
 anything</strong> — a distinct fact from footnote 10 above, given its own number rather than folded into
 it, precisely because reusing a footnote whose own text claims uniqueness would misdescribe six
 non-first rows. Gate A-W PASS (8/480=1.667%, 95% UB 2.987%), identical across all six sweeps since
@@ -1896,14 +1873,14 @@ run) — a different, later fact than either sweep-batch use above, but the iden
 ("this row's own sweep added zero new S5 events, so its Gate A-W/Gate A-Δ reading is carried
 entirely by other sweeps' events") — permitted under this table's own footnote rule because it is
 genuinely the same fact, not a coincidence of wording.</p>
-<p>¹² <strong><code>db3a3085</code>'s own S5 Gate A-W/Gate A-Δ reading — a third, distinct fact again, not the same
-number as 10 or 11.</strong> This sweep is the first to register a new AWGN event since the batch above,
-so its figures differ from every row footnotes 10 and 11 cover. Gate A-W PASS (1/480=0.208%, 95%
+<p>¹⁴ <strong><code>db3a3085</code>'s own S5 Gate A-W/Gate A-Δ reading — a distinct fact again, not the same
+number as 10 or 13.</strong> This sweep is the first to register a new AWGN event since the batch above,
+so its figures differ from every row footnotes 10 and 13 cover. Gate A-W PASS (1/480=0.208%, 95%
 UB 0.984%), not FRAGILE (all four single-sweep leave-one-out deletions leave the verdict
 unchanged). Gate A-Δ PASS (1/120 vs 0/360, Fisher p=0.2500) — the eight <code>4584900d</code>-batch-era
 events have fully aged out of the trailing window by this sweep, leaving only this run's own
 single new event (see Section 5).</p>
-<p>¹³ <strong>First row in this table on a <code>decoding_improvement</code> branch build, not <code>main</code></strong> — see the
+<p>¹⁵ <strong>First row in this table on a <code>decoding_improvement</code> branch build, not <code>main</code></strong> — see the
 correction note under the header table. SHA column shows <code>branch@commit-short</code> rather than a bare
 SHA for this reason; every other row is implicitly <code>main</code> (or a feature branch merged into it by
 the date shown). <code>decoding_improvement</code>@<code>84cac119</code> carries <code>DENSITY-REMEDY</code> Stage 1's shipped
@@ -1911,8 +1888,9 @@ suppression default (shim <code>20260054</code>, <code>suppression_triple=[-5,15
 <code>PASSBAND-140</code> base <code>db3a3085</code> already tested (shim <code>20260051</code> there vs <code>20260054</code> here) — so a
 small difference from the <code>main</code>-branch envelope this table mostly documents is licensed, not a
 regression signal on its own; see Section 1/5 for the full framing. This run's own S5 Gate A-W/
-Gate A-Δ reading carries zero new events from this sweep itself — see footnote 11's third use,
-immediately above.</p>
+Gate A-Δ reading carries zero new events from this sweep itself — see footnote 13's third use,
+immediately above. Its own pooled-ratio reading (94.00%) is reference-driven, not an OpenWSFZ
+gain — see footnotes 11–12.</p>
   </div>
   <script>
     // Colour verdict cells: PASS / FAIL / MARGINAL / informational

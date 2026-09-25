@@ -446,15 +446,15 @@ such (never "the first" of anything, which by definition cannot describe more th
 | 2026-09-03 | `35378b9` | 0.21% | 0.0% | 0.55% | 0.0% / 10.12% FAIL | 96.3% / 81.4% | 95.0% / 91.7% | 87.12% |
 | 2026-09-06 | `4c7d5ad` | 0.24% | 0.00% | 0.40% | 0.0% / 12.42% FAIL⁸ | 98.14% / 79.07% | 100.00% / 88.33% | 82.29% |
 | 2026-09-07 | `4cc1984` | 0.20% | 0.0% | 0.59% | 0.0% / 6.33% FAIL⁹ | 99.07% / 79.07% | 91.67% / 91.67% | 83.96% |
-| 2026-09-12 | `fbf8c0b5` | 0.37% | 0.0% | 0.35% | 0.0% / 0.0%¹⁰ | 87.44% / 82.79% | 93.33% / 91.67% | 95.49% |
-| 2026-09-12/13 | `4584900d #1` | 0.18% | 0.0% | 0.55% | 0.0% / 0.0%¹¹ | 95.35% / 76.74% | 98.33% / 91.67% | 83.33% |
-| 2026-09-13 | `4584900d #2` | 0.20% | 0.0% | 0.43% | 0.0% / 0.0%¹¹ | 100.00% / 80.00% | 91.67% / 91.67% | 84.07% |
-| 2026-09-13 | `4584900d #3` | 0.20% | 0.0% | 0.43% | 0.0% / 0.0%¹¹ | 95.35% / 82.79% | 95.00% / 91.67% | 88.93% |
-| 2026-09-13 | `4584900d #4` | 0.30% | 0.0% | 0.60% | 0.0% / 0.0%¹¹ | 96.28% / 82.33% | 91.67% / 91.67% | 88.55% |
-| 2026-09-13 | `4584900d #5` | 0.20% | 0.0% | 0.60% | 0.0% / 0.0%¹¹ | 99.07% / 84.19% | 95.00% / 91.67% | 87.41% |
-| 2026-09-13 | `4584900d #6` | 0.20% | 0.0% | 0.50% | 0.0% / 0.0%¹¹ | 97.21% / 80.47% | 91.67% / 91.67% | 86.36% |
-| 2026-09-14 | `db3a3085` | 0.19% | 0.0% | 0.75% | 0.0% / 0.83%¹² | 94.42% / 81.86% | 96.67% / 91.67% | 88.51% |
-| **2026-09-23** | **`decoding_improvement@84cac119`¹³** | **0.19%** | **0.0%** | **0.72%** | **0.0% / 0.0%¹¹** | **90.70% / 83.72%** | **91.67% / 91.67%** | **94.00%** |
+| 2026-09-12 | `fbf8c0b5` | 0.37% | 0.0% | 0.35% | 0.0% / 0.0%¹⁰ | 87.44% / 82.79% | 93.33% / 91.67% | 95.49%¹¹ |
+| 2026-09-12/13 | `4584900d #1` | 0.18% | 0.0% | 0.55% | 0.0% / 0.0%¹³ | 95.35% / 76.74% | 98.33% / 91.67% | 83.33% |
+| 2026-09-13 | `4584900d #2` | 0.20% | 0.0% | 0.43% | 0.0% / 0.0%¹³ | 100.00% / 80.00% | 91.67% / 91.67% | 84.07% |
+| 2026-09-13 | `4584900d #3` | 0.20% | 0.0% | 0.43% | 0.0% / 0.0%¹³ | 95.35% / 82.79% | 95.00% / 91.67% | 88.93% |
+| 2026-09-13 | `4584900d #4` | 0.30% | 0.0% | 0.60% | 0.0% / 0.0%¹³ | 96.28% / 82.33% | 91.67% / 91.67% | 88.55% |
+| 2026-09-13 | `4584900d #5` | 0.20% | 0.0% | 0.60% | 0.0% / 0.0%¹³ | 99.07% / 84.19% | 95.00% / 91.67% | 87.41% |
+| 2026-09-13 | `4584900d #6` | 0.20% | 0.0% | 0.50% | 0.0% / 0.0%¹³ | 97.21% / 80.47% | 91.67% / 91.67% | 86.36% |
+| 2026-09-14 | `db3a3085` | 0.19% | 0.0% | 0.75% | 0.0% / 0.83%¹⁴ | 94.42% / 81.86% | 96.67% / 91.67% | 88.51% |
+| **2026-09-23** | **`decoding_improvement@84cac119`¹⁵** | **0.19%** | **0.0%** | **0.72%** | **0.0% / 0.0%¹³** | **90.70% / 83.72%** | **91.67% / 91.67%** | **94.00%¹¹ ¹²** |
 
 ¹ Value = pooled(OpenWSFZ S7+S8 matched decodes) ÷ pooled(WSJT-X S7+S8 matched decodes) × 100,
 computed directly from each run's own `S7_matched.csv`/`S8_matched.csv` counts where available in
@@ -495,7 +495,27 @@ S5-only confirmatory run, 8/300, PASS) is not in this table — not a full batte
 from here on, superseded by the trailing-window Gate A-W/Gate A-Δ (≥480-AWGN-slot window). Gate
 A-W PASS (14/480=2.917%, 95% UB 4.522%), FRAGILE (leave-one-out flips the verdict).
 
-¹¹ **The `4584900d` same-build repeat-measurement batch (sweeps #1–#6), not itself a "first" of
+¹¹ **Reference-driven, not an OpenWSFZ improvement — this row and the `2026-09-23` row below
+share the same mechanism and reuse this note (Architect finding, 2026-09-23 16:34Z; QA
+footnoted 2026-09-25, HK-022, fixed where it lives — previously this cell carried no
+qualifier at all).** This row's 95.49% (the series high until the row below) is carried by
+WSJT-X's own S7 recovery dropping to 87.44% — the N=215-era low for that appraiser: every row
+from `6e821fa` onward, once S7 moved to its current 215-message design, sat ≥92.6%, and the
+earlier N=93-era sweeps ran 76.3–78.5%, below this reading — not by OpenWSFZ moving (82.79%,
+within its established 170–180/215 range since `2e60949`). 🛑 **Do not cite 95.49% (or the row
+below's 94.00%) as an OpenWSFZ-vs-WSJT-X gain** — read both through the same S7 instrument-suspect
+flag every S7 movement carries under this table's own standing rule, not as narrowing the gap.
+
+¹² **`2026-09-23`'s own counterfactual (Architect arithmetic, 2026-09-23 16:34Z, from this row's
+own integers; footnote 11 above is the general framing this specific number supports — Section 5
+of this report separately struck the underlying S7 P2 cell as instrument-suspect, no action
+needed).** WSJT-X's S7 fall on this row is concentrated almost entirely in one cell: P2 read 3/15
+against a constant 15/15 in every comparable row. Restoring P2 to its usual 15/15 (+12) gives a
+counterfactual WSJT-X S7 of 207/215 and a counterfactual pooled ratio of 235/262 ≈ **89.7%** — in
+line with the `db3a3085` row's 88.51%, not a step up. The published 94.00% is not wrong, but it is
+this row's noisiest single input, not evidence of an OpenWSFZ gain.
+
+¹³ **The `4584900d` same-build repeat-measurement batch (sweeps #1–#6), not itself a "first" of
 anything** — a distinct fact from footnote 10 above, given its own number rather than folded into
 it, precisely because reusing a footnote whose own text claims uniqueness would misdescribe six
 non-first rows. Gate A-W PASS (8/480=1.667%, 95% UB 2.987%), identical across all six sweeps since
@@ -505,15 +525,15 @@ run) — a different, later fact than either sweep-batch use above, but the iden
 entirely by other sweeps' events") — permitted under this table's own footnote rule because it is
 genuinely the same fact, not a coincidence of wording.
 
-¹² **`db3a3085`'s own S5 Gate A-W/Gate A-Δ reading — a third, distinct fact again, not the same
-number as 10 or 11.** This sweep is the first to register a new AWGN event since the batch above,
-so its figures differ from every row footnotes 10 and 11 cover. Gate A-W PASS (1/480=0.208%, 95%
+¹⁴ **`db3a3085`'s own S5 Gate A-W/Gate A-Δ reading — a distinct fact again, not the same
+number as 10 or 13.** This sweep is the first to register a new AWGN event since the batch above,
+so its figures differ from every row footnotes 10 and 13 cover. Gate A-W PASS (1/480=0.208%, 95%
 UB 0.984%), not FRAGILE (all four single-sweep leave-one-out deletions leave the verdict
 unchanged). Gate A-Δ PASS (1/120 vs 0/360, Fisher p=0.2500) — the eight `4584900d`-batch-era
 events have fully aged out of the trailing window by this sweep, leaving only this run's own
 single new event (see Section 5).
 
-¹³ **First row in this table on a `decoding_improvement` branch build, not `main`** — see the
+¹⁵ **First row in this table on a `decoding_improvement` branch build, not `main`** — see the
 correction note under the header table. SHA column shows `branch@commit-short` rather than a bare
 SHA for this reason; every other row is implicitly `main` (or a feature branch merged into it by
 the date shown). `decoding_improvement`@`84cac119` carries `DENSITY-REMEDY` Stage 1's shipped
@@ -521,5 +541,6 @@ suppression default (shim `20260054`, `suppression_triple=[-5,15,1]`) on top of 
 `PASSBAND-140` base `db3a3085` already tested (shim `20260051` there vs `20260054` here) — so a
 small difference from the `main`-branch envelope this table mostly documents is licensed, not a
 regression signal on its own; see Section 1/5 for the full framing. This run's own S5 Gate A-W/
-Gate A-Δ reading carries zero new events from this sweep itself — see footnote 11's third use,
-immediately above.
+Gate A-Δ reading carries zero new events from this sweep itself — see footnote 13's third use,
+immediately above. Its own pooled-ratio reading (94.00%) is reference-driven, not an OpenWSFZ
+gain — see footnotes 11–12.
