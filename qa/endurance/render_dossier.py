@@ -184,8 +184,48 @@ def anova_table_html(stats: dict) -> str:
     )
 
 
+_IMG_SOURCES = {
+    # dossier-relative name (what every <img src="img/...."> tag below actually references)
+    # -> source filename this run's own prior steps (spectrum_scan_report.py,
+    # endurance_anova_wsjtx.py) already wrote directly in run_dir.
+    "level_timeseries.png": "spectrum_scan_level_timeseries.png",
+    "example_spectrum.png": "spectrum_scan_example_spectrum.png",
+    "hum_timeseries.png": "spectrum_scan_hum_timeseries.png",
+    "spur_histogram.png": "spectrum_scan_spur_histogram.png",
+    "spectral_trace.png": "spectral_trace.png",
+    "anova_snr_scatter.png": "anova_report_snr_scatter.png",
+    "anova_snr_residual.png": "anova_report_snr_residual.png",
+    "anova_dt_scatter.png": "anova_report_dt_scatter.png",
+    "anova_dt_residual.png": "anova_report_dt_residual.png",
+    "anova_freq_scatter.png": "anova_report_freq_hz_scatter.png",
+    "anova_freq_residual.png": "anova_report_freq_hz_residual.png",
+}
+
+
+def _populate_img_dir(run_dir: str) -> None:
+    """Every <img src="img/...."> tag below assumes an img/ subdirectory next to the
+    rendered HTML -- found live, 2026-09-26 (Captain, reading a rendered dossier with every
+    image broken): this function never existed, so img/ was never created and the dossier
+    was broken on EVERY run that ever used it, including the one it was first built for
+    (2026-09-24), not just this one. Best-effort per file: a missing source is a real gap
+    worth seeing broken in the HTML (a silently-skipped image is not more honest than a
+    broken one), so this only warns, it does not raise."""
+    import shutil
+    img_dir = os.path.join(run_dir, "img")
+    os.makedirs(img_dir, exist_ok=True)
+    for dest_name, src_name in _IMG_SOURCES.items():
+        src = os.path.join(run_dir, src_name)
+        if os.path.isfile(src):
+            shutil.copyfile(src, os.path.join(img_dir, dest_name))
+        else:
+            print(f"[WARN] _populate_img_dir: source {src} not found -- "
+                  f"img/{dest_name} will be a broken image in the rendered HTML",
+                  file=sys.stderr)
+
+
 def build(args) -> str:
     run_dir = os.path.abspath(args.run_dir)
+    _populate_img_dir(run_dir)
     owsfz_txt = os.path.join(run_dir, "owsfz", "ALL.TXT")
     wsjtx_txt = os.path.join(run_dir, "wsjt-x", "ALL.TXT")
     meta_path = os.path.join(run_dir, "anova_report.meta.json")
