@@ -199,6 +199,12 @@ This run is UNATTENDED. Corpus dir: `%s`
      human judgement (any cross-run finding worth a ruling, the overall verdict) -- fill
      those in, then render: `python qa/rr-study/render_report.py <gathered>/FINAL_REPORT.md`.
   5. (Optional, alternate HTML view) `python qa/endurance/render_dossier.py --run-dir <gathered>`.
+  6. `python qa/endurance/publish_report.py --run-dir <gathered> --dest-name <name>` -- once
+     FINAL_REPORT.md's placeholders are filled in, promotes the reviewed report subset
+     (never the raw ALL.TXT/WAVs/logs) into the TRACKED `qa/endurance/results/<name>/`, with
+     its own NFR-021 callsign scan before copying anything. `git add` that directory by
+     path, review `git status`, commit -- reports reach GitHub this way, not by carving
+     exceptions into the blanket-ignored `artefacts/` above.
 
 ## If you are the next QA session
 1. `Get-Content <corpus>\\heartbeat.json`, `Get-Content <corpus>\\supervisor.log -Tail 40` -- is it alive, which phase.

@@ -104,6 +104,22 @@ traceability-check-local.md
 # local only, never commit.
 artefacts/
 
+# Endurance run reports, mirroring qa/rr-study/results/'s own tracked-with-exclusions
+# pattern (Captain, 2026-09-26: reports should reach GitHub, not sit only in the
+# blanket-ignored artefacts/ above). qa/endurance/results/<run>/ is tracked by default —
+# publish_report.py copies only the reviewed, aggregate-only subset (FINAL_REPORT.*,
+# anova_report.*, the chart PNGs, spectrum_scan.json, findings.json) there from
+# artefacts/<run>-gathered/. The raw decode logs/WAVs/daemon logs never leave artefacts/ in
+# the first place, but these patterns are a defense-in-depth backstop in case a future
+# session ever copies a whole gathered directory in by hand instead — same NFR-021 risk
+# class and same never-commit rule as qa/rr-study/results/'s equivalent section above.
+qa/endurance/results/*/owsfz/
+qa/endurance/results/*/wsjt-x/
+qa/endurance/results/*/cycle-audio/
+qa/endurance/results/*/daemon-logs/
+qa/endurance/results/*/*all.txt
+qa/endurance/results/*/*all.txt.*
+
 # Native build artifacts — obj files and intermediate DLL.
 # r0-reproducible-native-build: message.obj's carve-out (it had been binary-patched, D-006,
 # shim 20260015, with no source-level fix ever written) is REMOVED here. message.c now compiles
