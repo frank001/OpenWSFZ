@@ -173,22 +173,48 @@ This run is UNATTENDED. Corpus dir: `%s`
 - Window (UTC): start `%s`, end `%s`.
 - Everything is in `supervisor.log` + `events.jsonl` (restarts, health strikes). `heartbeat.json` = last loop tick.
 - Arm-time record (recorded, never configured by this script): `arm_config.json`.
-- This script does NOT run analysis. Once phase is DONE, run the standard ANOVA report
-  generator separately: `python qa/endurance/endurance_anova_wsjtx.py --ours-all-txt
-  <gathered>/owsfz/ALL.TXT --wsjtx-all-txt <gathered>/wsjt-x/ALL.TXT --out
-  <gathered>/anova_report.md --arm-config %s/arm_config.json`
+- This script does NOT run analysis. Once phase is DONE, run the standard post-run pipeline
+  below, IN ORDER, from the gathered directory (`<corpus>-gathered`, recorded in
+  `events.jsonl`'s `gathered` event) -- every step but the last is fully mechanical; nothing
+  should need re-deriving or re-typing by hand (Captain, 2026-09-26: "I'd like ... without
+  me pushing so much for it" -- this list exists so the next session doesn't have to
+  rediscover the pipeline piecemeal the way this one did):
+
+  1. `python qa/endurance/endurance_anova_wsjtx.py --ours-all-txt <gathered>/owsfz/ALL.TXT
+     --wsjtx-all-txt <gathered>/wsjt-x/ALL.TXT --out <gathered>/anova_report.md
+     --arm-config %s/arm_config.json`
+     -- writes anova_report.md/.html/.meta.json + the 6 ANOVA charts, AND auto-writes this
+     run's `qa/endurance/history/<name>.meta.json` sidecar (Section 4 reads every sidecar in
+     that directory automatically -- no hand-copying a table forward).
+  2. `python qa/endurance/spectrum_scan.py --wav-dir <gathered>/owsfz/wav
+     --out-json <gathered>/spectrum_scan.json`
+  3. `python qa/endurance/spectrum_scan_report.py --scan-json <gathered>/spectrum_scan.json
+     --wav-dir <gathered>/owsfz/wav --all-txt <gathered>/owsfz/ALL.TXT --out-dir <gathered>`
+     -- writes findings.json + the 4 spectral charts + spectral_trace.png.
+  4. `python qa/endurance/compose_final_report.py --run-dir <gathered> --corpus-dir %s
+     --title "<Nh endurance run>" --out <gathered>/FINAL_REPORT.md`
+     -- assembles FINAL_REPORT.md with EVERY chart and EVERY ANOVA/spectrum-scan table
+     embedded inline (never a "see anova_report.md" pointer) and the full historical table.
+     Leaves clearly-marked `**[ QA: fill in ... ]**` placeholders for the parts that need
+     human judgement (any cross-run finding worth a ruling, the overall verdict) -- fill
+     those in, then render: `python qa/rr-study/render_report.py <gathered>/FINAL_REPORT.md`.
+  5. (Optional, alternate HTML view) `python qa/endurance/render_dossier.py --run-dir <gathered>`.
+  6. `python qa/endurance/publish_report.py --run-dir <gathered> --dest-name <name>` -- once
+     FINAL_REPORT.md's placeholders are filled in, promotes the reviewed report subset
+     (never the raw ALL.TXT/WAVs/logs) into the TRACKED `qa/endurance/results/<name>/`, with
+     its own NFR-021 callsign scan before copying anything. `git add` that directory by
+     path, review `git status`, commit -- reports reach GitHub this way, not by carving
+     exceptions into the blanket-ignored `artefacts/` above.
 
 ## If you are the next QA session
 1. `Get-Content <corpus>\\heartbeat.json`, `Get-Content <corpus>\\supervisor.log -Tail 40` -- is it alive, which phase.
-2. If phase is DONE: gathered artefacts are wherever the standard gatherer's own README says
-   (its output dir is recorded in `events.jsonl`'s `gathered` event). Run the ANOVA report
-   generator (above), which appends this run to the historical table automatically.
+2. If phase is DONE: run the standard post-run pipeline above, in order.
 3. If the supervisor is DEAD before DONE: the daemon may still be capturing. Do NOT delete
    anything. `python <corpus>\\tools\\endurance_supervisor.py --resume <corpus> --daemon-exe
    ... --config ... --port ... --wsjtx-ini ...` (same arguments as the original arm) re-attaches
    from `state.json`.
 4. HK-019 at the end: no OpenWSFZ.Daemon.exe left running.
-""" % (iso(utcnow()), phase, extra, self.c, s.get("window_start"), s.get("window_end"), self.c)
+""" % (iso(utcnow()), phase, extra, self.c, s.get("window_start"), s.get("window_end"), self.c, self.c)
         with open(os.path.join(self.c, "HANDOFF.md"), "w", encoding="utf-8") as f:
             f.write(txt)
 

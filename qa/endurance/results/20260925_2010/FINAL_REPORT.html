@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>12h endurance run -- FINAL REPORT</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="12h-endurance-run-final-report">12h endurance run -- FINAL REPORT</h1>
+<p><strong>Run:</strong> <code>20260925_2010_endurance_run</code> -- 40m, direct USB Audio CODEC (Voicemeeter/CABLE bypassed for this arm)
+<strong>Window (UTC):</strong> <code>2026-09-25T20:11:48Z</code> -&gt; <code>2026-09-26T08:11:48Z</code> (12.0h)
+<strong>Build:</strong> <code>decoding_improvement</code>@<code>51e40b554366</code>, shim <code>20260054</code>, daemon v0.52, DLL SHA256 <code>38a21f84…589a1cba</code>, <code>osd_nhard_max=40</code>
+<strong>Purpose (Captain, 2026-09-25):</strong> third leg of the endurance SNR-gap follow-up. The 2026-09-22 (Voicemeeter B1) -&gt; 2026-09-23 (direct-CODEC) move (-2.824 -&gt; -3.225 dB within-bin) was flagged, not ruled -- the standing note said to read it in WSJT-X-SNR bins and that "a second leg would settle it." The Captain chose direct-CODEC again for this leg, so this run repeats the SAME chain as 2026-09-23 on a different night -- the decisive comparison for telling a stable chain effect apart from ordinary night-to-night noise. <strong>Adoption gate for direct-CODEC as a default remains separately gated on #187/#188 staying resolved on the branch actually run</strong> (confirmed this session: <code>decoding_improvement</code> synced with <code>main</code>, both issues' fixes present, <code>51e40b55</code>).
+<strong>Generated:</strong> 2026-09-26T09:45:00Z (<code>date -u</code>, HK-017)</p>
+<hr />
+<h2 id="1-run-completion-health">1. Run completion &amp; health</h2>
+<ul>
+<li><code>state.json</code> / <code>HANDOFF.md</code>: phase <code>DONE</code>. <code>supervisor.log</code>: exactly one PRECHECK (<code>all_pass: true</code>, 11/11) and one WINDOW OPEN line between start and teardown. <strong>Zero restart or problem events for the full 12h</strong> -- the last heartbeat before teardown reads <code>consecutive_restarts: 0</code>, <code>captureRestartCount: 0</code>, <code>watchdogRestartCount: 0</code>.</li>
+<li>HK-019 orphan check: clean (<code>supervisor.log</code>: "HK-019 orphan check: clean").</li>
+<li>Decode counts: OpenWSFZ 47,212; WSJT-X (reference) 76,999; matched 46,917.</li>
+<li>Built in a throwaway worktree (<code>D:\tmp-endurance-build</code>, removed after use) rather than the standard <code>w-di-run</code> checkout, which was left untouched throughout per the Captain's own instruction (its mid-merge state is a separate, not-yet-resolved item -- see BOARD.md).</li>
+</ul>
+<h2 id="2-spectrum-anomaly-scan">2. Spectrum anomaly scan</h2>
+<p><strong>Method:</strong> every one of the 2,884 15s/12kHz mono cycle WAVs in <code>owsfz/wav/</code> read in full -- same method as every prior standardised run (<code>spectrum_scan.py</code>, this directory; full results: <code>spectrum_scan.json</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Files read / errors</td>
+<td>2,884 / 2,884 ok, <strong>0 errors</strong></td>
+</tr>
+<tr>
+<td>Format consistency</td>
+<td><code>fs=12000</code> and <code>nframes=180000</code> on every file -- 100% consistent</td>
+</tr>
+<tr>
+<td>Clipping (samples &gt;= 32760)</td>
+<td><strong>1 file</strong> (<code>260926_064300.wav</code>) -- isolated, 0.035% of the corpus, not investigated further at this size</td>
+</tr>
+<tr>
+<td>Dropouts / saturation</td>
+<td><strong>0 files</strong> either way</td>
+</tr>
+<tr>
+<td>Level stability</td>
+<td>median <strong>-28.18 dBFS</strong>, MAD <strong>0.80 dB</strong>, range -41.04 to -22.66 dBFS -- no gain steps, no drift</td>
+</tr>
+<tr>
+<td>Sub-passband hum (45-65/95-125 Hz)</td>
+<td>median <strong>21.9 dB</strong> over the near-Nyquist floor -- consistent with the 20260923 report's own control finding that this elevation <strong>predates the chain change</strong> and is not attributable to bypassing Voicemeeter; not re-derived here, cited from that established result</td>
+</tr>
+<tr>
+<td>In-band spur candidate</td>
+<td>dominant peak <strong>1435 Hz</strong>, 204/2,884 files (7.1%) by the scan's own binning</td>
+</tr>
+</tbody>
+</table>
+<h3 id="level-over-the-run">Level over the run</h3>
+<p><img alt="Capture level (dBFS) over the full 12h window" src="spectrum_scan_level_timeseries.png" /></p>
+<p>No gain steps, no dropouts, no drift -- the rolling median stays within a tight band around the corpus median for the entire window.</p>
+<h3 id="representative-single-cycle-spectrum">Representative single-cycle spectrum</h3>
+<p><img alt="Representative single-cycle spectrum with analysis bands annotated" src="spectrum_scan_example_spectrum.png" /></p>
+<h3 id="sub-passband-hum">Sub-passband hum</h3>
+<p><img alt="Sub-passband hum band over the full 12h window" src="spectrum_scan_hum_timeseries.png" /></p>
+<p>Already established (20260923 report) as predating the direct-CODEC chain change -- not re-derived here, cited from that result.</p>
+<h3 id="in-band-spur-checked-resolved-not-flagged">In-band spur -- checked, resolved, not flagged</h3>
+<p><img alt="Histogram of in-band spur-candidate peak frequencies across the run" src="spectrum_scan_spur_histogram.png" /></p>
+<p><code>spectrum_scan_report.py</code>'s cross-reference against <code>owsfz/ALL.TXT</code> (aggregates only, NFR-021 -- no callsign or message text reproduced):</p>
+<ul>
+<li><strong>740 decode lines</strong> within +/-3 Hz of 1435 Hz across the 12h window.</li>
+<li><strong>80 distinct message texts</strong>, SNR range -18 to +20 dB -- real propagation-driven variance.</li>
+<li><strong>One message accounts for 87.3% of hits</strong> (the calling station's own repeated CQ), the remainder spread across genuine exchanges.</li>
+<li><strong>Verdict (mechanical, <code>findings.json</code>): "RESOLVED: real station traffic, not a hardware/decoder artefact."</strong></li>
+</ul>
+<h3 id="welch-psd-stft-comparison-quiet-typical-loud-spur-resolved-cycles">Welch PSD / STFT comparison (quiet / typical / loud / spur-resolved cycles)</h3>
+<p><img alt="Spectral trace comparison panels" src="spectral_trace.png" /></p>
+<p><strong>Overall: one isolated clipped file (1/2,884) aside, no spectral anomaly attributable to this run or to the direct-CODEC chain.</strong> The hum signature is already established as chain-independent; the one prominent in-band peak is a confirmed real station.</p>
+<h2 id="3-matched-decode-anova-openwsfz-vs-live-wsjt-x-n46917-pairs">3. Matched-decode ANOVA (OpenWSFZ vs live WSJT-X, n=46,917 pairs)</h2>
+<p>Full content of this run's own <code>anova_report.md</code>, inline -- not a separate file to cross-reference.</p>
+<h3 id="grid-alignment-gate-per-hk-021-2026-08-02-correction">Grid-alignment gate (per HK-021, 2026-08-02 correction)</h3>
+<table>
+<thead>
+<tr>
+<th>appraiser</th>
+<th style="text-align: right;">unique ts</th>
+<th style="text-align: right;">on-grid</th>
+<th style="text-align: right;">G</th>
+<th>row</th>
+<th>verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenWSFZ</td>
+<td style="text-align: right;">2880</td>
+<td style="text-align: right;">2880</td>
+<td style="text-align: right;">1.0000</td>
+<td>ROW 1</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>WSJT-X</td>
+<td style="text-align: right;">2880</td>
+<td style="text-align: right;">2880</td>
+<td style="text-align: right;">1.0000</td>
+<td>ROW 1</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<h3 id="decode-coverage">Decode coverage</h3>
+<ul>
+<li>OpenWSFZ decoded <strong>47,212</strong> messages in this window; WSJT-X decoded <strong>76,999</strong>.</li>
+<li><strong>46,917</strong> decodes matched between the two (same cycle + normalised message text) -- <strong>99.4%</strong> of OpenWSFZ's decodes, <strong>60.9%</strong> of WSJT-X's decodes.</li>
+<li>OpenWSFZ-only (WSJT-X did not report it): <strong>295</strong> (0.6% of OpenWSFZ's total).</li>
+<li>WSJT-X-only (OpenWSFZ did not report it): <strong>30,082</strong> (39.1% of WSJT-X's total).</li>
+</ul>
+<h3 id="snr-db">SNR (dB)</h3>
+<p><img alt="Matched-decode SNR scatter: OpenWSFZ vs WSJT-X" src="anova_report_snr_scatter.png" />
+<img alt="Per-Part residual vs WSJT-X SNR" src="anova_report_snr_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">7187299.1752</td>
+<td style="text-align: right;">46916</td>
+<td style="text-align: right;">153.1951</td>
+<td style="text-align: right;">13.944</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">163296.0998</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">163296.0998</td>
+<td style="text-align: right;">14863.463</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">515438.4002</td>
+<td style="text-align: right;">46916</td>
+<td style="text-align: right;">10.9864</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">7866033.6752</td>
+<td style="text-align: right;">93833</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (SNR, dB): OpenWSFZ <strong>-6.409 dB</strong>, WSJT-X <strong>-3.771 dB</strong>, grand mean -5.090 dB.</p>
+<h3 id="dt-time-offset-s">DT / time offset (s)</h3>
+<p><img alt="Matched-decode DT scatter: OpenWSFZ vs WSJT-X" src="anova_report_dt_scatter.png" />
+<img alt="Per-Part residual vs WSJT-X DT" src="anova_report_dt_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">12683.2851</td>
+<td style="text-align: right;">46916</td>
+<td style="text-align: right;">0.2703</td>
+<td style="text-align: right;">214.554</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">9946.5752</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">9946.5752</td>
+<td style="text-align: right;">7894025.907</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">59.1148</td>
+<td style="text-align: right;">46916</td>
+<td style="text-align: right;">0.0013</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">22688.9751</td>
+<td style="text-align: right;">93833</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (DT, s): OpenWSFZ <strong>0.8696 s</strong>, WSJT-X <strong>0.2185 s</strong>, grand mean 0.5441 s.</p>
+<h3 id="frequency-offset-hz">Frequency offset (Hz)</h3>
+<p><img alt="Matched-decode Frequency offset scatter: OpenWSFZ vs WSJT-X" src="anova_report_freq_hz_scatter.png" />
+<img alt="Per-Part residual vs WSJT-X Frequency offset" src="anova_report_freq_hz_residual.png" /></p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th style="text-align: right;">SS</th>
+<th style="text-align: right;">df</th>
+<th style="text-align: right;">MS</th>
+<th style="text-align: right;">F</th>
+<th style="text-align: right;">P</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Part</td>
+<td style="text-align: right;">47212193501.9566</td>
+<td style="text-align: right;">46916</td>
+<td style="text-align: right;">1006313.2727</td>
+<td style="text-align: right;">1386060.930</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Appraiser</td>
+<td style="text-align: right;">403.8657</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">403.8657</td>
+<td style="text-align: right;">556.271</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr>
+<td>Residual (confounded with interaction, n=1/cell)</td>
+<td style="text-align: right;">34062.1343</td>
+<td style="text-align: right;">46916</td>
+<td style="text-align: right;">0.7260</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td>Total</td>
+<td style="text-align: right;">47212227967.9566</td>
+<td style="text-align: right;">93833</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<p>Appraiser means (Frequency offset, Hz): OpenWSFZ <strong>1524.5 Hz</strong>, WSJT-X <strong>1524.4 Hz</strong>, grand mean 1524.4 Hz.</p>
+<h3 id="caveat-structural-not-a-defect">Caveat (structural, not a defect)</h3>
+<p>With one observation per Part x Appraiser cell -- a live signal happens once -- the interaction term and the residual/error term are mathematically confounded (standard property of an unreplicated factorial design), for every response above. Each table can say whether the two appraisers' <em>mean</em> value differs after removing part-to-part variation (the Appraiser row); none of them can separately test whether that difference itself varies signal-to-signal. Cross-run comparison and interpretation of these numbers is Architect/Captain territory, not this module's -- except Section 4 below, which is the one pre-committed exception (see its own note).</p>
+<h2 id="4-hk-036-section-4-read-the-snr-gap-follow-up-settled">4. HK-036 Section 4 read -- the SNR-gap follow-up, settled</h2>
+<p>Three comparable rows now exist (live WSJT-X reference, 40m, <code>nhard</code>=40, same build family). Full historical table (all 15 rows back to 2026-07-28): <code>anova_report.md</code> Section 4.</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th style="text-align: right;">Hours</th>
+<th>Radio chain</th>
+<th style="text-align: right;">Matched % of ref</th>
+<th style="text-align: right;">OWS-only %</th>
+<th style="text-align: right;">SNR gap (dB)</th>
+<th style="text-align: right;">DT gap (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-09-22</td>
+<td style="text-align: right;">12.0</td>
+<td>Yaesu FT-991A -&gt; Voicemeeter Out B1</td>
+<td style="text-align: right;">59.8</td>
+<td style="text-align: right;">0.8</td>
+<td style="text-align: right;">-2.824</td>
+<td style="text-align: right;">+0.6548</td>
+</tr>
+<tr>
+<td>2026-09-23/24</td>
+<td style="text-align: right;">24.0</td>
+<td>FT-991A -&gt; USB Audio CODEC, direct</td>
+<td style="text-align: right;">61.1</td>
+<td style="text-align: right;">0.7</td>
+<td style="text-align: right;">-3.225</td>
+<td style="text-align: right;">+0.6484</td>
+</tr>
+<tr>
+<td><strong>2026-09-25/26 (this run)</strong></td>
+<td style="text-align: right;"><strong>12.0</strong></td>
+<td><strong>FT-991A -&gt; USB Audio CODEC, direct</strong></td>
+<td style="text-align: right;"><strong>60.9</strong></td>
+<td style="text-align: right;"><strong>0.6</strong></td>
+<td style="text-align: right;"><strong>-2.638</strong></td>
+<td style="text-align: right;"><strong>+0.6511</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>This is the decisive comparison, not another data point to flag.</strong> Re-running the exact 3 dB WSJT-X-SNR-bin decomposition the standing note called for (<code>snr_gap_mix_3leg.py</code>, this directory; full output <code>snr_gap_mix_3leg_output.txt</code>):</p>
+<ul>
+<li><code>2026-09-22 -&gt; 2026-09-23</code> (the original observation, B1 -&gt; direct-CODEC): within-bin move <strong>-0.28 dB</strong>. Reproduces the Architect's original finding exactly.</li>
+<li><code>2026-09-23 -&gt; 2026-09-25</code> (<strong>same chain</strong>, direct-CODEC -&gt; direct-CODEC, different night -- this run vs the prior direct-CODEC leg): within-bin move <strong>+0.35 dB</strong> -- larger in magnitude than the original effect, and the <strong>opposite sign</strong>.</li>
+</ul>
+<p><strong>Reading it:</strong> if the direct-CODEC chain itself produced a stable SNR-reporting shift, repeating that same chain on a different night should reproduce a within-bin move close to zero relative to the other direct-CODEC night. It moved further, and backward, instead. The originally-flagged 0.28 dB effect is smaller than ordinary night-to-night variance on the <em>same</em> chain (0.35 dB) -- it is not distinguishable from noise. <strong>No stable direct-CODEC SNR-gap effect is supported by this data.</strong> DT gap, matched %, and OWS-only % all continue to sit within the range already established by the first two rows -- no material movement there either, consistent across all three rows.</p>
+<p><em>(This section is the one pre-committed exception to Section 3's "Architect/Captain territory" caveat: the standing note itself said this exact decomposition would be the deciding read, so reporting its outcome mechanically is not new interpretation.)</em></p>
+<h2 id="5-overall-verdict">5. Overall verdict</h2>
+<ul>
+<li><strong>Data quality: clean.</strong> One isolated clipped file out of 2,884 aside, nothing in the spectrum scan or the run-health check gives grounds to distrust this run's decode figures.</li>
+<li><strong>The SNR-gap follow-up is settled, not still open.</strong> The second same-chain leg the standing note asked for has run: the within-bin move between the two direct-CODEC nights (+0.35 dB) exceeds and reverses the original candidate effect (-0.28 dB). <strong>Ruling: no stable direct-CODEC SNR-reporting effect -- consistent with noise.</strong> Recorded on the board as closed, not flagged.</li>
+<li><strong>Adoption gate unchanged:</strong> whether direct-CODEC becomes the <em>default</em> routing is a separate decision from whether it's <em>safe</em> -- this result removes one candidate objection (an SNR-reporting side-effect), it doesn't itself decide the adoption question.</li>
+<li><strong>Housekeeping found along the way, not part of this run's own result:</strong> the standard post-run pipeline (<code>spectrum_scan.py</code>/<code>spectrum_scan_report.py</code>/<code>render_dossier.py</code>, plus an <code>anova_common.py</code> extension with an automated <code>qa/endurance/history/*.meta.json</code> Section-4 scanner) existed only on an unpushed local branch (<code>qa/live-gap-map</code>) before this session fetched and used it. <strong><code>render_dossier.py</code> also had a real bug, fixed in the same pass</strong>: it referenced <code>img/*.png</code> in its output HTML but never created or populated that directory -- broken on every dossier it ever produced, including the 2026-09-23 one, until fixed here. See BOARD.md for the full housekeeping note.</li>
+</ul>
+<h2 id="files-in-this-directory">Files in this directory</h2>
+<ul>
+<li><code>anova_report.md</code> / <code>.html</code> -- the source this Section 3/4 content was copied from verbatim (kept as the standalone, script-generated original)</li>
+<li><code>anova_report_{snr,dt,freq_hz}_{scatter,residual}.png</code> -- the 6 ANOVA charts, embedded above</li>
+<li><code>snr_gap_mix_3leg.py</code> / <code>snr_gap_mix_3leg_output.txt</code> -- the 3-leg WSJT-X-SNR-bin decomposition behind Section 4's ruling (gitignored, NFR-021 -- aggregates only, no message text)</li>
+<li><code>spectrum_scan.py</code> / <code>spectrum_scan_report.py</code> -- the anomaly-scan scripts (full corpus, no subsampling)</li>
+<li><code>spectrum_scan.json</code> / <code>findings.json</code> -- the scan's full results and the mechanical spur/hum verdicts</li>
+<li><code>spectrum_scan_level_timeseries.png</code>, <code>spectrum_scan_hum_timeseries.png</code>, <code>spectrum_scan_spur_histogram.png</code>, <code>spectrum_scan_example_spectrum.png</code>, <code>spectral_trace.png</code> -- the spectral charts, embedded above</li>
+<li><code>FINAL_REPORT_dossier.html</code> -- an auto-rendered alternate view of Sections 1-3 + 5 (recomputed directly from the decode logs) and the full 15-row historical table; does <strong>not</strong> carry Section 4's hand-written ruling narrative -- this document (<code>FINAL_REPORT.md</code>/<code>.html</code>) is the complete, self-contained one</li>
+<li><code>owsfz/</code>, <code>wsjt-x/</code> -- gathered decode logs and WAVs</li>
+</ul>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

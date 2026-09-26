@@ -1,0 +1,28 @@
+{
+ "date": "2026-09-22",
+ "band": "40m",
+ "hours": 12.0,
+ "dll_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+ "build_branch": "decoding_improvement",
+ "build_commit": "84cac11919e567cd3769db8ee0ebeeab37f9dffc",
+ "shim": 20260054,
+ "nhard": 40,
+ "reference": "live_wsjtx",
+ "radio_chain": "Yaesu FT-991A -> Voicemeeter Out B1",
+ "comparable": true,
+ "grid_gate_g": 1.0,
+ "n_pairs": 55010,
+ "matched_pct_of_ref": 59.76229793151399,
+ "ows_only_pct": 0.7559219902938895,
+ "snr_gap_db": -2.823595709870933,
+ "snr_gap_sd_db": 4.7656722660572015,
+ "dt_gap_s": 0.6547918560261771,
+ "dt_gap_sd_s": 0.050123336764063525,
+ "dt_gap_sd_method": "sqrt(2 * MS_residual), residual SS/df from this report's own DT ANOVA table (2-appraiser unreplicated RCBD); MECHANICALLY VERIFIED 2026-09-25 against a direct recomputation from the raw matched pairs (owsfz/ALL.TXT vs wsjt-x/ALL.TXT via anova_common.match_pairs) -- direct SD(OWS-WSJT-X)=0.0501233488685..., sqrt(2*MS_res)=0.0501233488685..., exact to float precision (n=55010 pairs)",
+ "drift_contaminated": false,
+ "drift_note": "",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\artefacts\\20260922_2056_endurance_run-gathered",
+ "source_files": [
+  "artefacts/20260922_2056_endurance_run-gathered/anova_report.md"
+ ]
+}
