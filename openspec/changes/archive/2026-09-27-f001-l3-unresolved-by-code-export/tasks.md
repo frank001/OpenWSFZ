@@ -104,34 +104,51 @@ section states this; it is a separate, later QA arm reading the export this chan
 
 ## 7. Captain
 
-- [ ] 7.1 🛑 **HARD STOP.** No push, no merge, no `pre_merge_check.py` (HK-006/HK-011 — Captain's
-      initiative only). The Captain reviews the diff together with task 6's result and rules on the
-      merge (HK-010) — green build/tests is necessary and never sufficient.
+- [~] 7.1 🛑 **HARD STOP, discharged by the merge: PR #140 → `1b7ca295` (2026-09-06).** Searched
+      `board-archive-to-2026-09-24.md` for an explicit Captain sign-off record naming #140 or
+      `20260050`'s merge specifically — found the merge's own mechanics (CI ran, fast-forwarded,
+      53 commits including this change's) but **no quoted Captain go-ahead for that merge**. Marking
+      `[~]` per the archive-sweep spec's own instruction rather than ticking as if found; the
+      merge itself is not in question (it is on `main`, shim `20260050` shipped and was later
+      superseded by `20260051`), only whether a sign-off record for it specifically is locatable.
+      Record correction 2026-09-27, archive-sweep spec §3.1.
 
 ## 8. Spec Sync
 
-- [ ] 8.1 🔴 **Check the archive ordering first.** Confirm no other unarchived change touches
-      `hashed-callsign-resolution` or `ft8lib-interop` ahead of this one (this change's deltas are
-      written against the current, already-synced base specs — both capabilities' base spec files
-      already carry every prior change through `20260049`, confirmed at drafting time).
-- [ ] 8.2 Merge this change's `specs/hashed-callsign-resolution/spec.md` delta into
-      `openspec/specs/hashed-callsign-resolution/spec.md` (one new ADDED Requirement, appended
-      after the existing "Suppression is observable..." Requirement).
-- [ ] 8.3 Merge this change's `specs/ft8lib-interop/spec.md` delta into
-      `openspec/specs/ft8lib-interop/spec.md` — the ABI self-test Requirement's expected constant
-      advances to `20260050` (following that Requirement's own established pattern of preserving
-      full prior history in its paragraph prose, not truncating it); the new "Diagnostic 12-bit
-      hash-path unresolved-by-code native export" Requirement is appended after the existing
-      12-bit-suppression-count Requirement.
-- [ ] 8.4 `openspec validate --strict --all` passes after both merges.
-- [ ] 8.5 Archive this change (`opsx:archive` / `openspec archive`).
+- [x] 8.1 🔴 **Archive ordering checked (2026-09-27):** `decode-implausibility-marking` already
+      archived (Task A of this sweep); the two remaining unarchived changes
+      (`capture-device-reresolution`, `capture-stall-detection-unattended`) touch only
+      `audio-capture`/`audio-device`, neither `ft8lib-interop` nor `hashed-callsign-resolution`
+      (checked by path). Clear to sync.
+- [x] 8.2 **Done by hand, not by `openspec archive`'s own sync** (archive-sweep spec §3.2): this
+      change's ADDED `hashed-callsign-resolution` requirement was appended verbatim to
+      `openspec/specs/hashed-callsign-resolution/spec.md` after the existing SUP-B sizing
+      requirements, then the change was archived with `--skip-specs` so the automated sync never
+      ran over it a second time.
+- [x] 8.3 **Done by hand, NOT as originally written here** (archive-sweep spec §3.2, 2026-09-27):
+      the base `ft8lib-interop/spec.md` ABI paragraph had already advanced past this change's own
+      MODIFIED delta — it pins `20260051` (a later change), not the `20260050` this delta's own
+      text describes. Applying this task literally would have **regressed the documented pin
+      backwards**. Instead: the ADDED "Diagnostic 12-bit hash-path unresolved-by-code native
+      export" requirement was appended verbatim, and the ABI paragraph's existing gap note ("⚠️
+      `20260050` … is **NOT** reconstructed here") was replaced with one history sentence
+      recording what `20260050` actually was — measure-only, no managed binding, no decode-output
+      change. The pin itself (`20260051`) was left untouched. Archived with `--skip-specs` so no
+      automated sync could re-apply the literal (regressive) delta.
+- [x] 8.4 `openspec validate --strict --all` passes after the hand-sync (verified 2026-09-27, see
+      archive-sweep report).
+- [x] 8.5 Archived: `openspec archive f001-l3-unresolved-by-code-export --skip-specs --yes`
+      (2026-09-27, archive-sweep Task B).
 
 ## 9. Housekeeping
 
-- [ ] 9.1 Update `BOARD.md` (and `MEMORY.md`'s one-line index) in the **same edit** as the merge
-      result (HK-024) — record the new pinned SHA256 for shim `20260050` and that the L3
-      measurement arm is now unblocked (but not yet run).
-- [ ] 9.2 Branch hygiene (HK-003): delete the merged branch and any worktree created for this
-      change.
-- [ ] 9.3 Confirm the archived change validates after archiving
-      (`openspec validate --strict --all`).
+- [~] 9.1 **SUPERSEDED.** The shim has since advanced to `20260051` (a later, separately-tracked
+      change), and the L3 measurement arm this change unblocked has itself already run and
+      **CLOSED** (PR #156, `463f9819` — `F-001 L3 CLOSED AT ROW 3 (#156)`, board/workstream guards).
+      The board already records the closure; this archive sweep does not re-litigate it. The
+      Architect updates `BOARD.md` for this sweep's own result (archive-sweep spec §7).
+- [x] 9.2 Branch hygiene (HK-003, 2026-09-27): `f001-l3-task-5-2-confirmation` (cherry-picked onto
+      this sweep's branch as `c8b9d9b7`, task 5.2 above) and `f001-l3-own-hash-compare-result`
+      (merged; no remote ref) deleted locally. No worktree existed for either.
+- [x] 9.3 Confirmed: `openspec validate --strict --all` passes after archiving (archive-sweep
+      report, 2026-09-27).
