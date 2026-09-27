@@ -88,6 +88,37 @@ def load_population(log) -> dict:
     }
 
 
+KPRIME_SEED = 20260927
+KPRIME_SIZE = 2000
+
+
+def load_kprime(pop: dict, log) -> list:
+    """Amendment 4 ROW 0c': a FRESH K', n=2000, seed 20260927, EXCLUDING every row in
+    the old K (seed 20260922). Reconstructs hit_strong identically to load_population's
+    own K sampling (same sorted pool, same rng.sample call) so 'old K' is exactly the
+    2000 rows that sampling produced -- not just the 1901 that survived the unencodable
+    exclusion, per Amendment 4 sec.2's own wording ("excluding every row in the old K")."""
+    ref, live = pop["ref"], pop["live"]
+    import matcher
+    rec = matcher.recovery(live, ref)
+    hit = set(rec["exact_matched"]) | set(rec["gained"])
+    hit_strong = sorted(k for k in ref if k in hit and ref[k][0] >= SNR_STRONG)
+
+    import random
+    old_rng = random.Random(K_SEED)
+    old_K = set(old_rng.sample(hit_strong, K_SIZE) if len(hit_strong) > K_SIZE else hit_strong)
+
+    eligible = [k for k in hit_strong if k not in old_K]
+    new_rng = random.Random(KPRIME_SEED)
+    Kp = eligible if len(eligible) <= KPRIME_SIZE else new_rng.sample(eligible, KPRIME_SIZE)
+    log("Population K': %d eligible (hit_strong minus old K's %d rows), sampled %d (seed %d)"
+        % (len(eligible), len(old_K), len(Kp), KPRIME_SEED))
+    overlap = old_K & set(Kp)
+    log("Population K': overlap with old K = %d (must be 0)" % len(overlap))
+    assert len(overlap) == 0
+    return sorted(Kp)
+
+
 def row0d(pop: dict, log) -> dict:
     """ROW 0d: every WAV used (M union K's own cycles) is exactly BUFFER_SAMPLES long;
     exclusions must be <= 1% of M."""

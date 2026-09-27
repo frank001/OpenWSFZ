@@ -24,12 +24,38 @@ Layout, standard message (i3 in {1,2}), `ftx_message_encode_std` (message.c:156-
 """
 from __future__ import annotations
 
+from collections import namedtuple
+
 STD_FIELDS = [
     ("call1", 0, 29),
     ("call2", 29, 58),
     ("report_or_grid", 58, 74),
     ("flags", 74, 77),
 ]
+
+MAXGRID4 = 32400  # message.c:11, #define MAXGRID4 ((uint16_t)32400ul)
+
+StdFields = namedtuple("StdFields", ["i3", "call1", "call2", "ir", "igrid4"])
+
+
+def std_fields(bits77: list) -> "StdFields":
+    """Splits a 77-bit payload (MSB-first) into i3/call1/call2/(ir,igrid4), mirroring
+    ftx_message_decode_std's own extraction (message.c:361-376) bit-for-bit: call1
+    [0,29) (28-bit pack28 + suffix flag), call2 [29,58) (same), ir = bit 58 (the top bit
+    of the combined 16-bit report/grid field, message.c:370), igrid4 = bits [59,74) as
+    an unsigned int, MSB-first (message.c:371-373), i3 = bits [74,77) (message.c:376).
+    Tuple fields (call1/call2) are kept as bit-tuples for exact equality, not decoded."""
+    assert len(bits77) == 77
+    ig = 0
+    for b in bits77[59:74]:
+        ig = (ig << 1) | b
+    return StdFields(
+        i3=i3_of(bits77),
+        call1=tuple(bits77[0:29]),
+        call2=tuple(bits77[29:58]),
+        ir=bits77[58],
+        igrid4=ig,
+    )
 
 
 def i3_of(bits77: list) -> int:
