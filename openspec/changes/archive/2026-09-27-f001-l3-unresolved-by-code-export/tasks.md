@@ -111,7 +111,18 @@ section states this; it is a separate, later QA arm reading the export this chan
       `[~]` per the archive-sweep spec's own instruction rather than ticking as if found; the
       merge itself is not in question (it is on `main`, shim `20260050` shipped and was later
       superseded by `20260051`), only whether a sign-off record for it specifically is locatable.
-      Record correction 2026-09-27, archive-sweep spec §3.1.
+      Record correction 2026-09-27, archive-sweep spec §3.1. **Confirmed still absent on re-check
+      (Architect, 2026-09-27) — for the next reader, what exists and what it does and doesn't
+      prove, so this search isn't repeated:**
+      - `board-archive-to-2026-09-24.md:5139` — the merge's own mechanics (PR #140 merged
+        2026-09-06 09:42Z, `1b7ca29`). Describes what happened, not who decided it should.
+      - GitHub's `mergedBy=frank001` on the PR — **proves nothing about who decided**: that is
+        also the account the sessions' own `gh` CLI merges under, so it cannot distinguish "the
+        Captain personally clicked merge" from "a session merged under the Captain's
+        credentials."
+      - `board-archive-to-2026-09-24.md:5156` — a separate PO ruling ("PO ruled: revert") **16
+        minutes earlier**, on a related-but-different matter (the `AwgnFpReplayTests` re-pin,
+        not #140's own merge). Circumstantial proximity only — not a sign-off for #140 itself.
 
 ## 8. Spec Sync
 
