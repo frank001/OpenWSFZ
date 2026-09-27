@@ -12,6 +12,8 @@
 
 # 🛑 WITHDRAWN — NOT IMPLEMENTED, NOT TO BE APPLIED (PO-ruled 2026-09-05)
 
+**Archived 2026-09-27 as WITHDRAWN — delta specs deliberately NOT synced (--skip-specs).**
+
 **Nothing in this change was built.** No `tasks.md` was ever authored; no Developer session ran; no
 `src/` line was written. **The requirements in `specs/**` describe a capability that DOES NOT EXIST
 and must never be folded into `openspec/specs/`.**
