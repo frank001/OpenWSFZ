@@ -259,6 +259,20 @@ encoder, the 0a void denominator) are accepted as disclosed. The new `ldpc_encod
 bit-exact validation against `true_codeword()`.
 
 **Scored now (ledger rule 1):** §9 #1 "ROW 0b passes" 0.80 → **MISS** (C). §9 #2 "ROW 0f passes" 0.90 →
-**HIT** (C, 99.13 %). **New prediction:** 0b passes with the drift term, 0.70 (C). §9 #3–#5 remain open. If the corrected population still misses it,
+**HIT** (C, 99.13 %). **New prediction:** 0b passes with the drift term, 0.70 (C). §9 #3–#5 remain open.
+
+---
+
+## Amendment 3 (2026-09-27 ~21:20Z): the runtime rule yields to ROW 0d
+
+QA (message, ~21:15Z): the drift search costs 3.875 s/row, against 1.727 before, so the projection is
+~5.4 h. The §3 thinning rule would need k = 3, which gives `|P_A|` ≈ 635 and `|P_B|` ≈ 698, both under
+ROW 0d's 1,000. 🔴 **That conflict is mine: I wrote §3's 3 h cap as if it could never collide with a
+validity bar.** A runtime convenience must never manufacture a validity FAIL.
+
+**Ruling:** §3's thinning applies **only while it keeps 0d satisfied**. Otherwise run unthinned, and
+disclose the overrun. Parallelising across cycles (multiprocessing, deterministic per-row seeds, results
+identical to a serial run) is encouraged, and has no validity cost. Run it detached, per HK-023
+(`nohup … & disown` plus a log tail), and do an HK-019 orphan check at the end. Nothing else changes. If the corrected population still misses it,
 that is a genuine 0d FAIL and gets reported as one. No other row, bar or prediction changes. The
 predictions in §9 were written before this was found, and they stand as written.
