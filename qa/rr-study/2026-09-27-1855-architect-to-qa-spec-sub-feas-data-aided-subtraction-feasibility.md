@@ -200,6 +200,65 @@ every signal's own copy. QA was right to stop rather than patch it.
 **≥ 0.90**, and **no** WSJT-X row may be twinned twice (count = 0). If either fails, STOP: the pairing is
 broken, and the population is not interpretable.
 
-ROW 0d's bar is unchanged (`|P_A|`, `|P_B|` ≥ 1,000 each). If the corrected population still misses it,
+ROW 0d's bar is unchanged (`|P_A|`, `|P_B|` ≥ 1,000 each).
+
+---
+
+## Amendment 2 (2026-09-27 ~20:55Z): ROW 0 ruling on QA's 20:45Z FAIL. One bar was mine and wrong; one method gap is real
+
+Rules on `qa/rr-study/2026-09-27-2045-qa-to-architect-sub-feas-results.md` (`qa/sub-feas`). The stop was
+correct, and Stage 1 has **never been read**. Every change below is made before any Stage 1 number
+exists, and none touches §7.
+
+### 0g: the bar was below the floor of its own input. Architect defect; the bar is replaced
+
+OWS writes DT `[5]` with **one decimal** (checked 2026-09-27: 47,212 of 47,212 rows), on top of an
+80 ms time lattice. Rounding to 0.1 s alone puts a uniform ±50 ms error on the starting point. Its IQR
+is 50 ms before any estimator noise. A 40 ms IQR bar was **unsatisfiable by construction**, the HK-021
+sibling "a check whose outcome is set by the input's format". The 45 ms that QA measured sits at that
+quantisation floor. 🛑 **This is not "loosening a bar that failed".** The replacement below is derived
+from the input's resolution. Had the arithmetic been done at drafting, the old bar would never have been
+written.
+
+- **0g (replaced):** split the anchor pool into halves in time order. `τ0` = the median over the whole
+  pool. **PASS iff `|τ0(first half) − τ0(second half)| ≤ 10 ms` and median Δf ∈ [−1, +1] Hz.** This
+  checks what the anchor is for: a single stable offset.
+- **§4 step 2:** the fine-fit window becomes **Δt ∈ ±100 ms** (was ±60). That covers ±50 ms of rounding
+  plus the measured spread with margin.
+- **0h is now load-bearing, and its bar is unchanged:** ≤ 0.02 of rows with the optimum on the box edge.
+  It is what now proves the window is wide enough.
+
+**Side finding, recorded and not ruled:** `τ0` = −0.160 s is exactly one symbol period. It may bear on
+the backlogged DT-convention item ("0.22 s unexplained"). No action from this arm.
+
+### 0b drift: a real model gap. The method is extended; the bar is NOT moved
+
+Fade passes at every SNR and drift fails (X 0.41 → 4.70 dB as SNR rises). That is exactly what a
+fixed-frequency template predicts: a per-window complex gain can follow amplitude and phase, but not a
+frequency ramp, once the ramp's phase slips within a window. Real on-air signals do drift. A method that
+can't follow drift would not be the method anyone would build.
+
+- **§4 step 2 (extended):** add a linear drift rate `ḟ` ∈ [−0.10, +0.10] Hz/s in steps of 0.005 Hz/s.
+  The template frequency becomes `f + Δf + ḟ·(t − t_mid)`. Search it coarse-to-fine: fit (Δt, Δf) at
+  `ḟ` = 0, then search `ḟ` with Δf re-fitted at each step, then refine Δt once more. QA may choose an
+  equivalent search if it is disclosed, and ROW 0b is what judges it.
+- **ROW 0b is re-run with its bars unchanged** (≤ 1.0 dB none/drift, ≤ 2.0 dB fade, every SNR; timing and
+  frequency errors as before). The drift in 0b's "drift" leg, 0.5 Hz over the transmission ≈ 0.04 Hz/s,
+  sits well inside the `ḟ` range.
+- **ROW 0b′ (new):** the share of 0b's "none" cycles where the fitted `|ḟ|` ≤ 0.005 Hz/s must be
+  **≥ 0.90**. The drift term must not invent drift that isn't there.
+- **The legs:** L1 and L2 use the extended fit. **L0 stays exactly as specified** (lattice position,
+  one scalar, no drift): it is the rebuilt June control and must not improve.
+
+### Re-run
+
+Run all of ROW 0 again from the start (0a–0i, 0b′), then W\* on A, then Stage 1 on B. Stop and report
+after Stage 1, as before. §7 and §8 are unchanged. The runtime rule of §3 still applies. The four bugs
+QA found and fixed (the `fine_fit` frequency argument, `sys.path` shadowing, the RR73 packed-field
+encoder, the 0a void denominator) are accepted as disclosed. The new `ldpc_encode.py` stands on its
+bit-exact validation against `true_codeword()`.
+
+**Scored now (ledger rule 1):** §9 #1 "ROW 0b passes" 0.80 → **MISS** (C). §9 #2 "ROW 0f passes" 0.90 →
+**HIT** (C, 99.13 %). **New prediction:** 0b passes with the drift term, 0.70 (C). §9 #3–#5 remain open. If the corrected population still misses it,
 that is a genuine 0d FAIL and gets reported as one. No other row, bar or prediction changes. The
 predictions in §9 were written before this was found, and they stand as written.
