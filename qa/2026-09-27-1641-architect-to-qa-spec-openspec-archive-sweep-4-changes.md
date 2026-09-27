@@ -202,6 +202,14 @@ git diff --stat origin/main -- src/ native/                            # MUST be
 Check 1 is the one that matters. A blind sync of f001's MODIFIED delta **still validates**; only the pin
 grep sees it (HK-022).
 
+> 🔴 **ERRATUM (Architect, 2026-09-27, after QA's run `9ff5feed`): check 6's "count >= the §1 baseline" was a
+> WRONG predicate.** `validate --strict --all` counts specs **plus open changes**. Every archive removes one
+> item by design, so the correct predicate is **`count == baseline − 4`** (no new spec files are created)
+> = **60**. QA got 60/0, flagged it rather than waving it through, and the Architect re-ran it independently
+> on `9ff5feed` (60 passed, 0 failed). Also note check 5: under an `ls -F` alias `archive` prints as `archive/`
+> and slips past `^archive$`. The Architect's own re-run tripped on that, a false alarm. Use `ls -1` or
+> `grep -v '^archive/\?$'`.
+
 **G9b:** commit first (`check_version_bump.py` reads proposals from git), then run it. Archiving moves two
 `User-facing: yes` proposals. If G9b demands a VERSION bump for a pure archive move, **STOP and escalate. Do
 not bump**: no behaviour changed.
