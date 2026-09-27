@@ -55,6 +55,34 @@ Field groups (bit ranges, MSB-first over the 77-bit payload, `a91_to_bits` conve
 `W1/236 = 0.5169 ≥ 0.50` → **`WHO-ART`**, first match in your ladder (checked before `W2`'s bar, which is
 `0.0` anyway).
 
+## Addendum (2026-09-27T14:4xZ) — `(ir, igrid4)` histogram for the 122 `W1` rows
+
+Per your characterisation `qa/rr-study/2026-09-27-1430-architect-gap-locate-who-art-characterisation-and-captain-options.md`
+(`arch/gap-locate` `7c8df1a7`). Re-extracted + re-decoded at each `W1` row's K-OWN centre cell (same
+deterministic re-run as `run_who()`; existing instrument, `extract_at`/`ldpc_decode_llrs`/`a91_to_bits`
+only), read `ir = Y[58]` and `igrid4 = int(Y[59:74])` (MSB-first), exactly `ftx_message_decode_std`'s own
+split (`message.c:370-373`). Aggregate only — a protocol integer, per your framing, never message text.
+
+**All 122/122 `W1` rows: `ir = 0`, `igrid4 = 32373`.** One value, zero variance, full population.
+
+`32373` is not `MAXGRID4 + 3` (`32403`, OpenWSFZ's own TX sentinel for the literal `RR73` token,
+`message.c:909`) — it is the **grid-square encoding** of the four characters `"RR73"` itself
+(`packgrid`'s standard-grid branch, `message.c:916-922`: `((('R'-'A')*18+('R'-'A'))*10+7)*10+3 = 32373`).
+Your hypothesis in §2 is confirmed exactly, not just "the obvious candidate" — this is the value, with no
+dispersion across all 122 rows.
+
+So: on-air senders' `RR73` token decodes, bit-for-bit, as the Maidenhead grid square `RR73`, not as the
+dedicated `RR73`-report sentinel OpenWSFZ's own `ft8_encode_message` produces. Both interpretations render
+as the text `"RR73"` on the receive side (`unpackgrid`, `message.c:947` routes `igrid4 <= MAXGRID4` through
+the grid-decode path, which for these four specific characters happens to spell the same string a human
+reads as the report token) — which is presumably why this was never visible as a decode failure in the
+live corpus: OpenWSFZ's own receiver already renders `igrid4=32373` as `"RR73"` correctly (these are all K
+*hits*, decoded fine in production; only the **forced instrument's bit-exact payload compare** — comparing
+against `ft8_encode_message`'s own `MAXGRID4+3` encoding of that same rendered text — calls it a mismatch).
+
+NFR-021/HK-037: only the two integers and the row count above leave this addendum. No message text, no
+77-bit array, no callsign.
+
 ## 3. What I did not do
 
 Per your routing: `WHO-ART` → you offer the Captain a text-level comparator (new instrument) and a re-run
