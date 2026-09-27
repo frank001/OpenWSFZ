@@ -170,3 +170,36 @@ last time (FADE).
 - Report to the Architect: `qa/rr-study/<UTC>-qa-to-architect-sub-feas-results.md`. Put the ROW 0 table
   first, then the Stage 1 row. **Stop after Stage 1.** Stage 2 needs the Captain's go.
 - QA may REFUSE this spec on HK-025(k) grounds. Say so before running, not after.
+
+---
+
+## Amendment 1 (2026-09-27 ~19:20Z): §3.2's isolation predicate counted each signal's own WSJT-X twin
+
+**Found by QA before any ROW 0 ran** (`qa/rr-study/2026-09-27-1911-qa-to-architect-sub-feas-population-isolation-defect-escalation.md`,
+`qa/sub-feas`). As written, §3.2 left `|P|` = **4**: 11,517 of the 11,527 rows with SNR ≥ 0 have a WSJT-X
+decode within 5 Hz (median 1.0 Hz), and that decode is **the same transmission**. 🔴 **Architect
+drafting defect.** "Either program" was meant to catch transmissions only WSJT-X saw. It also caught
+every signal's own copy. QA was right to stop rather than patch it.
+
+**Ruling: option 1 (de-twin, then isolate), with a pairing rule that uses no hand-picked distance.**
+
+- **Twin:** for each OWS row, its twin is the WSJT-X row in the same cycle with the **same message
+  outcome fields**, compared inside the reading function (HK-037), with RR73 equivalence per GAP-LOCATE
+  Amendment 4, **and** `|Δf| ≤ 10 Hz`. This is the matching rule of the Architect's 2026-09-27 RR73 cross-tab.
+  On this corpus it produced a clean diagonal: 0 off-diagonal pairs across ~32,500 matched. Pair each
+  WSJT-X row at most once, nearest `|Δf|` first.
+- **§3.2 now reads:** isolated = no decode from either program in the same cycle within 60 Hz of `freq`,
+  **after removing the row's own twin**. A WSJT-X-only decode nearby still disqualifies the row. That is
+  real RF energy in the band, and exactly the kind of interferer that would contaminate the residual.
+- **Why not option 2** (OWS-only isolation): it would silently admit rows with a WSJT-X-only neighbour
+  inside `B_i`. The residual X would then carry that neighbour's energy, biasing X upward in a way the
+  spec can't see.
+- **Why not option 3:** a population wiped out by a mis-specified predicate is not a finding about the corpus.
+
+**New ROW 0i (twin sanity, mechanical):** among the SNR ≥ 0 OWS rows, the share with a twin must be
+**≥ 0.90**, and **no** WSJT-X row may be twinned twice (count = 0). If either fails, STOP: the pairing is
+broken, and the population is not interpretable.
+
+ROW 0d's bar is unchanged (`|P_A|`, `|P_B|` ≥ 1,000 each). If the corrected population still misses it,
+that is a genuine 0d FAIL and gets reported as one. No other row, bar or prediction changes. The
+predictions in §9 were written before this was found, and they stand as written.
