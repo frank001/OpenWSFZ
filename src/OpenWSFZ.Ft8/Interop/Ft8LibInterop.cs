@@ -441,7 +441,7 @@ internal static class Ft8LibInterop
     /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
     /// a managed binding, per the pattern every prior entry in this file follows.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260051;
+    private const int ExpectedShimVersion = 20260055;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

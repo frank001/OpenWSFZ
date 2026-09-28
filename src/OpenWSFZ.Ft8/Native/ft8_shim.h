@@ -727,8 +727,32 @@ extern "C" {
  *              announce_stamp, cb_lookup_hash's return value, and
  *              ft8_get_h12_by_code's own table/counters are byte-for-byte
  *              unchanged.
+ *
+ *   20260055 — sub-feas-native-subtraction (design.md, this change): adds two new
+ *              exported entry points, ft8_subfeas_compute_analytic() and
+ *              ft8_subfeas_fit_signal(), implementing the data-aided fit +
+ *              time-varying-envelope subtraction method validated offline by
+ *              SUB-FEAS (net +8.89pp, Captain-authorised 2026-09-28). Both are
+ *              implemented in the new native/ft8_lib_vendor/subfeas/subfeas_fit.c
+ *              (OpenWSFZ-original, same provenance footing as refine/ --
+ *              design.md D7 precedent), a direct port of this repo's own
+ *              qa/rr-study/sub-feas/fitter.py and qa/rr-study/synth/modulator.py,
+ *              already-clean-room implementations per their own docstrings.
+ *              NO CALL SITE from ft8_decode_all or any other existing decode-path
+ *              function -- both new exports are reachable only from the managed
+ *              orchestration layer this change is building on top (C#-driven,
+ *              one ft8_subfeas_fit_signal call per signal, run concurrently --
+ *              design.md's Decision 2 addendum), which does not yet exist at
+ *              this shim version. Existing decode output is therefore
+ *              byte-for-byte unchanged by this bump: ft8_decode_all,
+ *              ftx_find_candidates, and every existing exported entry point are
+ *              untouched. Version bump exists purely so the startup ABI check
+ *              catches a native binary built without the new exports, matching
+ *              this project's existing convention (e.g. 20260040's
+ *              ft8_refine_candidate precedent) for a diagnostic/staging export
+ *              added ahead of its own call site.
  */
-#define FT8_SHIM_VERSION 20260051
+#define FT8_SHIM_VERSION 20260055
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1216,6 +1240,76 @@ int ft8_ldpc_decode_llrs(
     int*         out_ldpc_errors,
     int*         out_path,
     int*         out_crc_ok);
+
+/*
+ * ft8_subfeas_compute_analytic / ft8_subfeas_fit_signal -- data-aided fit +
+ * time-varying-envelope subtraction (sub-feas-native-subtraction, shim
+ * 20260055). Implemented in
+ * native/ft8_lib_vendor/subfeas/subfeas_fit.c -- see that file and
+ * subfeas_fit.h for the full algorithm, constants, and provenance
+ * (a direct port of qa/rr-study/sub-feas/fitter.py + qa/rr-study/synth/
+ * modulator.py). No production call site yet at this shim version -- see
+ * this file's shim-20260055 changelog entry above.
+ *
+ * ft8_subfeas_compute_analytic -- ONE call per cycle: Hilbert-transforms a
+ * real PCM buffer to its analytic signal (real/imaginary parts), shared
+ * read-only input to every subsequent ft8_subfeas_fit_signal call for that
+ * cycle.
+ *
+ * Parameters:
+ *   pcm    -- float32 samples, 12 kHz mono, normalised to [-1, 1], exactly
+ *             180 000 long (matches FT8_EXPECTED_SAMPLES)
+ *   out_re, out_im -- caller-allocated, 180 000 floats each
+ *
+ * Returns: 0 on success. -1 if any pointer is NULL. -2 on SEH fault
+ * (MSVC/Windows builds only; same containment discipline as ft8_decode_all).
+ */
+int ft8_subfeas_compute_analytic(
+    const float* pcm,
+    float*       out_re,
+    float*       out_im);
+
+/*
+ * ft8_subfeas_fit_signal -- ONE call per pass-0 decoded, re-encodable
+ * signal. Runs the full data-aided fit (coarse-to-fine Δt/Δf/ḟ search) +
+ * time-varying envelope + subtract pipeline for exactly one signal against
+ * the cycle's shared analytic buffer, and writes that signal's full-cycle-
+ * length, zero-padded subtraction waveform into a caller-allocated buffer.
+ *
+ * Self-contained (design.md's Decision 2 addendum): allocates and frees its
+ * own heap buffers within this call, touches no shared/global/TLS state --
+ * safe to call CONCURRENTLY from multiple threads, each with its own
+ * (shared, read-only) x_a_re/x_a_im and its own out_shat.
+ *
+ * Parameters:
+ *   x_a_re, x_a_im  -- analytic signal from ft8_subfeas_compute_analytic,
+ *                      180 000 floats each (read-only, not mutated)
+ *   tones           -- 79 tone indices, each in [0,7], as returned by
+ *                      ft8_encode_message() on this signal's decoded text
+ *   decoded_dt_s    -- this signal's decoded DT (seconds)
+ *   decoded_freq_hz -- this signal's decoded frequency (Hz)
+ *   out_shat        -- caller-allocated, 180 000 floats; on success,
+ *                      receives the full-cycle-length subtraction waveform,
+ *                      zero outside the fitted signal's ~12.64 s window.
+ *                      Unconditionally zeroed by this function, including
+ *                      on failure.
+ *
+ * Returns: 0 on success. -1 on bad arguments (NULL pointer, tone index
+ *          outside [0,7]). -2 on SEH fault (MSVC/Windows builds only) --
+ *          caller must treat exactly as ft8_decode_all's -2 (log and skip);
+ *          per design.md Decision 4, a -2 from ANY signal in a cycle means
+ *          the WHOLE cycle's residual pass is abandoned, not a per-signal
+ *          skip. -3 if every fit candidate ran off the buffer edge (no
+ *          valid fit found -- a normal outcome for a signal near a cycle
+ *          boundary, not a failure requiring cycle fallback).
+ */
+int ft8_subfeas_fit_signal(
+    const float*   x_a_re,
+    const float*   x_a_im,
+    const uint8_t* tones,
+    float          decoded_dt_s,
+    float          decoded_freq_hz,
+    float*         out_shat);
 
 #ifdef __cplusplus
 }

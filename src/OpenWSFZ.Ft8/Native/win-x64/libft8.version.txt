@@ -1,4 +1,59 @@
-=== CURRENT: f001-l3-unresolved-by-code-export (FT8_SHIM_VERSION 20260050) ===
+=== CURRENT: sub-feas-native-subtraction, additive core (FT8_SHIM_VERSION 20260055) ===
+
+Built 2026-09-28 from branch feat/sub-feas-native-subtraction, on top of the pin this branch
+inherited from main at shim 20260051 (SHA256
+91997e38038d9328edcb49cd1e8661706d0092ed2c73e808094c96c3980ad2c6 -- this file's own record was
+stale at "20260050" immediately below; that staleness predates this change and is not touched
+here, only noted), via OpenSpec change openspec/changes/sub-feas-native-subtraction/ (design.md,
+tasks.md 2.1-2.3/2.6, spec delta), authored by QA per the Captain's direct instruction (bypassing
+the Architect's usual design-doc role for this change specifically -- confirmed with the Captain
+before proceeding).
+
+Adds two new exported entry points, ft8_subfeas_compute_analytic() and ft8_subfeas_fit_signal(),
+implementing the data-aided fit + time-varying-envelope subtraction method SUB-FEAS validated
+offline (net +8.89pp, Captain-authorised 2026-09-28). Both are implemented in the new
+native/ft8_lib_vendor/subfeas/subfeas_fit.c (OpenWSFZ-original, same provenance footing as
+refine/ -- design.md D7 precedent), a direct, line-traceable port of this repo's own
+qa/rr-study/sub-feas/fitter.py (fine_fit_with_drift, lp_envelope, subtract) and
+qa/rr-study/synth/modulator.py (instantaneous_phase, Gaussian-GFSK synthesis, BT=2.0) -- both
+already clean-room implementations per their own docstrings, so porting them carries no
+additional licence question. Verified by a round-trip self-test (SUBFEAS_SELFTEST build,
+scratch-only, not part of this DLL): a known synthetic signal, embedded off-centre from the
+search grid's nominal position/frequency and with a nonzero drift rate, is recovered with
+35.9dB residual suppression -- confirms the ported Δt/Δf/ḟ search grid and envelope/subtract
+math are internally self-consistent, not merely a trivial centre-match. This is NOT validation
+against real audio or WSJT-X -- that is task 8's live/second-corpus gate, still open.
+
+MEASURE/BUILD-ONLY at this shim version: NO CALL SITE from ft8_decode_all or any other existing
+decode-path function -- both new exports are reachable only from the managed orchestration layer
+this change is building toward (C#-driven, one ft8_subfeas_fit_signal call per signal, run
+concurrently -- design.md's Decision 2 addendum), which does not exist yet. Existing decode
+output is therefore byte-for-byte unchanged by this bump: ft8_decode_all, ftx_find_candidates,
+and every existing exported entry point are untouched (only the new subfeas_fit.c/.h files and
+the version/export-list plumbing in ft8_shim.h, rebuild_shim.bat and build_linux.sh changed).
+The only managed-code change so far is the ExpectedShimVersion constant bump in
+Ft8LibInterop.cs; no C# orchestration, config flag, or test-double implementer exists yet
+(tasks.md 2.4/2.5/3-10 remain open).
+
+Known open risk, recorded in design.md's Decision 3 addendum and not yet resolved: an early
+FFT-only proxy benchmark put a 24-signal cycle's search-FFT cost alone at ~26.2s against the
+13s hard decode-cycle budget (task 8.1's real, full-pipeline measurement is the formal gate,
+not this note).
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5
+  Linux x64   (build_linux.sh): NOT rebuilt this session -- Windows-only Developer session, no
+    WSL/Linux toolchain access here. build_linux.sh has been updated to compile/link
+    subfeas_fit.c (mirrors rebuild_shim.bat's own change) but is unverified until run.
+  macOS ARM64: NOT rebuilt this session -- no Mac available locally, same limitation every prior
+    native change in this project's history has recorded. Non-blocking: CI's
+    `commit-native-binaries` job rebuilds both from source and auto-commits the result on every
+    push that changes native sources -- this branch has not been pushed yet (HK-014/HK-011:
+    Developer sessions build and test only, they do not push). The linux-x64/libft8.so and
+    osx-arm64/libft8.dylib currently committed remain at their pre-this-change shim version
+    until that push happens; do not treat them as shim-20260055-compatible before then.
+
+=== Previous: f001-l3-unresolved-by-code-export (FT8_SHIM_VERSION 20260050) ===
 
 Built 2026-09-03 from branch feat/f001-l3-unresolved-by-code-export, on top of the
 f001-h12-unique-match-suppression pin at shim 20260049 (SHA256

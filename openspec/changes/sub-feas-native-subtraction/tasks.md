@@ -26,26 +26,56 @@
 
 ## 2. Algorithm port (design.md Decision 1)
 
-- [ ] 2.1 Port `fine_fit_with_drift`'s coarse-to-fine search exactly: `(Δt, Δf)` at `ḟ=0` (±100 ms @
-      1 ms), then `ḟ` search (`[-0.10,+0.10] Hz/s` @ 0.005 steps, `Δf` re-fit each step), then `Δt`
-      refined once more — same order, same ranges, same `n_fft=262144` for the FFT-based `Δf` search.
-      Reference: `qa/rr-study/sub-feas/fitter.py:88-209` (on `qa/sub-feas`, unpushed — pull the branch
-      or request the file).
-- [ ] 2.2 Port `lp_envelope`'s Hann-windowed moving-average complex gain, `W*=0.32s`, **including the
-      `W ≥` full-transmission degenerate case** (single complex scalar) as a correctly-computed special
-      case of the general windowed computation, not a separate code path that the general path never
-      actually reaches in testing.
-- [ ] 2.3 Port `subtract`: `s_hat = Re{c(t)·template(t)}`, subtracted from a copy of the original buffer.
-      Confirm (test 4.x) that all fits for a cycle are computed against the **original** buffer, and all
-      subtractions applied to **one** shared residual copy — not sequential/iterative.
+- [x] 2.1 Ported `fine_fit_with_drift`'s coarse-to-fine search exactly, in
+      `native/ft8_lib_vendor/subfeas/subfeas_fit.c` (`fine_fit_with_drift`, `freq_search`): `(Δt, Δf)`
+      at `ḟ=0` (±100 ms @ 1 ms, 201 candidates), then `ḟ` search (`[-0.10,+0.10] Hz/s` @ 0.005 steps,
+      41 candidates, `Δf` re-fit each step), then `Δt` refined once more via direct correlation (no
+      FFT) — same order, same ranges, same `n_fft=262144` **complex-to-complex** FFT (corrected from
+      an initial wrong real-to-complex assumption during the Task 1.2 benchmark — see design.md's
+      Decision 3 correction note; `mixed = seg * conj(r_base)` is complex). Verified by round-trip
+      self-test (below), not yet against `fitter.py` output directly (no Python/native cross-check
+      harness exists yet — a gap worth closing before task 8, not closed here).
+- [x] 2.2 Ported `lp_envelope`'s Hann-windowed moving-average complex gain, `W*=0.32s` (`lp_envelope`),
+      **including the `W ≥` full-transmission degenerate case** as a real branch in the same function
+      (`w_samples >= N_TX`), not a separate code path.
+- [x] 2.3 Ported `subtract`: `s_hat = Re{c(t)·template(t)}` (inlined in `ft8_subfeas_fit_signal`,
+      written into the caller's full-cycle-length output buffer at the fitted position). Confirmed: all
+      fits for a cycle are computed against the caller-supplied analytic buffer (`x_a_re`/`x_a_im`,
+      populated once per cycle by the new `ft8_subfeas_compute_analytic`, unmutated by any fit call);
+      one call fits and returns one signal's contribution — the **accumulation** into one shared
+      residual copy is a C# orchestration responsibility (task 2.4/4.x), not yet implemented.
 - [ ] 2.4 Implement the residual-pass invocation: call the existing decode entry point a second,
-      unmodified time on the residual buffer.
+      unmodified time on the residual buffer. **Not started** — this is the C# orchestration layer
+      (sum all per-signal `out_shat` buffers into one residual, call `ft8_decode_all` again — design.md's
+      Decision 2 addendum: reusing the existing entry point unmodified, no new native decode call).
 - [ ] 2.5 Implement payload-based merge/dedup, including the RR73 on-air-sentinel vs re-encoded-text
       asymmetry (reference `qa/rr-study/sub-feas/stage2.py:63-77`'s `_same_qso`/`_is_rr73_std` — port the
-      comparison logic, not just its result).
-- [ ] 2.6 Reuse this repo's own GFSK template synthesis convention (already used natively / mirrored in
-      `qa/rr-study/synth/modulator.py`) — do **not** reintroduce a CP-FSK or fixed-phase-zero model; that
-      is the specific defect that sank two of the three prior attempts.
+      comparison logic, not just its result). **Not started** — C# orchestration layer, same as 2.4.
+- [x] 2.6 Reused this repo's own template synthesis convention — **not** `Ft8AudioSynthesiser.cs`
+      (checked: that file's own docstring says "rectangular frequency pulse (no Gaussian shaping)",
+      48kHz, a different/unrelated TX code path) — the actual validated convention is
+      `qa/rr-study/synth/modulator.py`'s `instantaneous_phase`/`_gaussian_pulse` (true Gaussian-shaped
+      GFSK, `BT=2.0`, ported at 12kHz to match the decode-domain sample rate: `SPS=1920`,
+      `N_TX=151680`, matching `fitter.py`'s own asserted constant). Confirmed **not** reintroducing a
+      CP-FSK/fixed-phase-zero model.
+
+**Verification so far (round-trip self-test, `SUBFEAS_SELFTEST` build, scratch-only, not part of the
+shipped DLL):** a known synthetic signal — tones, frequency, DT, and (in one case) a nonzero drift
+rate — synthesized with this module's own `r_fit_drift`, embedded **off-centre** from the search
+grid's nominal position (so the ±100ms/±2Hz/ḟ search must actually search, not trivially land on the
+centre candidate) — is recovered with 35.9dB residual-energy suppression; the degenerate centred case
+reaches 90.8dB. This confirms internal self-consistency of the ported search/envelope/subtract math,
+**not** validation against `fitter.py`'s actual numeric output or real/WSJT-X-corroborated audio —
+that remains open (a Python/native cross-check would strengthen this further; task 8's live/
+second-corpus gates are the real bar).
+
+**Wired into the real build** (not just scratchpad): `ft8_shim.h` (shim 20260055, two new exports
+declared), `rebuild_shim.bat` (compiles/links `subfeas_fit.c`), `build_linux.sh` (mirrored, unverified
+— no Linux toolchain on this Windows session), `Ft8LibInterop.cs` (`ExpectedShimVersion` bumped),
+`libft8.version.txt`. Full `dotnet build` (0 warnings) and `dotnet test` run: `OpenWSFZ.Ft8.Tests`
+(321/321) green — confirms existing decode output is unaffected (no call site touches the new code
+yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented in
+`flaky-cyclearchiveservice-manifest-test-todo.md`) reproduced and confirmed non-blocking on rerun.
 
 ## 3. Memory safety (design.md Decision 4, spec MODIFIED heap-allocation requirement)
 
