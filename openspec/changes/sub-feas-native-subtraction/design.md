@@ -240,3 +240,74 @@ post-merge, matching this project's existing revert convention for shim changes)
   prevent.
 - **FFT library selection (Decision 3):** KissFFT vs PocketFFT vs another permissively-licensed option —
   left to the Developer, constrained only by the licence requirement.
+
+## Addendum — Decision 2 confirmed (Task 1.1)
+
+**Confirmed 2026-09-28, by the Captain, presented with this design's recommendation and rationale
+unchanged:** the fit/subtract/merge pipeline lives in native C — `src/OpenWSFZ.Ft8/Native/ft8_shim.c`
+or a new, separately-compiled native source file linked into the same shim, operating directly on the
+PCM buffer already resident in native memory. The C# `Ft8Decoder`-boundary alternative is not taken.
+
+No new information changed the recommendation's basis — this is the Captain's explicit choice to
+accept the runtime-performance case over the P/Invoke-boundary caution, not a re-derivation. The
+buffer-ownership care Decision 2 called for (§ Decision 4: heap-only, bounded pooling, graceful
+degradation) is unchanged in importance by this confirmation and remains a hard blocker (`tasks.md`
+§3), precisely because the loop now living in native C is the scenario Decision 2 itself flagged as
+needing it most.
+
+## Addendum — Decision 3 confirmed (Task 1.2), and an early runtime-feasibility finding
+
+**Confirmed 2026-09-28: KissFFT.** Before benchmarking, a codebase check found a fact this design
+did not have: **KissFFT is already vendored and linked into `libft8.dll` today**
+(`native/ft8_lib_vendor/fft/kiss_fft.c`/`kiss_fftr.c`, compiled by `rebuild_shim.bat` on the exact
+MSVC/`std:c11` toolchain this change builds with, already exercised by the existing STFT waterfall
+at `nfft` up to ~8192). It is dual-covered: the umbrella `ft8_lib` port is MIT (Kārlis Goba,
+`native/ft8_lib_vendor/LICENSE`), and `kissfft` itself carries its own `SPDX-License-Identifier:
+BSD-3-Clause` header in each file (Mark Borgerding) — no separate `COPYING` text file exists for it
+today, a pre-existing gap (predates this change) worth a one-line fix in passing, not a blocker.
+
+A head-to-head benchmark was still run, per the Captain's request, rather than deciding on the
+"already vendored" fact alone:
+
+| Library | Per-call (n_fft=262144, single-threaded, MSVC `/O2`) | 242-call/signal estimate | 24-signal/cycle estimate |
+|---|---|---|---|
+| KissFFT (`kiss_fftr`, real-to-complex) | **2.41 ms** | 0.58 s | **13.98 s** |
+| PocketFFT (`pocketfft_hdronly.h` r2c, `nthreads=1`) | 2.57 ms | 0.62 s | 14.93 s |
+
+Methodology: real upstream sources — `kiss_fft.c`/`kiss_fftr.c` from this repo's own vendor tree
+(unmodified), `pocketfft_hdronly.h` fetched verbatim from
+`https://raw.githubusercontent.com/mreineck/pocketfft/cpp/pocketfft_hdronly.h` — compiled with the
+same `cl /O2` (KissFFT: `/std:c11`, matching this repo's convention; PocketFFT is C++-header-only, so
+`/std:c++17` — see risk note below) on this machine's MSVC 19.44 toolchain, 242 repeated forward
+real-FFT calls at `n_fft=262144` after one warm-up call, timed with `QueryPerformanceCounter`.
+Correctness sanity check (DC bin == sum of input) passed for both, matching to 6 decimal places.
+Scratch harness and both vendored/fetched sources are in a session scratchpad, not the repo.
+
+**KissFFT measured ~6.5% faster than PocketFFT in this single-threaded configuration on this exact
+toolchain** — the opposite of PocketFFT's general reputation, plausibly because MSVC vectorises
+PocketFFT's template-heavy C++ less aggressively than GCC/Clang would, or because KissFFT's
+split-radix path is already well-suited to this power-of-two size. Combined with zero incremental
+vendoring/licensing/build-system cost (PocketFFT's only current well-maintained form is a C++
+header-only library — pulling it in means adding a C++ compilation unit and linking the C++ runtime
+into a native shim that has been pure C throughout its history, a real toolchain-complexity increase
+for a change whose stability gate is already a hard blocker), **KissFFT is confirmed with no
+remaining ambiguity.**
+
+**🔴 Early runtime-feasibility finding, surfaced per this design's own Risks-section instruction to
+"profile early... and treat a failing runtime result as a valid, reportable outcome":** even using
+the faster of the two libraries, **FFT time alone for a 24-signal cycle is ~14.0 s — already at or
+past the existing 13 s hard decode-cycle budget, before any of the following are counted**: the
+non-FFT fit work (envelope computation, correlation refinement, template synthesis, subtraction), the
+additional Hilbert-transform FFT per signal the analytic-PCM step needs, the .NET/native P/Invoke
+overhead, and — the largest omitted cost — **running the entire existing decode pipeline a second,
+unmodified time on the residual buffer** (§ Decision 1 step 4), which is not a fit-loop cost at all
+and is not measured by this benchmark.
+
+This is exactly the scenario `design.md`'s own "Alternative considered" note under Decision 1
+anticipates: *"If runtime... makes the exact port infeasible, that is a finding to bring back to
+QA/Architect, not a silent substitution."* This FFT-only proxy is not itself that finding — task 8.1's
+real, full-pipeline measurement is — but it is a strong enough early signal that continuing straight
+into the full §2 algorithm port without flagging it first would risk sinking further implementation
+time into search-grid parameters (the `ḟ` sweep in particular: 41 steps × a re-fit each, per signal)
+that may need to be revisited on cost grounds regardless of code quality. Recorded here rather than
+silently proceeding; raised to QA/the Captain alongside this addendum.
