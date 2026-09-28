@@ -1,18 +1,28 @@
 ## 1. Pre-implementation decisions (record before writing the fit loop)
 
-- [ ] 1.1 Confirm or override `design.md` Decision 2's recommendation (native C in `ft8_shim.c`/a new
-      linked source file, vs the C# `Ft8Decoder` wrapper boundary) — record the final choice and its
-      rationale as an addendum to `design.md` before starting 3.x. Do not start implementation on the
-      recommendation alone without this recorded confirmation.
-- [ ] 1.2 Select a permissively-licensed (MIT/BSD/ISC) FFT library per `design.md` Decision 3 (e.g.
-      KissFFT, PocketFFT) — **FFTW is excluded (GPL)**. Record the choice and add its licence file to
-      `native/` alongside the existing bundled-dependency licences.
-- [ ] 1.3 Check the current state of the open `FT8_SHIM_VERSION` renumbering item
-      (`dev-tasks/2026-09-03-shim-version-renumber-rc1rc2-and-rc4-branches.md`) and every live/unmerged
-      branch's pin (`main`=`20260051`, `decoding_improvement`=`20260054` at time of writing — verify,
-      do not assume current) before picking the next literal version integer.
-- [ ] 1.4 Decide the per-signal buffer pooling strategy and its concurrency cap (`design.md` Decision 4 /
-      Open Questions) — a bounded pool, not one allocation set per decoded signal with no upper bound.
+- [x] 1.1 Confirmed by the Captain 2026-09-28: native C, recommended in `design.md` Decision 2.
+      **Shape revised same session** (2nd design.md addendum): per-signal native entry point, not one
+      per-cycle call — see 1.4's note and the "Decision 2's shape revised" addendum (SEH
+      crash-containment is per-OS-thread; a single per-cycle call parallelized with internal native
+      worker threads would not be crash-isolated the way per-signal P/Invoke calls are).
+- [x] 1.2 Confirmed by the Captain 2026-09-28: **KissFFT** — already vendored/linked into `libft8.dll`
+      today (`native/ft8_lib_vendor/fft/kiss_fft.c`/`kiss_fftr.c`), and benchmarked ~6.5% faster than
+      PocketFFT at the real `n_fft=262144` workload on this toolchain (2.41ms vs 2.57ms/call, both
+      real upstream sources, MSVC `/O2`). See design.md's Decision 3 addendum for the full benchmark
+      writeup, including the early runtime-feasibility finding it also surfaced. No new licence file
+      needed to add (KissFFT's `LICENSE`/`COPYING` gap in `native/ft8_lib_vendor/fft/` predates this
+      change — noted as a one-line incidental fix, not a blocker).
+- [ ] 1.3 Preliminary mechanical check done (2026-09-28): swept `FT8_SHIM_VERSION` across all 60
+      local+origin branches — highest live value is `20260054` (`decoding_improvement`); `20260055`
+      currently free. **Re-verify immediately before the actual version-bump commit** (per this task's
+      own caution) — this is a preliminary read, not the final pin.
+- [x] 1.4 Decided 2026-09-28, as a direct consequence of 1.1's shape revision: **no shared pool data
+      structure needed.** Each per-signal native call is self-contained (allocates its own heap
+      buffers on entry, frees before returning) — the only concurrency bound needed is the C#-side
+      `Parallel.ForEach`/`Task` degree-of-parallelism cap, proposed `Math.Min(Environment.ProcessorCount,
+      4)` (~9.6MB worst-case concurrent template memory), satisfying the spec's "concurrently-allocated
+      per-signal buffers are bounded" scenario directly. Open to retuning once task 8.1 has real
+      numbers.
 
 ## 2. Algorithm port (design.md Decision 1)
 

@@ -311,3 +311,63 @@ into the full §2 algorithm port without flagging it first would risk sinking fu
 time into search-grid parameters (the `ḟ` sweep in particular: 41 steps × a re-fit each, per signal)
 that may need to be revisited on cost grounds regardless of code quality. Recorded here rather than
 silently proceeding; raised to QA/the Captain alongside this addendum.
+
+## Addendum — Decision 2's shape revised: per-signal native calls, C#-orchestrated parallelism
+
+**Confirmed 2026-09-28, superseding part of the earlier Decision 2 addendum above.** The Captain's
+chosen mitigation for the runtime finding above is to parallelize the per-signal fit search — Decision
+1 step 3 already establishes every signal's fit is independent (no signal's fit depends on another's
+subtraction), so this does not touch the algorithm itself, only its execution strategy.
+
+**A safety fact changes *how* that parallelism should be structured, and revises the single-native-call
+shape the first Decision 2 addendum recorded:** this shim's existing crash-containment mechanism
+(`ft8_shim.c`'s `__try`/`__except(EXCEPTION_EXECUTE_HANDLER)` wrapper around `ft8_decode_all`'s body,
+added at `FT8_SHIM_VERSION 20260013` after the first production `0xC0000005`, returning `-2` on any
+access violation so the managed layer can skip the cycle instead of the process dying) is **installed
+per-OS-thread, at the entry of the wrapped function, on whichever thread calls it.** It does not catch
+a fault on a *different* OS thread. If the fit loop were parallelized by spawning native worker threads
+*inside* one `ft8_decode_all`-style call, a fault on a spawned worker thread would not be caught by any
+`__try`/`__except` and would crash the process — silently defeating the one crash-containment mechanism
+this whole codebase already has production evidence for, in the exact class of code being added because
+of a crash history.
+
+**Chosen:** the fit search is exposed as a new, **per-signal** native entry point (not a single
+per-cycle call), wrapped in its own `__try`/`__except` following the identical discipline
+`ft8_decode_all` already uses (returns `-2` on SEH fault, same containment/no-heap-repair-attempt
+reasoning). C# calls this entry point once per pass-0 decoded message, concurrently (`Task`/
+`Parallel.ForEach`, degree of parallelism bounded — see Task 1.4 note below), each call running on its
+own .NET thread-pool thread and therefore protected by its own instance of the *same, already-proven*
+per-thread SEH wrapper — no new crash-containment mechanism is invented or needs independent trust.
+Each call fits one signal against the original PCM (read-only, no shared mutable state — the new fit
+code must not touch `g_session_hash_table` or any existing TLS getter's state) and returns that
+signal's complex template/envelope result; it does **not** subtract into the residual buffer itself.
+Subtraction (accumulating every returned template into one shared residual copy) and the second decode
+pass remain serial, single-threaded, and native, called once after all per-signal fit calls return —
+this preserves Decision 4's existing "any failure → whole cycle falls back to single-pass, no partial
+state" contract exactly: if any one signal's fit call returns `-2` (or any other failure), the
+accumulation step is skipped entirely and the cycle falls back to pass-0-only, rather than silently
+keeping the other signals' successful fits (Decision 4's spec explicitly prohibits exactly that:
+"do not silently skip only the failed signal while leaving partial state").
+
+**Trade-off accepted:** the original PCM buffer is now marshalled across P/Invoke once per signal
+(~24 calls/cycle) rather than once per cycle. At ~720,000 bytes/call this is ~17 MB/cycle of copying —
+estimated negligible next to millisecond-scale FFT compute per call, but not yet measured; task 8.1's
+real runtime gate will confirm rather than assume this.
+
+**Alternative considered:** internal native worker threads (`CreateThread`/`pthread_create`) inside a
+single per-cycle call, each independently wrapped in its own `__try`/`__except` so a fault on any one
+is still contained. Rejected as the default: it keeps the call count at Decision 2's original
+recommendation, but requires inventing and validating a new per-thread SEH-wrapping + thread-lifecycle
+mechanism with zero production track record, in code whose stability gate is already a hard blocker —
+strictly more new failure surface than reusing the existing per-call wrapper N times.
+
+**Consequence for Task 1.4 (buffer pooling):** this shape simplifies it. Each per-signal native call is
+self-contained — it allocates its own heap buffers (template, FFT working buffer, envelope array) on
+entry and frees them before returning, per Decision 4. No shared pool data structure, and therefore no
+pool synchronization, is needed at all: the *only* bound required is the C# side's
+`Parallel.ForEach`/`Task` degree-of-parallelism cap, which directly satisfies the spec's own
+"concurrently-allocated per-signal buffers are bounded" scenario. Proposed cap:
+`Math.Min(Environment.ProcessorCount, 4)` — small enough to bound worst-case concurrent memory (4 ×
+~2.4 MB template ≈ 9.6 MB, well under any concerning threshold) while still giving real parallelism on
+typical multi-core hardware; open to a different number once task 8.1's real measurement exists to
+tune against.
