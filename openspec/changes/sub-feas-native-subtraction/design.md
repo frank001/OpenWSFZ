@@ -267,41 +267,57 @@ BSD-3-Clause` header in each file (Mark Borgerding) — no separate `COPYING` te
 today, a pre-existing gap (predates this change) worth a one-line fix in passing, not a blocker.
 
 A head-to-head benchmark was still run, per the Captain's request, rather than deciding on the
-"already vendored" fact alone:
+"already vendored" fact alone. **This table was corrected after the first pass used the wrong FFT
+type** — see the correction note immediately below it; the corrected, real-transform-type numbers are
+what stands:
 
 | Library | Per-call (n_fft=262144, single-threaded, MSVC `/O2`) | 242-call/signal estimate | 24-signal/cycle estimate |
 |---|---|---|---|
-| KissFFT (`kiss_fftr`, real-to-complex) | **2.41 ms** | 0.58 s | **13.98 s** |
-| PocketFFT (`pocketfft_hdronly.h` r2c, `nthreads=1`) | 2.57 ms | 0.62 s | 14.93 s |
+| KissFFT (`kiss_fft`, **complex-to-complex**) | **4.52 ms** | 1.09 s | **26.24 s** |
+| PocketFFT (`pocketfft_hdronly.h` c2c, `nthreads=1`) | 5.54 ms | 1.34 s | 32.20 s |
 
-Methodology: real upstream sources — `kiss_fft.c`/`kiss_fftr.c` from this repo's own vendor tree
-(unmodified), `pocketfft_hdronly.h` fetched verbatim from
+**Correction:** the first benchmark pass used `kiss_fftr`/`pocketfft::r2c` (real-to-complex transforms)
+and reported KissFFT at 2.41 ms/call, PocketFFT at 2.57 ms/call, and a ~14.0 s/cycle FFT-only estimate.
+That was the wrong transform type. `fitter.py:68-80`'s `_freq_search` calls `np.fft.fft(mixed, n_fft)`
+on `mixed = seg * np.conj(r_base)` — both `seg` (the analytic-signal segment) and `r_base` (the
+complex unit template) are **complex**, so `mixed` is complex and the transform is
+**complex-to-complex**, not real-input. A c2c FFT does roughly twice the work of an r2c FFT at the
+same `n_fft` (r2c exploits real-input conjugate symmetry to roughly halve it) — re-benchmarked with
+`kiss_fft`/`pocketfft::c2c` on complex input (first 151,680 samples populated, zero-padded to
+262,144 exactly as `np.fft.fft(mixed, n_fft)` zero-pads), both giving results consistent with that
+~2× factor (KissFFT: 2.41→4.52 ms, ~1.88×; PocketFFT: 2.57→5.54 ms, ~2.16×). This correction was
+caught by reading `fitter.py` directly (§ below) before relying on the earlier number for anything
+consequential — flagged rather than left standing.
+
+Methodology (both passes): real upstream sources — `kiss_fft.c`/`kiss_fftr.c` from this repo's own
+vendor tree (unmodified), `pocketfft_hdronly.h` fetched verbatim from
 `https://raw.githubusercontent.com/mreineck/pocketfft/cpp/pocketfft_hdronly.h` — compiled with the
 same `cl /O2` (KissFFT: `/std:c11`, matching this repo's convention; PocketFFT is C++-header-only, so
-`/std:c++17` — see risk note below) on this machine's MSVC 19.44 toolchain, 242 repeated forward
-real-FFT calls at `n_fft=262144` after one warm-up call, timed with `QueryPerformanceCounter`.
-Correctness sanity check (DC bin == sum of input) passed for both, matching to 6 decimal places.
-Scratch harness and both vendored/fetched sources are in a session scratchpad, not the repo.
+`/std:c++17`) on this machine's MSVC 19.44 toolchain, 242 repeated forward FFT calls at `n_fft=262144`
+after one warm-up call, timed with `QueryPerformanceCounter`. Correctness sanity check (DC bin == sum
+of input, real and imaginary parts) passed for both libraries in both passes. Scratch harness and both
+vendored/fetched sources are in a session scratchpad, not the repo.
 
-**KissFFT measured ~6.5% faster than PocketFFT in this single-threaded configuration on this exact
-toolchain** — the opposite of PocketFFT's general reputation, plausibly because MSVC vectorises
-PocketFFT's template-heavy C++ less aggressively than GCC/Clang would, or because KissFFT's
-split-radix path is already well-suited to this power-of-two size. Combined with zero incremental
-vendoring/licensing/build-system cost (PocketFFT's only current well-maintained form is a C++
-header-only library — pulling it in means adding a C++ compilation unit and linking the C++ runtime
-into a native shim that has been pure C throughout its history, a real toolchain-complexity increase
-for a change whose stability gate is already a hard blocker), **KissFFT is confirmed with no
-remaining ambiguity.**
+**KissFFT measured ~18% faster than PocketFFT in this single-threaded configuration on this exact
+toolchain** (a larger margin than the first, wrong-transform-type pass showed — 4.52 ms vs 5.54 ms).
+Combined with zero incremental vendoring/licensing/build-system cost (PocketFFT's only current
+well-maintained form is a C++ header-only library — pulling it in means adding a C++ compilation unit
+and linking the C++ runtime into a native shim that has been pure C throughout its history, a real
+toolchain-complexity increase for a change whose stability gate is already a hard blocker), **KissFFT
+is confirmed with no remaining ambiguity — the correction strengthens this choice, it does not
+change it.**
 
-**🔴 Early runtime-feasibility finding, surfaced per this design's own Risks-section instruction to
-"profile early... and treat a failing runtime result as a valid, reportable outcome":** even using
-the faster of the two libraries, **FFT time alone for a 24-signal cycle is ~14.0 s — already at or
-past the existing 13 s hard decode-cycle budget, before any of the following are counted**: the
-non-FFT fit work (envelope computation, correlation refinement, template synthesis, subtraction), the
-additional Hilbert-transform FFT per signal the analytic-PCM step needs, the .NET/native P/Invoke
-overhead, and — the largest omitted cost — **running the entire existing decode pipeline a second,
-unmodified time on the residual buffer** (§ Decision 1 step 4), which is not a fit-loop cost at all
-and is not measured by this benchmark.
+**🔴 Early runtime-feasibility finding, corrected and now considerably more serious.** Surfaced per
+this design's own Risks-section instruction to "profile early... and treat a failing runtime result as
+a valid, reportable outcome": even using the faster library, **FFT time alone for a 24-signal cycle is
+~26.2 s — roughly double the existing 13 s hard decode-cycle budget**, and close to the 30 s CI budget
+too, before any of the following are counted: `lp_envelope`'s own two additional sizable FFT-based
+convolutions per signal (`fitter.py:228-229`, `scipy.signal.fftconvolve` on ~151,680-and-~3,840-sample
+inputs — not measured here, and not small), the analytic-signal (Hilbert transform) FFT per signal,
+correlation refinement, template synthesis, subtraction, .NET/native P/Invoke overhead, and — the
+largest omitted cost of all — **running the entire existing decode pipeline a second, unmodified time
+on the residual buffer** (§ Decision 1 step 4), which is not a fit-loop cost at all and is not measured
+by this benchmark.
 
 This is exactly the scenario `design.md`'s own "Alternative considered" note under Decision 1
 anticipates: *"If runtime... makes the exact port infeasible, that is a finding to bring back to
