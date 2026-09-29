@@ -177,22 +177,43 @@ for the code, flag default OFF).**
 4. **What decides §8.1 is a real-band replay, and it is cheap.** Take captured real cycles with ≥ 20
    decodes from the existing endurance corpus, replay them through this build flag-ON versus OFF
    offline, and read per-cycle elapsed. No live run and no source change. It also gives the busy-band
-   worst case this battery cannot. **Proposed, not started (needs your decision).**
+   worst case this battery cannot. **Architect accepted and wrote the pre-registered spec**
+   (`qa/rr-study/2026-09-29-2010-architect-sub-feas-8-1-real-band-runtime-replay-spec.md`, with
+   Amendment 1 after QA's R0 finding: R0 now runs through the DLL that produced each archive).
+   Pool: 3,734 endurance cycles with ≥ 20 OpenWSFZ pass-0 decodes (611 with ≥ 25, 28 with ≥ 30),
+   all with daemon-side WAVs present. **Not started: it waits on the post-§4.2 build decision,
+   which is the Captain's.**
 5. ⚠️ **OpenWSFZ's S1 SNR bias and S1 %GR&R are above the recent series in *both* runs, including
-   the flag-OFF one.** Bias +1.45 (OFF) / +1.18 (ON) against 0.82–1.12 dB in the 13 preceding
-   sweeps in `trend.csv` (2026-09-02 onward); S1 %GR&R 0.39% / 0.28% against 0.17–0.37% (OFF is the highest since `fbf8c0b5`).
-   WSJT-X's bias is unchanged (+0.82 / +0.75, its usual +0.75), so the chain looks intact. **The
-   flag-OFF reading is the informative one: it cannot be subtraction.** Candidates I cannot
-   separate without a control: this build's `main` lineage versus `decoding_improvement`, the
-   shim-`20260055` DLL's flag-OFF path (the design claims it is byte-identical to pre-change; it has not
-   been mechanically diffed), or the explicit decoder config block. **Proposed control:**
-   replay the captured S1 audio (in the OFF run's gathered WAVs, which predate the archive gap)
-   through this DLL and through the pre-change `20260051` DLL and byte-diff the decode output.
-   That also settles the "flag-off is byte-identical" claim, which the code review could only
-   assert from reading.
+   the flag-OFF one** (bias +1.45 dB OFF / +1.18 dB ON against 0.82–1.12 dB in the 13 preceding
+   sweeps in `trend.csv`; S1 %GR&R 0.39% / 0.28% against 0.17–0.37%). WSJT-X's bias is unchanged
+   (+0.82 / +0.75). **Flag-OFF control run (Architect ruling 2; pre-registered `6ecf2a37` before
+   any decode, Amendment 1 `4c77045d`; results `7e4fe882`; Architect ruling
+   `2026-09-29-2030-architect-flagoff-control-ruling.md`):**
+   - Three DLLs from git, each in its own process, 182 cycles (S1, S1b, S2, S7, S8; S3 dropped:
+     25 of its 30 cycles fall in the archive gap). Actual SHA-256: merge-base `c3f42362`
+     `91997e38…ad6c1c6`; `decoding_improvement` `84cac119` `38a21f84…a1cba`; this build `0d6b1937`
+     `5a6a4dc0…e38c5`. **No independent pin exists for any of them.**
+   - **C1: the build under test equals its merge-base on 182/182 cycles**, exact multiset of
+     (frequency, DT bits, SNR), 0 access violations. All three DLLs are identical on every cycle.
+     V0 (replay reproduces the daemon) 69/72 = 95.8%; the archive WAV is pre-normalisation.
+   - **The S1 bias is +1.45 dB in all three DLLs, to the digit: not this change, not the build
+     lineage.** 🛑 Do not cite it as a build effect. Its cause is the captured audio or the
+     configuration around it, unseparated.
+   - **Registered verdict, verbatim: "PASS but VACUOUS by term 1"** (294 decodes against the
+     registered 300; the threshold was an unmeasured guess and was not adjusted). The Architect
+     rules it non-disqualifying (term 2, 10 of 10 S1 levels biased ≥ 1.0 dB, passes; C1 is exact),
+     and the **merge gate for ruling 2 is MET on the native path.**
+   - **The claim must carry its limits wherever it is cited:** native `ft8_decode_all` only; the
+     managed flag-OFF branch (`_subtractionEnabled && native.Length > 0`) was covered by code
+     review, not run; synthetic audio; no independent DLL pins.
+   - **Follow-up approved by the Architect, low priority, not merge-blocking, not run:** replay
+     `5f17b43`'s own S1 audio through the same DLL to see whether the bias differs with the audio
+     (pre-register both outcomes; add aggregate pre-normalisation audio descriptors for both sets).
 6. 🔧 **Instrumentation gap.** tasks §4.2 (a distinct log line for the residual pass) is open, and
-   this measurement needed it. Without it, attributing decodes to the residual pass requires a replay. Suggest
-   the Developer add it before any further measurement. Source change, so Developer session (HK-011).
+   this measurement needed it. Without it, attributing decodes to the residual pass requires a replay.
+   **Architect agreed** (ruling 3): Developer handoff **after the Captain's go**, bundled with the
+   dedicated tests 6.3/6.5/6.6 (source change, HK-011); if it is C#-only the `libft8.dll` pin should be
+   unchanged, verified by hash.
 7. **Tooling defects found this session** (none affected results): (i) `analyse.py` SHA field
    wrong, third time (the correction under the header table); (ii) the detached launcher left a visible, empty console window
    (its own "no console window" fix evidently regressed for one child); (iii) PRECHECK refused to arm
@@ -353,7 +374,9 @@ for these runs (`62e8e74a`, the QA tooling worktree) is wrong — see the correc
 table. Both rows also carry a first-time S1 signature not seen in the 13 preceding sweeps in `trend.csv` (2026-09-02 onward): OpenWSFZ
 S1 SNR bias of +1.45 dB (OFF) and +1.18 dB (ON) against 0.82–1.12 dB (this section's own
 `trend.csv` column), see Section 5, item 5. That signature is present with the flag OFF, so it is
-not attributable to subtraction.
+not attributable to subtraction; the flag-OFF control then showed it is identical (+1.45 dB) in the
+merge-base, the `decoding_improvement` DLL and this build, so it is **neither this change nor the
+build lineage** (cause: the captured audio or configuration, unseparated).
 
 ¹⁷ Same derivation as footnote 1, from each run's own `S7_matched.csv` / `S8_matched.csv`. **OFF:**
 S7 203/215 (WSJT-X) vs 166/215 (OpenWSFZ); S8 55/60 vs 55/60; pooled 221/258 = 85.66%. **ON:** S7

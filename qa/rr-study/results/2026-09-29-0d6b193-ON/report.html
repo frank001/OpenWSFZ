@@ -354,7 +354,30 @@ tooling worktree (<code>62e8e74a</code>, branch <code>qa/live-gap-map</code>), n
 (<code>arm_config.json</code> of supervisor run <code>20260929_1731_run</code>). This is one half of a <strong>paired</strong> run; the
 flag-OFF half is <code>../2026-09-29-0d6b193-OFF/</code>. The comparison, Sections 1/5/6 and the runtime data are in
 <code>../2026-09-29-0d6b193-subfeas-off-vs-on/report.md</code>. The body below is the analyser's own output, unedited.</p>
+<p><strong>Paired run.</strong> Sections 2–4 of the comparative analysis (flag OFF versus flag ON side by side, the runtime table, the limitations) are in <code>../2026-09-29-0d6b193-subfeas-off-vs-on/report.md</code>; references below to "Section 2", "Section 3" or "Section 4" point there.</p>
 </blockquote>
+<h2 id="section-1-study-hypothesis">Section 1 — Study hypothesis</h2>
+<p><strong>Purpose of this run.</strong> The Captain asked for an R&amp;R S1–S8 sweep on the newest build with the SUB-FEAS
+subtraction flag enabled. Because a flag-ON-only sweep cannot be attributed to subtraction (the
+previous full sweep, <code>2026-09-23-5f17b43</code>, was a different build lineage: <code>decoding_improvement</code>,
+shim <code>20260054</code>, versus this branch's <code>main</code> lineage, shim <code>20260055</code>), the Captain approved a
+<strong>paired design</strong>: two full batteries on the <em>identical</em> DLL and config, differing only in
+<code>subtractionEnabled</code>. Every seed and truth row is identical between the two runs (S7: 430 message
+keys, all common).</p>
+<p><strong>Null hypotheses in scope.</strong>
+- <strong>H0(no harm):</strong> with the flag ON, no gate degrades, no phantom decodes appear on signal-free
+  slots, and the daemon never crashes or falls back.
+- <strong>H0(no effect on the routine net):</strong> the flag changes none of S1–S8's headline metrics beyond
+  their own run-to-run variation.
+- <strong>H0(runtime):</strong> the residual pass costs no more per cycle than the 13 s hard budget on these
+  scenes. <strong>This one can only be tested on the synthetic scene sizes here (≤ 11 decodes per cycle),
+  not on a busy real band</strong> — see Section 3.</p>
+<p><strong>What actually happened.</strong> H0(no harm) holds on every measure available: both batteries PASS, S5
+0/120 (Gate A) and 0/60 (Check B) with the flag ON, zero <code>Sub-feas</code> log lines (no access violation,
+no deadline abandonment, no contained exception) across 436 flag-ON cycles. H0(no effect) is <strong>not
+rejected</strong>: OpenWSFZ S7 rose by 8 messages (166 → 174 of 215) with the flag ON, but that movement
+is inside the series' own range and S7 is instrument-suspect by standing rule (Section 5). H0(runtime)
+is met on these scenes (max 2.49 s), and says nothing about the real-band worst case.</p>
 <h2 id="s1-reported_snr_db">S1 — reported_snr_db</h2>
 <h3 id="variance-components">Variance Components</h3>
 <table>
@@ -1385,6 +1408,530 @@ flag-OFF half is <code>../2026-09-29-0d6b193-OFF/</code>. The comparison, Sectio
 <li>ℹ️ FP event rate (S5/WSJT-X) not gated at N=120: 0/120 slots (event 0.0%; 95% UB 2.47%; decode 0.0%) — per-sweep Gate A was superseded by R&amp;R-011 (2026-09-08): at N=120 it cannot separate 'unchanged' from 'twice as bad'. See Gate A-W below for the ratified compliance verdict.</li>
 <li>ℹ️ FP event rate (S5/OpenWSFZ) not gated at N=120: 0/120 slots (event 0.0%; 95% UB 2.47%; decode 0.0%) — per-sweep Gate A was superseded by R&amp;R-011 (2026-09-08): at N=120 it cannot separate 'unchanged' from 'twice as bad'. See Gate A-W below for the ratified compliance verdict.</li>
 </ul>
+<blockquote>
+<p><strong>Paired run.</strong> Sections 2–4 of the comparative analysis (flag OFF versus flag ON side by side, the runtime table, the limitations) are in <code>../2026-09-29-0d6b193-subfeas-off-vs-on/report.md</code>; references below to "Section 2", "Section 3" or "Section 4" point there.</p>
+</blockquote>
+<h2 id="section-5-recommendations">Section 5 — Recommendations</h2>
+<p><strong>No gate failures. No merge-blocking finding. Nothing here changes the code-review verdict (approved
+for the code, flag default OFF).</strong></p>
+<ol>
+<li>✅ <strong>Safety readings are clean.</strong> Flag ON: S5 0/120 Gate A, 0/60 Check B, S4 confusion matrix
+   identical to OFF, S8 identical, no native failure of any kind in 436 cycles. 0/120 has a 95% UB
+   of 2.47%, so this cannot exclude a false-positive rate of a few percent; it does exclude a gross
+   phantom-decode problem on noise.</li>
+<li>🛑 <strong>Do not cite OpenWSFZ S7 +3.72 pp (77.21% → 80.93%) as a subtraction gain, and do not cite
+   the pooled ratio movement.</strong> Both are inside the series' own range, S7 is instrument-suspect
+   under this table's standing rule, and the reference decoder moved on the same seeds. The
+   direction and the cells (P0, P15; 8 gains, 0 losses) are consistent with the mechanism and are
+   the reason to look further, nothing more. The one offline result that stands is SUB-FEAS's net
+   <strong>+8.89 pp</strong> on the 40m corpus (after the replay control), one corpus, one pass.</li>
+<li>ℹ️ <strong>Unexplained decodes: OFF S8 ×1 (Δf 25 Hz), ON S7 ×1 (Δf 3.0 Hz), WSJT-X 0.</strong> Each within the
+   0–2 range every prior sweep shows. I have <strong>not</strong> located the specific ON decode. A decode 3 Hz
+   from an injected signal is the shape a subtraction residue artefact would take, and it appears
+   in the one scenario where subtraction acts; one event on one run cannot support any claim. <strong>Follow-up:</strong>
+   identify that row and check whether OFF produced it at the same seed (offline, read-only).</li>
+<li><strong>What decides §8.1 is a real-band replay, and it is cheap.</strong> Take captured real cycles with ≥ 20
+   decodes from the existing endurance corpus, replay them through this build flag-ON versus OFF
+   offline, and read per-cycle elapsed. No live run and no source change. It also gives the busy-band
+   worst case this battery cannot. <strong>Architect accepted and wrote the pre-registered spec</strong>
+   (<code>qa/rr-study/2026-09-29-2010-architect-sub-feas-8-1-real-band-runtime-replay-spec.md</code>, with
+   Amendment 1 after QA's R0 finding: R0 now runs through the DLL that produced each archive).
+   Pool: 3,734 endurance cycles with ≥ 20 OpenWSFZ pass-0 decodes (611 with ≥ 25, 28 with ≥ 30),
+   all with daemon-side WAVs present. <strong>Not started: it waits on the post-§4.2 build decision,
+   which is the Captain's.</strong></li>
+<li>⚠️ <strong>OpenWSFZ's S1 SNR bias and S1 %GR&amp;R are above the recent series in <em>both</em> runs, including
+   the flag-OFF one</strong> (bias +1.45 dB OFF / +1.18 dB ON against 0.82–1.12 dB in the 13 preceding
+   sweeps in <code>trend.csv</code>; S1 %GR&amp;R 0.39% / 0.28% against 0.17–0.37%). WSJT-X's bias is unchanged
+   (+0.82 / +0.75). <strong>Flag-OFF control run (Architect ruling 2; pre-registered <code>6ecf2a37</code> before
+   any decode, Amendment 1 <code>4c77045d</code>; results <code>7e4fe882</code>; Architect ruling
+   <code>2026-09-29-2030-architect-flagoff-control-ruling.md</code>):</strong>
+   - Three DLLs from git, each in its own process, 182 cycles (S1, S1b, S2, S7, S8; S3 dropped:
+     25 of its 30 cycles fall in the archive gap). Actual SHA-256: merge-base <code>c3f42362</code>
+     <code>91997e38…ad6c1c6</code>; <code>decoding_improvement</code> <code>84cac119</code> <code>38a21f84…a1cba</code>; this build <code>0d6b1937</code>
+     <code>5a6a4dc0…e38c5</code>. <strong>No independent pin exists for any of them.</strong>
+   - <strong>C1: the build under test equals its merge-base on 182/182 cycles</strong>, exact multiset of
+     (frequency, DT bits, SNR), 0 access violations. All three DLLs are identical on every cycle.
+     V0 (replay reproduces the daemon) 69/72 = 95.8%; the archive WAV is pre-normalisation.
+   - <strong>The S1 bias is +1.45 dB in all three DLLs, to the digit: not this change, not the build
+     lineage.</strong> 🛑 Do not cite it as a build effect. Its cause is the captured audio or the
+     configuration around it, unseparated.
+   - <strong>Registered verdict, verbatim: "PASS but VACUOUS by term 1"</strong> (294 decodes against the
+     registered 300; the threshold was an unmeasured guess and was not adjusted). The Architect
+     rules it non-disqualifying (term 2, 10 of 10 S1 levels biased ≥ 1.0 dB, passes; C1 is exact),
+     and the <strong>merge gate for ruling 2 is MET on the native path.</strong>
+   - <strong>The claim must carry its limits wherever it is cited:</strong> native <code>ft8_decode_all</code> only; the
+     managed flag-OFF branch (<code>_subtractionEnabled &amp;&amp; native.Length &gt; 0</code>) was covered by code
+     review, not run; synthetic audio; no independent DLL pins.
+   - <strong>Follow-up approved by the Architect, low priority, not merge-blocking, not run:</strong> replay
+     <code>5f17b43</code>'s own S1 audio through the same DLL to see whether the bias differs with the audio
+     (pre-register both outcomes; add aggregate pre-normalisation audio descriptors for both sets).</li>
+<li>🔧 <strong>Instrumentation gap.</strong> tasks §4.2 (a distinct log line for the residual pass) is open, and
+   this measurement needed it. Without it, attributing decodes to the residual pass requires a replay.
+   <strong>Architect agreed</strong> (ruling 3): Developer handoff <strong>after the Captain's go</strong>, bundled with the
+   dedicated tests 6.3/6.5/6.6 (source change, HK-011); if it is C#-only the <code>libft8.dll</code> pin should be
+   unchanged, verified by hash.</li>
+<li><strong>Tooling defects found this session</strong> (none affected results): (i) <code>analyse.py</code> SHA field
+   wrong, third time (the correction under the header table); (ii) the detached launcher left a visible, empty console window
+   (its own "no console window" fix evidently regressed for one child); (iii) PRECHECK refused to arm
+   until <code>tools/capture_build_provenance.py</code> was copied into the scratch build worktree and run
+   (it derives its repo root from its own path, so it cannot run from another worktree);
+   (iv) Settings-page save resets <code>cycleAudioArchive</code> (<a href="https://github.com/frank001/OpenWSFZ/issues/193">#193</a>);
+   (v) <code>analyse.py</code> appended today's <code>trend.csv</code> rows in the scratch tooling worktree only, with the
+   wrong SHA. <strong>Corrected and appended to the tracked <code>qa/rr-study/trend.csv</code> with the daemon's
+   real build SHA (<code>0d6b1937…</code>); the OFF and ON rows share that SHA and are told apart by order
+   only (OFF first), since the file has no flag column.</strong> The pre-existing <code>2026-09-23</code> row still
+   carries the tooling SHA <code>345e75ff</code> (corrected in that report's prose, not in the CSV); left as
+   found.</li>
+<li><strong>Standing gate status for enabling the flag (tasks §8):</strong> §7 not satisfied, §8.1 not satisfied
+   (synthetic, sparse), §8.2 not satisfied (synthetic is not an independent real corpus), §8.3 is the
+   Captain's decision. The flag stays OFF by default and in every live run.</li>
+</ol>
+<h2 id="section-6-historical-trend-every-full-s1s8-sweep-to-date">Section 6 — Historical trend: every full S1–S8 sweep to date</h2>
+<p><strong>HK-031: Section 6 of the last report (<code>2026-09-23-5f17b43</code>, twenty-seven runs) was read in full
+before any analysis above; this section is that table carried forward with today's two rows
+appended and footnotes 16–18 added. Footnotes 1–15 are copied verbatim.</strong> <code>%GR&amp;R</code> is each stage's
+own Summary-table figure (AIAG %Contribution, threshold ≤ 10% PASS). S5 FP: from <code>4cc1984</code> onward the
+ratified gate is the trailing-window Gate A-W/Gate A-Δ (R&amp;R-011). S7/S8 are the "all"/overall
+decode-recovery percentages. The final column is OpenWSFZ's pooled S7+S8 matched-decode count as a
+percentage of WSJT-X's own.</p>
+<p><strong>S4/κ is not a column in this table</strong> (duplicate-row attribution defect, fixed at source from
+<code>4584900d</code> onward; it annotates no cell here, so it carries no footnote number).</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>SHA</th>
+<th>S1 %GR&amp;R</th>
+<th>S2 %GR&amp;R</th>
+<th>S3 %GR&amp;R</th>
+<th>S5 FP (WSJT-X / OpenWSFZ)</th>
+<th>S7 recovery (WSJT-X / OpenWSFZ)</th>
+<th>S8 decode rate (WSJT-X / OpenWSFZ)</th>
+<th>OpenWSFZ, % of WSJT-X (S7+S8 pooled, excl. FP)¹</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-06-06</td>
+<td><code>4c34ef6</code></td>
+<td>32.0% <strong>FAIL</strong></td>
+<td>0.0%</td>
+<td>3.8%</td>
+<td>0.0% / 0.0%</td>
+<td>78.5% / 47.3%</td>
+<td>—</td>
+<td>60.27%²</td>
+</tr>
+<tr>
+<td>2026-06-06</td>
+<td><code>6bab388</code></td>
+<td>6.5%</td>
+<td>0.0%</td>
+<td>3.9%</td>
+<td>0.0% / 0.0%</td>
+<td>77.4% / 46.2%</td>
+<td>—</td>
+<td>59.72%²</td>
+</tr>
+<tr>
+<td>2026-06-07</td>
+<td><code>4b3a4ca</code></td>
+<td>1.4%</td>
+<td>0.0%</td>
+<td>3.4%</td>
+<td>0.0% / 0.0%</td>
+<td>76.3% / 54.8%</td>
+<td>95.0% / 86.7%</td>
+<td>80.47%</td>
+</tr>
+<tr>
+<td>2026-06-14</td>
+<td><code>815b652</code></td>
+<td>0.3%</td>
+<td>0.0%</td>
+<td>3.0%</td>
+<td>0.0% / 0.0%</td>
+<td>77.4% / 50.5%</td>
+<td>95.0% / 83.3%</td>
+<td>75.19%</td>
+</tr>
+<tr>
+<td>2026-06-20</td>
+<td><code>6e821fa</code></td>
+<td>0.4%</td>
+<td>0.0%</td>
+<td>3.0%</td>
+<td>0.0% / <strong>91.7% FAIL</strong>³</td>
+<td>92.6% / 70.2%</td>
+<td>93.3% / 86.7%</td>
+<td>79.61%</td>
+</tr>
+<tr>
+<td>2026-06-22</td>
+<td><code>f11f438</code></td>
+<td>0.4%</td>
+<td>0.0%</td>
+<td>3.1%</td>
+<td>0.0% / 0.0%</td>
+<td>94.0% / 74.4%</td>
+<td>93.3% / 86.7%</td>
+<td>82.17%</td>
+</tr>
+<tr>
+<td>2026-07-04</td>
+<td><code>793a298</code></td>
+<td>0.5%</td>
+<td>0.0%</td>
+<td>3.4%</td>
+<td>0.0% / 0.0%</td>
+<td>96.3% / 73.0%</td>
+<td>93.3% / 86.7%</td>
+<td>79.47%</td>
+</tr>
+<tr>
+<td>2026-08-05</td>
+<td><code>3bd4cd0</code></td>
+<td>7.2%</td>
+<td>0.0%</td>
+<td>3.6%</td>
+<td>0.0% / 0.0%</td>
+<td>96.3% / 70.2%</td>
+<td>93.3% / 83.3%</td>
+<td>76.43%</td>
+</tr>
+<tr>
+<td>2026-08-15</td>
+<td><code>8d6e1b1</code></td>
+<td>0.5%</td>
+<td>0.0%</td>
+<td>1.4%</td>
+<td>0.0% / 0.8%</td>
+<td>95.3% / 74.4%</td>
+<td>93.3% / 86.7%</td>
+<td>81.23%</td>
+</tr>
+<tr>
+<td>2026-08-21</td>
+<td><code>7d36038</code></td>
+<td>0.3%</td>
+<td>0.0%</td>
+<td>0.4%</td>
+<td>0.0% / 0.8%</td>
+<td>95.3% / 68.4%</td>
+<td>96.7% / 83.3%</td>
+<td>74.90%</td>
+</tr>
+<tr>
+<td>2026-08-22</td>
+<td><code>f5dec23</code></td>
+<td>0.4%</td>
+<td>0.0%</td>
+<td>0.4%</td>
+<td>0.0% / <strong>3.3% FAIL</strong>⁴</td>
+<td>98.1% / 79.5%</td>
+<td>91.7% / 91.7%</td>
+<td>84.96%</td>
+</tr>
+<tr>
+<td>2026-08-27</td>
+<td><code>22b749c</code></td>
+<td>0.3%</td>
+<td>0.0%</td>
+<td>0.4%</td>
+<td>0.0% / 0.0%</td>
+<td>97.7% / 78.6%</td>
+<td>96.7% / 91.7%</td>
+<td>83.58%</td>
+</tr>
+<tr>
+<td>2026-08-29</td>
+<td><code>872ba65</code></td>
+<td>0.25%</td>
+<td>0.0%</td>
+<td>18.65%⁵</td>
+<td>0.0% / <strong>7.66% FAIL</strong></td>
+<td>93.0% / 74.0%</td>
+<td>96.7% / 91.7%</td>
+<td>82.95%</td>
+</tr>
+<tr>
+<td>2026-08-30/31</td>
+<td><code>2e60949</code></td>
+<td>0.27%</td>
+<td>0.0%</td>
+<td>0.44%</td>
+<td>0.0% / 5.15%⁶</td>
+<td>98.1% / 82.8%⁷</td>
+<td>91.7% / 91.7%</td>
+<td>87.59%</td>
+</tr>
+<tr>
+<td>2026-09-02</td>
+<td><code>3b52608</code></td>
+<td>0.22%</td>
+<td>0.0%</td>
+<td>0.55%</td>
+<td>0.0% / <strong>14.61% FAIL</strong></td>
+<td>94.4% / 83.7%</td>
+<td>100.0% / 91.7%</td>
+<td>89.35%</td>
+</tr>
+<tr>
+<td>2026-09-03</td>
+<td><code>35378b9</code></td>
+<td>0.21%</td>
+<td>0.0%</td>
+<td>0.55%</td>
+<td>0.0% / 10.12% FAIL</td>
+<td>96.3% / 81.4%</td>
+<td>95.0% / 91.7%</td>
+<td>87.12%</td>
+</tr>
+<tr>
+<td>2026-09-06</td>
+<td><code>4c7d5ad</code></td>
+<td>0.24%</td>
+<td>0.00%</td>
+<td>0.40%</td>
+<td>0.0% / 12.42% FAIL⁸</td>
+<td>98.14% / 79.07%</td>
+<td>100.00% / 88.33%</td>
+<td>82.29%</td>
+</tr>
+<tr>
+<td>2026-09-07</td>
+<td><code>4cc1984</code></td>
+<td>0.20%</td>
+<td>0.0%</td>
+<td>0.59%</td>
+<td>0.0% / 6.33% FAIL⁹</td>
+<td>99.07% / 79.07%</td>
+<td>91.67% / 91.67%</td>
+<td>83.96%</td>
+</tr>
+<tr>
+<td>2026-09-12</td>
+<td><code>fbf8c0b5</code></td>
+<td>0.37%</td>
+<td>0.0%</td>
+<td>0.35%</td>
+<td>0.0% / 0.0%¹⁰</td>
+<td>87.44% / 82.79%</td>
+<td>93.33% / 91.67%</td>
+<td>95.49%¹¹</td>
+</tr>
+<tr>
+<td>2026-09-12/13</td>
+<td><code>4584900d #1</code></td>
+<td>0.18%</td>
+<td>0.0%</td>
+<td>0.55%</td>
+<td>0.0% / 0.0%¹³</td>
+<td>95.35% / 76.74%</td>
+<td>98.33% / 91.67%</td>
+<td>83.33%</td>
+</tr>
+<tr>
+<td>2026-09-13</td>
+<td><code>4584900d #2</code></td>
+<td>0.20%</td>
+<td>0.0%</td>
+<td>0.43%</td>
+<td>0.0% / 0.0%¹³</td>
+<td>100.00% / 80.00%</td>
+<td>91.67% / 91.67%</td>
+<td>84.07%</td>
+</tr>
+<tr>
+<td>2026-09-13</td>
+<td><code>4584900d #3</code></td>
+<td>0.20%</td>
+<td>0.0%</td>
+<td>0.43%</td>
+<td>0.0% / 0.0%¹³</td>
+<td>95.35% / 82.79%</td>
+<td>95.00% / 91.67%</td>
+<td>88.93%</td>
+</tr>
+<tr>
+<td>2026-09-13</td>
+<td><code>4584900d #4</code></td>
+<td>0.30%</td>
+<td>0.0%</td>
+<td>0.60%</td>
+<td>0.0% / 0.0%¹³</td>
+<td>96.28% / 82.33%</td>
+<td>91.67% / 91.67%</td>
+<td>88.55%</td>
+</tr>
+<tr>
+<td>2026-09-13</td>
+<td><code>4584900d #5</code></td>
+<td>0.20%</td>
+<td>0.0%</td>
+<td>0.60%</td>
+<td>0.0% / 0.0%¹³</td>
+<td>99.07% / 84.19%</td>
+<td>95.00% / 91.67%</td>
+<td>87.41%</td>
+</tr>
+<tr>
+<td>2026-09-13</td>
+<td><code>4584900d #6</code></td>
+<td>0.20%</td>
+<td>0.0%</td>
+<td>0.50%</td>
+<td>0.0% / 0.0%¹³</td>
+<td>97.21% / 80.47%</td>
+<td>91.67% / 91.67%</td>
+<td>86.36%</td>
+</tr>
+<tr>
+<td>2026-09-14</td>
+<td><code>db3a3085</code></td>
+<td>0.19%</td>
+<td>0.0%</td>
+<td>0.75%</td>
+<td>0.0% / 0.83%¹⁴</td>
+<td>94.42% / 81.86%</td>
+<td>96.67% / 91.67%</td>
+<td>88.51%</td>
+</tr>
+<tr>
+<td>2026-09-23</td>
+<td><code>decoding_improvement@84cac119</code>¹⁵</td>
+<td>0.19%</td>
+<td>0.0%</td>
+<td>0.72%</td>
+<td>0.0% / 0.0%¹³</td>
+<td>90.70% / 83.72%</td>
+<td>91.67% / 91.67%</td>
+<td>94.00%¹¹ ¹²</td>
+</tr>
+<tr>
+<td><strong>2026-09-29</strong></td>
+<td><strong><code>feat/sub-feas-native-subtraction@0d6b1937</code>, flag OFF¹⁶</strong></td>
+<td><strong>0.39%</strong></td>
+<td><strong>0.0%</strong></td>
+<td><strong>0.73%</strong></td>
+<td><strong>0.0% / 0.0%¹⁸</strong></td>
+<td><strong>94.42% / 77.21%</strong></td>
+<td><strong>93.33% / 91.67%</strong></td>
+<td><strong>85.66%¹⁷</strong></td>
+</tr>
+<tr>
+<td><strong>2026-09-29</strong></td>
+<td><strong><code>feat/sub-feas-native-subtraction@0d6b1937</code>, flag ON¹⁶</strong></td>
+<td><strong>0.28%</strong></td>
+<td><strong>0.0%</strong></td>
+<td><strong>0.51%</strong></td>
+<td><strong>0.0% / 0.0%¹⁸</strong></td>
+<td><strong>96.28% / 80.93%</strong></td>
+<td><strong>93.33% / 91.67%</strong></td>
+<td><strong>87.40%¹⁷</strong></td>
+</tr>
+</tbody>
+</table>
+<p>¹ Value = pooled(OpenWSFZ S7+S8 matched decodes) ÷ pooled(WSJT-X S7+S8 matched decodes) × 100,
+computed directly from each run's own <code>S7_matched.csv</code>/<code>S8_matched.csv</code> counts where available in
+the QA worktree, else derived from published integers. For <code>2026-09-23</code> (this run): S7 195/215
+(WSJT-X) vs 180/215 (OpenWSFZ); S8 55/60 (WSJT-X) vs 55/60 (OpenWSFZ); pooled 235/250 = 94.00%.</p>
+<p>² <code>4c34ef6</code> and <code>6bab388</code> (2026-06-06) predate S8's introduction — their footnote-1 figure is
+S7-only. One fact, stated as shared, not as a "first" — legitimately reused across exactly these
+two rows.</p>
+<p>³ Plain decode-rate era (pre R&amp;R-004 ratified UB gate); not the same metric as later rows, fixed
+under D-009. Not comparable to the UB figures below it.</p>
+<p>⁴ Second-ever ratified-gate FAIL, N=120 (pre R&amp;R-009 default restriction).</p>
+<p>⁵ Not comparable to the S1–S3 series above it — confounded by a harness playback-timing defect
+discovered in that same run (<code>872ba65</code>'s Section 5, Finding 1), not a decoder result.</p>
+<p>⁶ N=120 (<code>resume_study.py</code> artefact — R&amp;R-009's N=60 restriction not applied on resume), not the
+routine N=60 battery. PASS at this N; not directly comparable to the N=60 rows around it.</p>
+<p>⁷ S7 figure is from a 2026-08-31 targeted re-run (<code>results/2026-08-31-2e60949/</code>), same SHA.</p>
+<p>⁸ <code>4c7d5ad</code> (2026-09-06) ran under the OLD single-gate S5 architecture (N=60 per R&amp;R-009), before
+the Gate A/Check B split introduced the following row — its 12.42% is that run's own 95% UB
+(3/60 events), not directly comparable to the post-split N=120 Gate A rows around it. (Placed here,
+after <code>872ba65</code>/<code>2e60949</code>/<code>3b52608</code>/<code>35378b9</code> in the numbering, because <code>4c7d5ad</code> was added back
+into this table later — see the Section 1 history of prior reports — but its <strong>row</strong> always sat at
+its correct chronological date; only the <em>number</em> trailed the row's own re-insertion.)</p>
+<p>⁹ <strong>First run scored under R&amp;R-010's Gate A / Check B split</strong> (ratified 2026-09-06 20:29 UTC;
+<code>4c7d5ad</code>, footnote 8, ran earlier that same day under the old architecture and does not qualify).
+The figure shown is <strong>Gate A</strong> (AWGN, parts 0/1, N=120). <strong>Check B</strong> (narrowband, parts 2/3, N=60) is scored
+separately: 0/60, PASS, never pooled with Gate A. <code>a3738fc</code> (2026-07-04, a targeted N=300
+S5-only confirmatory run, 8/300, PASS) is not in this table — not a full battery.</p>
+<p>¹⁰ <strong>The one and only first run under R&amp;R-011</strong> (2026-09-08): per-sweep Gate A becomes INFO only
+from here on, superseded by the trailing-window Gate A-W/Gate A-Δ (≥480-AWGN-slot window). Gate
+A-W PASS (14/480=2.917%, 95% UB 4.522%), FRAGILE (leave-one-out flips the verdict).</p>
+<p>¹¹ <strong>Reference-driven, not an OpenWSFZ improvement — this row and the <code>2026-09-23</code> row below
+share the same mechanism and reuse this note (Architect finding, 2026-09-23 16:34Z; QA
+footnoted 2026-09-25, HK-022, fixed where it lives — previously this cell carried no
+qualifier at all).</strong> This row's 95.49% (the series high until the row below) is carried by
+WSJT-X's own S7 recovery dropping to 87.44% — the N=215-era low for that appraiser: every row
+from <code>6e821fa</code> onward, once S7 moved to its current 215-message design, sat ≥92.6%, and the
+earlier N=93-era sweeps ran 76.3–78.5%, below this reading — not by OpenWSFZ moving (82.79%,
+within its established 170–180/215 range since <code>2e60949</code>). 🛑 <strong>Do not cite 95.49% (or the row
+below's 94.00%) as an OpenWSFZ-vs-WSJT-X gain</strong> — read both through the same S7 instrument-suspect
+flag every S7 movement carries under this table's own standing rule, not as narrowing the gap.</p>
+<p>¹² <strong><code>2026-09-23</code>'s own counterfactual (Architect arithmetic, 2026-09-23 16:34Z, from this row's
+own integers; footnote 11 above is the general framing this specific number supports — Section 5
+of this report separately struck the underlying S7 P2 cell as instrument-suspect, no action
+needed).</strong> WSJT-X's S7 fall on this row is concentrated almost entirely in one cell: P2 read 3/15
+against a constant 15/15 in every comparable row. Restoring P2 to its usual 15/15 (+12) gives a
+counterfactual WSJT-X S7 of 207/215 and a counterfactual pooled ratio of 235/262 ≈ <strong>89.7%</strong> — in
+line with the <code>db3a3085</code> row's 88.51%, not a step up. The published 94.00% is not wrong, but it is
+this row's noisiest single input, not evidence of an OpenWSFZ gain.</p>
+<p>¹³ <strong>The <code>4584900d</code> same-build repeat-measurement batch (sweeps #1–#6), not itself a "first" of
+anything</strong> — a distinct fact from footnote 10 above, given its own number rather than folded into
+it, precisely because reusing a footnote whose own text claims uniqueness would misdescribe six
+non-first rows. Gate A-W PASS (8/480=1.667%, 95% UB 2.987%), identical across all six sweeps since
+none contributed a new AWGN event; not FRAGILE. <strong>Reused a third time for <code>2026-09-23</code></strong> (this
+run) — a different, later fact than either sweep-batch use above, but the identical <em>statement</em>
+("this row's own sweep added zero new S5 events, so its Gate A-W/Gate A-Δ reading is carried
+entirely by other sweeps' events") — permitted under this table's own footnote rule because it is
+genuinely the same fact, not a coincidence of wording.</p>
+<p>¹⁴ <strong><code>db3a3085</code>'s own S5 Gate A-W/Gate A-Δ reading — a distinct fact again, not the same
+number as 10 or 13.</strong> This sweep is the first to register a new AWGN event since the batch above,
+so its figures differ from every row footnotes 10 and 13 cover. Gate A-W PASS (1/480=0.208%, 95%
+UB 0.984%), not FRAGILE (all four single-sweep leave-one-out deletions leave the verdict
+unchanged). Gate A-Δ PASS (1/120 vs 0/360, Fisher p=0.2500) — the eight <code>4584900d</code>-batch-era
+events have fully aged out of the trailing window by this sweep, leaving only this run's own
+single new event (see Section 5).</p>
+<p>¹⁵ <strong>First row in this table on a <code>decoding_improvement</code> branch build, not <code>main</code></strong> — see the
+correction note under the header table. SHA column shows <code>branch@commit-short</code> rather than a bare
+SHA for this reason; every other row is implicitly <code>main</code> (or a feature branch merged into it by
+the date shown). <code>decoding_improvement</code>@<code>84cac119</code> carries <code>DENSITY-REMEDY</code> Stage 1's shipped
+suppression default (shim <code>20260054</code>, <code>suppression_triple=[-5,15,1]</code>) on top of the same
+<code>PASSBAND-140</code> base <code>db3a3085</code> already tested (shim <code>20260051</code> there vs <code>20260054</code> here) — so a
+small difference from the <code>main</code>-branch envelope this table mostly documents is licensed, not a
+regression signal on its own; see Section 1/5 for the full framing. This run's own S5 Gate A-W/
+Gate A-Δ reading carries zero new events from this sweep itself — see footnote 13's third use,
+immediately above. Its own pooled-ratio reading (94.00%) is reference-driven, not an OpenWSFZ
+gain — see footnotes 11–12.</p>
+<p>¹⁶ <strong>A same-day paired measurement, not two independent sweeps: first rows on the SUB-FEAS native
+subtraction build</strong> (<code>feat/sub-feas-native-subtraction</code> @ <code>0d6b1937</code>, shim <code>20260055</code>, <code>main</code>
+lineage, <code>libft8.dll</code> SHA-256 <code>5a6a4dc0…e38c5</code>). The two rows are the <strong>identical DLL and config</strong>,
+differing only in <code>decoder.subtractionEnabled</code>: OFF is the control (the design's "flag OFF leaves
+output unchanged" path), ON is the measurement. OFF ran first; ON began about 5 minutes after OFF
+ended. The SHA column shows <code>branch@commit-short</code> and the flag state; the analyser's own SHA field
+for these runs (<code>62e8e74a</code>, the QA tooling worktree) is wrong — see the correction under the header
+table. Both rows also carry a first-time S1 signature not seen in the 13 preceding sweeps in <code>trend.csv</code> (2026-09-02 onward): OpenWSFZ
+S1 SNR bias of +1.45 dB (OFF) and +1.18 dB (ON) against 0.82–1.12 dB (this section's own
+<code>trend.csv</code> column), see Section 5, item 5. That signature is present with the flag OFF, so it is
+not attributable to subtraction; the flag-OFF control then showed it is identical (+1.45 dB) in the
+merge-base, the <code>decoding_improvement</code> DLL and this build, so it is <strong>neither this change nor the
+build lineage</strong> (cause: the captured audio or configuration, unseparated).</p>
+<p>¹⁷ Same derivation as footnote 1, from each run's own <code>S7_matched.csv</code> / <code>S8_matched.csv</code>. <strong>OFF:</strong>
+S7 203/215 (WSJT-X) vs 166/215 (OpenWSFZ); S8 55/60 vs 55/60; pooled 221/258 = 85.66%. <strong>ON:</strong> S7
+207/215 vs 174/215; S8 55/60 vs 55/60; pooled 229/262 = 87.40%. 🛑 <strong>Reference-driven and
+instrument-noise-sized — do not cite the 1.74 pp movement between these two rows as an OpenWSFZ gain, nor
+as an effect of the subtraction flag.</strong> WSJT-X, whose decoder did not change, moved by +4 S7
+messages between the same two runs (6 flips up, 2 down on identical seeds), and OpenWSFZ's +8 sits
+inside its own 165–181/215 range since the N=215 design (footnote 11's framing). See Section 2.</p>
+<p>¹⁸ <strong>Both rows: this sweep itself contributed ZERO new AWGN events</strong> (0/120 each) — the same
+statement as footnote 13's third use, so Gate A-W/Gate A-Δ read 1/480 and 0/120 vs 1/360 for both
+(the single event still inside the window is <code>db3a3085</code>'s). Check B (narrowband) 0/60 both. The
+flag-ON row's 0/120 is the operative safety reading for the subtraction build (no phantom decodes
+on signal-free AWGN slots); at N=120 its 95% upper bound is 2.47%, so it excludes a gross
+problem, not a small one.</p>
   </div>
   <script>
     // Colour verdict cells: PASS / FAIL / MARGINAL / informational
