@@ -21,8 +21,11 @@
 > standing recommendation stands, still unactioned: `analyse.py` should read `arm_config.json`'s
 > recorded build provenance instead of the analysis-time repo's HEAD.
 
-Analyser output (unedited) for each run sits beside this file: `analyser-report-OFF.md`,
-`analyser-report-ON.md`. The raw per-run results (per-scenario matched CSVs, `truth.csv`, both
+**The standard per-run report directories** (analyser `report.md` with the corrected SHA header,
+`report.html`, the seven PNG panels, `truth.csv`, `wsjt-version.txt`, same layout as
+`2026-09-23-5f17b43/`) are `../2026-09-29-0d6b193-OFF/` and `../2026-09-29-0d6b193-ON/`. This file is
+the comparative cover report over the pair. The analyser's unedited output (SHA field as the
+analyser wrote it) also sits beside this file: `analyser-report-OFF.md`, `analyser-report-ON.md`. The raw per-run results (per-scenario matched CSVs, `truth.csv`, both
 `ALL.TXT` copies, captured audio, supervisor logs) were preserved, with file counts and byte sizes
 verified against the originals, in the gitignored
 `artefacts/rr_2026-09-29_subfeas_off_on/` of the QA worktree (`…-OFF`, `…-ON`, the two
