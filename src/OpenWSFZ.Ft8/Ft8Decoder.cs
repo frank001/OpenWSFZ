@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Ft8.Interop;
+using OpenWSFZ.Ft8.Subfeas;
 
 namespace OpenWSFZ.Ft8;
 
@@ -50,6 +51,16 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     private const int   ExpectedSampleCount         = 180_000;  // 15 s × 12 000 Hz
     private const float SilenceRmsThreshold         = 1e-6f;    // all-zero codeword guard
     private const float PcmNormalisationTargetRms   = 0.20f;    // D-002 SNR-bias fix: bring PCM to a fixed RMS level before native decode
+
+    /// <summary>
+    /// sub-feas-native-subtraction (design.md's Decision 2 addendum / Decision 4 consequence,
+    /// tasks.md 1.4): bound on concurrent <see cref="SubtractionPass"/> per-signal native fit
+    /// calls. No shared native buffer pool exists — each call is self-contained — so this is
+    /// the only concurrency cap. <c>Math.Min(Environment.ProcessorCount, 4)</c> caps worst-case
+    /// concurrent per-signal buffer memory (~9.6 MB at 4) while still giving real parallelism
+    /// on typical multi-core hardware. Not yet retuned against a real task 8.1 measurement.
+    /// </summary>
+    private static readonly int SubtractionMaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 4);
 
     // Singleton default — stateless adapter; safe to share across instances.
     private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
@@ -101,6 +112,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// </summary>
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
         => _interop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
+
+    /// <summary>
+    /// sub-feas-native-subtraction (design.md Decision 6): gates the additive residual-decode
+    /// pass (<see cref="SubtractionPass"/>). Default <c>false</c> at construction — with the
+    /// flag off, <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/>'s output
+    /// is byte-identical to pre-change behaviour. Takes effect on the next decode cycle, no
+    /// rebuild required (spec's own "Feature can be enabled without a rebuild" scenario).
+    /// Thread-safe: <c>volatile</c> bool, read once at the top of each decode cycle.
+    /// </summary>
+    public void SetSubtractionEnabled(bool enabled)
+        => _subtractionEnabled = enabled;
+
+    private volatile bool _subtractionEnabled;
 
     /// <summary>
     /// Return the process-lifetime count of Type 4 callsign announcements the native decoder
@@ -319,6 +343,32 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 "before the next live run to capture a crash dump for D-006 root-cause analysis.",
                 timeStr);
             return [];
+        }
+
+        // ── sub-feas-native-subtraction: additive residual-decode pass ──────
+        // Flag OFF (default): native is untouched -- byte-identical to pre-change behaviour
+        // (spec's own "Flag OFF leaves decode output unchanged" scenario). Flag ON: fits and
+        // subtracts every re-encodable pass-0 signal, decodes the residual, and appends only
+        // the genuinely new (payload-deduped) decodes to native BEFORE the existing per-
+        // message mapping loop below runs -- so pass-0 and residual-pass results go through
+        // the identical plausibility-filter/text-dedup/region/worked-before pipeline, no
+        // duplicated logic (design.md's own intent for this two-call shape). Included inside
+        // the same `sw` timing window as pass-0 so the existing per-cycle "elapsed" log line
+        // (below) already captures total cost with the flag on -- exactly the number tasks.md
+        // 8.1's runtime gate needs, with no separate instrumentation required.
+        // SubtractionPass itself catches native access violations internally (returns empty,
+        // logs) per design.md Decision 4 -- no additional AV handling needed here.
+        if (_subtractionEnabled && native.Length > 0)
+        {
+            var newFromResidual = await SubtractionPass.RunAsync(
+                _interop, normalisedPcm, native, SubtractionMaxDegreeOfParallelism, _logger, ct);
+            if (newFromResidual.Length > 0)
+            {
+                var combined = new Ft8NativeResult[native.Length + newFromResidual.Length];
+                native.CopyTo(combined, 0);
+                newFromResidual.CopyTo(combined, native.Length);
+                native = combined;
+            }
         }
 
         sw.Stop();

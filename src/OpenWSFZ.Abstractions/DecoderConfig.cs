@@ -36,12 +36,14 @@ public sealed record DecoderConfig
         int   kMinScorePass2           = 10,
         float osdCorrThreshold         = 0.10f,
         int   osdNhardMax              = 40,
-        bool  nhard40MigrationApplied  = false)
+        bool  nhard40MigrationApplied  = false,
+        bool  subtractionEnabled       = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
         OsdNhardMax             = osdNhardMax;
         Nhard40MigrationApplied = nhard40MigrationApplied;
+        SubtractionEnabled      = subtractionEnabled;
     }
 
     /// <summary>
@@ -110,4 +112,21 @@ public sealed record DecoderConfig
     /// </para>
     /// </summary>
     public bool  Nhard40MigrationApplied { get; init; } = false;
+
+    /// <summary>
+    /// sub-feas-native-subtraction (design.md Decision 6, shim 20260055): gates the
+    /// additive residual-decode pass (data-aided fit + time-varying-envelope subtraction,
+    /// <see cref="OpenWSFZ.Ft8.Subfeas.SubtractionPass"/>). Default <c>false</c> — with the
+    /// flag off, decode output is byte-identical to pre-change behaviour (spec's own
+    /// "Flag OFF leaves decode output unchanged" scenario).
+    /// <para>
+    /// <b>Live-use readiness gate (spec's own ADDED requirement, tasks.md §8):</b> this flag
+    /// SHALL NOT be set <c>true</c> in any live or production run until BOTH the measured
+    /// decode-cycle runtime (flag enabled) and a second-corpus decode-rate acceptance result
+    /// have been taken and reported to the Captain — neither has happened yet as of this
+    /// field's introduction. The build may exist and this flag may exist with the flag off;
+    /// only enabling it in a live run is gated.
+    /// </para>
+    /// </summary>
+    public bool  SubtractionEnabled { get; init; } = false;
 }

@@ -783,6 +783,9 @@ app.Lifetime.ApplicationStarted.Register(() =>
         initialDecoder.KMinScorePass2,
         initialDecoder.OsdCorrThreshold,
         initialDecoder.OsdNhardMax);
+    // sub-feas-native-subtraction (design.md Decision 6): default false: unspecified/older
+    // config files load with the residual-decode pass off, matching pre-change behaviour.
+    ft8Decoder.SetSubtractionEnabled(initialDecoder.SubtractionEnabled);
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
     // not the raw pre-DI `configStore` local, so a WebApplicationFactory-hosted test host's
@@ -923,6 +926,9 @@ configStore.OnSaved += newConfig =>
     // picks them up.  Null decoder is treated as calibrated defaults.
     var dec = newConfig.Decoder ?? new DecoderConfig();
     ft8Decoder.SetDecodeParams(dec.KMinScorePass2, dec.OsdCorrThreshold, dec.OsdNhardMax);
+    // sub-feas-native-subtraction (design.md Decision 6): takes effect on the next decode
+    // cycle, no rebuild required (spec's own "Feature can be enabled without a rebuild" scenario).
+    ft8Decoder.SetSubtractionEnabled(dec.SubtractionEnabled);
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
     // create a spurious new log file and reset the active sink.

@@ -115,30 +115,50 @@ yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented i
 
 ## 5. Config flag (spec ADDED requirement)
 
-- [ ] 5.1 Add the flag to the existing decoder-settings config surface (follow
-      `openspec/changes/archive/2026-07-02-decoder-settings-page/`'s established pattern), default
-      `false`.
-- [ ] 5.2 Confirm decode output is byte-identical to pre-change behaviour with the flag off (test 6.1).
-- [ ] 5.3 Confirm the flag takes effect on the next decode cycle without a rebuild (test 6.2).
+- [x] 5.1 Added `DecoderConfig.SubtractionEnabled` (default `false`), following the exact
+      `[JsonConstructor]`-with-defaults pattern the existing `OsdNhardMax`/`Nhard40MigrationApplied`
+      fields already use (`src/OpenWSFZ.Abstractions/DecoderConfig.cs`). **Not added: a web-UI
+      checkbox** — `openspec/changes/archive/2026-07-02-decoder-settings-page/`'s convention covers
+      the config-field shape, but a UI control is a separate, larger surface this scoped-build
+      increment left out; the flag is settable today via a direct config-file edit or
+      `POST /api/v1/config` (full-replace, HK-035). Worth flagging to QA/the Captain as a real gap
+      before any operator-facing use, even though it's outside the SubtractionPass/native scope
+      this build's own risk is concentrated in.
+- [x] 5.2 Wired `Ft8Decoder.SetSubtractionEnabled(bool)` (volatile field, read once per cycle) and
+      called it from both `Program.cs` call sites that already call `SetDecodeParams`
+      (startup + `configStore.OnSaved`). With the flag off (default), `DecodeAsync` never touches
+      `native` after pass-0 — byte-identical to pre-change behaviour, confirmed by test 6.1.
+- [x] 5.3 Confirmed by test 6.2 — `SetSubtractionEnabled` takes effect on the very next
+      `DecodeAsync` call, no rebuild (same volatile-field mechanism `SetDecodeParams` already uses).
 
 ## 6. Tests
 
-- [ ] 6.1 `SubtractionFlagOff_DecodeOutputUnchanged` — byte-identical output vs pre-change baseline.
-- [ ] 6.2 `SubtractionFlagOn_RuntimeConfigurable` — flag toggled without rebuild, next cycle picks it up.
-- [ ] 6.3 `AllFitsAgainstOriginalBuffer_NotSequential` — construct a cycle with ≥2 signals, assert each
-      fit's input segment matches the original (pre-subtraction) buffer at that position, not a
-      partially-subtracted one.
-- [ ] 6.4 `ResidualDecode_PayloadDedup_NotTextDedup` — construct a case where text differs but payload
-      matches (or the RR73 sentinel asymmetry applies) and assert correct dedup behaviour both ways.
-- [ ] 6.5 `MaxPassesUnaffectedBySubtractionFlag` (§4.1).
-- [ ] 6.6 `AllocationFailure_FallsBackGracefully_NoCrash` — inject an allocation failure (a test hook or
-      a constrained-memory harness) and assert the single-pass fallback, not a crash, and a logged
-      failure.
-- [ ] 6.7 Expand G6 fixture answer keys per this project's established convention (see
-      `DEV-BRIEFING-iterative-subtraction.md` AC-IS-2 for the original process this mirrors) for any
-      newly-recoverable synthetic fixture signals — QA reviews and approves each addition individually
-      before merge (§7).
-- [ ] 6.8 Full `dotnet test` suite green on all three platforms, subtraction flag both on and off.
+- [x] 6.1 `SubtractionFlagTests.FlagOff_Default_NeverCallsSubfeasComputeAnalytic` — flag off,
+      `SubfeasComputeAnalytic` never called even with a re-encodable pass-0 decode present;
+      `DecodeAll` called exactly once (no residual pass).
+- [x] 6.2 `SubtractionFlagTests.FlagOn_NextCycle_AppendsGenuinelyNewResidualDecode` — flag set
+      `true` on an already-constructed `Ft8Decoder`, next `DecodeAsync` call picks it up and a
+      genuinely new residual-pass decode is appended to the returned results.
+- [ ] 6.3 `AllFitsAgainstOriginalBuffer_NotSequential` — **true by construction, not yet given its
+      own dedicated test.** `SubtractionPass.RunCore` passes the SAME `xaRe`/`xaIm` (computed once,
+      read-only) to every concurrent `SubfeasFitSignal` call; accumulation into the residual only
+      happens AFTER all fits complete (§ step 3), so no fit can ever see another's subtraction —
+      structurally impossible for this to be sequential given the current control flow. A test that
+      asserts this explicitly (e.g. a fake `SubfeasFitSignal` capturing the `xaRe`/`xaIm` array
+      identity/contents it was called with across ≥2 concurrent calls) would still be worth adding.
+- [x] 6.4 Covered by `SubfeasPayloadTests`' RR73 asymmetry tests (cross-checked against the real
+      native encoder) and `SubtractionPassTests`/`SubtractionFlagTests`' "same QSO re-decoded from
+      residual is filtered" cases — payload-based, not text-based, dedup is exercised directly.
+- [ ] 6.5 `MaxPassesUnaffectedBySubtractionFlag` (§4.1) — **not yet a dedicated test.** True by
+      construction (this change never touches `ft8_get_max_passes`/`K_MAX_PASSES`), same caveat as 6.3.
+- [ ] 6.6 `AllocationFailure_FallsBackGracefully_NoCrash` — **not started.** Needs a native test hook
+      or constrained-memory harness to genuinely inject a `malloc` failure inside
+      `workspace_alloc` — not achievable from the C# test suite alone.
+- [ ] 6.7 Expand G6 fixture answer keys — **not started**, needs QA (per this task's own text).
+- [ ] 6.8 Full `dotnet test` green on all three platforms — **Windows only, this session** (`OpenWSFZ.Ft8.Tests`
+      346/346, full solution green, flag both on and off exercised). Linux/macOS unverified — no
+      toolchain access on this Windows Developer session; `build_linux.sh` was updated (§ prior
+      commit) but never run.
 
 ## 7. Stability gate — independent of decode-rate accuracy (spec ADDED requirement)
 
