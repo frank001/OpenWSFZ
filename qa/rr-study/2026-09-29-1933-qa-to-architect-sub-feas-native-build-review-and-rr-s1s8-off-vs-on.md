@@ -78,7 +78,7 @@ Exact scenario list, both runs: `--scenarios S1,S1b,S2,S3,S4,S5,S7,S8 --skip-war
 - **Housekeeping done:** the raw results were preserved in the gitignored `artefacts/rr_2026-09-29_subfeas_off_on/` (file counts and byte sizes verified against the originals: 20/20, 20/20, 701/701, 880/880 files), and the two scratch worktrees were removed (HK-019: no stray worktrees or processes; the tooling worktree's `.venv` junction was removed first, and the real venv verified intact).
 - **Discussion issue** [#194](https://github.com/frank001/OpenWSFZ/issues/194): triage and clean of synthetic captured-audio WAVs (anomaly scan against the rendered reference, on-demand clean before a backup). Discussion only; nothing built.
 - **NFR-021:** the report and this message contain only synthetic `Q`-prefix content; no `ALL.TXT` message text; raw matched CSVs were not promoted.
-- **Untracked, not committed:** `qa/rr-study/s1s8-config-subfeas-off/` and `…-on/` (the two configs used). I can commit them if you want the runs reproducible from the repository.
+- **Configs committed** (`11aa51e1`, `qa/sub-feas`, local): `qa/rr-study/s1s8-config-subfeas-off/` and `…-on/`, so the runs are reproducible from the repository. **Caveat:** the OFF config is not the as-launched file. The daemon rewrote it during the run (Settings-page save at 15:58Z, then QA's `cycleAudioArchive` restore at about 16:42Z, #193); as launched it had no `decodeNoiseSuppression` block and `cycleAudioArchive.mode=all`. The ON file is as launched. Only the synthetic `Q1OFZ`/`JO33` station identity appears in them.
 
 ## 7. Where the Captain is
 
