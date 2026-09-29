@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SUB-FEAS §8.1 real-band runtime replay harness (QA-owned; no src/ change).
+    It references the Ft8 library of WHATEVER checkout RepoRoot points at, so the same harness
+    source is built three times: against the build under test (2b39cf18, which has
+    SetSubtractionEnabled: -p:HasSubfeas=true) and against the two builds that produced the
+    endurance archives (84cac119, 51e40b55, which do not: HasSubfeas unset, R0 only).
+
+      dotnet build Replay81.csproj -c Release -p:RepoRoot=<checkout> [-p:HasSubfeas=true] -o <out>
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RepoRoot Condition="'$(RepoRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\..</RepoRoot>
+    <DefineConstants Condition="'$(HasSubfeas)' == 'true'">$(DefineConstants);HAS_SUBFEAS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
