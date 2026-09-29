@@ -105,7 +105,32 @@ internal static class SubtractionPass
                 $"normalisedPcm must be exactly {PcmLength} samples. Got {normalisedPcm.Length}.",
                 nameof(normalisedPcm));
 
-        return await Task.Run(() => RunCore(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, ct), ct);
+        // tasks.md 4.2: one aggregate-only Information line per invocation (never on caller
+        // cancellation -- that propagates out of Task.Run/RunCore before reaching the log call).
+        // Observability only: RunCore's return value is passed through unchanged.
+        var stats = new PassStats();
+        var wall = System.Diagnostics.Stopwatch.StartNew();
+        Ft8NativeResult[] result = await Task.Run(
+            () => RunCore(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, stats, ct), ct);
+        wall.Stop();
+
+        // HK-037 / NFR-021: aggregates only -- no message text, callsigns or exception text.
+        logger?.LogInformation(
+            "Sub-feas residual pass: residualDecodes={ResidualDecodes} elapsedMs={ElapsedMs} " +
+            "deadlineAbandoned={DeadlineAbandoned} containedException={ContainedException} " +
+            "fittedSignals={FittedSignals}",
+            result.Length, (long)wall.Elapsed.TotalMilliseconds,
+            stats.DeadlineAbandoned, stats.ContainedException, stats.FittedSignals);
+
+        return result;
+    }
+
+    /// <summary>Per-invocation observability counters for the tasks.md 4.2 log line; never affects control flow.</summary>
+    private sealed class PassStats
+    {
+        public int FittedSignals;
+        public bool DeadlineAbandoned;
+        public bool ContainedException;
     }
 
     private static Ft8NativeResult[] RunCore(
@@ -116,11 +141,12 @@ internal static class SubtractionPass
         ILogger? logger,
         Ft8ApConstraints? ap,
         TimeSpan? deadline,
+        PassStats stats,
         CancellationToken ct)
     {
         try
         {
-            return RunCoreUnguarded(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, ct);
+            return RunCoreUnguarded(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, stats, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -128,6 +154,7 @@ internal static class SubtractionPass
         }
         catch (Exception ex)
         {
+            stats.ContainedException = true;
             // Decision 4: ANY failure -> whole cycle falls back to pass-0-only, never lost.
             logger?.LogWarning(ex,
                 "Sub-feas residual pass failed ({ExceptionType}) - abandoning the residual pass " +
@@ -146,12 +173,14 @@ internal static class SubtractionPass
         ILogger? logger,
         Ft8ApConstraints? ap,
         TimeSpan? deadline,
+        PassStats stats,
         CancellationToken ct)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         bool Expired() => deadline is { } d && clock.Elapsed >= d;
         Ft8NativeResult[] DeadlineAbandon(string phase)
         {
+            stats.DeadlineAbandoned = true;
             logger?.LogWarning(
                 "Sub-feas residual pass: wall-clock budget {Budget:F1}s exceeded {Phase} - " +
                 "abandoning the residual pass (fallback to pass-0-only).",
@@ -180,6 +209,7 @@ internal static class SubtractionPass
             candidates.Add((tones, nr.Dt, nr.FreqHz, payload77));
         }
 
+        stats.FittedSignals = candidates.Count;
         if (candidates.Count == 0) return [];
 
         // ── Analytic signal: ONE call per cycle, shared read-only across every fit ──
