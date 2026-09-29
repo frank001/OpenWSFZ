@@ -109,9 +109,10 @@ yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented i
 
 - [ ] 4.1 Confirm `K_MAX_PASSES` remains `2` and unmodified by this change — add a test asserting
       `ft8_get_max_passes()` still returns 2 with the subtraction flag both on and off.
-- [ ] 4.2 Log the residual-decode pass under a distinct message, not the existing per-`K_MAX_PASSES`-pass
+- [x] 4.2 Log the residual-decode pass under a distinct message, not the existing per-`K_MAX_PASSES`-pass
       log line pattern (`"Iterative subtraction: pass N of 2, K new decodes"` stays exactly as-is and
       unrelated to this new pass's own logging).
+      **Done in 2b39cf18:** template "Sub-feas residual pass: residualDecodes= elapsedMs= deadlineAbandoned= containedException= fittedSignals=", emitted once per RunAsync call, flag ON only.
 
 ## 5. Config flag (spec ADDED requirement)
 
@@ -139,21 +140,24 @@ yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented i
 - [x] 6.2 `SubtractionFlagTests.FlagOn_NextCycle_AppendsGenuinelyNewResidualDecode` — flag set
       `true` on an already-constructed `Ft8Decoder`, next `DecodeAsync` call picks it up and a
       genuinely new residual-pass decode is appended to the returned results.
-- [ ] 6.3 `AllFitsAgainstOriginalBuffer_NotSequential` — **true by construction, not yet given its
+- [x] 6.3 `AllFitsAgainstOriginalBuffer_NotSequential` — **true by construction, not yet given its
       own dedicated test.** `SubtractionPass.RunCore` passes the SAME `xaRe`/`xaIm` (computed once,
       read-only) to every concurrent `SubfeasFitSignal` call; accumulation into the residual only
       happens AFTER all fits complete (§ step 3), so no fit can ever see another's subtraction —
       structurally impossible for this to be sequential given the current control flow. A test that
       asserts this explicitly (e.g. a fake `SubfeasFitSignal` capturing the `xaRe`/`xaIm` array
       identity/contents it was called with across ≥2 concurrent calls) would still be worth adding.
+      **Done in 2b39cf18** (SubtractionLogLineTests), mutation-checked by QA.
 - [x] 6.4 Covered by `SubfeasPayloadTests`' RR73 asymmetry tests (cross-checked against the real
       native encoder) and `SubtractionPassTests`/`SubtractionFlagTests`' "same QSO re-decoded from
       residual is filtered" cases — payload-based, not text-based, dedup is exercised directly.
-- [ ] 6.5 `MaxPassesUnaffectedBySubtractionFlag` (§4.1) — **not yet a dedicated test.** True by
+- [x] 6.5 `MaxPassesUnaffectedBySubtractionFlag` (§4.1) — **not yet a dedicated test.** True by
       construction (this change never touches `ft8_get_max_passes`/`K_MAX_PASSES`), same caveat as 6.3.
-- [ ] 6.6 `AllocationFailure_FallsBackGracefully_NoCrash` — **not started.** Needs a native test hook
+      **Done in 2b39cf18.**
+- [~] 6.6 `AllocationFailure_FallsBackGracefully_NoCrash` — **not started.** Needs a native test hook
       or constrained-memory harness to genuinely inject a `malloc` failure inside
       `workspace_alloc` — not achievable from the C# test suite alone.
+      **Managed half done in 2b39cf18** (rc -1 from ComputeAnalytic and FitSignal, decoder level); native malloc-failure injection NOT done, unmet by design: it would change libft8.dll and void the flag-OFF control (a=b=c identical on 182/182 cycles, ruling 2).
 - [ ] 6.7 Expand G6 fixture answer keys — **DEFERRED by Captain decision (2026-09-29) until after §8 (the runtime gate); answer keys are only worth adding once enabling the flag is realistic. Needs a flag-ON replay of the G6 fixtures and per-signal QA approval when it resumes.**
 - [ ] 6.8 Full `dotnet test` green on all three platforms — **Windows only, this session** (`OpenWSFZ.Ft8.Tests`
       346/346, full solution green, flag both on and off exercised). Linux/macOS unverified — no
@@ -202,7 +206,7 @@ yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented i
 
 - [ ] 10.1 QA reviews the diff against this `tasks.md` and `design.md` (HK-002/HK-006) — in particular
       §3 (memory safety), §7 (stability gate), and §8 (measurement gates) are treated as hard blockers,
-      not advisory. Code review pass 1 returned R1-R3; pass 2 approved 91444300 (code only). Open before merge: 6.3/6.5/6.6 dedicated tests, 6.7 (deferred), 6.8 Linux/macOS, 5.1 UI checkbox gap, Captain merge sign-off (HK-010).
+      not advisory. Code review pass 1 returned R1-R3; pass 2 approved 91444300 (code only). Open before merge: 6.3/6.5/6.6 dedicated tests, 6.7 (deferred), 6.8 Linux/macOS, 5.1 UI checkbox gap, Captain merge sign-off (HK-010). Code review pass 3 approved 2b39cf18 (code); libft8.dll unchanged 5a6a4dc0...e38c5; Ft8.Tests 364/364. Open before merge: 6.8 Linux/macOS, 5.1 UI checkbox, 6.7 deferred, 6.6 native half unmet by design, Captain merge sign-off.
 - [ ] 10.2 `git diff --stat main -- src/ native/` confirmed non-empty and scoped to what this proposal's
       Impact section named — no unrelated changes folded in.
 - [ ] 10.3 **CAPTAIN DECISION** — merge sign-off (HK-010). The flag remains OFF by default regardless of
