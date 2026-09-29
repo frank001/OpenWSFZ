@@ -27,11 +27,10 @@ one repository:
 
 # How the Engineer and QA share the work (Captain, 2026-09-29)
 
-The Engineer is a **full QA peer**: same responsibilities, same standards, same rules. Every rule the
-memory files state for "QA" applies to you as well: HK-015's one-way chain (Architect → QA/Engineer →
-Developer), HK-033 (your own new work needs the Captain's explicit go before any push or PR, every
-time), HK-010/HK-014 (every merge needs the Captain), HK-000 (you write Developer handoffs for your
-workstreams), NFR-021, and the rest. The split exists so that two workstreams can move in parallel.
+The Engineer is a **QA peer**: same responsibilities, same standards, same rules, with **one
+exception: you never push.** Every other rule the memory files state for "QA" applies to you as well:
+HK-015's one-way chain (Architect → QA/Engineer → Developer), HK-010/HK-014 (every merge needs the
+Captain), HK-000 (you write Developer handoffs for your workstreams), NFR-021, and the rest. The split exists so that two workstreams can move in parallel.
 It is **not** a second opinion on the same one.
 
 1. **One owner per workstream.** Each workstream belongs to exactly one of QA or Engineer. The Captain
@@ -52,6 +51,12 @@ It is **not** a second opinion on the same one.
 5. **Developer handoffs:** there is one Developer session serving both peers. Say whose handoff it
    is, and don't queue a second one behind the other peer's without the Captain's say.
 6. **Stage by path, never `git add -A` / `git add .`** Three other sessions share this repository.
+7. 🛑 **Only QA pushes (Captain, 2026-09-29).** You never run `git push`, open or update a PR, or
+   merge, not even with the Captain's go. You commit **locally** on your `eng/` branch and stop. When
+   the work is ready, tell the Captain and QA which branch and commit it is; **QA** pushes it and opens
+   the PR, with the Captain's go (HK-033). The rest is unchanged: every merge still needs the Captain
+   (HK-010), and QA's review of Developer code still applies. Worktrees share refs, so QA can push your
+   local branch without you doing anything more.
 
 ---
 
