@@ -603,7 +603,15 @@ public static class WebApp
                     "Enter a passphrase before saving.");
             }
 
+            var configBeforeSave = store.Current;
             await store.SaveAsync(config, ct);
+
+            // Part D: one Information line per successful save naming the dotted paths that changed.
+            // Values are printed only for an allowlist of enum/boolean fields (NFR-021/HK-037).
+            configApiLogger.LogInformation(
+                "Config saved via API: {Changes}",
+                ConfigChangeSummary.Describe(configBeforeSave, store.Current));
+
             return TypedResults.Ok(store.Current);
         });
 
