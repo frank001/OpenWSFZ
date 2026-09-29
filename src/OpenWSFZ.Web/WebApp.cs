@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace OpenWSFZ.Web;
 
@@ -403,41 +404,30 @@ public static class WebApp
             IConfigStore store,
             CancellationToken ct) =>
         {
-            // Read the raw body as text (rather than request.ReadFromJsonAsync straight off the
-            // stream) so it can be inspected twice: once deserialised into AppConfig for the
-            // existing save path, and once as a JsonDocument purely to ask "did the client's own
-            // JSON literally include an 'instanceId' key inside 'externalReporting'?" — see the
-            // InstanceId guard below (fix-external-reporting-appid-collision). That distinction is
-            // unrecoverable once STJ's [JsonConstructor] default has already collapsed "omitted"
-            // and "explicitly resent as the default value" into the same C# value.
+            // POST /api/v1/config applies the body as an OVERLAY on the stored config (design D1,
+            // GitHub #193): a key the body omits, at any depth, keeps its stored value. The old
+            // full-replace semantics made every omitted key come back as its C# default, and this
+            // handler patched up individual fields one at a time (ptt, externalReporting.*,
+            // cycleAudioArchive) — a list that was missed three times. See ConfigOverlay.
             string rawBody;
             using (var bodyReader = new StreamReader(request.Body))
                 rawBody = await bodyReader.ReadToEndAsync(ct);
 
-            AppConfig? config;
-            bool instanceIdExplicitlyProvided;
-            bool roleExplicitlyProvided;
-            bool leaderUrlExplicitlyProvided;
-            bool followerUrlsExplicitlyProvided;
+            AppConfig config;
             try
             {
-                config = JsonSerializer.Deserialize(rawBody, AppJsonContext.Default.AppConfig);
+                var bodyNode = JsonNode.Parse(rawBody);
 
-                using var rawDoc = JsonDocument.Parse(rawBody);
-                var hasExtRepObject =
-                    rawDoc.RootElement.TryGetProperty("externalReporting", out var extRepRaw)
-                    && extRepRaw.ValueKind == JsonValueKind.Object;
-                instanceIdExplicitlyProvided    = hasExtRepObject && extRepRaw.TryGetProperty("instanceId", out _);
-                // external-reporting-single-connection (task 1.2): role/leaderUrl/followerUrls need
-                // the exact same presence-in-source-JSON guard as instanceId above — none of the
-                // three has a web/js/settings.js field yet, so every ordinary Settings-page save
-                // would otherwise silently collapse a configured leader/follower group back onto
-                // "leader"/null/[] on the very next unrelated save.
-                roleExplicitlyProvided          = hasExtRepObject && extRepRaw.TryGetProperty("role", out _);
-                leaderUrlExplicitlyProvided     = hasExtRepObject && extRepRaw.TryGetProperty("leaderUrl", out _);
-                followerUrlsExplicitlyProvided  = hasExtRepObject && extRepRaw.TryGetProperty("followerUrls", out _);
+                // A literal JSON null body is "missing"; any other non-object (array, number, string)
+                // was always a deserialisation error, so it stays "Malformed JSON.".
+                if (bodyNode is null)
+                    return Results.BadRequest("Missing or empty request body.");
+                if (bodyNode is not JsonObject bodyObject)
+                    return Results.BadRequest("Malformed JSON.");
+
+                config = ConfigOverlay.Apply(store.Current, bodyObject);
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is JsonException or ArgumentException)
             {
                 // Results.BadRequest (non-generic) is intentional: mixing TypedResults.BadRequest<string>
                 // with TypedResults.Ok<AppConfig> in the same lambda produces a type-unification error
@@ -445,127 +435,10 @@ public static class WebApp
                 // implementations. The non-generic Results.* form returns IResult directly, which
                 // resolves the inference. TypedResults.Ok on the happy path is preserved for
                 // OpenAPI schema generation on the success response.
+                //
+                // ArgumentException: JsonNode.Parse rejects a duplicate key with it.
                 return Results.BadRequest("Malformed JSON.");
             }
-
-            if (config is null)
-                return Results.BadRequest("Missing or empty request body.");
-
-            // Guard against the same STJ source-generation quirk documented in
-            // JsonConfigStore.Load(): a JSON payload that omits "logging" or "decodeLog"
-            // deserialises those non-nullable properties to null instead of falling back
-            // to their initialisers. Left unguarded here, a null DecodeLog persists into
-            // the live in-memory config and crashes every subsequent decode cycle
-            // (D-010: unguarded NRE in AllTxtWriter.AppendAsync).
-            if (config.Logging is null)
-                config = config with { Logging = new LoggingConfig() };
-            if (config.DecodeLog is null)
-                config = config with { DecodeLog = new DecodeLogConfig() };
-            // RemoteAccess (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md §4):
-            // same STJ null-vs-initialiser quirk, bundled in alongside the CycleAudioArchive fix
-            // below since it's the same one-line shape. Lower urgency than CycleAudioArchive —
-            // unlike that section, web/js/settings.js DOES have a Settings-page UI for
-            // remoteAccess and always sends the key on every real save (see settings.js's
-            // buildConfigPayload), so this branch is only reachable via a non-UI API caller
-            // (tests, curl, a future integration) sending a partial body. Nothing today
-            // dereferences RemoteAccess unconditionally the way CycleArchiveService does
-            // CycleAudioArchive, so a fresh default here (rather than the Ptt-style ?? fallback)
-            // is safe: it can never silently clobber an operator's setting via the real UI.
-            if (config.RemoteAccess is null)
-                config = config with { RemoteAccess = new RemoteAccessConfig() };
-            if (config.DecodeNoiseSuppression is null)
-                config = config with { DecodeNoiseSuppression = new DecodeNoiseSuppressionConfig() };
-            if (config.ExternalReporting is null)
-                config = config with { ExternalReporting = new ExternalReportingConfig() };
-            // InstanceId (fix-external-reporting-appid-collision) needs a guard of its own, one
-            // level deeper than the whole-section null guard above: unlike Ptt, the "externalReporting"
-            // section itself is NOT missing on an ordinary Settings-page save — web/js/settings.js's
-            // External Programs tab actively populates and sends enabled/targets/
-            // honourInboundCommands/restrictExternalRepliesToDecodeFilter every time. It just has no
-            // field yet for instanceId (deliberately, per this change's minimum scope), so that one
-            // field alone comes back through STJ's [JsonConstructor] parameter default ("OpenWSFZ")
-            // on every single such save — not just a hypothetical missing-key edge case, but every
-            // ordinary save once an operator has configured a non-default InstanceId for multi-
-            // instance operation. Left unguarded, the very next unrelated Settings-page save (toggling
-            // showCycleCountdown, anything) silently collapses two distinguishable instances back onto
-            // the same wire Id, reintroducing the exact GridTracker collision this change exists to
-            // fix. Uses the raw-JSON key-presence check above (not a value comparison against
-            // "OpenWSFZ") specifically so a deliberate targeted POST that explicitly resets
-            // instanceId back to the literal default string is still honoured, not mistaken for
-            // omission.
-            if (!instanceIdExplicitlyProvided)
-            {
-                config = config with
-                {
-                    ExternalReporting = config.ExternalReporting with
-                    {
-                        InstanceId = store.Current.ExternalReporting.InstanceId,
-                    },
-                };
-            }
-            // external-reporting-single-connection (task 1.2): same rationale/mechanism as the
-            // InstanceId guard immediately above, applied identically to Role/LeaderUrl/
-            // FollowerUrls — each field preserved independently so a save that only omits one of
-            // the three doesn't also revert the other two.
-            if (!roleExplicitlyProvided)
-            {
-                config = config with
-                {
-                    ExternalReporting = config.ExternalReporting with
-                    {
-                        Role = store.Current.ExternalReporting.Role,
-                    },
-                };
-            }
-            if (!leaderUrlExplicitlyProvided)
-            {
-                config = config with
-                {
-                    ExternalReporting = config.ExternalReporting with
-                    {
-                        LeaderUrl = store.Current.ExternalReporting.LeaderUrl,
-                    },
-                };
-            }
-            if (!followerUrlsExplicitlyProvided)
-            {
-                config = config with
-                {
-                    ExternalReporting = config.ExternalReporting with
-                    {
-                        FollowerUrls = store.Current.ExternalReporting.FollowerUrls,
-                    },
-                };
-            }
-            // cycle-audio-archive crash (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-
-            // crash.md): same STJ quirk, applied here for the first time since this section was
-            // added 2026-07-26 after this guard block was originally written. Unlike the four
-            // guards above, there is currently no Settings-page UI field for cycleAudioArchive
-            // (same situation Ptt was in, see the comment below) — every ordinary Settings-page
-            // save omits this key, so a fresh new CycleAudioArchiveConfig() default is applied
-            // on EVERY save, not just a hypothetical missing-key edge case. That is acceptable
-            // today only because there is no UI to have configured a non-default value through in
-            // the first place. The moment a future PR adds a dedicated cycle-audio-archive panel,
-            // this guard must switch to the Ptt pattern below (?? store.Current.CycleAudioArchive)
-            // or it will silently clobber an operator's chosen archive mode on the very next
-            // unrelated settings save — the exact "stuck-on-VOX"-class bug the Ptt guard exists to
-            // prevent.
-            if (config.CycleAudioArchive is null)
-                config = config with { CycleAudioArchive = new CycleAudioArchiveConfig() };
-            // Ptt gets a different fallback than the four guards above: web/js/settings.js
-            // never sends a "ptt" key at all (there is deliberately no Settings-page UI for
-            // it — design.md Decision 6), so EVERY Settings-page save hits this branch, not
-            // just a hypothetical missing-key edge case. Defaulting to a fresh new PttConfig()
-            // here would silently revert an operator's manually-edited ptt.method (e.g.
-            // "CatCommand") back to "AudioVox" on the very next unrelated save (toggling
-            // showCycleCountdown, etc.) — reproducing the exact stuck-on-VOX symptom this fix
-            // exists to prevent. Falling back to the already-persisted store.Current.Ptt
-            // instead makes an omitted "ptt" key a true no-op: whatever was on disk before
-            // this save stays there. store.Current.Ptt is itself never null by this point
-            // (JsonConfigStore.Load() and SaveAsync both guard it), so the ?? new PttConfig()
-            // is pure defense-in-depth, not the expected path.
-            if (config.Ptt is null)
-                config = config with { Ptt = store.Current.Ptt ?? new PttConfig() };
 
             // ── CAT config validation (FR-031, FR-034) ─────────────────────────
             if (config.Cat is { } cat)
@@ -635,22 +508,14 @@ public static class WebApp
                     config = config with { Tx = sanitisedTx };
             }
 
-            // osdNhardMax migration marker (NHARD40-DEFAULT M2, HK-035 fix): the marker
-            // is SERVER-OWNED. No request body, however constructed, may ever set or
-            // clear it — only JsonConfigStore.Load()'s own migration logic may flip it to
-            // true. web/js/settings.js's buildConfigPayload sends only 3 of the decoder's
-            // 4 fields (kMinScorePass2/osdCorrThreshold/osdNhardMax, never the marker), so
-            // without this guard STJ's [JsonConstructor] parameter default would silently
-            // reset Nhard40MigrationApplied to false on every ordinary Settings-page save
-            // — and an operator's deliberately-restored 60 would then get silently
-            // re-migrated back to 40 on the next restart. Same "preserve what's already
-            // persisted" idiom as the Ptt/CycleAudioArchive guards above.
+            // osdNhardMax migration marker (NHARD40-DEFAULT M2): the marker is SERVER-OWNED. No
+            // request body, however constructed, may set or clear it — only JsonConfigStore.Load()'s
+            // own migration logic flips it to true. The overlay merge would otherwise let a body carry
+            // it, so force it back to whatever is persisted, whether or not the key was sent. A body
+            // that sends no "decoder" leaves the stored decoder section untouched (the overlay keeps
+            // it); a body that sends one over a stored null gets a marker of false.
             if (config.Decoder is { } decoderForMarker)
             {
-                // The normal case — the real UI always sends a decoder object. Force the
-                // marker to whatever is already persisted before the clamp block below
-                // runs, so its own sanitisedDecoder carries the correct marker straight
-                // through.
                 config = config with
                 {
                     Decoder = decoderForMarker with
@@ -658,17 +523,6 @@ public static class WebApp
                         Nhard40MigrationApplied = store.Current.Decoder?.Nhard40MigrationApplied ?? false,
                     },
                 };
-            }
-            else if (store.Current.Decoder is { Nhard40MigrationApplied: true })
-            {
-                // The body sent no "decoder" object at all (a non-UI caller, or test
-                // 7.2m's case) but the persisted config is already migrated. Materialise
-                // the whole persisted Decoder — there is nothing else in it to reconcile
-                // since the client sent nothing for decoder at all. If store.Current.Decoder
-                // is null or its marker is false, config.Decoder stays null here: do not
-                // manufacture a decoder section out of nothing just to carry a false
-                // marker — this preserves 7.2m's "a null decoder is valid" behaviour.
-                config = config with { Decoder = store.Current.Decoder };
             }
 
             // ── Decoder config validation (decoder-settings-page) ───────────────

@@ -86,11 +86,31 @@ Then choose per field: keep a meaningful `0`, or clamp-with-warning, or 400. Rec
 
 ## D6: existing tests that assert the OLD behaviour
 
-Not enumerated yet, and must not be guessed. Procedure for the Developer (task 2.4): after Part A, run
-`OpenWSFZ.Web.Tests`, and for **every** test that fails or changes, add a row here with the test name,
-what it asserted, why the old assertion was a symptom of the defect, and the new assertion. No test is
-rewritten without a row (HK-022). Expected candidates, from a first read: the `ConfigApiNullGuardTests`
-group and the test named `7.2m` (a body with no `decoder`).
+**Result (Developer, 2026-09-29, after Part A on branch `feat/config-save-preserves-unsent-settings`): no
+existing test's assertion changed. The table has zero rows, and that is a measured result, not an omission.**
+
+Procedure followed (task 2.4): Part A implemented, then `OpenWSFZ.Web.Tests` run in full (340 passed, 0
+failed), then the three other projects whose sources mention `POST /api/v1/config`
+(`OpenWSFZ.Config.Tests` 105, `OpenWSFZ.Daemon.Tests` 652, `OpenWSFZ.Ft8.Tests` `LoggingPipeline*` 16:
+all green, none of them posts to the endpoint; they only cite it in comments).
+
+| Test | Asserted (old) | Why it survives | Changed? |
+|---|---|---|---|
+| all seven `ConfigApiNullGuardTests` `PostConfig_Omitting<X>Key_DoesNotPersistNull<X>` | after `{audioDeviceId}` the section is not `null` and equals the **default** | each runs against a **fresh** `TestConfigStore`, whose stored section *is* the default; "keep the stored value" and "reset to default" are indistinguishable there. They still guard the null-persistence symptom | no |
+| `PostConfig_UnrelatedSave_PreservesPreviouslyPersistedPtt`, the `InstanceId` and `role/leaderUrl/followerUrls` preservation tests | an unrelated save keeps the stored value | the intended behaviour, now provided by the overlay instead of a guard | no |
+| `PostConfig_ExplicitInstanceIdResetToDefault_IsHonoured` | an explicit `"instanceId": "OpenWSFZ"` wins | a key present in the body replaces the stored value; the overlay honours it by construction | no |
+| test `7.2m` (`DecoderConfigApiTests`, posts a serialised default `AppConfig`) | a null decoder is accepted (200) | the body carries an explicit `"decoder": null` and `decoder` is a nullable section, so `null` is stored, as before. It is **not** a body with no `decoder` key, contrary to the first read recorded above in this section's earlier draft | no |
+
+**What the old tests could not see** (the gap that hid #193): the seven null-guard tests assert "reset to
+default" only on a store that is already at default. A test that first stores a non-default value and then
+posts a partial body was written only for `ptt` and `externalReporting`. Coverage of that shape is now
+`ConfigSaveOverlayTests` T1, T4, T5, T7, T8; T8 in particular **fails on the old handler for six of the
+seven sections** (the old handler reset them, the new one keeps them), which is the behaviour change
+callers can see.
+
+Behaviour change (b) of spec §2, "a body that omits `decoder` no longer clears a stored decoder whose
+marker is `false`", has no pre-existing test either way; it is covered by T4 (stored decoder non-null,
+`POST {}`).
 
 ## D7: Part E, config-drift module (revised by the Architect's ruling, 2026-09-29)
 
