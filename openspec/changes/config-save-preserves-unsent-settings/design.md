@@ -100,9 +100,10 @@ group and the test named `7.2m` (a body with no `decoder`).
   `decoder.*`). On a mismatch it writes a timestamped `CONFIG-DRIFT` line to a log and returns a row for
   the run report. It **never** restores.
 - Values in the drift line are limited to the same allowlist as Part D (HK-037): paths for everything else.
-- Wiring: only into run tools that exist on `main`. The endurance supervisors are `.sh` and would call
-  the module through a one-line `python` invocation; whether a drift aborts a run is decided per battery
-  and recorded in `qa/rr-study/RUNBOOK.md`.
+- Wiring (as built): **no existing tool is edited.** The endurance supervisors are dated, per-run QA
+  scripts, so the module is run detached beside a run (`qa/rr-study/RUNBOOK.md` §2.1) instead of being
+  spliced into them. Drift policy is recorded there: continue and report by default, `--abort-on-drift`
+  (exit 3) only for a battery that any drift invalidates.
 - **Gap, recorded rather than worked around:** `run_study_detached.py` is not on `main`, so the R&R
   launcher cannot be wired. Nothing is landed on `qa/live-gap-map`.
 - Lands only after QA has been told (spec §6).

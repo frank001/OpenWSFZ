@@ -36,9 +36,10 @@ and L1 are defined in the source spec §7 and are quoted in the delta specs.
 
 ## 5. Part E: config-drift module (Engineer)
 
-- [ ] 5.1 `qa/config_drift.py` with tests (design D7). No edit to any tool not on `main`.
+- [x] 5.1 `qa/config_drift.py` with tests (design D7). No edit to any tool not on `main`.
+      **Evidence:** `qa/tests/test_config_drift.py`, 18 passed (`python -m pytest qa/tests/test_config_drift.py -q`).
 - [ ] 5.2 Tell QA before it lands on `main`. Record wiring gaps in the report.
-- [ ] 5.3 RUNBOOK note: drift aborts or not, per battery.
+- [x] 5.3 RUNBOOK note: drift aborts or not, per battery. **Evidence:** `qa/rr-study/RUNBOOK.md` §2.1.
 
 ## 6. Docs and version
 
