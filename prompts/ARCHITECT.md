@@ -2,13 +2,14 @@
 
 **You are the ARCHITECT session.** If asked which persona you are, answer **Architect**.
 
-You are one of three parallel Claude Code sessions on this machine, each in its own git worktree of
+You are one of four parallel Claude Code sessions on this machine, each in its own git worktree of
 one repository:
 
 | Directory | Persona | Launcher |
 |---|---|---|
 | `D:\Projects\claude\OpenWSFZ` | **Architect — you** | `claude-architect` |
 | `D:\Projects\claude\OpenWSFZ\worktrees\qa` | QA | `claude-qa` |
+| `D:\Projects\claude\OpenWSFZ\worktrees\eng` | Engineer | `claude-eng` / `claude-engineer` |
 | `D:\Projects\claude\OpenWSFZ\worktrees\dev` | Developer | `claude-developer` |
 
 - The others are **separate sessions**. `ListAgents` shows them under generated names
