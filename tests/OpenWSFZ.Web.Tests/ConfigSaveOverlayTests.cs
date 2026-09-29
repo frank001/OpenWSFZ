@@ -14,37 +14,24 @@ namespace OpenWSFZ.Web.Tests;
 /// <summary>
 /// The key set of the payload <c>web/js/settings.js</c> posts on every save — the literal passed to
 /// <c>postConfig({...})</c>. Test T13 (<c>web/js/settingsPayload.test.js</c>) fails when the JS
-/// payload and this table disagree, so a payload change without a fixture change cannot pass.
+/// payload and this shape disagree, so a payload change without a fixture change cannot pass.
+/// (The pre-Part-C page omitted <c>cycleAudioArchive</c>; <see cref="BodyFrom"/> can reproduce it.)
 /// </summary>
 internal static class SettingsPayload
 {
-    /// <summary>Top-level key → nested keys (<c>null</c> = scalar leaf).</summary>
-    public static readonly IReadOnlyDictionary<string, string[]?> Shape = new Dictionary<string, string[]?>
+    /// <summary>Top-level key → nested keys (<c>null</c> = scalar leaf). Loaded from
+    /// <c>settings-payload-shape.json</c>, which <c>web/js/settingsPayload.test.js</c> also reads.</summary>
+    public static readonly IReadOnlyDictionary<string, string[]?> Shape = LoadShape();
+
+    private static Dictionary<string, string[]?> LoadShape()
     {
-        ["audioDeviceId"]           = null,
-        ["audioDeviceFriendlyName"] = null,
-        ["audioOutputDeviceId"]     = null,
-        ["audioOutputFriendlyName"] = null,
-        ["port"]                    = null,
-        ["showCycleCountdown"]      = null,
-        ["logLevel"]                = null,
-        ["decodeLog"]   = ["enabled", "path", "dialFrequencyMHz"],
-        ["logging"]     = ["fileEnabled", "directory", "fileLogLevel", "rotationSchedule",
-                           "rotationTime", "rotationDayOfWeek", "maxFiles"],
-        ["cat"]         = ["enabled", "rigModel", "serialPort", "baudRate", "rigctldHost",
-                           "rigctldPort", "pollIntervalSeconds", "lastPolledFrequencyMHz"],
-        ["ptt"]         = ["method", "serialPort", "serialLine", "leadTimeMs", "tailTimeMs",
-                           "watchdogTimeoutMs"],
-        ["tx"]          = ["callsign", "grid", "watchdogMinutes", "retryCount", "role",
-                           "callerPartnerSelect", "qsoConfirmation"],
-        ["remoteAccess"] = ["enabled", "passphrase"],
-        ["decoder"]     = ["kMinScorePass2", "osdCorrThreshold", "osdNhardMax"],
-        ["decodeNoiseSuppression"] = ["suppressUnknownRegion", "suppressSynthetic"],
-        ["externalReporting"] = ["enabled", "targets", "honourInboundCommands",
-                                 "restrictExternalRepliesToDecodeFilter"],
-        // Part C adds the archive group. The pre-Part-C payload (an old cached page) omits it.
-        ["cycleAudioArchive"] = ["mode", "directory", "maxSizeMb", "maxAgeHours", "writeManifest"],
-    };
+        var path = Path.Combine(AppContext.BaseDirectory, "settings-payload-shape.json");
+        var shape = JsonNode.Parse(File.ReadAllText(path))!["shape"]!.AsObject();
+        var result = new Dictionary<string, string[]?>(StringComparer.Ordinal);
+        foreach (var (key, value) in shape)
+            result[key] = value is JsonArray arr ? arr.Select(n => n!.GetValue<string>()).ToArray() : null;
+        return result;
+    }
 
     /// <summary>
     /// Builds a Settings-shaped body from a stored config: exactly the keys of <see cref="Shape"/>,
@@ -181,7 +168,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T1 ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T1 (#193): a Settings-shaped save without cycleAudioArchive keeps the stored archive settings")]
+    [Fact(DisplayName = "FR-074: T1 (#193): a Settings-shaped save without cycleAudioArchive keeps the stored archive settings")]
     public async Task T1_SettingsShapedSave_KeepsStoredArchive()
     {
         using var factory = new WebTestFactory();
@@ -201,7 +188,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T2 ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T2: an explicit cycleAudioArchive object is applied")]
+    [Fact(DisplayName = "FR-074: T2: an explicit cycleAudioArchive object is applied")]
     public async Task T2_ExplicitArchiveObject_IsApplied()
     {
         using var factory = new WebTestFactory();
@@ -220,7 +207,7 @@ public sealed class ConfigSaveOverlayTests
         a["writeManifest"]!.GetValue<bool>().Should().BeTrue();
     }
 
-    [Fact(DisplayName = "T2b: a partial cycleAudioArchive object merges (omitted archive keys keep their stored value)")]
+    [Fact(DisplayName = "FR-074: T2b: a partial cycleAudioArchive object merges (omitted archive keys keep their stored value)")]
     public async Task T2b_PartialArchiveObject_Merges()
     {
         using var factory = new WebTestFactory();
@@ -240,7 +227,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T4 ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T4: POST {} against a config whose every leaf is non-default changes nothing (reflection-enumerated)")]
+    [Fact(DisplayName = "FR-074: T4: POST {} against a config whose every leaf is non-default changes nothing (reflection-enumerated)")]
     public async Task T4_EmptyBody_ChangesNothing()
     {
         using var factory = new WebTestFactory();
@@ -298,7 +285,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T5 ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T5: a Settings-shaped save with the stored values leaves every leaf unchanged, including the ones it never sends")]
+    [Fact(DisplayName = "FR-074: T5: a Settings-shaped save with the stored values leaves every leaf unchanged, including the ones it never sends")]
     public async Task T5_SettingsShapedSave_LeavesUnsentLeavesUnchanged()
     {
         using var factory = new WebTestFactory();
@@ -315,7 +302,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T6 ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T6: decodingEnabled=false survives a Settings-shaped save and no save ever reports true (no pipeline start)")]
+    [Fact(DisplayName = "FR-074: T6: decodingEnabled=false survives a Settings-shaped save and no save ever reports true (no pipeline start)")]
     public async Task T6_DecodingDisabled_SurvivesSettingsSave()
     {
         using var factory = new WebTestFactory();
@@ -337,7 +324,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T7 ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T7: tx runtime state (held TX frequency, offsets, autoAnswer, retained ADIF fields) survives a Settings-shaped save")]
+    [Fact(DisplayName = "FR-074: T7: tx runtime state (held TX frequency, offsets, autoAnswer, retained ADIF fields) survives a Settings-shaped save")]
     public async Task T7_TxRuntimeState_SurvivesSettingsSave()
     {
         using var factory = new WebTestFactory();
@@ -365,7 +352,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T8 ──────────────────────────────────────────────────────────────────
 
-    [Theory(DisplayName = "T8: an explicit null on a non-nullable section keeps the stored section")]
+    [Theory(DisplayName = "FR-074: T8: an explicit null on a non-nullable section keeps the stored section")]
     [InlineData("logging")]
     [InlineData("decodeLog")]
     [InlineData("ptt")]
@@ -389,7 +376,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T9 ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T9: explicit null on nullable fields is stored (remoteAccess.passphrase, suppressUnknownRegion)")]
+    [Fact(DisplayName = "FR-074: T9: explicit null on nullable fields is stored (remoteAccess.passphrase, suppressUnknownRegion)")]
     public async Task T9_ExplicitNullOnNullableField_IsStored()
     {
         using var factory = new WebTestFactory();
@@ -412,7 +399,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T10 ─────────────────────────────────────────────────────────────────
 
-    [Theory(DisplayName = "T10: decoder.nhard40MigrationApplied is server-owned; the body cannot flip it")]
+    [Theory(DisplayName = "FR-074: T10: decoder.nhard40MigrationApplied is server-owned; the body cannot flip it")]
     [InlineData(true)]
     [InlineData(false)]
     public async Task T10_MigrationMarker_IsServerOwned(bool stored)
@@ -431,7 +418,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T11 ─────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T11: arrays replace, never element-merge (externalReporting.targets: [] empties a two-entry list)")]
+    [Fact(DisplayName = "FR-074: T11: arrays replace, never element-merge (externalReporting.targets: [] empties a two-entry list)")]
     public async Task T11_Arrays_Replace()
     {
         using var factory = new WebTestFactory();
@@ -454,7 +441,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── T12 ─────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "T12: validation runs on the merged config (stored follower + body leaderUrl \"\" → 400, store unchanged)")]
+    [Fact(DisplayName = "FR-074: T12: validation runs on the merged config (stored follower + body leaderUrl \"\" → 400, store unchanged)")]
     public async Task T12_ValidationRunsOnMergedConfig()
     {
         using var factory = new WebTestFactory();
@@ -474,7 +461,7 @@ public sealed class ConfigSaveOverlayTests
 
     // ── Behaviours the overlay must keep (design D1) ────────────────────────
 
-    [Fact(DisplayName = "D1: an explicit null on a non-nullable scalar is still a 400 (\"Malformed JSON.\"), not treated as absent")]
+    [Fact(DisplayName = "FR-074: D1: an explicit null on a non-nullable scalar is still a 400 (\"Malformed JSON.\"), not treated as absent")]
     public async Task ExplicitNullOnNonNullableScalar_Is400()
     {
         using var factory = new WebTestFactory();
@@ -486,7 +473,7 @@ public sealed class ConfigSaveOverlayTests
         (await GetConfigJsonAsync(client)).Should().Be(before);
     }
 
-    [Fact(DisplayName = "D1: a body with a nullable section object over a stored null uses the body object (defaults fill omitted keys)")]
+    [Fact(DisplayName = "FR-074: D1: a body with a nullable section object over a stored null uses the body object (defaults fill omitted keys)")]
     public async Task BodyObjectOverStoredNull_UsesBodyObject()
     {
         using var factory = new WebTestFactory();
@@ -502,7 +489,7 @@ public sealed class ConfigSaveOverlayTests
         tx["txAudioOffsetHz"]!.GetValue<int>().Should().Be(1500);
     }
 
-    [Fact(DisplayName = "D1: an unknown key is ignored")]
+    [Fact(DisplayName = "FR-074: D1: an unknown key is ignored")]
     public async Task UnknownKey_IsIgnored()
     {
         using var factory = new WebTestFactory();

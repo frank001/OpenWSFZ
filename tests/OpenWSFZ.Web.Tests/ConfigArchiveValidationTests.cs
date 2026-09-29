@@ -21,7 +21,7 @@ public sealed class ConfigArchiveValidationTests
     private static async Task<JsonNode> ArchiveAsync(HttpClient client)
         => JsonNode.Parse(await client.GetStringAsync("/api/v1/config"))!["cycleAudioArchive"]!;
 
-    [Theory(DisplayName = "D5: maxSizeMb below 1 is rejected (0 or negative would make the sweep delete the whole archive); nothing is persisted")]
+    [Theory(DisplayName = "FR-075: D5: maxSizeMb below 1 is rejected (0 or negative would make the sweep delete the whole archive); nothing is persisted")]
     [InlineData(0)]
     [InlineData(-5)]
     public async Task MaxSizeMb_BelowMinimum_Is400(int value)
@@ -36,7 +36,7 @@ public sealed class ConfigArchiveValidationTests
         (await ArchiveAsync(client)).ToJsonString().Should().Be(before);
     }
 
-    [Theory(DisplayName = "D5: maxAgeHours outside [1, 87600] is rejected")]
+    [Theory(DisplayName = "FR-075: D5: maxAgeHours outside [1, 87600] is rejected")]
     [InlineData(0)]
     [InlineData(-1)]
     [InlineData(87_601)]
@@ -53,7 +53,7 @@ public sealed class ConfigArchiveValidationTests
         (await ArchiveAsync(client)).ToJsonString().Should().Be(before);
     }
 
-    [Fact(DisplayName = "D5: the boundary values 1 MB, 1 h and 87600 h are accepted")]
+    [Fact(DisplayName = "FR-075: D5: the boundary values 1 MB, 1 h and 87600 h are accepted")]
     public async Task Boundaries_AreAccepted()
     {
         using var factory = new WebTestFactory();
@@ -69,7 +69,7 @@ public sealed class ConfigArchiveValidationTests
         a["maxAgeHours"]!.GetValue<int>().Should().Be(87600);
     }
 
-    [Fact(DisplayName = "D5: a stored out-of-range value (file-edited) does not block an unrelated save, and is left unchanged")]
+    [Fact(DisplayName = "FR-075: D5: a stored out-of-range value (file-edited) does not block an unrelated save, and is left unchanged")]
     public async Task StoredOutOfRange_DoesNotBlockUnrelatedSave()
     {
         using var factory = new WebTestFactory();
@@ -86,7 +86,7 @@ public sealed class ConfigArchiveValidationTests
         a["maxAgeHours"]!.GetValue<int>().Should().Be(0);
     }
 
-    [Theory(DisplayName = "Part C: all four modes (off, all, decoded, noDecodes) are accepted and round-trip")]
+    [Theory(DisplayName = "FR-075: Part C: all four modes (off, all, decoded, noDecodes) are accepted and round-trip")]
     [InlineData("off")]
     [InlineData("all")]
     [InlineData("decoded")]
@@ -102,7 +102,7 @@ public sealed class ConfigArchiveValidationTests
         (await ArchiveAsync(client))["mode"]!.GetValue<string>().Should().Be(mode);
     }
 
-    [Fact(DisplayName = "Part C: an unknown mode is a 400, not a silent reset")]
+    [Fact(DisplayName = "FR-075: Part C: an unknown mode is a 400, not a silent reset")]
     public async Task UnknownMode_Is400()
     {
         using var factory = new WebTestFactory();
@@ -115,7 +115,7 @@ public sealed class ConfigArchiveValidationTests
         (await ArchiveAsync(client))["mode"]!.GetValue<string>().Should().Be("all");
     }
 
-    [Fact(DisplayName = "Part C: an explicit null directory is stored (blank field = default location)")]
+    [Fact(DisplayName = "FR-075: Part C: an explicit null directory is stored (blank field = default location)")]
     public async Task NullDirectory_IsStored()
     {
         using var factory = new WebTestFactory();

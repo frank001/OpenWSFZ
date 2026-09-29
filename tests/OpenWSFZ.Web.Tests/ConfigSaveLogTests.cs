@@ -46,7 +46,7 @@ public sealed class ConfigSaveLogTests
             .Select(e => e.Message)
             .ToList();
 
-    [Fact(DisplayName = "T14: a save changing cycleAudioArchive.mode and tx.callsign logs exactly one line with the mode values and the callsign PATH only")]
+    [Fact(DisplayName = "FR-076: T14: a save changing cycleAudioArchive.mode and tx.callsign logs exactly one line with the mode values and the callsign PATH only")]
     public async Task T14_SaveLogsOneLine_AllowlistedValuesOnly()
     {
         var logs = new CapturingLoggerProvider();
@@ -83,7 +83,7 @@ public sealed class ConfigSaveLogTests
             .Should().BeEmpty("no log line of any category may carry the posted callsign or passphrase");
     }
 
-    [Fact(DisplayName = "T14b: a save that changes nothing logs \"no changes\"")]
+    [Fact(DisplayName = "FR-076: T14b: a save that changes nothing logs \"no changes\"")]
     public async Task T14b_NoChanges()
     {
         var logs = new CapturingLoggerProvider();
@@ -97,7 +97,7 @@ public sealed class ConfigSaveLogTests
         SaveLines(logs).Should().Equal(SavedPrefix + "no changes");
     }
 
-    [Fact(DisplayName = "T14c: a rejected save (400) logs no \"Config saved\" line")]
+    [Fact(DisplayName = "FR-076: T14c: a rejected save (400) logs no \"Config saved\" line")]
     public async Task T14c_RejectedSave_LogsNothing()
     {
         var logs = new CapturingLoggerProvider();
@@ -111,7 +111,7 @@ public sealed class ConfigSaveLogTests
         SaveLines(logs).Should().BeEmpty();
     }
 
-    [Fact(DisplayName = "Part D allowlist is exactly the six enum/boolean fields of the spec")]
+    [Fact(DisplayName = "FR-076: Part D allowlist is exactly the six enum/boolean fields of the spec")]
     public void Allowlist_IsExactlyTheSpecifiedSix()
     {
         ConfigChangeSummary.ValueAllowlist.Keys.Should().BeEquivalentTo(new[]
@@ -121,7 +121,7 @@ public sealed class ConfigSaveLogTests
         });
     }
 
-    [Fact(DisplayName = "Describe: allowlisted values print old→new, others print the path only, output is sorted")]
+    [Fact(DisplayName = "FR-076: Describe: allowlisted values print old→new, others print the path only, output is sorted")]
     public void Describe_PrintsPathsAndAllowlistedValues()
     {
         var before = new AppConfig { DecodingEnabled = true, Tx = new TxConfig(callsign: "Q1AAA", holdTxFreq: false) };
