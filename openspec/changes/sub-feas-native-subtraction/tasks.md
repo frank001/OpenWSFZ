@@ -154,11 +154,12 @@ yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented i
 - [ ] 6.6 `AllocationFailure_FallsBackGracefully_NoCrash` — **not started.** Needs a native test hook
       or constrained-memory harness to genuinely inject a `malloc` failure inside
       `workspace_alloc` — not achievable from the C# test suite alone.
-- [ ] 6.7 Expand G6 fixture answer keys — **not started**, needs QA (per this task's own text).
+- [ ] 6.7 Expand G6 fixture answer keys — **DEFERRED by Captain decision (2026-09-29) until after §8 (the runtime gate); answer keys are only worth adding once enabling the flag is realistic. Needs a flag-ON replay of the G6 fixtures and per-signal QA approval when it resumes.**
 - [ ] 6.8 Full `dotnet test` green on all three platforms — **Windows only, this session** (`OpenWSFZ.Ft8.Tests`
       346/346, full solution green, flag both on and off exercised). Linux/macOS unverified — no
       toolchain access on this Windows Developer session; `build_linux.sh` was updated (§ prior
       commit) but never run.
+- [x] 6.9 QA review R1-R3 (2026-09-29): all three required changes landed in 91444300 and were re-verified by QA (Ft8.Tests 353/353 in a detached worktree; no --filter). R1 thread-local AP state set/cleared on the residual DecodeAll thread; hash table confirmed process-global (ft8_shim.c:787, :1489), so no change needed there. R2 whole residual pass contained, pass-0 results never lost. R3 cooperative 13 s deadline (cannot interrupt an in-flight native call); 26 s FFT-only benchmark stands, so 8.1 is the real runtime gate.
 
 ## 7. Stability gate — independent of decode-rate accuracy (spec ADDED requirement)
 
@@ -201,7 +202,7 @@ yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented i
 
 - [ ] 10.1 QA reviews the diff against this `tasks.md` and `design.md` (HK-002/HK-006) — in particular
       §3 (memory safety), §7 (stability gate), and §8 (measurement gates) are treated as hard blockers,
-      not advisory.
+      not advisory. Code review pass 1 returned R1-R3; pass 2 approved 91444300 (code only). Open before merge: 6.3/6.5/6.6 dedicated tests, 6.7 (deferred), 6.8 Linux/macOS, 5.1 UI checkbox gap, Captain merge sign-off (HK-010).
 - [ ] 10.2 `git diff --stat main -- src/ native/` confirmed non-empty and scoped to what this proposal's
       Impact section named — no unrelated changes folded in.
 - [ ] 10.3 **CAPTAIN DECISION** — merge sign-off (HK-010). The flag remains OFF by default regardless of
