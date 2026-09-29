@@ -172,4 +172,33 @@ internal interface IFt8NativeInterop
     /// </summary>
     /// <param name="maxDecoded">Maximum number of decodes to query (array capacity).</param>
     (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded);
+
+    /// <summary>
+    /// Encodes an FT8 message string to exactly 79 tone indices. Mirrors
+    /// <see cref="Ft8LibInterop.EncodeMessage"/> through the interface so callers built on
+    /// <see cref="IFt8NativeInterop"/> (e.g. the sub-feas-native-subtraction orchestrator) are
+    /// unit-testable with a fake, matching this interface's existing purpose.
+    /// </summary>
+    /// <param name="message">FT8 message text, e.g. <c>"Q1OFZ Q1TST JO33"</c>.</param>
+    /// <returns>79 tone indices in [0, 7].</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the native encoder rejects <paramref name="message"/>.
+    /// </exception>
+    byte[] EncodeMessage(string message);
+
+    /// <summary>
+    /// sub-feas-native-subtraction (shim 20260055): Hilbert-transforms a 180 000-sample PCM
+    /// buffer to its analytic signal — ONE call per cycle. No production call site yet; see
+    /// <c>ft8_shim.h</c>'s <c>ft8_subfeas_compute_analytic</c> doc comment for the full contract.
+    /// </summary>
+    (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm);
+
+    /// <summary>
+    /// sub-feas-native-subtraction (shim 20260055): fits and synthesizes one signal's
+    /// subtraction waveform against a cycle's precomputed analytic signal. Self-contained,
+    /// safe to call concurrently. No production call site yet; see <c>ft8_shim.h</c>'s
+    /// <c>ft8_subfeas_fit_signal</c> doc comment for the full contract.
+    /// </summary>
+    (int ReturnCode, float[] Shat) SubfeasFitSignal(
+        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz);
 }

@@ -44,13 +44,30 @@
       populated once per cycle by the new `ft8_subfeas_compute_analytic`, unmutated by any fit call);
       one call fits and returns one signal's contribution — the **accumulation** into one shared
       residual copy is a C# orchestration responsibility (task 2.4/4.x), not yet implemented.
-- [ ] 2.4 Implement the residual-pass invocation: call the existing decode entry point a second,
-      unmodified time on the residual buffer. **Not started** — this is the C# orchestration layer
-      (sum all per-signal `out_shat` buffers into one residual, call `ft8_decode_all` again — design.md's
-      Decision 2 addendum: reusing the existing entry point unmodified, no new native decode call).
-- [ ] 2.5 Implement payload-based merge/dedup, including the RR73 on-air-sentinel vs re-encoded-text
-      asymmetry (reference `qa/rr-study/sub-feas/stage2.py:63-77`'s `_same_qso`/`_is_rr73_std` — port the
-      comparison logic, not just its result). **Not started** — C# orchestration layer, same as 2.4.
+- [x] 2.4 Implemented the residual-pass invocation in
+      `src/OpenWSFZ.Ft8/Subfeas/SubtractionPass.cs` (`SubtractionPass.RunAsync`): sums all
+      per-signal `out_shat` buffers into one residual copy of the exact PCM pass-0 decoded
+      from, then calls the **existing, unmodified** `IFt8NativeInterop.DecodeAll` on it — no
+      new native decode entry point, per design.md's Decision 2 addendum. Per-signal fits run
+      concurrently (`Parallel.For`, bounded by a caller-supplied degree-of-parallelism — the
+      1.4 concurrency cap, not yet wired to a concrete config value since §5's flag doesn't
+      exist yet). Decision 4's "any AV → whole cycle falls back, no partial state" contract is
+      enforced: an access violation on any one signal's fit, or on the residual decode itself,
+      returns no new decodes rather than a partial set. **Not yet wired into `Ft8Decoder`'s live
+      `DecodeAsync` path** — that's §5 (config flag), the next increment; this is a standalone,
+      independently-tested unit today.
+- [x] 2.5 Implemented payload-based merge/dedup in `src/OpenWSFZ.Ft8/Subfeas/SubfeasPayload.cs`
+      (`ExtractPayload77`, `ExtractStdFields`, `SameQso`), including the RR73 on-air-sentinel vs
+      re-encoded-text asymmetry (ported from `stage2.py`'s `_same_qso`/`_is_rr73_std` and
+      `pack77_fields.py`'s exact bit boundaries, both read directly rather than assumed). Payload
+      extraction (79 tones → 77-bit payload) is new — not itself mirrored from the Python
+      reference (which gets payload77 from its own encoder's internal state) — derived from this
+      project's own protocol constants (Costas positions, Gray-code map) and the
+      systematic-LDPC convention `ft8_ldpc_decode_llrs`'s own `out_a91` doc comment already
+      establishes. **Cross-checked against the REAL native encoder** (not a fake) in
+      `SubfeasPayloadTests.cs` — a real RR73-encoded message's extracted fields match
+      message.c's own layout exactly (i3=1, ir=0, igrid4=32403), the strongest available
+      correctness signal for this port.
 - [x] 2.6 Reused this repo's own template synthesis convention — **not** `Ft8AudioSynthesiser.cs`
       (checked: that file's own docstring says "rectangular frequency pulse (no Gaussian shaping)",
       48kHz, a different/unrelated TX code path) — the actual validated convention is

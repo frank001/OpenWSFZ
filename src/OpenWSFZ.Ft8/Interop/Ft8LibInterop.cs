@@ -717,6 +717,31 @@ internal static class Ft8LibInterop
         float         freqHz, float timeOffsetS,
         [Out] float[] outLog174);
 
+    /// <summary>
+    /// sub-feas-native-subtraction (shim 20260055). See <c>ft8_shim.h</c>'s
+    /// <c>ft8_subfeas_compute_analytic</c> doc comment for the full contract. No
+    /// production call site yet at this shim version.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_subfeas_compute_analytic", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeSubfeasComputeAnalytic(
+        [In] float[]  pcm,
+        [Out] float[] outRe,
+        [Out] float[] outIm);
+
+    /// <summary>
+    /// sub-feas-native-subtraction (shim 20260055). See <c>ft8_shim.h</c>'s
+    /// <c>ft8_subfeas_fit_signal</c> doc comment for the full contract. No
+    /// production call site yet at this shim version.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_subfeas_fit_signal", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeSubfeasFitSignal(
+        [In] float[]   xARe,
+        [In] float[]   xAIm,
+        [In] byte[]    tones,
+        float          decodedDtS,
+        float          decodedFreqHz,
+        [Out] float[]  outShat);
+
     // ── Public API ───────────────────────────────────────────────────────
 
     /// <summary>
@@ -1155,6 +1180,82 @@ internal static class Ft8LibInterop
                 "(-1 invalid input, -2 allocation failure, -3 frequency out of the valid passband).");
 
         return log174;
+    }
+
+    /// <summary>
+    /// sub-feas-native-subtraction (shim 20260055): Hilbert-transforms a 180 000-sample
+    /// PCM buffer to its analytic signal — ONE call per cycle, shared read-only input to
+    /// every subsequent <see cref="SubfeasFitSignal"/> call for that cycle. No production
+    /// call site yet.
+    /// </summary>
+    /// <param name="pcm">12 kHz mono float32 PCM, normalised to [-1, 1]; exactly 180 000 samples.</param>
+    /// <returns>Analytic signal's (real, imaginary) parts, 180 000 samples each.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="pcm"/> is not exactly 180 000 samples.</exception>
+    /// <exception cref="NativeAccessViolationException">
+    /// Thrown when the native shim's SEH wrapper catches an access violation (Windows only) —
+    /// same containment discipline as <see cref="DecodeAll"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">Thrown on any other negative return code.</exception>
+    public static (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm)
+    {
+        if (pcm.Length != 180_000)
+            throw new ArgumentException(
+                $"PCM buffer must be exactly 180 000 samples (15 s × 12 kHz). Got {pcm.Length}.",
+                nameof(pcm));
+
+        EnsureInitialized();
+
+        var re = new float[180_000];
+        var im = new float[180_000];
+        int rc = NativeSubfeasComputeAnalytic(pcm, re, im);
+
+        if (rc == -2)
+            throw new NativeAccessViolationException();
+        if (rc != 0)
+            throw new InvalidOperationException(
+                $"ft8_subfeas_compute_analytic returned {rc} — unexpected error from native shim.");
+
+        return (re, im);
+    }
+
+    /// <summary>
+    /// sub-feas-native-subtraction (shim 20260055): fits and synthesizes one signal's
+    /// subtraction waveform against a cycle's precomputed analytic signal. Self-contained —
+    /// safe to call concurrently from multiple threads (design.md's Decision 2 addendum). No
+    /// production call site yet.
+    /// </summary>
+    /// <param name="xARe">Analytic signal real part from <see cref="SubfeasComputeAnalytic"/>, 180 000 long.</param>
+    /// <param name="xAIm">Analytic signal imaginary part, 180 000 long.</param>
+    /// <param name="tones">79 tone indices, each in [0,7], from <see cref="EncodeMessage"/>.</param>
+    /// <param name="decodedDtS">The signal's decoded DT (seconds).</param>
+    /// <param name="decodedFreqHz">The signal's decoded frequency (Hz).</param>
+    /// <returns>
+    /// <c>(0, shat)</c> on success — <c>shat</c> is the full-cycle-length subtraction waveform.
+    /// <c>(-3, zeroArray)</c> if every fit candidate ran off the buffer edge (a normal outcome
+    /// for a signal near a cycle boundary — caller treats this signal as contributing nothing,
+    /// NOT as a cycle-wide failure).
+    /// </returns>
+    /// <exception cref="NativeAccessViolationException">
+    /// Thrown when the native shim's SEH wrapper catches an access violation (Windows only). Per
+    /// design.md Decision 4, the caller must treat this as a WHOLE-CYCLE fallback signal (abandon
+    /// the residual pass entirely), not a per-signal skip.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">Thrown on any other negative return code (-1: bad arguments).</exception>
+    public static (int ReturnCode, float[] Shat) SubfeasFitSignal(
+        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz)
+    {
+        EnsureInitialized();
+
+        var shat = new float[180_000];
+        int rc = NativeSubfeasFitSignal(xARe, xAIm, tones, decodedDtS, decodedFreqHz, shat);
+
+        if (rc == -2)
+            throw new NativeAccessViolationException();
+        if (rc != 0 && rc != -3)
+            throw new InvalidOperationException(
+                $"ft8_subfeas_fit_signal returned {rc} — unexpected error from native shim.");
+
+        return (rc, shat);
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────

@@ -66,6 +66,11 @@ public sealed class CoherentLlrAtTests
         public (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)
             => (new float[maxDecoded], new float[maxDecoded]);
 
+        public byte[] EncodeMessage(string message) => new byte[79];
+        public (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm) => (new float[180_000], new float[180_000]);
+        public (int ReturnCode, float[] Shat) SubfeasFitSignal(
+            float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz) => (0, new float[180_000]);
+
         private static float[] BuildStubLog174()
         {
             var log174 = new float[174];
