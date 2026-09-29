@@ -37,6 +37,10 @@ Threshold provenance, disclosed: the 0.30 dB gap was chosen knowing the two swee
 
 **C3 — descriptive only:** the number of cycles in which b differs from a, and from c. No bar.
 
+## 3a. Amendment 1 (2026-09-29, BEFORE any decode was run)
+
+The harness's own missing-WAV assertion stopped it before decoding: **25 of S3's 30 cycles (15:58:00Z onward) fall inside the daemon-side archive gap** (about 15:58Z–16:42Z, #193). Section 2 excluded S4 and S5 for that reason but wrongly kept S3, whose tail overlaps the gap. **S3 is dropped in full** (not the 5 surviving cycles alone: a partial scenario is not a like-for-like set). The scenario list becomes **S1, S1b, S2, S7, S8**; the single-signal set for V0 and C2 becomes **S1, S1b, S2 (72 stamps)**. Every threshold and predicate in Section 3 is unchanged. No result had been seen when this amendment was written; the failed run produced only extracted DLLs and no decode output.
+
 ## 4. Blind spots and what this does not test
 
 - Native entry point only: `ft8_decode_all`. The managed flag-OFF path is not exercised here.

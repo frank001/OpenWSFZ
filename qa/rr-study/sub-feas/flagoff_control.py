@@ -51,8 +51,11 @@ DLLS = {  # label -> (commit, expected shim version)
 RAW = os.path.join(REPO, "artefacts", "rr_2026-09-29_subfeas_off_on")
 OFF_RESULTS = os.path.join(RAW, "2026-09-29-62e8e74-OFF")
 OFF_WAVS = os.path.join(RAW, "2026-09-29-62e8e74-OFF-captured-audio", "owsfz", "wav")
-SCENARIOS = ("S1", "S1b", "S2", "S3", "S7", "S8")
-SINGLE = ("S1", "S1b", "S2", "S3")          # single-signal scenarios (V0 and C2 use these)
+# Amendment 1 (pre-registration note, before any decode): S3 dropped -- 25 of its 30 cycles fall
+# inside the daemon-side archive gap (~15:58Z-16:42Z, #193), found by this harness's own
+# missing-WAV assertion before anything was decoded.
+SCENARIOS = ("S1", "S1b", "S2", "S7", "S8")
+SINGLE = ("S1", "S1b", "S2")                # single-signal scenarios (V0 and C2 use these)
 
 PCM_LEN = 180_000
 MAX_RESULTS = 340
