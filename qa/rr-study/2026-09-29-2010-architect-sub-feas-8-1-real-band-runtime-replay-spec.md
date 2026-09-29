@@ -40,6 +40,15 @@ Instrument: replay through the **same C# decode entry the daemon uses** (deadlin
 - **R1 is read jointly with R4.** A max sitting at ~13 s with a high abandon rate means the guard clamped it; report the two together, and do not call R1 "fast" on its own.
 - Harness is QA-owned C# through the public `Ft8Decoder` (`SubtractionPass` is internal); no `src/` change. State the harness commit SHA in the report.
 
+## 2b. Amendment 2 (2026-09-29, after QA's review of the §4.2 build `2b39cf18`)
+
+- **Build under test is fixed: `2b39cf18`** (base `0d6b1937`; `libft8.dll` SHA-256 `5a6a4dc0…e38c5` verified unchanged by QA, so ruling 2's identity result still covers the DLL). Report the actual SHA pair.
+- **Log template and grep (R3/R4):** count from the daemon log using the fixed prefix `Sub-feas residual pass: residualDecodes=`; fields `residualDecodes`, `elapsedMs`, `deadlineAbandoned`, `containedException`, `fittedSignals`. Quote the exact grep in the report.
+- **R4 denominator is LOG LINES, not cycles:** the line exists only when the pass is invoked (pass-0 native.Length > 0). In H and M every selected cycle has ≥ 20 pass-0 decodes, so lines should equal cycles: **assert lines == cycles per stratum**; a mismatch is reported and investigated, not averaged away.
+- **`fittedSignals` means signals SELECTED for fitting, not fitted** (set before fitting; an early-deadline abandon still shows > 0). Do not read it as work done.
+- The log line is now available to attribute residual-pass decodes: `residualDecodes` per cycle may be reported in R7 as descriptive; **still no decode-rate claim** (single corpus family).
+- **Selection:** QA generates `selection.json` from the spec's rule (seed `20260929`, sorted at construction, script committed), and hashes it before any timing. Nothing for me to freeze; I never see timings.
+
 ## 3. Blind spot (HK-026), stated up front
 
 The response of the instrument is flat above 32 signals on real data: no real cycle in the corpus exceeds 32 pass-0 decodes (max 29/32/28), while the design's FFT-only benchmark predicted ~26 s at 24 signals before parallelism. R6 is the only probe above 32 and it is synthetic. A PASS therefore means "no problem found up to 32 real signals", never "safe on any band".
