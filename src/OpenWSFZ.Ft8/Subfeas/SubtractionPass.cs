@@ -31,14 +31,38 @@ namespace OpenWSFZ.Ft8.Subfeas;
 /// </summary>
 internal static class SubtractionPass
 {
-    private const int PcmLength = 180_000;
+    private const int PcmLength = Ft8LibInterop.PcmSampleCount;
 
     /// <summary>
     /// Runs the residual-decode pass. Never throws for a native access-violation on any
     /// individual signal's fit or on the residual decode itself — those are caught, logged,
     /// and treated as "no new decodes this cycle" (graceful fallback to pass-0-only),
-    /// matching design.md Decision 4's contract. Other exceptions (bad arguments, a
-    /// genuinely unexpected native return code) propagate.
+    /// matching design.md Decision 4's contract.
+    ///
+    /// <para>
+    /// Failure containment (QA review R2): once past argument validation, ANY non-cancellation
+    /// exception from the residual pass (compute-analytic AV or rc -1, per-signal rc -1 surfacing
+    /// as an <see cref="AggregateException"/>, an encode failure, ...) is logged and swallowed;
+    /// the caller keeps pass-0's results. Only caller cancellation propagates.
+    /// </para>
+    ///
+    /// <para>
+    /// Thread state (QA review R1): native AP bits, SNR terms and the H12 counters are
+    /// <c>_Thread_local</c>. The residual <see cref="IFt8NativeInterop.DecodeAll"/> runs on this
+    /// pass's own pool thread, so AP bits are set explicitly on that thread immediately before it
+    /// (same discipline as pass-0) and cleared afterwards. The callsign hash table is NOT
+    /// thread-local state: it is the process-global <c>g_session_hash_table</c>, re-attached
+    /// at the top of every native decode call, so hashes learned in pass-0 resolve in the residual
+    /// decode on any thread. Pass-0 and this pass run strictly sequentially (awaited), so there is
+    /// no concurrent access to it.
+    /// </para>
+    ///
+    /// <para>
+    /// Wall-clock guard (QA review R3): native calls are not cancellable, so the
+    /// <c>deadline</c> is cooperative - checked before/after each native phase and
+    /// used to stop scheduling further per-signal fits. Exceeding it abandons the pass
+    /// (pass-0-only). A single native call already in flight still runs to completion.
+    /// </para>
     /// </summary>
     /// <param name="interop">Native interop abstraction (mockable for tests).</param>
     /// <param name="normalisedPcm">
@@ -53,6 +77,13 @@ internal static class SubtractionPass
     /// the only concurrency cap).
     /// </param>
     /// <param name="logger">Optional structured logger.</param>
+    /// <param name="ap">
+    /// The AP constraints pass-0 was decoded with (null = none). Applied on the residual
+    /// decode's own thread, because native AP state is thread-local.
+    /// </param>
+    /// <param name="deadline">
+    /// Optional wall-clock budget for the whole residual pass; null = unbounded.
+    /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// Only the NEW residual-pass decodes (not already present, payload-wise, in
@@ -65,6 +96,8 @@ internal static class SubtractionPass
         Ft8NativeResult[] pass0Results,
         int maxDegreeOfParallelism,
         ILogger? logger,
+        Ft8ApConstraints? ap = null,
+        TimeSpan? deadline = null,
         CancellationToken ct = default)
     {
         if (normalisedPcm.Length != PcmLength)
@@ -72,7 +105,7 @@ internal static class SubtractionPass
                 $"normalisedPcm must be exactly {PcmLength} samples. Got {normalisedPcm.Length}.",
                 nameof(normalisedPcm));
 
-        return await Task.Run(() => RunCore(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ct), ct);
+        return await Task.Run(() => RunCore(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, ct), ct);
     }
 
     private static Ft8NativeResult[] RunCore(
@@ -81,8 +114,51 @@ internal static class SubtractionPass
         Ft8NativeResult[] pass0Results,
         int maxDegreeOfParallelism,
         ILogger? logger,
+        Ft8ApConstraints? ap,
+        TimeSpan? deadline,
         CancellationToken ct)
     {
+        try
+        {
+            return RunCoreUnguarded(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw; // caller cancellation is not a residual-pass failure
+        }
+        catch (Exception ex)
+        {
+            // Decision 4: ANY failure -> whole cycle falls back to pass-0-only, never lost.
+            logger?.LogWarning(ex,
+                "Sub-feas residual pass failed ({ExceptionType}) - abandoning the residual pass " +
+                "for this cycle (fallback to pass-0-only), per design.md Decision 4.",
+                ex is AggregateException agg && agg.InnerException is not null
+                    ? agg.InnerException.GetType().Name : ex.GetType().Name);
+            return [];
+        }
+    }
+
+    private static Ft8NativeResult[] RunCoreUnguarded(
+        IFt8NativeInterop interop,
+        float[] normalisedPcm,
+        Ft8NativeResult[] pass0Results,
+        int maxDegreeOfParallelism,
+        ILogger? logger,
+        Ft8ApConstraints? ap,
+        TimeSpan? deadline,
+        CancellationToken ct)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        bool Expired() => deadline is { } d && clock.Elapsed >= d;
+        Ft8NativeResult[] DeadlineAbandon(string phase)
+        {
+            logger?.LogWarning(
+                "Sub-feas residual pass: wall-clock budget {Budget:F1}s exceeded {Phase} - " +
+                "abandoning the residual pass (fallback to pass-0-only).",
+                deadline!.Value.TotalSeconds, phase);
+            return [];
+        }
+
         // ── Step 2: fit each pass-0 re-encodable decode ─────────────────────
         var candidates = new List<(byte[] Tones, float Dt, float FreqHz, bool[] Payload77)>();
         foreach (ref readonly Ft8NativeResult nr in pass0Results.AsSpan())
@@ -112,12 +188,18 @@ internal static class SubtractionPass
         // ── Step 2 (per-signal fits, concurrent) ────────────────────────────
         var shatBuffers = new float[candidates.Count][];
         var returnCodes = new int[candidates.Count];
-        bool accessViolation = false;
 
+        if (Expired()) return DeadlineAbandon("before the per-signal fits");
+
+        // Any exception from a fit (AV, rc -1 alloc failure, ...) propagates to RunCore's guard:
+        // ANY signal's failure abandons the WHOLE residual pass (Decision 4), never a per-signal skip.
+        using var fitCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        if (deadline is { } budget)
+            fitCts.CancelAfter(budget > clock.Elapsed ? budget - clock.Elapsed : TimeSpan.Zero);
         var options = new ParallelOptions
         {
             MaxDegreeOfParallelism = Math.Max(1, maxDegreeOfParallelism),
-            CancellationToken = ct,
+            CancellationToken = fitCts.Token,
         };
 
         try
@@ -130,25 +212,12 @@ internal static class SubtractionPass
                 shatBuffers[i] = shat;
             });
         }
-        catch (AggregateException ex) when (ex.InnerExceptions.Any(e => e is NativeAccessViolationException))
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            accessViolation = true;
-        }
-        catch (NativeAccessViolationException)
-        {
-            accessViolation = true;
+            return DeadlineAbandon("during the per-signal fits");
         }
 
-        if (accessViolation)
-        {
-            // Decision 4's contract: ANY signal's AV abandons the WHOLE residual pass, not a
-            // per-signal skip — do not silently keep other signals' successful fits.
-            logger?.LogWarning(
-                "Sub-feas residual pass: native access violation during a per-signal fit — " +
-                "abandoning the whole residual pass for this cycle (fallback to pass-0-only), " +
-                "per design.md Decision 4.");
-            return [];
-        }
+        if (Expired()) return DeadlineAbandon("after the per-signal fits");
 
         // ── Step 3: accumulate every fitted signal's subtraction into one residual ──
         // rc == -3 (no valid fit found for that signal) already has an all-zero shat buffer
@@ -162,20 +231,22 @@ internal static class SubtractionPass
         }
 
         // ── Step 4: decode the residual, unmodified existing entry point ────
+        // Native AP state is _Thread_local (QA R1): set it on THIS thread, right before DecodeAll,
+        // exactly as pass-0 does, and clear it afterwards so no pool thread keeps stale bits.
+        // (Parallel.For has completed; this is the same thread that calls DecodeAll below.)
         Ft8NativeResult[] pass2Results;
+        interop.SetApBits(ap?.MycallBits ?? [], ap?.HiscallBits ?? []);
         try
         {
             pass2Results = interop.DecodeAll(residual);
         }
-        catch (NativeAccessViolationException)
+        finally
         {
-            logger?.LogWarning(
-                "Sub-feas residual pass: native access violation during the residual decode call " +
-                "— treating as no new decodes for this cycle (fallback to pass-0-only).");
-            return [];
+            interop.SetApBits([], []);
         }
 
         if (pass2Results.Length == 0) return [];
+        if (Expired()) return DeadlineAbandon("after the residual decode");
 
         // ── Step 5: payload-based merge/dedup, RR73-aware ───────────────────
         var originalPayloads = candidates.Select(c => c.Payload77).ToList();

@@ -62,6 +62,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// </summary>
     private static readonly int SubtractionMaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 4);
 
+    /// <summary>
+    /// Hard per-cycle wall-clock budget (13 s, tasks.md runtime gate) for pass-0 plus the
+    /// residual pass. The residual pass gets whatever remains after pass-0 and abandons itself
+    /// (pass-0-only) if it runs out. Cooperative: an in-flight native call is not interruptible.
+    /// </summary>
+    private static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
+
     // Singleton default — stateless adapter; safe to share across instances.
     private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
 
@@ -356,12 +363,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         // the same `sw` timing window as pass-0 so the existing per-cycle "elapsed" log line
         // (below) already captures total cost with the flag on -- exactly the number tasks.md
         // 8.1's runtime gate needs, with no separate instrumentation required.
-        // SubtractionPass itself catches native access violations internally (returns empty,
-        // logs) per design.md Decision 4 -- no additional AV handling needed here.
+        // SubtractionPass contains EVERY non-cancellation failure internally (returns empty +
+        // logs a warning) per design.md Decision 4, so pass-0's results are never lost here.
+        // It also receives the AP constraints (native AP state is thread-local) and a wall-clock
+        // budget = whatever remains of the cycle budget after pass-0.
         if (_subtractionEnabled && native.Length > 0)
         {
             var newFromResidual = await SubtractionPass.RunAsync(
-                _interop, normalisedPcm, native, SubtractionMaxDegreeOfParallelism, _logger, ct);
+                _interop, normalisedPcm, native, SubtractionMaxDegreeOfParallelism, _logger,
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
             if (newFromResidual.Length > 0)
             {
                 var combined = new Ft8NativeResult[native.Length + newFromResidual.Length];

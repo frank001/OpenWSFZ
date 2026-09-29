@@ -23,6 +23,9 @@ namespace OpenWSFZ.Ft8.Interop;
 /// </summary>
 internal static class Ft8LibInterop
 {
+    /// <summary>Samples in one 15 s FT8 cycle at 12 kHz (shared with SubtractionPass).</summary>
+    internal const int PcmSampleCount = 180_000;
+
     /// <summary>
     /// The compile-time version constant embedded in the shim (<c>FT8_SHIM_VERSION</c>).
     /// Must match the value returned by <c>ft8_lib_version_check()</c>.
@@ -768,7 +771,7 @@ internal static class Ft8LibInterop
     /// </exception>
     public static Ft8NativeResult[] DecodeAll(float[] pcm)
     {
-        if (pcm.Length != 180_000)
+        if (pcm.Length != PcmSampleCount)
             throw new ArgumentException(
                 $"PCM buffer must be exactly 180 000 samples (15 s × 12 kHz). Got {pcm.Length}.",
                 nameof(pcm));
@@ -1099,7 +1102,7 @@ internal static class Ft8LibInterop
     public static (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
         float[] pcm, int coarseFreqHz, float coarseTimeOffsetS)
     {
-        if (pcm.Length != 180_000)
+        if (pcm.Length != PcmSampleCount)
             throw new ArgumentException(
                 $"PCM buffer must be exactly 180 000 samples (15 s × 12 kHz). Got {pcm.Length}.",
                 nameof(pcm));
@@ -1164,7 +1167,7 @@ internal static class Ft8LibInterop
     /// </exception>
     public static float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS)
     {
-        if (pcm.Length != 180_000)
+        if (pcm.Length != PcmSampleCount)
             throw new ArgumentException(
                 $"PCM buffer must be exactly 180 000 samples (15 s × 12 kHz). Got {pcm.Length}.",
                 nameof(pcm));
@@ -1198,15 +1201,15 @@ internal static class Ft8LibInterop
     /// <exception cref="InvalidOperationException">Thrown on any other negative return code.</exception>
     public static (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm)
     {
-        if (pcm.Length != 180_000)
+        if (pcm.Length != PcmSampleCount)
             throw new ArgumentException(
                 $"PCM buffer must be exactly 180 000 samples (15 s × 12 kHz). Got {pcm.Length}.",
                 nameof(pcm));
 
         EnsureInitialized();
 
-        var re = new float[180_000];
-        var im = new float[180_000];
+        var re = new float[PcmSampleCount];
+        var im = new float[PcmSampleCount];
         int rc = NativeSubfeasComputeAnalytic(pcm, re, im);
 
         if (rc == -2)
@@ -1246,7 +1249,7 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
 
-        var shat = new float[180_000];
+        var shat = new float[PcmSampleCount];
         int rc = NativeSubfeasFitSignal(xARe, xAIm, tones, decodedDtS, decodedFreqHz, shat);
 
         if (rc == -2)

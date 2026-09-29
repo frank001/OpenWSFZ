@@ -129,6 +129,97 @@ public sealed class SubtractionPassTests
         interop.DecodeAllCalled.Should().BeTrue();
     }
 
+    [Fact(DisplayName = "R1: AP bits are set on the residual decode's own thread immediately before DecodeAll, then cleared")]
+    public async Task ResidualDecode_SetsApBitsOnItsOwnThread_BeforeDecodeAll_ThenClears()
+    {
+        var pass0 = new[] { MakeResult("Q1ABC Q1XYZ JO33") };
+        var ap = new Ft8ApConstraints([1, 2, 3, 4], [5, 6, 7, 8]);
+        var interop = new FakeInterop { ResidualDecodeResults = [] };
+
+        await SubtractionPass.RunAsync(interop, new float[PcmLength], pass0, maxDegreeOfParallelism: 2, logger: null, ap: ap);
+
+        interop.Events.Should().Equal("SetApBits(set)", "DecodeAll", "SetApBits(clear)");
+        interop.ApThreadAtDecode.Should().Be(interop.DecodeThread, "AP bits must be set on the thread that runs DecodeAll");
+        interop.ApBitsAtDecode.Should().NotBeNull();
+        interop.ApBitsAtDecode!.Value.Mycall.Should().Equal(new byte[] { 1, 2, 3, 4 });
+        interop.ApBitsAtDecode.Value.Hiscall.Should().Equal(new byte[] { 5, 6, 7, 8 });
+    }
+
+    [Fact(DisplayName = "R1: no AP constraints -> AP bits explicitly cleared (never inherited from the pool thread) before DecodeAll")]
+    public async Task ResidualDecode_NoAp_ExplicitlyClearsBeforeDecodeAll()
+    {
+        var pass0 = new[] { MakeResult("Q1ABC Q1XYZ JO33") };
+        var interop = new FakeInterop { ResidualDecodeResults = [] };
+        interop.StaleApBitsOnEveryThread = true; // simulate a pool thread carrying pass-0-style leftovers
+
+        await SubtractionPass.RunAsync(interop, new float[PcmLength], pass0, maxDegreeOfParallelism: 2, logger: null, ap: null);
+
+        interop.ApBitsAtDecode.Should().NotBeNull();
+        interop.ApBitsAtDecode!.Value.Mycall.Should().BeEmpty("stale AP bits must not survive into the residual decode");
+        interop.ApBitsAtDecode.Value.Hiscall.Should().BeEmpty();
+    }
+
+    [Fact(DisplayName = "R2: compute-analytic access violation -> empty result, no exception")]
+    public async Task ComputeAnalyticAv_ReturnsEmpty()
+    {
+        var pass0 = new[] { MakeResult("Q1ABC Q1XYZ JO33") };
+        var interop = new FakeInterop { ComputeAnalyticThrows = new NativeAccessViolationException() };
+
+        var result = await SubtractionPass.RunAsync(interop, new float[PcmLength], pass0, maxDegreeOfParallelism: 2, logger: null);
+
+        result.Should().BeEmpty();
+        interop.DecodeAllCalled.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "R2: per-signal rc -1 (InvalidOperationException inside Parallel.For) -> empty result, no exception")]
+    public async Task PerSignalRcMinusOne_ReturnsEmpty()
+    {
+        var pass0 = new[] { MakeResult("Q1ABC Q1XYZ JO33"), MakeResult("Q1DEF Q1UVW EN37") };
+        var interop = new FakeInterop { FitSignalThrows = new InvalidOperationException("rc -1: workspace alloc failed") };
+
+        var result = await SubtractionPass.RunAsync(interop, new float[PcmLength], pass0, maxDegreeOfParallelism: 2, logger: null);
+
+        result.Should().BeEmpty();
+        interop.DecodeAllCalled.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "R2: EncodeMessage failure outside the InvalidOperationException path -> empty result, no exception")]
+    public async Task EncodeMessageFailure_ReturnsEmpty()
+    {
+        var pass0 = new[] { MakeResult("Q1ABC Q1XYZ JO33") };
+        var interop = new FakeInterop { EncodeThrows = new NativeAccessViolationException() };
+
+        var result = await SubtractionPass.RunAsync(interop, new float[PcmLength], pass0, maxDegreeOfParallelism: 2, logger: null);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact(DisplayName = "R2: caller cancellation still propagates (not swallowed as a residual-pass failure)")]
+    public async Task CallerCancellation_Propagates()
+    {
+        var pass0 = new[] { MakeResult("Q1ABC Q1XYZ JO33") };
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var act = () => SubtractionPass.RunAsync(new FakeInterop(), new float[PcmLength], pass0, maxDegreeOfParallelism: 2, logger: null, ct: cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact(DisplayName = "R3: exhausted wall-clock budget abandons the pass before any native fit work")]
+    public async Task ExhaustedDeadline_AbandonsPass()
+    {
+        var pass0 = new[] { MakeResult("Q1ABC Q1XYZ JO33") };
+        var interop = new FakeInterop { ResidualDecodeResults = [MakeResult("Q1GHI Q1JKL FN20")] };
+
+        var result = await SubtractionPass.RunAsync(interop, new float[PcmLength], pass0, maxDegreeOfParallelism: 2,
+            logger: null, deadline: TimeSpan.Zero);
+
+        result.Should().BeEmpty("a residual pass with no time budget must fall back to pass-0-only");
+        interop.DecodeAllCalled.Should().BeFalse();
+        interop.FitSignalCallCount.Should().Be(0);
+    }
+
     [Fact(DisplayName = "Wrong-length PCM buffer throws ArgumentException")]
     public async Task WrongLengthPcm_Throws()
     {
@@ -160,9 +251,22 @@ public sealed class SubtractionPassTests
         public bool ResidualDecodeThrowsAv { get; init; }
         public Func<byte[], bool>? FitSignalThrowsAvForTones { get; init; }
         public int FitSignalReturnCode { get; init; } = 0;
+        public Exception? ComputeAnalyticThrows { get; init; }
+        public Exception? FitSignalThrows { get; init; }
+        public Exception? EncodeThrows { get; init; }
+        public bool StaleApBitsOnEveryThread { get; set; }
+
+        // Thread-state observation (R1): a real native AP state is _Thread_local, so what matters
+        // is which thread SetApBits ran on relative to DecodeAll.
+        public List<string> Events { get; } = [];
+        public int? DecodeThread { get; private set; }
+        public int? ApThreadAtDecode { get; private set; }
+        public (byte[] Mycall, byte[] Hiscall)? ApBitsAtDecode { get; private set; }
+        private readonly System.Threading.ThreadLocal<(byte[] Mycall, byte[] Hiscall)?> _tlsAp = new(() => null);
 
         public byte[] EncodeMessage(string message)
         {
+            if (EncodeThrows is not null) throw EncodeThrows;
             var tones = new byte[79];
             Ft8LibInterop.EncodeMessage(message, tones);
             return tones;
@@ -171,6 +275,7 @@ public sealed class SubtractionPassTests
         public (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm)
         {
             ComputeAnalyticCalled = true;
+            if (ComputeAnalyticThrows is not null) throw ComputeAnalyticThrows;
             return (new float[pcm.Length], new float[pcm.Length]);
         }
 
@@ -179,6 +284,7 @@ public sealed class SubtractionPassTests
         {
             Interlocked.Increment(ref _fitCallCount);
             FitSignalCallCount = _fitCallCount;
+            if (FitSignalThrows is not null) throw FitSignalThrows;
             if (FitSignalThrowsAvForTones?.Invoke(tones) == true)
                 throw new NativeAccessViolationException();
             return (FitSignalReturnCode, new float[PcmLength]);
@@ -188,6 +294,12 @@ public sealed class SubtractionPassTests
         public Ft8NativeResult[] DecodeAll(float[] pcm)
         {
             DecodeAllCalled = true;
+            lock (Events) Events.Add("DecodeAll");
+            DecodeThread = Environment.CurrentManagedThreadId;
+            // Read the calling thread's AP state, as the native decode would.
+            var seen = _tlsAp.Value ?? (StaleApBitsOnEveryThread ? ([9, 9, 9, 9], [9, 9, 9, 9]) : ([], []));
+            ApBitsAtDecode = seen;
+            ApThreadAtDecode = _tlsAp.Value is null ? null : DecodeThread;
             if (ResidualDecodeThrowsAv) throw new NativeAccessViolationException();
             return ResidualDecodeResults;
         }
@@ -204,7 +316,12 @@ public sealed class SubtractionPassTests
         public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
             => (new float[maxPasses], new float[maxPasses], new int[maxPasses]);
 
-        public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { }
+        public void SetApBits(byte[] mycallBits, byte[] hiscallBits)
+        {
+            bool clear = mycallBits.Length == 0 && hiscallBits.Length == 0;
+            lock (Events) Events.Add(clear ? "SetApBits(clear)" : "SetApBits(set)");
+            _tlsAp.Value = (mycallBits, hiscallBits); // per-thread, like native TLS
+        }
         public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { }
 
         public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
