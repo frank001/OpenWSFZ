@@ -414,6 +414,7 @@ public static class WebApp
                 rawBody = await bodyReader.ReadToEndAsync(ct);
 
             AppConfig config;
+            JsonObject bodyObject;
             try
             {
                 var bodyNode = JsonNode.Parse(rawBody);
@@ -422,9 +423,10 @@ public static class WebApp
                 // was always a deserialisation error, so it stays "Malformed JSON.".
                 if (bodyNode is null)
                     return Results.BadRequest("Missing or empty request body.");
-                if (bodyNode is not JsonObject bodyObject)
+                if (bodyNode is not JsonObject parsedObject)
                     return Results.BadRequest("Malformed JSON.");
 
+                bodyObject = parsedObject;
                 config = ConfigOverlay.Apply(store.Current, bodyObject);
             }
             catch (Exception ex) when (ex is JsonException or ArgumentException)
@@ -589,6 +591,34 @@ public static class WebApp
                     return Results.BadRequest(
                         "externalReporting.role is \"follower\" but leaderUrl is missing or empty — " +
                         "a follower requires a leaderUrl to relay to.");
+                }
+            }
+
+            // ── Cycle audio archive config validation (design D5) ──────────────────
+            // CycleArchiveService.EnforceRetention treats maxSizeMb <= 0 as "keep 0 bytes" and
+            // maxAgeHours <= 0 as "everything is older than the cutoff": either deletes the whole
+            // archive on the next sweep. A huge maxAgeHours overflows TimeSpan/DateTime and silently
+            // disables retention. So an out-of-range value is rejected (400, nothing persisted) rather
+            // than clamped: a data-destroying setting must not be quietly rewritten.
+            // Only a value the BODY sent is checked. A stored out-of-range value (file-edited) is left
+            // alone, so it can never block an unrelated save.
+            if (bodyObject["cycleAudioArchive"] is JsonObject archiveBody)
+            {
+                if (archiveBody.ContainsKey("maxSizeMb")
+                    && config.CycleAudioArchive.MaxSizeMb < CycleAudioArchiveConfig.MinMaxSizeMb)
+                {
+                    return Results.BadRequest(
+                        $"cycleAudioArchive.maxSizeMb must be at least {CycleAudioArchiveConfig.MinMaxSizeMb}: " +
+                        "0 or a negative size would make the retention sweep delete the whole archive.");
+                }
+                if (archiveBody.ContainsKey("maxAgeHours")
+                    && config.CycleAudioArchive.MaxAgeHours is < CycleAudioArchiveConfig.MinMaxAgeHours
+                                                              or > CycleAudioArchiveConfig.MaxMaxAgeHours)
+                {
+                    return Results.BadRequest(
+                        $"cycleAudioArchive.maxAgeHours must be between {CycleAudioArchiveConfig.MinMaxAgeHours} " +
+                        $"and {CycleAudioArchiveConfig.MaxMaxAgeHours}: 0 or a negative age would make the " +
+                        "retention sweep delete the whole archive, and a larger one overflows the date arithmetic.");
                 }
             }
 
