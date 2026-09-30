@@ -1,0 +1,38 @@
+diff --git a/openspec/changes/sub-feas-native-subtraction/tasks.md b/openspec/changes/sub-feas-native-subtraction/tasks.md
+index 417fcf9c..9d9ae1f7 100644
+--- a/openspec/changes/sub-feas-native-subtraction/tasks.md
++++ b/openspec/changes/sub-feas-native-subtraction/tasks.md
+@@ -167,12 +167,18 @@ yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented i
+ 
+ ## 7. Stability gate — independent of decode-rate accuracy (spec ADDED requirement)
+ 
+-- [ ] 7.1 Run a sustained, multi-hour, multi-cycle stress pass with the flag enabled against varied real
++> **Captain's decision, 2026-09-30 (via the Architect, spec §5f): §7 is MET on existing evidence** and no separate stress run is
++> required. The evidence is two flag-ON multi-hour replays (the §8.1 replay 20:49Z–00:27Z, about 3.6 h, and the Stage A acceptance
++> 10:11Z–13:54Z, about 3.7 h), each with 0 access violations, 0 contained exceptions and 0 non-zero process exits. **Stated gaps:**
++> those runs held only busy cycles (no silence or single-signal mix) and measured no memory, so **memory is checked in the first
++> on-air flag-ON run instead**. The Captain: a separate run would be "quite excessive, with also 2x 3.6h already in the pocket".
++
++- [x] 7.1 Run a sustained, multi-hour, multi-cycle stress pass with the flag enabled against varied real
+       or replayed audio (silence, single-signal, and dense multi-signal cycles) — the historical crashes
+       were never caught by a decode-rate corpus; this gate exists specifically because of that history.
+-- [ ] 7.2 Confirm no crash and no unbounded memory growth attributable to the subtraction path over the
++- [x] 7.2 Confirm no crash and no unbounded memory growth attributable to the subtraction path over the
+       run (HK-019-style orphan/resource check).
+-- [ ] 7.3 Report the stress result plainly, including if it fails — a FAIL here is a valid, useful
++- [x] 7.3 Report the stress result plainly, including if it fails — a FAIL here is a valid, useful
+       result (mirrors how Stage 1's own FAIL was treated as real and reportable, not something to route
+       around).
+ 
+@@ -205,8 +211,9 @@ yet). One unrelated pre-existing flake (`CycleArchiveServiceTests`, documented i
+ ## 10. QA review and Captain sign-off
+ 
+ - [ ] 10.1 QA reviews the diff against this `tasks.md` and `design.md` (HK-002/HK-006) — in particular
+-      §3 (memory safety), §7 (stability gate), and §8 (measurement gates) are treated as hard blockers,
+-      not advisory. Code review pass 1 returned R1-R3; pass 2 approved 91444300 (code only). Open before merge: 6.3/6.5/6.6 dedicated tests, 6.7 (deferred), 6.8 Linux/macOS, 5.1 UI checkbox gap, Captain merge sign-off (HK-010). Code review pass 3 approved 2b39cf18 (code); libft8.dll unchanged 5a6a4dc0...e38c5; Ft8.Tests 364/364. Open before merge: 6.8 Linux/macOS, 5.1 UI checkbox, 6.7 deferred, 6.6 native half unmet by design, Captain merge sign-off.
++      §3 (memory safety) and §7 (stability gate) are treated as hard blockers, not advisory. **§8 (8.1-8.3) is NOT a merge blocker:
++      it gates LIVE USE** (the §8 header and the spec's "Live-use readiness" requirement; corrected 2026-09-30, this sentence used to list §8
++      as a hard blocker, contradicting both). §7 was ruled MET by the Captain on existing evidence (2026-09-30, see §7). Code review pass 1 returned R1-R3; pass 2 approved 91444300 (code only). Open before merge: 6.3/6.5/6.6 dedicated tests, 6.7 (deferred), 6.8 Linux/macOS, 5.1 UI checkbox gap, Captain merge sign-off (HK-010). Code review pass 3 approved 2b39cf18 (code); libft8.dll unchanged 5a6a4dc0...e38c5; Ft8.Tests 364/364. Open before merge: 6.8 Linux/macOS, 5.1 UI checkbox, 6.7 deferred, 6.6 native half unmet by design, Captain merge sign-off.
+ - [ ] 10.2 `git diff --stat main -- src/ native/` confirmed non-empty and scoped to what this proposal's
+       Impact section named — no unrelated changes folded in.
+ - [ ] 10.3 **CAPTAIN DECISION** — merge sign-off (HK-010). The flag remains OFF by default regardless of
