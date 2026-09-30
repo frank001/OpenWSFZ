@@ -1,0 +1,37 @@
+{
+ "threads": 8,
+ "cycles": 161,
+ "bar": {
+  "abandons": 0,
+  "max_whole_call_ms": 13000
+ },
+ "whole_call_ms": {
+  "n": 161,
+  "p50": 6729.7,
+  "p95": 9246.1,
+  "max": 12001.1
+ },
+ "time_to_batch1_ms": {
+  "n": 161,
+  "p50": 520.3,
+  "p95": 684.5,
+  "max": 798.8
+ },
+ "pass_elapsedMs": {
+  "n": 161,
+  "p50": 6203,
+  "p95": 8805,
+  "max": 11404
+ },
+ "abandoned": 0,
+ "contained_lines": 0,
+ "av_warnings": 0,
+ "contained_warnings": 0,
+ "rows_with_exception": 0,
+ "log_lines_equal_cycles": true,
+ "residualDecodes_total": 795,
+ "e3_baseline_residual": 795,
+ "residual_equals_baseline": true,
+ "fittedSignals_max": 30,
+ "PASS": true
+}
