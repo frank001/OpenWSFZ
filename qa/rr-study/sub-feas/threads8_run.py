@@ -61,12 +61,14 @@ def main():
     ps = subprocess.run(["powershell", "-NoProfile", "-Command",
                          "(Get-Process | Where-Object { $_.ProcessName -match '^(wsjtx|jt9|OpenWSFZ)' } | "
                          "Select-Object -ExpandProperty ProcessName) -join ','"], capture_output=True, text=True).stdout.strip()
-    assert ps == "", ("WSJT-X / jt9 / OpenWSFZ is running", ps)
+    if os.environ.get("ANALYSE_ONLY") != "1":
+        assert ps == "", ("WSJT-X / jt9 / OpenWSFZ is running", ps)
     json.dump({"utc": R.now(), "threads": THREADS, "libft8_sha256": DLL, "build": "247ac391",
                "harness_commit": sh("git", "rev-parse", "HEAD").stdout.strip(),
                "harness_dll_sha256": R.sha256(os.path.join(HOUT, "Replay81.dll"))},
               open(os.path.join(OUT, "preflight.json"), "w"), indent=1)
-    R.env_snapshot("env_start.txt")
+    if os.environ.get("ANALYSE_ONLY") != "1":
+        R.env_snapshot("env_start.txt")
 
     per = {}
     for run in RUNS:
@@ -89,7 +91,8 @@ def main():
         rows = list(csv.DictReader(open(csvp, newline="")))
         sub, av, cw, other = B.parse_log(logp)
         per[run] = {"rows": rows, "sub": sub, "av": av, "cw": cw}
-    R.env_snapshot("env_end.txt")
+    if os.environ.get("ANALYSE_ONLY") != "1":
+        R.env_snapshot("env_end.txt")
 
     whole = [float(r["elapsed_ms"]) for run in RUNS for r in per[run]["rows"]]
     tb1 = [float(r["tb1_ms"]) for run in RUNS for r in per[run]["rows"]]
