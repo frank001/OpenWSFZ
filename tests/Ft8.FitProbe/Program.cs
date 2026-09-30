@@ -8,6 +8,7 @@ using OpenWSFZ.Ft8.Interop;
 //
 //   Ft8.FitProbe e1   --dll <libft8.dll> --out <csv> [--wav <file>]... [--grid <n>] [--threads <t>] [--seed <s>]
 //   Ft8.FitProbe time --dll <libft8.dll> --wav <file> [--threads <t>]
+//   Ft8.FitProbe fitprofile|fitsummary|fitcompare ...   Stage B step-1 per-phase fit profile; see FitProfile.cs
 //
 // e1   Hash probe (E1). Pass-0 decodes each cycle THROUGH the given DLL, encodes each re-encodable decode, fits it
 //      with NO deadline, and writes one CSV row per (label, signal): rc and sha256(out_shat), plus per-cycle rows
@@ -35,6 +36,8 @@ internal static class Probe
     {
         if (args.Length == 0) return Usage();
         string mode = args[0];
+        // Stage B step-1 fit profile (sub-feas-speed-redesign tasks.md 15.1): its own modes and arguments.
+        if (mode is "fitprofile" or "fitsummary" or "fitcompare") return FitProfile.Run(args);
         string? dll = null, outPath = null;
         var wavs = new List<string>();
         int grid = 0, threads = 1, seed = 20260930;
@@ -211,7 +214,7 @@ internal static class Probe
     // ── helpers ──────────────────────────────────────────────────────────
 
     /// <summary>SubtractionPass.IsReencodable, restated: no hash placeholder and at least 3 tokens.</summary>
-    private static bool IsReencodable(string msg)
+    internal static bool IsReencodable(string msg)
     {
         if (msg.Contains('<')) return false;
         int tokens = 0; bool inToken = false;
@@ -234,7 +237,7 @@ internal static class Probe
         return Hex(SHA256.HashData(ms.ToArray())).Substring(0, 16);
     }
 
-    private static string HashFloats(params float[][] arrays)
+    internal static string HashFloats(params float[][] arrays)
     {
         using var h = SHA256.Create();
         foreach (float[] a in arrays)
@@ -247,7 +250,7 @@ internal static class Probe
         return Hex(h.Hash!);
     }
 
-    private static string Hex(byte[] b) => Convert.ToHexString(b).ToLowerInvariant();
+    internal static string Hex(byte[] b) => Convert.ToHexString(b).ToLowerInvariant();
 
     /// <summary>Deterministic white-noise cycle (seeded LCG), RMS-normalised: the grid's fallback input.</summary>
     private static float[] NoiseCycle(int seed)
@@ -259,7 +262,7 @@ internal static class Probe
     }
 
     /// <summary>12 kHz mono WAV (int16 or float32) to float[]; asserts exactly 180 000 samples.</summary>
-    private static float[] ReadWav(string path)
+    internal static float[] ReadWav(string path)
     {
         byte[] d = File.ReadAllBytes(path);
         if (d.Length < 44 || Encoding.ASCII.GetString(d, 0, 4) != "RIFF") throw new InvalidDataException("not a RIFF file");
