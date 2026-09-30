@@ -162,6 +162,10 @@ them accordingly.
   is also the default**, so the #193 reset defect degrades it to auto rather than to a wrong value. The Settings page
   does not send `subtractionEnabled` or `subtractionMaxThreads`, so until the config-save fix lands, a Settings save
   resets both (the flag to OFF, which fails safe). The Engineer owns that fix and is told of these two keys.
+- **QA's open question (design.md), confirmed:** any non-zero value clamps to `[1, ProcessorCount]`, so a negative value
+  becomes 1. The clamp logs **one warning when the config is applied** (the existing clamp-with-warning pattern for
+  CAT/TX/Decoder in `POST /api/v1/config`), never per cycle: nothing new goes on the hot path. 1 is the conservative
+  direction (slower, so the deadline abandons; it cannot overload the machine).
 
 ## 6. Hygiene
 
