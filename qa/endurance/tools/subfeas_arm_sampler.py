@@ -85,12 +85,15 @@ def main():
     ap.add_argument("--expect-subtraction", default="true", choices=["true", "false"])
     ap.add_argument("--expect-archive-mode", default="all")
     ap.add_argument("--expect-nhard", type=int, default=40)
+    ap.add_argument("--expect-threads", type=int, default=8,
+                    help="decoder.subtractionMaxThreads the run is armed with (2026-09-30: 8, Architect/Captain); asserted at every sample")
     a = ap.parse_args()
 
     d = os.path.join(a.run_dir, "subfeas_arm")
     os.makedirs(d, exist_ok=True)
     open(os.path.join(d, "sampler.pid"), "w").write(str(os.getpid()))
-    expect = {"subtractionEnabled": a.expect_subtraction == "true", "autoAnswer": False,
+    expect = {"subtractionEnabled": a.expect_subtraction == "true", "subtractionMaxThreads": a.expect_threads,
+              "autoAnswer": False,
               "cycleAudioArchiveMode": a.expect_archive_mode, "osdNhardMax": a.expect_nhard}
     end = utcnow() + datetime.timedelta(hours=a.hours)
     log = open(os.path.join(d, "sampler.log"), "a", encoding="utf-8")

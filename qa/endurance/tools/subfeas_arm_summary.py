@@ -88,6 +88,16 @@ def main():
                 "residualDecodes_total": sum(res), "residualDecodes_mean": (sum(res) / len(res)) if res else None,
                 "elapsedMs": stats(ms), "fittedSignals_mean": (sum(r["fit"] for r in recs) / len(recs)) if recs else None}
 
+    # HEADLINE (Architect, 2026-09-30): the live abandon rate, split by the number of signals selected for fitting.
+    def band(f):
+        return "<=25" if f <= 25 else "26-28" if f <= 28 else "29+"
+    by_band = {}
+    for b in ("<=25", "26-28", "29+"):
+        recs = [r for r in sub_all if band(r["fit"]) == b]
+        by_band[b] = {"lines": len(recs), "abandoned": sum(r["ab"] for r in recs),
+                      "abandon_fraction": (sum(r["ab"] for r in recs) / len(recs)) if recs else None,
+                      "elapsedMs": stats([r["ms"] for r in recs])}
+    out["HEADLINE_abandon_by_signal_count"] = by_band
     out["overall"] = {"cycles": len(el_all), "time_to_batch1_or_whole_ms_per_cycle_line": stats(el_all),
                       "sub_feas": sub_summary(sub_all)}
     out["per_utc_hour"] = {h: {"cycles": v["cycles"], "decodes": v["decodes"], "elapsed_line_ms": stats(v["elapsed"]),
