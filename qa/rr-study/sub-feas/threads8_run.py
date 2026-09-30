@@ -73,13 +73,17 @@ def main():
         R.status("RUN", run=run, threads=THREADS)
         csvp = os.path.join(OUT, f"run_{run}.csv")
         logp = os.path.join(OUT, f"run_{run}.log")
-        for p in (csvp, logp):
-            if os.path.exists(p):
-                os.remove(p)
+        if os.environ.get("ANALYSE_ONLY") != "1":   # added after the harness runs, before any result was read
+            for p in (csvp, logp):
+                if os.path.exists(p):
+                    os.remove(p)
         cmd = ["dotnet", os.path.join(HOUT, "Replay81.dll"), "--selection", DERIVED, "--run", run, "--stratum", "E1",
                "--wav-root", ART, "--out", csvp, "--log", logp, "--mode", "two1", "--threads", str(THREADS),
                "--label", f"247ac391:t{THREADS}_{run}"]
-        rc = subprocess.run(cmd, capture_output=True, text=True).returncode
+        if os.environ.get("ANALYSE_ONLY") == "1":
+            rc = 0
+        else:
+            rc = subprocess.run(cmd, capture_output=True, text=True).returncode
         R.log(f"harness run_{run} rc={rc}")
         assert rc == 0
         rows = list(csv.DictReader(open(csvp, newline="")))
@@ -98,7 +102,7 @@ def main():
     residual = sum(s["residual"] for s in sub_all)
     st = lambda v: {"n": len(v), "p50": B.med(v), "p95": B.pct(v, .95), "max": max(v) if v else None}
     res = {"threads": THREADS, "cycles": len(whole), "bar": {"abandons": 0, "max_whole_call_ms": MAX_WHOLE_CALL_MS},
-           "whole_call_ms": st(whole), "time_to_batch1_ms": st(tb1), "pass_elapsedMs": st([s["ms"] for s in sub_all]),
+           "whole_call_ms": st(whole), "time_to_batch1_ms": st(tb1), "pass_elapsedMs": st([s["elapsed_ms"] for s in sub_all]),
            "abandoned": n_ab, "contained_lines": n_co, "av_warnings": av, "contained_warnings": cw, "rows_with_exception": exc,
            "log_lines_equal_cycles": len(sub_all) == len(whole),
            "residualDecodes_total": residual, "e3_baseline_residual": E3_BASELINE_RESIDUAL,
