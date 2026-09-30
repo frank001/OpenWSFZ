@@ -66,6 +66,24 @@ Special cases the fixture must handle: enums (pick a non-default member), `strin
 `nhard40MigrationApplied` (set `true`), and `remoteAccess.enabled` (keep `false` unless a passphrase is
 also set, or validation rejects the fixture).
 
+### D3.1: fields that exist only on unmerged branches (Architect note, 2026-09-30)
+
+`decoder.subtractionEnabled` (on `feat/sub-feas-native-subtraction`, `DecoderConfig.cs`) and
+`decoder.subtractionMaxThreads` (QA's speed-redesign change, `0` = auto) are not on `c3f42362`, so the
+§0.1 audit could not see them. The Settings page sends neither, so today a save resets both.
+
+- **Confirmed:** T4 and T5 MUST enumerate `AppConfig` **by reflection at test time**, never from a
+  hand-written field list, so they cover both fields whichever change merges second. A hand-written
+  list is a review-blocking defect. The Developer adds one guard test asserting the enumeration
+  reaches every public property of `DecoderConfig` (count taken by reflection, compared with the
+  leaves the fixture set).
+- **`decoder.nhard40MigrationApplied` MUST keep working when `DecoderConfig` gains fields.** The force
+  from the store is a per-key override applied after the merge, so it must name only that key and must
+  not rebuild the record positionally or copy a fixed field list. T10 stays valid unchanged.
+- Part E's `decoder.*` watch prefix already covers both new keys with no code change, which matters for
+  SUB-FEAS flag-OFF/flag-ON controls.
+- Whichever change merges second must re-run T4/T5. Record that in its own handoff.
+
 ## D4: dirty-state and payload (Part C)
 
 `snapshotForm()` (`settings.js:330`) gains the archive group. `postConfig({...})` (`:1354-1371`) gains
