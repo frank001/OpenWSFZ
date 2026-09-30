@@ -268,6 +268,19 @@ not implied by this amendment.
     deadline held at 4 workers, max 12 095 ms).
 - 🛑 Unchanged: the flag stays **OFF** by default. A first on-air flag-ON session needs the Captain's explicit go.
 
+## 5e. Decision record (2026-09-30): late double-click on a batch-2 row, NO CHANGE (Captain)
+
+- **Finding (g)**, from the Developer's characterisation test and QA's review of `247ac391`: a double-click on a
+  batch-2 CQ row arms the reply and keys PTT **at once**, about 5.5 s into the slot. `TransmitAsync` truncates it
+  (D-CALLER-021), so the transmission is undecodable. This is the existing late-click behaviour, made common by
+  batch 2's arrival time.
+- **Captain, 2026-09-30:** *"when I look at wsjt-x is just starts transmitting no matter where it is in the cycle, the
+  operator is in full control even when it is known to fail. I quite like that, it gives also direct feedback to the
+  operator."* ⇒ **Deliberate behaviour, matching WSJT-X. No lateness gate, no refusal, no row marking.** Keep the
+  characterisation test (g) as the record of the behaviour. Do not file it as a defect again.
+- The misleading external-reporting diagnostic (`_lastDecodeBatch` becomes batch 2, so "Reply named X not found"
+  fires for a pass-0 CQ) is behaviour-neutral. Low priority, not in this change unless the Captain asks.
+
 ## 6. Hygiene
 
 - 🔒 NFR-021 / HK-037: stamps and integers only, as in §8.1. The E1 harness writes hashes and rcs, never text.
