@@ -44,9 +44,10 @@ def read_outcomes(path):
         return d
     for line in open(path, encoding="utf-8"):
         p = line.rstrip("\n").split(",")
-        if len(p) != 7:
+        if len(p) not in (6, 7):
             continue
-        d[p[0]][p[1]].append((int(p[3]), float(p[4]), int(p[5]), p[6]))
+        # 6 fields = numeric only (default since 2026-09-30); a 7th is the legacy 8-hex text hash (HK-037: message identity)
+        d[p[0]][p[1]].append((int(p[3]), float(p[4]), int(p[5]), p[6] if len(p) == 7 else ""))
     return d
 
 

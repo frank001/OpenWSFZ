@@ -87,6 +87,10 @@ internal static class Program
                                 : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
         // Optional outcome keys (S1): per decode only NUMERIC fields plus an 8-hex-digit hash of the message text; the
         // text itself never leaves the function that reads it (HK-037 / NFR-021). Written to a gitignored artefact.
+        // HK-037 clarification (Architect, 2026-09-30): a text-DERIVED hash counts as message identity. So the per-decode
+        // text hash is OFF by default and only written when the explicit flag --outcome-text-hash true is given, which no
+        // standard run sets. Default outcome lines are numeric only: stamp,kind,idx,freqHz,dt,snr.
+        _outcomeTextHash = a.TryGetValue("outcome-text-hash", out var oth) && oth == "true";
         if (a.TryGetValue("outcomes", out var outcomesPath))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outcomesPath))!);
@@ -201,10 +205,12 @@ internal static class Program
 
     private static bool _wide;
     private static StreamWriter? _outcomes;
+    private static bool _outcomeTextHash;   // default OFF (HK-037: a text-derived hash is message identity)
 
     /// <summary>
-    /// One line per decode: <c>stamp,kind,idx,freqHz,dt,snr,texthash8</c>. Numeric fields plus an 8-hex-digit hash of
-    /// the message text (computed here, in memory); the text is never written anywhere.
+    /// One line per decode: <c>stamp,kind,idx,freqHz,dt,snr</c> (numeric only). The 7th field, an 8-hex-digit hash of the
+    /// message text, is written ONLY when <c>--outcome-text-hash true</c> is given (default off, HK-037: a text-derived
+    /// hash is message identity); the text itself is never written anywhere.
     /// </summary>
     private static void WriteOutcomes(string stamp, string kind, IReadOnlyList<DecodeResult> list)
     {
@@ -212,10 +218,12 @@ internal static class Program
         for (int i = 0; i < list.Count; i++)
         {
             var r = list[i];
-            string h = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(r.Message.TrimEnd())))[..8];
-            _outcomes.WriteLine(string.Join(",", stamp, kind, i.ToString(CultureInfo.InvariantCulture),
+            var fields = new List<string> { stamp, kind, i.ToString(CultureInfo.InvariantCulture),
                 r.FreqHz.ToString(CultureInfo.InvariantCulture), r.Dt.ToString("F1", CultureInfo.InvariantCulture),
-                r.Snr.ToString(CultureInfo.InvariantCulture), h));
+                r.Snr.ToString(CultureInfo.InvariantCulture) };
+            if (_outcomeTextHash)
+                fields.Add(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(r.Message.TrimEnd())))[..8]);
+            _outcomes.WriteLine(string.Join(",", fields));
         }
     }
 
