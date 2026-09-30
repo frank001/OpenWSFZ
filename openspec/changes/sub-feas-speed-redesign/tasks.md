@@ -135,7 +135,7 @@
       Report the change either way. M1 is absent: P4 is scored on M2 + M3 alone and nothing here may be credited to M1.
 - [ ] 10.4 Row T (report only): R1′/R2′ at `subtractionMaxThreads = 4` on the H stratum, to separate the thread
       effect from the code effect.
-- [ ] 10.5 **MERGE GATE (the Captain's plan, via the Architect, 2026-09-30: "we'll merge everything before Stage B, including the config fix"):** the flag-OFF control (same predicate as the base ruling 2), **native AND managed `DecodeAsync` paths**, run on the **final combined head** (SUB-FEAS base + Stage A + two-stage publish + the Engineer's config-save fix), after S1/S2/S2b, because that is what merges. Config-save does not touch the decode path, but the control runs on what actually merges. **Stage B merges later and has its own control run** on its native DLL (§15.7). Each merge needs the Captain's sign-off (HK-010); only QA pushes.
+- [ ] 10.5 **MERGE GATE, REPLACED (Captain, 2026-09-30, Architect spec 5g): one ~15-minute end-to-end run, done by the ENGINEER**, instead of the full native + managed flag-OFF control. **The run:** `origin/main` (c3f42362) vs the merge head `247ac391` (code-identical to the docs-only tip), `DecodeAsync` with the flag OFF, the 161 E1 cycles, a fresh process per (build, run), same order, numeric outcomes compared in order on (freqHz, dt, snr); **PASS iff 161/161.** It closes the one untested link (main's managed path vs SUB-FEAS's); the native chain is covered by the original 182-cycle control (5a6a4dc0 = merge-base = DI) and Stage A E1 (flag-OFF outcome fields identical between 2b39cf18 and ee00d118 on 161 real cycles), and the managed path by QA's interim `2b39cf18` vs `247ac391` comparison (161/161). Harness: `qa/rr-study/sub-feas/replay81` (numeric-only, 70c01fc9) and `flagoff_managed_compare.py`. If the merge head later changes its native DLL (Stage B), this run is repeated on that build.
 - [ ] 10.6 Report in the standard format with both DLL SHA pins, the selection SHA, the harness commit, the exact
       command lines, the blind spot (no real cycle above 32 signals; other hardware not covered), and the
       Architect's predictions P1–P4 scored by the Architect at the acceptance ruling, not by QA.
@@ -202,7 +202,7 @@
 - [ ] 14.3 **S2b** (REPORT ONLY, accepted, Amendment 3): time from batch-1 publish to receipt by a WebSocket client
       **while the residual pass is running** (14 fit workers can crowd the thread pool that WebSocket delivery also
       uses), against the flag-OFF delivery time. If materially above, it goes back to the Architect before any live use.
-- [ ] 14.4 The flag-OFF control extended to the managed path (Amendment 3) is the **merge gate of §10.5**, run on the final combined head. **Interim datum:** the two-stage acceptance run's S1 phase records flag-OFF `DecodeAsync` outcomes for `2b39cf18` and the two-stage build in fresh processes over the same 161 cycles in the same order; that comparison is reported as an interim managed datum, **not** as the merge control.
+- [ ] 14.4 **The merge control is the Engineer's end-to-end run of §10.5** (replacing the full native + managed control). QA's interim datum stands: the S1 phase of the two-stage acceptance recorded flag-OFF `DecodeAsync` outcomes for `2b39cf18` and the two-stage build in fresh processes over the same 161 cycles in the same order, identical 161/161 (an interim managed datum, not the merge control).
 - [ ] 14.5 E1, R0-R7 and any Stage B rows are unchanged; batch 2's publish time is R1′'s whole-call time.
 - [ ] 14.6 State in the report: **a first on-air flag-ON session is a new decision needing the Captain's explicit go**;
       nothing here implies it.
@@ -244,7 +244,7 @@ Stage A; the two combine at merge (both are Captain decisions).
       the flag-OFF path. Same instrument as Stage A (the `--threads` argument exists).
 - [ ] 15.6 **B1 licence:** permissive only (MIT/BSD/ISC); pocketfft-C (BSD-3) qualifies; **FFTW is GPL and prohibited.** Add the
       licence file under `native/` and make `tools/LicenseInventoryCheck` pass.
-- [ ] 15.7 **After the last item:** full unfiltered `dotnet test`; every DLL pinned by SHA-256 (actual and pinned). Stage B merges **after** the SUB-FEAS + config-save merge (Captain's plan), so the flag-OFF control (native **and** managed, §10.5) runs again at **Stage B's merge**, on Stage B's native DLL.
+- [ ] 15.7 **After the last item:** full unfiltered `dotnet test`; every DLL pinned by SHA-256 (actual and pinned). Stage B merges **after** the SUB-FEAS + config-save merge (Captain's plan); the §10.5 end-to-end flag-OFF run is **repeated on Stage B's build** (it changes the native DLL).
 - [ ] 15.8 Report in the standard format with the blind spot up front: **T′ is measured at 4 workers on a 16-thread machine, a
       proxy for a small machine, not the same thing** (a real 4-thread machine defaults to 2 workers and contends with the
       rest of the system), and no real cycle has more than 31 signals. State that the flag stays OFF and a first on-air
