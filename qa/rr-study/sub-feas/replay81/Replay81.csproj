@@ -17,6 +17,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RepoRoot Condition="'$(RepoRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\..</RepoRoot>
     <DefineConstants Condition="'$(HasSubfeas)' == 'true'">$(DefineConstants);HAS_SUBFEAS</DefineConstants>
+    <!-- sub-feas-speed-redesign: only the candidate build (ca0bcd9b) has SetSubtractionMaxThreads. -->
+    <DefineConstants Condition="'$(HasMaxThreads)' == 'true'">$(DefineConstants);HAS_MAXTHREADS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

@@ -60,7 +60,20 @@ internal static class Program
         var logger = new ReplayLogger<Ft8Decoder>(log);
         var decoder = new Ft8Decoder(new WallClock(), logger);
         decoder.SetDecodeParams(KMinScorePass2, OsdCorrThreshold, OsdNhardMax);
-        log.Raw($"# harness label={label} run={run} stratum={stratum} mode={mode} shim={Ft8Decoder.LoadedShimVersion}");
+        // sub-feas-speed-redesign: the ONLY change to this harness for the speed acceptance is the new config key
+        // decoder.subtractionMaxThreads (0 = auto). Absent --threads leaves the decoder at its default (auto).
+        // Only the candidate build has the setter (-p:HasMaxThreads=true); the base build cannot be asked for it.
+        string threadsNote = "default";
+        if (a.TryGetValue("threads", out var thr))
+        {
+#if HAS_MAXTHREADS
+            decoder.SetSubtractionMaxThreads(int.Parse(thr, CultureInfo.InvariantCulture));
+            threadsNote = thr;
+#else
+            throw new InvalidOperationException("this build has no subtractionMaxThreads setter");
+#endif
+        }
+        log.Raw($"# harness label={label} run={run} stratum={stratum} mode={mode} threads={threadsNote} shim={Ft8Decoder.LoadedShimVersion}");
 
         var done = LoadDone(outCsv);
         bool newFile = !File.Exists(outCsv);
