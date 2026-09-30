@@ -222,6 +222,32 @@ Either way, two-stage publish is required before any live use. Live use itself r
 the flag stays OFF by default. A first on-air flag-ON session is a **new decision, needing his explicit go**; it is
 not implied by this amendment.
 
+## 5c. Amendment 3 (2026-09-30, after QA's fold-in `qa/sub-feas` `3f0183b3`; correction accepted, proposals accepted)
+
+- **CORRECTION to P-5's stated consequence (drafting defect mine, verified):** `_lastIdleDecodeBatch` is read **only**
+  by `QsoAnswererService.TryEngageExternal` (`:382`), reached from `QsoControllerRouter.cs:162`, i.e. the
+  **external (GridTracker/UDP) reply** path. The **double-click** path (`POST /api/v1/tx/engage-decode`,
+  `WebApp.cs:1633`) takes its target from the browser row and validates it with `IEngagementTargetValidator`; it does
+  not read that snapshot. So:
+  - a batch-2 row **can probably be engaged by double-click**, but it arrives ≈ 20.5 s into the cycle, after the
+    17.36 s slot. What the answerer does with that pending target in the next window is **unverified**. QA's
+    characterisation test (g) records it, with **no behaviour change** in this change.
+  - What P-5 guarantees: residual decodes **never reach the answerer or caller as batch input**. The caller will not
+    see a reply to its own CQ that only the residual pass decoded, and an answerer mid-QSO will not see a partner's
+    report that only the residual pass decoded.
+  - **Correct wording:** residual decodes are *"visible, logged and spotted, not actionable by the automation"*.
+    What I first told the Captain ("cannot be engaged") was wrong for double-click, and has been corrected to him.
+- **S2 max term (QA 2a, accepted):** read per cycle against the **same-session flag-OFF whole call**. Cycles whose
+  flag-OFF call itself exceeds 1 000 ms are excluded from the max term and counted. If more than 1 % of cycles are
+  excluded, the max term is **"not evaluable"**, reported as such, not passed. The median term is unchanged.
+- **S2b (QA 2b, accepted, REPORT ONLY):** time from batch-1 publish to receipt by a WebSocket client **while the
+  residual pass is running**. Reason: 14 fit workers can crowd the thread pool that WebSocket delivery also uses.
+  Reported; if it is materially above the flag-OFF delivery time, it comes back to the Architect before any live use.
+- **Flag-OFF control (QA 2c, accepted):** extend the re-run (tasks 10.5) to the **managed `DecodeAsync` path**. This
+  build edits it, and the base control never exercised it (a gap already on the board).
+- **S1 method (QA 3, accepted):** both builds in **fresh processes, over the same cycles in the same order** (the
+  native hash table is process-global). S3 additions (g)–(j) as in QA's note.
+
 ## 6. Hygiene
 
 - 🔒 NFR-021 / HK-037: stamps and integers only, as in §8.1. The E1 harness writes hashes and rcs, never text.
