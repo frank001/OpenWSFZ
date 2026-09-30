@@ -283,12 +283,93 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// current band is unresolvable.
     /// </param>
     /// <param name="ct">Cancellation token.</param>
-    public async Task<IReadOnlyList<DecodeResult>> DecodeAsync(
+    public Task<IReadOnlyList<DecodeResult>> DecodeAsync(
         float[]           pcm,
         DateTime          cycleStart,
         string?           currentBand,
         CancellationToken ct = default)
+        => DecodeCoreAsync(pcm, cycleStart, currentBand, onFirstBatch: null, ct);
+
+    /// <summary>
+    /// Whether the residual-decode pass (<c>decoder.subtractionEnabled</c>) is currently on. The daemon pump reads
+    /// it once per window to choose between <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/>
+    /// (one batch, exactly as before) and <see cref="DecodeTwoStageAsync"/>.
+    /// </summary>
+    public bool SubtractionEnabled => _subtractionEnabled;
+
+    /// <summary>
+    /// sub-feas-speed-redesign two-stage publish (design.md D9). Decodes one window and hands the caller the cycle's
+    /// decodes in <b>two batches</b> when the residual pass is on:
+    /// <list type="number">
+    ///   <item><b>Batch 1</b> = pass-0, delivered through <paramref name="publishFirstBatch"/> as soon as pass 0 has
+    ///   returned and been mapped, <i>before</i> the residual pass starts;</item>
+    ///   <item><b>Batch 2</b> = the residual pass's genuinely new decodes, mapped exactly like batch 1 (the text
+    ///   de-duplication set is per cycle and spans both batches) and <b>returned</b>. It is empty when the pass is
+    ///   abandoned, fails, or finds nothing new: an empty return means "publish nothing".</item>
+    /// </list>
+    /// <para>
+    /// With the flag OFF (or nothing decoded, or a skipped silent cycle) this is the ordinary single-batch decode:
+    /// <paramref name="publishFirstBatch"/> is called exactly once with what
+    /// <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/> would have returned, and the return value
+    /// is empty. <paramref name="publishFirstBatch"/> is called <b>exactly once, always</b> (an empty batch 1 is a
+    /// real cycle: the answerer, caller and ALL.TXT count it).
+    /// </para>
+    /// <para>
+    /// Callable from a test or replay harness with no daemon pump (a lambda that records the batch is enough).
+    /// <see cref="IModeDecoder.DecodeAsync"/> is unchanged; this is an additional entry on the concrete type.
+    /// </para>
+    /// </summary>
+    /// <param name="pcm">15 s x 12 000 Hz mono PCM samples.</param>
+    /// <param name="cycleStart">UTC instant the capture window began accumulating.</param>
+    /// <param name="currentBand">The session's current band, or <c>null</c>.</param>
+    /// <param name="publishFirstBatch">Publishes batch 1. Awaited before the residual pass begins.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Batch 2 (may be empty).</returns>
+    public async Task<IReadOnlyList<DecodeResult>> DecodeTwoStageAsync(
+        float[]                                   pcm,
+        DateTime                                  cycleStart,
+        string?                                   currentBand,
+        Func<IReadOnlyList<DecodeResult>, Task>   publishFirstBatch,
+        CancellationToken                         ct = default)
     {
+        ArgumentNullException.ThrowIfNull(publishFirstBatch);
+
+        bool published = false;
+        async Task MarkAndPublish(IReadOnlyList<DecodeResult> batch1)
+        {
+            published = true;
+            await publishFirstBatch(batch1).ConfigureAwait(false);
+        }
+
+        var second = await DecodeCoreAsync(pcm, cycleStart, currentBand, MarkAndPublish, ct).ConfigureAwait(false);
+
+        if (!published)
+        {
+            // Single-batch outcome (flag OFF, silent cycle, native AV, ...): what the core returned IS the cycle.
+            await publishFirstBatch(second).ConfigureAwait(false);
+            return [];
+        }
+        return second;
+    }
+
+    /// <summary>
+    /// The decode itself. <paramref name="onFirstBatch"/> <c>null</c> = the single-batch behaviour of
+    /// <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/> (with the flag ON the residual pass runs
+    /// inside this call and its decodes are appended to the one returned list). Non-null AND the flag ON = two-stage
+    /// (see <see cref="DecodeTwoStageAsync"/>): batch 1 goes to the callback, the return value is batch 2.
+    /// </summary>
+    private async Task<IReadOnlyList<DecodeResult>> DecodeCoreAsync(
+        float[]                                    pcm,
+        DateTime                                   cycleStart,
+        string?                                    currentBand,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onFirstBatch,
+        CancellationToken                          ct)
+    {
+        // The flag is read ONCE per cycle. Two-stage only when the caller asked for it AND the flag is on: with the
+        // flag off this method is, statement for statement, the pre-change single-batch path (P-9).
+        bool subtractionOn = _subtractionEnabled;
+        bool twoStage      = onFirstBatch is not null && subtractionOn;
+
         // ── R2: Pre-condition guard ──────────────────────────────────────────
         // Declared async so that this throw surfaces as a faulted Task rather than
         // propagating synchronously to callers expecting Task-based exception semantics.
@@ -405,7 +486,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // logs a warning) per design.md Decision 4, so pass-0's results are never lost here.
         // It also receives the AP constraints (native AP state is thread-local) and a wall-clock
         // budget = whatever remains of the cycle budget after pass-0.
-        if (_subtractionEnabled && native.Length > 0)
+        if (!twoStage && subtractionOn && native.Length > 0)
         {
             var newFromResidual = await SubtractionPass.RunAsync(
                 _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
@@ -419,13 +500,20 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             }
         }
 
-        sw.Stop();
+        // Two-stage: the stopwatch keeps running, because the residual pass's wall-clock budget is measured from the
+        // start of this decode; the per-cycle "elapsed" line below then reports the time to BATCH 1 (design.md D9).
+        if (!twoStage) sw.Stop();
 
         // ── Map native results → DecodeResult ────────────────────────────────
-        var results = new List<DecodeResult>(native.Length);
+        // The text de-duplication set is per CYCLE: in two-stage mode batch 2 is mapped with the SAME set, so a
+        // residual decode whose text already appeared in batch 1 is not published twice.
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (ref readonly Ft8NativeResult nr in native.AsSpan())
+        List<DecodeResult> MapNative(Ft8NativeResult[] source)
+        {
+        var mapped = new List<DecodeResult>(source.Length);
+
+        foreach (ref readonly Ft8NativeResult nr in source.AsSpan())
         {
             // D-005 fix: ft8_lib pads FT8Result.message to 36 bytes with trailing spaces
             // before the null terminator.  A Type 4 hash message such as "<HASH> CALLSIGN"
@@ -493,7 +581,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 }
             }
 
-            results.Add(new DecodeResult(
+            mapped.Add(new DecodeResult(
                 Time:         timeStr,
                 Snr:          nr.Snr,
                 Dt:           Math.Round(nr.Dt, 1),
@@ -503,6 +591,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 WorkedBefore: workedBefore,
                 Band:         currentBand));
         }
+
+        return mapped;
+        }
+
+        var results = MapNative(native);
 
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────
         // Loop over passCounts.Length so the log scales correctly with K_MAX_PASSES
@@ -588,6 +681,25 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         _logger?.LogInformation(
             "Cycle {Time}: noise_floor={NoiseFloor:F1} dB (waterfall histogram median).",
             timeStr, noiseFloorDb);
+
+        if (twoStage)
+        {
+            // Batch 1 leaves NOW, through the caller's publish path, before any residual work starts. Nothing else
+            // sits between "pass 0 returned and was mapped" and this hand-off (the logs above are cheap and
+            // Debug-guarded), because acceptance row S2 times exactly that gap.
+            await onFirstBatch!(results).ConfigureAwait(false);
+
+            if (native.Length == 0) return [];
+
+            // The residual pass, after batch 1 is out. Its wall-clock budget is what remains of the cycle budget,
+            // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
+            var newFromResidual = await SubtractionPass.RunAsync(
+                _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+
+            // Batch 2: nothing when the pass was abandoned, failed, or found nothing new.
+            return newFromResidual.Length == 0 ? [] : MapNative(newFromResidual);
+        }
 
         return results;
     }
