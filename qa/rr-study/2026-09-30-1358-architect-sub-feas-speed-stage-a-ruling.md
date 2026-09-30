@@ -1,5 +1,6 @@
 # RULING — SUB-FEAS speed redesign, Stage A acceptance
 
+- **Date (UTC):** 2026-09-30 13:58Z (mechanically derived, `date -u`, HK-017)
 - **Author:** Architect. **Reads:** QA's report `qa/rr-study/results/2026-09-30-sub-feas-speed-stage-a-acceptance/report.md`
   (`qa/sub-feas` `b4f8d22d`, local), against spec `2026-09-30-0641-architect-to-qa-spec-sub-feas-speed-redesign.md`
   incl. Amendment 1 and the clamp note (`63660730`).
