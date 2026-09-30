@@ -230,17 +230,18 @@ static void fft_convolve_same(
 }
 
 /* ========================================================================
- * modulator.py:instantaneous_phase -- unwrapped instantaneous phase (rad)
- * for `tones`, Gaussian-GFSK-shaped, at base_freq_hz + optional linear
- * drift_hz (total excursion over the transmission, centred).
- * Writes ws->phase (N_TX long).
+ * modulator.py:instantaneous_phase, split in two (sub-feas-speed-redesign A1).
+ *
+ * The Gaussian-smoothed tone track (tone_arr convolved with the pulse) depends only on the
+ * signal's TONES, never on base_freq or drift: the original single function recomputed it for
+ * every one of the ~243 templates a fit builds. compute_smoothed_track() now does it ONCE per
+ * signal into ws->smoothed (held as float cf32, exactly the precision the old code held it at
+ * when it added the drift term, per design.md D1), and instantaneous_phase() applies only the
+ * drift-dependent part. Same arithmetic, same order, on the same values: bit-identical output.
  * ===================================================================== */
-static void instantaneous_phase(
-    workspace_t* ws,
-    const uint8_t* tones, double base_freq_hz, double drift_hz)
+static void compute_smoothed_track(workspace_t* ws, const uint8_t* tones)
 {
     int sym, s, i;
-    double cum;
 
     for (sym = 0; sym < SUBFEAS_NUM_SYMBOLS; sym++) {
         float tv = (float)tones[sym];
@@ -254,8 +255,16 @@ static void instantaneous_phase(
 
     fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->tone_arr, N_TX, ws->pulse_cf, GAUSS_TAPS,
                        ws->smoothed, ws->scratch_a, ws->scratch_b, ws->scratch_full);
+}
 
-    cum = 0.0;
+/* Unwrapped instantaneous phase (rad) at base_freq_hz + optional linear drift_hz (total excursion
+ * over the transmission, centred). REQUIRES ws->smoothed from compute_smoothed_track(). Writes
+ * ws->phase (N_TX long). */
+static void instantaneous_phase(workspace_t* ws, double base_freq_hz, double drift_hz)
+{
+    int i;
+    double cum = 0.0;
+
     for (i = 0; i < N_TX; i++) {
         double inst_freq = base_freq_hz + (double)ws->smoothed[i].r * SUBFEAS_TONE_SPACING_HZ;
         if (drift_hz != 0.0) {
@@ -270,11 +279,11 @@ static void instantaneous_phase(
 /* fitter.py:r_fit_drift -- unit-amplitude complex baseband template,
  * frequency offset 0 (applied separately via apply_freq_shift), with linear
  * drift rate fdot_hz_per_s. At fdot=0, identical to r_fit(tones). */
-static void r_fit_drift(workspace_t* ws, const uint8_t* tones, double fdot_hz_per_s, cf32* out_r /* N_TX */)
+static void r_fit_drift(workspace_t* ws, double fdot_hz_per_s, cf32* out_r /* N_TX */)
 {
     double drift_hz = fdot_hz_per_s * TRANSMISSION_S;
     int i;
-    instantaneous_phase(ws, tones, 0.0, drift_hz);
+    instantaneous_phase(ws, 0.0, drift_hz);
     for (i = 0; i < N_TX; i++) {
         out_r[i].r = (float)cos(ws->phase[i]);
         out_r[i].i = (float)sin(ws->phase[i]);
@@ -352,8 +361,11 @@ static int fine_fit_with_drift(
     int step1_best_dt_samples = 0;
     int have_step1 = 0;
 
+    /* A1: the tone-dependent smoothing, once for all ~243 templates below. */
+    compute_smoothed_track(ws, tones);
+
     /* ---- Step 1: (Δt, Δf) at ḟ=0 ---- */
-    r_fit_drift(ws, tones, 0.0, ws->r_unit);
+    r_fit_drift(ws, 0.0, ws->r_unit);
     apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
 
     for (k = -DT_N_STEPS; k <= DT_N_STEPS; k++) {
@@ -393,7 +405,7 @@ static int fine_fit_with_drift(
         for (kf = -FDOT_N_STEPS; kf <= FDOT_N_STEPS; kf++) {
             double fdot = kf * SUBFEAS_FDOT_STEP_HZ_S;
             double f_hat, val;
-            r_fit_drift(ws, tones, fdot, ws->r_unit);
+            r_fit_drift(ws, fdot, ws->r_unit);
             apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
             for (i = 0; i < N_TX; i++) {
                 float mr = ws->seg[i].r, mi = ws->seg[i].i;
@@ -409,7 +421,7 @@ static int fine_fit_with_drift(
 
         /* Final template at (ḟ*, Δf*) -- used for step 3's direct-correlation
          * scoring AND returned as the fit's template for envelope/subtract. */
-        r_fit_drift(ws, tones, best_fdot, ws->r_unit);
+        r_fit_drift(ws, best_fdot, ws->r_unit);
         apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
         apply_freq_shift(ws->r_base, N_TX, best_df2, out_r_base_final);
     }
@@ -670,10 +682,11 @@ static int run_case(
     memset(&ws, 0, sizeof(ws));
     if (!workspace_alloc(&ws)) { printf("[%s] FAIL: workspace_alloc\n", name); return 1; }
     gaussian_pulse(ws.pulse);
+    compute_smoothed_track(&ws, tones);
 
     {
         cf32 *r_unit = ws.r_unit, *r_base = ws.r_base;
-        r_fit_drift(&ws, tones, embed_fdot, r_unit);
+        r_fit_drift(&ws, embed_fdot, r_unit);
         apply_freq_shift(r_unit, N_TX, embed_freq_hz, r_base);
         if (embed_start < 0 || embed_start + N_TX > SUBFEAS_PCM_LEN) {
             printf("[%s] FAIL: test setup, embed_start out of range: %d\n", name, embed_start);
