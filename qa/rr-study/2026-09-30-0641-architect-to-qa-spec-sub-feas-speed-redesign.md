@@ -167,6 +167,61 @@ them accordingly.
   CAT/TX/Decoder in `POST /api/v1/config`), never per cycle: nothing new goes on the hot path. 1 is the conservative
   direction (slower, so the deadline abandons; it cannot overload the machine).
 
+## 5b. Amendment 2 (2026-09-30 14:21Z): two-stage publish, a REQUIREMENT for live use (Captain, via #122)
+
+**Authorised:** the Captain asked whether GitHub #122 (decode-panel latency) could help, then said *"yes, write the
+amendment for QA"* after the Architect's answer below.
+
+### Why (verified in code at `ca0bcd9b`)
+
+- The decode pump (`Program.cs:858-906`) awaits `ft8Decoder.DecodeAsync`, then publishes **once**: the panel
+  (`decodeEventBus.Publish`, `:869`), ALL.TXT (`:870`), the archive (`:877`), the filter admission (`:886-895`), and the
+  QSO/external channels (`:900-903`).
+- With the flag ON, the residual pass runs **inside** `DecodeAsync`, **before** that publish
+  (`Ft8Decoder.cs:370-384`): the residual decodes are appended to `native` ahead of the mapping loop. So **every**
+  decode, pass-0 included, reaches the operator only after the whole residual pass.
+- To answer a station heard in cycle N, TX must start by **17.36 s** (#122: 15 s + the 2.36 s guard). At Stage A
+  timings the panel updates at ≈ 15 + 5.5 s = **20.5 s median, ≈ 23.7 s worst**. ⇒ **With the flag ON as built, the
+  operator cannot answer anything in the next cycle.** No realistic speed-up fixes this (the pass would need
+  < 1.8 s). This is an operational defect of the flag-ON path, independent of R2′.
+
+### The change (`src/` only; no native change, no shim bump)
+
+| # | Requirement |
+|---|---|
+| **P-1** | Flag ON: pass-0 decodes are mapped and **published as batch 1 as soon as pass 0 returns**, through exactly the same pump path as today (panel, ALL.TXT, archive, filter admission, QSO and external channels). The residual pass starts **after** batch 1 is published. |
+| **P-2** | Residual decodes are published as **batch 2** of the same cycle (same `cycleStart`), when the pass completes. Nothing is published for batch 2 if the pass is abandoned or yields no new decodes. |
+| **P-3** | **Batch 2 goes through the same mapping as batch 1** (TrimEnd, `IsPlausibleMessage`, region, worked-before, band). **Text de-duplication spans both batches** (the `seen` set is per cycle, not per batch), and the SubtractionPass payload de-dup is unchanged. |
+| **P-4** | Batch 2 destinations: **panel** (appended, never replacing batch 1's rows; the Developer verifies `main.js:1820` appends and fixes it if not), **ALL.TXT** (appended after batch 1's lines with the same cycle stamp; the pump stays serial, so the next cycle's lines always come after), **filter admission**, and the **external-reporting channel** (GridTracker/UDP). |
+| **P-5** | 🛑 **Batch 2 is NOT sent to the QSO answerer/caller channels in this change.** Verified reason: `QsoAnswererService` keeps `_lastIdleDecodeBatch` (`:104`, used at `:382` by `TryEngageExternal`). A residual-only second batch for the same cycle would **replace** the pass-0 snapshot, so a double-click or GridTracker reply to a pass-0 station would then fail. The answerer and caller also treat each batch as a cycle. **Consequence, stated for the Captain:** residual decodes are visible, logged and spotted, but **cannot be engaged** (a click or external reply is ignored with the existing log line). Making them engageable is a separate change. |
+| **P-6** | Archive `TryEnqueue` runs **once**, at batch 1, with the pass-0 count. Equivalent for `Decoded` mode: the residual pass runs only when pass-0 count > 0. |
+| **P-7** | The pump stays **serial**: the next capture window is not decoded until batch 2 has been published or abandoned. R1′'s hard bound (13 s from cycle close ≈ 28 s) finishes before the next window closes (30 s). |
+| **P-8** | The per-cycle `Cycle {Time}: … elapsed=` line reports **time to batch 1** (for flag OFF, identical to today, which keeps #122's series continuous). The residual time stays in the `Sub-feas residual pass:` line. Record the semantic in `design.md`. |
+| **P-9** | **Flag OFF: exactly one batch per cycle, byte-identical behaviour.** The flag-OFF control re-run (tasks 10.5) covers this build too. |
+
+### Acceptance rows (added; nothing above is moved)
+
+| Row | Predicate |
+|---|---|
+| **S1 — split changes timing only** | On the E1 cycles (161), flag ON: the **union** of batch 1 and batch 2 outcome fields (after mapping and de-dup) equals the single-batch output of `ca0bcd9b` for the same cycle, as a set. Batch 1 equals the flag-OFF output of the same build. Outcome fields only, never rendered text (process-global hash table). PASS iff 161/161 |
+| **S2 — batch-1 latency** | Over H ∪ M, flag ON: time to batch 1, median per run ≤ **1.05 ×** the flag-OFF whole-call median in the same session; max ≤ **1 000 ms**. (Pass 0 is unchanged, so this tests that nothing new sits before the first publish) |
+| **S3 — consumers** | Tests (in code, not by inspection): (a) the QSO answerer/caller receive exactly one batch per cycle with the flag ON; (b) `_lastIdleDecodeBatch` after a flag-ON cycle equals batch 1; (c) ALL.TXT holds batch 1's lines then batch 2's, same stamp, no duplicate text within the cycle; (d) the panel receives two `decode` events and shows the union; (e) the archive enqueues once; (f) flag OFF gives one publish per cycle |
+| S4 — existing rows | E1, R0–R7 and the Stage B rows are unchanged; batch 2's publish time is R1′'s whole-call time |
+
+### Effect on the Stage A ruling and Stage B (the Architect's recommendation changes)
+
+The 6 000 ms p95 bar in R2′ was a **headroom margin I set**, not an operational deadline. Once P-1..P-9 hold, batch 1
+meets the TX deadline exactly as today, and batch 2 only has to arrive within the cycle (R1′, met: max 8.65 s).
+**I therefore withdraw my recommendation against accepting Stage A's timing.** The choice is the Captain's:
+
+- **(a)** accept Stage A timing on this machine, build P-1..P-9, and treat Stage B as optional; or
+- **(b)** also do Stage B. The remaining argument for it is **other hardware**: Row T showed 56 % of heavy cycles
+  abandoned at 4 workers.
+
+Either way, two-stage publish is required before any live use. Live use itself remains the Captain's decision, and
+the flag stays OFF by default. A first on-air flag-ON session is a **new decision, needing his explicit go**; it is
+not implied by this amendment.
+
 ## 6. Hygiene
 
 - 🔒 NFR-021 / HK-037: stamps and integers only, as in §8.1. The E1 harness writes hashes and rcs, never text.

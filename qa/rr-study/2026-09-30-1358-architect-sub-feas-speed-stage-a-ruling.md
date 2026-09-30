@@ -45,7 +45,9 @@ No bar is moved. Per the spec's registered order, a Stage A that fails only R2�
    single-thread), and the concurrency penalty is unmeasured. That is cheap, and it ranks B1/B2/B3 by evidence.
 2. Then Stage B goes item by item in the order the profile supports (default B1 → B2 → B3). Each item is accepted on E2
    (equivalence) and E3 (no residual-decode loss), then re-timed on the R-rows. Stop at the first item that passes R2′.
-3. **The alternative is the Captain's, not mine to take:** in the §8.1 spec R2 was designated a *Captain-adjustable
+3. ⚠️ **SUPERSEDED 2026-09-30 14:21Z by spec Amendment 2 (two-stage publish):** the "recommend against" below no
+   longer stands. With pass-0 published first, the 6 s bar guards no operational deadline. See spec §5b.
+   **The alternative is the Captain's, not mine to take:** in the §8.1 spec R2 was designated a *Captain-adjustable
    margin*. Accepting 6.4 s would end the speed work at Stage A. I recommend **against** it for now. Row T shows a
    4-worker machine already abandons 56 % of heavy cycles, so the per-fit cost, not the bar, is what decides whether
    this feature works on anything but this machine.
