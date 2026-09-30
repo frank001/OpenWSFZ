@@ -281,6 +281,33 @@ not implied by this amendment.
 - The misleading external-reporting diagnostic (`_lastDecodeBatch` becomes batch 2, so "Reply named X not found"
   fires for a pass-0 CQ) is behaviour-neutral. Low priority, not in this change unless the Captain asks.
 
+## 5f. Decision record (2026-09-30): §7 stability met on existing evidence; first flag-ON on-air run tonight (Captain)
+
+- **§7 (base change, sustained stability) is MET by the Captain's decision**, on the existing evidence: **two
+  ~3.6–3.7 h flag-ON replays, 0 AV / 0 contained / 0 exits** (the §8.1 and Stage A acceptance runs). Captain: a
+  separate §7 run is *"quite excessive, with also 2x 3.6h already in the pocket"*. The gaps are stated, not hidden:
+  those runs held only busy cycles, and **nobody measured memory**. Memory is checked in the first on-air flag-ON
+  session instead. QA fixes the contradiction in the base `tasks.md` (10.1 "hard blockers" vs the §8 header) to say
+  this.
+- **First flag-ON on-air session: tonight, overnight, RECEIVE ONLY** (Captain: *"likely we let it run this night …
+  we should have time until ~16h00 local time tomorrow"*, i.e. about **14:00Z**). Run facts, pinned per HK-020 before
+  arming:
+  - **Build:** `feat/sub-feas-two-stage-publish` `247ac391` (`libft8.dll` `ee00d118…990e4c`, pin verified by
+    SHA-256). ⚠️ This is **not** the standard `decoding_improvement` endurance build, so its rows are **never pooled**
+    with endurance history (HK-036). Label the run as a SUB-FEAS arm.
+  - **Critical config:** `decoder.subtractionEnabled = true` (**asserted from `GET /api/v1/config` at arm time and
+    re-checked at the end**), `cycleAudioArchive.mode = all`, nhard = 40 (default). 🛑 **No Settings-page saves during
+    the run:** #193 is not merged, and a save would switch the flag OFF and the archive off.
+  - **Memory:** sample the daemon's working set / private bytes **at start, then every 30 min, then at end** (a
+    detached sampler, HK-023). Report growth per hour. Any monotonic growth goes back to the Architect.
+  - **Record:** every `Sub-feas residual pass:` line (abandon rate, residualDecodes, elapsedMs, per cycle), any AV
+    or contained exception, and the standard endurance gather (WSJT-X side by side on the same radio).
+  - **Order:** after S1/S2 finish (ETA ~17:00Z). S2b and the Engineer's L1 live check move to after the run.
+  - HK-013/019: validated supervisor, teardown and orphan check. HK-036: read Section 4. **Stop the run by ~14:00Z
+    tomorrow.**
+- 🛑 **No decode-rate claim from this run.** It is one night, one band, one build. The WSJT-X comparison is
+  descriptive evidence toward §8.2, not §8.2 itself.
+
 ## 6. Hygiene
 
 - 🔒 NFR-021 / HK-037: stamps and integers only, as in §8.1. The E1 harness writes hashes and rcs, never text.
