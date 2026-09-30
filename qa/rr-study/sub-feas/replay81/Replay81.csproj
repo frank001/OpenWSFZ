@@ -19,6 +19,8 @@
     <DefineConstants Condition="'$(HasSubfeas)' == 'true'">$(DefineConstants);HAS_SUBFEAS</DefineConstants>
     <!-- sub-feas-speed-redesign: only the candidate build (ca0bcd9b) has SetSubtractionMaxThreads. -->
     <DefineConstants Condition="'$(HasMaxThreads)' == 'true'">$(DefineConstants);HAS_MAXTHREADS</DefineConstants>
+    <!-- sub-feas two-stage publish: only the two-stage build (247ac391) has DecodeTwoStageAsync. -->
+    <DefineConstants Condition="'$(HasTwoStage)' == 'true'">$(DefineConstants);HAS_TWOSTAGE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

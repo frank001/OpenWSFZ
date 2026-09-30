@@ -18,6 +18,7 @@
 
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -78,12 +79,24 @@ internal static class Program
         var done = LoadDone(outCsv);
         bool newFile = !File.Exists(outCsv);
         await using var csv = new StreamWriter(outCsv, append: true, new UTF8Encoding(false)) { AutoFlush = true };
-        if (newFile) csv.WriteLine("run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
+        // sub-feas-speed-redesign two-stage acceptance: modes "two"/"two1" write an 11-column CSV (tb1_ms = time to
+        // batch 1, b1_n, b2_n); every row in such a file is written 11 columns wide.
+        _wide = mode is "two" or "two1";
+        if (newFile)
+            csv.WriteLine(_wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
+                                : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
+        // Optional outcome keys (S1): per decode only NUMERIC fields plus an 8-hex-digit hash of the message text; the
+        // text itself never leaves the function that reads it (HK-037 / NFR-021). Written to a gitignored artefact.
+        if (a.TryGetValue("outcomes", out var outcomesPath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outcomesPath))!);
+            _outcomes = new StreamWriter(outcomesPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+        }
 
         // ---- warm-up: one discarded cycle per process start, through the full path ----
         string warm = root.GetProperty("runs").GetProperty(run).GetProperty("warmup").GetString()!;
         var warmPcm = ReadWav(Path.Combine(WavDirFor(run), warm + ".wav"));
-        SetFlag(decoder, mode == "alt");
+        SetFlag(decoder, mode is "alt" or "two" or "on" or "two1");
         await decoder.DecodeAsync(warmPcm, StampToUtc(warm));
         log.Raw("# warm-up cycle decoded and discarded");
 
@@ -128,12 +141,39 @@ internal static class Program
                     await Decode1(decoder, pcm, cyc, csv, run, stratum, stamp, idx, "NA");
                 continue;
             }
-            // alt: OFF then ON on even index, ON then OFF on odd index (spreads drift)
+            // "on": flag ON, single-batch DecodeAsync, ONE call per cycle (the S1 reference; same native call sequence
+            // as "two1", so the process-global callsign hash table has the same history in both).
+            if (mode == "on")
+            {
+                if (done.Contains(stamp + "|ON")) continue;
+                SetFlag(decoder, true);
+                await Decode1(decoder, pcm, cyc, csv, run, stratum, stamp, idx, "ON");
+                continue;
+            }
+#if HAS_TWOSTAGE
+            // "two1": flag ON, DecodeTwoStageAsync, ONE call per cycle.
+            if (mode == "two1")
+            {
+                if (done.Contains(stamp + "|ON")) continue;
+                SetFlag(decoder, true);
+                await DecodeTwo(decoder, pcm, cyc, csv, run, stratum, stamp, idx);
+                continue;
+            }
+#endif
+            // alt / two: OFF then ON on even index, ON then OFF on odd index (spreads drift). "two" makes the ON call
+            // the two-stage one and records the time to batch 1.
             string[] order = idx % 2 == 0 ? ["OFF", "ON"] : ["ON", "OFF"];
             foreach (var flag in order)
             {
                 if (done.Contains(stamp + "|" + flag)) continue;
                 SetFlag(decoder, flag == "ON");
+#if HAS_TWOSTAGE
+                if (mode == "two" && flag == "ON")
+                {
+                    await DecodeTwo(decoder, pcm, cyc, csv, run, stratum, stamp, idx);
+                    continue;
+                }
+#endif
                 await Decode1(decoder, pcm, cyc, csv, run, stratum, stamp, idx, flag);
             }
         }
@@ -150,13 +190,71 @@ internal static class Program
         {
             var res = await d.DecodeAsync(pcm, cycleStart);
             n = res.Count;
+            WriteOutcomes(stamp, flag == "ON" ? "single_on" : "single_off", res);
         }
         catch (Exception ex) { exc = ex.GetType().Name; }
         sw.Stop();
         csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), flag,
             sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
-            n.ToString(CultureInfo.InvariantCulture), exc));
+            n.ToString(CultureInfo.InvariantCulture), exc) + (_wide ? ",,," : ""));
     }
+
+    private static bool _wide;
+    private static StreamWriter? _outcomes;
+
+    /// <summary>
+    /// One line per decode: <c>stamp,kind,idx,freqHz,dt,snr,texthash8</c>. Numeric fields plus an 8-hex-digit hash of
+    /// the message text (computed here, in memory); the text is never written anywhere.
+    /// </summary>
+    private static void WriteOutcomes(string stamp, string kind, IReadOnlyList<DecodeResult> list)
+    {
+        if (_outcomes is null) return;
+        for (int i = 0; i < list.Count; i++)
+        {
+            var r = list[i];
+            string h = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(r.Message.TrimEnd())))[..8];
+            _outcomes.WriteLine(string.Join(",", stamp, kind, i.ToString(CultureInfo.InvariantCulture),
+                r.FreqHz.ToString(CultureInfo.InvariantCulture), r.Dt.ToString("F1", CultureInfo.InvariantCulture),
+                r.Snr.ToString(CultureInfo.InvariantCulture), h));
+        }
+    }
+
+#if HAS_TWOSTAGE
+    /// <summary>
+    /// Two-stage decode (Ft8Decoder.DecodeTwoStageAsync): records the time to batch 1 (from just before the call to
+    /// the moment the decoder hands batch 1 to the publish callback: the hand-off S2 measures), the whole-call time
+    /// (batch 2 available), and both batches' counts.
+    /// </summary>
+    private static async Task DecodeTwo(Ft8Decoder d, float[] pcm, DateTime cycleStart, StreamWriter csv,
+                                        string run, string stratum, string stamp, int seq)
+    {
+        string exc = "";
+        int n1 = -1, n2 = -1;
+        double tb1 = -1;
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            IReadOnlyList<DecodeResult>? b1 = null;
+            var b2 = await d.DecodeTwoStageAsync(pcm, cycleStart, null, batch =>
+            {
+                tb1 = sw.Elapsed.TotalMilliseconds;
+                b1 = batch;
+                return Task.CompletedTask;
+            });
+            n1 = b1?.Count ?? -1;
+            n2 = b2.Count;
+            if (b1 is not null) WriteOutcomes(stamp, "b1", b1);
+            WriteOutcomes(stamp, "b2", b2);
+        }
+        catch (Exception ex) { exc = ex.GetType().Name; }
+        sw.Stop();
+        csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), "ON",
+            sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
+            (n1 < 0 ? -1 : n1 + Math.Max(0, n2)).ToString(CultureInfo.InvariantCulture), exc,
+            tb1.ToString("F1", CultureInfo.InvariantCulture),
+            n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture)));
+    }
+#endif
 
     private static void SetFlag(Ft8Decoder d, bool on)
     {
