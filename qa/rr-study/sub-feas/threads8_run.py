@@ -110,7 +110,7 @@ def main():
            "log_lines_equal_cycles": len(sub_all) == len(whole),
            "residualDecodes_total": residual, "e3_baseline_residual": E3_BASELINE_RESIDUAL,
            "residual_equals_baseline": residual == E3_BASELINE_RESIDUAL,
-           "fittedSignals_max": max((s["fit"] for s in sub_all), default=None)}
+           "fittedSignals_max": max((s["fitted"] for s in sub_all), default=None)}
     res["PASS"] = (len(whole) == 161 and n_ab == 0 and max(whole) <= MAX_WHOLE_CALL_MS and n_co == 0 and av == 0
                    and cw == 0 and exc == 0)
     json.dump(res, open(os.path.join(OUT, "rows.json"), "w"), indent=1)
