@@ -248,6 +248,26 @@ not implied by this amendment.
 - **S1 method (QA 3, accepted):** both builds in **fresh processes, over the same cycles in the same order** (the
   native hash table is process-global). S3 additions (g)–(j) as in QA's note.
 
+## 5d. Amendment 4 (2026-09-30): the Captain's decision, "option a, do stage B too"
+
+- **Stage A's timing is ACCEPTED by the Captain** (R2 was designated Captain-adjustable). R2′'s p95 miss (6 410.8 ms)
+  no longer blocks anything. The registered verdict stays "Stage A FAIL on R2′"; it is **not** rewritten as a PASS.
+  The acceptance is the Captain's, and is recorded here.
+- **Two-stage publish (§5b/§5c) goes ahead on the Stage A build** and is **not** gated on Stage B. Order: P-1..P-9,
+  then S1–S3/S2b, then the flag-OFF control re-run (extended to managed `DecodeAsync`).
+- **Stage B is AUTHORISED as a follow-on**, on its own branch/commits after two-stage publish, never mixed into it.
+  First the `FitProbe time` profile of the candidate at 1 and 14 workers. Then items one at a time (default B1 → B2 →
+  B3, re-ordered by the profile), each accepted on **E2 and E3 first**, then re-timed.
+- **Stage B's finish line (new, fixed before any Stage B build).** Its stated purpose is other hardware, so the target
+  is row T:
+  - **T′ (a BAR for Stage B only):** at `subtractionMaxThreads = 4`, over H, deadline-abandon **≤ 5 %** AND max
+    whole call ≤ 13 000 ms. §8.1's heavy-cycle selection, same session rules as Stage A.
+  - Also report R2′ at 14 workers (p95(H) ≤ 6 000 ms would now be a bonus, not a gate).
+  - **Stop** at the first item after which T′ passes, **or** after B3, **or** when the Captain says so. If T′ is still
+    failing after B3, report the residual gap. A 4-worker machine then simply runs with more abandons (safe: the hard
+    deadline held at 4 workers, max 12 095 ms).
+- 🛑 Unchanged: the flag stays **OFF** by default. A first on-air flag-ON session needs the Captain's explicit go.
+
 ## 6. Hygiene
 
 - 🔒 NFR-021 / HK-037: stamps and integers only, as in §8.1. The E1 harness writes hashes and rcs, never text.
