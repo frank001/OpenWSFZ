@@ -25,23 +25,21 @@ kept it in a `double` array, keep a `double` array. If E1 fails, the first suspe
 Alternatives considered: accept "equal within 1 ulp" (rejected: it makes E1 a tolerance test and Stage A could then
 drift silently; Stage B exists for that); vectorise the sin/cos loops (rejected for Stage A: changes rounding).
 
-### D2. Workspace ownership: a bounded, explicitly-owned pool is preferred; per-thread storage needs a shutdown story
+### D2. Workspace ownership: a bounded, locked pool of heap workspaces (FIXED by the Architect's Amendment 1)
 
-A3 says "one workspace and plan set per worker, allocated once". The trap is that C# fits run on **thread-pool
-threads that the native code does not own**. Thread-local storage in C has no destructor here, so per-thread
-workspaces would leak when the pool retires a thread, and cannot be freed at shutdown from another thread. Two
-mechanisms satisfy the spec:
+The trap A3 has to avoid: C# fits run on **thread-pool threads that the native code does not own**. Thread-local
+storage in C has no destructor here, so per-thread workspaces would leak when the pool retires a thread and cannot
+be freed at shutdown from another thread. **Decided** (QA recommended it, the Architect adopted it in
+`qa/rr-study/2026-09-30-0641-architect-to-qa-spec-sub-feas-speed-redesign.md` §5a): a **bounded, locked pool** of heap
+workspaces, size = `subtractionMaxThreads` (the effective value), each workspace **leased per fit call and returned in
+a `finally`**, freed when the decoder is disposed. **No native thread-local state.**
 
-1. **A bounded pool** (recommended): a fixed array of `subtractionMaxThreads` workspaces guarded by a lock;
-   `fit_signal` acquires one, uses it, releases it. Freed by an explicit export at shutdown. Memory is bounded by
-   construction and the ownership is visible.
-2. **Thread-local workspaces plus a registry** of every allocation so a shutdown export can free them all.
-
-The Developer records the choice here before writing code (tasks §1). Constraints either way: heap only; the bound
-is the configured thread count (a changed count must resize or drain the pool safely, or take effect at next cycle
-boundary with nothing in flight); no two concurrent fits share a workspace; freeing while a fit is in flight is
-impossible (shutdown waits or refuses). This is where the base change's two `0xC0000005` crashes lived, so this is
-the review focus.
+Constraints the Developer implements and QA reviews: heap only; no two concurrent fits share a workspace; a fit that
+is cancelled, fails or throws still returns its lease; freeing is impossible while a lease is out (dispose waits for
+in-flight fits or refuses); a lease request when the pool is empty must not allocate beyond the bound (with
+`MaxDegreeOfParallelism` equal to the pool size it should never block; assert that rather than assume it). A changed
+`subtractionMaxThreads` takes effect at the next cycle boundary, with nothing in flight, and resizes the pool then.
+This is where the base change's two `0xC0000005` crashes lived, so this is the review focus.
 
 ### D3. The cancellation flag: shape, memory model, lifetime
 
@@ -51,7 +49,7 @@ the review focus.
   recorded here.
 - **Checked at:** the top of each of the 201 Δt candidates, each of the 41 ḟ candidates and the envelope loop, and at
   entry. The longest uninterruptible stretch is then one candidate (a small number of FFTs, tens of milliseconds
-  expected; **unmeasured**, tasks §2 measures it), which is why a 1 000 ms reserve is comfortable for the fit and the
+  expected; **unmeasured**, tasks §2 measures it), which is why the 1 500 ms reserve is comfortable for the fit and the
   reserve exists for the residual decode.
 - **Memory model:** the native side reads through a `volatile` (or an atomic relaxed load); the managed side writes
   with `Volatile.Write` / `Interlocked`. No lock. A stale read costs at most one more iteration.
@@ -72,20 +70,24 @@ and the R3 and R4′ rows would read the wrong thing. This is a small change wit
 
 Budget 13 000 ms is for the whole call. Pass-0 takes about 0.5 s (flag-OFF medians 473–528 ms, max 830 ms). The residual
 pass receives `13 000 − pass0`, sets the flag at `that − reserve` (reserve `SubtractionResidualDecodeReserve` =
-1 000 ms, a named constant, not a literal), and skips the residual decode if less than the reserve remains. The margin
-between the reserve (1 000 ms) and the largest observed flag-OFF whole call (830 ms) is **170 ms**, on a single
-outlier, before the merge/dedup step. **R1′ is therefore a tight bar**, not a comfortable one. That is the
-Architect's registered row and it stands; this note exists so a marginal R1′ miss is read as "the reserve is thin",
-not as a surprise. M2 should make the residual decode cheaper, which helps.
+1 500 ms, a named constant, not a literal), and skips the residual decode if less than the reserve remains. QA's
+first draft used 1 000 ms, which left **170 ms** over the largest observed flag-OFF whole call (830 ms, a single
+outlier) before the merge/dedup step. The Architect raised it to **1 500 ms** (Amendment 1), a design parameter fixed
+before any build; the margin is now **670 ms** over that outlier. R1′'s bar is unchanged at 13 000 ms and remains a
+fairly tight bar. The larger reserve costs about 0.5 s of fit time on cycles that hit the deadline; if R4′ misses
+narrowly, that is the price to read it against. M2 should make the residual decode cheaper, which helps.
 
 ### D6. Thread count
 
-`decoder.subtractionMaxThreads`, default `max(1, ProcessorCount − 2)`, clamped `[1, ProcessorCount]`, read per cycle
-like `decoder.subtractionEnabled`. Two threads are left for capture, the web UI and any co-resident WSJT-X. **Memory:**
-about 25–30 MB per worker resident (about 0.4 GB at 14 workers); accepted by the Architect's default, changeable by the
-Captain. **A new config key interacts with the in-flight config-save work** (#193, "config save preserves unsent
-settings"): the key is optional and has no UI, and the config POST is a full replace (HK-035), so the Developer must
-confirm a save from the settings page neither drops nor resets it once that workstream lands.
+`decoder.subtractionMaxThreads`: **`0` = auto = `max(1, ProcessorCount − 2)`, and `0` is the default** (Architect,
+Amendment 1); any other value is clamped `[1, ProcessorCount]` (negative becomes 1: QA's reading, not stated by the
+Architect, flagged in the handoff). Read per cycle like `decoder.subtractionEnabled`. Two threads are left for
+capture, the web UI and any co-resident WSJT-X. **Memory:** about 25–30 MB per worker resident (about 0.4 GB at 14
+workers); accepted by the Architect's default, changeable by the Captain. **Why `0 = auto`:** the config-save defect
+(#193) resets any setting the Settings page does not send. The page sends neither `subtractionEnabled` nor
+`subtractionMaxThreads`, so until the Engineer's fix lands a Settings save resets both: the flag to OFF (fail safe)
+and this key to 0 = auto (a sensible value, not a wrong one). The Engineer owns that fix and has been told of both keys.
+The Developer still confirms a settings-page save after the fix lands.
 
 ### D7. M1 is deferred: the consumer precondition fired
 
@@ -111,10 +113,12 @@ An intermediate option was offered and not chosen: keep the statistics but compu
 
 E1 shows the fit is unchanged. R0 shows the replay is the live path. R1′/R2′/R4′/R6 show speed and the deadline on
 one machine. **Nothing here measures decode rate** (Stage A is bit-identical, so it cannot move it), and nothing
-covers other hardware. R5′ compares the new build's flag-OFF cost with the old build's: QA proposes (to the
-Architect, `qa/rr-study/2026-09-30-…-qa-to-architect-…`) that the baseline be the `2b39cf18` DLL **re-measured in the
-same acceptance session** on the same cycles, not the §8.1 medians, because the §8.1 medians were taken with WSJT-X
-and a browser resident and the acceptance run is made with WSJT-X closed, which would flatter the candidate.
+covers other hardware. R5′ compares the new build's flag-OFF cost with the old build's. **Accepted by the Architect
+(Amendment 1):** the baseline is the `2b39cf18` DLL **re-measured in the same acceptance session** on the same
+cycles, not the §8.1 medians, because the §8.1 medians were taken with WSJT-X and a browser resident and the
+acceptance run is made with WSJT-X closed, which would flatter the candidate. **P4 is scored on M2 + M3 alone; nothing
+in R5′ may be credited to M1** (deferred). E1's selection is likewise fixed: pooled `(run, stamp)` pairs sorted by
+`(run, stamp)`, indices 0, 9, 18, …, plus the 60 pilot cycles.
 
 ## Risks
 
@@ -130,6 +134,7 @@ and a browser resident and the acceptance run is made with WSJT-X closed, which 
 ## Open Questions
 
 - The exact ABI shape of the cancel flag and of the M2 diagnostics switch (D3, tasks §1).
-- Whether `subtractionMaxThreads` changes mid-run resize the pool or apply at the next cycle boundary (D2).
+- Negative `subtractionMaxThreads`: this change clamps it to 1 (QA's reading of "clamp to `[1, ProcessorCount]`"); the
+  Architect did not state it and may prefer "treat as auto".
 - Whether a native memory counter export is acceptable for the leak test, or the test uses process private bytes
   (tasks §8).

@@ -33,7 +33,7 @@ not exact and the optimisation that caused it SHALL be reverted or reclassified 
 The native fit SHALL accept a cancellation flag (an integer in memory owned by the managed caller) and SHALL check
 it at every Δt-search, ḟ-search and envelope iteration. When the flag is non-zero the fit SHALL stop, leave `out_shat`
 zeroed, and return the new code `-4` ("cancelled by deadline"). The managed caller SHALL set the flag at
-`budget − reserve`, where the reserve is a named constant of 1 000 ms covering the residual decode, and SHALL NOT
+`budget − reserve`, where the reserve is a named constant of 1 500 ms covering the residual decode, and SHALL NOT
 start the residual decode when less than the reserve remains. A deadline SHALL abandon the residual pass exactly as
 today (the cycle keeps its pass-0 results, no residual decodes are added) and SHALL be reported through the existing
 `deadlineAbandoned` field of the `Sub-feas residual pass:` log line. `-4` SHALL be handled as a deadline outcome and
@@ -73,9 +73,16 @@ The fit SHALL NOT allocate a workspace or an FFT plan per signal. A workspace an
 signals and across cycles, with the number of live workspaces bounded by the configured thread count. Every workspace
 SHALL be heap-allocated (the existing requirement "Any PCM residual buffer SHALL use heap allocation, not stack
 allocation" and the crash history behind it apply unchanged) and SHALL be released by an explicit shutdown path, not
-left to process exit. Concurrent fits SHALL NOT share a mutable workspace. The mechanism (a bounded pool or
-per-thread storage) is a design decision recorded in `design.md` D2; whichever is chosen SHALL satisfy the scenarios
-below. Resident memory of about 25–30 MB per worker is expected and accepted.
+left to process exit. Concurrent fits SHALL NOT share a mutable workspace. The workspaces SHALL be a bounded,
+locked pool whose size equals the effective fit thread count, each workspace leased for one fit call and returned
+in a `finally` so a failed or cancelled fit cannot leak its lease; there SHALL be no native thread-local workspace
+state, because the fits run on thread-pool threads the native code does not own (`design.md` D2). The pool SHALL be
+freed when the decoder is disposed. Resident memory of about 25–30 MB per worker is expected and accepted.
+
+#### Scenario: A failed fit returns its workspace
+
+- **WHEN** a fit is cancelled, fails, or throws
+- **THEN** its workspace is returned to the pool and the next fit can lease it
 
 #### Scenario: No growth over many cycles
 
@@ -102,8 +109,9 @@ below. Resident memory of about 25–30 MB per worker is expected and accepted.
 ### Requirement: The fit thread count SHALL be configurable
 
 The number of concurrent fit workers SHALL come from the optional config key `decoder.subtractionMaxThreads`. When
-absent the default SHALL be `max(1, ProcessorCount − 2)`. A configured value SHALL be clamped to
-`[1, ProcessorCount]`. The value SHALL take effect on the next decode cycle without a rebuild, like the flag. The
+absent, and when it is `0`, the effective value SHALL be `max(1, ProcessorCount − 2)` ("auto"; `0` is also the
+default, so a config reset degrades the key to auto and never to a wrong value). Any other configured value SHALL be
+clamped to `[1, ProcessorCount]` (a negative value therefore becomes 1). The value SHALL take effect on the next decode cycle without a rebuild, like the flag. The
 setting has no settings-page control.
 
 #### Scenario: Default on a 16-thread machine
@@ -118,8 +126,13 @@ setting has no settings-page control.
 
 #### Scenario: Out-of-range value
 
-- **WHEN** the key is 0, negative, or larger than the processor count
+- **WHEN** the key is negative or larger than the processor count
 - **THEN** the effective value is clamped into `[1, ProcessorCount]`
+
+#### Scenario: Zero means auto
+
+- **WHEN** the key is `0`
+- **THEN** the effective value equals the default (`max(1, ProcessorCount − 2)`)
 
 #### Scenario: Change without rebuild
 

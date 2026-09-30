@@ -5,8 +5,10 @@
 - [ ] 1.2 Base: branch `feat/sub-feas-speed-redesign` off `feat/sub-feas-native-subtraction` (`ab95bea1`, code
       `2b39cf18`). Confirm `libft8.dll` SHA-256 of the base is `5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5`
       before changing anything, and keep that DLL: E1 needs it.
-- [ ] 1.3 Choose the workspace ownership mechanism (`design.md` D2: bounded pool recommended) and record it, with
-      the pool-resize behaviour when `subtractionMaxThreads` changes.
+- [x] 1.3 Workspace ownership is **decided** (Architect, Amendment 1; `design.md` D2): a bounded, locked pool of heap
+      workspaces, size = effective `subtractionMaxThreads`, leased per fit and returned in a `finally`, no native
+      thread-local state, freed at decoder dispose. The Developer records only the pool API shape and how a changed
+      thread count resizes it (at the next cycle boundary, nothing in flight).
 - [ ] 1.4 Record the exact ABI shape of the cancel flag (D3) and of the M2 diagnostics switch.
 - [ ] 1.5 Pick the next `FT8_SHIM_VERSION` literal after checking `main` (`20260051`), `decoding_improvement`
       (`20260054`), the base branch (`20260055`) and any live branch's pin. Do not assume.
@@ -39,10 +41,12 @@
       (`design.md` D1). Re-run the golden hashes.
 - [ ] 4.2 **A2.** FFT the Gaussian pulse and the Hann window once per workspace and reuse their spectra in
       `fft_convolve_same`. Re-run the golden hashes.
-- [ ] 4.3 **A3.** Implement the chosen ownership mechanism (§1.3): workspace and both `kiss_fft_alloc(262144)` plans
-      built once and reused; `gaussian_pulse` computed once. Heap only, no stack array above 100 KB anywhere
-      reachable from P/Invoke (base change task 3.3 self-review applies). Bounded by the thread count; released by
-      an explicit shutdown export; allocation failure falls back to pass-0-only as today.
+- [ ] 4.3 **A3.** Implement the bounded, locked workspace pool (§1.3): each workspace holds both
+      `kiss_fft_alloc(262144)` plans, the cached spectra and `gaussian_pulse`, built once and reused; leased per fit,
+      returned in a `finally` (a cancelled or failed fit still returns its lease). Heap only, no stack array above
+      100 KB anywhere reachable from P/Invoke (base change task 3.3 self-review applies). **No native thread-local
+      state.** Bounded by the thread count; freed at decoder dispose, which cannot free a leased workspace;
+      allocation failure falls back to pass-0-only as today.
 - [ ] 4.4 Build flags are **unchanged**. No `/fp:fast`, no `/arch:AVX2`, no vectorised sin/cos. If a change here
       is tempting, it is Stage B (§11), not this change.
 - [ ] 4.5 After each of 4.1–4.3, run the E1 probe against the base DLL's golden. Any difference: revert that item.
@@ -54,7 +58,7 @@
       nothing that is pooled, return `-4`. NULL flag means no deadline (the no-deadline path stays identical).
 - [ ] 5.2 Managed: allocate the flag (unmanaged or pinned) for the whole of `RunCoreUnguarded`, free it only after
       `Parallel.For` returns; set it with a volatile write at `budget − reserve`. Introduce the named constant
-      `SubtractionResidualDecodeReserve` = 1 000 ms (no literal).
+      `SubtractionResidualDecodeReserve` = **1 500 ms** (Architect's Amendment 1; no literal).
 - [ ] 5.3 Do not start the residual `DecodeAll` when less than the reserve remains; abandon as a deadline outcome.
 - [ ] 5.4 Map `-4` to a deadline abandon inside the interop/`SubtractionPass` (`design.md` D4): **not** an exception,
       not `containedException`. `deadlineAbandoned=true`, `containedException=false`, `ResidualDecodes=0`.
@@ -63,10 +67,12 @@
 
 ## 6. Config: thread count (A4)
 
-- [ ] 6.1 Add optional `decoder.subtractionMaxThreads` to the decoder settings model, default
-      `max(1, ProcessorCount − 2)`, clamp `[1, ProcessorCount]`, read per cycle, no settings-page control. Replace the
-      `Math.Min(Environment.ProcessorCount, 4)` at `Ft8Decoder.cs:63`.
-- [ ] 6.2 Confirm a settings-page save neither drops nor resets the key (§1.6).
+- [ ] 6.1 Add `decoder.subtractionMaxThreads` to the decoder settings model: **`0` = auto = `max(1, ProcessorCount − 2)`,
+      and `0` is the default**; any other value clamped to `[1, ProcessorCount]` (negative becomes 1); read per cycle,
+      no settings-page control. Replace the `Math.Min(Environment.ProcessorCount, 4)` at `Ft8Decoder.cs:63`.
+- [ ] 6.2 Until the config-save fix (#193, Engineer) lands, a Settings save resets this key to 0 = auto and the flag
+      to OFF; both are safe. Confirm that, and re-confirm after that fix lands that a save neither drops nor
+      corrupts the key (§1.6).
 - [ ] 6.3 Add the `REQUIREMENTS.md` FR entry for the key, following base change task 9.4.
 
 ## 7. Monitoring on the hot path (M2, M3). M1 is NOT in scope.
@@ -87,11 +93,12 @@
 - [ ] 8.3 `SubtractionPass_DeadlineDuringFits_AbandonsAsDeadlineNotException`: a slow fake fit; assert
       `deadlineAbandoned=true`, `containedException=false`, pass-0 results kept, whole call within budget.
 - [ ] 8.4 `SubtractionPass_LessThanReserveLeft_SkipsResidualDecode`.
-- [ ] 8.5 `MaxThreads_DefaultAndClamp`: a table over `ProcessorCount` ∈ {1, 2, 4, 16} and values {absent, 0, −1, 1,
-      999}; and `MaxThreads_ChangeTakesEffectNextCycle`.
+- [ ] 8.5 `MaxThreads_ZeroIsAutoAndClamp`: a table over `ProcessorCount` ∈ {1, 2, 4, 16} and values {absent, 0 (both = auto),
+      −1, 1, 999}; and `MaxThreads_ChangeTakesEffectNextCycle`.
 - [ ] 8.6 `Fit_ManyWorkersManyCycles_DeterministicAndNoInterference`: N workers, many cycles, forced cancels mixed
       in; each signal's hash equals its single-thread hash. This is the stress test for §1.3.
-- [ ] 8.7 `Workspace_NoGrowthAfterWarmup_AndFreedAtShutdown`: plateau of fit-attributable private memory over
+- [ ] 8.7a `Workspace_LeaseReturnedWhenFitCancelledFailsOrThrows`, and `Workspace_PoolNeverExceedsBound_NeverBlocksAtMatchingParallelism`.
+- [ ] 8.7 `Workspace_NoGrowthAfterWarmup_AndFreedAtDispose`: plateau of fit-attributable private memory over
       hundreds of cycles; released at shutdown; decode still works after re-initialisation. State in the test how
       it measures (private bytes, or a counter export if `design.md` allows one).
 - [ ] 8.8 `ResidualDecode_DiagnosticsOff_OutputFieldsEqualDiagnosticsOn` (real DLL, fixtures) and
@@ -122,8 +129,8 @@
       (13 000 ms, no allowance), R7 (descriptive) on the frozen `selection.json`, harness updated only for the new
       config key, **WSJT-X closed**, machine state recorded.
 - [ ] 10.3 R5′: flag-OFF median on the new build ≤ 1.05 × the base build's, per run, with the base build
-      **re-measured in the same session** on the same cycles (`design.md` D8; proposed to the Architect, pending
-      acknowledgement). Report the change either way. Note M1 is absent.
+      **re-measured in the same session** on the same cycles (`design.md` D8; accepted by the Architect, Amendment 1).
+      Report the change either way. M1 is absent: P4 is scored on M2 + M3 alone and nothing here may be credited to M1.
 - [ ] 10.4 Row T (report only): R1′/R2′ at `subtractionMaxThreads = 4` on the H stratum, to separate the thread
       effect from the code effect.
 - [ ] 10.5 Flag-OFF control re-run on the new native build (same predicate as the base ruling 2); the merge gate.

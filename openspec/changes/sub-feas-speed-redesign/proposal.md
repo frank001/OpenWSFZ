@@ -32,13 +32,16 @@ thread cap of 4 on a 16-thread machine (`Ft8Decoder.cs:63`). This change is that
 
 - **A1** compute the smoothed tone track once per signal; `r_fit_drift` applies only the ḟ-dependent drift term.
 - **A2** transform the Gaussian pulse and the Hann window once per workspace; reuse their spectra.
-- **A3** reuse one workspace and FFT plan set per worker instead of one per signal (heap only; the existing
-  heap-allocation requirement and its crash history stand). Ownership mechanism is a Developer decision, recorded
-  in `design.md` D2.
-- **A4** the fit thread cap becomes config `decoder.subtractionMaxThreads`, default `max(1, ProcessorCount − 2)`,
-  clamped to `[1, ProcessorCount]`. Config-file key only; no settings-page control.
+- **A3** reuse workspaces and FFT plan sets instead of one per signal (heap only; the existing heap-allocation
+  requirement and its crash history stand). Mechanism fixed by the Architect's Amendment 1: a **bounded, locked pool**
+  of heap workspaces, size = `subtractionMaxThreads`, leased per fit and returned in a `finally`, freed at decoder
+  dispose; **no native thread-local state** (`design.md` D2).
+- **A4** the fit thread cap becomes config `decoder.subtractionMaxThreads`: **`0` = auto = `max(1, ProcessorCount − 2)`,
+  and 0 is also the default**; any other value is clamped to `[1, ProcessorCount]`. Config-file key only; no
+  settings-page control. Until the config-save fix (#193) lands, a Settings save resets this key (and the flag) to its
+  default, which for this key means auto and for the flag means OFF, so both fail safe.
 - **A5** a **hard deadline**: a cancellation flag the native fit checks at every Δt, ḟ and envelope iteration and
-  answers with a new return code `-4`; C# sets it at `budget − reserve` (reserve = 1 000 ms for the residual
+  answers with a new return code `-4`; C# sets it at `budget − reserve` (reserve = 1 500 ms for the residual
   decode) and does not start the residual decode with less than the reserve left. Semantics unchanged: a deadline
   abandons the pass and the cycle keeps its pass-0 results.
 - **M2** the residual `DecodeAll` runs with its diagnostics off. **M3** guard the Debug-only per-pass log loops
