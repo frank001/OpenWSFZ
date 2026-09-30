@@ -1,0 +1,433 @@
+{
+ "cycles": 161,
+ "seed": 20260930,
+ "bootstrap": 4000,
+ "20260922_2056": {
+  "b1": {
+   "ALL": {
+    "n": 1151,
+    "corroborated": 1129,
+    "rate": 0.9808861859252823,
+    "not_corroborated_share": 0.019113814074717683
+   },
+   "A": {
+    "n": 289,
+    "corroborated": 284,
+    "rate": 0.9826989619377162,
+    "not_corroborated_share": 0.01730103806228378,
+    "ci95_blocks": [
+     0.9693877551020408,
+     0.9961538461538462
+    ],
+    "blocks": 48
+   },
+   "B": {
+    "n": 449,
+    "corroborated": 441,
+    "rate": 0.9821826280623608,
+    "not_corroborated_share": 0.017817371937639215,
+    "ci95_blocks": [
+     0.9679633867276888,
+     0.9951456310679612
+    ],
+    "blocks": 48
+   },
+   "C": {
+    "n": 243,
+    "corroborated": 241,
+    "rate": 0.9917695473251029,
+    "not_corroborated_share": 0.008230452674897082,
+    "ci95_blocks": [
+     0.979253112033195,
+     1.0
+    ],
+    "blocks": 48
+   },
+   "D": {
+    "n": 170,
+    "corroborated": 163,
+    "rate": 0.9588235294117647,
+    "not_corroborated_share": 0.04117647058823526,
+    "ci95_blocks": [
+     0.9212121212121213,
+     0.9885057471264368
+    ],
+    "blocks": 48
+   }
+  },
+  "b2": {
+   "ALL": {
+    "n": 191,
+    "corroborated": 185,
+    "rate": 0.9685863874345549,
+    "not_corroborated_share": 0.03141361256544506
+   },
+   "A": {
+    "n": 11,
+    "corroborated": 11,
+    "rate": 1.0,
+    "not_corroborated_share": 0.0,
+    "ci95_blocks": [
+     1.0,
+     1.0
+    ],
+    "blocks": 48
+   },
+   "B": {
+    "n": 80,
+    "corroborated": 80,
+    "rate": 1.0,
+    "not_corroborated_share": 0.0,
+    "ci95_blocks": [
+     1.0,
+     1.0
+    ],
+    "blocks": 48
+   },
+   "C": {
+    "n": 52,
+    "corroborated": 51,
+    "rate": 0.9807692307692307,
+    "not_corroborated_share": 0.019230769230769273,
+    "ci95_blocks": [
+     0.9310344827586207,
+     1.0
+    ],
+    "blocks": 48
+   },
+   "D": {
+    "n": 48,
+    "corroborated": 43,
+    "rate": 0.8958333333333334,
+    "not_corroborated_share": 0.10416666666666663,
+    "ci95_blocks": [
+     0.7959183673469388,
+     0.9795918367346939
+    ],
+    "blocks": 48
+   }
+  },
+  "wsjtx_decodes_in_these_cycles": 1811
+ },
+ "20260923_1730": {
+  "b1": {
+   "ALL": {
+    "n": 1903,
+    "corroborated": 1847,
+    "rate": 0.9705727798213347,
+    "not_corroborated_share": 0.02942722017866528
+   },
+   "A": {
+    "n": 463,
+    "corroborated": 454,
+    "rate": 0.980561555075594,
+    "not_corroborated_share": 0.01943844492440605,
+    "ci95_blocks": [
+     0.9675456389452333,
+     0.9914712153518124
+    ],
+    "blocks": 76
+   },
+   "B": {
+    "n": 781,
+    "corroborated": 768,
+    "rate": 0.9833546734955185,
+    "not_corroborated_share": 0.016645326504481472,
+    "ci95_blocks": [
+     0.9713914174252276,
+     0.9934810951760105
+    ],
+    "blocks": 76
+   },
+   "C": {
+    "n": 355,
+    "corroborated": 341,
+    "rate": 0.9605633802816902,
+    "not_corroborated_share": 0.03943661971830981,
+    "ci95_blocks": [
+     0.9338624338624338,
+     0.984
+    ],
+    "blocks": 76
+   },
+   "D": {
+    "n": 304,
+    "corroborated": 284,
+    "rate": 0.9342105263157895,
+    "not_corroborated_share": 0.06578947368421051,
+    "ci95_blocks": [
+     0.9065420560747663,
+     0.959866220735786
+    ],
+    "blocks": 76
+   }
+  },
+  "b2": {
+   "ALL": {
+    "n": 373,
+    "corroborated": 361,
+    "rate": 0.967828418230563,
+    "not_corroborated_share": 0.03217158176943702
+   },
+   "A": {
+    "n": 18,
+    "corroborated": 18,
+    "rate": 1.0,
+    "not_corroborated_share": 0.0,
+    "ci95_blocks": [
+     1.0,
+     1.0
+    ],
+    "blocks": 76
+   },
+   "B": {
+    "n": 150,
+    "corroborated": 146,
+    "rate": 0.9733333333333334,
+    "not_corroborated_share": 0.026666666666666616,
+    "ci95_blocks": [
+     0.9383561643835616,
+     1.0
+    ],
+    "blocks": 76
+   },
+   "C": {
+    "n": 116,
+    "corroborated": 115,
+    "rate": 0.9913793103448276,
+    "not_corroborated_share": 0.008620689655172376,
+    "ci95_blocks": [
+     0.9722222222222222,
+     1.0
+    ],
+    "blocks": 76
+   },
+   "D": {
+    "n": 89,
+    "corroborated": 82,
+    "rate": 0.9213483146067416,
+    "not_corroborated_share": 0.0786516853932584,
+    "ci95_blocks": [
+     0.8494623655913979,
+     0.9775280898876404
+    ],
+    "blocks": 76
+   }
+  },
+  "wsjtx_decodes_in_these_cycles": 3186
+ },
+ "20260925_2010": {
+  "b1": {
+   "ALL": {
+    "n": 788,
+    "corroborated": 773,
+    "rate": 0.9809644670050761,
+    "not_corroborated_share": 0.019035532994923887
+   },
+   "A": {
+    "n": 168,
+    "corroborated": 165,
+    "rate": 0.9821428571428571,
+    "not_corroborated_share": 0.017857142857142905,
+    "ci95_blocks": [
+     0.9588235294117647,
+     1.0
+    ],
+    "blocks": 35
+   },
+   "B": {
+    "n": 310,
+    "corroborated": 304,
+    "rate": 0.9806451612903225,
+    "not_corroborated_share": 0.01935483870967747,
+    "ci95_blocks": [
+     0.9659863945578231,
+     0.9933993399339934
+    ],
+    "blocks": 35
+   },
+   "C": {
+    "n": 175,
+    "corroborated": 171,
+    "rate": 0.9771428571428571,
+    "not_corroborated_share": 0.02285714285714291,
+    "ci95_blocks": [
+     0.9540229885057471,
+     0.9946524064171123
+    ],
+    "blocks": 35
+   },
+   "D": {
+    "n": 135,
+    "corroborated": 133,
+    "rate": 0.9851851851851852,
+    "not_corroborated_share": 0.014814814814814836,
+    "ci95_blocks": [
+     0.9621212121212122,
+     1.0
+    ],
+    "blocks": 35
+   }
+  },
+  "b2": {
+   "ALL": {
+    "n": 128,
+    "corroborated": 126,
+    "rate": 0.984375,
+    "not_corroborated_share": 0.015625
+   },
+   "A": {
+    "n": 3,
+    "corroborated": 3,
+    "rate": 1.0,
+    "not_corroborated_share": 0.0,
+    "ci95_blocks": [
+     1.0,
+     1.0
+    ],
+    "blocks": 35
+   },
+   "B": {
+    "n": 45,
+    "corroborated": 44,
+    "rate": 0.9777777777777777,
+    "not_corroborated_share": 0.022222222222222254,
+    "ci95_blocks": [
+     0.926829268292683,
+     1.0
+    ],
+    "blocks": 35
+   },
+   "C": {
+    "n": 48,
+    "corroborated": 47,
+    "rate": 0.9791666666666666,
+    "not_corroborated_share": 0.02083333333333337,
+    "ci95_blocks": [
+     0.9347826086956522,
+     1.0
+    ],
+    "blocks": 35
+   },
+   "D": {
+    "n": 32,
+    "corroborated": 32,
+    "rate": 1.0,
+    "not_corroborated_share": 0.0,
+    "ci95_blocks": [
+     1.0,
+     1.0
+    ],
+    "blocks": 35
+   }
+  },
+  "wsjtx_decodes_in_these_cycles": 1185
+ },
+ "ALL": {
+  "b1": {
+   "ALL": {
+    "n": 3842,
+    "corroborated": 3749,
+    "rate": 0.9757938573659553,
+    "not_corroborated_share": 0.024206142634044747
+   },
+   "A": {
+    "n": 920,
+    "corroborated": 903,
+    "rate": 0.9815217391304348,
+    "not_corroborated_share": 0.018478260869565166,
+    "ci95_blocks": [
+     0.9732739420935412,
+     0.9891774891774892
+    ],
+    "blocks": 159
+   },
+   "B": {
+    "n": 1540,
+    "corroborated": 1513,
+    "rate": 0.9824675324675325,
+    "not_corroborated_share": 0.01753246753246751,
+    "ci95_blocks": [
+     0.9752765126870527,
+     0.9895150720838795
+    ],
+    "blocks": 159
+   },
+   "C": {
+    "n": 773,
+    "corroborated": 753,
+    "rate": 0.9741267787839586,
+    "not_corroborated_share": 0.02587322121604141,
+    "ci95_blocks": [
+     0.9595588235294118,
+     0.9863574351978172
+    ],
+    "blocks": 159
+   },
+   "D": {
+    "n": 609,
+    "corroborated": 580,
+    "rate": 0.9523809523809523,
+    "not_corroborated_share": 0.04761904761904767,
+    "ci95_blocks": [
+     0.9344262295081968,
+     0.9689542483660131
+    ],
+    "blocks": 159
+   }
+  },
+  "b2": {
+   "ALL": {
+    "n": 692,
+    "corroborated": 672,
+    "rate": 0.9710982658959537,
+    "not_corroborated_share": 0.028901734104046284
+   },
+   "A": {
+    "n": 32,
+    "corroborated": 32,
+    "rate": 1.0,
+    "not_corroborated_share": 0.0,
+    "ci95_blocks": [
+     1.0,
+     1.0
+    ],
+    "blocks": 159
+   },
+   "B": {
+    "n": 275,
+    "corroborated": 270,
+    "rate": 0.9818181818181818,
+    "not_corroborated_share": 0.018181818181818188,
+    "ci95_blocks": [
+     0.9607843137254902,
+     0.9965397923875432
+    ],
+    "blocks": 159
+   },
+   "C": {
+    "n": 216,
+    "corroborated": 213,
+    "rate": 0.9861111111111112,
+    "not_corroborated_share": 0.01388888888888884,
+    "ci95_blocks": [
+     0.96875,
+     1.0
+    ],
+    "blocks": 159
+   },
+   "D": {
+    "n": 169,
+    "corroborated": 157,
+    "rate": 0.9289940828402367,
+    "not_corroborated_share": 0.07100591715976334,
+    "ci95_blocks": [
+     0.8806818181818182,
+     0.9693251533742331
+    ],
+    "blocks": 159
+   }
+  },
+  "wsjtx_decodes_in_these_cycles": 6182
+ }
+}
