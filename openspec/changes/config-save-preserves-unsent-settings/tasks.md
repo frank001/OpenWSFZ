@@ -11,28 +11,28 @@ and L1 are defined in the source spec §7 and are quoted in the delta specs.
 
 ## 1. Tests first (Developer)
 
-- [ ] 1.1 Add T1, T2, T4–T12 to `tests/OpenWSFZ.Web.Tests/` against the current handler. T1, T4, T5, T6,
+- [x] 1.1 Add T1, T2, T4–T12 to `tests/OpenWSFZ.Web.Tests/` against the current handler. T1, T4, T5, T6,
       T7 SHALL fail on `c3f42362`; record which do (proves the tests can fail, HK-022).
-- [ ] 1.2 The Settings-shaped fixture's key set is exactly the `postConfig({...})` literal at
+- [x] 1.2 The Settings-shaped fixture's key set is exactly the `postConfig({...})` literal at
       `web/js/settings.js:1354-1371`.
 
 ## 2. Part A: overlay merge (Developer)
 
-- [ ] 2.1 Implement design D1 in `src/OpenWSFZ.Web/WebApp.cs`.
-- [ ] 2.2 Remove the redundant guards and the two stale comments (spec §2).
-- [ ] 2.3 T1–T12 pass.
-- [ ] 2.4 Fill design D6: one row per existing test whose assertion changed.
+- [x] 2.1 Implement design D1 in `src/OpenWSFZ.Web/WebApp.cs`.
+- [x] 2.2 Remove the redundant guards and the two stale comments (spec §2).
+- [x] 2.3 T1–T12 pass.
+- [x] 2.4 Fill design D6: one row per existing test whose assertion changed.
 
 ## 3. Part D: change log line (Developer)
 
-- [ ] 3.1 One `Information` line per successful save; allowlisted values only.
-- [ ] 3.2 T14 passes; the test asserts no callsign and no passphrase in the captured log.
+- [x] 3.1 One `Information` line per successful save; allowlisted values only.
+- [x] 3.2 T14 passes; the test asserts no callsign and no passphrase in the captured log.
 
 ## 4. Part C: Settings-page archive group (Developer)
 
-- [ ] 4.1 Read `CycleArchiveService`; write the findings into `design.md` D5 and choose per-field validation.
-- [ ] 4.2 `web/settings.html`, `web/js/settings.js` (snapshot and payload), `web/css/app.css`. Four modes.
-- [ ] 4.3 T13 payload-contract test; T15 Playwright; before/after screenshots (HK-005, HK-007).
+- [x] 4.1 Read `CycleArchiveService`; write the findings into `design.md` D5 and choose per-field validation.
+- [x] 4.2 `web/settings.html`, `web/js/settings.js` (snapshot and payload), `web/css/app.css`. Four modes.
+- [x] 4.3 T13 payload-contract test; T15 Playwright; before/after screenshots (HK-005, HK-007).
 
 ## 5. Part E: config-drift module (Engineer)
 
@@ -43,9 +43,9 @@ and L1 are defined in the source spec §7 and are quoted in the delta specs.
 
 ## 6. Docs and version
 
-- [ ] 6.1 `REQUIREMENTS.md`: amend the FR covering the config API; add the archive-control and log-line
+- [x] 6.1 `REQUIREMENTS.md`: amend the FR covering the config API; add the archive-control and log-line
       requirements; change-log row.
-- [ ] 6.2 `VERSION` 0.51 to 0.52 (user-facing). Commit before running `check_version_bump.py` (G9b).
+- [x] 6.2 `VERSION` 0.51 to 0.52 (user-facing). Commit before running `check_version_bump.py` (G9b).
 
 ## 7. Acceptance
 

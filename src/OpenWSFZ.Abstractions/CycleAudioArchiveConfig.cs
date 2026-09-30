@@ -46,6 +46,22 @@ public enum CycleAudioArchiveMode
 /// </summary>
 public sealed record CycleAudioArchiveConfig
 {
+    /// <summary>
+    /// Smallest accepted <see cref="MaxSizeMb"/>. <c>CycleArchiveService.EnforceRetention</c> turns
+    /// <c>0</c> or a negative value into a zero-byte cap and deletes the whole archive (settings-page
+    /// change, design D5).
+    /// </summary>
+    public const int MinMaxSizeMb = 1;
+
+    /// <summary>Smallest accepted <see cref="MaxAgeHours"/> (<c>0</c> or less deletes every file).</summary>
+    public const int MinMaxAgeHours = 1;
+
+    /// <summary>
+    /// Largest accepted <see cref="MaxAgeHours"/>: ten years. Anything past ~17.7 million hours
+    /// underflows <see cref="DateTime"/> in the retention sweep's cutoff arithmetic.
+    /// </summary>
+    public const int MaxMaxAgeHours = 87_600;
+
     // ── Deserialization note (Lesson 6 / D-WFC-001 pattern, mirrors DecodeNoiseSuppressionConfig)
     //
     // MaxSizeMb (2048), MaxAgeHours (168) and WriteManifest (true) all have non-CLR-zero defaults.

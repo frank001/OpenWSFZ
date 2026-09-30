@@ -91,24 +91,65 @@ also set, or validation rejects the fixture).
 
 ## D5: Part C validation is read from the service, not invented
 
-Before writing server-side validation, the Developer reads `CycleArchiveService` and records the findings
-in this section (a task, 4.1). Known so far, from reading `c3f42362`:
+**Findings (Developer, 2026-09-29, reading `src/OpenWSFZ.Daemon/CycleArchiveService.cs` on this branch;
+line numbers are that file's, unchanged by this change).** Nothing below was run against a live archive;
+it is from reading the code, and the two overflow claims are arithmetic, not experiment.
 
-- `mode` is re-read on every `TryEnqueue` (`CycleArchiveService.cs:185`), so it is live.
-- `directory` is read at write time (`:278-282`); whether it is live per cycle is **unverified**.
-- `maxSizeMb` becomes `maxSizeMb * 1024 * 1024` bytes (`:430`) and `maxAgeHours` becomes a cutoff (`:422`).
-  What `0` or a negative value does to retention (possibly deleting everything) is **unverified** and
-  must be established before the UI allows it.
+| Field | Read | Live? | What a bad value does |
+|---|---|---|---|
+| `mode` | `TryEnqueue` `:185`, every cycle | **live** | an unknown string never reaches the service: the enum converter rejects it (400) |
+| `directory` | `ProcessItemAsync` `:277-282`, every item; blank/whitespace falls back to the default location | **live** (next cycle writes to the new directory; the retention sweep follows it) | an unusable path makes `Directory.CreateDirectory` throw; the writer loop catches it and logs a Warning per cycle. The cycle is **not** counted as a drop. No server-side check can know whether a path is writable, so none is added |
+| `maxSizeMb` | `EnforceRetention` `:430`: `maxBytes = MaxSizeMb * 1024L * 1024L`, `while (total > maxBytes)` deletes oldest-first | **live** (each sweep) | `0` or negative gives `maxBytes <= 0`, so the loop deletes **every** matching file, including the one just written. `0` does **not** mean "unlimited" |
+| `maxAgeHours` | `EnforceRetention` `:422`: `cutoff = UtcNow - TimeSpan.FromHours(MaxAgeHours)`, deletes everything older | **live** (each sweep) | `0` puts the cutoff at "now": every file is older, all deleted. Negative puts it in the future: same. A large value overflows: `TimeSpan.FromHours` above ~2.56e8 h, and `DateTime` underflows above ~1.77e7 h. The sweep's own `catch` swallows it (one Warning), so retention is **silently disabled** |
+| `writeManifest` | `ProcessItemAsync` `:314`, every item | **live** | none |
 
-Then choose per field: keep a meaningful `0`, or clamp-with-warning, or 400. Record the choice here.
+No field needs a restart. One sticky behaviour is **not** a settings field but is worth knowing: `_spaceFloorHit`
+(`:265-275`) latches for the session once free disk space falls under the floor; changing the directory does
+not clear it. The page does not need a restart notice for that, since it is not caused by a setting.
+
+**Choice (per field):**
+
+- `mode`: four values; no range issue.
+- `directory`: blank in the field is sent as `null` (the service treats null and whitespace alike). No
+  server-side validation.
+- `maxSizeMb`: **400 below 1.** `0` has no meaningful non-destructive reading, so it is not kept.
+- `maxAgeHours`: **400 outside [1, 87600]** (ten years; the upper bound keeps the date arithmetic well inside range).
+- `writeManifest`: none.
+- **400, not clamp-with-warning**, unlike CAT/TX/decoder: these values destroy data, so they are refused rather
+  than quietly rewritten. **Only a value the body actually sent is checked.** A stored out-of-range value (the
+  file could always be edited by hand) is left alone and can never block an unrelated save, in keeping with the
+  rule of this change that a save does not change what it did not send. Consequence: a hand-edited `0` stays
+  destructive until the operator changes it; the Settings page shows it and its own validation refuses to save
+  that page state without a valid number. Bounds live in `CycleAudioArchiveConfig` as constants so the page,
+  the handler and the tests read one source.
 
 ## D6: existing tests that assert the OLD behaviour
 
-Not enumerated yet, and must not be guessed. Procedure for the Developer (task 2.4): after Part A, run
-`OpenWSFZ.Web.Tests`, and for **every** test that fails or changes, add a row here with the test name,
-what it asserted, why the old assertion was a symptom of the defect, and the new assertion. No test is
-rewritten without a row (HK-022). Expected candidates, from a first read: the `ConfigApiNullGuardTests`
-group and the test named `7.2m` (a body with no `decoder`).
+**Result (Developer, 2026-09-29, after Part A on branch `feat/config-save-preserves-unsent-settings`): no
+existing test's assertion changed. The table has zero rows, and that is a measured result, not an omission.**
+
+Procedure followed (task 2.4): Part A implemented, then `OpenWSFZ.Web.Tests` run in full (340 passed, 0
+failed), then the three other projects whose sources mention `POST /api/v1/config`
+(`OpenWSFZ.Config.Tests` 105, `OpenWSFZ.Daemon.Tests` 652, `OpenWSFZ.Ft8.Tests` `LoggingPipeline*` 16:
+all green, none of them posts to the endpoint; they only cite it in comments).
+
+| Test | Asserted (old) | Why it survives | Changed? |
+|---|---|---|---|
+| all seven `ConfigApiNullGuardTests` `PostConfig_Omitting<X>Key_DoesNotPersistNull<X>` | after `{audioDeviceId}` the section is not `null` and equals the **default** | each runs against a **fresh** `TestConfigStore`, whose stored section *is* the default; "keep the stored value" and "reset to default" are indistinguishable there. They still guard the null-persistence symptom | no |
+| `PostConfig_UnrelatedSave_PreservesPreviouslyPersistedPtt`, the `InstanceId` and `role/leaderUrl/followerUrls` preservation tests | an unrelated save keeps the stored value | the intended behaviour, now provided by the overlay instead of a guard | no |
+| `PostConfig_ExplicitInstanceIdResetToDefault_IsHonoured` | an explicit `"instanceId": "OpenWSFZ"` wins | a key present in the body replaces the stored value; the overlay honours it by construction | no |
+| test `7.2m` (`DecoderConfigApiTests`, posts a serialised default `AppConfig`) | a null decoder is accepted (200) | the body carries an explicit `"decoder": null` and `decoder` is a nullable section, so `null` is stored, as before. It is **not** a body with no `decoder` key (the first read of the test, from its name, said it was) | no |
+
+**What the old tests could not see** (the gap that hid #193): the seven null-guard tests assert "reset to
+default" only on a store that is already at default. A test that first stores a non-default value and then
+posts a partial body was written only for `ptt` and `externalReporting`. Coverage of that shape is now
+`ConfigSaveOverlayTests` T1, T4, T5, T7, T8; T8 in particular **fails on the old handler for six of the
+seven sections** (the old handler reset them, the new one keeps them), which is the behaviour change
+callers can see.
+
+Behaviour change (b) of spec §2, "a body that omits `decoder` no longer clears a stored decoder whose
+marker is `false`", has no pre-existing test either way; it is covered by T4 (stored decoder non-null,
+`POST {}`).
 
 ## D7: Part E, config-drift module (revised by the Architect's ruling, 2026-09-29)
 
