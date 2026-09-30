@@ -134,6 +134,7 @@ def main():
                          "series_private_mb": [round(x[1] / 1e6, 1) for x in pts]}
     ep = os.path.join(sd, "events.jsonl")
     out["sampler_events"] = [json.loads(l) for l in open(ep, encoding="utf-8") if l.strip()] if os.path.exists(ep) else []
+    os.makedirs(sd, exist_ok=True)
     json.dump(out, open(os.path.join(sd, "summary.json"), "w"), indent=1)
     print(json.dumps(out, indent=1))
 
