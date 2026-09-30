@@ -1359,7 +1359,7 @@ int ft8_subfeas_fit_signal(
  * ft8_subfeas_pool_shutdown()        -- free idle workspaces now, leased ones as
  *     they return; never frees a workspace in use. Call at decoder dispose.
  * ft8_subfeas_pool_get_stats(out[7]) -- [0] bound [1] live [2] idle [3] leased
- *     [4] peak leased [5] refusals [6] bytes per workspace.
+ *     [4] peak leased [5] refusals (both since the last configure) [6] bytes per workspace.
  */
 void ft8_subfeas_pool_configure(int bound);
 void ft8_subfeas_pool_shutdown(void);

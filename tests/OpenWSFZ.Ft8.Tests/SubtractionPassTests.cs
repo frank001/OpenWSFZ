@@ -138,7 +138,10 @@ public sealed class SubtractionPassTests
 
         await SubtractionPass.RunAsync(interop, new float[PcmLength], pass0, maxDegreeOfParallelism: 2, logger: null, ap: ap);
 
-        interop.Events.Should().Equal("SetApBits(set)", "DecodeAll", "SetApBits(clear)");
+        // sub-feas-speed-redesign M2 deliberately inserts the diagnostics switch (off before, on after) around
+        // DecodeAll; the AP-bit ordering this R1 test guards (set, then decode, then clear, all on one thread)
+        // is unchanged, so the switch events are the only new entries in the sequence.
+        interop.Events.Should().Equal("SetApBits(set)", "Diag(false)", "DecodeAll", "Diag(true)", "SetApBits(clear)");
         interop.ApThreadAtDecode.Should().Be(interop.DecodeThread, "AP bits must be set on the thread that runs DecodeAll");
         interop.ApBitsAtDecode.Should().NotBeNull();
         interop.ApBitsAtDecode!.Value.Mycall.Should().Equal(new byte[] { 1, 2, 3, 4 });
@@ -239,8 +242,23 @@ public sealed class SubtractionPassTests
     /// encoder (already-tested, unrelated to this change) so payload comparisons behave
     /// exactly as they would in production.
     /// </summary>
-    private sealed class FakeInterop : IFt8NativeInterop
+    /// <remarks>
+    /// <c>internal</c> (not private) since sub-feas-speed-redesign: <c>SubtractionDeadlineTests</c> reuses it and
+    /// drives the new hooks below (<see cref="FitBehaviour"/>, <see cref="PoolConfigureCalls"/>, and the
+    /// <c>Diag(...)</c> events).
+    /// </remarks>
+    internal sealed class FakeInterop : IFt8NativeInterop
     {
+        /// <summary>Overrides the fit: receives the cancel-flag pointer; returns (rc, shat). Default: (FitSignalReturnCode, zeros).</summary>
+        public Func<IntPtr, (int ReturnCode, float[] Shat)>? FitBehaviour { get; init; }
+
+        /// <summary>Every bound passed to <see cref="SubfeasPoolConfigure"/> (A3: sized per cycle).</summary>
+        public List<int> PoolConfigureCalls { get; } = [];
+
+        public void SubfeasPoolConfigure(int bound) { lock (PoolConfigureCalls) PoolConfigureCalls.Add(bound); }
+
+        public void SetDiagnosticsEnabled(bool enabled) { lock (Events) Events.Add(enabled ? "Diag(true)" : "Diag(false)"); }
+
         public int MaxDecodePasses => 2;
 
         public bool ComputeAnalyticCalled { get; private set; }
@@ -287,6 +305,7 @@ public sealed class SubtractionPassTests
             if (FitSignalThrows is not null) throw FitSignalThrows;
             if (FitSignalThrowsAvForTones?.Invoke(tones) == true)
                 throw new NativeAccessViolationException();
+            if (FitBehaviour is not null) return FitBehaviour(cancelFlag);
             return (FitSignalReturnCode, new float[PcmLength]);
         }
         private int _fitCallCount;

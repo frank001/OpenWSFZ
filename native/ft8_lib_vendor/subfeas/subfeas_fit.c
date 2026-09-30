@@ -697,6 +697,8 @@ void ft8_subfeas_pool_configure(int bound)
     POOL_LOCK();
     g_pool_bound   = bound;
     g_pool_closing = 0;                /* (re)opens the pool after a shutdown */
+    g_pool_peak_leased = g_pool_leased; /* the peak and the refusal count are "since the last configure" */
+    g_pool_refusals    = 0;
     /* Shrinking: drop idle workspaces above the bound now; leased ones are dropped as they return. */
     while (g_pool_live > g_pool_bound && g_pool_idle_n > 0) {
         doomed[n_doomed++] = g_pool_idle[--g_pool_idle_n];

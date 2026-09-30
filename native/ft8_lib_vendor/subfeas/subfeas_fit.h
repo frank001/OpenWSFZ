@@ -165,8 +165,8 @@ void ft8_subfeas_pool_shutdown(void);
 
 /*
  * ft8_subfeas_pool_get_stats -- counters for tests and diagnostics. out[] has SUBFEAS_POOL_STATS_LEN
- * ints: [0] bound, [1] live (idle + leased), [2] idle, [3] leased, [4] peak leased since process start,
- * [5] lease refusals (pool at its bound; never expected at matching parallelism), [6] bytes per workspace.
+ * ints: [0] bound, [1] live (idle + leased), [2] idle, [3] leased, [4] peak leased since the last configure,
+ * [5] lease refusals since the last configure (pool at its bound; never expected at matching parallelism), [6] bytes per workspace.
  */
 void ft8_subfeas_pool_get_stats(int* out);
 

@@ -203,7 +203,7 @@ internal static class SubtractionPass
             logger?.LogWarning(
                 "Sub-feas residual pass: wall-clock budget {Budget:F1}s exceeded {Phase} - " +
                 "abandoning the residual pass (fallback to pass-0-only).",
-                deadline!.Value.TotalSeconds, phase);
+                deadline?.TotalSeconds ?? 0.0, phase); // null deadline: only reachable via a fit answering -4 unprompted
             return [];
         }
 

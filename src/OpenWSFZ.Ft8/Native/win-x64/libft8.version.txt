@@ -1,4 +1,36 @@
-=== CURRENT: sub-feas-native-subtraction, additive core (FT8_SHIM_VERSION 20260055) ===
+=== CURRENT: sub-feas-speed-redesign, Stage A (FT8_SHIM_VERSION 20260056) ===
+
+Built 2026-09-30 from branch feat/sub-feas-speed-redesign, on top of feat/sub-feas-native-subtraction
+(ab95bea1, code 2b39cf18, shim 20260055), via OpenSpec change openspec/changes/sub-feas-speed-redesign/
+(on qa/sub-feas). Developer session, Captain's go 2026-09-30. Version literal chosen by checking every local
+and remote branch's FT8_SHIM_VERSION on 2026-09-30: main 20260051, decoding_improvement 20260054, the base
+20260055, nothing at 20260056 or above.
+
+Stage A is EXACT-ONLY: for any input with no deadline the fit's return code and out_shat bytes are
+bit-identical to 20260055. That is demonstrated by the E1 hash probe (tests/Ft8.FitProbe), not argued from
+the code: 62 rows (3 fixture analytic signals, 10 fixture fits, 48 pseudo-random fits covering rc 0 and rc -3)
+are identical to the golden recorded from the base DLL (5a6a4dc0...e38c5), at 1, 4, 8 and 14 threads.
+Changes: A1 smoothed tone track once per signal; A2 pulse and Hann spectra cached per workspace; A3 bounded,
+locked pool of heap workspaces (no thread-local state; new exports ft8_subfeas_pool_configure / _shutdown /
+_get_stats); A5 ft8_subfeas_fit_signal gains a trailing cancel-flag parameter and return code -4; M2 new
+per-thread ft8_set_diagnostics_enabled(int). NOT changed: the LDPC-failure LLR statistics and their getters
+(M1 deferred by the Captain), ft8_decode_all, every other export, and the build flags (/std:c11 /O2 /W3,
+unchanged: no /fp:fast, no /arch:AVX2). Single-thread fit, measured: about 1.79 s -> 1.26 s.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c
+    (Not bit-reproducible run to run: the PE carries link timestamps. A source-rebuilt UNMODIFIED base tree
+     produced a different SHA than 5a6a4dc0 yet reproduced its E1 golden byte for byte. The pin therefore
+     identifies THIS file only; no independent pin exists, as with every prior entry.)
+  Linux x64   (build_linux.sh, GCC 14.2.0 via WSL2 Debian): compiled and linked clean for verification,
+    exports checked with nm, NOT run and NOT committed: the committed linux-x64/libft8.so stays at its
+    older shim version until CI's commit-native-binaries job rebuilds it. .github/workflows/ci.yml did not
+    compile subfeas_fit.c for Linux or macOS at all (a gap inherited from the base change); this change adds
+    it, unverified on the macOS leg.
+  macOS ARM64: NOT rebuilt here -- no Mac available locally (the same limitation every prior native change
+    recorded). CI owns it.
+
+=== Previous: sub-feas-native-subtraction, additive core (FT8_SHIM_VERSION 20260055) ===
 
 Built 2026-09-28 from branch feat/sub-feas-native-subtraction, on top of the pin this branch
 inherited from main at shim 20260051 (SHA256
