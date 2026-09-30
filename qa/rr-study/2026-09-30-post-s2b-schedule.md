@@ -10,7 +10,7 @@ The tests A and B no longer wait for S2b (S2b stays after the overnight run). Th
 | Order | Item | Machine | Who | Depends on |
 |---|---|---|---|---|
 | 1 | Two-stage acceptance S1/S2 (running) | busy until ~17:20Z 2026-09-30 | QA | (in flight) |
-| 2a | **Test B: corroboration scan**, on the 161 E1 cycles | light, offline, one core for minutes; **no replay needed** (S1 already recorded the flag-ON and flag-OFF outcomes for exactly these cycles) | QA | S2 DONE |
+| 2a | **Test B: corroboration scan**, on the 161 E1 cycles | one flag-ON replay of the 161 cycles (~16 min, timing-insensitive) with the matching done in-process, then light analysis | QA | S2 DONE; Architect's ruling on the S1 hash files (below) |
 | 2b | **Test A: the Developer builds the test-only profile tool** | load in short build bursts, **not timing-sensitive** | Developer | S2 DONE (parallel with 2a) |
 | 2c | **Test A: QA runs the profile** | **quiet machine, ~20 min** | QA | 2b delivered |
 | 3 | Engineer's T8 loop + full slnx (load-sensitive: they want a quiet machine) | quiet | Engineer | 2c done |
@@ -48,11 +48,11 @@ The S2b harness can be **written** earlier (no machine needed); only its run wai
 
 **Corpora.** The three endurance runs used for §8.1 and Stage A: `20260922_2056` (Voicemeeter B1), `20260923_1730` and `20260925_2010` (direct CODEC), each with OpenWSFZ's `ALL.TXT`, WSJT-X's `ALL.TXT` for the same window, and the cycle WAVs. Selection: the frozen §8.1 strata (H and M, 905 cycles, `selection.json` SHA `730d6ea6…`) or the 161 E1 cycles, decided when the test is designed.
 
-**Method (to be finalised at design time).** Outcome comparison at the **text-hash** level, inside one process, so no message text leaves the function that reads it (HK-037):
-- the replay harness already writes, per decode, numeric fields plus an 8-hex-digit hash of the message text (`--outcomes`); flag-ON minus flag-OFF gives the extra decodes of each cycle (batch 2 of the two-stage build is exactly the residual decodes);
-- WSJT-X's decodes for the same cycle stamp are read from its `ALL.TXT` and hashed with the **same** normalisation, and compared with a frequency/time tolerance;
-- reuse the Stage 2 matching logic (`qa/rr-study/sub-feas/stage2.py`) rather than inventing a new one (HK-034), including its treatment of the RR73 encoding difference.
-- Report: extra decodes, corroborated, not corroborated, and the not-corroborated share; per run; per SNR band; **with the interval and the block count** (busy cycles cluster, so the effective N is the block count).
+**Method (STRICT route, proposed to the Architect 2026-09-30; default unless he rules otherwise).** The matching is done **inside the one function that holds the decoded text in memory and reads WSJT-X's ALL.TXT**, and only **counts and stamps** leave it (HK-037 / NFR-021; the Architect's note: no message text or callsign in any output, intermediate CSV or log line, including the gitignored artefacts):
+- an extension of the replay harness reads WSJT-X's `ALL.TXT` for each cycle stamp itself and matches the flag-ON residual decodes (batch 2 of the two-stage build is exactly the extra decodes) against it in-process, with a frequency/time tolerance;
+- reuse the Stage 2 matching logic (`qa/rr-study/sub-feas/stage2.py`) rather than inventing a new one (HK-034), including its treatment of the RR73 encoding difference;
+- **S1's recorded outcome files are NOT reused** for this test: they carry an 8-hex-digit SHA-256 prefix of the message text per decode (a message-identity surrogate; gitignored, never staged). After S1's rows are computed and reported, `artefacts/sub_feas_twostage_acceptance/s1/*.outcomes.txt` is **deleted** (numeric fields only if a later check needs them), unless the Architect rules the hashes acceptable;
+- report: extra decodes, corroborated, not corroborated, and the not-corroborated share; **per run and per residual-decode SNR band** (a pooled rate would hide whether the uncorroborated decodes cluster at the weak end, where false positives live); with the interval and the block count (busy cycles cluster, so the effective N is the block count).
 
 **Limits, stated up front (HK-026).**
 - The corpora are **not independent** of the SUB-FEAS research corpus's neighbourhood (same station, same bands, same period), so this is a **plausibility check, not the base change's §8.2 result**. §8.2 needs an independent corpus; the overnight run is that candidate.
