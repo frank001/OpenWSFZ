@@ -29,6 +29,15 @@
  * whole point is stability), caught and fixed before this was committed.
  */
 
+#ifdef _WIN32
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>   /* SRWLOCK for the workspace pool -- before the macros below */
+#else
+#  include <pthread.h>
+#endif
+
 #include "subfeas_fit.h"
 #include "../fft/kiss_fft.h"
 
@@ -548,6 +557,188 @@ static void lp_envelope(
 }
 
 /* ========================================================================
+ * Workspace pool (sub-feas-speed-redesign A3; design.md D2, fixed by the Architect's Amendment 1).
+ *
+ * A fit needs ~25-30 MB of buffers and two FFT plans. Building them per signal (as before) costs
+ * page faults and plan set-up on every call. The fits run on .NET thread-pool threads the native
+ * code does not own, so per-thread (thread-local) workspaces are NOT an option: C has no
+ * destructor for them here, so they would leak when the pool retires a thread and could not be
+ * freed at shutdown from another thread. Instead:
+ *
+ *   - a BOUNDED, LOCKED pool of HEAP workspaces; the bound is the configured fit thread count;
+ *   - a workspace is LEASED for exactly one ft8_subfeas_fit_signal call and returned on every exit
+ *     path (success, -3, -4, -1, and even after an access violation, see pool_return);
+ *   - no two concurrent fits ever share a workspace (a leased one is not on the free list);
+ *   - no native thread-local state anywhere;
+ *   - a lease request beyond the bound is REFUSED (rc -1 to the caller, counted), never allocates
+ *     past the bound and never blocks: with the caller's MaxDegreeOfParallelism equal to the bound
+ *     it cannot happen, and the refusal counter lets a test assert that instead of assuming it;
+ *   - ft8_subfeas_pool_shutdown() frees the idle workspaces now and every leased one as it is
+ *     returned, so it can never free a workspace a fit is using.
+ * ===================================================================== */
+
+#ifdef _WIN32
+static SRWLOCK g_pool_lock = SRWLOCK_INIT;
+#  define POOL_LOCK()   AcquireSRWLockExclusive(&g_pool_lock)
+#  define POOL_UNLOCK() ReleaseSRWLockExclusive(&g_pool_lock)
+#else
+static pthread_mutex_t g_pool_lock = PTHREAD_MUTEX_INITIALIZER;
+#  define POOL_LOCK()   pthread_mutex_lock(&g_pool_lock)
+#  define POOL_UNLOCK() pthread_mutex_unlock(&g_pool_lock)
+#endif
+
+static workspace_t* g_pool_idle[SUBFEAS_POOL_MAX_BOUND];
+static int g_pool_idle_n      = 0;                        /* workspaces on the free list          */
+static int g_pool_bound       = SUBFEAS_POOL_DEFAULT_BOUND;
+static int g_pool_live        = 0;                        /* idle + leased (poisoned ones excluded) */
+static int g_pool_leased      = 0;
+static int g_pool_peak_leased = 0;
+static int g_pool_refusals    = 0;
+static int g_pool_closing     = 0;                        /* set by shutdown: returns are freed   */
+
+/* Allocates one workspace AND fills its constants (A2). NULL on allocation failure (nothing leaks). */
+static workspace_t* pool_make_workspace(void)
+{
+    workspace_t* ws = (workspace_t*)malloc(sizeof(workspace_t));
+    if (!ws) return NULL;
+    if (!workspace_alloc(ws)) {
+        workspace_free(ws);
+        free(ws);
+        return NULL;
+    }
+    workspace_init_constants(ws);
+    return ws;
+}
+
+static void pool_destroy_workspace(workspace_t* ws)
+{
+    workspace_free(ws);
+    free(ws);
+}
+
+/* Leases a workspace, or returns NULL if the pool is at its bound with none idle (counted) or an
+ * allocation failed. Every non-NULL lease MUST be handed back through pool_return. */
+static workspace_t* pool_lease(void)
+{
+    workspace_t* ws = NULL;
+
+    POOL_LOCK();
+    if (g_pool_idle_n > 0) {
+        ws = g_pool_idle[--g_pool_idle_n];
+    } else if (g_pool_live < g_pool_bound) {
+        g_pool_live++;                 /* reserve the slot, allocate outside the lock */
+    } else {
+        g_pool_refusals++;
+        POOL_UNLOCK();
+        return NULL;
+    }
+    g_pool_leased++;
+    if (g_pool_leased > g_pool_peak_leased) g_pool_peak_leased = g_pool_leased;
+    POOL_UNLOCK();
+
+    if (ws) return ws;
+
+    ws = pool_make_workspace();
+    if (!ws) {
+        POOL_LOCK();
+        g_pool_live--;
+        g_pool_leased--;
+        POOL_UNLOCK();
+    }
+    return ws;
+}
+
+/* Hands a lease back. poisoned != 0: the fit took an access violation, so the heap may be
+ * corrupt and this workspace is NOT reused or freed (same discipline as ft8_decode_all's __except:
+ * a second fault while cleaning up is worse than a per-event leak); it simply leaves the pool's
+ * accounting, so the bound is not consumed by it. */
+static void pool_return(workspace_t* ws, int poisoned)
+{
+    int destroy = 0;
+
+    POOL_LOCK();
+    g_pool_leased--;
+    if (poisoned) {
+        g_pool_live--;
+    } else if (g_pool_closing || g_pool_live > g_pool_bound || g_pool_idle_n >= SUBFEAS_POOL_MAX_BOUND) {
+        g_pool_live--;
+        destroy = 1;
+    } else {
+        g_pool_idle[g_pool_idle_n++] = ws;
+    }
+    POOL_UNLOCK();
+
+    if (destroy) pool_destroy_workspace(ws);
+}
+
+void ft8_subfeas_pool_configure(int bound)
+{
+    workspace_t* doomed[SUBFEAS_POOL_MAX_BOUND];
+    int n_doomed = 0, i;
+
+    if (bound < 1) bound = 1;
+    if (bound > SUBFEAS_POOL_MAX_BOUND) bound = SUBFEAS_POOL_MAX_BOUND;
+
+    POOL_LOCK();
+    g_pool_bound   = bound;
+    g_pool_closing = 0;                /* (re)opens the pool after a shutdown */
+    /* Shrinking: drop idle workspaces above the bound now; leased ones are dropped as they return. */
+    while (g_pool_live > g_pool_bound && g_pool_idle_n > 0) {
+        doomed[n_doomed++] = g_pool_idle[--g_pool_idle_n];
+        g_pool_live--;
+    }
+    POOL_UNLOCK();
+
+    for (i = 0; i < n_doomed; i++) pool_destroy_workspace(doomed[i]);
+}
+
+void ft8_subfeas_pool_shutdown(void)
+{
+    workspace_t* doomed[SUBFEAS_POOL_MAX_BOUND];
+    int n_doomed = 0, i;
+
+    POOL_LOCK();
+    g_pool_closing = 1;
+    while (g_pool_idle_n > 0) {
+        doomed[n_doomed++] = g_pool_idle[--g_pool_idle_n];
+        g_pool_live--;
+    }
+    POOL_UNLOCK();
+
+    for (i = 0; i < n_doomed; i++) pool_destroy_workspace(doomed[i]);
+}
+
+/* Bytes one workspace occupies (buffers + both FFT plans): what a test multiplies by `live`. */
+static size_t workspace_bytes(void)
+{
+    size_t fwd = 0, inv = 0;
+    kiss_fft_alloc(N_FFT, 0, NULL, &fwd);
+    kiss_fft_alloc(N_FFT, 1, NULL, &inv);
+    return fwd + inv
+         + sizeof(workspace_t)
+         + sizeof(kiss_fft_cpx) * (size_t)N_FFT * 5          /* scratch_a/full/search, pulse_spec, win_spec */
+         + sizeof(cf32) * (size_t)N_TX * 12
+         + sizeof(float) * (size_t)N_TX                      /* den */
+         + sizeof(double) * (size_t)N_TX                     /* phase */
+         + (sizeof(double) + sizeof(cf32)) * (size_t)GAUSS_TAPS
+         + (sizeof(double) + sizeof(cf32)) * (size_t)ENV_W_SAMPLES;
+}
+
+void ft8_subfeas_pool_get_stats(int* out /* SUBFEAS_POOL_STATS_LEN ints */)
+{
+    if (!out) return;
+    POOL_LOCK();
+    out[0] = g_pool_bound;
+    out[1] = g_pool_live;
+    out[2] = g_pool_idle_n;
+    out[3] = g_pool_leased;
+    out[4] = g_pool_peak_leased;
+    out[5] = g_pool_refusals;
+    out[6] = (int)workspace_bytes();
+    POOL_UNLOCK();
+}
+
+/* ========================================================================
  * Public entry points
  * ===================================================================== */
 
@@ -604,69 +795,74 @@ int ft8_subfeas_compute_analytic(const float* pcm, float* out_re, float* out_im)
     return rc;
 }
 
+/* The fit proper, on an already-leased workspace. Separate from the public entry point so that the
+ * lease is taken and returned in exactly one place. */
+static int fit_signal_body(
+    workspace_t* ws,
+    const float* x_a_re, const float* x_a_im,
+    const uint8_t* tones,
+    float decoded_dt_s, float decoded_freq_hz,
+    float* out_shat)
+{
+    double nominal_t_s, dt_s, df_hz, fdot;
+    int start_sample = 0;
+    int i;
+
+    nominal_t_s = (double)decoded_dt_s + SUBFEAS_TAU0_S;
+
+    if (!fine_fit_with_drift(
+            ws, x_a_re, x_a_im, tones, (double)decoded_freq_hz, nominal_t_s,
+            &dt_s, &df_hz, &fdot, &start_sample, ws->r_base_final))
+        return -3;
+
+    lp_envelope(ws, x_a_re + start_sample, x_a_im + start_sample, ws->r_base_final, ws->envelope);
+
+    for (i = 0; i < N_TX; i++) {
+        float cr = ws->envelope[i].r, ci = ws->envelope[i].i;
+        float rr = ws->r_base_final[i].r, ri = ws->r_base_final[i].i;
+        /* s_hat = Re{c(t) * template(t)} */
+        out_shat[start_sample + i] = cr * rr - ci * ri;
+    }
+    return 0;
+}
+
 int ft8_subfeas_fit_signal(
     const float* x_a_re, const float* x_a_im,
     const uint8_t* tones,
     float decoded_dt_s, float decoded_freq_hz,
     float* out_shat)
 {
-    int i, ok;
+    int i;
     int rc = 0;
-    workspace_t ws; /* declared before __try, matching ft8_decode_all's own
-                      * "monitor_t mon declared before __try" discipline --
-                      * in scope for the __except handler if ever needed. */
+    int poisoned = 0;
+    workspace_t* ws;
 
     if (!x_a_re || !x_a_im || !tones || !out_shat) return -1;
     for (i = 0; i < SUBFEAS_NUM_SYMBOLS; i++) if (tones[i] > 7) return -1;
 
     memset(out_shat, 0, sizeof(float) * SUBFEAS_PCM_LEN);
-    memset(&ws, 0, sizeof(ws));
+
+    ws = pool_lease();
+    if (!ws) {
+        /* Pool at its bound, or allocation failure: graceful, no partial state written (out_shat is
+         * already zeroed) -- Decision 4's contract; the caller falls back to pass-0-only. */
+        return -1;
+    }
 
 #ifdef _MSC_VER
     __try {
 #endif
-    {
-        double nominal_t_s, dt_s, df_hz, fdot;
-        int start_sample = 0;
-
-        if (!workspace_alloc(&ws)) {
-            /* Allocation failure: graceful, no partial state written
-             * (out_shat already zeroed) -- matches Decision 4's contract. */
-            rc = -1;
-        } else {
-            workspace_init_constants(&ws);
-            nominal_t_s = (double)decoded_dt_s + SUBFEAS_TAU0_S;
-
-            ok = fine_fit_with_drift(
-                &ws, x_a_re, x_a_im, tones, (double)decoded_freq_hz, nominal_t_s,
-                &dt_s, &df_hz, &fdot, &start_sample, ws.r_base_final);
-
-            if (!ok) {
-                rc = -3;
-            } else {
-                lp_envelope(&ws, x_a_re + start_sample, x_a_im + start_sample, ws.r_base_final, ws.envelope);
-
-                for (i = 0; i < N_TX; i++) {
-                    float cr = ws.envelope[i].r, ci = ws.envelope[i].i;
-                    float rr = ws.r_base_final[i].r, ri = ws.r_base_final[i].i;
-                    /* s_hat = Re{c(t) * template(t)} */
-                    out_shat[start_sample + i] = cr * rr - ci * ri;
-                }
-                rc = 0;
-            }
-        }
-        workspace_free(&ws);
-    }
+        rc = fit_signal_body(ws, x_a_re, x_a_im, tones, decoded_dt_s, decoded_freq_hz, out_shat);
 #ifdef _MSC_VER
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        /* Heap may be partially corrupted after an AV -- do not attempt
-         * workspace_free here, same discipline ft8_decode_all's own
-         * __except uses (a second fault in the handler is worse than a
-         * per-call leak). */
-        return -2;
+        /* Heap may be partially corrupted after an AV: the workspace is poisoned (see pool_return),
+         * not reused and not freed. The lease is still handed back below, so the accounting holds. */
+        poisoned = 1;
+        rc = -2;
     }
 #endif
+    pool_return(ws, poisoned);
     return rc;
 }
 

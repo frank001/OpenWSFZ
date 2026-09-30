@@ -133,6 +133,35 @@ int ft8_subfeas_fit_signal(
     float* out_shat
 );
 
+/* ---- Workspace pool (sub-feas-speed-redesign A3; see subfeas_fit.c and design.md D2) ---------- */
+
+#define SUBFEAS_POOL_MAX_BOUND      64  /* hard cap on the pool bound (array size) */
+#define SUBFEAS_POOL_DEFAULT_BOUND   4  /* bound if the caller never configures one: the pre-change
+                                         * MaxDegreeOfParallelism cap, so an unconfigured caller behaves
+                                         * as before */
+#define SUBFEAS_POOL_STATS_LEN       7
+
+/*
+ * ft8_subfeas_pool_configure -- set the pool bound (clamped to [1, SUBFEAS_POOL_MAX_BOUND]) and
+ * (re)open the pool. Call at a cycle boundary with no fit in flight; shrinking frees the surplus
+ * idle workspaces now and leased ones as they come back.
+ */
+void ft8_subfeas_pool_configure(int bound);
+
+/*
+ * ft8_subfeas_pool_shutdown -- free every idle workspace now; leased ones are freed as they are
+ * returned, so this never frees a workspace a fit is using. A later ft8_subfeas_pool_configure
+ * reopens the pool.
+ */
+void ft8_subfeas_pool_shutdown(void);
+
+/*
+ * ft8_subfeas_pool_get_stats -- counters for tests and diagnostics. out[] has SUBFEAS_POOL_STATS_LEN
+ * ints: [0] bound, [1] live (idle + leased), [2] idle, [3] leased, [4] peak leased since process start,
+ * [5] lease refusals (pool at its bound; never expected at matching parallelism), [6] bytes per workspace.
+ */
+void ft8_subfeas_pool_get_stats(int* out);
+
 #ifdef __cplusplus
 }
 #endif
