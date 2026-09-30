@@ -140,20 +140,13 @@
       command lines, the blind spot (no real cycle above 32 signals; other hardware not covered), and the
       Architect's predictions P1–P4 scored by the Architect at the acceptance ruling, not by QA.
 
-## 11. Stage B gate: **not authorised unless Stage A fails R2′ or R4′**
+## 11. Stage B: MOVED to §15
 
-- [x] 11.0 **State (2026-09-30):** Stage A failed R2′ on its p95 term only (6 410.8 vs 6 000 ms; report
-      `qa/rr-study/results/2026-09-30-sub-feas-speed-stage-a-acceptance/report.md`, ruled by the Architect). With Amendment 2
-      the 6 s bar is a headroom margin, not a deadline, so **Stage B is now optional: the Captain decides** (its remaining
-      argument is other hardware: 56 % of heavy cycles abandoned at 4 workers). **Accepted next step before any item is
-      chosen (Architect):** the Developer re-runs `Ft8.FitProbe time` on the **candidate** DLL at 1 worker AND at 14
-      concurrent workers (the ~2× concurrency penalty per fit is unmeasured), then Stage B goes in the order the profile
-      supports. Two-stage publish (§13) is required either way.
-- [ ] 11.1 If the Captain chooses Stage B: return to the Architect. Stage B items (B1 faster FFT,
-      B2 pruned frequency search, B3 coarse-to-fine Δt) are built one at a time, each re-measured before the next,
-      each accepted on E2 (equivalence within tolerance, ≥ 99 % of signals) and E3 (residual decodes ≥ 0.98 × Stage
-      A), never on speed. B1 licence: permissive only (pocketfft-C, BSD-3, qualifies); **FFTW is GPL and prohibited**.
-      A separate handoff and a spec amendment are written at that point.
+- [x] 11.0 Stage A failed R2′ on its p95 term only (6 410.8 vs 6 000 ms; report
+      `qa/rr-study/results/2026-09-30-sub-feas-speed-stage-a-acceptance/report.md`). **The Captain accepted Stage A's timing and
+      authorised Stage B as a follow-on** (2026-09-30, "option a, do stage B too", the Architect's Amendment 4). Stage B is
+      **§15**, after the two-stage tasks (§13, §14), never mixed into them. The registered verdict stays "Stage A FAIL on R2′";
+      the acceptance is the Captain's.
 
 ## 12. Review and sign-off
 
@@ -214,3 +207,50 @@
 - [ ] 14.5 E1, R0-R7 and any Stage B rows are unchanged; batch 2's publish time is R1′'s whole-call time.
 - [ ] 14.6 State in the report: **a first on-air flag-ON session is a new decision needing the Captain's explicit go**;
       nothing here implies it.
+
+## 15. Stage B (numerics-changing; AUTHORISED by the Captain 2026-09-30, Architect's Amendment 4; a separate follow-on, after §13/§14, never mixed into them)
+
+**Finish line, fixed before any Stage B build (Amendment 4): T′ = at `subtractionMaxThreads = 4`, over the H stratum, the
+deadline-abandon rate ≤ 5 % AND the max whole call ≤ 13 000 ms.** Its purpose is other hardware. **R2′ at 14 workers is
+report-only now** (p95(H) ≤ 6 000 ms would be a bonus, not a gate). **Stop** at the first item after which T′ passes, or
+after B3, or when the Captain says so; if T′ still fails after B3, report the residual gap (a 4-worker machine then runs with
+more abandons, which is safe: the hard deadline held at 4 workers, max 12 095 ms). Branch: `feat/sub-feas-stage-b` off
+`feat/sub-feas-speed-redesign` (`ca0bcd9b`), not off the two-stage branch, so Stage B is measured on the same instrument as
+Stage A; the two combine at merge (both are Captain decisions).
+
+- [ ] 15.1 **Profile first (Developer, test-only, no product-path change).** Re-run `Ft8.FitProbe time` on the
+      **candidate** DLL (`ee00d118…990e4c`) at **1 worker and at 14 concurrent workers**, and add 4 concurrent workers (the T′
+      configuration). Report per-phase milliseconds (step 1 Δt search, step 2 ḟ search, final template, step 3, envelope, the
+      analytic call, one residual `DecodeAll`) and the **per-fit concurrency penalty** (the ~2× at 14 workers is unmeasured
+      and is what the Architect's P2 arithmetic missed). Integers only (HK-037). The profile ranks the items; default order
+      B1 → B2 → B3, re-ordered by the profile.
+- [ ] 15.2 **QA baselines, before any Stage B build:** (a) the Stage A **E3 baseline**: total `residualDecodes` of the
+      candidate on the 161 E1 cycles with no deadline in effect (14 workers; assert 0 deadline abandons so it equals the
+      unbounded result), from the `Sub-feas residual pass:` lines; (b) the Stage A **T reference** (already measured: 337/605
+      abandoned, max 12 095 ms).
+- [ ] 15.3 **Fitted-parameter visibility for E2 (design decision, record in `design.md` D10 before coding).** E2 compares
+      per-signal Δt, Δf and ḟ between the Stage A and Stage B fits, but the shipped fit returns only `out_shat`. A
+      **test-only** way to read the fitted parameters is needed (for example a build of the fit compiled with a test switch, or
+      a test-only export that is not in the shipped export list). It must not change the shipped ABI beyond what the item
+      itself needs.
+- [ ] 15.4 **Each item, one at a time (B1 faster permissive FFT; B2 pruned frequency search, |f| ≤ 2.0 Hz is about ±44 of
+      262 144 bins; B3 coarse-to-fine Δt, about 201 → 50 candidates):** implement; bump `FT8_SHIM_VERSION`; pin the new DLL
+      SHA-256. **E1 (bit-identity) no longer applies** to a numerics-changing item; it is replaced by:
+      **E2** per fitted signal, Stage B vs Stage A, no deadline, on the E1 cycles: Δt identical ±1 step (12 samples), Δf within
+      ±1 bin (0.0458 Hz), ḟ the same step, on ≥ 99 % of signals; per-cycle residual energy within ±0.1 dB on ≥ 99 % of cycles.
+      **E3** total `residualDecodes`(B) ≥ 0.98 × the §15.2 baseline on the same cycles, no deadline. **Then re-time** (§15.5).
+      An item that misses E2 or E3 is rejected however fast it is.
+- [ ] 15.5 **Re-time each accepted item** on the frozen §8.1 selection, WSJT-X closed, machine state recorded: **T′** (4
+      workers, H), and at 14 workers R1′, R3, R4′ and R6 (which must still hold), with R2′ reported and R5′ if the item touches
+      the flag-OFF path. Same instrument as Stage A (the `--threads` argument exists).
+- [ ] 15.6 **B1 licence:** permissive only (MIT/BSD/ISC); pocketfft-C (BSD-3) qualifies; **FFTW is GPL and prohibited.** Add the
+      licence file under `native/` and make `tools/LicenseInventoryCheck` pass.
+- [ ] 15.7 **After the last item:** the flag-OFF control re-run on the **final native DLL**, native **and** managed
+      (`DecodeAsync`) paths (§10.5/14.4), because Stage B changes the native decode-adjacent path and shim; full unfiltered
+      `dotnet test`; every DLL pinned by SHA-256 (actual and pinned). The two-stage flag-OFF control (§14.4) does **not**
+      cover a native change made after it.
+- [ ] 15.8 Report in the standard format with the blind spot up front: **T′ is measured at 4 workers on a 16-thread machine, a
+      proxy for a small machine, not the same thing** (a real 4-thread machine defaults to 2 workers and contends with the
+      rest of the system), and no real cycle has more than 31 signals. State that the flag stays OFF and a first on-air
+      flag-ON session needs the Captain's explicit go.
+

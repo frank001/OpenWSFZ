@@ -58,11 +58,14 @@ four QA D-001 replay scripts regex-parse the Debug line `LDPC fail stats — fai
 and chose **defer**. Consequence: R5′ (flag-OFF cost) is measured with M1 absent, so nothing is credited to it.
 Full record in `design.md` D7.
 
-**Stage B (numerics-changing: faster FFT, pruned frequency search, coarse-to-fine Δt) is NOT built here.** It is
-built only if Stage A misses R2′ or R4′ at acceptance, item by item, and needs its own gate (`tasks.md` §11).
-**Stage A missed R2′ on its p95 term** (6 410.8 ms against 6 000 ms; every other row passed), so Stage B is open, and
-with the Architect's Amendment 2 it is now **optional** (a Captain decision): the 6 s bar was a headroom margin, not a
-deadline.
+**Stage B (numerics-changing: faster FFT, pruned frequency search, coarse-to-fine Δt) is a follow-on, not part of Stage A or
+of the two-stage work** (`tasks.md` §15), built item by item under its own gate.
+**Stage A missed R2′ on its p95 term** (6 410.8 ms against 6 000 ms; every other row passed; the registered verdict stays
+"FAIL on R2′"). **The Captain accepted Stage A's timing and authorised Stage B as a follow-on** (2026-09-30, "option a, do
+stage B too"; the Architect's Amendment 4): the 6 s bar was a headroom margin, not a deadline. Stage B is a **separate
+follow-on, after two-stage publish, on its own branch**, starting with a profile of the candidate at 1, 4 and 14 workers,
+then items one at a time on equivalence first. Its finish line is fixed now: **T′ = at `subtractionMaxThreads` = 4, over the
+heavy stratum, abandon ≤ 5 % AND max whole call ≤ 13 000 ms** (`tasks.md` §15).
 
 **Two-stage publish (Architect's Amendment 2, 2026-09-30; `src/` only, no shim bump) IS built here, and is required
 before any live use, whether or not Stage B is built.** With the flag ON the residual pass runs inside the single decode

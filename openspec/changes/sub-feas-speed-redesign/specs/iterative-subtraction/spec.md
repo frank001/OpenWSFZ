@@ -323,3 +323,31 @@ by default.
 
 - **WHEN** a cycle is decoded through the two-stage path
 - **THEN** batch 1 equals the flag-OFF output of the same build
+
+### Requirement: Stage B SHALL be built one item at a time, accepted on equivalence first, and stopped at a finish line fixed in advance
+
+Stage B (a faster permissively licensed FFT, a pruned frequency search, a coarse-to-fine time search) SHALL be built only
+after the two-stage publish work, on its own branch and commits and never mixed into it, and SHALL start with a measured
+profile of the candidate DLL at 1, 4 and 14 concurrent workers. Items SHALL be built one at a time, each accepted on
+equivalence within tolerance to the Stage A fit and on no loss of residual decodes (never on speed) and only then re-timed.
+The finish line, fixed before any Stage B build, SHALL be: with `decoder.subtractionMaxThreads` = 4, over the heavy stratum,
+the deadline-abandon rate at most 5 % and the maximum whole call at most 13 000 ms. Stage B SHALL stop at the first item
+after which that holds, or after the third item, or when the Captain says so, and if the finish line is still not met SHALL
+report the residual gap. Because a numerics-changing item breaks bit-identity, each item's DLL SHALL be pinned by SHA-256 and
+the flag-OFF control SHALL be re-run on the final native DLL, native and managed paths.
+
+#### Scenario: An equivalent-but-slow or fast-but-inequivalent item
+
+- **WHEN** a Stage B item is faster but misses the equivalence or the residual-decode criterion
+- **THEN** it is rejected regardless of the speed gained
+
+#### Scenario: Stop at the finish line
+
+- **WHEN** an accepted item brings the 4-worker heavy-stratum abandon rate to at most 5 % with the maximum whole call at most 13 000 ms
+- **THEN** no further Stage B item is built unless the Captain asks
+
+#### Scenario: Finish line not met after the last item
+
+- **WHEN** the third item has been accepted and the finish line is still not met
+- **THEN** the residual gap is reported and the change stops
+

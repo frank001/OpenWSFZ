@@ -200,6 +200,41 @@ automation".**
 **No native change and no shim bump** for two-stage publish: `src/` only. The DLL stays `ee00d118…990e4c`, so E1 and the
 Stage A native evidence are unaffected.
 
+### D10. Stage B: authorised by the Captain (Amendment 4); the finish line T′ and QA's HK-021 (k) review of it
+
+**Decision (Captain, 2026-09-30, "option a, do stage B too").** Stage A's timing is accepted by him (R2 was designated
+Captain-adjustable); the registered verdict "Stage A FAIL on R2′" stands and is not rewritten. Two-stage publish goes ahead
+on the Stage A build and is not gated on Stage B. Stage B is a separate follow-on on its own branch
+(`feat/sub-feas-stage-b` off `ca0bcd9b`): profile first, then items one at a time on E2/E3, then re-timed.
+
+**Finish line T′ (fixed before any Stage B build):** `subtractionMaxThreads` = 4, over H, abandon ≤ 5 % AND max whole call
+≤ 13 000 ms. R2′ at 14 workers is report-only. Stop at the first item that passes T′, after B3, or on the Captain's word.
+
+**QA's (k) review of T′: accepted, no refusal, four notes.**
+1. **The max term does not discriminate.** With the hard deadline the whole call is bounded by design (12 095 ms was measured
+   at 4 workers while 56 % of cycles were abandoned), so `max ≤ 13 000 ms` fires only if A5 breaks. It re-tests A5, not Stage
+   B. Harmless; **the term that decides T′ is the abandon rate.**
+2. **T′ is a proxy for a small machine, not the machine.** It sets 4 workers on a 16-thread machine with the rest of the system
+   idle. A real 4-thread machine defaults to 2 workers and contends with capture, the web UI and everything else. A pass says
+   "this build finishes a heavy cycle at 4 workers on this machine", not "safe on other hardware" (HK-026). The report says so.
+3. **Reachable, by rough arithmetic, not certain.** At 4 workers the abandon rate over H was 55.7 %. To keep 95 % of heavy
+   cycles inside the deadline, a 28-signal cycle (7 waves at 4 workers) must finish its fits in about 10.9 s, so a fit at
+   4-way concurrency must cost about 1.5 s or less. The Stage A single-thread fit is 1.26 s and the concurrency penalty at 4
+   is unmeasured (the profile measures it). A cut of the order of 10-25 % looks like what T′ needs; that is an estimate from
+   the Stage A rows, not a measurement.
+4. **The pool is dominated by one run** (406 of 605 heavy cycles are 20260923_1730), as for every §8.1-selection row. T′ is
+   pooled as R1′-R4′ were, and reported per run.
+
+**Two practical requirements the finish line brings:**
+- **E2 needs the fitted parameters.** The shipped fit returns only `out_shat`, so Δt, Δf and ḟ are not visible. A
+  **test-only** way to read them is needed (tasks 15.3); the shipped ABI must not change beyond what an item itself needs.
+- **E3 needs a Stage A baseline.** QA measures the Stage A total `residualDecodes` on the 161 E1 cycles with no deadline in
+  effect (14 workers, asserting 0 abandons so it equals the unbounded result) before any Stage B build (tasks 15.2).
+
+**Consequences to keep in view:** a numerics-changing item **breaks bit-identity, so E1 no longer applies**; each item's DLL
+gets its own shim bump and SHA pin. Stage B changes the native path **after** the two-stage flag-OFF control, so the control
+(native and managed) must be **re-run on the final native DLL** (tasks 15.7); the two-stage control does not cover it.
+
 ## Risks
 
 - **Concurrency is the historical crash class.** D2's ownership model is the highest-risk item; it needs a stress
