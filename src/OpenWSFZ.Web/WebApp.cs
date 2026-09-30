@@ -706,6 +706,20 @@ public static class WebApp
                     sanitisedDecoder = sanitisedDecoder with { OsdNhardMax = clamped };
                 }
 
+                // sub-feas-speed-redesign A4: subtractionMaxThreads 0 = auto; any other value is clamped to
+                // [1, ProcessorCount] with a warning, like the other decoder values here.
+                {
+                    int effective = SubtractionThreads.Resolve(
+                        decoderIn.SubtractionMaxThreads, Environment.ProcessorCount, out bool threadsClamped);
+                    if (threadsClamped)
+                    {
+                        configApiLogger.LogWarning(
+                            "Decoder: subtractionMaxThreads {Original} out of range [1, {Max}] — clamped to {Clamped}.",
+                            decoderIn.SubtractionMaxThreads, Math.Max(1, Environment.ProcessorCount), effective);
+                        sanitisedDecoder = sanitisedDecoder with { SubtractionMaxThreads = effective };
+                    }
+                }
+
                 if (!ReferenceEquals(sanitisedDecoder, decoderIn))
                     config = config with { Decoder = sanitisedDecoder };
             }

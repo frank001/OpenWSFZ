@@ -444,7 +444,7 @@ internal static class Ft8LibInterop
     /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
     /// a managed binding, per the pattern every prior entry in this file follows.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260055;
+    private const int ExpectedShimVersion = 20260056;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -743,7 +743,30 @@ internal static class Ft8LibInterop
         [In] byte[]    tones,
         float          decodedDtS,
         float          decodedFreqHz,
-        [Out] float[]  outShat);
+        [Out] float[]  outShat,
+        IntPtr         cancelFlag);
+
+    /// <summary>
+    /// sub-feas-speed-redesign A3 (shim 20260056): bound and (re)open the native fit-workspace pool.
+    /// See <c>ft8_shim.h</c>'s <c>ft8_subfeas_pool_configure</c>.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_subfeas_pool_configure", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSubfeasPoolConfigure(int bound);
+
+    /// <summary>sub-feas-speed-redesign A3: free the native fit-workspace pool (leased workspaces are freed as they return).</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_subfeas_pool_shutdown", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSubfeasPoolShutdown();
+
+    /// <summary>sub-feas-speed-redesign A3: pool counters; <c>out</c> receives <see cref="SubfeasPoolStatsLength"/> ints.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_subfeas_pool_get_stats", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSubfeasPoolGetStats([Out] int[] stats);
+
+    /// <summary>
+    /// sub-feas-speed-redesign M2 (shim 20260056): per-thread switch for the LDPC-failure LLR-statistics
+    /// accumulation. See <c>ft8_shim.h</c>'s <c>ft8_set_diagnostics_enabled</c>.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_diagnostics_enabled", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetDiagnosticsEnabled(int enabled);
 
     // ── Public API ───────────────────────────────────────────────────────
 
@@ -1232,11 +1255,16 @@ internal static class Ft8LibInterop
     /// <param name="tones">79 tone indices, each in [0,7], from <see cref="EncodeMessage"/>.</param>
     /// <param name="decodedDtS">The signal's decoded DT (seconds).</param>
     /// <param name="decodedFreqHz">The signal's decoded frequency (Hz).</param>
+    /// <param name="cancelFlag">
+    /// sub-feas-speed-redesign A5: <see cref="IntPtr.Zero"/> (no deadline) or a pointer to an int the
+    /// caller owns for the whole call and sets non-zero (volatile write) to cancel the fit.
+    /// </param>
     /// <returns>
     /// <c>(0, shat)</c> on success — <c>shat</c> is the full-cycle-length subtraction waveform.
     /// <c>(-3, zeroArray)</c> if every fit candidate ran off the buffer edge (a normal outcome
     /// for a signal near a cycle boundary — caller treats this signal as contributing nothing,
-    /// NOT as a cycle-wide failure).
+    /// NOT as a cycle-wide failure). <c>(-4, zeroArray)</c> if the cancellation flag was set: a
+    /// DEADLINE outcome, not an error, and never thrown.
     /// </returns>
     /// <exception cref="NativeAccessViolationException">
     /// Thrown when the native shim's SEH wrapper catches an access violation (Windows only). Per
@@ -1245,20 +1273,70 @@ internal static class Ft8LibInterop
     /// </exception>
     /// <exception cref="InvalidOperationException">Thrown on any other negative return code (-1: bad arguments).</exception>
     public static (int ReturnCode, float[] Shat) SubfeasFitSignal(
-        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz)
+        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz,
+        IntPtr cancelFlag = default)
     {
         EnsureInitialized();
 
         var shat = new float[PcmSampleCount];
-        int rc = NativeSubfeasFitSignal(xARe, xAIm, tones, decodedDtS, decodedFreqHz, shat);
+        int rc = NativeSubfeasFitSignal(xARe, xAIm, tones, decodedDtS, decodedFreqHz, shat, cancelFlag);
 
         if (rc == -2)
             throw new NativeAccessViolationException();
-        if (rc != 0 && rc != -3)
+        // -3: no valid fit (normal). -4: cancelled by the deadline (normal, sub-feas-speed-redesign D4).
+        if (rc != 0 && rc != SubfeasRcNoFit && rc != SubfeasRcCancelled)
             throw new InvalidOperationException(
                 $"ft8_subfeas_fit_signal returned {rc} — unexpected error from native shim.");
 
         return (rc, shat);
+    }
+
+    /// <summary><c>ft8_subfeas_fit_signal</c> return code: every fit candidate ran off the buffer edge.</summary>
+    internal const int SubfeasRcNoFit = -3;
+
+    /// <summary><c>ft8_subfeas_fit_signal</c> return code: cancelled by the deadline flag (a deadline outcome, not an error).</summary>
+    internal const int SubfeasRcCancelled = -4;
+
+    /// <summary>Number of ints <c>ft8_subfeas_pool_get_stats</c> writes.</summary>
+    internal const int SubfeasPoolStatsLength = 7;
+
+    /// <summary>Bounds and (re)opens the native fit-workspace pool (sub-feas-speed-redesign A3). Call with no fit in flight.</summary>
+    public static void SubfeasPoolConfigure(int bound)
+    {
+        EnsureInitialized();
+        NativeSubfeasPoolConfigure(bound);
+    }
+
+    /// <summary>
+    /// Frees the native fit-workspace pool (idle workspaces now, leased ones as they return). Does nothing if
+    /// the library was never loaded: shutting down must not be the thing that loads a native library.
+    /// </summary>
+    public static void SubfeasPoolShutdown()
+    {
+        if (!_initialized) return;
+        NativeSubfeasPoolShutdown();
+    }
+
+    /// <summary>
+    /// Pool counters: <c>[bound, live, idle, leased, peakLeased, refusals, bytesPerWorkspace]</c>.
+    /// </summary>
+    public static int[] SubfeasPoolGetStats()
+    {
+        EnsureInitialized();
+        var stats = new int[SubfeasPoolStatsLength];
+        NativeSubfeasPoolGetStats(stats);
+        return stats;
+    }
+
+    /// <summary>
+    /// sub-feas-speed-redesign M2: switches the calling thread's per-pass LDPC-failure LLR-statistics
+    /// accumulation on or off for subsequent <see cref="DecodeAll"/> calls on that thread. Decode output does not
+    /// depend on it. MUST be called on the same thread as the decode it governs, and restored afterwards.
+    /// </summary>
+    public static void SetDiagnosticsEnabled(bool enabled)
+    {
+        EnsureInitialized();
+        NativeSetDiagnosticsEnabled(enabled ? 1 : 0);
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────

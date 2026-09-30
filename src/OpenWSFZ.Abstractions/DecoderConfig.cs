@@ -37,13 +37,15 @@ public sealed record DecoderConfig
         float osdCorrThreshold         = 0.10f,
         int   osdNhardMax              = 40,
         bool  nhard40MigrationApplied  = false,
-        bool  subtractionEnabled       = false)
+        bool  subtractionEnabled       = false,
+        int   subtractionMaxThreads    = 0)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
         OsdNhardMax             = osdNhardMax;
         Nhard40MigrationApplied = nhard40MigrationApplied;
         SubtractionEnabled      = subtractionEnabled;
+        SubtractionMaxThreads   = subtractionMaxThreads;
     }
 
     /// <summary>
@@ -129,4 +131,15 @@ public sealed record DecoderConfig
     /// </para>
     /// </summary>
     public bool  SubtractionEnabled { get; init; } = false;
+
+    /// <summary>
+    /// sub-feas-speed-redesign A4: the number of concurrent residual-pass fit workers, and the size of
+    /// the native workspace pool. <b>0 (the default) means auto</b>: <c>max(1, ProcessorCount - 2)</c>,
+    /// leaving two threads for capture, the web UI and any co-resident program. Any other value is
+    /// clamped to <c>[1, ProcessorCount]</c> (a negative value therefore becomes 1), with one warning
+    /// when the config is applied. Read once per decode cycle; takes effect on the next cycle.
+    /// Optional config-file key with no Settings-page control: because 0 means auto, a config reset
+    /// degrades this key to a sensible value rather than a wrong one. See <see cref="SubtractionThreads"/>.
+    /// </summary>
+    public int   SubtractionMaxThreads { get; init; } = 0;
 }

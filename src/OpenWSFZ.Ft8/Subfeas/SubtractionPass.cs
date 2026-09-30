@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Ft8.Interop;
 
@@ -34,6 +35,21 @@ internal static class SubtractionPass
     private const int PcmLength = Ft8LibInterop.PcmSampleCount;
 
     /// <summary>
+    /// sub-feas-speed-redesign A5 (design.md D5, Architect's Amendment 1): time held back for the residual
+    /// <see cref="IFt8NativeInterop.DecodeAll"/> and the merge that follows it. The native fits are cancelled at
+    /// <c>budget - SubtractionResidualDecodeReserve</c>, and the residual decode is not started with less than this
+    /// remaining. 1 500 ms leaves 670 ms over the largest flag-OFF whole call observed (830 ms).
+    /// </summary>
+    internal static readonly TimeSpan SubtractionResidualDecodeReserve = TimeSpan.FromMilliseconds(1500);
+
+    /// <summary>
+    /// The native workspace pool's hard cap (<c>SUBFEAS_POOL_MAX_BOUND</c> in <c>subfeas_fit.h</c>). The fit
+    /// parallelism is clamped to it, so a machine with more logical processors cannot ask for more concurrent fits
+    /// than the pool can lease (a lease beyond the bound is refused, see design.md D2).
+    /// </summary>
+    internal const int SubfeasPoolMaxBound = 64;
+
+    /// <summary>
     /// Runs the residual-decode pass. Never throws for a native access-violation on any
     /// individual signal's fit or on the residual decode itself — those are caught, logged,
     /// and treated as "no new decodes this cycle" (graceful fallback to pass-0-only),
@@ -58,10 +74,13 @@ internal static class SubtractionPass
     /// </para>
     ///
     /// <para>
-    /// Wall-clock guard (QA review R3): native calls are not cancellable, so the
-    /// <c>deadline</c> is cooperative - checked before/after each native phase and
-    /// used to stop scheduling further per-signal fits. Exceeding it abandons the pass
-    /// (pass-0-only). A single native call already in flight still runs to completion.
+    /// Wall-clock guard (QA review R3, hardened by sub-feas-speed-redesign A5): the per-signal fits are
+    /// CANCELLABLE. A cancellation flag (an int in pinned managed memory that outlives every in-flight native call)
+    /// is set at <c>deadline - SubtractionResidualDecodeReserve</c>; each native fit checks it at every search
+    /// iteration and returns <c>-4</c> promptly, which is a deadline outcome (never an exception). The residual
+    /// decode is not started with less than the reserve remaining. Exceeding the deadline abandons the pass
+    /// (pass-0-only). Only <c>ft8_subfeas_compute_analytic</c> (about 10 ms) and the residual decode itself are
+    /// not interruptible; the reserve covers the latter.
     /// </para>
     /// </summary>
     /// <param name="interop">Native interop abstraction (mockable for tests).</param>
@@ -221,33 +240,67 @@ internal static class SubtractionPass
 
         if (Expired()) return DeadlineAbandon("before the per-signal fits");
 
-        // Any exception from a fit (AV, rc -1 alloc failure, ...) propagates to RunCore's guard:
-        // ANY signal's failure abandons the WHOLE residual pass (Decision 4), never a per-signal skip.
-        using var fitCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        if (deadline is { } budget)
-            fitCts.CancelAfter(budget > clock.Elapsed ? budget - clock.Elapsed : TimeSpan.Zero);
-        var options = new ParallelOptions
-        {
-            MaxDegreeOfParallelism = Math.Max(1, maxDegreeOfParallelism),
-            CancellationToken = fitCts.Token,
-        };
+        // A5: the fits stop at budget - reserve, so the residual decode always has its reserve.
+        TimeSpan? fitBudget = deadline is { } d0 ? d0 - SubtractionResidualDecodeReserve : null;
+        if (fitBudget is { } fb && clock.Elapsed >= fb)
+            return DeadlineAbandon("before the per-signal fits (less than the residual-decode reserve remains)");
 
+        // A3: size the native workspace pool at the cycle boundary, with nothing in flight.
+        int degree = Math.Clamp(maxDegreeOfParallelism, 1, SubfeasPoolMaxBound);
+        interop.SubfeasPoolConfigure(degree);
+
+        // A5: the cancellation flag. Pinned managed memory (no unsafe code needed) that must outlive every
+        // in-flight native call: it is freed only in the finally below, after Parallel.For has returned (it does
+        // not return, or throw, until every running iteration has finished).
+        var cancelFlag = new int[1];
+        GCHandle flagHandle = GCHandle.Alloc(cancelFlag, GCHandleType.Pinned);
         try
         {
-            Parallel.For(0, candidates.Count, options, i =>
+            IntPtr flagPtr = flagHandle.AddrOfPinnedObject();
+
+            // Any exception from a fit (AV, rc -1 alloc failure, ...) propagates to RunCore's guard:
+            // ANY signal's failure abandons the WHOLE residual pass (Decision 4), never a per-signal skip.
+            using var fitCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            using var flagRegistration = fitCts.Token.Register(() => Volatile.Write(ref cancelFlag[0], 1));
+            if (fitBudget is { } budget)
+                fitCts.CancelAfter(budget > clock.Elapsed ? budget - clock.Elapsed : TimeSpan.Zero);
+            var options = new ParallelOptions
             {
-                var c = candidates[i];
-                (int rc, float[] shat) = interop.SubfeasFitSignal(xaRe, xaIm, c.Tones, c.Dt, c.FreqHz);
-                returnCodes[i] = rc;
-                shatBuffers[i] = shat;
-            });
+                MaxDegreeOfParallelism = degree,
+                CancellationToken = fitCts.Token,
+            };
+
+            try
+            {
+                Parallel.For(0, candidates.Count, options, i =>
+                {
+                    var c = candidates[i];
+                    (int rc, float[] shat) = interop.SubfeasFitSignal(xaRe, xaIm, c.Tones, c.Dt, c.FreqHz, flagPtr);
+                    returnCodes[i] = rc;
+                    shatBuffers[i] = shat;
+                });
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                return DeadlineAbandon("during the per-signal fits");
+            }
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        finally
         {
-            return DeadlineAbandon("during the per-signal fits");
+            flagHandle.Free();
         }
 
+        // rc -4 (D4): a fit answered the deadline flag. A deadline outcome, not an error: it must not raise, and
+        // it must not count as a contained exception. Checked explicitly because Parallel.For does not always
+        // throw when the last iterations were the ones that observed the cancellation.
+        if (Array.IndexOf(returnCodes, Ft8LibInterop.SubfeasRcCancelled) >= 0)
+            return DeadlineAbandon("during the per-signal fits");
+
         if (Expired()) return DeadlineAbandon("after the per-signal fits");
+
+        // A5: do not start the residual decode with less than the reserve left.
+        if (deadline is { } d1 && d1 - clock.Elapsed < SubtractionResidualDecodeReserve)
+            return DeadlineAbandon("before the residual decode (less than the reserve remains)");
 
         // ── Step 3: accumulate every fitted signal's subtraction into one residual ──
         // rc == -3 (no valid fit found for that signal) already has an all-zero shat buffer
@@ -266,12 +319,17 @@ internal static class SubtractionPass
         // (Parallel.For has completed; this is the same thread that calls DecodeAll below.)
         Ft8NativeResult[] pass2Results;
         interop.SetApBits(ap?.MycallBits ?? [], ap?.HiscallBits ?? []);
+        // M2: nothing reads the pass-0 LDPC-failure statistics after this call, so do not compute them (the
+        // native switch is thread-local too: same thread, restored in the finally). The noise floor is kept: it
+        // feeds the local-noise SNR fallback. Decode output does not depend on this switch.
+        interop.SetDiagnosticsEnabled(false);
         try
         {
             pass2Results = interop.DecodeAll(residual);
         }
         finally
         {
+            interop.SetDiagnosticsEnabled(true);
             interop.SetApBits([], []);
         }
 

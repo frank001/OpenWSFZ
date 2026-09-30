@@ -46,26 +46,64 @@ namespace OpenWSFZ.Ft8;
 /// logging — is unaffected.
 /// </para>
 /// </summary>
-public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
+public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 {
     private const int   ExpectedSampleCount         = 180_000;  // 15 s × 12 000 Hz
     private const float SilenceRmsThreshold         = 1e-6f;    // all-zero codeword guard
     private const float PcmNormalisationTargetRms   = 0.20f;    // D-002 SNR-bias fix: bring PCM to a fixed RMS level before native decode
 
     /// <summary>
-    /// sub-feas-native-subtraction (design.md's Decision 2 addendum / Decision 4 consequence,
-    /// tasks.md 1.4): bound on concurrent <see cref="SubtractionPass"/> per-signal native fit
-    /// calls. No shared native buffer pool exists — each call is self-contained — so this is
-    /// the only concurrency cap. <c>Math.Min(Environment.ProcessorCount, 4)</c> caps worst-case
-    /// concurrent per-signal buffer memory (~9.6 MB at 4) while still giving real parallelism
-    /// on typical multi-core hardware. Not yet retuned against a real task 8.1 measurement.
+    /// sub-feas-speed-redesign A4: the configured <c>decoder.subtractionMaxThreads</c> (0 = auto). The effective
+    /// number of concurrent residual-pass fits, and the native workspace pool's bound, is resolved from it once
+    /// per decode cycle by <see cref="SubtractionThreads.Resolve"/> and takes effect on the next cycle. Replaces
+    /// the fixed <c>Math.Min(Environment.ProcessorCount, 4)</c> cap of the base change.
     /// </summary>
-    private static readonly int SubtractionMaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 4);
+    private volatile int _subtractionMaxThreads;
+
+    /// <summary>The last out-of-range configured value already warned about (never warned about twice).</summary>
+    private int _warnedSubtractionMaxThreads;
+
+    /// <summary>
+    /// sub-feas-speed-redesign A4: sets the configured fit thread count (<c>0</c> = auto, otherwise clamped to
+    /// <c>[1, ProcessorCount]</c>). Called when the config is applied (startup and every config save). Logs
+    /// <b>one</b> warning when a non-zero value had to be clamped, never per decode cycle and not again for the
+    /// same value on later, unrelated config saves. Takes effect on the next decode cycle.
+    /// </summary>
+    public void SetSubtractionMaxThreads(int configured)
+    {
+        _subtractionMaxThreads = configured;
+
+        int effective = SubtractionThreads.Resolve(configured, Environment.ProcessorCount, out bool clamped);
+        if (!clamped)
+        {
+            _warnedSubtractionMaxThreads = 0;
+            return;
+        }
+        if (Interlocked.Exchange(ref _warnedSubtractionMaxThreads, configured) == configured)
+            return;
+        _logger?.LogWarning(
+            "Decoder: subtractionMaxThreads {Original} out of range [1, {Max}] - clamped to {Clamped}.",
+            configured, Math.Max(1, Environment.ProcessorCount), effective);
+    }
+
+    /// <summary>
+    /// The effective residual-pass fit parallelism for the current configuration on this machine:
+    /// <c>0</c> means auto, <c>max(1, ProcessorCount - 2)</c>. Read once per decode cycle.
+    /// </summary>
+    internal int EffectiveSubtractionThreads
+        => SubtractionThreads.Resolve(_subtractionMaxThreads, Environment.ProcessorCount, out _);
+
+    /// <summary>
+    /// Frees the native residual-pass workspace pool (sub-feas-speed-redesign A3). The daemon calls this at
+    /// shutdown, after the decode pump has stopped. Idempotent, and it does not load the native library.
+    /// </summary>
+    public void Dispose() => _interop.SubfeasPoolShutdown();
 
     /// <summary>
     /// Hard per-cycle wall-clock budget (13 s, tasks.md runtime gate) for pass-0 plus the
     /// residual pass. The residual pass gets whatever remains after pass-0 and abandons itself
-    /// (pass-0-only) if it runs out. Cooperative: an in-flight native call is not interruptible.
+    /// (pass-0-only) if it runs out. A hard bound since sub-feas-speed-redesign A5: the native fits are
+    /// cancelled at <c>budget - SubtractionPass.SubtractionResidualDecodeReserve</c>.
     /// </summary>
     private static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
 
@@ -370,7 +408,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         if (_subtractionEnabled && native.Length > 0)
         {
             var newFromResidual = await SubtractionPass.RunAsync(
-                _interop, normalisedPcm, native, SubtractionMaxDegreeOfParallelism, _logger,
+                _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
                 _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
             if (newFromResidual.Length > 0)
             {
@@ -469,12 +507,17 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────
         // Loop over passCounts.Length so the log scales correctly with K_MAX_PASSES
         // without needing further code changes when the pass count changes.
-        for (int p = 0; p < passCounts.Length; p++)
+        // M3 (sub-feas-speed-redesign): guarded, so with Debug logging off no loop runs and no message is formatted.
+        bool debugLogging = _logger?.IsEnabled(LogLevel.Debug) == true;
+        if (debugLogging)
         {
-            int candidates = p < candidateCounts.Length ? candidateCounts[p] : -1;
-            _logger?.LogDebug(
-                "Iterative subtraction: pass {Pass} of {Max}, {Candidates} candidates found, {K} decoded.",
-                p + 1, passCounts.Length, candidates, passCounts[p]);
+            for (int p = 0; p < passCounts.Length; p++)
+            {
+                int candidates = p < candidateCounts.Length ? candidateCounts[p] : -1;
+                _logger!.LogDebug(
+                    "Iterative subtraction: pass {Pass} of {Max}, {Candidates} candidates found, {K} decoded.",
+                    p + 1, passCounts.Length, candidates, passCounts[p]);
+            }
         }
 
         // ── D-001 LLR diagnostic log ─────────────────────────────────────────
@@ -486,12 +529,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         // co_channel fail cands show prenormVar 37–60 (not small). Revised
         // failure model: high-confidence wrong-sign LLRs under equal-SNR
         // co-channel. Probe retained for longitudinal monitoring.
-        for (int p = 0; p < llrStats.LlrMeanAbs.Length; p++)
+        if (debugLogging)
         {
-            _logger?.LogDebug(
-                "Iterative subtraction: pass {Pass} LDPC fail stats — " +
-                "failCands={FailCount} meanAbsLLR={MeanAbs:F3} prenormVar={PrenormVar:F4}",
-                p + 1, llrStats.LlrFailCount[p], llrStats.LlrMeanAbs[p], llrStats.LlrPrenormVariance[p]);
+            for (int p = 0; p < llrStats.LlrMeanAbs.Length; p++)
+            {
+                _logger!.LogDebug(
+                    "Iterative subtraction: pass {Pass} LDPC fail stats — " +
+                    "failCands={FailCount} meanAbsLLR={MeanAbs:F3} prenormVar={PrenormVar:F4}",
+                    p + 1, llrStats.LlrFailCount[p], llrStats.LlrMeanAbs[p], llrStats.LlrPrenormVariance[p]);
+            }
         }
 
         // ── Diagnostic log ───────────────────────────────────────────────────

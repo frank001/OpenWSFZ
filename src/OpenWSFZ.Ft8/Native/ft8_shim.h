@@ -751,8 +751,26 @@ extern "C" {
  *              this project's existing convention (e.g. 20260040's
  *              ft8_refine_candidate precedent) for a diagnostic/staging export
  *              added ahead of its own call site.
+ *
+ *   20260056 — sub-feas-speed-redesign (Stage A: exact optimisations, hard deadline, thread
+ *              count, lean hot path). The fit's OUTPUT is bit-identical to 20260055 for any
+ *              input with no deadline (proved by the E1 hash probe, tests/Ft8.FitProbe, not
+ *              argued from the code). Changes: (A1) the Gaussian-smoothed tone track is computed
+ *              once per signal instead of once per template; (A2) the Gaussian-pulse and Hann-
+ *              window spectra are cached per workspace; (A3) fit workspaces and FFT plans come
+ *              from a bounded, locked pool of heap workspaces, leased per fit and returned on
+ *              every exit path, no thread-local state -- new exports
+ *              ft8_subfeas_pool_configure / _shutdown / _get_stats; (A5) ft8_subfeas_fit_signal
+ *              gains a trailing `const volatile int* cancel_flag` parameter (NULL = no deadline)
+ *              and a new return code -4 = cancelled by the deadline; (M2) new per-thread
+ *              ft8_set_diagnostics_enabled(int) switch that skips the LDPC-failure LLR-statistics
+ *              accumulation for the calling thread's next decode (default ON; decode output does
+ *              not depend on it). Deliberately NOT changed: the LLR statistics themselves and
+ *              their getters (M1 is deferred), ft8_decode_all, ftx_find_candidates and every
+ *              other export. The changed ft8_subfeas_fit_signal signature is why the version is
+ *              bumped: a 20260055 binary would be called with one argument too many.
  */
-#define FT8_SHIM_VERSION 20260055
+#define FT8_SHIM_VERSION 20260056
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -954,6 +972,15 @@ int ft8_get_last_snr_terms(
     float* out_signal_db,
     float* out_local_noise_db,
     int    capacity);
+
+/*
+ * ft8_set_diagnostics_enabled -- sub-feas-speed-redesign M2. Per-thread (thread-local) switch:
+ * 0 skips the per-pass LDPC-failure LLR statistics accumulation for subsequent ft8_decode_all calls
+ * on the CALLING thread (ft8_get_last_llr_stats then reports zero failure counts for that call); any
+ * non-zero value restores it. Default 1 (on). Decode output is identical either way. Call it on the
+ * same thread as the decode it governs, and restore it afterwards.
+ */
+void ft8_set_diagnostics_enabled(int enabled);
 
 /*
  * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle
@@ -1276,10 +1303,13 @@ int ft8_subfeas_compute_analytic(
  * the cycle's shared analytic buffer, and writes that signal's full-cycle-
  * length, zero-padded subtraction waveform into a caller-allocated buffer.
  *
- * Self-contained (design.md's Decision 2 addendum): allocates and frees its
- * own heap buffers within this call, touches no shared/global/TLS state --
- * safe to call CONCURRENTLY from multiple threads, each with its own
- * (shared, read-only) x_a_re/x_a_im and its own out_shat.
+ * Concurrency (sub-feas-speed-redesign A3, superseding the shim-20260055
+ * "allocates its own buffers per call" model): each call LEASES one heap
+ * workspace from a bounded, locked pool for the duration of the call and returns
+ * it on every exit path. No thread-local state. Safe to call CONCURRENTLY from
+ * multiple threads, each with its own (shared, read-only) x_a_re/x_a_im and its
+ * own out_shat, up to the pool bound (see ft8_subfeas_pool_configure); a call
+ * beyond the bound is refused with -1 rather than allocating past it.
  *
  * Parameters:
  *   x_a_re, x_a_im  -- analytic signal from ft8_subfeas_compute_analytic,
@@ -1293,8 +1323,16 @@ int ft8_subfeas_compute_analytic(
  *                      zero outside the fitted signal's ~12.64 s window.
  *                      Unconditionally zeroed by this function, including
  *                      on failure.
+ *   cancel_flag     -- NULL (no deadline; behaviour and output identical to
+ *                      the pre-A5 build) or a pointer to an int owned by the
+ *                      caller and valid for the whole call. The caller sets it
+ *                      non-zero (volatile write) to cancel; the fit checks it
+ *                      at entry and at the top of every dt, fdot and envelope
+ *                      iteration.
  *
- * Returns: 0 on success. -1 on bad arguments (NULL pointer, tone index
+ * Returns: 0 on success. -4 if cancelled (the flag was set): out_shat is all
+ *          zero, the workspace is returned, other in-flight fits are not
+ *          disturbed. -4 is a DEADLINE OUTCOME, not an error. -1 on bad arguments (NULL pointer, tone index
  *          outside [0,7]). -2 on SEH fault (MSVC/Windows builds only) --
  *          caller must treat exactly as ft8_decode_all's -2 (log and skip);
  *          per design.md Decision 4, a -2 from ANY signal in a cycle means
@@ -1309,7 +1347,23 @@ int ft8_subfeas_fit_signal(
     const uint8_t* tones,
     float          decoded_dt_s,
     float          decoded_freq_hz,
-    float*         out_shat);
+    float*         out_shat,
+    const volatile int* cancel_flag);
+
+/*
+ * Workspace pool control (sub-feas-speed-redesign A3). See subfeas_fit.h for the
+ * full contract; repeated here because this header is the exported ABI.
+ *
+ * ft8_subfeas_pool_configure(bound)  -- set the bound (clamped to [1, 64]) and
+ *     (re)open the pool. Call at a cycle boundary with no fit in flight.
+ * ft8_subfeas_pool_shutdown()        -- free idle workspaces now, leased ones as
+ *     they return; never frees a workspace in use. Call at decoder dispose.
+ * ft8_subfeas_pool_get_stats(out[7]) -- [0] bound [1] live [2] idle [3] leased
+ *     [4] peak leased [5] refusals [6] bytes per workspace.
+ */
+void ft8_subfeas_pool_configure(int bound);
+void ft8_subfeas_pool_shutdown(void);
+void ft8_subfeas_pool_get_stats(int* out);
 
 #ifdef __cplusplus
 }

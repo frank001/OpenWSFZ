@@ -15,6 +15,10 @@ using OpenWSFZ.Ft8.Interop;
 //      the first cycle (or a deterministic noise cycle), covering the edge cases (-3 near a buffer edge).
 // time Wall-clock of one compute_analytic call, each single-threaded fit, and one residual DecodeAll.
 //
+// NOTE: this tool is built against the CURRENT interop, so it loads a libft8.dll of the CURRENT shim version.
+// The golden CSV was recorded from the base DLL (shim 20260055) with the tool as of commit 348e067e; to compare
+// a candidate DLL against it, run this tool with --dll <candidate> and diff (line endings normalised).
+//
 // 🔒 NFR-021 / HK-037: output is rc values, counts, hashes and milliseconds ONLY. Never message text, callsigns
 // or exception message text. The DLL under test is copied over libft8.dll next to this tool BEFORE the first native
 // call, so the same tool binary can be pointed at two DLLs.
@@ -129,13 +133,14 @@ internal static class Probe
         float[] re, float[] im, int threads, Ft8NativeInteropAdapter interop, int p0count, string p0hash)
     {
         var lines = new string[jobs.Count];
+        interop.SubfeasPoolConfigure(Math.Max(1, threads)); // size the native workspace pool to the parallelism
         Parallel.For(0, jobs.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, threads) }, i =>
         {
             var j = jobs[i];
             string rc, hash;
             try
             {
-                (int r, float[] shat) = interop.SubfeasFitSignal(re, im, j.Tones, j.Dt, j.Freq);
+                (int r, float[] shat) = interop.SubfeasFitSignal(re, im, j.Tones, j.Dt, j.Freq, IntPtr.Zero);
                 rc = r.ToString();
                 hash = HashFloats(shat);
             }
@@ -177,13 +182,14 @@ internal static class Probe
                 catch (InvalidOperationException) { }
             }
 
+            interop.SubfeasPoolConfigure(Math.Max(1, threads));
             var fitMs = new long[jobs.Count];
             var shats = new float[jobs.Count][];
             var wall = Stopwatch.StartNew();
             Parallel.For(0, jobs.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, threads) }, i =>
             {
                 var t = Stopwatch.StartNew();
-                shats[i] = interop.SubfeasFitSignal(re, im, jobs[i].Tones, jobs[i].Dt, jobs[i].Freq).Shat;
+                shats[i] = interop.SubfeasFitSignal(re, im, jobs[i].Tones, jobs[i].Dt, jobs[i].Freq, IntPtr.Zero).Shat;
                 fitMs[i] = t.ElapsedMilliseconds;
             });
             long fitsWall = wall.ElapsedMilliseconds;

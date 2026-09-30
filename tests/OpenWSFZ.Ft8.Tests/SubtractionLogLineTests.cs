@@ -286,7 +286,7 @@ public sealed class SubtractionLogLineTests
         }
 
         public (int ReturnCode, float[] Shat) SubfeasFitSignal(
-            float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz)
+            float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
         {
             Interlocked.Increment(ref _fitCalls);
             OnFit?.Invoke();

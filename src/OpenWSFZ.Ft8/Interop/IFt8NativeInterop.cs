@@ -199,6 +199,29 @@ internal interface IFt8NativeInterop
     /// safe to call concurrently. No production call site yet; see <c>ft8_shim.h</c>'s
     /// <c>ft8_subfeas_fit_signal</c> doc comment for the full contract.
     /// </summary>
+    /// <param name="cancelFlag">
+    /// sub-feas-speed-redesign A5: <see cref="IntPtr.Zero"/> (no deadline) or a pointer to an int owned by the
+    /// caller for the whole call; the caller sets it non-zero (volatile write) to cancel. A cancelled fit returns
+    /// <c>ReturnCode == -4</c> (a deadline outcome, never thrown) with a zeroed <c>Shat</c>.
+    /// </param>
     (int ReturnCode, float[] Shat) SubfeasFitSignal(
-        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz);
+        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag);
+
+    /// <summary>
+    /// sub-feas-speed-redesign A3: bounds and (re)opens the native fit-workspace pool. Called at a cycle boundary
+    /// with no fit in flight. Default: no-op (a fake that does not model the pool needs no implementation).
+    /// </summary>
+    void SubfeasPoolConfigure(int bound) { }
+
+    /// <summary>
+    /// sub-feas-speed-redesign A3: frees the native fit-workspace pool at decoder dispose. Default: no-op.
+    /// </summary>
+    void SubfeasPoolShutdown() { }
+
+    /// <summary>
+    /// sub-feas-speed-redesign M2: per-thread switch for the LDPC-failure LLR-statistics accumulation, used by
+    /// the residual-pass decode (turned off immediately before it, restored in a <c>finally</c>). Decode output does
+    /// not depend on it. Default: no-op.
+    /// </summary>
+    void SetDiagnosticsEnabled(bool enabled) { }
 }

@@ -174,6 +174,7 @@ link /DLL ^
   /EXPORT:ft8_get_last_candidate_counts ^
   /EXPORT:ft8_get_last_llr_stats ^
   /EXPORT:ft8_set_ap_bits ^
+  /EXPORT:ft8_set_diagnostics_enabled ^
   /EXPORT:ft8_set_decode_params ^
   /EXPORT:ft8_get_hash_table_reject_count ^
   /EXPORT:ft8_refine_candidate ^
@@ -189,6 +190,9 @@ link /DLL ^
   /EXPORT:ft8_get_h12_unresolved_by_code ^
   /EXPORT:ft8_subfeas_compute_analytic ^
   /EXPORT:ft8_subfeas_fit_signal ^
+  /EXPORT:ft8_subfeas_pool_configure ^
+  /EXPORT:ft8_subfeas_pool_shutdown ^
+  /EXPORT:ft8_subfeas_pool_get_stats ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\decode.obj" ^

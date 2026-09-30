@@ -786,6 +786,9 @@ app.Lifetime.ApplicationStarted.Register(() =>
     // sub-feas-native-subtraction (design.md Decision 6): default false: unspecified/older
     // config files load with the residual-decode pass off, matching pre-change behaviour.
     ft8Decoder.SetSubtractionEnabled(initialDecoder.SubtractionEnabled);
+    // sub-feas-speed-redesign A4: 0 (the default, and what an older config loads as) = auto. One warning
+    // here if a hand-edited value is out of range; it is never logged per decode cycle.
+    ft8Decoder.SetSubtractionMaxThreads(initialDecoder.SubtractionMaxThreads);
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
     // not the raw pre-DI `configStore` local, so a WebApplicationFactory-hosted test host's
@@ -929,6 +932,7 @@ configStore.OnSaved += newConfig =>
     // sub-feas-native-subtraction (design.md Decision 6): takes effect on the next decode
     // cycle, no rebuild required (spec's own "Feature can be enabled without a rebuild" scenario).
     ft8Decoder.SetSubtractionEnabled(dec.SubtractionEnabled);
+    ft8Decoder.SetSubtractionMaxThreads(dec.SubtractionMaxThreads);
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
     // create a spurious new log file and reset the active sink.
@@ -1050,6 +1054,9 @@ app.Lifetime.ApplicationStopping.Register(() =>
         captureHealthMonitor.DisposeAsync().AsTask().GetAwaiter().GetResult();
 
         StopFramerAsync().GetAwaiter().GetResult();
+        // sub-feas-speed-redesign A3: the decode pump has stopped, so no fit is in flight; free the native
+        // residual-pass workspace pool (about 30 MB per worker) now rather than leave it to process exit.
+        ft8Decoder.Dispose();
         captureManager.StopAsync().GetAwaiter().GetResult();
         captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
         framerOutput.Writer.TryComplete();

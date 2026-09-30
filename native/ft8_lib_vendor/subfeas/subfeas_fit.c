@@ -77,6 +77,12 @@
 
 typedef struct { float r, i; } cf32;
 
+/* A5 (design.md D3): the cancellation flag is an int in memory owned by the managed caller. NULL means
+ * "no deadline". Read through a volatile pointer so the compiler cannot hoist the load out of a loop;
+ * the managed side writes it with a volatile write. No lock: a stale read costs at most one more
+ * loop iteration (measured ~21 ms worst case, reports/phase-timing-base-2b39cf18.txt). */
+#define IS_CANCELLED(flag) ((flag) != NULL && *(const volatile int*)(flag) != 0)
+
 /* ========================================================================
  * Per-call workspace: every buffer this module's internals need, allocated
  * ONCE at the top of ft8_subfeas_fit_signal and freed before it returns.
@@ -393,14 +399,16 @@ static void freq_search(
  *   2. ḟ search, Δt held, Δf re-fit each step
  *   3. Δt refined once more, (ḟ, Δf) held, direct correlation (no FFT)
  * Returns 1 on success (out-params populated), 0 if every candidate ran off
- * the buffer edge (fitter.py returning None).
+ * the buffer edge (fitter.py returning None), -4 if cancel_flag was set (A5;
+ * the flag is checked at the top of every candidate iteration of all three steps).
  * ===================================================================== */
 static int fine_fit_with_drift(
     workspace_t* ws,
     const float* x_a_re, const float* x_a_im,
     const uint8_t* tones, double freq_hz, double nominal_t_s,
     double* out_dt_s, double* out_df_hz, double* out_fdot,
-    int* out_start_sample, cf32* out_r_base_final /* N_TX long */)
+    int* out_start_sample, cf32* out_r_base_final /* N_TX long */,
+    const volatile int* cancel_flag)
 {
     int base_start = (int)(nominal_t_s * FS + (nominal_t_s >= 0 ? 0.5 : -0.5));
     int k, i;
@@ -419,6 +427,7 @@ static int fine_fit_with_drift(
     for (k = -DT_N_STEPS; k <= DT_N_STEPS; k++) {
         int start = base_start + k * DT_STEP_SAMPLES;
         double f_hat, val;
+        if (IS_CANCELLED(cancel_flag)) return -4;
         if (start < 0 || start + N_TX > SUBFEAS_PCM_LEN) continue;
         for (i = 0; i < N_TX; i++) {
             ws->mixed[i].r = x_a_re[start + i];
@@ -453,6 +462,7 @@ static int fine_fit_with_drift(
         for (kf = -FDOT_N_STEPS; kf <= FDOT_N_STEPS; kf++) {
             double fdot = kf * SUBFEAS_FDOT_STEP_HZ_S;
             double f_hat, val;
+            if (IS_CANCELLED(cancel_flag)) return -4;
             r_fit_drift(ws, fdot, ws->r_unit);
             apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
             for (i = 0; i < N_TX; i++) {
@@ -481,6 +491,7 @@ static int fine_fit_with_drift(
         for (k = -DT_N_STEPS; k <= DT_N_STEPS; k++) {
             int start = base_start + k * DT_STEP_SAMPLES;
             double sr = 0.0, si = 0.0, score;
+            if (IS_CANCELLED(cancel_flag)) return -4;
             if (start < 0 || start + N_TX > SUBFEAS_PCM_LEN) continue;
             for (i = 0; i < N_TX; i++) {
                 float xr = x_a_re[start + i], xi = x_a_im[start + i];
@@ -506,11 +517,12 @@ static int fine_fit_with_drift(
  * matches fitter.py's own documented reasoning; SUBFEAS_ENVELOPE_W_S=0.32s
  * never hits this branch in production use, but a larger W correctly would).
  * ===================================================================== */
-static void lp_envelope(
+static int lp_envelope(
     workspace_t* ws,
     const float* x_seg_re, const float* x_seg_im, /* N_TX long: analytic segment at fitted position */
     const cf32* r_seg,                              /* N_TX long: fitted template */
-    cf32* out_c /* N_TX long */)
+    cf32* out_c /* N_TX long */,
+    const volatile int* cancel_flag)              /* A5: checked before each convolution; returns -4 if set */
 {
     int i;
     int w_samples = ENV_W_SAMPLES;
@@ -531,7 +543,7 @@ static void lp_envelope(
         c0.r = (float)(sumr / sumd);
         c0.i = (float)(sumi / sumd);
         for (i = 0; i < N_TX; i++) out_c[i] = c0;
-        return;
+        return 0;
     }
 
     {
@@ -539,8 +551,10 @@ static void lp_envelope(
          * workspace_init_constants(), not per call. */
         for (i = 0; i < N_TX; i++) { ws->den_cf[i].r = ws->den[i]; ws->den_cf[i].i = 0.0f; }
 
+        if (IS_CANCELLED(cancel_flag)) return -4;
         fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->num, N_TX, ws->win_spec, w_samples,
                            ws->num_c, ws->scratch_a, ws->scratch_full);
+        if (IS_CANCELLED(cancel_flag)) return -4;
         fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->den_cf, N_TX, ws->win_spec, w_samples,
                            ws->den_c, ws->scratch_a, ws->scratch_full);
 
@@ -554,6 +568,7 @@ static void lp_envelope(
             }
         }
     }
+    return 0;
 }
 
 /* ========================================================================
@@ -802,20 +817,24 @@ static int fit_signal_body(
     const float* x_a_re, const float* x_a_im,
     const uint8_t* tones,
     float decoded_dt_s, float decoded_freq_hz,
-    float* out_shat)
+    float* out_shat,
+    const volatile int* cancel_flag)
 {
     double nominal_t_s, dt_s, df_hz, fdot;
     int start_sample = 0;
-    int i;
+    int i, ok;
 
     nominal_t_s = (double)decoded_dt_s + SUBFEAS_TAU0_S;
 
-    if (!fine_fit_with_drift(
+    ok = fine_fit_with_drift(
             ws, x_a_re, x_a_im, tones, (double)decoded_freq_hz, nominal_t_s,
-            &dt_s, &df_hz, &fdot, &start_sample, ws->r_base_final))
-        return -3;
+            &dt_s, &df_hz, &fdot, &start_sample, ws->r_base_final, cancel_flag);
+    if (ok == -4) return -4;
+    if (!ok) return -3;
 
-    lp_envelope(ws, x_a_re + start_sample, x_a_im + start_sample, ws->r_base_final, ws->envelope);
+    if (lp_envelope(ws, x_a_re + start_sample, x_a_im + start_sample, ws->r_base_final, ws->envelope,
+                    cancel_flag) == -4)
+        return -4;
 
     for (i = 0; i < N_TX; i++) {
         float cr = ws->envelope[i].r, ci = ws->envelope[i].i;
@@ -830,7 +849,8 @@ int ft8_subfeas_fit_signal(
     const float* x_a_re, const float* x_a_im,
     const uint8_t* tones,
     float decoded_dt_s, float decoded_freq_hz,
-    float* out_shat)
+    float* out_shat,
+    const volatile int* cancel_flag)
 {
     int i;
     int rc = 0;
@@ -842,6 +862,10 @@ int ft8_subfeas_fit_signal(
 
     memset(out_shat, 0, sizeof(float) * SUBFEAS_PCM_LEN);
 
+    /* A5: already cancelled on entry -> return before leasing a workspace or doing any FFT-scale work.
+     * out_shat is zeroed, as on every non-zero return. */
+    if (IS_CANCELLED(cancel_flag)) return -4;
+
     ws = pool_lease();
     if (!ws) {
         /* Pool at its bound, or allocation failure: graceful, no partial state written (out_shat is
@@ -852,7 +876,7 @@ int ft8_subfeas_fit_signal(
 #ifdef _MSC_VER
     __try {
 #endif
-        rc = fit_signal_body(ws, x_a_re, x_a_im, tones, decoded_dt_s, decoded_freq_hz, out_shat);
+        rc = fit_signal_body(ws, x_a_re, x_a_im, tones, decoded_dt_s, decoded_freq_hz, out_shat, cancel_flag);
 #ifdef _MSC_VER
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -934,7 +958,7 @@ static int run_case(
      * module internally adds tau0 to get its own nominal search centre.
      * Passing decoded_dt_s != (embed_dt_s - tau0) exercises the actual
      * Delta t/Delta f/f-dot search grid instead of trivially landing on k=0. */
-    rc = ft8_subfeas_fit_signal(x_a_re, x_a_im, tones, (float)decoded_dt_s, (float)decoded_freq_hz, out_shat);
+    rc = ft8_subfeas_fit_signal(x_a_re, x_a_im, tones, (float)decoded_dt_s, (float)decoded_freq_hz, out_shat, NULL);
     if (rc != 0) { printf("[%s] FAIL: fit_signal rc=%d\n", name, rc); return 1; }
 
     for (i = embed_start; i < embed_start + N_TX; i++) {

@@ -280,7 +280,7 @@ public sealed class SubtractionPassTests
         }
 
         public (int ReturnCode, float[] Shat) SubfeasFitSignal(
-            float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz)
+            float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
         {
             Interlocked.Increment(ref _fitCallCount);
             FitSignalCallCount = _fitCallCount;

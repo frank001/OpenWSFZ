@@ -97,6 +97,9 @@ int ft8_subfeas_compute_analytic(
  *                     from ft8_encode_message() on this signal's decoded text
  *   decoded_dt_s   -- this signal's decoded DT (seconds)
  *   decoded_freq_hz -- this signal's decoded frequency (Hz)
+ *   cancel_flag    -- NULL (no deadline) or a pointer to an int owned by the caller and valid for the
+ *                     whole call. The caller sets it non-zero (volatile write) to cancel; the fit reads
+ *                     it through a volatile pointer. NULL keeps the no-deadline path bit-identical.
  *   out_shat       -- caller-allocated, SUBFEAS_PCM_LEN long; on success,
  *                     receives the full-cycle-length subtraction waveform
  *                     (s_hat, zero outside the fitted signal's ~12.64s
@@ -111,6 +114,10 @@ int ft8_subfeas_compute_analytic(
  *             design.md Decision 4, a -2 from ANY signal in a cycle means
  *             the WHOLE cycle's residual pass is abandoned (fall back to
  *             pass-0-only) -- do not silently keep other signals' results.
+ *          -4 cancelled by deadline (sub-feas-speed-redesign A5): *cancel_flag was non-zero on
+ *             entry or became non-zero during the fit (checked at the top of every dt, fdot and
+ *             envelope iteration). out_shat is all-zero, the workspace is returned to the pool,
+ *             no other in-flight fit is disturbed. This is a normal deadline outcome, NOT an error.
  *          -3 if every fit candidate position ran off the buffer edge (no
  *             valid fit found for this signal -- matches fitter.py's
  *             `fine_fit`/`fine_fit_with_drift` returning None). out_shat is
@@ -130,7 +137,8 @@ int ft8_subfeas_fit_signal(
     const uint8_t* tones,
     float decoded_dt_s,
     float decoded_freq_hz,
-    float* out_shat
+    float* out_shat,
+    const volatile int* cancel_flag
 );
 
 /* ---- Workspace pool (sub-feas-speed-redesign A3; see subfeas_fit.c and design.md D2) ---------- */

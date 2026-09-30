@@ -148,7 +148,7 @@ public sealed class SubtractionFlagTests
         }
 
         public (int ReturnCode, float[] Shat) SubfeasFitSignal(
-            float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz)
+            float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
         {
             if (FitSignalThrows) throw new NativeAccessViolationException();
             return (0, new float[180_000]);

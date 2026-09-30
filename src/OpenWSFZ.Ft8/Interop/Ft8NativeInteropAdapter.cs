@@ -68,6 +68,12 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
         => Ft8LibInterop.SubfeasComputeAnalytic(pcm);
 
     public (int ReturnCode, float[] Shat) SubfeasFitSignal(
-        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz)
-        => Ft8LibInterop.SubfeasFitSignal(xARe, xAIm, tones, decodedDtS, decodedFreqHz);
+        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
+        => Ft8LibInterop.SubfeasFitSignal(xARe, xAIm, tones, decodedDtS, decodedFreqHz, cancelFlag);
+
+    public void SubfeasPoolConfigure(int bound) => Ft8LibInterop.SubfeasPoolConfigure(bound);
+
+    public void SubfeasPoolShutdown() => Ft8LibInterop.SubfeasPoolShutdown();
+
+    public void SetDiagnosticsEnabled(bool enabled) => Ft8LibInterop.SetDiagnosticsEnabled(enabled);
 }
