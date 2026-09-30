@@ -49,7 +49,7 @@ Re-run `Ft8.FitProbe time` on the **candidate** DLL (`libft8.dll` `ee00d118523ee
 4. **Licence.** B1 adds a third-party file to the repository. Check the licence text, not the README's claim.
 5. **The heap-allocation requirement and its crash history stand.** A new FFT plan or workspace layout goes through the same bounded pool, heap only.
 6. **`FT8_SHIM_VERSION`:** verify against `main` (`20260051`), `decoding_improvement` (`20260054`), the base (`20260055`), Stage A (`20260056`) and any live branch; the two-stage branch has **no** shim bump. Do not assume the next integer.
-7. **Stage B changes the native decode-adjacent path after the two-stage flag-OFF control.** QA re-runs the control (native **and** managed) on the **final native DLL**; plan for that, do not assume the earlier control covers it.
+7. **The flag-OFF control (native and managed) is a merge gate that QA runs once, at the merge,** on whichever build the Captain decides to merge (two-stage alone, or everything after Stage B). It is not run per item. If the merged build includes your native DLL, it runs on that DLL; keep flag OFF byte-identical for every item.
 
 ## 5. Tests and hygiene
 
@@ -60,4 +60,4 @@ Re-run `Ft8.FitProbe time` on the **candidate** DLL (`libft8.dll` `ee00d118523ee
 
 ## 6. Done means
 
-Per item: the change committed, the DLL SHA pinned (actual and pinned), tests green with the command quoted, the parameter hook working, a short report to QA. **QA then runs E2, E3 and the re-timing (T′; R1′, R3, R4′, R6 at 14 workers; R2′ report-only).** The Architect rules. After the **last** item: QA re-runs the flag-OFF control on the final native DLL, native and managed. **Blind spot:** T′ is measured at 4 workers on a 16-thread machine, one machine, no real cycle above 31 signals; a pass does not say a real 4-thread machine is safe. The flag stays OFF by default; a first on-air flag-ON session needs the Captain's explicit go.
+Per item: the change committed, the DLL SHA pinned (actual and pinned), tests green with the command quoted, the parameter hook working, a short report to QA. **QA then runs E2, E3 and the re-timing (T′; R1′, R3, R4′, R6 at 14 workers; R2′ report-only).** The Architect rules. The flag-OFF control (native and managed) runs once, at the merge, on the build the Captain decides to merge. **Blind spot:** T′ is measured at 4 workers on a 16-thread machine, one machine, no real cycle above 31 signals; a pass does not say a real 4-thread machine is safe. The flag stays OFF by default; a first on-air flag-ON session needs the Captain's explicit go.

@@ -191,7 +191,7 @@ automation".**
   this, but nothing measures it. **Accepted as a REPORT-ONLY row S2b** (time from batch-1 publish to receipt by a
   WebSocket client while the residual pass runs, against flag OFF; if materially above, it goes back to the Architect
   before any live use); the definitive check is an on-air session, which needs the Captain's separate go.
-- **The flag-OFF control must reach the managed path.** The base change's control compared three native DLLs through
+- **The flag-OFF control must reach the managed path (now run once, at the merge).** The base change's control compared three native DLLs through
   the raw C ABI, so the managed flag-OFF branch was never exercised (recorded caveat). This build changes exactly that
   managed path (one batch, the pump, the mapping). **Accepted:** the control re-run compares the outcome fields of
   `DecodeAsync` with the flag OFF between `2b39cf18` and the new build on the same cycles, in addition to the native
@@ -261,8 +261,7 @@ on the Stage A build and is not gated on Stage B. Stage B is a separate follow-o
   effect (14 workers, asserting 0 abandons so it equals the unbounded result) before any Stage B build (tasks 15.2).
 
 **Consequences to keep in view:** a numerics-changing item **breaks bit-identity, so E1 no longer applies**; each item's DLL
-gets its own shim bump and SHA pin. Stage B changes the native path **after** the two-stage flag-OFF control, so the control
-(native and managed) must be **re-run on the final native DLL** (tasks 15.7); the two-stage control does not cover it.
+gets its own shim bump and SHA pin. **The flag-OFF control (native and managed) is a merge gate and runs ONCE, at the merge**, on whichever build the Captain decides to merge (Captain via the Architect, 2026-09-30); it is dropped from the current queue and not re-run per phase (tasks 10.5, 14.4, 15.7).
 
 ## Risks
 

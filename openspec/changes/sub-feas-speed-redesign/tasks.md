@@ -135,7 +135,7 @@
       Report the change either way. M1 is absent: P4 is scored on M2 + M3 alone and nothing here may be credited to M1.
 - [ ] 10.4 Row T (report only): R1′/R2′ at `subtractionMaxThreads = 4` on the H stratum, to separate the thread
       effect from the code effect.
-- [ ] 10.5 Flag-OFF control re-run on the new native build (same predicate as the base ruling 2); the merge gate.
+- [ ] 10.5 **MERGE GATE, run once, at the merge (Captain via the Architect, 2026-09-30):** the flag-OFF control (same predicate as the base ruling 2), **native AND managed `DecodeAsync` paths** (the Amendment 3 extension), on **whichever build the Captain decides to merge** (two-stage alone, or everything after Stage B; not yet decided). It is **dropped from the current queue**: nothing merges yet, and the native side already has transitive coverage (the original 182-cycle control, 5a6a4dc0 = merge-base = DI; and Stage A E1, which asserted flag-OFF outcome fields identical between 2b39cf18 and ee00d118 on 161 real cycles). Stage B will change the native DLL again anyway.
 - [ ] 10.6 Report in the standard format with both DLL SHA pins, the selection SHA, the harness commit, the exact
       command lines, the blind spot (no real cycle above 32 signals; other hardware not covered), and the
       Architect's predictions P1–P4 scored by the Architect at the acceptance ruling, not by QA.
@@ -202,8 +202,7 @@
 - [ ] 14.3 **S2b** (REPORT ONLY, accepted, Amendment 3): time from batch-1 publish to receipt by a WebSocket client
       **while the residual pass is running** (14 fit workers can crowd the thread pool that WebSocket delivery also
       uses), against the flag-OFF delivery time. If materially above, it goes back to the Architect before any live use.
-- [ ] 14.4 The flag-OFF control re-run (§10.5) is extended to the managed path (accepted, Amendment 3): outcome fields of
-      `DecodeAsync` with the flag OFF, `2b39cf18` vs the new build, same cycles, in addition to the native comparison.
+- [ ] 14.4 The flag-OFF control extended to the managed path (Amendment 3) is **re-pointed to the merge** (§10.5): run once, native and managed, on the build the Captain decides to merge. **Interim datum, no extra cost:** the two-stage acceptance run's S1 phase already records flag-OFF `DecodeAsync` outcomes for `2b39cf18` and the two-stage build in fresh processes over the same 161 cycles in the same order; that comparison is reported as an interim managed datum, **not** as the merge control. The within-build flag-OFF comparisons of S1 and S2 are unaffected.
 - [ ] 14.5 E1, R0-R7 and any Stage B rows are unchanged; batch 2's publish time is R1′'s whole-call time.
 - [ ] 14.6 State in the report: **a first on-air flag-ON session is a new decision needing the Captain's explicit go**;
       nothing here implies it.
@@ -245,10 +244,7 @@ Stage A; the two combine at merge (both are Captain decisions).
       the flag-OFF path. Same instrument as Stage A (the `--threads` argument exists).
 - [ ] 15.6 **B1 licence:** permissive only (MIT/BSD/ISC); pocketfft-C (BSD-3) qualifies; **FFTW is GPL and prohibited.** Add the
       licence file under `native/` and make `tools/LicenseInventoryCheck` pass.
-- [ ] 15.7 **After the last item:** the flag-OFF control re-run on the **final native DLL**, native **and** managed
-      (`DecodeAsync`) paths (§10.5/14.4), because Stage B changes the native decode-adjacent path and shim; full unfiltered
-      `dotnet test`; every DLL pinned by SHA-256 (actual and pinned). The two-stage flag-OFF control (§14.4) does **not**
-      cover a native change made after it.
+- [ ] 15.7 **After the last item:** full unfiltered `dotnet test`; every DLL pinned by SHA-256 (actual and pinned). The flag-OFF control (native **and** managed `DecodeAsync`, §10.5) is **not** re-run per item or per phase: it runs once, at the merge, on the build the Captain decides to merge. If that build includes Stage B's native DLL, the control runs on that DLL.
 - [ ] 15.8 Report in the standard format with the blind spot up front: **T′ is measured at 4 workers on a 16-thread machine, a
       proxy for a small machine, not the same thing** (a real 4-thread machine defaults to 2 workers and contends with the
       rest of the system), and no real cycle has more than 31 signals. State that the flag stays OFF and a first on-air
