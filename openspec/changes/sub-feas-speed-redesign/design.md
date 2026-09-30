@@ -197,6 +197,35 @@ automation".**
   `DecodeAsync` with the flag OFF between `2b39cf18` and the new build on the same cycles, in addition to the native
   comparison, so the caveat can finally be retired.
 
+**Implementation record (Developer, `feat/sub-feas-two-stage-publish` @`247ac391`; QA code review: no defect found).**
+- **API shape (13.1):** `Ft8Decoder.DecodeTwoStageAsync(pcm, cycleStart, currentBand, Func<IReadOnlyList<DecodeResult>, Task> publishFirstBatch, ct)`
+  **returns batch 2**. `publishFirstBatch` is called **exactly once, always** (an empty batch 1 is a real cycle); with the flag ON it
+  is called right after pass 0 is mapped and **before** the residual pass; with the flag OFF, a silent cycle or a native AV it is
+  called once with the ordinary single-batch output and the return value is empty. Callable with no pump. `IModeDecoder.DecodeAsync`
+  and every current caller are unchanged (the band overload is now a wrapper over a private core). `Ft8Decoder.SubtractionEnabled`
+  exposes the flag; the pump reads it once per window and the core once per decode (a change in between degrades safely to one batch).
+- **Pump:** the loop moved from `Program.cs` into `DecodePump` (delegates and channel writers, testable without the host). Flag OFF
+  goes through the old inline sequence (panel, ALL.TXT, archive, admission, answerer/caller/external), no two-batch code touched.
+- **P-8 semantic:** flag ON, the `Cycle {Time}: N decode(s) found, elapsed=` line reports **time to batch 1** (the stopwatch keeps
+  running because the residual pass's budget is measured from the start of the decode). Flag OFF unchanged. The `Sub-feas residual
+  pass:` line is unchanged. Note that batch 1's publish (including the awaited ALL.TXT append) is counted in the residual pass's budget.
+- **13.4, external reporting (finding j):** a batch yields only Decode datagrams; Status and Heartbeat are timer-driven; there is no
+  per-batch Clear; a same-cycle second batch repeats nothing. **Side effect:** the service's `_lastDecodeBatch` becomes batch 2, and it
+  feeds only the diagnostic "Reply named X not found in own current decode batch", so that line becomes misleading for a pass-0 CQ
+  after batch 2 arrives. Behaviour unchanged; a possible small follow-up, not a defect of this change.
+- 🔴 **Finding (g), the double-click on a batch-2 CQ row (observed by the Developer, characterised, not changed):**
+  `AnswererService.AnswerCqAsync` does not read the snapshot, arms the opposite-phase pending target and pushes a wake-up batch for the
+  cycle running **now**. Batch 2 arrives about 5.5 s into that cycle, so the phase matches and **the answerer fires the reply
+  immediately, mid-slot, with no lateness gate** (D-CALLER-021; `TransmitAsync` truncates). A 12.64 s message started about 5.5 s
+  into a 15 s slot cannot complete, so **an operator's double-click on a residual row keys the transmitter for a truncated,
+  undecodable transmission.** This is the answer to "can a residual decode be engaged by double-click": it can, and the result is
+  worse than being unable to. It is the existing late-click behaviour, made likely for batch-2 rows because they arrive inherently
+  late. **DECIDED by the Captain, 2026-09-30: NO CHANGE** (the Architect's §5e): *"when I look at wsjt-x is just starts transmitting
+  no matter where it is in the cycle, the operator is in full control even when it is known to fail. I quite like that, it gives also
+  direct feedback to the operator."* So: no lateness gate, no refusal, no row marking. **Immediate transmit on a late click is
+  deliberate behaviour, matching WSJT-X, and is not a defect.** Test (g) stays as the record of that behaviour. (The external-reporting
+  diagnostic above is behaviour-neutral and low priority, out of this change unless the Captain asks.)
+
 **No native change and no shim bump** for two-stage publish: `src/` only. The DLL stays `ee00d118…990e4c`, so E1 and the
 Stage A native evidence are unaffected.
 
