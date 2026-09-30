@@ -52,6 +52,25 @@ at both the numeric and the text-hash level.** Recorded as an interim managed da
 - Stability: 0 access violations, 0 contained exceptions, 0 CSV rows with an exception; `Sub-feas residual pass:` log lines equal the flag-ON cycles in all six blocks; **0 deadline abandons over the 605 heavy cycles**.
 - The whole-call maximum including batch 2 was 9 463 ms, inside the 13 s bound (Stage A's quiet-machine maximum was 8 650 ms; the residual pass alone peaked at 8 968 ms here against 8 242 ms in Stage A; descriptive, run-to-run).
 
+## S3: consumer tests (a)-(f) and the accepted (g)-(j): every letter has a test
+
+Tests on `247ac391` (`tests/OpenWSFZ.Daemon.Tests/DecodePumpTests.cs` unless stated). **No letter is without a test.**
+
+| Letter | Requirement | Test (DisplayName / method) |
+|---|---|---|
+| (a) | answerer and caller receive exactly one batch per flag-ON cycle, equal to batch 1 | `S3(a)` / `AnswererAndCaller_ExactlyOneBatch_IsBatch1` |
+| (b) | answerer's idle snapshot after a flag-ON cycle equals batch 1 | `S3(b)+(h)` / `RealAnswerer_SnapshotIsBatch1_ExternalReplyForBatch2StationIgnored` (real answerer service) |
+| (c) | ALL.TXT holds batch 1 then batch 2, same stamp, no duplicate text | `S3(c)` / `AllTxt_Batch1ThenBatch2_SameStamp_Unfiltered`; the no-duplicate-text half also in `TwoStageDecodeTests` (`Ft8.Tests`): `UnionEqualsSingleBatchOutput` |
+| (d) | panel receives two `decode` events and shows the union | `S3(d)` / `Panel_TwoEvents_Union` (server side); **and** `web/js/decodePanelBatches.test.js` (`handleDecodes` prepends and never clears; run with `node --test`, 4 / 4 here, outside `dotnet test`) |
+| (e) | archive enqueued once, at batch 1, pass-0 count | `S3(e)` / `Archive_OncePerCycle_WithPass0Count` |
+| (f) | flag OFF: one publish per cycle | `S3(f)` / flag-OFF single-path test, plus `TwoStageDecodeTests.FlagOff_OneBatch_Identical` (P-9) |
+| (g) | manual engage on a batch-2 row, characterised | `S3(g)` / `TwoStageEngageCharacterisationTests.ManualEngage_OnBatch2Row_Characterised` (behaviour recorded, unchanged: Captain's decision) |
+| (h) | external reply naming a batch-2 station ignored with the existing log line | `S3(b)+(h)` (same test as (b)) |
+| (i) | pump starts no next window before batch 2 is published or abandoned | `S3(i)` / `Pump_StaysSerial` |
+| (j) | external reporting sends no cycle-level message twice | `S3(j)` / `ExternalReportingServiceTests.TwoBatchCycle_SendsNoCycleLevelMessageTwice` |
+
+**Did they run in QA's unfiltered run?** The run was `dotnet test OpenWSFZ.slnx` (**no filter**) on a detached checkout of `247ac391`: **1 646 passed, 0 failed** (Traceability 34, LicenseInventory 24, TestSupport 12, Rig 41, Audio 23, Config 105, E2E 7, Web 318, Daemon 665, Ft8 417). That log prints per-assembly totals, not test names, so the names are confirmed two other ways, stated here so neither is mistaken for the unfiltered run: (1) `dotnet test tests/OpenWSFZ.Daemon.Tests --no-build --list-tests` on the **same built assemblies** lists all nine `S3(...)` tests (a, b+h, c, d, e, f, g, i, j); (2) a **supplementary filtered** run, `dotnet test tests/OpenWSFZ.Daemon.Tests --no-build --filter "DisplayName~S3"`, executed them: **9 / 9 passed** (this filtered run is supplementary and is not offered as the unfiltered result). The P-1/P-3/P-8/P-9 tests in `TwoStageDecodeTests` (`Ft8.Tests`) are inside the unfiltered 417.
+
 ## Load disclosure and a descriptive datum (Architect's request)
 
 The Engineer ran CPU-heavy work on this machine while S1 was running (13 unfiltered Web.Tests passes, a daemon build, an isolated daemon on port 18193 and a Playwright run, reconstructed
