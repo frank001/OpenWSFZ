@@ -1,19 +1,26 @@
 # Scheduled after S2b: (1) the first-pass "where do the 500 ms go" profile, (2) the WSJT-X corroboration scan of the endurance corpora
 
 - **Date (UTC):** 2026-09-30. **Author:** QA. **Instruction:** the Captain, 2026-09-30: *"when S2b has completed I want you schedule both tests, the 500ms question and the scan of the endurance corpora."*
-- **Status: SCHEDULED, NOT STARTED.** Neither test begins until S2b has completed. `src/`/`native/` diff of this note: none (HK-011).
+- **Status: SCHEDULED, NOT STARTED.** Revised 2026-09-30: both tests run ahead of the Engineer's heavy work and no longer wait for S2b (§0). `src/`/`native/` diff of this note: none (HK-011).
 
-## 0. Where these sit in the queue
+## 0. Where these sit in the queue (REVISED 2026-09-30 on the Captain's instruction: "put 6 and 7 before (or parallel with) 2")
+
+The tests A and B no longer wait for S2b (S2b stays after the overnight run). They now go **before the Engineer's heavy work**.
 
 | Order | Item | Machine | Who | Depends on |
 |---|---|---|---|---|
 | 1 | Two-stage acceptance S1/S2 (running) | busy until ~17:20Z 2026-09-30 | QA | (in flight) |
-| 2 | Engineer's T8 loop + full slnx, then L1 | quiet machine, station for L1 | Engineer | S2 DONE, QA's green light |
-| 3 | **Overnight flag-ON on-air run**, receive only | the station and the machine, until **14:00Z 2026-10-01 at the latest** | QA arms on the Captain's word | Captain's start command |
-| 4 | Gather, HK-036 Section 4, orphan check, release the station | | QA | 3 |
-| 5 | **S2b** (batch-1 delivery under load; report only) | quiet machine, ~45-60 min run after a harness is written | QA | 4 |
-| 6 | **Test A: first-pass profile** | quiet machine, timing | Developer builds the test-only tool, QA runs and reads | 5 |
-| 7 | **Test B: WSJT-X corroboration scan of the endurance corpora** | light CPU, offline, no station | QA | 5 (the Captain's order; it has no machine dependency of its own) |
+| 2a | **Test B: corroboration scan**, on the 161 E1 cycles | light, offline, one core for minutes; **no replay needed** (S1 already recorded the flag-ON and flag-OFF outcomes for exactly these cycles) | QA | S2 DONE |
+| 2b | **Test A: the Developer builds the test-only profile tool** | load in short build bursts, **not timing-sensitive** | Developer | S2 DONE (parallel with 2a) |
+| 2c | **Test A: QA runs the profile** | **quiet machine, ~20 min** | QA | 2b delivered |
+| 3 | Engineer's T8 loop + full slnx (load-sensitive: they want a quiet machine) | quiet | Engineer | 2c done |
+| 4 | Engineer's L1 on the station | quiet + station | Engineer | 3 |
+| 5 | **Overnight flag-ON on-air run**, receive only, on the Captain's word, **hard stop 14:00Z 2026-10-01** | station and machine | QA | Captain's start; everything of the Engineer's stopped and orphan-checked first |
+| 6 | Gather, HK-036 Section 4, orphan check, release the station | | QA | 5 |
+| 7 | **S2b** (report only) | quiet, ~45-60 min after a harness is written | QA | 6 |
+| 8 | Test B extension to all 905 cycles, if wanted (needs a ~90 min replay) | timing-insensitive, CPU-heavy | QA | Captain's call after 2a |
+
+**What this trades.** The Engineer's items (3 and 4) now sit behind the profile. If the Developer's tool takes long, they may slip past the Captain's "much later tonight" start and move to after the overnight release (~14:15Z 2026-10-01). Ask the Captain whether the Engineer should instead go first if 2b is slow.
 
 The S2b harness can be **written** earlier (no machine needed); only its run waits for step 4.
 

@@ -3,7 +3,7 @@
 **Date:** 2026-09-30
 **Prepared by:** QA (HK-015: Architect → QA → Developer)
 **Audience:** Developer (to execute **only when QA says so**); Captain (hand-over per HK-000)
-**Status:** **DRAFT. SCHEDULED, NOT TO START.** The Captain's instruction (2026-09-30): schedule it **after S2b has completed** (`qa/rr-study/2026-09-30-post-s2b-schedule.md`). Do not begin until QA messages you.
+**Status:** **DRAFT. SCHEDULED, NOT TO START until QA messages you (expected right after the S2 timing run ends, ~17:20Z 2026-09-30).** Revised on the Captain's instruction: this runs BEFORE the Engineer's heavy work and no longer waits for S2b (`qa/rr-study/2026-09-30-post-s2b-schedule.md`).
 **Branch:** a new test-only branch off `feat/sub-feas-two-stage-publish` (or off whatever head the Captain has decided to merge by then; QA will say). **No product-path change.**
 
 ---
