@@ -45,6 +45,10 @@ It is **not** a second opinion on the same one.
    **cannot** overlap. Before arming anything that touches the station, check the board and ask the
    QA session whether it holds the station. Record in the board when you take it and when you release
    it (HK-020, HK-024).
+   🔴 **The machine's CPU is shared too, not only the radio.** QA's timing measurements (replays, acceptance
+   runs) and any overnight or live run are ruined by other load on the same PC. While one is live, run **no**
+   CPU-heavy work: no test suites, builds, benchmarks or extra daemons. Ask the QA session first, and check the
+   board. (Added 2026-09-30, after 13 Engineer test passes overlapped a QA timing run.)
 4. **Gitignored data does not travel between worktrees.** Your `artefacts/`, `_work/` and captured
    audio are yours. QA's are not in your tree. Copy by explicit path when you need them, and never
    assume they exist.
