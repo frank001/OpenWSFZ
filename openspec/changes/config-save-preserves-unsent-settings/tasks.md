@@ -49,8 +49,9 @@ and L1 are defined in the source spec §7 and are quoted in the delta specs.
 
 ## 7. Acceptance
 
-- [ ] 7.1 T16: full suite green on all three CI platforms.
-- [ ] 7.2 L1 live check on the station, slot agreed with QA first; record take and release in the board.
+- [x] 7.0 T1-T15 run by the Engineer on `a2d216c3`/`be8dd882`, unfiltered: Web.Tests 359/359 (30/30 re-loop on `be8dd882`, 18:07:54Z-18:23:52Z), `node --test web/js/*.test.js` 65/65, Playwright T15 27/27. The T8 flake (1 in 13, 1 in 30 before the fix) was a test-fixture defect, fixed in `be8dd882` (design D3).
+- [ ] 7.1 T16: full suite green on all three CI platforms. Known intermittent on `main` itself (not from this change): `OpenWSFZ.Daemon.Tests` timing tests (cycle-audio-archive manifest order, TX-D04/decode-panel-filtering SelectResponder None-mode, D-CALLER-021 A late click, fix-external-reporting-clear-and-reply-filter default config).
+- [x] 7.2 L1 MET 2026-09-30, **deviation from "on the station" (accepted by the Architect):** run on an isolated daemon (port 18193, own config and archive directory) capturing `CABLE Output` (granted by QA) with low-level noise played to `CABLE Input` by explicit device index, because the station was reserved for QA's overnight run. The property under test, config persistence and archive continuity across a real Settings-page save, does not depend on the audio source. Run 2, 18:04:00Z-18:07:13Z: a Playwright Settings save at 18:05:27Z; 13 WAVs, every gap 15 s (6 before, 7 after); `mode=all`, `decodingEnabled`, `decoder` unchanged; Part D line paths only; `config_drift` wrote no row. Run 1 (config without a `decoder` section) correctly flagged `decoder.*` absent to present, the page materialising the section. No real band audio, no real CODEC. Station not touched.
 - [ ] 7.3 `/opsx:verify`, then QA-peer review is the Captain's call. Every merge needs the Captain (HK-010).
 - [ ] 7.4 After merge: Architect updates memory `hk035`; nudge the Developer worktree (HK-032); sync to
       `decoding_improvement`.
