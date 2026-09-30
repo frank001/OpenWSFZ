@@ -114,7 +114,13 @@ internal static class NonDefaultConfig
                 "SerialLine"   => "Dtr",
                 "Method"       => "SerialRtsDtr",
                 "RigModel"     => "RigCtld",
-                "Role"         => "follower", // ExternalReporting.Role; its leaderUrl becomes "-nd", non-empty, so valid
+                "Role"         => "follower", // ExternalReporting.Role; needs a non-empty leaderUrl (validation, T12)
+                // The seed has externalReporting enabled as a follower, so ExternalReportingService relays
+                // to this URL on its first timer tick. It MUST be absolute: a relative one ("-nd") makes
+                // HttpClient throw InvalidOperationException, which faults the timer loop and is rethrown by
+                // StopAsync when the test factory is disposed, failing whichever test is disposing (the T8
+                // flake, 1 in ~30 runs). Loopback port 9 is refused at once, so the relay degrades quietly.
+                "LeaderUrl"    => "http://127.0.0.1:9",
                 _              => ((current as string) ?? "") + "-nd",
             };
         }
