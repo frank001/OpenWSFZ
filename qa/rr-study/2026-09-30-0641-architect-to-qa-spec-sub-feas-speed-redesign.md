@@ -143,6 +143,26 @@ per-signal setup, and A4 cuts about 23 signals from 6 waves to 2. That is roughl
 than its budget. Per the ledger, my HYPOTHESISED calls lean toward optimism about a findable, localised fix. Weight
 them accordingly.
 
+## 5a. Amendment 1 (2026-09-30, after QA's authoring pass `qa/sub-feas` `3d4d406c`; both proposals accepted)
+
+- **M1 is DEFERRED (Captain).** The precondition fired: four QA scripts parse the LDPC-fail Debug line
+  (`ldpc_stats.py`, `run_isolated_replay_generic.py`, `run_isolated_replay.py`, `run_tight_replay.py`). Stage A ships
+  A1–A5, M2 and M3 only. **P4 is scored on M2 + M3 alone**, and nothing in R5′ may be credited to M1.
+- **R5′ baseline (QA proposal 1, accepted, drafting defect mine):** the baseline is the **`2b39cf18` DLL re-measured in
+  the same acceptance session**, on the same machine state, not the §8.1 medians. §8.1 ran with WSJT-X, a browser
+  and Voicemeeter resident, and comparing against it would flatter the candidate. Bar unchanged (≤ 1.05×, per run).
+- **E1 selection (QA proposal 2, accepted):** pool H ∪ M as `(run, stamp)` pairs, sort by `(run, stamp)`, take indices
+  0, 9, 18, …, plus the 60 pilot cycles. My "every 9th stamp of the sorted list" did not say how runs were ordered.
+- **A5 reserve is raised from 1 000 ms to 1 500 ms** (a design parameter, not a bar; fixed now, before any build).
+  QA's note is correct: 1 000 ms against an 830 ms flag-OFF maximum leaves 170 ms. R1′'s bar is unchanged (13 000 ms).
+- **A3 workspace ownership:** adopt QA's `design.md` D2. A **bounded, locked pool** of heap workspaces, size =
+  `subtractionMaxThreads`, leased per fit call and returned in a `finally`. No thread-local native state, because
+  thread-pool threads are not native-owned. Freed at decoder dispose.
+- **Config key vs #193:** `decoder.subtractionMaxThreads` is represented as **`0 = auto` (`ProcessorCount − 2`), which
+  is also the default**, so the #193 reset defect degrades it to auto rather than to a wrong value. The Settings page
+  does not send `subtractionEnabled` or `subtractionMaxThreads`, so until the config-save fix lands, a Settings save
+  resets both (the flag to OFF, which fails safe). The Engineer owns that fix and is told of these two keys.
+
 ## 6. Hygiene
 
 - 🔒 NFR-021 / HK-037: stamps and integers only, as in §8.1. The E1 harness writes hashes and rcs, never text.
