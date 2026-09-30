@@ -189,7 +189,7 @@
       `_lastIdleDecodeBatch` after a flag-ON cycle equals batch 1; (c) ALL.TXT holds batch 1's lines then batch 2's, same
       stamp, no duplicate text in the cycle; (d) the panel receives two `decode` events and shows the union; (e) the archive
       enqueues once; (f) flag OFF gives one publish per cycle.
-- [ ] 13.11 Tests proposed by QA (Architect to confirm): (g) a manual engage on a batch-2 row: characterise whatever the
+- [ ] 13.11 Tests (g)-(j), accepted by the Architect (Amendment 3): (g) a manual engage on a batch-2 row: characterise whatever the
       answerer then does with the pending target (the double-click path does not read the idle snapshot; see `design.md`
       D9); (h) an external reply naming a batch-2 station is ignored with the existing log line; (i) the pump starts no next
       window before batch 2 is published or abandoned; (j) the external-reporting channel sends no cycle-level message twice.
@@ -202,12 +202,15 @@
       `e1_selection.json`, 161 cycles): the union of batch 1 and batch 2 outcome fields equals the single-batch output of
       `ca0bcd9b` as a set, and batch 1 equals the flag-OFF output of the same build. Outcome fields, never text. PASS iff 161/161.
 - [ ] 14.2 **S2**: over H ∪ M, time to batch 1, median per run ≤ 1.05 × the flag-OFF whole-call median measured in the same
-      session; max ≤ 1 000 ms, **read together with the same-session flag-OFF max** (proposed; a row where the flag-OFF max
-      also exceeds 1 000 ms is reported "not evaluable", not FAIL). WSJT-X closed.
-- [ ] 14.3 **S2b** (report only, proposed): delivery of batch 1 to a WebSocket client with the residual pass running
-      (14 workers), against flag OFF.
-- [ ] 14.4 The flag-OFF control re-run (§10.5) is extended to the managed path: outcome fields of `DecodeAsync` with the
-      flag OFF, `2b39cf18` vs the new build, same cycles, in addition to the native comparison.
+      session; max ≤ 1 000 ms, **read per cycle against the same-session flag-OFF whole call** (Architect's Amendment 3):
+      cycles whose flag-OFF call itself exceeds 1 000 ms are excluded from the max term and **counted**; if more than 1 %
+      of cycles are excluded the max term is **"not evaluable"**, reported as such, not passed. The median term is
+      unchanged. WSJT-X closed.
+- [ ] 14.3 **S2b** (REPORT ONLY, accepted, Amendment 3): time from batch-1 publish to receipt by a WebSocket client
+      **while the residual pass is running** (14 fit workers can crowd the thread pool that WebSocket delivery also
+      uses), against the flag-OFF delivery time. If materially above, it goes back to the Architect before any live use.
+- [ ] 14.4 The flag-OFF control re-run (§10.5) is extended to the managed path (accepted, Amendment 3): outcome fields of
+      `DecodeAsync` with the flag OFF, `2b39cf18` vs the new build, same cycles, in addition to the native comparison.
 - [ ] 14.5 E1, R0-R7 and any Stage B rows are unchanged; batch 2's publish time is R1′'s whole-call time.
 - [ ] 14.6 State in the report: **a first on-air flag-ON session is a new decision needing the Captain's explicit go**;
       nothing here implies it.

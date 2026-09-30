@@ -163,7 +163,11 @@ will not see a partner's report or RR73 that only the residual pass decoded (it 
 flag OFF those decodes do not exist at all, so this is not a regression; it means two-stage publish makes residual
 decodes **visible, logged and spotted, not actionable by the automation**.
 
-**Row review (HK-021 (k) / HK-026, QA's right, exercised as amendments not refusals).**
+**Row review (HK-021 (k) / HK-026, QA's right, exercised as amendments not refusals). All three proposals were accepted
+by the Architect as Amendment 3 (`arch/subtraction-feasibility` `974a450e`, §5c), and the P-5 correction below was
+verified by them (`_lastIdleDecodeBatch` is read only at `QsoAnswererService.cs:382`, reached from
+`QsoControllerRouter.cs:162`). The wording for the operator is now "visible, logged and spotted, not actionable by the
+automation".**
 - **S1** (union of batches equals the single-batch output of `ca0bcd9b` on the 161 E1 cycles; batch 1 equals flag OFF):
   not decorative (a split that drops or duplicates a decode fires it) and not vacuous (about 5 residual decodes per
   cycle). **One method point:** the native decoder's callsign hash table is process-global, so text and the plausibility
@@ -174,21 +178,22 @@ decodes **visible, logged and spotted, not actionable by the automation**.
   same DLL measured twice differs by up to 1.5 %). **The max term is the concern:** the flag-OFF whole-call max was 830 ms
   in §8.1 and 791 ms in the Stage A session, so 1 000 ms sits only 170-210 ms above the tail of the very distribution it
   is compared to; over 905 cycles a single scheduler stall fires it, and then it would be reading noise, not a defect.
-  **Proposed (to the Architect):** the max term is evaluated together with the flag-OFF max measured in the same session,
-  and a row where the flag-OFF max also exceeds 1 000 ms is reported as **not evaluable** (instrument noise), not FAIL.
-  The bar itself is not moved.
-- **S3 additions proposed:** (g) a manual engage on a batch-2 row: the behaviour is characterised, whatever it is;
+  **Accepted (Amendment 3):** the max term is read **per cycle** against the same-session flag-OFF whole call; cycles
+  whose flag-OFF call itself exceeds 1 000 ms are excluded from the max term and counted; if more than 1 % are excluded
+  the max term is **"not evaluable"**, reported as such, not passed. The median term is unchanged and the bar is not
+  moved.
+- **S3 additions (accepted):** (g) a manual engage on a batch-2 row: the behaviour is characterised, whatever it is;
   (h) an external reply naming a batch-2 station is ignored with the existing log line (the P-5 consequence, now tested);
   (i) the pump does not start the next window until batch 2 is published or abandoned (P-7); (j) the external-reporting
   channel sends no cycle-level message twice for a two-batch cycle (the Developer reads the service to confirm).
 - **A gap S2 does not cover:** it times the hand-off of batch 1, not its delivery. The residual pass then runs 14 workers
   on 16 logical processors while the WebSocket delivery of batch 1 is in flight. The two cores reserved by A4 exist for
-  this, but nothing measures it. Proposed as a report-only row S2b (delivery of batch 1 to a WebSocket client, flag
-  ON with the residual pass running, against flag OFF); the definitive check is an on-air session, which needs the
-  Captain's separate go.
+  this, but nothing measures it. **Accepted as a REPORT-ONLY row S2b** (time from batch-1 publish to receipt by a
+  WebSocket client while the residual pass runs, against flag OFF; if materially above, it goes back to the Architect
+  before any live use); the definitive check is an on-air session, which needs the Captain's separate go.
 - **The flag-OFF control must reach the managed path.** The base change's control compared three native DLLs through
   the raw C ABI, so the managed flag-OFF branch was never exercised (recorded caveat). This build changes exactly that
-  managed path (one batch, the pump, the mapping). **Proposed:** the control re-run compares the outcome fields of
+  managed path (one batch, the pump, the mapping). **Accepted:** the control re-run compares the outcome fields of
   `DecodeAsync` with the flag OFF between `2b39cf18` and the new build on the same cycles, in addition to the native
   comparison, so the caveat can finally be retired.
 
