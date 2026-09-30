@@ -142,7 +142,14 @@
 
 ## 11. Stage B gate: **not authorised unless Stage A fails R2′ or R4′**
 
-- [ ] 11.1 Only if §10.2 fails R2′ or R4′: return to the Architect and the Captain. Stage B items (B1 faster FFT,
+- [x] 11.0 **State (2026-09-30):** Stage A failed R2′ on its p95 term only (6 410.8 vs 6 000 ms; report
+      `qa/rr-study/results/2026-09-30-sub-feas-speed-stage-a-acceptance/report.md`, ruled by the Architect). With Amendment 2
+      the 6 s bar is a headroom margin, not a deadline, so **Stage B is now optional: the Captain decides** (its remaining
+      argument is other hardware: 56 % of heavy cycles abandoned at 4 workers). **Accepted next step before any item is
+      chosen (Architect):** the Developer re-runs `Ft8.FitProbe time` on the **candidate** DLL at 1 worker AND at 14
+      concurrent workers (the ~2× concurrency penalty per fit is unmeasured), then Stage B goes in the order the profile
+      supports. Two-stage publish (§13) is required either way.
+- [ ] 11.1 If the Captain chooses Stage B: return to the Architect. Stage B items (B1 faster FFT,
       B2 pruned frequency search, B3 coarse-to-fine Δt) are built one at a time, each re-measured before the next,
       each accepted on E2 (equivalence within tolerance, ≥ 99 % of signals) and E3 (residual decodes ≥ 0.98 × Stage
       A), never on speed. B1 licence: permissive only (pocketfft-C, BSD-3, qualifies); **FFTW is GPL and prohibited**.
@@ -156,3 +163,51 @@
       changes folded in.
 - [ ] 12.3 **CAPTAIN DECISION**: merge sign-off (HK-010) and push (HK-033). The flag remains OFF by default
       regardless; any live use is a separate Captain decision after the base change's §7 and §8.2/§8.3.
+
+## 13. Two-stage publish (Architect's Amendment 2; Developer; `src/` only, no shim bump)
+
+- [ ] 13.1 Record in `design.md` D9 the shape of the two-batch entry on `Ft8Decoder` (a publish callback for batch 1, or a
+      return of both batches). `IModeDecoder.DecodeAsync` and every current caller stay unchanged. **The entry must be
+      callable from a test or replay harness without the daemon pump** (acceptance rows S1 and S2 need it).
+- [ ] 13.2 **P-1/P-2.** Flag ON: map and hand batch 1 (pass-0) to the pump's existing publish path as soon as pass 0
+      returns; start the residual pass only after that; publish the residual decodes as batch 2 with the same `cycleStart`,
+      only if the pass completed with at least one new decode.
+- [ ] 13.3 **P-3.** Same mapping for batch 2 (trim, plausibility, region, worked-before, band); the text `seen` set is per
+      cycle and spans both batches; the SubtractionPass payload de-dup is unchanged.
+- [ ] 13.4 **P-4.** Batch 2 to the panel, ALL.TXT (appended, same stamp), filter admission and external reporting. Read
+      the external-reporting service and confirm it sends no cycle-level message twice for a two-batch cycle; record the
+      finding. Confirm on the panel that batch 2 rows appear above batch 1's rows and replace nothing (`handleDecodes`
+      prepends; QA verified it does not clear).
+- [ ] 13.5 **P-5.** Batch 2 is **not** written to the answerer or caller channels. The answerer's idle snapshot after a
+      flag-ON cycle equals batch 1.
+- [ ] 13.6 **P-6.** The cycle-audio archive `TryEnqueue` runs once, at batch 1, with the pass-0 count.
+- [ ] 13.7 **P-7.** The pump stays serial: no decode of the next window until batch 2 is published or the pass is abandoned.
+- [ ] 13.8 **P-8.** The `Cycle {Time}: … elapsed=` line reports time to batch 1 (flag OFF identical to today). Record the
+      semantic in `design.md`. The `Sub-feas residual pass:` line is unchanged.
+- [ ] 13.9 **P-9.** Flag OFF: exactly one batch per cycle, byte-identical output, ALL.TXT, archive and consumer deliveries.
+- [ ] 13.10 Tests **S3 (a)-(f)** in code: (a) the answerer and caller receive exactly one batch per flag-ON cycle; (b)
+      `_lastIdleDecodeBatch` after a flag-ON cycle equals batch 1; (c) ALL.TXT holds batch 1's lines then batch 2's, same
+      stamp, no duplicate text in the cycle; (d) the panel receives two `decode` events and shows the union; (e) the archive
+      enqueues once; (f) flag OFF gives one publish per cycle.
+- [ ] 13.11 Tests proposed by QA (Architect to confirm): (g) a manual engage on a batch-2 row: characterise whatever the
+      answerer then does with the pending target (the double-click path does not read the idle snapshot; see `design.md`
+      D9); (h) an external reply naming a batch-2 station is ignored with the existing log line; (i) the pump starts no next
+      window before batch 2 is published or abandoned; (j) the external-reporting channel sends no cycle-level message twice.
+- [ ] 13.12 Full `dotnet test`, no `--filter`, green; quote the exact command and the total. Two-stage publish touches the
+      pump and `Ft8Decoder` but not `libft8.dll`: confirm the DLL SHA-256 is unchanged (`ee00d118…990e4c`).
+
+## 14. QA acceptance of two-stage publish (QA-owned; after §13 builds)
+
+- [ ] 14.1 **S1**, both builds in **fresh processes over the same cycles in the same order** (sorted `(run, stamp)` of
+      `e1_selection.json`, 161 cycles): the union of batch 1 and batch 2 outcome fields equals the single-batch output of
+      `ca0bcd9b` as a set, and batch 1 equals the flag-OFF output of the same build. Outcome fields, never text. PASS iff 161/161.
+- [ ] 14.2 **S2**: over H ∪ M, time to batch 1, median per run ≤ 1.05 × the flag-OFF whole-call median measured in the same
+      session; max ≤ 1 000 ms, **read together with the same-session flag-OFF max** (proposed; a row where the flag-OFF max
+      also exceeds 1 000 ms is reported "not evaluable", not FAIL). WSJT-X closed.
+- [ ] 14.3 **S2b** (report only, proposed): delivery of batch 1 to a WebSocket client with the residual pass running
+      (14 workers), against flag OFF.
+- [ ] 14.4 The flag-OFF control re-run (§10.5) is extended to the managed path: outcome fields of `DecodeAsync` with the
+      flag OFF, `2b39cf18` vs the new build, same cycles, in addition to the native comparison.
+- [ ] 14.5 E1, R0-R7 and any Stage B rows are unchanged; batch 2's publish time is R1′'s whole-call time.
+- [ ] 14.6 State in the report: **a first on-air flag-ON session is a new decision needing the Captain's explicit go**;
+      nothing here implies it.

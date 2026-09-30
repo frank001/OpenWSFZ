@@ -60,12 +60,26 @@ Full record in `design.md` D7.
 
 **Stage B (numerics-changing: faster FFT, pruned frequency search, coarse-to-fine Δt) is NOT built here.** It is
 built only if Stage A misses R2′ or R4′ at acceptance, item by item, and needs its own gate (`tasks.md` §11).
+**Stage A missed R2′ on its p95 term** (6 410.8 ms against 6 000 ms; every other row passed), so Stage B is open, and
+with the Architect's Amendment 2 it is now **optional** (a Captain decision): the 6 s bar was a headroom margin, not a
+deadline.
+
+**Two-stage publish (Architect's Amendment 2, 2026-09-30; `src/` only, no shim bump) IS built here, and is required
+before any live use, whether or not Stage B is built.** With the flag ON the residual pass runs inside the single decode
+call, before the pump's one publish, so every decode reaches the operator about 20.5 s after the cycle starts, after the
+17.36 s deadline to answer (#122). The change publishes pass-0 as **batch 1** as soon as pass 0 returns, then the
+residual decodes as **batch 2** of the same cycle: to the panel, ALL.TXT, filter admission and external reporting, **not**
+to the QSO answerer or caller (their idle snapshot would be overwritten). Flag OFF stays one batch and byte-identical.
+Consequence for the operator: residual decodes are visible, logged and spotted, but not available to the answerer or
+caller as input (`design.md` D9 records what was verified and one correction to the Amendment's stated consequence).
 
 ## Impact
 
 - `native/ft8_lib_vendor/subfeas/subfeas_fit.c` and `.h` (A1, A2, A3, A5), `native/ft8_lib_build/patched/`
   or `src/OpenWSFZ.Ft8/Native/ft8_shim.c/.h` (A5 export shape, M2), build scripts (export list).
 - `src/OpenWSFZ.Ft8/Subfeas/SubtractionPass.cs`, `Ft8Decoder.cs`, `Interop/*` (A3 shutdown hook, A4, A5, M2, M3).
+- Two-stage publish: `src/OpenWSFZ.Ft8/Ft8Decoder.cs` (a two-batch entry; `IModeDecoder` unchanged),
+  `src/OpenWSFZ.Daemon/Program.cs` (the pump's publish path), `web/js/main.js` (verify only), and tests. No native change.
 - Config: `decoder.subtractionMaxThreads` (new optional key) and its `REQUIREMENTS.md` entry.
 - Tests under `tests/OpenWSFZ.Ft8.Tests/` and a test-only E1 hash probe. Every test fake implementing
   `IFt8NativeInterop` is touched, because A5 changes `SubfeasFitSignal` (12 fakes plus `SubtractionFlagTests`,

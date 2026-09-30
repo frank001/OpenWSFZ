@@ -211,3 +211,115 @@ equivalence within tolerance to the Stage A fit and on no loss of residual decod
 
 - **WHEN** a proposed FFT dependency is GPL
 - **THEN** it SHALL NOT be added
+
+### Requirement: With the flag ON the daemon SHALL publish the pass-0 decodes first and the residual decodes as a second batch of the same cycle
+
+When `decoder.subtractionEnabled` is true, the decoder SHALL make the pass-0 decodes available for publication as
+**batch 1** as soon as pass 0 has returned and been mapped, and SHALL start the residual pass only after batch 1 has been
+handed to the pump's publish path. Residual decodes SHALL be published as **batch 2** of the same cycle (the same
+`cycleStart`) when the pass completes. Nothing SHALL be published as batch 2 when the pass is abandoned or yields no new
+decode. The reason is operational, not a speed target: the residual pass ran inside the single decode call, before the
+one publish, so every decode reached the operator only after the whole pass (about 20.5 s median after the cycle starts,
+against a 17.36 s deadline to answer a station heard in that cycle). The `IModeDecoder.DecodeAsync` contract used by other
+callers SHALL be unchanged.
+
+#### Scenario: Batch 1 does not wait for the residual pass
+
+- **WHEN** the flag is ON and pass 0 returns
+- **THEN** batch 1 is published through the pump's existing path before the residual pass begins
+
+#### Scenario: Batch 2 follows
+
+- **WHEN** the residual pass completes with at least one new decode
+- **THEN** those decodes are published as batch 2 with the same `cycleStart` as batch 1
+
+#### Scenario: Nothing is published for an abandoned or empty residual pass
+
+- **WHEN** the residual pass is abandoned on the deadline, fails, or yields no new decode
+- **THEN** no second batch is published and batch 1 stands as the cycle's output
+
+### Requirement: Batch 2 SHALL use the same mapping and the same de-duplication as batch 1
+
+Batch 2 SHALL be mapped exactly as batch 1 is (trailing-space trim, plausibility filter, region lookup, worked-before,
+band). Text de-duplication SHALL span both batches: the set of message texts already published in the cycle is per cycle,
+not per batch, so a residual decode whose text equals a pass-0 text is not published again. The residual pass's payload
+de-duplication is unchanged.
+
+#### Scenario: A repeated text is published once
+
+- **WHEN** a residual decode has the same message text as a pass-0 decode of the same cycle
+- **THEN** it is not published in batch 2
+
+### Requirement: Batch 2 SHALL reach the panel, ALL.TXT, filter admission and external reporting, and SHALL NOT reach the QSO answerer or caller
+
+Batch 2 SHALL be delivered to the decode panel (appended, never replacing batch 1's rows), to ALL.TXT (appended after
+batch 1's lines with the same cycle stamp), to the decode-filter new-value admission, and to the external-reporting
+channel. Batch 2 SHALL NOT be delivered to the QSO answerer or QSO caller channels in this change: the answerer keeps its
+last idle decode batch as the snapshot that validates an external reply, and a residual-only second batch for the same
+cycle would replace the pass-0 snapshot, so an external reply to a pass-0 station would then be rejected; the answerer and
+caller also treat every batch they receive as a cycle. The cycle-audio archive SHALL be enqueued once per cycle, at batch 1,
+with the pass-0 count. Consequence to be stated to the operator: residual decodes are visible, logged and spotted, but a
+residual decode is **not** available to the answerer or caller as an engagement or response-detection input.
+
+#### Scenario: The answerer and caller see one batch per cycle
+
+- **WHEN** the flag is ON and a cycle produces batch 1 and batch 2
+- **THEN** the answerer and the caller each receive exactly one batch for that cycle, equal to batch 1
+
+#### Scenario: The answerer's idle snapshot is batch 1
+
+- **WHEN** a flag-ON cycle has completed both batches
+- **THEN** the answerer's last idle decode batch equals batch 1
+
+#### Scenario: ALL.TXT holds both batches in order
+
+- **WHEN** a flag-ON cycle produces both batches
+- **THEN** ALL.TXT holds batch 1's lines then batch 2's, with the same cycle stamp and no duplicate text within the cycle
+
+#### Scenario: The panel shows the union
+
+- **WHEN** a flag-ON cycle produces both batches
+- **THEN** the panel receives two `decode` events and shows the rows of both, batch 2 never replacing batch 1
+
+#### Scenario: The archive is enqueued once
+
+- **WHEN** a flag-ON cycle produces both batches
+- **THEN** the cycle-audio archive is enqueued once, at batch 1
+
+### Requirement: The decode pump SHALL stay serial and the flag-OFF path SHALL be one batch and byte-identical
+
+The decode pump SHALL NOT start decoding the next capture window until batch 2 of the current cycle has been published or
+the residual pass has been abandoned. The per-cycle `Cycle {Time}: … elapsed=` line SHALL report the time to batch 1 (for
+flag OFF, identical to today, so the existing latency series stays continuous); the residual pass's own time stays in the
+`Sub-feas residual pass:` line. With the flag OFF there SHALL be exactly one batch per cycle and the published output,
+ALL.TXT lines, archive enqueue and consumer deliveries SHALL be byte-identical to the pre-change build.
+
+#### Scenario: Flag OFF publishes once
+
+- **WHEN** the flag is OFF
+- **THEN** each cycle produces exactly one publish, identical to the pre-change build
+
+#### Scenario: The next window waits
+
+- **WHEN** batch 2 of a cycle is still being computed
+- **THEN** the pump does not begin the next window's decode until batch 2 is published or the pass is abandoned
+
+### Requirement: The two-stage split SHALL change timing only, and batch 1 SHALL cost what flag OFF costs
+
+Acceptance SHALL show, mechanically, that the split changes when decodes are published and not which decodes are
+published (row S1: on the 161 E1 cycles the union of the two batches equals the single-batch output of build `ca0bcd9b`,
+and batch 1 equals the flag-OFF output, compared as outcome fields, never rendered text), that nothing new sits before the
+first publish (row S2: time to batch 1 within 1.05 × the flag-OFF whole-call median per run, and a bounded maximum), and
+that the consumer behaviour above holds (row S3, tests in code). Two-stage publish SHALL be complete and accepted before
+any live use with the flag ON; live use itself remains a separate explicit decision of the Captain, and the flag stays OFF
+by default.
+
+#### Scenario: The split loses no decode
+
+- **WHEN** a cycle is decoded through the two-stage path and through the single-batch path of `ca0bcd9b`
+- **THEN** the union of batch 1 and batch 2 outcome fields equals the single-batch output, as a set
+
+#### Scenario: Batch 1 equals flag OFF
+
+- **WHEN** a cycle is decoded through the two-stage path
+- **THEN** batch 1 equals the flag-OFF output of the same build

@@ -120,6 +120,81 @@ acceptance run is made with WSJT-X closed, which would flatter the candidate. **
 in R5′ may be credited to M1** (deferred). E1's selection is likewise fixed: pooled `(run, stamp)` pairs sorted by
 `(run, stamp)`, indices 0, 9, 18, …, plus the 60 pilot cycles.
 
+### D9. Two-stage publish (Architect's Amendment 2, 2026-09-30 14:21Z; a requirement for live use)
+
+**Why.** Verified by QA at `ca0bcd9b`: the pump awaits `ft8Decoder.DecodeAsync` and publishes once (panel
+`decodeEventBus.Publish`, ALL.TXT, archive `TryEnqueue`, filter admission, then the answerer, caller and
+external-reporting channels: `Program.cs` ~858-906). The residual pass runs inside `DecodeAsync`, before that publish
+(`Ft8Decoder.cs` ~370-384). So with the flag ON **every decode**, pass-0 included, reaches the operator only after the
+whole residual pass: about 15 s + 5.5 s = 20.5 s median, against the 17.36 s deadline to answer a station heard in
+that cycle (#122). No speed-up reaches that deadline (the pass would have to finish in under 1.8 s). This is an
+operational defect of the flag-ON path, independent of R2′, so **two-stage publish is required whether or not Stage B
+is built.**
+
+**Shape (Developer decision, recorded here before coding).** `IModeDecoder.DecodeAsync` is unchanged and returns one list;
+other callers (tests, the §8.1 harness, any other decoder) keep it. The two-stage path needs a new entry on `Ft8Decoder`
+(for example an overload taking a publish callback for batch 1, or one that returns both batches) that the pump uses when
+the flag is ON. **The same entry must be callable by a test or replay harness without the daemon pump**, or acceptance
+rows S1 and S2 cannot be measured. The mapping state (`seen` text set, plausibility, region, worked-before, band) is
+per cycle and shared by both batches.
+
+**Consumer facts, verified in code at `ca0bcd9b` (QA, 2026-09-30):**
+
+| Consumer | Verified behaviour | Consequence for batch 2 |
+|---|---|---|
+| Decode panel (`web/js/main.js` `handleDecodes`, ~777) | **Prepends** each result as a new row and never clears the table | Batch 2 rows arrive above batch 1's rows of the same cycle; nothing is replaced. No fix needed; the Developer still confirms with a test (S3 d) |
+| ALL.TXT | `AppendAsync(cycleStart, dialFreq, results)` per publish | Batch 2 appends after batch 1 with the same stamp (pump stays serial) |
+| Archive | `TryEnqueue(pcm, cycleStart, …, results.Count, …)` | Once, at batch 1 (P-6) |
+| Filter admission | per-result `AdmitNewValues` | Runs for batch 2 as well (P-4) |
+| QSO answerer | `_lastIdleDecodeBatch = batch` on **every** idle batch (`QsoAnswererService.cs` ~657); read by `TryEngageExternal` (~382) | A batch 2 sent here would **replace** the pass-0 snapshot. Hence **P-5: not sent** |
+| QSO caller | treats every batch it receives as a cycle | Same reason. Not sent |
+| **Manual engage (double-click)** | `POST /api/v1/tx/engage-decode` takes the callsign, frequency, cycle start, SNR and payload **from the browser's row** and validates with `IEngagementTargetValidator`. **It does not read `_lastIdleDecodeBatch`** | 🔴 **See the correction below** |
+| External reply (GridTracker) | `TryEngageExternal` validates against `_lastIdleDecodeBatch` (idle, a CQ in the batch, not filtered out) | A reply naming a station heard only in batch 2 is ignored with the existing log line |
+
+🔴 **Correction to the stated consequence of P-5 (for the Architect and the Captain).** The amendment says residual
+decodes "cannot be engaged (a click or external reply is ignored with the existing log line)". Verified: that is true of
+an **external reply**, and **not** of a double-click on the panel row, which does not consult the batch snapshot. So a
+batch-2 CQ row **can probably be answered by double-click**, but by the time batch 2 arrives (about 20.5 s after the
+cycle start) the immediate reply slot (17.36 s) has passed, so what the answerer then does with a pending target for the
+*next* opposite-phase window is **not verified** and must be characterised by a test (tasks §13). What P-5 does
+guarantee, and what is stated plainly for the operator: **residual decodes never reach the answerer or caller as batch
+input.** So the caller will not see a reply to its own CQ that only the residual pass decoded, and an answerer mid-QSO
+will not see a partner's report or RR73 that only the residual pass decoded (it counts that cycle as empty). With the
+flag OFF those decodes do not exist at all, so this is not a regression; it means two-stage publish makes residual
+decodes **visible, logged and spotted, not actionable by the automation**.
+
+**Row review (HK-021 (k) / HK-026, QA's right, exercised as amendments not refusals).**
+- **S1** (union of batches equals the single-batch output of `ca0bcd9b` on the 161 E1 cycles; batch 1 equals flag OFF):
+  not decorative (a split that drops or duplicates a decode fires it) and not vacuous (about 5 residual decodes per
+  cycle). **One method point:** the native decoder's callsign hash table is process-global, so text and the plausibility
+  filter can depend on what a process has already decoded. Both builds are therefore run in **fresh processes over the same
+  cycles in the same order** (the sorted `(run, stamp)` order of `e1_selection.json`), so the sequence of native calls, and
+  with it the hash-table history, is identical. Outcome fields only, never rendered text.
+- **S2** (batch-1 median per run ≤ 1.05 × flag-OFF whole-call median; max ≤ 1 000 ms): the median term is sound (the
+  same DLL measured twice differs by up to 1.5 %). **The max term is the concern:** the flag-OFF whole-call max was 830 ms
+  in §8.1 and 791 ms in the Stage A session, so 1 000 ms sits only 170-210 ms above the tail of the very distribution it
+  is compared to; over 905 cycles a single scheduler stall fires it, and then it would be reading noise, not a defect.
+  **Proposed (to the Architect):** the max term is evaluated together with the flag-OFF max measured in the same session,
+  and a row where the flag-OFF max also exceeds 1 000 ms is reported as **not evaluable** (instrument noise), not FAIL.
+  The bar itself is not moved.
+- **S3 additions proposed:** (g) a manual engage on a batch-2 row: the behaviour is characterised, whatever it is;
+  (h) an external reply naming a batch-2 station is ignored with the existing log line (the P-5 consequence, now tested);
+  (i) the pump does not start the next window until batch 2 is published or abandoned (P-7); (j) the external-reporting
+  channel sends no cycle-level message twice for a two-batch cycle (the Developer reads the service to confirm).
+- **A gap S2 does not cover:** it times the hand-off of batch 1, not its delivery. The residual pass then runs 14 workers
+  on 16 logical processors while the WebSocket delivery of batch 1 is in flight. The two cores reserved by A4 exist for
+  this, but nothing measures it. Proposed as a report-only row S2b (delivery of batch 1 to a WebSocket client, flag
+  ON with the residual pass running, against flag OFF); the definitive check is an on-air session, which needs the
+  Captain's separate go.
+- **The flag-OFF control must reach the managed path.** The base change's control compared three native DLLs through
+  the raw C ABI, so the managed flag-OFF branch was never exercised (recorded caveat). This build changes exactly that
+  managed path (one batch, the pump, the mapping). **Proposed:** the control re-run compares the outcome fields of
+  `DecodeAsync` with the flag OFF between `2b39cf18` and the new build on the same cycles, in addition to the native
+  comparison, so the caveat can finally be retired.
+
+**No native change and no shim bump** for two-stage publish: `src/` only. The DLL stays `ee00d118…990e4c`, so E1 and the
+Stage A native evidence are unaffected.
+
 ## Risks
 
 - **Concurrency is the historical crash class.** D2's ownership model is the highest-risk item; it needs a stress
