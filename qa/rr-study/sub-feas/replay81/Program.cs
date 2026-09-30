@@ -91,6 +91,17 @@ internal static class Program
         // text hash is OFF by default and only written when the explicit flag --outcome-text-hash true is given, which no
         // standard run sets. Default outcome lines are numeric only: stamp,kind,idx,freqHz,dt,snr.
         _outcomeTextHash = a.TryGetValue("outcome-text-hash", out var oth) && oth == "true";
+        // Test B (WSJT-X corroboration, Architect's HK-037 ruling): the match is done INSIDE this process, where the decoded
+        // text lives in memory, against WSJT-X's ALL.TXT read here; only COUNTS and stamps are written. Needs mode two1.
+        if (a.TryGetValue("wsjtx-alltxt", out var wsPath))
+        {
+            LoadWsjtx(wsPath);
+            var tb = Req(a, "testb-out");
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(tb))!);
+            bool fresh = !File.Exists(tb);
+            _testB = new StreamWriter(tb, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (fresh) _testB.WriteLine("run,stamp,kind,band,n,corroborated");
+        }
         if (a.TryGetValue("outcomes", out var outcomesPath))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outcomesPath))!);
@@ -207,6 +218,73 @@ internal static class Program
     private static StreamWriter? _outcomes;
     private static bool _outcomeTextHash;   // default OFF (HK-037: a text-derived hash is message identity)
 
+    // ---- Test B: in-process WSJT-X corroboration (counts only) -----------------------------------------------
+    private static StreamWriter? _testB;
+    private static readonly Dictionary<string, List<(int Snr, int Freq, string Msg)>> _wsjtx = new();
+    private const int CorroborationDeltaHz = 10;   // Amendment-1 / Stage 2 convention (|df| <= 10 Hz)
+
+    /// <summary>
+    /// Pre-registered SNR bands of the OpenWSFZ decode, for the per-band report (a pooled rate would hide whether
+    /// uncorroborated decodes cluster at the weak end, where false positives live): A >= 0, B -10..-1, C -15..-11, D <= -16 dB.
+    /// </summary>
+    private static string BandOf(int snr) => snr >= 0 ? "A" : snr >= -10 ? "B" : snr >= -15 ? "C" : "D";
+
+    private static void LoadWsjtx(string path)
+    {
+        // Same line convention as corpus.py _load_all_txt: field 3 "Rx", field 4 "FT8", snr, dt, freq, then the message.
+        // The message text stays in this dictionary in memory; it is never written anywhere.
+        foreach (var line in File.ReadLines(path))
+        {
+            var f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (f.Length < 8 || f[2] != "Rx" || f[3] != "FT8") continue;
+            if (!int.TryParse(f[4], out int snr) || !int.TryParse(f[6], out int freq)) continue;
+            if (!_wsjtx.TryGetValue(f[0], out var l)) _wsjtx[f[0]] = l = new();
+            l.Add((snr, freq, string.Join(" ", f.Skip(7)).Trim()));
+        }
+    }
+
+    /// <summary>
+    /// Scores one cycle: each OpenWSFZ decode (batch 1 = pass-0, batch 2 = the residual decodes) is corroborated iff
+    /// WSJT-X decoded the same message text in the same cycle within 10 Hz, paired ONE-TO-ONE nearest-first across both
+    /// batches (a WSJT-X decode corroborates at most one OpenWSFZ decode). Emits COUNTS per (kind, SNR band); text never leaves.
+    /// </summary>
+    private static void ScoreTestB(string run, string stamp, IReadOnlyList<DecodeResult> b1, IReadOnlyList<DecodeResult> b2)
+    {
+        if (_testB is null) return;
+        var w = _wsjtx.TryGetValue(stamp, out var l) ? l : new List<(int Snr, int Freq, string Msg)>();
+        var ows = new List<(int Kind, int Snr, int Freq, string Msg)>();
+        foreach (var r in b1) ows.Add((1, r.Snr, r.FreqHz, r.Message.TrimEnd()));
+        foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd()));
+        var cands = new List<(int Df, int Oi, int Wi)>();
+        for (int i = 0; i < ows.Count; i++)
+            for (int j = 0; j < w.Count; j++)
+            {
+                int df = Math.Abs(ows[i].Freq - w[j].Freq);
+                if (df <= CorroborationDeltaHz && string.Equals(ows[i].Msg, w[j].Msg, StringComparison.Ordinal))
+                    cands.Add((df, i, j));
+            }
+        cands.Sort((x, y) => x.Df != y.Df ? x.Df.CompareTo(y.Df) : x.Oi != y.Oi ? x.Oi.CompareTo(y.Oi) : x.Wi.CompareTo(y.Wi));
+        var usedO = new bool[ows.Count];
+        var usedW = new bool[w.Count];
+        foreach (var (_, oi, wi) in cands)
+        {
+            if (usedO[oi] || usedW[wi]) continue;
+            usedO[oi] = true;
+            usedW[wi] = true;
+        }
+        foreach (int kind in new[] { 1, 2 })
+            foreach (var band in new[] { "A", "B", "C", "D" })
+            {
+                int n = 0, c = 0;
+                for (int i = 0; i < ows.Count; i++)
+                    if (ows[i].Kind == kind && BandOf(ows[i].Snr) == band) { n++; if (usedO[i]) c++; }
+                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : "b2", band,
+                    n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
+            }
+        _testB.WriteLine(string.Join(",", run, stamp, "ws", "ALL", w.Count.ToString(CultureInfo.InvariantCulture),
+            usedW.Count(x => x).ToString(CultureInfo.InvariantCulture)));
+    }
+
     /// <summary>
     /// One line per decode: <c>stamp,kind,idx,freqHz,dt,snr</c> (numeric only). The 7th field, an 8-hex-digit hash of the
     /// message text, is written ONLY when <c>--outcome-text-hash true</c> is given (default off, HK-037: a text-derived
@@ -253,6 +331,7 @@ internal static class Program
             n2 = b2.Count;
             if (b1 is not null) WriteOutcomes(stamp, "b1", b1);
             WriteOutcomes(stamp, "b2", b2);
+            if (b1 is not null) ScoreTestB(run, stamp, b1, b2);
         }
         catch (Exception ex) { exc = ex.GetType().Name; }
         sw.Stop();
