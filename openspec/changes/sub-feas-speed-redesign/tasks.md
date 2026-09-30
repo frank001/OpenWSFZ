@@ -68,8 +68,10 @@
 ## 6. Config: thread count (A4)
 
 - [ ] 6.1 Add `decoder.subtractionMaxThreads` to the decoder settings model: **`0` = auto = `max(1, ProcessorCount − 2)`,
-      and `0` is the default**; any other value clamped to `[1, ProcessorCount]` (negative becomes 1); read per cycle,
-      no settings-page control. Replace the `Math.Min(Environment.ProcessorCount, 4)` at `Ft8Decoder.cs:63`.
+      and `0` is the default**; any other value clamped to `[1, ProcessorCount]` (negative becomes 1, confirmed by the Architect); log **one** warning when the config is applied, using the
+      existing clamp-with-warning pattern in `POST /api/v1/config` (`WebApp.cs` ~578), **never per cycle**; read per
+      cycle, no settings-page control. Add a test: an out-of-range value logs exactly one warning at apply and none
+      over N subsequent cycles. Replace the `Math.Min(Environment.ProcessorCount, 4)` at `Ft8Decoder.cs:63`.
 - [ ] 6.2 Until the config-save fix (#193, Engineer) lands, a Settings save resets this key to 0 = auto and the flag
       to OFF; both are safe. Confirm that, and re-confirm after that fix lands that a save neither drops nor
       corrupts the key (§1.6).

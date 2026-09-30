@@ -80,8 +80,8 @@ narrowly, that is the price to read it against. M2 should make the residual deco
 ### D6. Thread count
 
 `decoder.subtractionMaxThreads`: **`0` = auto = `max(1, ProcessorCount − 2)`, and `0` is the default** (Architect,
-Amendment 1); any other value is clamped `[1, ProcessorCount]` (negative becomes 1: QA's reading, not stated by the
-Architect, flagged in the handoff). Read per cycle like `decoder.subtractionEnabled`. Two threads are left for
+Amendment 1); any other value is clamped `[1, ProcessorCount]` (negative becomes 1, confirmed by the Architect; one
+warning log when the config is applied, never per cycle, see Open Questions). Read per cycle like `decoder.subtractionEnabled`. Two threads are left for
 capture, the web UI and any co-resident WSJT-X. **Memory:** about 25–30 MB per worker resident (about 0.4 GB at 14
 workers); accepted by the Architect's default, changeable by the Captain. **Why `0 = auto`:** the config-save defect
 (#193) resets any setting the Settings page does not send. The page sends neither `subtractionEnabled` nor
@@ -134,7 +134,11 @@ in R5′ may be credited to M1** (deferred). E1's selection is likewise fixed: p
 ## Open Questions
 
 - The exact ABI shape of the cancel flag and of the M2 diagnostics switch (D3, tasks §1).
-- Negative `subtractionMaxThreads`: this change clamps it to 1 (QA's reading of "clamp to `[1, ProcessorCount]`"); the
-  Architect did not state it and may prefer "treat as auto".
+- ~~Negative `subtractionMaxThreads`~~ **CLOSED 2026-09-30 (Architect):** any non-zero value clamps to
+  `[1, ProcessorCount]`, so a negative value becomes 1. **One warning log when the config is applied**, following the
+  existing clamp-with-warning pattern in `POST /api/v1/config` (`WebApp.cs:578` region, e.g. `CAT: pollIntervalSeconds
+  {Original} out of range [1, 60] — clamped to {Clamped}.`). **Never per cycle**: nothing new goes on the hot path.
+  A value edited into the config file (which bypasses that POST path) is clamped silently per cycle and warned about
+  at most once when the config is loaded.
 - Whether a native memory counter export is acceptable for the leak test, or the test uses process private bytes
   (tasks §8).

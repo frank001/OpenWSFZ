@@ -128,6 +128,8 @@ setting has no settings-page control.
 
 - **WHEN** the key is negative or larger than the processor count
 - **THEN** the effective value is clamped into `[1, ProcessorCount]`
+- **AND** exactly one warning is logged when the config is applied, following the existing clamp-with-warning pattern
+  of `POST /api/v1/config`, and none is logged per decode cycle
 
 #### Scenario: Zero means auto
 
