@@ -27,7 +27,13 @@ harness is numeric-only by default (`70c01fc9`).
 ## Still open (unchanged)
 
 - **S2b** (WebSocket delivery under load, report only): after the overnight run.
-- **Flag-OFF control, native + managed:** merge gate, on the final combined head.
+- ~~**Flag-OFF control, native + managed:** merge gate, on the final combined head.~~ ⇒ **MET 2026-09-30 17:23Z**
+  (replaced by spec §5g, Captain). The Engineer's end-to-end run: `origin/main` `c3f42362` (DLL `91997e38…`, shim
+  `20260051`) vs `247ac391` (DLL `ee00d118…`, shim `20260056`); `DecodeAsync` flag OFF; 161 E1 cycles; 6 fresh
+  processes. **161/161 identical in order, 3 842 = 3 842 decodes**; the outcome files are byte-identical between builds.
+  The Engineer added a guard that a cycle can't be missing from both sides. Report
+  `qa/rr-study/results/2026-09-30-sub-feas-managed-flagoff-control/` on `eng/sub-feas-managed-control` `0904a416`
+  (local). Limits: flag OFF only, every cycle has ≥ 1 decode (quiet cycles not exercised). **Ruled PASS.**
 - **Linux/macOS** CI; VERSION 0.53 + docs; the FR for the flag; the speed-redesign OpenSpec change onto the branch.
 - The first on-air flag-ON run (RX only) happens on the Captain's word; §7 memory check there.
 - `src/`/`native/` diff of this commit: none (HK-011).
