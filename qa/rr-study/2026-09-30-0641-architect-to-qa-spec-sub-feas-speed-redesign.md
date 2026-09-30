@@ -308,6 +308,26 @@ not implied by this amendment.
 - 🛑 **No decode-rate claim from this run.** It is one night, one band, one build. The WSJT-X comparison is
   descriptive evidence toward §8.2, not §8.2 itself.
 
+## 5g. Decision record (2026-09-30): the merge's flag-OFF control is replaced by one end-to-end run, owned by the Engineer (Captain)
+
+- **Why smaller:** the native flag-OFF path is already covered by a chain (the original control, 182 cycles, merge-base
+  ≡ first SUB-FEAS DLL; then Stage A E1 flag-OFF identity, 161 real cycles). The managed path is covered from the first
+  SUB-FEAS build to the two-stage build (QA's interim, 161/161). **The one missing link: `main`'s managed decode path
+  vs SUB-FEAS's.** The first SUB-FEAS build already edited `Ft8Decoder.cs`, and no control ever ran the managed path.
+- **Captain, 2026-09-30:** *"let the engineer do the 15 minute run"*. This **replaces** the full native + managed
+  control as the SUB-FEAS merge gate.
+- **The run (the predicate is fixed now):**
+  - Builds: **current `origin/main` (`c3f42362`, or its tip at run time; state the SHA)** vs **the SUB-FEAS merge head
+    `247ac391`** (or the rebased merge head if it exists by then; state the SHA). Clean detached checkouts; pin both
+    `libft8.dll` SHA-256s (HK-022).
+  - Input: the **161 E1 cycles** (`e1_selection.json`, SHA-256 `f58c0c7b…`), the same WAVs QA used.
+  - Path: the public `Ft8Decoder.DecodeAsync`, **flag OFF**, each build in a **fresh process**, same cycles, same order.
+  - Compare numeric outcome fields (stamp, kind, index, freqHz, dt, snr) **ordered**. **No text, and no text hash**
+    (HK-037 clarification).
+  - **PASS iff 161/161 identical.** Any difference is reported per cycle (stamps and integers only) and blocks the merge
+    until ruled.
+- **Machine:** not timing-sensitive, but it must not overlap QA's Test A profile (which is). QA gives the slot.
+
 ## 6. Hygiene
 
 - 🔒 NFR-021 / HK-037: stamps and integers only, as in §8.1. The E1 harness writes hashes and rcs, never text.
