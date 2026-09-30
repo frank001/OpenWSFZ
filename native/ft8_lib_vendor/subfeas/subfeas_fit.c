@@ -78,7 +78,7 @@ typedef struct {
     void *work_fwd, *work_inv;
 
     /* N_FFT-sized (complex), used as FFT in/out scratch */
-    kiss_fft_cpx *scratch_a, *scratch_b, *scratch_full, *scratch_search;
+    kiss_fft_cpx *scratch_a, *scratch_full, *scratch_search;
 
     /* N_TX-sized (complex) */
     cf32 *tone_arr, *smoothed;          /* instantaneous_phase */
@@ -93,6 +93,11 @@ typedef struct {
     cf32 *pulse_cf;      /* GAUSS_TAPS */
     double *hann_d;      /* ENV_W_SAMPLES */
     cf32 *win_cf;         /* ENV_W_SAMPLES */
+
+    /* A2: N_FFT-point spectra of the (zero-padded) Gaussian pulse and Hann window. Both operands
+     * are constants of the method, so they are transformed ONCE per workspace instead of once per
+     * convolution. Filled by workspace_init_constants(). */
+    kiss_fft_cpx *pulse_spec, *win_spec;
 } workspace_t;
 
 /* Returns 1 if every allocation in `ws` succeeded, 0 otherwise. On 0, the
@@ -110,7 +115,6 @@ static int workspace_alloc(workspace_t* ws)
     ws->work_inv = malloc(ws_inv);
 
     ws->scratch_a      = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
-    ws->scratch_b       = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
     ws->scratch_full    = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
     ws->scratch_search  = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
 
@@ -133,12 +137,15 @@ static int workspace_alloc(workspace_t* ws)
     ws->pulse_cf        = (cf32*)malloc(sizeof(cf32) * GAUSS_TAPS);
     ws->hann_d          = (double*)malloc(sizeof(double) * ENV_W_SAMPLES);
     ws->win_cf          = (cf32*)malloc(sizeof(cf32) * ENV_W_SAMPLES);
+    ws->pulse_spec      = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
+    ws->win_spec        = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
 
-    if (!ws->work_fwd || !ws->work_inv || !ws->scratch_a || !ws->scratch_b ||
+    if (!ws->work_fwd || !ws->work_inv || !ws->scratch_a ||
         !ws->scratch_full || !ws->scratch_search || !ws->tone_arr || !ws->smoothed ||
         !ws->r_unit || !ws->r_base || !ws->mixed || !ws->seg || !ws->r_base_final ||
         !ws->envelope || !ws->num || !ws->num_c || !ws->den_cf || !ws->den_c ||
-        !ws->den || !ws->phase || !ws->pulse || !ws->pulse_cf || !ws->hann_d || !ws->win_cf) {
+        !ws->den || !ws->phase || !ws->pulse || !ws->pulse_cf || !ws->hann_d || !ws->win_cf ||
+        !ws->pulse_spec || !ws->win_spec) {
         return 0;
     }
 
@@ -150,13 +157,14 @@ static int workspace_alloc(workspace_t* ws)
 static void workspace_free(workspace_t* ws)
 {
     free(ws->work_fwd); free(ws->work_inv);
-    free(ws->scratch_a); free(ws->scratch_b); free(ws->scratch_full); free(ws->scratch_search);
+    free(ws->scratch_a); free(ws->scratch_full); free(ws->scratch_search);
     free(ws->tone_arr); free(ws->smoothed);
     free(ws->r_unit); free(ws->r_base); free(ws->mixed); free(ws->seg);
     free(ws->r_base_final); free(ws->envelope);
     free(ws->num); free(ws->num_c); free(ws->den_cf); free(ws->den_c); free(ws->den);
     free(ws->phase);
     free(ws->pulse); free(ws->pulse_cf); free(ws->hann_d); free(ws->win_cf);
+    free(ws->pulse_spec); free(ws->win_spec);
 }
 
 /* ========================================================================
@@ -184,19 +192,34 @@ static void gaussian_pulse(double* pulse /* GAUSS_TAPS long */)
 /* ========================================================================
  * FFT-based linear convolution, scipy.signal.fftconvolve(mode="same")
  * semantics: output has the same length as `a` (the first/larger operand),
- * centred within the full (len(a)+len(b)-1) convolution per scipy's own
- * `_centered` slicing: start = (len(b) - 1) // 2 into the full result.
+ * centred within the full (len(a)+len(b)-1) convolution per the scipy
+ * _centered slicing: start = (len(b) - 1) // 2 into the full result.
  *
- * `a_buf`/`b_buf` are caller-supplied N_FFT-long scratch (ws->scratch_a/b);
- * `full_buf` is caller-supplied N_FFT-long scratch (ws->scratch_full) for
- * the product/inverse-transform step. n_fft must be >= a_len + b_len - 1.
+ * The second operand `b` is always one of two constants (the Gaussian pulse or the Hann window),
+ * so its N_FFT-point spectrum is supplied precomputed (`b_spec`, from spectrum_of()) rather than
+ * transformed on every call (sub-feas-speed-redesign A2). The spectrum is the same values the old
+ * in-place transform of `b` produced, and the product is formed from the same operands in the same
+ * order, so the result is bit-identical.
+ *
+ * `a_buf`/`full_buf` are caller-supplied N_FFT-long scratch. n_fft must be >= a_len + b_len - 1.
  * ===================================================================== */
+static void spectrum_of(
+    kiss_fft_cfg fwd, int n_fft, const cf32* b, int b_len, kiss_fft_cpx* b_spec)
+{
+    int i;
+    for (i = 0; i < n_fft; i++) {
+        if (i < b_len) { b_spec[i].r = b[i].r; b_spec[i].i = b[i].i; }
+        else            { b_spec[i].r = 0.0f;  b_spec[i].i = 0.0f;  }
+    }
+    kiss_fft(fwd, b_spec, b_spec);
+}
+
 static void fft_convolve_same(
     kiss_fft_cfg fwd, kiss_fft_cfg inv, int n_fft,
     const cf32* a, int a_len,
-    const cf32* b, int b_len,
+    const kiss_fft_cpx* b_spec, int b_len,
     cf32* out /* a_len long */,
-    kiss_fft_cpx* a_buf, kiss_fft_cpx* b_buf, kiss_fft_cpx* full_buf)
+    kiss_fft_cpx* a_buf, kiss_fft_cpx* full_buf)
 {
     int i;
     int start;
@@ -205,16 +228,11 @@ static void fft_convolve_same(
         if (i < a_len) { a_buf[i].r = a[i].r; a_buf[i].i = a[i].i; }
         else            { a_buf[i].r = 0.0f;  a_buf[i].i = 0.0f;  }
     }
-    for (i = 0; i < n_fft; i++) {
-        if (i < b_len) { b_buf[i].r = b[i].r; b_buf[i].i = b[i].i; }
-        else            { b_buf[i].r = 0.0f;  b_buf[i].i = 0.0f;  }
-    }
 
     kiss_fft(fwd, a_buf, a_buf);
-    kiss_fft(fwd, b_buf, b_buf);
     for (i = 0; i < n_fft; i++) {
-        float re = a_buf[i].r * b_buf[i].r - a_buf[i].i * b_buf[i].i;
-        float im = a_buf[i].r * b_buf[i].i + a_buf[i].i * b_buf[i].r;
+        float re = a_buf[i].r * b_spec[i].r - a_buf[i].i * b_spec[i].i;
+        float im = a_buf[i].r * b_spec[i].i + a_buf[i].i * b_spec[i].r;
         full_buf[i].r = re;
         full_buf[i].i = im;
     }
@@ -229,6 +247,28 @@ static void fft_convolve_same(
     }
 }
 
+/* Fills the workspace constants (A2): the Gaussian pulse and Hann window, and their spectra.
+ * Everything here is a function of compile-time constants only, so it is computed once per
+ * workspace lifetime and never changes. */
+static void workspace_init_constants(workspace_t* ws)
+{
+    int j;
+
+    gaussian_pulse(ws->pulse);
+    for (j = 0; j < GAUSS_TAPS; j++) { ws->pulse_cf[j].r = (float)ws->pulse[j]; ws->pulse_cf[j].i = 0.0f; }
+    spectrum_of(ws->fwd, N_FFT, ws->pulse_cf, GAUSS_TAPS, ws->pulse_spec);
+
+    /* numpy.hanning(M): 0.5 - 0.5*cos(2*pi*n/(M-1)), n=0..M-1 */
+    for (j = 0; j < ENV_W_SAMPLES; j++) {
+        ws->hann_d[j] = (ENV_W_SAMPLES > 1)
+            ? 0.5 - 0.5 * cos(2.0 * M_PI * (double)j / (double)(ENV_W_SAMPLES - 1))
+            : 1.0;
+        ws->win_cf[j].r = (float)ws->hann_d[j];
+        ws->win_cf[j].i = 0.0f;
+    }
+    spectrum_of(ws->fwd, N_FFT, ws->win_cf, ENV_W_SAMPLES, ws->win_spec);
+}
+
 /* ========================================================================
  * modulator.py:instantaneous_phase, split in two (sub-feas-speed-redesign A1).
  *
@@ -241,7 +281,7 @@ static void fft_convolve_same(
  * ===================================================================== */
 static void compute_smoothed_track(workspace_t* ws, const uint8_t* tones)
 {
-    int sym, s, i;
+    int sym, s;
 
     for (sym = 0; sym < SUBFEAS_NUM_SYMBOLS; sym++) {
         float tv = (float)tones[sym];
@@ -251,10 +291,9 @@ static void compute_smoothed_track(workspace_t* ws, const uint8_t* tones)
             ws->tone_arr[base + s].i = 0.0f;
         }
     }
-    for (i = 0; i < GAUSS_TAPS; i++) { ws->pulse_cf[i].r = (float)ws->pulse[i]; ws->pulse_cf[i].i = 0.0f; }
 
-    fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->tone_arr, N_TX, ws->pulse_cf, GAUSS_TAPS,
-                       ws->smoothed, ws->scratch_a, ws->scratch_b, ws->scratch_full);
+    fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->tone_arr, N_TX, ws->pulse_spec, GAUSS_TAPS,
+                       ws->smoothed, ws->scratch_a, ws->scratch_full);
 }
 
 /* Unwrapped instantaneous phase (rad) at base_freq_hz + optional linear drift_hz (total excursion
@@ -487,21 +526,14 @@ static void lp_envelope(
     }
 
     {
-        int j;
-        /* numpy.hanning(M): 0.5 - 0.5*cos(2*pi*n/(M-1)), n=0..M-1 */
-        for (j = 0; j < w_samples; j++) {
-            ws->hann_d[j] = (w_samples > 1)
-                ? 0.5 - 0.5 * cos(2.0 * M_PI * (double)j / (double)(w_samples - 1))
-                : 1.0;
-            ws->win_cf[j].r = (float)ws->hann_d[j];
-            ws->win_cf[j].i = 0.0f;
-        }
+        /* The Hann window and its spectrum are workspace constants (A2): built once by
+         * workspace_init_constants(), not per call. */
         for (i = 0; i < N_TX; i++) { ws->den_cf[i].r = ws->den[i]; ws->den_cf[i].i = 0.0f; }
 
-        fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->num, N_TX, ws->win_cf, w_samples,
-                           ws->num_c, ws->scratch_a, ws->scratch_b, ws->scratch_full);
-        fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->den_cf, N_TX, ws->win_cf, w_samples,
-                           ws->den_c, ws->scratch_a, ws->scratch_b, ws->scratch_full);
+        fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->num, N_TX, ws->win_spec, w_samples,
+                           ws->num_c, ws->scratch_a, ws->scratch_full);
+        fft_convolve_same(ws->fwd, ws->inv, N_FFT, ws->den_cf, N_TX, ws->win_spec, w_samples,
+                           ws->den_c, ws->scratch_a, ws->scratch_full);
 
         for (i = 0; i < N_TX; i++) {
             if (ws->den_c[i].r > 1e-12f) {
@@ -602,7 +634,7 @@ int ft8_subfeas_fit_signal(
              * (out_shat already zeroed) -- matches Decision 4's contract. */
             rc = -1;
         } else {
-            gaussian_pulse(ws.pulse);
+            workspace_init_constants(&ws);
             nominal_t_s = (double)decoded_dt_s + SUBFEAS_TAU0_S;
 
             ok = fine_fit_with_drift(
@@ -681,7 +713,7 @@ static int run_case(
     memset(pcm, 0, sizeof(pcm));
     memset(&ws, 0, sizeof(ws));
     if (!workspace_alloc(&ws)) { printf("[%s] FAIL: workspace_alloc\n", name); return 1; }
-    gaussian_pulse(ws.pulse);
+    workspace_init_constants(&ws);
     compute_smoothed_track(&ws, tones);
 
     {
