@@ -30,7 +30,7 @@ Source: the daemon's `Sub-feas residual pass:` lines (4 298 lines; 4 300 `Cycle`
 - Residual decodes reported by the passes: 16 701 (mean 3.89 per pass; mean 17.6 signals fitted). `WRN`/`ERR`/`FTL` lines in the daemon log: **0**.
 - **Against the pre-arm check** (161 busy E1 replay cycles, 8 workers): that check's slowest passes were 11.0 to 11.4 s at 27 to 30 signals. Live, the same signal counts took 7.6 to 9.4 s. The replay corpus is the busiest slice of three corpora, so it is the harder test; the live evening had only 96 cycles with 26 or more signals and 10 with 29 or more.
 - **Limits.** The tail is thin: 96 cycles at 26+ signals, 10 at 29+, none above 32. The cycles that stress the deadline are rare on this band at this time of year, so a busier night (a contest weekend) could still abandon. 0 of 4 298 puts the abandon rate below about 0.07 % (rule of three, 95 %) at the overall level; there is no useful bound for the 29+ band from 10 cycles.
-- **Two cycles have no residual line** (4 300 `Cycle` lines, 4 298 residual lines). Not investigated; likely the first and last cycle at the window edges.
+- **Two cycles have no residual line** (4 300 `Cycle` lines, 4 298 residual lines). **Confirmed from the log stamps (2026-10-01):** they are the first cycle of the window (the 19:30:45Z cycle, whose `Cycle` line is the first in the log, with no residual line after it) and the last (the 13:25:30Z cycle; the daemon was stopped at 13:25:48Z before its pass ended). Every other `Cycle` line is followed by exactly one residual line.
 
 ## 2. Memory and stability
 
@@ -42,7 +42,7 @@ Source: the daemon's `Sub-feas residual pass:` lines (4 298 lines; 4 300 `Cycle`
 | Flags (`subtractionEnabled`, `subtractionMaxThreads`, `osdNhardMax`, `autoAnswer`, archive mode) | as armed at every sample that could read the daemon; the last real sample (13:02Z) `flags_ok`; **no `FLAG_MISMATCH`, no `DAEMON_PID_CHANGED`** |
 | Sampler events | `SAMPLER_START` 19:31:40Z, then at 13:28:45–48Z (after the supervisor stopped the daemon at 13:25:48Z) `NO_DAEMON_ON_PORT`, `CONFIG_READ_FAILED`, `SAMPLER_END` (TTL). **Expected, not a fault** |
 | Supervisor | 0 restarts; teardown clean; HK-019 orphan check found no supervisor, sampler, daemon or Replay81 process; gatherer exit 0 |
-| Arm pre-flight | `all_pass` true. One check read `wsjtx_ini_dial_freq_matches_daemon: false` at arm time; **not re-investigated**. Both logs cover the same 4 296 cycles and the matched-pair frequency means agree (1 482.4 vs 1 482.3 Hz), so the two decoders heard the same 40m audio |
+| Arm pre-flight | `all_pass` true. One check read `wsjtx_ini_dial_freq_matches_daemon: false` at arm time; **left OPEN** (logged as an open item, Architect 2026-10-01). Both logs cover the same 4 296 cycles and the matched-pair frequency means agree (1 482.4 vs 1 482.3 Hz), so the two decoders heard the same 40m audio |
 
 §7 stability (memory checked in the first on-air run) is **met on this record**: a flat trend over 17.9 h, 4 298 passes, 0 abandons, 0 contained exceptions, 0 warnings.
 
@@ -111,7 +111,11 @@ Applying the table's own rules: the only same-chain row is 2026-09-22 (B1); the 
 
 **No decode-rate claim is made.** The controlled answer is the already-planned offline replay of this run's archived audio (4 299 cycles) with the flag OFF and ON against WSJT-X; the direction here is consistent with the offline net +8.89 pp [8.01, 9.75] (cite the NET figure only) but is not a measurement of it.
 
-## 5. Findings and decisions for the Architect and Captain
+## 5. Architect's rulings (2026-10-01 15:00Z, `arch/subtraction-feasibility`, local)
+
+§7 stability MET; 8 workers fine for flag-ON RX-only runs on this CPU. **§8.2 is NOT answered** (whether the extras are real is a decode-rate question); the flag stays OFF by default and live-answerer use is the Captain's call. The 29+ band (10 cycles) is unbounded and the contention reading is correlational. Default thread count UNCHANGED (spec A4); 8 is a pinned arm value only; the default waits for the 12-worker quiet check and the per-fit log. **The +12 pp matched-% is not citable.** APPROVED: the offline flag-OFF/ON replay of the 4 299 cycles, ahead of Stage B (same build and DLL pin, the flag the only difference, reference live WSJT-X, estimand the paired NET OFF to ON); **held until the Architect's pre-registered spec arrives.**
+
+## 5a. QA's original findings (superseded where the rulings above differ)
 
 1. **§8.2 (live use):** at 8 workers the live abandon rate was 0 over 17.9 h and 4 298 passes, with WSJT-X running. By the pre-registered shape (T′ is a Stage B bar and is **not** this arm's bar), nothing here refutes 8 workers; the 29+ band is only 10 cycles.
 2. **Default thread count:** this record supports 8 on this CPU. It does not test the 12-worker alternative or a CPU of a different size; the decision still waits for the 12-worker quiet check and the per-fit completion log.
