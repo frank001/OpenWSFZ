@@ -1,0 +1,336 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SUB-FEAS first on-air run</title><style>:root{color-scheme:light dark}body{font:15px/1.5 system-ui,sans-serif;max-width:980px;margin:2rem auto;padding:0 16px}
+table{border-collapse:collapse;margin:1rem 0;display:block;overflow-x:auto}th,td{border:1px solid #8886;padding:4px 8px;text-align:left}th{background:#8882}
+code{background:#8882;padding:1px 4px;border-radius:3px}blockquote{border-left:4px solid #3a7;margin:1rem 0;padding:.2rem 1rem;background:#3a72}</style></head><body><h1>SUB-FEAS first on-air session: flag ON, 8 workers, overnight, receive only</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Window</td>
+<td>2026-09-30 19:30:58Z to 2026-10-01 13:24:58Z (17.9 h; supervisor start to daemon stop 13:25:48Z); 40m, 7.074 MHz</td>
+</tr>
+<tr>
+<td>Arm</td>
+<td>a <strong>SUB-FEAS arm</strong>: <code>decoder.subtractionEnabled = true</code>, <code>subtractionMaxThreads = 8</code>, <code>osdNhardMax = 40</code>, <code>tx.autoAnswer = false</code>, cycle-audio archive mode <code>all</code>. Receive only; no Settings-page saves; nobody clicked the decode panel</td>
+</tr>
+<tr>
+<td>Build</td>
+<td><code>feat/sub-feas-two-stage-publish</code> @<code>247ac391</code>, shim <code>20260056</code>. <code>libft8.dll</code> actual <code>ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c</code> = pinned (arm_config.json and the pre-arm pin are the same string)</td>
+</tr>
+<tr>
+<td>Chain</td>
+<td>one radio (FT-991A) feeding the daemon and live WSJT-X (FT991A instance) through Voicemeeter B1; WSJT-X was decoding throughout</td>
+</tr>
+<tr>
+<td>Instruments</td>
+<td><code>qa/endurance/tools/subfeas_arm_sampler.py</code> (every 30 min, 36 samples), <code>subfeas_arm_summary.py</code> (daemon logs), <code>subfeas_contention.py</code> (this report's two contention measures), <code>endurance_anova_wsjtx.py</code> (Section 4)</td>
+</tr>
+<tr>
+<td>Filters</td>
+<td>no test suite was run for this report, so no <code>--filter</code> applies; every figure comes from the daemon logs, both <code>ALL.TXT</code> files and the sampler</td>
+</tr>
+<tr>
+<td>Data</td>
+<td><code>qa/rr-study/results/2026-10-01-sub-feas-first-on-air-run/{summary.json,contention.json}</code>; raw run under <code>artefacts/20260930_1930_endurance_run</code> and <code>…-gathered</code> (gitignored). <strong>Aggregates only (HK-037): no message text, callsign or text-derived hash was read into an output</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Bottom line.</strong> At 8 workers, live, with WSJT-X running on the same machine, <strong>0 of 4 298 residual passes were abandoned</strong> and none threw. The busiest cycles
+(29 or more signals fitted, 10 cycles) took at most 9.4 s against the ~11 s cutoff. Memory was flat (−0.94 MB/h). The flag, thread count, auto-answer and archive mode
+were as armed at every sample that could read them. <strong>This is descriptive evidence toward §8.2 (live use). It is not a decode-rate claim.</strong></p>
+</blockquote>
+<h2>1. Headline: live abandon rate at 8 workers, by signals fitted</h2>
+<p>Source: the daemon's <code>Sub-feas residual pass:</code> lines (4 298 lines; 4 300 <code>Cycle</code> lines).</p>
+<table>
+<thead>
+<tr>
+<th>Signals fitted</th>
+<th style="text-align: right;">Passes</th>
+<th style="text-align: right;">Abandoned</th>
+<th style="text-align: right;">Contained exceptions</th>
+<th>Pass <code>elapsedMs</code> p50 / p95 / max</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>≤25</td>
+<td style="text-align: right;">4 202</td>
+<td style="text-align: right;"><strong>0</strong></td>
+<td style="text-align: right;">0</td>
+<td>4 943 / 6 357 / 7 005</td>
+</tr>
+<tr>
+<td>26–28</td>
+<td style="text-align: right;">86</td>
+<td style="text-align: right;"><strong>0</strong></td>
+<td style="text-align: right;">0</td>
+<td>7 595 / 8 951 / 9 418</td>
+</tr>
+<tr>
+<td>29+</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;"><strong>0</strong></td>
+<td style="text-align: right;">0</td>
+<td>8 765 / 9 421 / 9 421</td>
+</tr>
+<tr>
+<td>all</td>
+<td style="text-align: right;">4 298</td>
+<td style="text-align: right;"><strong>0</strong></td>
+<td style="text-align: right;">0</td>
+<td>5 001 / 6 423 / 9 421</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Most signals fitted in any cycle: <strong>32</strong> (the pre-arm replay corpus topped out at 30).</li>
+<li>Time to batch 1 (the unchanged first pass, from the per-cycle line): p50 526 / p95 593 / max 651 ms.</li>
+<li>Residual decodes reported by the passes: 16 701 (mean 3.89 per pass; mean 17.6 signals fitted). <code>WRN</code>/<code>ERR</code>/<code>FTL</code> lines in the daemon log: <strong>0</strong>.</li>
+<li><strong>Against the pre-arm check</strong> (161 busy E1 replay cycles, 8 workers): that check's slowest passes were 11.0 to 11.4 s at 27 to 30 signals. Live, the same signal counts took 7.6 to 9.4 s. The replay corpus is the busiest slice of three corpora, so it is the harder test; the live evening had only 96 cycles with 26 or more signals and 10 with 29 or more.</li>
+<li><strong>Limits.</strong> The tail is thin: 96 cycles at 26+ signals, 10 at 29+, none above 32. The cycles that stress the deadline are rare on this band at this time of year, so a busier night (a contest weekend) could still abandon. 0 of 4 298 puts the abandon rate below about 0.07 % (rule of three, 95 %) at the overall level; there is no useful bound for the 29+ band from 10 cycles.</li>
+<li><strong>Two cycles have no residual line</strong> (4 300 <code>Cycle</code> lines, 4 298 residual lines). Not investigated; likely the first and last cycle at the window edges.</li>
+</ul>
+<h2>2. Memory and stability</h2>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Samples</td>
+<td>36 (30-minute interval, plus start and end)</td>
+</tr>
+<tr>
+<td>Private bytes</td>
+<td>start 371.6 MB, end 345.7 MB, max 426.7 MB, range of samples 339 to 427 MB</td>
+</tr>
+<tr>
+<td>Growth after the first 30 min (least squares)</td>
+<td><strong>−0.94 MB/h</strong> (private); 45.7 % of consecutive steps increasing (a monotonic leak would sit near 100 %)</td>
+</tr>
+<tr>
+<td>Flags (<code>subtractionEnabled</code>, <code>subtractionMaxThreads</code>, <code>osdNhardMax</code>, <code>autoAnswer</code>, archive mode)</td>
+<td>as armed at every sample that could read the daemon; the last real sample (13:02Z) <code>flags_ok</code>; <strong>no <code>FLAG_MISMATCH</code>, no <code>DAEMON_PID_CHANGED</code></strong></td>
+</tr>
+<tr>
+<td>Sampler events</td>
+<td><code>SAMPLER_START</code> 19:31:40Z, then at 13:28:45–48Z (after the supervisor stopped the daemon at 13:25:48Z) <code>NO_DAEMON_ON_PORT</code>, <code>CONFIG_READ_FAILED</code>, <code>SAMPLER_END</code> (TTL). <strong>Expected, not a fault</strong></td>
+</tr>
+<tr>
+<td>Supervisor</td>
+<td>0 restarts; teardown clean; HK-019 orphan check found no supervisor, sampler, daemon or Replay81 process; gatherer exit 0</td>
+</tr>
+<tr>
+<td>Arm pre-flight</td>
+<td><code>all_pass</code> true. One check read <code>wsjtx_ini_dial_freq_matches_daemon: false</code> at arm time; <strong>not re-investigated</strong>. Both logs cover the same 4 296 cycles and the matched-pair frequency means agree (1 482.4 vs 1 482.3 Hz), so the two decoders heard the same 40m audio</td>
+</tr>
+</tbody>
+</table>
+<p>§7 stability (memory checked in the first on-air run) is <strong>met on this record</strong>: a flat trend over 17.9 h, 4 298 passes, 0 abandons, 0 contained exceptions, 0 warnings.</p>
+<h2>3. Contention with WSJT-X (the two measures requested)</h2>
+<p>Both decoders share one CPU (8 physical cores, 16 logical). Per-cycle counts come from the stamp prefix of each <code>ALL.TXT</code>; each residual pass is attached to the cycle it belongs to (4 296 cycles in the window, 4 296 passes keyed, 0 key collisions).</p>
+<p><strong>Measure A: cycles in which WSJT-X reported 0 decodes while OpenWSFZ reported at least 10.</strong>
+<strong>0 cycles.</strong> WSJT-X had at least one decode in all 4 296 cycles, and so did OpenWSFZ (reverse case also 0). Cycles with 10+ decodes: OpenWSFZ 4 270, WSJT-X 4 293. <em>Blind spot (HK-026):</em> this reads decodes from the log, so a cycle in which WSJT-X ran slowly but still finished would not show; it detects only a WSJT-X cycle that produced nothing.</p>
+<p><strong>Measure B: WSJT-X per-cycle decode count against the residual pass <code>elapsedMs</code>.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Pair</th>
+<th style="text-align: right;">Spearman ρ (4 296 cycles)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>elapsedMs</code> vs WSJT-X decodes</td>
+<td style="text-align: right;">0.80</td>
+</tr>
+<tr>
+<td><code>elapsedMs</code> vs OpenWSFZ decodes</td>
+<td style="text-align: right;">0.86</td>
+</tr>
+<tr>
+<td><code>elapsedMs</code> vs signals fitted</td>
+<td style="text-align: right;">0.91</td>
+</tr>
+<tr>
+<td>WSJT-X decodes vs signals fitted</td>
+<td style="text-align: right;">0.79</td>
+</tr>
+</tbody>
+</table>
+<p>The strong correlation is <strong>band activity, not proof of contention</strong>: a busy cycle has more signals for OpenWSFZ to fit and more for WSJT-X to decode, so both rise together (WSJT-X decodes vs signals fitted is 0.79). To remove that confounder the cycles are split by signals fitted, then by tercile of WSJT-X decodes:</p>
+<table>
+<thead>
+<tr>
+<th>Signals fitted</th>
+<th style="text-align: right;">Cycles</th>
+<th style="text-align: right;">ρ (<code>elapsedMs</code> vs WSJT-X n)</th>
+<th>Median <code>elapsedMs</code> (ms), low / mid / high WSJT-X tercile</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>≤15</td>
+<td style="text-align: right;">1 328</td>
+<td style="text-align: right;">0.81</td>
+<td>3 084 / 3 233 / 3 576</td>
+</tr>
+<tr>
+<td>16–20</td>
+<td style="text-align: right;">1 877</td>
+<td style="text-align: right;">0.48</td>
+<td>4 633 / 5 927 / 6 061</td>
+</tr>
+<tr>
+<td>21–25</td>
+<td style="text-align: right;">995</td>
+<td style="text-align: right;">0.25</td>
+<td>6 125 / 6 197 / 6 227</td>
+</tr>
+<tr>
+<td>26+</td>
+<td style="text-align: right;">96</td>
+<td style="text-align: right;">0.22</td>
+<td>7 609 / 7 586 / 8 525</td>
+</tr>
+</tbody>
+</table>
+<p>Reading: the dependence on WSJT-X's count <strong>shrinks as the fitted-signal count rises</strong>, and at 21 to 25 signals it is about 100 ms (≈2 %) across the terciles. That is what band activity would do (the signal count is a coarse control inside each band) and not what a heavy CPU rivalry would do. In the 26+ band the high tercile is 0.9 s slower (n = 27 against 42; one night, not tested for significance). <strong>I cannot separate load from activity on this data, and the data gives no sign that WSJT-X lengthens the pass materially.</strong> A direct test would be a pass-time comparison on the same audio with WSJT-X idle and busy (the 12-worker quiet check is the nearest such control).
+Also visible: the per-hour median pass time falls from ≈6.0 s at night to ≈3.1 s at 10–13Z (a quiet band), so time of night is a large driver of the pass time.</p>
+<h2>3a. Spectrum scan (standing routine, run after the report was first written)</h2>
+<p><code>spectrum_scan.py</code> over all 4 299 archived cycle WAVs (<code>spectrum_scan.json</code>, gathered dir), then <code>spectrum_scan_report.py</code> with the 2026-09-25 scan as control (the only earlier scans are 09-23 and 09-25, both direct-CODEC; <strong>no same-chain (B1) control exists</strong>, so the control is cross-chain).</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>This run</th>
+<th>Control 09-25</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Files readable / format</td>
+<td>4 299 of 4 299; 12 kHz, 180 000 frames in every file</td>
+<td>2 884</td>
+</tr>
+<tr>
+<td>Clipping / silent / hot files</td>
+<td>0 / 0 / 0</td>
+<td>1 clipping / 0 / n.r.</td>
+</tr>
+<tr>
+<td>Level (median dBFS, MAD)</td>
+<td>−28.2, 0.72 (range −35.0 to −22.5)</td>
+<td>−28.2</td>
+</tr>
+<tr>
+<td>Hum band 2nd harmonic over floor (median)</td>
+<td>20.9 dB</td>
+<td>21.9 dB (delta −0.99, "consistent with control")</td>
+</tr>
+<tr>
+<td>Hum band fundamental over floor (median)</td>
+<td>9.4 dB</td>
+<td>8.7 dB</td>
+</tr>
+<tr>
+<td>Narrowband spur bins</td>
+<td>top bin 1 290 Hz in 3.8 % of files, below the 5 % materiality bar: ordinary traffic, not an anomaly</td>
+<td>n.r.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No anomaly found.</strong> The hum-band figure (flagged in 58 % of files by the 20 dB bar) is the same as the earlier runs'. The dossier is <code>FINAL_REPORT_dossier.html</code> in the gathered dir (HTML; unpublished). The standard <code>FINAL_REPORT.md/.html</code> of the earlier runs was not composed.</p>
+<h2>4. Section 4 (HK-036): the historical series, read</h2>
+<p>Section 4 of <code>artefacts/20260930_1930_endurance_run-gathered/anova_report.md</code> was <strong>read</strong>. It holds four standardised runs (the table of earlier runs is limited to the standardised sidecars, which begin 2026-09-22). All are 40m, nhard 40, live WSJT-X reference, G = 1.0000 (ROW 1 PASS):</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th style="text-align: right;">Hours</th>
+<th>Build</th>
+<th style="text-align: right;">Shim</th>
+<th>Chain</th>
+<th style="text-align: right;">Matched pairs</th>
+<th style="text-align: right;">Matched % of ref</th>
+<th style="text-align: right;">OWS-only %</th>
+<th style="text-align: right;">SNR gap (dB)</th>
+<th style="text-align: right;">DT gap (s)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-09-22</td>
+<td style="text-align: right;">12.0</td>
+<td><code>decoding_improvement</code> <code>84cac119</code></td>
+<td style="text-align: right;">20260054</td>
+<td>B1</td>
+<td style="text-align: right;">55 010</td>
+<td style="text-align: right;">59.8</td>
+<td style="text-align: right;">0.8</td>
+<td style="text-align: right;">−2.824</td>
+<td style="text-align: right;">+0.6548</td>
+</tr>
+<tr>
+<td>2026-09-23</td>
+<td style="text-align: right;">24.0</td>
+<td><code>decoding_improvement</code> <code>84cac119</code></td>
+<td style="text-align: right;">20260054</td>
+<td>direct CODEC</td>
+<td style="text-align: right;">97 279</td>
+<td style="text-align: right;">61.1</td>
+<td style="text-align: right;">0.7</td>
+<td style="text-align: right;">−3.225</td>
+<td style="text-align: right;">+0.6484</td>
+</tr>
+<tr>
+<td>2026-09-25</td>
+<td style="text-align: right;">12.0</td>
+<td><code>decoding_improvement</code> <code>51e40b55</code></td>
+<td style="text-align: right;">20260054</td>
+<td>direct CODEC</td>
+<td style="text-align: right;">46 917</td>
+<td style="text-align: right;">60.9</td>
+<td style="text-align: right;">0.6</td>
+<td style="text-align: right;">−2.638</td>
+<td style="text-align: right;">+0.6511</td>
+</tr>
+<tr>
+<td><strong>2026-09-30 (this run)</strong></td>
+<td style="text-align: right;">17.9</td>
+<td>two-stage <code>247ac391</code></td>
+<td style="text-align: right;">20260056</td>
+<td>B1</td>
+<td style="text-align: right;">94 307</td>
+<td style="text-align: right;"><strong>72.8</strong></td>
+<td style="text-align: right;"><strong>1.1</strong></td>
+<td style="text-align: right;"><strong>−1.546</strong></td>
+<td style="text-align: right;"><strong>+0.6611</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Applying the table's own rules: the only same-chain row is 2026-09-22 (B1); the other two are direct-CODEC and <strong>not</strong> comparable on the chain. <strong>This run is a flag-ON arm and must never be pooled with the three flag-OFF rows above</strong> (the row's chain cell says so; the sidecar is committed with that cell). Shim, DLL (<code>ee00d118…</code> vs <code>38a21f84…</code>) and flag all differ from every earlier row.</p>
+<p><strong>Did anything change? Yes, on the face of the table:</strong> matched-% of WSJT-X moved from 59.8–61.1 (three runs) to 72.8; OWS-only rose from 0.6–0.8 % to 1.1 %; the SNR gap narrowed from −2.6…−3.2 dB to −1.55 dB; the DT gap is unchanged (+0.648…+0.661 s).</p>
+<p><strong>What this does and does not say.</strong> Matched-% moved by about 12 pp against a spread of about 1.3 pp across three flag-OFF runs, so it is large against the observed night-to-night spread. But:
+- it is a different night, a different build (shim <code>20260056</code>, not <code>20260054</code>) and a different flag state <strong>at once</strong>; a concurrent flag-OFF control does not exist;
+- the SNR-gap noise floor between nights is known to reach about ±0.35 dB (the 2026-09-26 ruling), so only the size of this move, not its existence, argues against noise;
+- <code>ALL.TXT</code> is post-plausibility and post-dedup, and the residual decodes were published as a second batch, so the "OWS-only 1.1 %" is not a false-positive rate.</p>
+<p><strong>No decode-rate claim is made.</strong> The controlled answer is the already-planned offline replay of this run's archived audio (4 299 cycles) with the flag OFF and ON against WSJT-X; the direction here is consistent with the offline net +8.89 pp [8.01, 9.75] (cite the NET figure only) but is not a measurement of it.</p>
+<h2>5. Findings and decisions for the Architect and Captain</h2>
+<ol>
+<li><strong>§8.2 (live use):</strong> at 8 workers the live abandon rate was 0 over 17.9 h and 4 298 passes, with WSJT-X running. By the pre-registered shape (T′ is a Stage B bar and is <strong>not</strong> this arm's bar), nothing here refutes 8 workers; the 29+ band is only 10 cycles.</li>
+<li><strong>Default thread count:</strong> this record supports 8 on this CPU. It does not test the 12-worker alternative or a CPU of a different size; the decision still waits for the 12-worker quiet check and the per-fit completion log.</li>
+<li><strong>Does the second batch help?</strong> Residual decodes reached the panel and <code>ALL.TXT</code>; the answerer was not engaged (auto-answer off; no panel clicks). Nothing in this run exercises the "batch 2 does not reach the answerer" path, so that rule remains covered only by the Developer's tests and the S1–S3 acceptance.</li>
+<li><strong>Summariser fix:</strong> <code>subfeas_arm_summary.py</code> matched only <code>True</code>/<code>False</code> and so read 0 lines from the daemon's lowercase <code>true</code>/<code>false</code>. Fixed (case-insensitive, <code>.lower()</code> comparison); re-run counts 4 298 lines, equal to a direct count. No result was read from the wrong version.</li>
+<li><strong>Next (per the Architect's plan):</strong> the quiet-machine 12-worker check; the per-fit completion log; S2b; the offline flag-OFF/ON replay of this run's audio; then Stage B.</li>
+</ol>
+<h2>6. Limits (HK-026)</h2>
+<p>One night, one band (40m), one radio, one machine, flag ON only, no concurrent flag-OFF control; the corpus is the same single-station chain as every earlier endurance run. The contention measures are correlational. Pass times are the daemon's own <code>elapsedMs</code>; the cutoff is inferred from the design (about 11 s), not logged per pass. WSJT-X and the daemon share a CPU with the operator's browser and the supervisor tooling. Counts and stamps only; no message text, callsigns or text-derived hashes appear in this report or its data files (scanned: the result files hold numbers and field names only).</p><p><a href="endurance_dossier.html">Full endurance dossier (ANOVA, spectrum scan, Section 4)</a></p></body></html>
