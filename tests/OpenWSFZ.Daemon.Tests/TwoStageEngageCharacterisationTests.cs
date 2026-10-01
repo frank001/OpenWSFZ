@@ -66,12 +66,12 @@ public sealed class TwoStageEngageCharacterisationTests
     /// <summary>Waits until the wall clock is between <paramref name="min"/> and <paramref name="max"/> seconds into a 15 s cycle, so the cycle-relative arithmetic cannot straddle a boundary mid-test.</summary>
     private static async Task WaitUntilSecondsIntoCycleAsync(double min, double max)
     {
-        while (true)
+        await Poll.UntilAsync(() =>
         {
             var now = DateTimeOffset.UtcNow;
             double into = (now - RoundDownTo15s(now)).TotalSeconds;
-            if (into >= min && into <= max) return;
-            await Task.Delay(100);
-        }
+            return into >= min && into <= max;
+        }, timeout: TimeSpan.FromSeconds(20), pollInterval: TimeSpan.FromMilliseconds(100),
+           timeoutMessage: () => $"the wall clock never reached {min}-{max} s into a cycle");
     }
 }

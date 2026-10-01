@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Ft8.Interop;
 using OpenWSFZ.Ft8.Subfeas;
+using OpenWSFZ.TestSupport;
 using Xunit;
 
 namespace OpenWSFZ.Ft8.Tests;
@@ -108,7 +109,7 @@ public sealed class SubfeasNativeSpeedTests
             return Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq, flag.Pointer);
         });
         started.Wait();
-        Thread.Sleep(300); // well inside a fit (about 1.2 s), and past the workspace lease
+        WaitForLeased(1); // the fit holds its workspace lease, so it is inside the fit (about 1.2 s long), not before it
         var setAt = Stopwatch.StartNew();
         flag.Set();
         var (rc, shat) = task.Result;
@@ -139,7 +140,7 @@ public sealed class SubfeasNativeSpeedTests
         var flags = new[] { doomed, f1, f2 };
         var tasks = ok.Select((p, i) => Bg.Run(() =>
             Ft8LibInterop.SubfeasFitSignal(re, im, grid[p.Idx].Tones, grid[p.Idx].Dt, grid[p.Idx].Freq, flags[i].Pointer))).ToArray();
-        Thread.Sleep(250);
+        WaitForLeased(3); // all three fits are inside their fit before one is cancelled
         doomed.Set();
         foreach (var b in tasks) b.Join();
 
@@ -177,7 +178,7 @@ public sealed class SubfeasNativeSpeedTests
                     // Forced cancels, mixed in: some pre-set, some raised part-way, some never.
                     int mode = (w + round) % 4;
                     if (mode == 0) flags[w].Set();
-                    else if (mode == 1) _ = Bg.Run(() => { Thread.Sleep(200 + 50 * w); flags[w].Set(); return 0; });
+                    else if (mode == 1) _ = Bg.Run(() => { WaitForLeased(1); flags[w].Set(); return 0; }); // raised once a fit is in flight
                     var j = grid[p.Idx];
                     return Ft8LibInterop.SubfeasFitSignal(re, im, j.Tones, j.Dt, j.Freq, flags[w].Pointer);
                 })).ToArray();
@@ -224,7 +225,7 @@ public sealed class SubfeasNativeSpeedTests
         using (var flag = new CancelFlag())
         {
             var t = Bg.Run(() => Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq, flag.Pointer));
-            Thread.Sleep(250);
+            WaitForLeased(1);
             flag.Set();
             t.Result.ReturnCode.Should().Be(-4);
         }
@@ -264,7 +265,7 @@ public sealed class SubfeasNativeSpeedTests
         Fresh(1);
         using var hold = new CancelFlag();
         var first = Bg.Run(() => Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq, hold.Pointer));
-        Thread.Sleep(300);
+        WaitForLeased(1); // the first fit holds the pool's only workspace
         var refused = () => Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq);
         refused.Should().Throw<InvalidOperationException>("the pool is at its bound with none idle: refuse rather than allocate past it");
         Pool().Refusals.Should().Be(1);
@@ -325,7 +326,7 @@ public sealed class SubfeasNativeSpeedTests
         (float[] re, float[] im, byte[] tones, float dt, float freq) = OneRealSignal();
         using var flag = new CancelFlag();
         var t = Bg.Run(() => Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq, flag.Pointer));
-        Thread.Sleep(300);
+        WaitForLeased(1);
 
         Ft8LibInterop.SubfeasPoolShutdown(); // the fit is mid-flight: its workspace must survive this call
         Pool().Leased.Should().Be(1);
@@ -431,6 +432,12 @@ public sealed class SubfeasNativeSpeedTests
         Ft8LibInterop.SubfeasPoolShutdown();
         Ft8LibInterop.SubfeasPoolConfigure(bound);
     }
+
+    /// <summary>Blocks until the pool reports at least <paramref name="count"/> leased workspaces (a fit is in flight), instead of sleeping a guessed time.</summary>
+    private static void WaitForLeased(int count)
+        => Poll.UntilAsync(() => Pool().Leased >= count, timeout: TimeSpan.FromSeconds(30),
+                timeoutMessage: () => $"the pool never reached {count} leased workspace(s)")
+            .GetAwaiter().GetResult();
 
     private static float[] Norm(float[] raw) => Ft8Decoder.NormalisePcm(raw, 0.20f);
 

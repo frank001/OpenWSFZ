@@ -267,3 +267,14 @@ entries are tracked here instead and are not expected to ever be removed.
 tests/OpenWSFZ.TestSupport.Tests/PollTests.cs:72: Task.Delay(30)
 tests/OpenWSFZ.TestSupport.Tests/PollTests.cs:107: Task.Delay(30)
 tests/OpenWSFZ.TestSupport.Tests/PollTests.cs:134: Task.Delay(20)
+
+
+## sub-feas two-stage publish — `DecodePumpTests.cs` (1 permanent justified exception)
+
+`DecodePumpTests.Pump_StaysSerial` (S3(i)) proves an **absence**: while window 1's residual pass is held
+open, the pump must NOT start decoding window 2. There is no positive condition to poll for (the event it
+guards is precisely the one that must not happen), so a bounded grace wait before asserting the absence is
+the only available shape. The positive half is polled (`Poll.UntilAsync` on batch 1), and the test then
+releases the pass and asserts the exact event order, so a regression to a non-serial pump still fails it.
+
+tests/OpenWSFZ.Daemon.Tests/DecodePumpTests.cs:270: Task.Delay(300)
