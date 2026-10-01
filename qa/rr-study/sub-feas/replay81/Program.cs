@@ -14,6 +14,10 @@
 //   --stratum pilot|M|H   decode each selected cycle; --mode off  => flag not touched (R0 builds have no flag)
 //                                                      --mode alt  => OFF and ON, order alternated by cycle index parity
 //   --stratum R6          synthetic stress: sum each selected pair, assert peak, decode ON only
+//   offline flag-OFF/ON replay (spec 2026-10-01-1935): --mode two0 = flag OFF, DecodeTwoStageAsync, ONE call per cycle,
+//                         the SAME call and the SAME Test B scoring as --mode two1 (flag ON); the two arms differ only in
+//                         the flag. --wav-dir overrides the per-run WAV directory (the on-air night's cycle-audio).
+//                         Both modes log a "# readback" line (flag, thread count, nhard, decode params) at start and end.
 // Resume: rows already present in --out (stamp|flag) are skipped, so a crashed process can be restarted.
 
 using System.Diagnostics;
@@ -54,7 +58,9 @@ internal static class Program
 
         using var selDoc = JsonDocument.Parse(File.ReadAllBytes(selectionPath));
         var root = selDoc.RootElement;
-        string WavDirFor(string r) => Path.Combine(wavRoot, $"{r}_endurance_run-gathered", "owsfz", "wav");
+        string WavDirFor(string r) => a.TryGetValue("wav-dir", out var wd)
+            ? wd
+            : Path.Combine(wavRoot, $"{r}_endurance_run-gathered", "owsfz", "wav");
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outCsv))!);
         using var log = new ReplayLog(logPath);
@@ -81,7 +87,7 @@ internal static class Program
         await using var csv = new StreamWriter(outCsv, append: true, new UTF8Encoding(false)) { AutoFlush = true };
         // sub-feas-speed-redesign two-stage acceptance: modes "two"/"two1" write an 11-column CSV (tb1_ms = time to
         // batch 1, b1_n, b2_n); every row in such a file is written 11 columns wide.
-        _wide = mode is "two" or "two1";
+        _wide = mode is "two" or "two1" or "two0";
         if (newFile)
             csv.WriteLine(_wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
                                 : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
@@ -145,6 +151,10 @@ internal static class Program
 
         var cycles = root.GetProperty("runs").GetProperty(run).GetProperty(stratum).EnumerateArray()
                          .Select(e => e.GetString()!).ToList();
+#if HAS_TWOSTAGE
+        // Offline flag-OFF/ON replay: the arm's flag is set ONCE here and read back from the decoder object (spec V2).
+        if (mode is "two0" or "two1") { SetFlag(decoder, mode == "two1"); Readback(decoder, log, "start", threadsNote); }
+#endif
         for (int idx = 0; idx < cycles.Count; idx++)
         {
             string stamp = cycles[idx];
@@ -166,6 +176,15 @@ internal static class Program
                 continue;
             }
 #if HAS_TWOSTAGE
+            // "two0": flag OFF, DecodeTwoStageAsync, ONE call per cycle: the OFF arm of the offline replay. Same call,
+            // same scoring as "two1"; with the flag OFF the decoder publishes batch 1 only and returns an empty batch 2.
+            if (mode == "two0")
+            {
+                if (done.Contains(stamp + "|OFF")) continue;
+                SetFlag(decoder, false);
+                await DecodeTwo(decoder, pcm, cyc, csv, run, stratum, stamp, idx, "OFF");
+                continue;
+            }
             // "two1": flag ON, DecodeTwoStageAsync, ONE call per cycle.
             if (mode == "two1")
             {
@@ -192,6 +211,9 @@ internal static class Program
                 await Decode1(decoder, pcm, cyc, csv, run, stratum, stamp, idx, flag);
             }
         }
+#if HAS_TWOSTAGE
+        if (mode is "two0" or "two1") Readback(decoder, log, "end", threadsNote);
+#endif
         return 0;
     }
 
@@ -312,7 +334,7 @@ internal static class Program
     /// (batch 2 available), and both batches' counts.
     /// </summary>
     private static async Task DecodeTwo(Ft8Decoder d, float[] pcm, DateTime cycleStart, StreamWriter csv,
-                                        string run, string stratum, string stamp, int seq)
+                                        string run, string stratum, string stamp, int seq, string flag = "ON")
     {
         string exc = "";
         int n1 = -1, n2 = -1;
@@ -335,11 +357,29 @@ internal static class Program
         }
         catch (Exception ex) { exc = ex.GetType().Name; }
         sw.Stop();
-        csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), "ON",
+        csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), flag,
             sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
             (n1 < 0 ? -1 : n1 + Math.Max(0, n2)).ToString(CultureInfo.InvariantCulture), exc,
             tb1.ToString("F1", CultureInfo.InvariantCulture),
             n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture)));
+    }
+
+    /// <summary>
+    /// One log line the offline replay's row V2 reads: the flag and the settings AS THE DECODER OBJECT HOLDS THEM (the
+    /// flag is the public <c>SubtractionEnabled</c> getter; the thread count is the configured value and what
+    /// <c>SubtractionThreads.Resolve</c> makes of it on this machine), not merely as passed on the command line.
+    /// </summary>
+    private static void Readback(Ft8Decoder d, ReplayLog log, string tag, string threadsNote)
+    {
+        string resolved = "n/a";
+#if HAS_MAXTHREADS
+        if (int.TryParse(threadsNote, NumberStyles.Integer, CultureInfo.InvariantCulture, out int t))
+            resolved = SubtractionThreads.Resolve(t, Environment.ProcessorCount, out _).ToString(CultureInfo.InvariantCulture);
+#endif
+        log.Raw($"# readback {tag} subtractionEnabled={d.SubtractionEnabled} threadsConfigured={threadsNote} " +
+                $"threadsResolved={resolved} cores={Environment.ProcessorCount} nhard={OsdNhardMax} " +
+                $"kMinScorePass2={KMinScorePass2} osdCorrThreshold={OsdCorrThreshold.ToString("F2", CultureInfo.InvariantCulture)} " +
+                $"shim={Ft8Decoder.LoadedShimVersion}");
     }
 #endif
 
