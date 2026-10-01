@@ -74,6 +74,21 @@ The strong correlation is **band activity, not proof of contention**: a busy cyc
 Reading: the dependence on WSJT-X's count **shrinks as the fitted-signal count rises**, and at 21 to 25 signals it is about 100 ms (≈2 %) across the terciles. That is what band activity would do (the signal count is a coarse control inside each band) and not what a heavy CPU rivalry would do. In the 26+ band the high tercile is 0.9 s slower (n = 27 against 42; one night, not tested for significance). **I cannot separate load from activity on this data, and the data gives no sign that WSJT-X lengthens the pass materially.** A direct test would be a pass-time comparison on the same audio with WSJT-X idle and busy (the 12-worker quiet check is the nearest such control).
 Also visible: the per-hour median pass time falls from ≈6.0 s at night to ≈3.1 s at 10–13Z (a quiet band), so time of night is a large driver of the pass time.
 
+## 3a. Spectrum scan (standing routine, run after the report was first written)
+
+`spectrum_scan.py` over all 4 299 archived cycle WAVs (`spectrum_scan.json`, gathered dir), then `spectrum_scan_report.py` with the 2026-09-25 scan as control (the only earlier scans are 09-23 and 09-25, both direct-CODEC; **no same-chain (B1) control exists**, so the control is cross-chain).
+
+| Check | This run | Control 09-25 |
+|---|---|---|
+| Files readable / format | 4 299 of 4 299; 12 kHz, 180 000 frames in every file | 2 884 |
+| Clipping / silent / hot files | 0 / 0 / 0 | 1 clipping / 0 / n.r. |
+| Level (median dBFS, MAD) | −28.2, 0.72 (range −35.0 to −22.5) | −28.2 |
+| Hum band 2nd harmonic over floor (median) | 20.9 dB | 21.9 dB (delta −0.99, "consistent with control") |
+| Hum band fundamental over floor (median) | 9.4 dB | 8.7 dB |
+| Narrowband spur bins | top bin 1 290 Hz in 3.8 % of files, below the 5 % materiality bar: ordinary traffic, not an anomaly | n.r. |
+
+**No anomaly found.** The hum-band figure (flagged in 58 % of files by the 20 dB bar) is the same as the earlier runs'. The dossier is `FINAL_REPORT_dossier.html` in the gathered dir (HTML; unpublished). The standard `FINAL_REPORT.md/.html` of the earlier runs was not composed.
+
 ## 4. Section 4 (HK-036): the historical series, read
 
 Section 4 of `artefacts/20260930_1930_endurance_run-gathered/anova_report.md` was **read**. It holds four standardised runs (the table of earlier runs is limited to the standardised sidecars, which begin 2026-09-22). All are 40m, nhard 40, live WSJT-X reference, G = 1.0000 (ROW 1 PASS):
