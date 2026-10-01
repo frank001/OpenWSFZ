@@ -56,4 +56,24 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded)
         => Ft8LibInterop.GetLastSnrTerms(maxDecoded);
+
+    public byte[] EncodeMessage(string message)
+    {
+        var tones = new byte[Ft8LibInterop.EncodedToneCount];
+        Ft8LibInterop.EncodeMessage(message, tones);
+        return tones;
+    }
+
+    public (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm)
+        => Ft8LibInterop.SubfeasComputeAnalytic(pcm);
+
+    public (int ReturnCode, float[] Shat) SubfeasFitSignal(
+        float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
+        => Ft8LibInterop.SubfeasFitSignal(xARe, xAIm, tones, decodedDtS, decodedFreqHz, cancelFlag);
+
+    public void SubfeasPoolConfigure(int bound) => Ft8LibInterop.SubfeasPoolConfigure(bound);
+
+    public void SubfeasPoolShutdown() => Ft8LibInterop.SubfeasPoolShutdown();
+
+    public void SetDiagnosticsEnabled(bool enabled) => Ft8LibInterop.SetDiagnosticsEnabled(enabled);
 }

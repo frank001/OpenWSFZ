@@ -240,3 +240,150 @@ post-merge, matching this project's existing revert convention for shim changes)
   prevent.
 - **FFT library selection (Decision 3):** KissFFT vs PocketFFT vs another permissively-licensed option —
   left to the Developer, constrained only by the licence requirement.
+
+## Addendum — Decision 2 confirmed (Task 1.1)
+
+**Confirmed 2026-09-28, by the Captain, presented with this design's recommendation and rationale
+unchanged:** the fit/subtract/merge pipeline lives in native C — `src/OpenWSFZ.Ft8/Native/ft8_shim.c`
+or a new, separately-compiled native source file linked into the same shim, operating directly on the
+PCM buffer already resident in native memory. The C# `Ft8Decoder`-boundary alternative is not taken.
+
+No new information changed the recommendation's basis — this is the Captain's explicit choice to
+accept the runtime-performance case over the P/Invoke-boundary caution, not a re-derivation. The
+buffer-ownership care Decision 2 called for (§ Decision 4: heap-only, bounded pooling, graceful
+degradation) is unchanged in importance by this confirmation and remains a hard blocker (`tasks.md`
+§3), precisely because the loop now living in native C is the scenario Decision 2 itself flagged as
+needing it most.
+
+## Addendum — Decision 3 confirmed (Task 1.2), and an early runtime-feasibility finding
+
+**Confirmed 2026-09-28: KissFFT.** Before benchmarking, a codebase check found a fact this design
+did not have: **KissFFT is already vendored and linked into `libft8.dll` today**
+(`native/ft8_lib_vendor/fft/kiss_fft.c`/`kiss_fftr.c`, compiled by `rebuild_shim.bat` on the exact
+MSVC/`std:c11` toolchain this change builds with, already exercised by the existing STFT waterfall
+at `nfft` up to ~8192). It is dual-covered: the umbrella `ft8_lib` port is MIT (Kārlis Goba,
+`native/ft8_lib_vendor/LICENSE`), and `kissfft` itself carries its own `SPDX-License-Identifier:
+BSD-3-Clause` header in each file (Mark Borgerding) — no separate `COPYING` text file exists for it
+today, a pre-existing gap (predates this change) worth a one-line fix in passing, not a blocker.
+
+A head-to-head benchmark was still run, per the Captain's request, rather than deciding on the
+"already vendored" fact alone. **This table was corrected after the first pass used the wrong FFT
+type** — see the correction note immediately below it; the corrected, real-transform-type numbers are
+what stands:
+
+| Library | Per-call (n_fft=262144, single-threaded, MSVC `/O2`) | 242-call/signal estimate | 24-signal/cycle estimate |
+|---|---|---|---|
+| KissFFT (`kiss_fft`, **complex-to-complex**) | **4.52 ms** | 1.09 s | **26.24 s** |
+| PocketFFT (`pocketfft_hdronly.h` c2c, `nthreads=1`) | 5.54 ms | 1.34 s | 32.20 s |
+
+**Correction:** the first benchmark pass used `kiss_fftr`/`pocketfft::r2c` (real-to-complex transforms)
+and reported KissFFT at 2.41 ms/call, PocketFFT at 2.57 ms/call, and a ~14.0 s/cycle FFT-only estimate.
+That was the wrong transform type. `fitter.py:68-80`'s `_freq_search` calls `np.fft.fft(mixed, n_fft)`
+on `mixed = seg * np.conj(r_base)` — both `seg` (the analytic-signal segment) and `r_base` (the
+complex unit template) are **complex**, so `mixed` is complex and the transform is
+**complex-to-complex**, not real-input. A c2c FFT does roughly twice the work of an r2c FFT at the
+same `n_fft` (r2c exploits real-input conjugate symmetry to roughly halve it) — re-benchmarked with
+`kiss_fft`/`pocketfft::c2c` on complex input (first 151,680 samples populated, zero-padded to
+262,144 exactly as `np.fft.fft(mixed, n_fft)` zero-pads), both giving results consistent with that
+~2× factor (KissFFT: 2.41→4.52 ms, ~1.88×; PocketFFT: 2.57→5.54 ms, ~2.16×). This correction was
+caught by reading `fitter.py` directly (§ below) before relying on the earlier number for anything
+consequential — flagged rather than left standing.
+
+Methodology (both passes): real upstream sources — `kiss_fft.c`/`kiss_fftr.c` from this repo's own
+vendor tree (unmodified), `pocketfft_hdronly.h` fetched verbatim from
+`https://raw.githubusercontent.com/mreineck/pocketfft/cpp/pocketfft_hdronly.h` — compiled with the
+same `cl /O2` (KissFFT: `/std:c11`, matching this repo's convention; PocketFFT is C++-header-only, so
+`/std:c++17`) on this machine's MSVC 19.44 toolchain, 242 repeated forward FFT calls at `n_fft=262144`
+after one warm-up call, timed with `QueryPerformanceCounter`. Correctness sanity check (DC bin == sum
+of input, real and imaginary parts) passed for both libraries in both passes. Scratch harness and both
+vendored/fetched sources are in a session scratchpad, not the repo.
+
+**KissFFT measured ~18% faster than PocketFFT in this single-threaded configuration on this exact
+toolchain** (a larger margin than the first, wrong-transform-type pass showed — 4.52 ms vs 5.54 ms).
+Combined with zero incremental vendoring/licensing/build-system cost (PocketFFT's only current
+well-maintained form is a C++ header-only library — pulling it in means adding a C++ compilation unit
+and linking the C++ runtime into a native shim that has been pure C throughout its history, a real
+toolchain-complexity increase for a change whose stability gate is already a hard blocker), **KissFFT
+is confirmed with no remaining ambiguity — the correction strengthens this choice, it does not
+change it.**
+
+**🔴 Early runtime-feasibility finding, corrected and now considerably more serious.** Surfaced per
+this design's own Risks-section instruction to "profile early... and treat a failing runtime result as
+a valid, reportable outcome": even using the faster library, **FFT time alone for a 24-signal cycle is
+~26.2 s — roughly double the existing 13 s hard decode-cycle budget**, and close to the 30 s CI budget
+too, before any of the following are counted: `lp_envelope`'s own two additional sizable FFT-based
+convolutions per signal (`fitter.py:228-229`, `scipy.signal.fftconvolve` on ~151,680-and-~3,840-sample
+inputs — not measured here, and not small), the analytic-signal (Hilbert transform) FFT per signal,
+correlation refinement, template synthesis, subtraction, .NET/native P/Invoke overhead, and — the
+largest omitted cost of all — **running the entire existing decode pipeline a second, unmodified time
+on the residual buffer** (§ Decision 1 step 4), which is not a fit-loop cost at all and is not measured
+by this benchmark.
+
+This is exactly the scenario `design.md`'s own "Alternative considered" note under Decision 1
+anticipates: *"If runtime... makes the exact port infeasible, that is a finding to bring back to
+QA/Architect, not a silent substitution."* This FFT-only proxy is not itself that finding — task 8.1's
+real, full-pipeline measurement is — but it is a strong enough early signal that continuing straight
+into the full §2 algorithm port without flagging it first would risk sinking further implementation
+time into search-grid parameters (the `ḟ` sweep in particular: 41 steps × a re-fit each, per signal)
+that may need to be revisited on cost grounds regardless of code quality. Recorded here rather than
+silently proceeding; raised to QA/the Captain alongside this addendum.
+
+## Addendum — Decision 2's shape revised: per-signal native calls, C#-orchestrated parallelism
+
+**Confirmed 2026-09-28, superseding part of the earlier Decision 2 addendum above.** The Captain's
+chosen mitigation for the runtime finding above is to parallelize the per-signal fit search — Decision
+1 step 3 already establishes every signal's fit is independent (no signal's fit depends on another's
+subtraction), so this does not touch the algorithm itself, only its execution strategy.
+
+**A safety fact changes *how* that parallelism should be structured, and revises the single-native-call
+shape the first Decision 2 addendum recorded:** this shim's existing crash-containment mechanism
+(`ft8_shim.c`'s `__try`/`__except(EXCEPTION_EXECUTE_HANDLER)` wrapper around `ft8_decode_all`'s body,
+added at `FT8_SHIM_VERSION 20260013` after the first production `0xC0000005`, returning `-2` on any
+access violation so the managed layer can skip the cycle instead of the process dying) is **installed
+per-OS-thread, at the entry of the wrapped function, on whichever thread calls it.** It does not catch
+a fault on a *different* OS thread. If the fit loop were parallelized by spawning native worker threads
+*inside* one `ft8_decode_all`-style call, a fault on a spawned worker thread would not be caught by any
+`__try`/`__except` and would crash the process — silently defeating the one crash-containment mechanism
+this whole codebase already has production evidence for, in the exact class of code being added because
+of a crash history.
+
+**Chosen:** the fit search is exposed as a new, **per-signal** native entry point (not a single
+per-cycle call), wrapped in its own `__try`/`__except` following the identical discipline
+`ft8_decode_all` already uses (returns `-2` on SEH fault, same containment/no-heap-repair-attempt
+reasoning). C# calls this entry point once per pass-0 decoded message, concurrently (`Task`/
+`Parallel.ForEach`, degree of parallelism bounded — see Task 1.4 note below), each call running on its
+own .NET thread-pool thread and therefore protected by its own instance of the *same, already-proven*
+per-thread SEH wrapper — no new crash-containment mechanism is invented or needs independent trust.
+Each call fits one signal against the original PCM (read-only, no shared mutable state — the new fit
+code must not touch `g_session_hash_table` or any existing TLS getter's state) and returns that
+signal's complex template/envelope result; it does **not** subtract into the residual buffer itself.
+Subtraction (accumulating every returned template into one shared residual copy) and the second decode
+pass remain serial, single-threaded, and native, called once after all per-signal fit calls return —
+this preserves Decision 4's existing "any failure → whole cycle falls back to single-pass, no partial
+state" contract exactly: if any one signal's fit call returns `-2` (or any other failure), the
+accumulation step is skipped entirely and the cycle falls back to pass-0-only, rather than silently
+keeping the other signals' successful fits (Decision 4's spec explicitly prohibits exactly that:
+"do not silently skip only the failed signal while leaving partial state").
+
+**Trade-off accepted:** the original PCM buffer is now marshalled across P/Invoke once per signal
+(~24 calls/cycle) rather than once per cycle. At ~720,000 bytes/call this is ~17 MB/cycle of copying —
+estimated negligible next to millisecond-scale FFT compute per call, but not yet measured; task 8.1's
+real runtime gate will confirm rather than assume this.
+
+**Alternative considered:** internal native worker threads (`CreateThread`/`pthread_create`) inside a
+single per-cycle call, each independently wrapped in its own `__try`/`__except` so a fault on any one
+is still contained. Rejected as the default: it keeps the call count at Decision 2's original
+recommendation, but requires inventing and validating a new per-thread SEH-wrapping + thread-lifecycle
+mechanism with zero production track record, in code whose stability gate is already a hard blocker —
+strictly more new failure surface than reusing the existing per-call wrapper N times.
+
+**Consequence for Task 1.4 (buffer pooling):** this shape simplifies it. Each per-signal native call is
+self-contained — it allocates its own heap buffers (template, FFT working buffer, envelope array) on
+entry and frees them before returning, per Decision 4. No shared pool data structure, and therefore no
+pool synchronization, is needed at all: the *only* bound required is the C# side's
+`Parallel.ForEach`/`Task` degree-of-parallelism cap, which directly satisfies the spec's own
+"concurrently-allocated per-signal buffers are bounded" scenario. Proposed cap:
+`Math.Min(Environment.ProcessorCount, 4)` — small enough to bound worst-case concurrent memory (4 ×
+~2.4 MB template ≈ 9.6 MB, well under any concerning threshold) while still giving real parallelism on
+typical multi-core hardware; open to a different number once task 8.1's real measurement exists to
+tune against.

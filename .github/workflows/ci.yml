@@ -120,10 +120,20 @@ jobs:
             -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" \
             -target arm64-apple-macos11.0 -c \
             "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/coherent_llr.c"
+          # subfeas_fit.c (sub-feas-native-subtraction, extended by sub-feas-speed-redesign): this inline
+          # recipe never compiled it, so the Linux/macOS CI libft8 carried NONE of the ft8_subfeas_* exports
+          # (the same silent gap as sync_refiner.c and coherent_llr.c above). It matters now because the
+          # Stage A tests call the real fit/pool exports. Mirrors native/ft8_lib_build/build_linux.sh, which
+          # already compiles it. It includes "../fft/kiss_fft.h" relative to its own directory.
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC \
+            -I"$GITHUB_WORKSPACE/native/ft8_lib_vendor" \
+            -I"$GITHUB_WORKSPACE/native/ft8_lib_vendor/subfeas" \
+            -target arm64-apple-macos11.0 -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_vendor/subfeas/subfeas_fit.c"
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o subfeas_fit.o
           # ld embeds a fresh, randomly-generated LC_UUID on every link (see
           # chore/ci-native-binary-reproducibility, 2026-07-03). Omitting it
           # via -Wl,-no_uuid is NOT viable — dyld refuses to dlopen a Mach-O
@@ -165,7 +175,7 @@ jobs:
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o subfeas_fit.o
           python3 "$GITHUB_WORKSPACE/tools/zero_dylib_uuid.py" libft8.dylib
           if ! cmp -s /tmp/ft8_lib/libft8.dylib libft8.dylib; then
             echo "=== DIAGNOSTIC: sizes ==="
@@ -238,9 +248,18 @@ jobs:
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" -c \
             "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/coherent_llr.c"
+          # subfeas_fit.c (sub-feas-native-subtraction, extended by sub-feas-speed-redesign): this inline
+          # recipe never compiled it, so the Linux/macOS CI libft8 carried NONE of the ft8_subfeas_* exports
+          # (the same silent gap as sync_refiner.c and coherent_llr.c above). It matters now because the
+          # Stage A tests call the real fit/pool exports. Mirrors native/ft8_lib_build/build_linux.sh, which
+          # already compiles it. It includes "../fft/kiss_fft.h" relative to its own directory.
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC \
+            -I"$GITHUB_WORKSPACE/native/ft8_lib_vendor" \
+            -I"$GITHUB_WORKSPACE/native/ft8_lib_vendor/subfeas" -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_vendor/subfeas/subfeas_fit.c"
           gcc -shared -o libft8.so \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o \
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o subfeas_fit.o \
             -lm
           echo "=== Linux .so exports ==="
           nm -D libft8.so | grep "ft8_"
