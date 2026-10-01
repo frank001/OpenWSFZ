@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Threading.Channels;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -124,6 +125,21 @@ public sealed class QsoCallerServiceTests
 
     private static void SendAt(Channel<DecodeBatch> ch, DateTimeOffset cycleStart, params DecodeResult[] results)
         => ch.Writer.TryWrite(new DecodeBatch(cycleStart, results));
+
+    /// <summary>
+    /// Polls until the service has recorded <paramref name="callsign"/>'s decode in its private
+    /// <c>_recentResponderDecodes</c> (read under the service's own <c>_stateLock</c>, via reflection: no public
+    /// observable exists for it). Proves the batch was PROCESSED, which <see cref="WaitForBatchDrainedAsync"/> does not.
+    /// </summary>
+    private static Task WaitForResponderRecordedAsync(QsoCallerService sut, string callsign)
+    {
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var gate = typeof(QsoCallerService).GetField("_stateLock", flags)!.GetValue(sut)!;
+        var decodes = (Dictionary<string, DecodeResult>)typeof(QsoCallerService).GetField("_recentResponderDecodes", flags)!.GetValue(sut)!;
+        return Poll.UntilAsync(() => { lock (gate) return decodes.ContainsKey(callsign); },
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: () => $"the service never recorded a decode from {callsign}");
+    }
 
     /// <summary>
     /// Polls until <paramref name="channel"/> has been drained by the service's background loop,
@@ -1694,7 +1710,10 @@ public sealed class QsoCallerServiceTests
         // SelectResponderAsync must re-parse to recover the grid, since it receives only a
         // callsign/frequency/cycle-start, not the original decoded message.
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForBatchDrainedAsync(channel);
+        // Poll the positive condition (the decode is recorded), not just "the batch was dequeued": the channel is empty
+        // as soon as the service READS the batch, before ProcessBatchAsync has recorded it. Selecting in that window finds
+        // no recorded decode, so the grid is lost and the SNR falls back to +00 (the D-015 intermittent failure).
+        await WaitForResponderRecordedAsync(sut, PartnerCall);
         sut.State.Should().Be(QsoState.WaitReport, "None mode must not auto-advance");
 
         // Drain any wakeup written while draining the above.
