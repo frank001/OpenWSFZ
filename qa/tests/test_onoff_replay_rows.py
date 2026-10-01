@@ -170,22 +170,83 @@ def test_v4_batch1_equals_off_multiset_N_of_N():
     assert not ok and d["equal"] == 1
 
 
+def _abandon(stamps, abandoned=()):
+    return {s: {"ran": True, "abandoned": s in set(abandoned), "contained": False} for s in stamps}
+
+
 @pytest.mark.parametrize("abandoned,included,expected", [(0, 4298, True), (214, 4298, True), (215, 4298, False), (5, 100, True), (6, 100, False)])
 def test_v5_abandon_at_most_five_percent(abandoned, included, expected):
-    assert r.row_v5(abandoned, included)[0] is expected
+    stamps = [f"260930_{i:06d}" for i in range(included)]
+    assert r.row_v5(_abandon(stamps, stamps[:abandoned]), stamps)[0] is expected
 
 
-def test_v6_repeat_union_identical_on_exactly_160_of_160():
-    c = collections.Counter
-    stamps = [f"260930_19{i // 60:02d}{i % 60:02d}" for i in range(160)]
-    on = {s: c({("1500", "0.1", "-5"): 1, ("1700", "0.3", "-18"): 1}) for s in stamps}
-    rep = {s: c(v) for s, v in on.items()}
-    assert r.row_v6(on, rep, stamps)[0]
-    rep_bad = dict(rep)
-    rep_bad[stamps[7]] = c({("1500", "0.1", "-5"): 1})            # one cycle differs: 159/160 fails
-    ok, d = r.row_v6(on, rep_bad, stamps)
-    assert not ok and d["equal"] == 159 and d["mismatching"] == [stamps[7]]
-    assert not r.row_v6(on, rep, stamps[:159])[0]                  # fewer than 160 cycles is not V6
+def test_v5_fails_when_the_abandon_file_is_missing_cycles_it_must_not_read_as_nothing_abandoned():
+    stamps = [f"260930_{i:06d}" for i in range(100)]
+    ok, d = r.row_v5({}, stamps)                       # no file at all
+    assert not ok and d["missing_from_abandon_file"] == 100
+    ok, d = r.row_v5(_abandon(stamps[:90]), stamps)    # a partial file
+    assert not ok and d["missing_from_abandon_file"] == 10
+
+
+# ---- V6 (Amendment 1): explained vs unexplained mismatches, both branches ----------------------------------------
+C = collections.Counter
+S160 = [f"260930_19{i // 60:02d}{i % 60:02d}" for i in range(160)]
+FULL = C({("1500", "0.1", "-5"): 1, ("1700", "0.3", "-18"): 1})
+SHORT = C({("1500", "0.1", "-5"): 1})
+
+
+def _v6_inputs(differ_stamps=(), on_abandoned=(), rep_abandoned=()):
+    on = {s: C(FULL) for s in S160}
+    rep = {s: (C(SHORT) if s in set(differ_stamps) else C(FULL)) for s in S160}
+    return on, rep, _abandon(S160, on_abandoned), _abandon(S160, rep_abandoned)
+
+
+def test_v6_identical_unions_pass():
+    on, rep, a_on, a_rep = _v6_inputs()
+    ok, d = r.row_v6(on, rep, S160, a_on, a_rep)
+    assert ok and d["identical"] == 160 and d["explained"] == 0 and d["unexplained"] == 0
+
+
+def test_v6_mismatch_abandoned_in_exactly_one_run_is_explained_and_passes():
+    on, rep, a_on, a_rep = _v6_inputs(differ_stamps=[S160[7]], on_abandoned=[S160[7]])
+    ok, d = r.row_v6(on, rep, S160, a_on, a_rep)
+    assert ok and d["explained"] == 1 and d["unexplained"] == 0
+    assert d["mismatching"] == [{"stamp": S160[7], "class": "explained", "on_abandoned": True, "rep_abandoned": False}]
+    assert d["explained_stamps"] == [S160[7]]
+    # the same cycle abandoned in the REPEAT only is explained too
+    on, rep, a_on, a_rep = _v6_inputs(differ_stamps=[S160[7]], rep_abandoned=[S160[7]])
+    assert r.row_v6(on, rep, S160, a_on, a_rep)[0]
+
+
+@pytest.mark.parametrize("on_ab,rep_ab", [((), ()), ((7,), (7,))], ids=["neither_abandoned", "both_abandoned"])
+def test_v6_mismatch_not_abandoned_in_exactly_one_run_is_unexplained_and_fails(on_ab, rep_ab):
+    on, rep, a_on, a_rep = _v6_inputs(differ_stamps=[S160[7]], on_abandoned=[S160[i] for i in on_ab], rep_abandoned=[S160[i] for i in rep_ab])
+    ok, d = r.row_v6(on, rep, S160, a_on, a_rep)
+    assert not ok and d["unexplained"] == 1 and d["explained"] == 0
+
+
+def test_v6_a_missing_abandon_record_cannot_explain_a_mismatch():
+    on, rep, a_on, a_rep = _v6_inputs(differ_stamps=[S160[7]], on_abandoned=[S160[7]])
+    del a_rep[S160[7]]
+    ok, d = r.row_v6(on, rep, S160, a_on, a_rep)
+    assert not ok and d["unexplained"] == 1
+
+
+@pytest.mark.parametrize("n_explained,expected", [(8, True), (9, False)])
+def test_v6_at_most_8_explained_mismatches(n_explained, expected):
+    diff = S160[:n_explained]
+    on, rep, a_on, a_rep = _v6_inputs(differ_stamps=diff, on_abandoned=diff)
+    ok, d = r.row_v6(on, rep, S160, a_on, a_rep)
+    assert ok is expected and d["explained"] == n_explained
+
+
+def test_v6_one_unexplained_among_explained_still_fails_and_fewer_than_160_cycles_is_not_v6():
+    diff = [S160[1], S160[2]]
+    on, rep, a_on, a_rep = _v6_inputs(differ_stamps=diff, on_abandoned=[S160[1]])
+    ok, d = r.row_v6(on, rep, S160, a_on, a_rep)
+    assert not ok and d["explained"] == 1 and d["unexplained"] == 1
+    on, rep, a_on, a_rep = _v6_inputs()
+    assert not r.row_v6(on, rep, S160[:159], a_on, a_rep)[0]
 
 
 # ---- parsing -----------------------------------------------------------------------------------------------------
@@ -218,7 +279,10 @@ def test_parse_log_does_not_count_the_warmup_cycle_before_the_start_readback(tmp
 
 
 # ---- end to end on a synthetic night -----------------------------------------------------------------------------
-def _write_arm(out, arm, stamps, W, M_by_stamp, b1_by_stamp, b2_by_stamp, abandoned_lines=0):
+def _write_arm(out, arm, stamps, W, M_by_stamp, b1_by_stamp, b2_by_stamp, abandoned_stamps=()):
+    ab = set(abandoned_stamps)
+    (out / f"abandon_{arm}.csv").write_text("stamp,ran,abandoned,contained\n" + "".join(
+        f"{s},{0 if arm == 'OFF' else 1},{1 if s in ab else 0},0\n" for s in stamps))
     (out / f"testb_{arm}.csv").write_text("run,stamp,kind,band,n,corroborated\n" + "".join(
         f"x,{s},ws,ALL,{W},{M_by_stamp[s]}\n"
         f"x,{s},b1,B,{b1_by_stamp[s]},{b1_by_stamp[s]}\nx,{s},b2,B,{b2_by_stamp[s]},{b2_by_stamp[s]}\n" for s in stamps))
@@ -232,7 +296,6 @@ def _write_arm(out, arm, stamps, W, M_by_stamp, b1_by_stamp, b2_by_stamp, abando
     (out / f"log_{arm}.log").write_text(
         f"# readback start subtractionEnabled={en} threadsConfigured=8 threadsResolved=8 cores=16 nhard=40\n" +
         "".join("2026 [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=5000 deadlineAbandoned=False containedException=False fittedSignals=9\n" for _ in range(3)) +
-        "".join("2026 [Information] Sub-feas residual pass: residualDecodes=0 elapsedMs=13000 deadlineAbandoned=True containedException=False fittedSignals=9\n" for _ in range(abandoned_lines)) +
         f"# readback end subtractionEnabled={en} threadsConfigured=8 threadsResolved=8 cores=16 nhard=40\n")
 
 
@@ -288,8 +351,24 @@ def test_end_to_end_any_validity_failure_withholds_the_verdict(night, break_what
         pins = _pins()
         pins[5]["libft8_sha256"] = "f" * 64
         (out / "pins.jsonl").write_text("".join(json.dumps(p) + "\n" for p in pins))
-    elif break_what == "v5":  # 6 % of 200 included cycles abandoned (12 lines)
-        _write_arm(out, "ON", stamps, 10, {s: 5 for s in stamps}, {s: 3 for s in stamps}, {s: 2 for s in stamps}, abandoned_lines=12)
+    elif break_what == "v5":  # 6 % of 200 included cycles abandoned (12 cycles)
+        _write_arm(out, "ON", stamps, 10, {s: 5 for s in stamps}, {s: 3 for s in stamps}, {s: 2 for s in stamps},
+                   abandoned_stamps=stamps[100:112])
     res = r.analyse(str(out), selection_path=str(night["sel"]))
     assert row in res["failing_rows"]
     assert res["verdict"] == "NO VERDICT" and row in res["verdict_withheld_because"]
+
+
+def test_end_to_end_v6_mismatch_explained_by_an_abandon_keeps_the_verdict_and_reports_net_without_it(night):
+    """Amendment 1: a repeat that differs on one cycle, where the ON arm abandoned that cycle's pass, is EXPLAINED."""
+    out, stamps = night["out"], night["stamps"]
+    odd = stamps[3]
+    _write_arm(out, "ON", stamps, 10, {s: 5 for s in stamps}, {s: 3 for s in stamps}, {s: 2 for s in stamps}, abandoned_stamps=[odd])
+    _write_arm(out, "ONREP", stamps[:160], 10, {s: 5 for s in stamps[:160]}, {s: 3 for s in stamps[:160]},
+               {**{s: 2 for s in stamps[:160]}, odd: 1})
+    res = r.analyse(str(out), selection_path=str(night["sel"]))
+    assert res["failing_rows"] == [], res["failing_rows"]
+    assert res["validity"]["V6"]["explained"] == 1 and res["validity"]["V6"]["unexplained"] == 0
+    assert res["verdict"] == "D1"
+    dropped = res["reported_not_used"]["net_without_v6_explained_cycles"]
+    assert dropped["dropped"] == 1 and dropped["NET_pp"] == pytest.approx(20.0)

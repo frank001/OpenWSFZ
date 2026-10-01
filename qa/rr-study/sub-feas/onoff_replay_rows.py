@@ -142,6 +142,18 @@ def parse_log(path):
     return res
 
 
+def load_abandon(path):
+    """stamp -> {'ran': bool, 'abandoned': bool, 'contained': bool}; written by the harness, one row per decoded cycle."""
+    out = {}
+    if not os.path.exists(path):
+        return out
+    for line in open(path, encoding="utf-8").read().splitlines()[1:]:
+        p = line.split(",")
+        if len(p) >= 4 and STAMP.match(p[0]):
+            out[p[0]] = {"ran": p[1] == "1", "abandoned": p[2] == "1", "contained": p[3] == "1"}
+    return out
+
+
 def load_pins(path):
     pins = []
     if os.path.exists(path):
@@ -279,18 +291,40 @@ def row_v4(off_b1, on_b1, stamps):
     return equal == len(stamps), {"equal": equal, "n": len(stamps)}
 
 
-def row_v5(abandoned, n_included):
-    """V5: ON-arm residual passes abandoned <= 5 % of included cycles."""
-    frac = abandoned / n_included if n_included else float("nan")
-    return (n_included > 0 and frac <= V5_MAX_ABANDON), {"abandoned": abandoned, "included": n_included, "fraction": frac}
+def row_v5(abandon_on, stamps):
+    """V5: ON-arm residual passes abandoned <= 5 % of included cycles. Counted from the harness's per-cycle abandon file.
+    A cycle missing from that file FAILS the row (an absent file must never read as 'nothing abandoned')."""
+    n = len(stamps)
+    missing = [s for s in stamps if s not in abandon_on]
+    abandoned = sum(1 for s in stamps if abandon_on.get(s, {}).get("abandoned"))
+    frac = abandoned / n if n else float("nan")
+    ok = n > 0 and not missing and frac <= V5_MAX_ABANDON
+    return ok, {"abandoned": abandoned, "included": n, "fraction": frac, "missing_from_abandon_file": len(missing)}
 
 
-def row_v6(on_union, rep_union, first160):
-    """V6: ON-repeat over the first 160 included cycles, per-cycle UNION (b1 + b2) numeric multiset identical on 160/160."""
+V6_MAX_EXPLAINED = 8   # Amendment 1 (Architect 2026-10-01, spec 9a): V5's 5 % of 160
+
+
+def row_v6(on_union, rep_union, first160, abandon_on, abandon_rep):
+    """V6 (AMENDMENT 1): over the first 160 included cycles, classify each cycle whose per-cycle UNION (b1 + b2 numeric multiset)
+    differs between the ON arm and the ON-repeat.
+      EXPLAINED   = the residual pass was deadline-abandoned in EXACTLY ONE of the two runs;
+      UNEXPLAINED = anything else (both abandoned, neither abandoned, or no abandon record).
+    PASS iff there are exactly 160 cycles AND unexplained == 0 AND explained <= 8."""
     empty = collections.Counter()
-    equal = sum(1 for s in first160 if on_union.get(s, empty) == rep_union.get(s, empty))
-    return (len(first160) == V6_CYCLES and equal == len(first160)), {"equal": equal, "n": len(first160),
-                                                                      "mismatching": [s for s in first160 if on_union.get(s, empty) != rep_union.get(s, empty)][:20]}
+    mism = []
+    for s in first160:
+        if on_union.get(s, empty) == rep_union.get(s, empty):
+            continue
+        a, b = abandon_on.get(s), abandon_rep.get(s)
+        flags = {"on_abandoned": None if a is None else a["abandoned"], "rep_abandoned": None if b is None else b["abandoned"]}
+        explained = a is not None and b is not None and (a["abandoned"] != b["abandoned"])
+        mism.append({"stamp": s, "class": "explained" if explained else "unexplained", **flags})
+    n_expl = sum(1 for m in mism if m["class"] == "explained")
+    n_unexpl = len(mism) - n_expl
+    ok = len(first160) == V6_CYCLES and n_unexpl == 0 and n_expl <= V6_MAX_EXPLAINED
+    return ok, {"n": len(first160), "identical": len(first160) - len(mism), "explained": n_expl, "unexplained": n_unexpl,
+                "mismatching": mism, "explained_stamps": [m["stamp"] for m in mism if m["class"] == "explained"]}
 
 
 def union(outcomes, stamps):
@@ -341,7 +375,9 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
     first160 = sel["runs"][run]["V6"]
 
     arm_paths = {a: {k: os.path.join(out_dir, f"{k}_{a}.{ext}") for k, ext in
-                     (("run", "csv"), ("testb", "csv"), ("outcomes", "csv"), ("log", "log"))} for a in ARM_FILES}
+                     (("run", "csv"), ("testb", "csv"), ("outcomes", "csv"), ("abandon", "csv"), ("log", "log"))}
+                 for a in ARM_FILES}
+    abandon = {a: load_abandon(p["abandon"]) for a, p in arm_paths.items()}
     testb = {a: load_testb(p["testb"]) for a, p in arm_paths.items()}
     outcomes = {a: load_outcomes(p["outcomes"]) for a, p in arm_paths.items()}
     runrows = {a: load_run_csv(p["run"]) for a, p in arm_paths.items()}
@@ -367,8 +403,9 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
     off_b1 = {s: outcomes["OFF"].get(s, {}).get("b1", collections.Counter()) for s in stamps}
     on_b1 = {s: outcomes["ON"].get(s, {}).get("b1", collections.Counter()) for s in stamps}
     v["V4"] = row_v4(off_b1, on_b1, stamps)
-    v["V5"] = row_v5(logs["ON"]["abandoned"], len(stamps))
-    v["V6"] = row_v6(union(outcomes["ON"], first160), union(outcomes["ONREP"], first160), first160)
+    v["V5"] = row_v5(abandon["ON"], stamps)
+    v["V6"] = row_v6(union(outcomes["ON"], first160), union(outcomes["ONREP"], first160), first160,
+                     abandon["ON"], abandon["ONREP"])
     # instrument-consistency conditions (not spec rows; any failure also withholds the verdict, and says why)
     consistency = {
         "all_cycles_present_in_both_arms": (not missing, {"missing": len(missing)}),
@@ -399,6 +436,15 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
         result["reported_not_used"] = {
             "ci_by_block": {str(bk): list(block_bootstrap_ci(W, Moff, Mon, bk)[:2]) for bk in BLOCKS_REPORTED},
             "acf_of_d": acf(d)}
+        # Amendment 1: if V6 found explained mismatches, also give NET with those cycles dropped from BOTH arms (descriptive only).
+        dropped = set(v["V6"][1].get("explained_stamps", []))
+        if dropped:
+            kept = [r for r in table if r["stamp"] not in dropped]
+            if kept:
+                kW, kOff, kOn = [r["W"] for r in kept], [r["M_off"] for r in kept], [r["M_on"] for r in kept]
+                klo, khi, _ = block_bootstrap_ci(kW, kOff, kOn, BLOCK_REGISTERED)
+                result["reported_not_used"]["net_without_v6_explained_cycles"] = {
+                    "dropped": len(dropped), "NET_pp": net_pp(kW, kOff, kOn), "ci95": [klo, khi]}
         # descriptive, no bar
         band_net = {}
         sW = float(sum(W))

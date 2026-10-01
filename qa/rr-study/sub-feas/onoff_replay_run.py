@@ -153,7 +153,7 @@ def preflight():
 
 def files_for(arm):
     return {k: os.path.join(OUT, f"{k}_{arm}.{ext}") for k, ext in
-            (("run", "csv"), ("testb", "csv"), ("outcomes", "csv"), ("log", "log"))}
+            (("run", "csv"), ("testb", "csv"), ("outcomes", "csv"), ("abandon", "csv"), ("log", "log"))}
 
 
 def done_stamps(csv_path):
@@ -170,13 +170,13 @@ def repair_partial(arm):
     """After a crash, drop testb/outcome rows of a cycle that never reached its run-csv row (they are written first)."""
     f = files_for(arm)
     done = done_stamps(f["run"])
-    for key, col in (("testb", 1), ("outcomes", 0)):
+    for key, col, has_header in (("testb", 1, True), ("outcomes", 0, False), ("abandon", 0, True)):
         p = f[key]
         if not os.path.exists(p):
             continue
         lines = open(p, encoding="utf-8").read().splitlines()
-        keep = [lines[0]] if key == "testb" and lines else []
-        for line in (lines[1:] if key == "testb" else lines):
+        keep = [lines[0]] if has_header and lines else []
+        for line in (lines[1:] if has_header else lines):
             cells = line.split(",")
             if len(cells) > col and cells[col] in done:
                 keep.append(line)
@@ -203,7 +203,7 @@ def run_arm(arm, mode, stratum, sampler):
         cmd = ["dotnet", os.path.join(HOUT, "Replay81.dll"), "--selection", SELECTION, "--run", RUN, "--stratum", stratum,
                "--wav-root", ART, "--wav-dir", WAV_DIR, "--out", f["run"], "--log", f["log"], "--mode", mode,
                "--threads", THREADS, "--label", f"{BUILD_COMMIT}:onoff_{arm}", "--wsjtx-alltxt", WS_ALLTXT,
-               "--testb-out", f["testb"], "--outcomes", f["outcomes"]]
+               "--testb-out", f["testb"], "--outcomes", f["outcomes"], "--abandon-out", f["abandon"]]
         t0 = time.time()
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         sampler.pid = proc.pid

@@ -108,6 +108,13 @@ internal static class Program
             _testB = new StreamWriter(tb, append: true, new UTF8Encoding(false)) { AutoFlush = true };
             if (fresh) _testB.WriteLine("run,stamp,kind,band,n,corroborated");
         }
+        if (a.TryGetValue("abandon-out", out var abandonPath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(abandonPath))!);
+            bool freshAb = !File.Exists(abandonPath);
+            _abandon = new StreamWriter(abandonPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (freshAb) _abandon.WriteLine("stamp,ran,abandoned,contained");
+        }
         if (a.TryGetValue("outcomes", out var outcomesPath))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outcomesPath))!);
@@ -236,6 +243,17 @@ internal static class Program
             n.ToString(CultureInfo.InvariantCulture), exc) + (_wide ? ",,," : ""));
     }
 
+    /// <summary>Whether the residual pass ran for the cycle being decoded, and whether it was deadline-abandoned or contained
+    /// an exception. One decode at a time, so plain volatile fields are enough.</summary>
+    private static class SubfeasProbe
+    {
+        public static volatile bool Ran, Abandoned, Contained;
+        public static void Reset() { Ran = false; Abandoned = false; Contained = false; }
+        public static void Set(bool abandoned, bool contained) { Ran = true; Abandoned = abandoned; Contained = contained; }
+    }
+
+    private static StreamWriter? _abandon;   // --abandon-out: stamp,ran,abandoned,contained (numeric flags, 0/1)
+
     private static bool _wide;
     private static StreamWriter? _outcomes;
     private static bool _outcomeTextHash;   // default OFF (HK-037: a text-derived hash is message identity)
@@ -339,6 +357,7 @@ internal static class Program
         string exc = "";
         int n1 = -1, n2 = -1;
         double tb1 = -1;
+        SubfeasProbe.Reset();
         var sw = Stopwatch.StartNew();
         try
         {
@@ -357,6 +376,9 @@ internal static class Program
         }
         catch (Exception ex) { exc = ex.GetType().Name; }
         sw.Stop();
+        // Written BEFORE the run-csv row, so a crash between the two leaves an orphan the orchestrator's repair drops.
+        _abandon?.WriteLine(string.Join(",", stamp, SubfeasProbe.Ran ? "1" : "0", SubfeasProbe.Abandoned ? "1" : "0",
+            SubfeasProbe.Contained ? "1" : "0"));
         csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), flag,
             sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
             (n1 < 0 ? -1 : n1 + Math.Max(0, n2)).ToString(CultureInfo.InvariantCulture), exc,
@@ -484,6 +506,14 @@ internal static class Program
             if (state is IReadOnlyList<KeyValuePair<string, object?>> kv)
                 foreach (var p in kv) if (p.Key == "{OriginalFormat}") template = p.Value?.ToString() ?? "";
 
+            // Per-cycle residual-pass state for the offline replay's row V6 (Amendment 1): the aggregate line says whether
+            // THIS cycle's pass was deadline-abandoned; DecodeTwo resets the probe before a call and reads it after.
+            if (template.StartsWith(SubfeasPrefix, StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                string t = formatter(state, exception);
+                SubfeasProbe.Set(t.Contains("deadlineAbandoned=True", StringComparison.OrdinalIgnoreCase),
+                                 t.Contains("containedException=True", StringComparison.OrdinalIgnoreCase));
+            }
             if (template.StartsWith(SubfeasPrefix, StringComparison.Ordinal) && level == LogLevel.Information
                 || template.StartsWith(CyclePrefix, StringComparison.Ordinal))
             {
