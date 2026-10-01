@@ -22,8 +22,8 @@ import os
 import re
 import sys
 
-SUB = re.compile(r"\[INF\] Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(True|False) "
-                 r"containedException=(True|False) fittedSignals=(\d+)")
+SUB = re.compile(r"\[INF\] Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(true|false) "
+                 r"containedException=(true|false) fittedSignals=(\d+)", re.IGNORECASE)  # the daemon logs lowercase; the replay harness logs True/False
 CYC = re.compile(r"\[INF\] Cycle (\d\d:\d\d:\d\d): (\d+) decode\(s\) found, elapsed=(\d+) ms")
 LVL = re.compile(r"\[(WRN|ERR|FTL)\] (.*)")
 TS = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\.\d+ ([+-]\d\d:\d\d) ")
@@ -60,8 +60,8 @@ def main():
             h = utc_hour(line)
             m = SUB.search(line)
             if m:
-                rec = {"res": int(m.group(1)), "ms": int(m.group(2)), "ab": m.group(3) == "True",
-                       "co": m.group(4) == "True", "fit": int(m.group(5))}
+                rec = {"res": int(m.group(1)), "ms": int(m.group(2)), "ab": m.group(3).lower() == "true",
+                       "co": m.group(4).lower() == "true", "fit": int(m.group(5))}
                 sub_all.append(rec)
                 if h:
                     per_hour[h]["sub"].append(rec)
