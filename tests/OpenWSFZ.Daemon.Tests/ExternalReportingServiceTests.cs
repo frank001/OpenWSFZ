@@ -1922,4 +1922,54 @@ public sealed class ExternalReportingServiceTests
             await sut.StopAsync(CancellationToken.None);
         }
     }
+
+    // ── sub-feas-speed-redesign two-stage publish, S3 (j) ───────────────────
+
+    [Fact(DisplayName = "S3(j): a two-batch cycle sends one Decode datagram per decode and NO cycle-level message twice (no Clear, at most one Status)")]
+    public async Task TwoBatchCycle_SendsNoCycleLevelMessageTwice()
+    {
+        // Finding recorded for design.md D9 (read of ExternalReportingService.DecodeLoopAsync): for a LEADER a decode
+        // batch produces only Decode datagrams, one per reportable result. Status runs on its own 1 s timer, and
+        // Heartbeat on its own interval; neither is tied to a batch, and there is no per-batch Clear. For a FOLLOWER
+        // the Status is added to a batch only when changed or due, which a second batch of the same cycle is not.
+        // So a second batch cannot repeat a cycle-level message.
+        using var listener = new UdpClient(0, AddressFamily.InterNetwork);
+        var port = ((IPEndPoint)listener.Client.LocalEndPoint!).Port;
+
+        var config = new AppConfig() with
+        {
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true, targets: [new ExternalReportingTarget("A", "127.0.0.1", port, true)])
+        };
+        var store   = new MutableConfigStore(config);
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader);
+        var region  = new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false);
+        var cycle   = DateTimeOffset.UtcNow;
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            // Batch 1 (pass-0) then batch 2 (residual), same cycle.
+            channel.Writer.TryWrite(new DecodeBatch(cycle,
+                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22", Region: region)]));
+            channel.Writer.TryWrite(new DecodeBatch(cycle,
+                [new DecodeResult(Time: "12:00:00", Snr: -19, Dt: 0.3, FreqHz: 2100, Message: "CQ Q1UVW EN37", Region: region)]));
+
+            // Heartbeat + Status (timer burst) + two Decodes; leave time for anything extra to show up.
+            var received = await ReceiveAllAsync(listener, 10, TimeSpan.FromSeconds(2));
+            var types = received.Select(ReadMessageType).ToList();
+
+            types.Count(t => t == WsjtxDatagram.MessageType.Decode).Should().Be(2, "one Decode per decoded row, across both batches");
+            types.Count(t => t == WsjtxDatagram.MessageType.Clear).Should().Be(0, "there is no per-batch Clear");
+            types.Count(t => t == WsjtxDatagram.MessageType.Status).Should().BeLessOrEqualTo(1,
+                "Status is timer-driven for a leader and never repeated by a second batch");
+            types.Count(t => t == WsjtxDatagram.MessageType.Heartbeat).Should().BeLessOrEqualTo(1);
+        }
+        finally
+        {
+            await sut.StopAsync(CancellationToken.None);
+        }
+    }
 }

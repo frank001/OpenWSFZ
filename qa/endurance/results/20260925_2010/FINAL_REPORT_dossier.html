@@ -1,0 +1,268 @@
+<title>20260925_2010 endurance run -- 12h 40m direct-CODEC</title>
+<style>
+  :root{
+    --ink:#1b1712; --panel:#24201a; --panel-2:#2c2620;
+    --cream:#ece5d8; --dim:#a89984; --hair:#3c3428;
+    --amber:#d99a3d; --amber-dim:#8a6432;
+    --alert:#c1503f; --alert-dim:#5c2f28;
+    --ok:#7c9a6c; --ok-dim:#3f5233;
+    --info:#7a93ad;
+    --mono:'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="light"]){
+      --ink:#f4efe4; --panel:#fffdf8; --panel-2:#f7f1e4;
+      --cream:#241f18; --dim:#6b6154; --hair:#ddd2bd;
+      --amber:#a9661a; --amber-dim:#c9a06a;
+      --alert:#a33d2d; --alert-dim:#e6c3ba;
+      --ok:#4f7241; --ok-dim:#cddcc4;
+      --info:#3d5978;
+    }
+  }
+  :root[data-theme="light"]{
+      --ink:#f4efe4; --panel:#fffdf8; --panel-2:#f7f1e4;
+      --cream:#241f18; --dim:#6b6154; --hair:#ddd2bd;
+      --amber:#a9661a; --amber-dim:#c9a06a;
+      --alert:#a33d2d; --alert-dim:#e6c3ba;
+      --ok:#4f7241; --ok-dim:#cddcc4;
+      --info:#3d5978;
+  }
+  :root[data-theme="dark"]{
+      --ink:#1b1712; --panel:#24201a; --panel-2:#2c2620;
+      --cream:#ece5d8; --dim:#a89984; --hair:#3c3428;
+      --amber:#d99a3d; --amber-dim:#8a6432;
+      --alert:#c1503f; --alert-dim:#5c2f28;
+      --ok:#7c9a6c; --ok-dim:#3f5233;
+      --info:#7a93ad;
+  }
+  body{ background:var(--ink); color:var(--cream); font-family:var(--sans); padding-inline:16px; }
+  .wrap{ max-width:960px; margin:0 auto; padding-block:40px 72px; }
+  .eyebrow{ font-family:var(--mono); font-size:11.5px; letter-spacing:.12em; text-transform:uppercase;
+            color:var(--amber); margin:0 0 10px; }
+  h1{ font-family:var(--mono); font-weight:700; font-size:clamp(26px,4.4vw,36px);
+      margin:0 0 8px; letter-spacing:-.01em; line-height:1.15; }
+  .dek{ color:var(--dim); font-size:15.5px; line-height:1.6; max-width:70ch; margin:0 0 6px; }
+  .meta{ font-family:var(--mono); font-size:12px; color:var(--dim); border-top:1px solid var(--hair);
+         border-bottom:1px solid var(--hair); padding-block:10px; margin:22px 0 30px;
+         display:flex; flex-wrap:wrap; gap:6px 22px; }
+  .meta b{ color:var(--cream); font-weight:600; }
+  nav.toc{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 36px; }
+  nav.toc a{ font-family:var(--mono); font-size:11.5px; color:var(--dim); text-decoration:none;
+             border:1px solid var(--hair); border-radius:20px; padding:6px 13px; background:var(--panel); }
+  nav.toc a:hover{ color:var(--amber); border-color:var(--amber-dim); }
+  .verdicts{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--hair);
+             border:1px solid var(--hair); margin-bottom:40px; border-radius:4px; overflow:hidden; }
+  .verdict{ background:var(--panel); padding:20px 18px; }
+  .verdict .arm{ font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.08em;
+                 color:var(--dim); margin-bottom:10px; }
+  .verdict .row{ font-family:var(--mono); font-size:22px; font-weight:700; line-height:1.2; margin-bottom:8px; }
+  .verdict .row.ok{ color:var(--ok); } .verdict .row.alert{ color:var(--alert); } .verdict .row.info{ color:var(--info); }
+  .verdict .note{ font-size:12.5px; color:var(--dim); line-height:1.5; }
+  section{ margin-bottom:56px; }
+  .section-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+                 border-bottom:1px solid var(--hair); padding-bottom:10px; margin-bottom:22px; flex-wrap:wrap; }
+  h2{ font-family:var(--mono); font-size:15px; text-transform:uppercase; letter-spacing:.06em;
+      color:var(--amber); margin:0; scroll-margin-top:16px; }
+  .section-tag{ font-family:var(--mono); font-size:11px; padding:3px 10px; border-radius:20px; white-space:nowrap; }
+  .tag-ok{ background:var(--ok-dim); color:var(--ok); }
+  .tag-alert{ background:var(--alert-dim); color:var(--alert); }
+  .tag-info{ background:var(--panel-2); color:var(--info); border:1px solid var(--hair); }
+  h3{ font-family:var(--mono); font-size:12.5px; text-transform:uppercase; letter-spacing:.05em;
+      color:var(--dim); margin:26px 0 12px; }
+  p{ font-size:14.5px; line-height:1.65; max-width:72ch; margin:0 0 14px; }
+  p.tight{ max-width:none; }
+  code{ font-family:var(--mono); font-size:0.92em; background:var(--panel-2); padding:1px 5px; border-radius:3px; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; margin:0 0 22px; }
+  th, td{ text-align:right; padding:7px 10px; border-bottom:1px solid var(--hair); font-variant-numeric:tabular-nums; }
+  th:first-child, td:first-child{ text-align:left; }
+  th{ font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim);
+      font-weight:500; border-bottom:1px solid var(--amber-dim); }
+  tr:last-child td{ border-bottom:none; }
+  .tbl-wrap{ overflow-x:auto; margin-bottom:22px; }
+  td.hl{ color:var(--amber); font-weight:600; }
+  ol.fn{ font-family:var(--mono); font-size:11.5px; color:var(--dim); line-height:1.8; padding-left:20px; margin:0 0 24px; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  figure{ margin:0 0 22px; background:var(--panel); border:1px solid var(--hair); border-radius:4px;
+          padding:12px 12px 14px; }
+  figure img{ width:100%; display:block; border-radius:2px; background:#0d0b08; }
+  figcaption{ font-size:12px; color:var(--dim); margin-top:9px; line-height:1.5; }
+  figcaption b{ color:var(--cream); }
+  .callout{ padding:14px 16px; border-radius:4px; border:1px solid var(--hair); background:var(--panel);
+            border-left:3px solid var(--amber); font-size:13.5px; line-height:1.6; margin:0 0 20px; }
+  .callout.ok{ border-left-color:var(--ok); }
+  .callout.alert{ border-left-color:var(--alert); }
+  .callout b{ color:var(--cream); }
+  .pill-row{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 20px; }
+  .pill{ font-family:var(--mono); font-size:11px; padding:5px 11px; border-radius:20px; background:var(--panel-2);
+         border:1px solid var(--hair); color:var(--dim); }
+  .pill b{ color:var(--cream); }
+  .pill.hit{ color:var(--ok); border-color:var(--ok-dim); }
+  .pill.miss{ color:var(--alert); border-color:var(--alert-dim); }
+  .pill.watch{ color:var(--info); border-color:var(--hair); }
+  footer{ border-top:1px solid var(--hair); padding-top:18px; font-family:var(--mono); font-size:11px;
+          color:var(--dim); line-height:1.8; }
+  footer a{ color:var(--dim); }
+  @media (max-width:720px){ .verdicts{ grid-template-columns:1fr; } .grid2{ grid-template-columns:1fr; } }
+</style>
+<div class="wrap">
+  <p class="eyebrow">OpenWSFZ &middot; QA final report &middot; endurance run</p>
+  <h1>20260925_2010 endurance run -- 12h 40m direct-CODEC</h1>
+  <p class="dek">Standard post-endurance-run report: full-corpus spectral anomaly scan, complete matched-decode ANOVA, and the HK-036 historical trend read.</p>
+  <div class="meta">
+    <span>Window <b>2026-09-25T20:12:00Z &rarr; 2026-09-26T08:12:00Z</b> (not recordedh)</span>
+    <span>Band <b>&mdash;</b></span>
+    <span>Build <b>&mdash; </b>
+      (DLL <b>&hellip;</b>, shim <b>&mdash;</b>, nhard <b>&mdash;</b>)</span>
+    <span>Chain <b>&mdash;</b></span>
+    <span>REF <b>&mdash;</b></span>
+  </div>
+  <nav class="toc">
+    <a href="#verdicts">Verdicts</a><a href="#health">1&middot;Run health</a>
+    <a href="#spectrum">2&middot;Spectrum scan</a><a href="#anova">3&middot;ANOVA</a>
+    <a href="#spectral">4&middot;Spectral trace</a><a href="#trend">5&middot;Historical trend</a>
+    <a href="#provenance">Provenance</a>
+  </nav>
+  <div class="verdicts" id="verdicts">
+    <div class="verdict"><div class="arm">&sect;1&#8211;2 Run health + spectrum scan</div>
+      <div class="row alert">ISSUES FOUND</div>
+      <div class="note">0 read errors, 1 clipped,
+        0 dropouts, 0 hot spikes across
+        2884 cycles. Level -28.18 &plusmn; 0.80 dBFS (MAD).</div></div>
+    <div class="verdict"><div class="arm">&sect;2, &sect;4 Spectral anomaly hunt</div>
+      <div class="row ok">NONE FOUND</div>
+      <div class="note">Hum: no control run supplied -- not claiming chain-independence, compare manually if a comparator exists. Spur: RESOLVED: real station traffic, not a hardware/decoder artefact</div></div>
+    <div class="verdict"><div class="arm">&sect;5 HK-036 Section 4 &middot; chain effect</div>
+      <div class="row info">no comparable rows yet</div>
+      <div class="note">SNR gap this run: not recorded dB. See &sect;5 for the
+        full historical series before reading any movement as a chain effect.</div></div>
+  </div>
+
+  <section id="health">
+    <div class="section-head"><h2>1&nbsp;&middot;&nbsp;Run completion &amp; health</h2>
+      <span class="section-tag tag-alert">review needed</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Decode counts</th><th>OpenWSFZ</th><th>Reference</th><th>Matched</th></tr></thead>
+      <tbody><tr><td>this window</td><td>47,212</td><td>76,999</td><td>46,917</td></tr></tbody></table></div>
+  </section>
+
+  <section id="spectrum">
+    <div class="section-head"><h2>2&nbsp;&middot;&nbsp;Spectrum anomaly scan</h2>
+      <span class="section-tag tag-info">run before the ANOVA comparison, per standing instruction</span></div>
+    <p>Every cycle WAV in <code>owsfz/wav/</code> read in full, no subsampling. Script:
+      <code>spectrum_scan.py</code> + <code>spectrum_scan_report.py</code>.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody>
+      <tr><td>Files read / errors</td><td>2,884 / 2,884 ok, 0 errors</td></tr>
+      <tr><td>Format consistency</td><td>100% consistent</td></tr>
+      <tr><td>Clipping</td><td>1 files</td></tr>
+      <tr><td>Dropouts / hot spikes</td><td>0 / 0 files</td></tr>
+      <tr><td>Level</td><td>median -28.18 dBFS, MAD 0.80 dB</td></tr>
+      <tr><td>Sub-passband hum (45-125Hz)</td><td>21.89 dB over floor (median)</td></tr>
+      <tr><td>In-band &gt;40dB spur candidates</td><td>1,716 files</td></tr>
+    </tbody></table></div>
+    <h3>Level over the run</h3>
+    <figure><img src="img/level_timeseries.png" alt="Capture level over the run">
+      <figcaption>Gain-step / dropout / drift check.</figcaption></figure>
+    <h3>Representative single-cycle spectrum</h3>
+    <figure><img src="img/example_spectrum.png" alt="Representative single-cycle spectrum with analysis bands annotated">
+      <figcaption>Representative file: <code>260926_025100.wav</code>.</figcaption></figure>
+    <h3>Sub-passband hum</h3>
+    <figure><img src="img/hum_timeseries.png" alt="Sub-passband hum band over the run">
+      <figcaption>no control run supplied -- not claiming chain-independence, compare manually if a comparator exists</figcaption></figure>
+    <div class="callout ok"><b>Hum verdict:</b> no control run supplied -- not claiming chain-independence, compare manually if a comparator exists</div>
+    <h3>In-band spur candidates</h3>
+    <figure><img src="img/spur_histogram.png" alt="In-band spur candidate frequency spread">
+      <figcaption>Peak-frequency spread of >40dB-over-local-median candidates.</figcaption></figure>
+    <div class="callout ok"><b>Spur verdict:</b> RESOLVED: real station traffic, not a hardware/decoder artefact
+ &mdash; 740 decodes, 80 distinct
+      messages at 1435&nbsp;Hz, SNR range [-18, 20].
+</div>
+  </section>
+
+  <section id="anova">
+    <div class="section-head"><h2>3&nbsp;&middot;&nbsp;ANOVA &mdash; matched-decode metrics</h2>
+      <span class="section-tag tag-info">recomputed directly from both ALL.TXT files</span></div>
+    <p>Two-way ANOVA without replication over <b>46,917</b> matched pairs. Recomputed here via
+      <code>anova_common.py</code> (the same module the standard report uses), not parsed from
+      rendered markdown.</p>
+    <h3>Grid-alignment gate</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Appraiser</th><th>Unique ts</th><th>On-grid</th><th>G</th><th>Row</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>OpenWSFZ</td><td>2,880</td><td>2,880</td><td class="hl">1.0000</td><td>ROW 1</td><td>PASS</td></tr>
+        <tr><td>Reference</td><td>2,880</td><td>2,880</td><td class="hl">1.0000</td><td>ROW 1</td><td>PASS</td></tr>
+      </tbody></table></div>
+    <h3>Decode coverage</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
+      <tr><td>OpenWSFZ decodes</td><td>47,212</td></tr>
+      <tr><td>Reference decodes</td><td>76,999</td></tr>
+      <tr><td>Matched pairs</td><td class="hl">46,917 (99.4% of OpenWSFZ, 60.9% of reference)</td></tr>
+    </tbody></table></div>
+
+    <h3>SNR (dB)</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Source</th><th>SS</th><th>df</th><th>MS</th><th>F</th><th>P</th></tr></thead><tbody><tr><td>Part</td><td>7187299.175</td><td>46916</td><td>153.195</td><td>13.944</td><td>0.0000</td></tr><tr><td>Appraiser</td><td>163296.100</td><td>1</td><td>163296.100</td><td>14863.463</td><td>0.0000</td></tr><tr><td>Residual (confounded w/ interaction, n=1/cell)</td><td>515438.400</td><td>46916</td><td>10.986</td><td>not recorded</td><td>not recorded</td></tr><tr><td>Total</td><td>7866033.675</td><td>93833</td><td>not recorded</td><td>not recorded</td><td>not recorded</td></tr></tbody></table></div>
+    <p class="tight">Appraiser means: OpenWSFZ <b>-6.4091 dB</b>,
+      Reference <b>-3.7708 dB</b>,
+      grand mean -5.0900 dB.</p>
+    <div class="grid2">
+      <figure><img src="img/anova_snr_scatter.png" alt="Matched-decode SNR scatter"><figcaption>n=46,917 pairs.</figcaption></figure>
+      <figure><img src="img/anova_snr_residual.png" alt="Per-Part SNR residual"><figcaption>Per-Part residual vs reference.</figcaption></figure>
+    </div>
+
+    <h3>DT (time offset) (s)</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Source</th><th>SS</th><th>df</th><th>MS</th><th>F</th><th>P</th></tr></thead><tbody><tr><td>Part</td><td>12683.285</td><td>46916</td><td>0.270</td><td>214.554</td><td>0.0000</td></tr><tr><td>Appraiser</td><td>9946.575</td><td>1</td><td>9946.575</td><td>7894025.907</td><td>0.0000</td></tr><tr><td>Residual (confounded w/ interaction, n=1/cell)</td><td>59.115</td><td>46916</td><td>0.001</td><td>not recorded</td><td>not recorded</td></tr><tr><td>Total</td><td>22688.975</td><td>93833</td><td>not recorded</td><td>not recorded</td><td>not recorded</td></tr></tbody></table></div>
+    <p class="tight">Appraiser means: OpenWSFZ <b>0.8696 s</b>,
+      Reference <b>0.2185 s</b>,
+      grand mean 0.5441 s.</p>
+    <div class="grid2">
+      <figure><img src="img/anova_dt_scatter.png" alt="Matched-decode DT (time offset) scatter"><figcaption>n=46,917 pairs.</figcaption></figure>
+      <figure><img src="img/anova_dt_residual.png" alt="Per-Part DT (time offset) residual"><figcaption>Per-Part residual vs reference.</figcaption></figure>
+    </div>
+
+    <h3>Frequency offset (Hz)</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Source</th><th>SS</th><th>df</th><th>MS</th><th>F</th><th>P</th></tr></thead><tbody><tr><td>Part</td><td>47212193501.957</td><td>46916</td><td>1006313.273</td><td>1386060.930</td><td>0.0000</td></tr><tr><td>Appraiser</td><td>403.866</td><td>1</td><td>403.866</td><td>556.271</td><td>0.0000</td></tr><tr><td>Residual (confounded w/ interaction, n=1/cell)</td><td>34062.134</td><td>46916</td><td>0.726</td><td>not recorded</td><td>not recorded</td></tr><tr><td>Total</td><td>47212227967.957</td><td>93833</td><td>not recorded</td><td>not recorded</td><td>not recorded</td></tr></tbody></table></div>
+    <p class="tight">Appraiser means: OpenWSFZ <b>1524.4943 Hz</b>,
+      Reference <b>1524.3631 Hz</b>,
+      grand mean 1524.4287 Hz.</p>
+    <div class="grid2">
+      <figure><img src="img/anova_freq_scatter.png" alt="Matched-decode Frequency offset scatter"><figcaption>n=46,917 pairs.</figcaption></figure>
+      <figure><img src="img/anova_freq_residual.png" alt="Per-Part Frequency offset residual"><figcaption>Per-Part residual vs reference.</figcaption></figure>
+    </div>
+
+    <p style="font-size:12.5px;color:var(--dim);"><b>Caveat (structural, not a defect):</b> with one
+      observation per Part&times;Appraiser cell, the interaction term and the residual/error term are
+      mathematically confounded for every response above -- the standard property of an unreplicated
+      factorial design. Cross-run comparison and interpretation is Architect/Captain territory, not
+      this pipeline's.</p>
+  </section>
+
+  <section id="spectral">
+    <div class="section-head"><h2>4&nbsp;&middot;&nbsp;Spectral trace</h2>
+      <span class="section-tag tag-ok">QA diagnostic</span></div>
+    <p>Representative cycles chosen mechanically from the full-corpus scan: quietest, loudest,
+      closest-to-median, and (if the spur-resolve step above found and confirmed a dominant
+      in-band peak) the cycle that produced it.</p>
+    <figure><img src="img/spectral_trace.png" alt="Welch PSD and STFT spectrogram comparison">
+      <figcaption>Welch PSD (left) and STFT spectrogram (right), 12kHz sample rate. Panels:
+        QUIET, TYPICAL, LOUD, SPUR-RESOLVED.</figcaption></figure>
+  </section>
+
+  <section id="trend">
+    <div class="section-head"><h2>5&nbsp;&middot;&nbsp;Historical trend (HK-036 Section 4 read)</h2>
+      <span class="section-tag tag-info">3 runs on record</span></div>
+    <p><code>G</code> is the grid-alignment gate (ROW 1 PASS &ge; 0.99). Non-comparable and
+      drift-contaminated rows are footnoted, never pooled. Never pool different <code>nhard</code>
+      values or different bands.</p>
+    <div class="tbl-wrap"><table><thead><tr>
+      <th>Date</th><th>Band</th><th>Hrs</th><th>Shim</th><th>nhard</th><th>Ref.</th><th>Radio chain</th>
+      <th>G</th><th>Matched</th><th>Matched % ref</th><th>OWS-only %</th><th>SNR gap</th><th>DT gap</th>
+    </tr></thead><tbody><tr><td>2026-09-22</td><td>40m</td><td>12.0</td><td>20260054</td><td>40</td><td>live_wsjtx</td><td>Yaesu FT-991A -&gt; Voicemeeter Out B1</td><td>1.0000</td><td>55,010</td><td>59.8</td><td>0.8</td><td>-2.824</td><td>+0.6548</td></tr><tr><td>2026-09-23</td><td>40m</td><td>24.0</td><td>20260054</td><td>40</td><td>live_wsjtx</td><td>FT-991A -&gt; Microphone (2- USB Audio CODEC), DIRECT (Voicemeeter/CABLE out of the loop for this arm)</td><td>1.0000</td><td>97,279</td><td>61.1</td><td>0.7</td><td>-3.225</td><td>+0.6484</td></tr><tr style="background:var(--panel-2);"><td><b>2026-09-25 (this run)</b></td><td>40m</td><td>12.0</td><td>20260054</td><td>40</td><td>live_wsjtx</td><td>FT-991A -&gt; Microphone (2- USB Audio CODEC), DIRECT (Voicemeeter/CABLE out of the loop for this arm)</td><td>1.0000</td><td>46,917</td><td>60.9</td><td>0.6</td><td>-2.638</td><td>+0.6511</td></tr></tbody></table></div>
+    <ol class="fn"></ol>
+    
+  </section>
+
+  <footer id="provenance">
+    Corpus (gitignored, NFR-021): <code>artefacts\20260925_2010_endurance_run-gathered</code>.
+    Pipeline: <code>spectrum_scan.py</code> &rarr; <code>spectrum_scan_report.py</code> &rarr;
+    <code>render_dossier.py</code> &mdash; the standard routine after every endurance run
+    (Captain's instruction, 2026-09-24). Generated by <code>render_dossier.py</code>.
+  </footer>
+</div>

@@ -1,0 +1,455 @@
+{
+ "out_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\artefacts\\rr_2026-09-29_replay81",
+ "greps": {
+  "subfeas_line": "Sub-feas residual pass: residualDecodes=",
+  "av": "WARN-TEMPLATE .*access violation",
+  "contained": "WARN-TEMPLATE Sub-feas residual pass failed"
+ },
+ "constants": {
+  "hard_ms": 13000,
+  "headroom_max_ms": 10000,
+  "headroom_p95_H_ms": 6000,
+  "abandon_flag": 0.05,
+  "r6_bar_ms": 16000
+ },
+ "preflight": {
+  "selection_sha256": "730d6ea61f25ba8cad90520a17266b3efe0e1e476b1bd1ce29d1a6cbcc3b1f15",
+  "utc": "2026-09-29T20:48:47Z",
+  "builds": {
+   "2b39cf18": {
+    "libft8_sha256_actual": "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5",
+    "expected": "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5",
+    "harness_dll_sha256": "cebc57603432a29c9499378dd6f2208e39b9d3fbf22ac111ee4f96c0d1ab24db"
+   },
+   "84cac119": {
+    "libft8_sha256_actual": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+    "expected": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+    "harness_dll_sha256": "4d780fccdb322e08c549ef023854d98833d6d2f3f75369cbf6a4cc00d027cbbe"
+   },
+   "51e40b55": {
+    "libft8_sha256_actual": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+    "expected": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+    "harness_dll_sha256": "ba1466cfa1adad8276b3230960f7fa74061bb679bce9eed9b46a19cc75e34418"
+   }
+  },
+  "harness_commit": "cd36bb42017012a805b561418c6b55f9cac87873",
+  "harness_tree_clean": true,
+  "totals": {
+   "H": 605,
+   "M": 300,
+   "R6_pairs": 20,
+   "pilot": 60
+  }
+ },
+ "R0": {
+  "20260922_2056": {
+   "producing_build": "84cac119",
+   "libft8_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+   "cycles": 20,
+   "within_1": 20,
+   "fraction": 1.0,
+   "pass": true,
+   "delta_histogram": {
+    "-1": 1,
+    "0": 18,
+    "1": 1
+   }
+  },
+  "20260923_1730": {
+   "producing_build": "84cac119",
+   "libft8_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+   "cycles": 20,
+   "within_1": 20,
+   "fraction": 1.0,
+   "pass": true,
+   "delta_histogram": {
+    "0": 19,
+    "1": 1
+   }
+  },
+  "20260925_2010": {
+   "producing_build": "51e40b55",
+   "libft8_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+   "cycles": 20,
+   "within_1": 20,
+   "fraction": 1.0,
+   "pass": true,
+   "delta_histogram": {
+    "0": 20
+   }
+  }
+ },
+ "status": {
+  "phase": "DONE",
+  "updated_utc": "2026-09-30T00:27:42Z",
+  "orphan_check": "empty"
+ },
+ "process_exits": {
+  "harness_invocations": 10,
+  "non_zero": 0
+ },
+ "per_run_stratum": {
+  "20260922_2056|H": {
+   "cycles_selected": 161,
+   "rows_ON": 161,
+   "rows_OFF": 161,
+   "rows_with_exception": 0,
+   "sub_feas_log_lines": 161,
+   "lines_eq_cycles": true,
+   "abandoned": 103,
+   "abandon_fraction": 0.639751552795031,
+   "contained_lines": 0,
+   "on_ms": {
+    "n": 161,
+    "median": 13444.5,
+    "p95": 14067.1,
+    "max": 14925.1
+   },
+   "off_ms": {
+    "n": 161,
+    "median": 472.6,
+    "p95": 512.3,
+    "max": 531.4
+   },
+   "near_guard_ge_12500": 104,
+   "av_warnings": 0,
+   "contained_warnings": 0
+  },
+  "20260922_2056|M": {
+   "cycles_selected": 100,
+   "rows_ON": 100,
+   "rows_OFF": 100,
+   "rows_with_exception": 0,
+   "sub_feas_log_lines": 100,
+   "lines_eq_cycles": true,
+   "abandoned": 44,
+   "abandon_fraction": 0.44,
+   "contained_lines": 0,
+   "on_ms": {
+    "n": 100,
+    "median": 12362.900000000001,
+    "p95": 14366.9,
+    "max": 14705.4
+   },
+   "off_ms": {
+    "n": 100,
+    "median": 505.55,
+    "p95": 545.7,
+    "max": 690.7
+   },
+   "near_guard_ge_12500": 46,
+   "av_warnings": 0,
+   "contained_warnings": 0
+  },
+  "20260923_1730|H": {
+   "cycles_selected": 406,
+   "rows_ON": 406,
+   "rows_OFF": 406,
+   "rows_with_exception": 0,
+   "sub_feas_log_lines": 406,
+   "lines_eq_cycles": true,
+   "abandoned": 390,
+   "abandon_fraction": 0.9605911330049262,
+   "contained_lines": 0,
+   "on_ms": {
+    "n": 406,
+    "median": 13918.349999999999,
+    "p95": 14898.9,
+    "max": 16309.0
+   },
+   "off_ms": {
+    "n": 406,
+    "median": 479.25,
+    "p95": 577.1,
+    "max": 830.0
+   },
+   "near_guard_ge_12500": 393,
+   "av_warnings": 0,
+   "contained_warnings": 0
+  },
+  "20260923_1730|M": {
+   "cycles_selected": 100,
+   "rows_ON": 100,
+   "rows_OFF": 100,
+   "rows_with_exception": 0,
+   "sub_feas_log_lines": 100,
+   "lines_eq_cycles": true,
+   "abandoned": 92,
+   "abandon_fraction": 0.92,
+   "contained_lines": 0,
+   "on_ms": {
+    "n": 100,
+    "median": 13897.85,
+    "p95": 14762.6,
+    "max": 15003.6
+   },
+   "off_ms": {
+    "n": 100,
+    "median": 528.0,
+    "p95": 559.7,
+    "max": 580.2
+   },
+   "near_guard_ge_12500": 92,
+   "av_warnings": 0,
+   "contained_warnings": 0
+  },
+  "20260925_2010|H": {
+   "cycles_selected": 38,
+   "rows_ON": 38,
+   "rows_OFF": 38,
+   "rows_with_exception": 0,
+   "sub_feas_log_lines": 38,
+   "lines_eq_cycles": true,
+   "abandoned": 38,
+   "abandon_fraction": 1.0,
+   "contained_lines": 0,
+   "on_ms": {
+    "n": 38,
+    "median": 13963.1,
+    "p95": 14124.8,
+    "max": 14136.9
+   },
+   "off_ms": {
+    "n": 38,
+    "median": 486.20000000000005,
+    "p95": 534.7,
+    "max": 535.9
+   },
+   "near_guard_ge_12500": 38,
+   "av_warnings": 0,
+   "contained_warnings": 0
+  },
+  "20260925_2010|M": {
+   "cycles_selected": 100,
+   "rows_ON": 100,
+   "rows_OFF": 100,
+   "rows_with_exception": 0,
+   "sub_feas_log_lines": 100,
+   "lines_eq_cycles": true,
+   "abandoned": 98,
+   "abandon_fraction": 0.98,
+   "contained_lines": 0,
+   "on_ms": {
+    "n": 100,
+    "median": 13996.7,
+    "p95": 14730.7,
+    "max": 15094.6
+   },
+   "off_ms": {
+    "n": 100,
+    "median": 509.45,
+    "p95": 552.6,
+    "max": 576.8
+   },
+   "near_guard_ge_12500": 98,
+   "av_warnings": 0,
+   "contained_warnings": 0
+  }
+ },
+ "other_warning_templates": {
+  "Sub-feas residual pass: wall-clock budget {Budget:F1}s exceeded {Phase} - abandoning the r": 770
+ },
+ "R1": {
+  "max_ON_ms": 16309.0,
+  "bar_ms": 13000,
+  "over_bar": [
+   "260922_205845 (arch pass-0 28, 13541 ms)",
+   "260922_205915 (arch pass-0 26, 13872 ms)",
+   "260922_210230 (arch pass-0 25, 13495 ms)",
+   "260922_210400 (arch pass-0 28, 13695 ms)",
+   "260922_210800 (arch pass-0 27, 13494 ms)",
+   "260922_211400 (arch pass-0 25, 13572 ms)",
+   "260922_212945 (arch pass-0 26, 13524 ms)",
+   "260922_231630 (arch pass-0 26, 13345 ms)",
+   "260922_231700 (arch pass-0 25, 13325 ms)",
+   "260922_231900 (arch pass-0 25, 13452 ms)",
+   "260922_231930 (arch pass-0 25, 13490 ms)",
+   "260922_232030 (arch pass-0 25, 13483 ms)",
+   "260922_232130 (arch pass-0 26, 13480 ms)",
+   "260922_232500 (arch pass-0 28, 13358 ms)",
+   "260922_232630 (arch pass-0 25, 13362 ms)",
+   "260922_233330 (arch pass-0 27, 13659 ms)",
+   "260922_234930 (arch pass-0 29, 13810 ms)",
+   "260923_000930 (arch pass-0 26, 13409 ms)",
+   "260923_001145 (arch pass-0 25, 13708 ms)",
+   "260923_003700 (arch pass-0 25, 13285 ms)",
+   "260923_011115 (arch pass-0 29, 13660 ms)",
+   "260923_012115 (arch pass-0 25, 13378 ms)",
+   "260923_014645 (arch pass-0 26, 13317 ms)",
+   "260923_022700 (arch pass-0 25, 14693 ms)",
+   "260923_023230 (arch pass-0 28, 13488 ms)",
+   "260923_023600 (arch pass-0 25, 13481 ms)",
+   "260923_024300 (arch pass-0 27, 13520 ms)",
+   "260923_024330 (arch pass-0 25, 13569 ms)",
+   "260923_024400 (arch pass-0 25, 13194 ms)",
+   "260923_024430 (arch pass-0 25, 13454 ms)",
+   "260923_024630 (arch pass-0 25, 13827 ms)",
+   "260923_024800 (arch pass-0 25, 13763 ms)",
+   "260923_024900 (arch pass-0 25, 13602 ms)",
+   "260923_024930 (arch pass-0 28, 13427 ms)",
+   "260923_025100 (arch pass-0 25, 13688 ms)",
+   "260923_025200 (arch pass-0 26, 13513 ms)",
+   "260923_030230 (arch pass-0 25, 13767 ms)",
+   "260923_030400 (arch pass-0 25, 13631 ms)",
+   "260923_030530 (arch pass-0 26, 13728 ms)",
+   "260923_032400 (arch pass-0 25, 13927 ms)",
+   "260923_032430 (arch pass-0 25, 13726 ms)",
+   "260923_032730 (arch pass-0 26, 13760 ms)",
+   "260923_032830 (arch pass-0 29, 14425 ms)",
+   "260923_032900 (arch pass-0 25, 13787 ms)",
+   "260923_033100 (arch pass-0 25, 13506 ms)",
+   "260923_033130 (arch pass-0 28, 13670 ms)",
+   "260923_033200 (arch pass-0 26, 13533 ms)",
+   "260923_034130 (arch pass-0 25, 13075 ms)",
+   "260923_034715 (arch pass-0 25, 13447 ms)",
+   "260923_034830 (arch pass-0 25, 13576 ms)"
+  ],
+  "n_over_bar": 765,
+  "verdict": "FAIL"
+ },
+ "R2": {
+  "max_ON_ms": 16309.0,
+  "p95_H_ON_ms": 14809.3,
+  "bar_max_ms": 10000,
+  "bar_p95_H_ms": 6000,
+  "verdict": "FAIL"
+ },
+ "R3": {
+  "access_violation_warnings": 0,
+  "contained_exception_warnings": 0,
+  "contained_exception_log_lines": 0,
+  "csv_rows_with_exception": 0,
+  "harness_process_exits_non_zero": 0,
+  "verdict": "PASS"
+ },
+ "R4": {
+  "H_lines": 605,
+  "H_abandoned": 531,
+  "H_abandon_fraction": 0.8776859504132232,
+  "H_flag_over_5pct": true,
+  "lines_eq_cycles_every_block": true,
+  "mismatched_blocks": [],
+  "verdict": "REPORT ONLY (flag threshold 5% over H)"
+ },
+ "R5": {
+  "20260922_2056": "archived daemon timing not available for this run",
+  "20260923_1730": "archived daemon timing not available for this run",
+  "20260925_2010": "archived daemon timing not available for this run"
+ },
+ "R6": {
+  "pairs": 20,
+  "max_ON_ms": 14089.4,
+  "bar_ms": 16000,
+  "av_warnings": 0,
+  "contained_warnings": 0,
+  "contained_log_lines": 0,
+  "abandoned": 18,
+  "rows_with_exception": 0,
+  "decodes_pass0_plus_residual": {
+   "min": 17,
+   "max": 27
+  },
+  "fitted_signals_max": 27,
+  "verdict": "PASS"
+ },
+ "R7_descriptive_only_no_claim": {
+  "20260922_2056": {
+   "cycles": 261,
+   "on_minus_off_count_mean": 1.6781609195402298,
+   "on_minus_off_hist": {
+    "0": 149,
+    "1": 7,
+    "2": 17,
+    "3": 25,
+    "4": 27,
+    "5": 13,
+    "6": 16,
+    "7": 4,
+    "8": 2,
+    "9": 1
+   },
+   "residualDecodes_mean": 2.007662835249042,
+   "fittedSignals_mean": 22.54022988505747
+  },
+  "20260923_1730": {
+   "cycles": 506,
+   "on_minus_off_count_mean": 0.20355731225296442,
+   "on_minus_off_hist": {
+    "0": 482,
+    "1": 3,
+    "2": 4,
+    "3": 4,
+    "4": 4,
+    "5": 3,
+    "6": 2,
+    "7": 2,
+    "10": 1,
+    "13": 1
+   },
+   "residualDecodes_mean": 0.23715415019762845,
+   "fittedSignals_mean": 23.484189723320156
+  },
+  "20260925_2010": {
+   "cycles": 138,
+   "on_minus_off_count_mean": 0.043478260869565216,
+   "on_minus_off_hist": {
+    "0": 136,
+    "3": 2
+   },
+   "residualDecodes_mean": 0.057971014492753624,
+   "fittedSignals_mean": 21.32608695652174
+  },
+  "ALL": {
+   "cycles": 905,
+   "on_minus_off_count_mean": 0.6044198895027625,
+   "on_minus_off_hist": {
+    "0": 767,
+    "1": 10,
+    "2": 21,
+    "3": 31,
+    "4": 31,
+    "5": 16,
+    "6": 18,
+    "7": 6,
+    "8": 2,
+    "9": 1,
+    "10": 1,
+    "13": 1
+   },
+   "residualDecodes_mean": 0.7204419889502762,
+   "fittedSignals_mean": 22.882872928176795
+  }
+ },
+ "selection_counts": {
+  "20260922_2056": {
+   "pilot": 20,
+   "M": 100,
+   "H": 161,
+   "blocks": {
+    "H": 161,
+    "M": 96,
+    "pilot": 20
+   }
+  },
+  "20260923_1730": {
+   "pilot": 20,
+   "M": 100,
+   "H": 406,
+   "blocks": {
+    "H": 290,
+    "M": 97,
+    "pilot": 20
+   }
+  },
+  "20260925_2010": {
+   "pilot": 20,
+   "M": 100,
+   "H": 38,
+   "blocks": {
+    "H": 36,
+    "M": 100,
+    "pilot": 20
+   }
+  }
+ }
+}

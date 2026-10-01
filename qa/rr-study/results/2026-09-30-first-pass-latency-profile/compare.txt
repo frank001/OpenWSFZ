@@ -1,0 +1,3 @@
+EQUIVALENT: 161 cycles, pass-0 count, total count and outcome hash identical
+whole-call median: shipped.csv = 497.413 ms, timed.csv = 492.387 ms, difference = -5.026 ms (-1.01 %)
+cycles=161  (all values milliseconds unless a count; share = stage median / whole-call median)

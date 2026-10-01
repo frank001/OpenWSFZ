@@ -1,0 +1,41 @@
+{
+ "selection_sha256": "f58c0c7bd3ed34855f5db24277b941202813831b0f088a34944f5ba97c6879e2",
+ "base_dll": "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5",
+ "cand_dll": "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c",
+ "cycles": 161,
+ "comparisons": [
+  {
+   "vs": "base_t14",
+   "run": "base_t14",
+   "rows": 3878,
+   "ref_rows": 3878,
+   "identical": true,
+   "n_diff_rows": 0,
+   "first_diff_row_labels": null
+  },
+  {
+   "vs": "base_t14",
+   "run": "cand_t14",
+   "rows": 3878,
+   "ref_rows": 3878,
+   "identical": true,
+   "n_diff_rows": 0,
+   "first_diff_row_labels": null
+  },
+  {
+   "vs": "base_t14",
+   "run": "cand_t4",
+   "rows": 3878,
+   "ref_rows": 3878,
+   "identical": true,
+   "n_diff_rows": 0,
+   "first_diff_row_labels": null
+  }
+ ],
+ "ref_kind_rc_counts": {
+  "analytic:rc0": 161,
+  "fit:rc-3": 87,
+  "fit:rc0": 3629
+ },
+ "e1_pass": true
+}

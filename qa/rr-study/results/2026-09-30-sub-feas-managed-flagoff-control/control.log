@@ -1,0 +1,28 @@
+2026-09-30T17:20:09Z START control run
+2026-09-30T17:20:09Z build main checkout=c3f423625063e38a87a7852a6bcf5223a65058e9 extra=''
+2026-09-30T17:20:13Z dll main path=build_main/libft8.dll sha256=91997e38038d9328edcb49cd1e8661706d0092ed2c73e808094c96c3980ad2c6
+2026-09-30T17:20:13Z build head checkout=247ac391d11f6a7474fd4c42ae4815a23e09fd45 extra='-p:HasSubfeas=true'
+2026-09-30T17:20:15Z dll head path=build_head/libft8.dll sha256=ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c
+2026-09-30T17:20:15Z builds done
+2026-09-30T17:20:15Z decode main 20260922_2056 (fresh process)
+2026-09-30T17:20:49Z   rc=0 rows=49
+2026-09-30T17:20:49Z decode main 20260923_1730 (fresh process)
+2026-09-30T17:21:40Z   rc=0 rows=77
+2026-09-30T17:21:40Z decode main 20260925_2010 (fresh process)
+2026-09-30T17:22:02Z   rc=0 rows=35
+2026-09-30T17:22:03Z decode head 20260922_2056 (fresh process)
+2026-09-30T17:22:35Z   rc=0 rows=49
+2026-09-30T17:22:35Z decode head 20260923_1730 (fresh process)
+2026-09-30T17:23:25Z   rc=0 rows=77
+2026-09-30T17:23:25Z decode head 20260925_2010 (fresh process)
+2026-09-30T17:23:50Z   rc=0 rows=35
+2026-09-30T17:23:50Z compare
+{
+ "cycles": 161,
+ "identical_in_order": 161,
+ "decodes_main": 3842,
+ "decodes_head": 3842,
+ "mismatching_cycles": [],
+ "PASS": true
+}
+2026-09-30T17:23:50Z END control run (compare exit=0)

@@ -787,6 +787,12 @@ app.Lifetime.ApplicationStarted.Register(() =>
         initialDecoder.KMinScorePass2,
         initialDecoder.OsdCorrThreshold,
         initialDecoder.OsdNhardMax);
+    // sub-feas-native-subtraction (design.md Decision 6): default false: unspecified/older
+    // config files load with the residual-decode pass off, matching pre-change behaviour.
+    ft8Decoder.SetSubtractionEnabled(initialDecoder.SubtractionEnabled);
+    // sub-feas-speed-redesign A4: 0 (the default, and what an older config loads as) = auto. One warning
+    // here if a hand-edited value is out of range; it is never logged per decode cycle.
+    ft8Decoder.SetSubtractionMaxThreads(initialDecoder.SubtractionMaxThreads);
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
     // not the raw pre-DI `configStore` local, so a WebApplicationFactory-hosted test host's
@@ -815,101 +821,33 @@ app.Lifetime.ApplicationStarted.Register(() =>
     var decodeFilterStore = app.Services.GetRequiredService<IDecodeFilterStore>();
     // cycle-audio-archive: resolved once here (not per-cycle), mirroring decodeFilterStore above.
     var cycleArchiveService = app.Services.GetRequiredService<CycleArchiveService>();
-    _ = Task.Run(async () =>
-    {
-        await foreach (var (pcmWindow, cycleStart, windowDialFreq) in
-            framerOutput.Reader.ReadAllAsync(stoppingToken))
-        {
-            // cycle-audio-archive: sampled as close to the window's actual close as possible
-            // (design.md Decision 6 — "the true wall-clock instant the window closed"), before
-            // any decode latency below is incurred.
-            var windowClosedUtc = DateTime.UtcNow;
-            try
-            {
-                // Snapshot the live frequency immediately before decoding.
-                // If a band change occurred during the 15-second capture window, the audio
-                // spans two bands and cannot be reliably labeled with either frequency.
-                // Discard the cycle: a mislabeled decode is worse than no decode (FR-032,
-                // defect: dial-freq-snapshot).
-                var currentDialFreq = (double?)WebApp.ResolveEffectiveFrequency(catState, configStore.Current);
-                if (windowDialFreq != currentDialFreq)
-                {
-                    startupLogger.LogInformation(
-                        "Cycle {CycleStart:HH:mm:ss}: discarded — dial frequency changed " +
-                        "from {Before} to {After} MHz during capture window.",
-                        cycleStart,
-                        windowDialFreq?.ToString("F3") ?? "unknown",
-                        currentDialFreq?.ToString("F3") ?? "unknown");
-                    continue;
-                }
-
-                // cycleStart is the UTC instant at which CycleFramer began accumulating
-                // this window — the authoritative cycle timestamp (R3 / FR-028).
-                // dialFreq falls back to the configured value when CAT is absent.
-                var dialFreq = windowDialFreq ?? configStore.Current.DecodeLog?.DialFrequencyMHz ?? 0.0;
-
-                // qso-confirmation-band-awareness: resolve the session's current active band
-                // alongside dialFreq, using the same already-trustworthy (D-013) value — no
-                // second frequency resolution, just a band-name conversion via the shared
-                // BandTable (design.md Decision 4). null when dialFreq is 0.0 (unresolvable).
-                var currentBand = BandTable.DeriveBand(dialFreq);
-                var results     = await ft8Decoder.DecodeAsync(pcmWindow, cycleStart, currentBand);
-
-                // decode-noise-suppression: a deliberate, operator-opt-in exception to the
-                // region-lookup capability's "a lookup miss ... SHALL still reach ALL.TXT and the
-                // UI" invariant — see DecodeNoiseSuppressionFilter's doc comment. region-lookup's
-                // own resolution logic above is untouched; only the decode-panel broadcast and the
-                // QSO-controller batches below are gated. ALL.TXT (next line) always receives the
-                // unfiltered `results`.
-                var visibleResults = DecodeNoiseSuppressionFilter.Apply(
-                    results, configStore.Current.DecodeNoiseSuppression, callsignRegionStore);
-
-                _ = decodeEventBus.Publish(visibleResults); // fire-and-forget: do not await WebSocket delivery
-                await allTxtWriter.AppendAsync(cycleStart, dialFreq, results); // unfiltered — ALL.TXT unaffected
-
-                // cycle-audio-archive: non-blocking enqueue; the archive's own dedicated writer
-                // task performs all file I/O (design.md Decision 2 — the pump must never await
-                // disk I/O). decodeCount is unfiltered `results.Count`, matching ALL.TXT above —
-                // Decoded/NoDecodes mode selection reflects what the decoder actually produced,
-                // not what decode-noise-suppression hides from the UI.
-                cycleArchiveService.TryEnqueue(pcmWindow, cycleStart, windowClosedUtc, results.Count, dialFreq);
-
-                // fix-decode-filter-new-value-admission, design.md Decision 4: admit any
-                // previously-unseen attribute value (DXCC entity/Continent/CQ Zone/ITU Zone) on a
-                // narrowed-but-non-empty axis BEFORE the QSO-controller fan-out below, so this
-                // same decode cycle's engagement decision sees the already-corrected filter state
-                // — not one cycle later. Runs unconditionally (no WebSocketHub.HasClients gate):
-                // admission must happen identically whether or not a browser tab is attached,
-                // including fully headless (--background) operation. Coalesced to at most one
-                // broadcast per batch, not once per admitted value.
-                DecodeFilterState? admittedState = null;
-                foreach (var r in visibleResults)
-                {
-                    var updated = decodeFilterStore.AdmitNewValues(r);
-                    if (updated is not null)
-                        admittedState = updated;
-                }
-                if (admittedState is not null)
-                    decodeFilterEventBus.Publish(admittedState);
-
-                // Fan-out to both QSO controller channels (non-blocking; DropOldest when full).
-                // QsoControllerRouter activates only one service at a time via IsActive flags;
-                // the inactive service's HandleIdleAsync is a no-op, so the extra batches are cheap.
-                var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults);
-                qsoAnswererChannel.Writer.TryWrite(batch);
-                qsoCallerChannel.Writer.TryWrite(batch);
-                externalReportingChannel.Writer.TryWrite(batch);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break; // clean shutdown
-            }
-            catch (Exception ex)
-            {
-                startupLogger.LogError(ex, "Decode error: {Message}", ex.Message);
-            }
-        }
-    });
+    // sub-feas-speed-redesign two-stage publish (design.md D9): the pump body lives in DecodePump so it can be
+    // tested without the host. With the residual-pass flag OFF it is the previous inline loop, statement for
+    // statement (one decode, one publish, same order); flag ON publishes pass-0 as batch 1, then the residual
+    // pass's new decodes as batch 2 to the panel, ALL.TXT, filter admission and external reporting only.
+    // NOTE: the decode is deliberately NOT passed the stopping token, exactly as before (shutdown waits for it).
+    var decodePump = new DecodePump(new DecodePumpDependencies(
+        CurrentDialFrequency:     () => (double?)WebApp.ResolveEffectiveFrequency(catState, configStore.Current),
+        FallbackDialFrequency:    () => configStore.Current.DecodeLog?.DialFrequencyMHz ?? 0.0,
+        DeriveBand:               BandTable.DeriveBand,
+        SubtractionEnabled:       () => ft8Decoder.SubtractionEnabled,
+        DecodeSingleBatch:        (pcm, cycleStart, band, _) => ft8Decoder.DecodeAsync(pcm, cycleStart, band),
+        DecodeTwoStage:           (pcm, cycleStart, band, publishFirst, _) =>
+                                      ft8Decoder.DecodeTwoStageAsync(pcm, cycleStart, band, publishFirst),
+        ApplyNoiseSuppression:    results => DecodeNoiseSuppressionFilter.Apply(
+                                      results, configStore.Current.DecodeNoiseSuppression, callsignRegionStore),
+        PublishToPanel:           results => decodeEventBus.Publish(results),
+        AppendAllTxt:             (cycleStart, dialFreq, results) => allTxtWriter.AppendAsync(cycleStart, dialFreq, results),
+        EnqueueArchive:           cycleArchiveService.TryEnqueue,
+        AdmitNewValues:           decodeFilterStore.AdmitNewValues,
+        PublishFilterState:       state => decodeFilterEventBus.Publish(state),
+        AnswererChannel:          qsoAnswererChannel.Writer,
+        CallerChannel:            qsoCallerChannel.Writer,
+        ExternalReportingChannel: externalReportingChannel.Writer,
+        Logger:                   startupLogger));
+    _ = Task.Run(() => decodePump.RunAsync(
+        framerOutput.Reader.ReadAllAsync(stoppingToken),
+        stoppingToken));
 });
 
 // Restart pipeline when the device name changes via POST /api/v1/config.
@@ -927,6 +865,10 @@ configStore.OnSaved += newConfig =>
     // picks them up.  Null decoder is treated as calibrated defaults.
     var dec = newConfig.Decoder ?? new DecoderConfig();
     ft8Decoder.SetDecodeParams(dec.KMinScorePass2, dec.OsdCorrThreshold, dec.OsdNhardMax);
+    // sub-feas-native-subtraction (design.md Decision 6): takes effect on the next decode
+    // cycle, no rebuild required (spec's own "Feature can be enabled without a rebuild" scenario).
+    ft8Decoder.SetSubtractionEnabled(dec.SubtractionEnabled);
+    ft8Decoder.SetSubtractionMaxThreads(dec.SubtractionMaxThreads);
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
     // create a spurious new log file and reset the active sink.
@@ -1048,6 +990,9 @@ app.Lifetime.ApplicationStopping.Register(() =>
         captureHealthMonitor.DisposeAsync().AsTask().GetAwaiter().GetResult();
 
         StopFramerAsync().GetAwaiter().GetResult();
+        // sub-feas-speed-redesign A3: the decode pump has stopped, so no fit is in flight; free the native
+        // residual-pass workspace pool (about 30 MB per worker) now rather than leave it to process exit.
+        ft8Decoder.Dispose();
         captureManager.StopAsync().GetAwaiter().GetResult();
         captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
         framerOutput.Writer.TryComplete();

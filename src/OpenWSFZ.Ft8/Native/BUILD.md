@@ -150,6 +150,12 @@ cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
 cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
    native\ft8_lib_vendor\refine\coherent_llr.c
 
+:: Compile the sub-feas fit (sub-feas-native-subtraction; sub-feas-speed-redesign adds the workspace pool,
+:: the cancel flag and return code -4). OpenWSFZ-original. It uses a lock (SRWLOCK on Windows, a pthread
+:: mutex elsewhere), so it needs no extra link library.
+cl /I native\ft8_lib_vendor /I native\ft8_lib_vendor\fft /I native\ft8_lib_vendor\subfeas ^
+   /std:c11 /O2 /W3 /c native\ft8_lib_vendor\subfeas\subfeas_fit.c
+
 :: Link into DLL — exports must stay in sync with rebuild_shim.bat
 link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_lib_version_check ^
@@ -178,8 +184,14 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_get_decoder_params ^
    /EXPORT:ft8_set_supp_params ^
    /EXPORT:ft8_get_supp_params ^
+   /EXPORT:ft8_set_diagnostics_enabled ^
+   /EXPORT:ft8_subfeas_compute_analytic ^
+   /EXPORT:ft8_subfeas_fit_signal ^
+   /EXPORT:ft8_subfeas_pool_configure ^
+   /EXPORT:ft8_subfeas_pool_shutdown ^
+   /EXPORT:ft8_subfeas_pool_get_stats ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
-   monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj
+   monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj subfeas_fit.obj
 
 :: Copy to repo location
 copy libft8.dll ..\..\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
@@ -236,6 +248,10 @@ ft8_ldpc_decode_llrs):
 > for Linux (default visibility), they must simply appear in the `nm` output below. On Windows a
 > **missing `/EXPORT:` line builds clean and fails only at P/Invoke** — verify with
 > `dumpbin /exports` (26 → 29 exports).
+
+> **Shim 20260057 (sync of decoding_improvement with main)** is the union of both lines: the probe and
+> decoder-param exports (20260053/54) plus the SUB-FEAS exports (20260055/56, including
+> `ft8_set_diagnostics_enabled`). All 13 must appear in `nm`/`dumpbin /exports`. No new native behaviour.
 
 ```bash
 nm -D libft8.so | grep "ft8_"

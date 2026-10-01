@@ -645,6 +645,14 @@ static _Thread_local int     tls_ap_num_mycall_bits  = 0;
 static _Thread_local uint8_t tls_ap_hiscall_bits[4];  /* up to 28 bits packed MSB-first */
 static _Thread_local int     tls_ap_num_hiscall_bits = 0;
 
+/* sub-feas-speed-redesign M2: per-thread switch for the per-pass DIAGNOSTIC accumulation done on the
+ * LDPC-fail path (ftx_compute_candidate_llr_stats and the tls_llr_* sums). Default ON, so every
+ * existing caller behaves exactly as before. The residual-pass decode turns it OFF for its own call
+ * (ft8_set_diagnostics_enabled(0) immediately before, (1) after) because nothing reads those getters
+ * after that call. Decode OUTPUT never depends on it: the statistics only feed
+ * ft8_get_last_llr_stats. The noise floor is NOT gated: it feeds the local-noise SNR fallback. */
+static _Thread_local int     tls_diagnostics_enabled = 1;
+
 /* ── Callsign hash table ─────────────────────────────────────────────────── */
 
 /* g2-hash-table-sizing (shim 20260038): 256 → 4096.
@@ -1628,6 +1636,11 @@ int ft8_get_last_snr_terms(
  * LLR overrides via ftx_decode_candidate_ap.  Pass num_mycall_bits=0 to disable
  * AP constraints entirely (the default; decode behaves as in shim 20260019).
  */
+void ft8_set_diagnostics_enabled(int enabled)
+{
+    tls_diagnostics_enabled = enabled ? 1 : 0;
+}
+
 void ft8_set_ap_bits(
     const uint8_t* mycall_bits,  int num_mycall_bits,
     const uint8_t* hiscall_bits, int num_hiscall_bits)
@@ -1863,7 +1876,9 @@ int ft8_decode_all(
                 /* Task B (shim 20260020): accumulate pre-normalisation variance and
                  * mean|LLR| for failing candidates; skip NaN/degenerate candidates. */
                 float prenorm_var = 0.0f;
-                float mean_abs = ftx_compute_candidate_llr_stats(&mon.wf, cand, &prenorm_var);
+                float mean_abs;
+                if (!tls_diagnostics_enabled) continue; /* M2: nothing reads these sums for this call */
+                mean_abs = ftx_compute_candidate_llr_stats(&mon.wf, cand, &prenorm_var);
                 if (isfinite(mean_abs))
                 {
                     tls_llr_mean_abs_sum[pass]    += mean_abs;

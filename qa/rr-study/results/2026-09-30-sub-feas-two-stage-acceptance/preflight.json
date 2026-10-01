@@ -1,0 +1,23 @@
+{
+ "utc": "2026-09-30T15:01:03Z",
+ "selection81": "730d6ea61f25ba8cad90520a17266b3efe0e1e476b1bd1ce29d1a6cbcc3b1f15",
+ "e1_selection": "f58c0c7bd3ed34855f5db24277b941202813831b0f088a34944f5ba97c6879e2",
+ "harness_commit": "a918aa294ec31cd63d54fcf915b1fea1ed4cc334",
+ "builds": {
+  "base": {
+   "commit": "2b39cf18",
+   "libft8_sha256": "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5",
+   "harness_dll_sha256": "0e22fd5752e1705ca6bb471cd27cc1bbf34e4f2f93d280b6b9586df2e17e233e"
+  },
+  "ref": {
+   "commit": "ca0bcd9b",
+   "libft8_sha256": "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c",
+   "harness_dll_sha256": "3a8d3772ddd2c48212770371e2658b3fc128f376c47c16af0aa442e608173674"
+  },
+  "two": {
+   "commit": "247ac391",
+   "libft8_sha256": "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c",
+   "harness_dll_sha256": "8dde50fa93bb5a929c28a2ea16d27db3234604946cd127ffe1328ec2df1250cd"
+  }
+ }
+}

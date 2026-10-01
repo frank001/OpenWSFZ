@@ -44,5 +44,11 @@
     <EmbeddedResource Include="Fixtures\synth-qso-03.expected.txt" />
   </ItemGroup>
 
+  <!-- sub-feas-speed-redesign E1: golden (rc, sha256(out_shat)) per fit, recorded from the BASE libft8.dll
+       (2b39cf18, SHA-256 5a6a4dc0...e38c5) by tests/Ft8.FitProbe. Hashes and integers only (NFR-021). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\Ft8.FitProbe\golden\e1-base-5a6a4dc0.csv" LogicalName="e1-golden.csv" />
+  </ItemGroup>
+
 
 </Project>

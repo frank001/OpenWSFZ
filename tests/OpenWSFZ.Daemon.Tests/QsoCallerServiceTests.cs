@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Threading.Channels;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -47,7 +48,7 @@ public sealed class QsoCallerServiceTests
 
         var eventBus    = Substitute.For<ITxEventBus>();
         var resolvedLog = adifLog ?? new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel     = Channel.CreateUnbounded<DecodeBatch>();
+        var channel     = ObservedDecodeChannel.Create();
         var stopCts     = new CancellationTokenSource();
 
         var sut = watchdogDuration.HasValue
@@ -126,21 +127,40 @@ public sealed class QsoCallerServiceTests
         => ch.Writer.TryWrite(new DecodeBatch(cycleStart, results));
 
     /// <summary>
-    /// Polls until <paramref name="channel"/> has been drained by the service's background loop,
-    /// replacing a fixed "wait N ms, assume the batch was processed" delay between two
-    /// <see cref="Send"/>/<see cref="SendAt"/> calls (fix-flaky-test-delay-synchronization).
-    /// Mirrors <c>QsoAnswererServiceTests.WaitForBatchDrainedAsync</c> — see that method's doc
-    /// comment for the full rationale and its known residual gap (proves the batch was
-    /// *dequeued* by <c>QsoCallerService.ExecuteAsync</c>'s fully-sequential
-    /// <c>await ProcessBatchAsync(...)</c> loop, not that every consequence of processing it has
-    /// landed — accepted here for the same reason: in practice this file's batches only trigger
-    /// mocked, non-blocking work). Where a specific call count is the actual thing a test cares
-    /// about (e.g. a cycle expected to fire a retry TX), prefer polling that count directly via
-    /// <see cref="Poll.WaitForCallCountAsync"/> instead of this generic drain check — draining
-    /// alone was proven insufficient for that shape during the Answerer migration.
+    /// Polls until the service has recorded <paramref name="callsign"/>'s decode in its private
+    /// <c>_recentResponderDecodes</c> (read under the service's own <c>_stateLock</c>, via reflection: no public
+    /// observable exists for it). Proves the batch was PROCESSED, which <see cref="WaitForBatchDrainedAsync"/> does not.
+    /// </summary>
+    private static Task WaitForResponderRecordedAsync(QsoCallerService sut, string callsign)
+    {
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var gate = typeof(QsoCallerService).GetField("_stateLock", flags)!.GetValue(sut)!;
+        var decodes = (Dictionary<string, DecodeResult>)typeof(QsoCallerService).GetField("_recentResponderDecodes", flags)!.GetValue(sut)!;
+        return Poll.UntilAsync(() => { lock (gate) return decodes.ContainsKey(callsign); },
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: () => $"the service never recorded a decode from {callsign}");
+    }
+
+    /// <summary>
+    /// Polls until <paramref name="channel"/> has been drained AND every batch the service dequeued has
+    /// been fully PROCESSED (fix-flaky-test-delay-synchronization).
+    ///
+    /// <para><b>History:</b> this used to poll <c>Reader.Count == 0</c>, true the moment the service READS a
+    /// batch, before <c>ProcessBatchAsync</c> has run. That gap caused the D-015 flake and Gate G10 cannot
+    /// see it (no delay literal). It is now closed at the source: every test channel is an
+    /// <see cref="ObservedDecodeChannel"/>, and <c>QsoCallerService.ExecuteAsync</c> awaits
+    /// <c>ProcessBatchAsync</c> strictly before its next <c>ReadNextBatchAsync</c>, so "the reader was
+    /// touched again after the last dequeue" proves the batch was processed. All 29 call sites keep this
+    /// name and signature. Where the thing a test cares about is more specific (a call count, a recorded
+    /// decode as in <see cref="WaitForResponderRecordedAsync"/>), poll that directly instead.</para>
     /// </summary>
     private static async Task WaitForBatchDrainedAsync(Channel<DecodeBatch> channel, TimeSpan? timeout = null)
-        => await Poll.UntilAsync(() => channel.Reader.Count == 0, timeout: timeout ?? TimeSpan.FromSeconds(2));
+    {
+        var observed = ObservedDecodeChannel.From(channel);
+        await Poll.UntilAsync(() => observed.IsProcessedThroughLastDequeue,
+            timeout: timeout ?? TimeSpan.FromSeconds(5),
+            timeoutMessage: () => "the service never finished processing the batch it dequeued");
+    }
 
     // ── 5.13: Role property ───────────────────────────────────────────────────
 
@@ -323,7 +343,7 @@ public sealed class QsoCallerServiceTests
         store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         var eventBus = Substitute.For<ITxEventBus>();
-        var channel  = Channel.CreateUnbounded<DecodeBatch>();
+        var channel  = ObservedDecodeChannel.Create();
         var stopCts  = new CancellationTokenSource();
 
         var sut = new QsoCallerService(
@@ -505,23 +525,24 @@ public sealed class QsoCallerServiceTests
             WatchdogMinutes     = 4,
         };
         var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        // SelectResponderAsync pushes an EMPTY wakeup batch stamped from the REAL clock; the service fires
+        // or holds on that stamp's wall-clock phase, which would make this fixed-stamp test
+        // non-deterministic. Swallow it on the writer side so the loop can never see it (see
+        // WakeupChannelProbe) -- this replaces "drain it, then sleep 50 ms", which lost the race
+        // whenever the loop read the wakeup before the drain did.
+        var wakeups = WakeupChannelProbe.Discard(sut);
         await sut.StartAsync(stopCts.Token);
 
         // Drive to WaitAnswer.
         Send(channel, Make("CQ Q2NOISE JO00"));
         await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
-        // Drain any wakeup written during the CQ → WaitAnswer transition.
-        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
-
         // responseCycleStart at :15 → B-phase response → A-phase answer (:00 or :30)
         var bPhaseResponse = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
         await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponse, CancellationToken.None);
-        // Drain the wakeup that SelectResponderAsync pushed so the service doesn't immediately fire
-        // on the wakeup's phase (which depends on clock time and would be non-deterministic).
-        // After drain the service must wait for an explicit decode batch from the test.
-        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
-        await Task.Delay(50); // let the service settle back into Task.WhenAny
+        // The stray wakeup was produced by the real code path and swallowed: the service waits for the
+        // explicit decode batches from the test, and no settle delay is needed.
+        wakeups.Discarded.Should().Be(1, "SelectResponderAsync must push exactly one wakeup, and it must not reach the loop");
 
         // Feed a B-phase batch (wrong phase) — should NOT fire.
         // A batch whose next cycle is B-phase: CycleStart at :30 → next cycle = :45, which is B-phase.
@@ -1203,7 +1224,7 @@ public sealed class QsoCallerServiceTests
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var answerer = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
             adifLog, new AudioOffsetEventBus(),
@@ -1304,7 +1325,7 @@ public sealed class QsoCallerServiceTests
         store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var stopCts = new CancellationTokenSource();
 
         var sut = new QsoCallerService(
@@ -1358,6 +1379,7 @@ public sealed class QsoCallerServiceTests
             WatchdogMinutes     = 4,
         };
         var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        var wakeups = WakeupChannelProbe.Discard(sut); // see SelectResponderAsync_PhaseSemanticsCorrect
         await sut.StartAsync(stopCts.Token);
 
         // Arm service → CQ TX → WaitAnswer.
@@ -1378,10 +1400,9 @@ public sealed class QsoCallerServiceTests
         var bPhaseResponseStart = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
         await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponseStart, CancellationToken.None);
 
-        // Drain the wakeup batch pushed by SelectResponderAsync so the service does not
-        // fire on a non-deterministic wall-clock phase; the test controls the batch below.
-        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
-        await Task.Delay(50); // let service settle back into Task.WhenAny
+        // The wakeup batch pushed by SelectResponderAsync (real-clock stamp) was swallowed, so the
+        // service cannot fire on a non-deterministic wall-clock phase; the test controls the batch below.
+        wakeups.Discarded.Should().Be(1, "SelectResponderAsync must push exactly one wakeup, and it must not reach the loop");
 
         // Feed an A-phase batch (CycleStart :45 → next cycle :00 = A-phase).
         var aPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
@@ -1682,6 +1703,7 @@ public sealed class QsoCallerServiceTests
 
         var (sut, _, _, ptt, channel, stopCts) =
             BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+        var wakeups = WakeupChannelProbe.Discard(sut); // see SelectResponderAsync_PhaseSemanticsCorrect
 
         await sut.StartAsync(stopCts.Token);
 
@@ -1694,18 +1716,17 @@ public sealed class QsoCallerServiceTests
         // SelectResponderAsync must re-parse to recover the grid, since it receives only a
         // callsign/frequency/cycle-start, not the original decoded message.
         Send(channel, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
-        await WaitForBatchDrainedAsync(channel);
+        // Poll the positive condition (the decode is recorded), not just "the batch was dequeued": the channel is empty
+        // as soon as the service READS the batch, before ProcessBatchAsync has recorded it. Selecting in that window finds
+        // no recorded decode, so the grid is lost and the SNR falls back to +00 (the D-015 intermittent failure).
+        await WaitForResponderRecordedAsync(sut, PartnerCall);
         sut.State.Should().Be(QsoState.WaitReport, "None mode must not auto-advance");
-
-        // Drain any wakeup written while draining the above.
-        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
 
         // Operator selects the responder. responseCycleStart at :15 → B-phase response →
         // A-phase answer (:00 or :30), mirroring the 5.5 phase-semantics pattern.
         var bPhaseResponse = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
         await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponse, CancellationToken.None);
-        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
-        await Task.Delay(50);
+        wakeups.Discarded.Should().Be(1, "SelectResponderAsync must push exactly one wakeup, and it must not reach the loop");
 
         // Feed an A-phase batch (correct phase: CycleStart :45 → next cycle :00 = A-phase) to
         // fire the pending responder.
@@ -1825,6 +1846,7 @@ public sealed class QsoCallerServiceTests
 
         var (sut, _, _, ptt, channel, stopCts) =
             BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30), adifLog: mockAdif);
+        var wakeups = WakeupChannelProbe.Discard(sut); // see SelectResponderAsync_PhaseSemanticsCorrect
 
         await sut.StartAsync(stopCts.Token);
 
@@ -1837,14 +1859,14 @@ public sealed class QsoCallerServiceTests
             Time: "12:00:00", Snr: 11, Dt: 0.1, FreqHz: AudioFreqHz,
             Message: $"{OurCallsign} {PartnerCall} {PartnerGrid}");
         Send(channel, responderDecode);
-        await WaitForBatchDrainedAsync(channel);
+        // Poll the positive condition (the decode is recorded), not just "the batch was dequeued" -- see
+        // the D-015 test above; WaitForBatchDrainedAsync now also proves processing, this is the sharper form.
+        await WaitForResponderRecordedAsync(sut, PartnerCall);
         sut.State.Should().Be(QsoState.WaitReport, "None mode must not auto-advance");
-        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
 
         var bPhaseResponse = new DateTimeOffset(2026, 6, 25, 14, 29, 15, TimeSpan.Zero);
         await sut.SelectResponderAsync(PartnerCall, AudioFreqHz, bPhaseResponse, CancellationToken.None);
-        while (sut._wakeupChannel.Reader.TryRead(out _)) { }
-        await Task.Delay(50);
+        wakeups.Discarded.Should().Be(1, "SelectResponderAsync must push exactly one wakeup, and it must not reach the loop");
 
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make("CQ Q2NOISE JO00")); // content irrelevant — fires on phase alone
@@ -2186,7 +2208,7 @@ public sealed class QsoCallerServiceTests
         store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         var eventBus = Substitute.For<ITxEventBus>();
-        var channel  = Channel.CreateUnbounded<DecodeBatch>();
+        var channel  = ObservedDecodeChannel.Create();
         var stopCts  = new CancellationTokenSource();
 
         var sut = new QsoCallerService(

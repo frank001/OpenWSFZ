@@ -20,6 +20,7 @@
     <Project Path="tests/OpenWSFZ.Rig.Tests/OpenWSFZ.Rig.Tests.csproj" />
     <Project Path="tests/OpenWSFZ.TestSupport/OpenWSFZ.TestSupport.csproj" />
     <Project Path="tests/OpenWSFZ.TestSupport.Tests/OpenWSFZ.TestSupport.Tests.csproj" />
+    <Project Path="tests/Ft8.FitProbe/Ft8.FitProbe.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/GenerateFt8Fixture/GenerateFt8Fixture.csproj" />
