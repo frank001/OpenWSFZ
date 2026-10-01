@@ -120,8 +120,11 @@ class Sampler(threading.Thread):
 
 def preflight():
     os.makedirs(OUT, exist_ok=True)
-    assert sh("git", "check-ignore", "-q", os.path.join(OUT, "x")).returncode == 0, "OUT not gitignored"
-    assert sh("git", "ls-files", "--", OUT).stdout.strip() == ""
+    # The artefacts directory may belong to another worktree of this repository (the data does not travel between
+    # worktrees), so its git checks run in THAT worktree's context.
+    art_repo = os.path.dirname(ART)
+    assert sh("git", "check-ignore", "-q", os.path.join(OUT, "x"), cwd=art_repo).returncode == 0, "OUT not gitignored"
+    assert sh("git", "ls-files", "--", OUT, cwd=art_repo).stdout.strip() == ""
     sel_sha = sha256_lf(SELECTION)
     assert sel_sha == SELECTION_SHA256, ("selection.json SHA mismatch", sel_sha)
     assert sh("git", "status", "--porcelain", "--", *GUARDED).stdout.strip() == "", "harness/scripts/selection not committed"
