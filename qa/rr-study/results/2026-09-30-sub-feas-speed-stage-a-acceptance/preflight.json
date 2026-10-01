@@ -1,0 +1,35 @@
+{
+ "selection_sha256": "730d6ea61f25ba8cad90520a17266b3efe0e1e476b1bd1ce29d1a6cbcc3b1f15",
+ "utc": "2026-09-30T10:11:05Z",
+ "e1_selection_sha256": "f58c0c7bd3ed34855f5db24277b941202813831b0f088a34944f5ba97c6879e2",
+ "builds": {
+  "2b39cf18": {
+   "libft8_sha256_actual": "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5",
+   "expected": "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5",
+   "harness_dll_sha256": "cebc57603432a29c9499378dd6f2208e39b9d3fbf22ac111ee4f96c0d1ab24db"
+  },
+  "ca0bcd9b": {
+   "libft8_sha256_actual": "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c",
+   "expected": "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c",
+   "harness_dll_sha256": "be584eba079eab9e39cabfcbca82d5f2de3af59b04c52979adbde644a632c091"
+  },
+  "84cac119": {
+   "libft8_sha256_actual": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+   "expected": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+   "harness_dll_sha256": "4d780fccdb322e08c549ef023854d98833d6d2f3f75369cbf6a4cc00d027cbbe"
+  },
+  "51e40b55": {
+   "libft8_sha256_actual": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+   "expected": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+   "harness_dll_sha256": "ba1466cfa1adad8276b3230960f7fa74061bb679bce9eed9b46a19cc75e34418"
+  }
+ },
+ "harness_commit": "8d7eadb3dd2d808d0e4bd0e2b97b7134a08b6e82",
+ "harness_tree_clean": true,
+ "totals": {
+  "H": 605,
+  "M": 300,
+  "R6_pairs": 20,
+  "pilot": 60
+ }
+}

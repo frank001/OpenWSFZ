@@ -151,6 +151,17 @@ cl ^
 echo ERRORLEVEL after cl (coherent_llr.c): %ERRORLEVEL%
 if %ERRORLEVEL% neq 0 goto :err_cl
 
+echo === Compiling subfeas_fit.c (sub-feas-native-subtraction, OpenWSFZ-original, no production call site yet) ===
+cl ^
+  /I "%FT8_ROOT%\native\ft8_lib_vendor" ^
+  /I "%FT8_ROOT%\native\ft8_lib_vendor\fft" ^
+  /I "%FT8_ROOT%\native\ft8_lib_vendor\subfeas" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"%FT8_ROOT%\native\ft8_lib_build\obj\subfeas_fit.obj" ^
+  "%FT8_ROOT%\native\ft8_lib_vendor\subfeas\subfeas_fit.c"
+echo ERRORLEVEL after cl (subfeas_fit.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
 echo === Linking libft8.dll ===
 link /DLL ^
   /OUT:"%FT8_ROOT%\native\ft8_lib_build\libft8.dll" ^
@@ -163,6 +174,7 @@ link /DLL ^
   /EXPORT:ft8_get_last_candidate_counts ^
   /EXPORT:ft8_get_last_llr_stats ^
   /EXPORT:ft8_set_ap_bits ^
+  /EXPORT:ft8_set_diagnostics_enabled ^
   /EXPORT:ft8_set_decode_params ^
   /EXPORT:ft8_get_hash_table_reject_count ^
   /EXPORT:ft8_refine_candidate ^
@@ -176,6 +188,11 @@ link /DLL ^
   /EXPORT:ft8_get_h12_by_code ^
   /EXPORT:ft8_get_h12_suppressed_count ^
   /EXPORT:ft8_get_h12_unresolved_by_code ^
+  /EXPORT:ft8_subfeas_compute_analytic ^
+  /EXPORT:ft8_subfeas_fit_signal ^
+  /EXPORT:ft8_subfeas_pool_configure ^
+  /EXPORT:ft8_subfeas_pool_shutdown ^
+  /EXPORT:ft8_subfeas_pool_get_stats ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\decode.obj" ^
@@ -188,7 +205,8 @@ link /DLL ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\kiss_fftr.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\ft8_shim.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\sync_refiner.obj" ^
-  "%FT8_ROOT%\native\ft8_lib_build\obj\coherent_llr.obj"
+  "%FT8_ROOT%\native\ft8_lib_build\obj\coherent_llr.obj" ^
+  "%FT8_ROOT%\native\ft8_lib_build\obj\subfeas_fit.obj"
 echo ERRORLEVEL after link: %ERRORLEVEL%
 if %ERRORLEVEL% neq 0 goto :err_link
 

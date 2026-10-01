@@ -286,6 +286,34 @@ python run_study.py --help   # AC-9 verified
 Record, in the run's report header, the **WSJT-X version** and the **OpenWSFZ git SHA**
 (`STUDY-SPEC.md` §11).
 
+### 2.1 Watch the run's own config (`qa/config_drift.py`)
+
+A setting a run depends on can change mid-run (#193: the archive mode was reset by an unrelated
+Settings save, and the loss was found afterwards). Start the drift watcher **detached** beside any
+run that PRECHECK protects, from the same shell that arms it (HK-023):
+
+```bash
+nohup python qa/config_drift.py --base-url http://127.0.0.1:8080 \
+    --log <run-dir>/config-drift.log --snapshot <run-dir>/config-snapshot.json \
+    --report <run-dir>/config-drift-rows.jsonl >/dev/null 2>&1 & disown
+tail -f <run-dir>/config-drift.log     # disposable
+```
+
+- It watches `cycleAudioArchive.mode`, `cycleAudioArchive.directory`, `decodingEnabled` and every
+  `decoder.*` key, polling every 60 s (never slower than 300 s). Add keys with `--watch`.
+- It **never restores** a value. It writes `CONFIG-DRIFT`, and `CONFIG-RESTORED` when a key returns.
+- Values are logged only for the mode, `decodingEnabled` and `decoder.*`; the directory is a path only (HK-037).
+- **Read `config-drift.log` and the rows file before quoting a run**, and put any `CONFIG-DRIFT` row in
+  the run report. A `CONFIG-POLL-FAILED` run of lines is not drift, but the check was blind then.
+- **Drift policy per battery.** The default is to **continue and report**: a drift row marks the affected
+  window, and QA decides afterwards whether that data is usable. Pass `--abort-on-drift` (exit 3) only
+  for a battery whose result is invalidated by any drift, e.g. a flag-OFF/flag-ON control pair.
+- ⚠️ `run_study_detached.py` is not on `main` (it lives on `qa/live-gap-map`), so it is not wired. Run the
+  watcher beside it as above. The endurance supervisors are unchanged for the same reason: they are
+  dated, per-run QA tools.
+- Until `config-save-preserves-unsent-settings` reaches `decoding_improvement`: **no Settings-page saves
+  during a measurement run.**
+
 ---
 
 ## 3. Running the study

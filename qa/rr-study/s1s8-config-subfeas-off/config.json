@@ -1,0 +1,90 @@
+{
+  "audioDeviceId": "{0.0.1.00000000}.{8dbb88e8-fd07-44b8-9ee9-88b906b8d11f}",
+  "audioDeviceFriendlyName": "Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)",
+  "audioOutputDeviceId": null,
+  "audioOutputFriendlyName": null,
+  "port": 8080,
+  "showCycleCountdown": false,
+  "decodingEnabled": true,
+  "logLevel": "Information",
+  "logging": {
+    "fileEnabled": true,
+    "directory": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/_rr_subfeas_off_daemon_output/daemon-logs",
+    "fileLogLevel": "Information",
+    "rotationSchedule": "daily",
+    "rotationTime": "00:00",
+    "rotationDayOfWeek": "Monday",
+    "maxFiles": 7
+  },
+  "decodeLog": {
+    "enabled": true,
+    "path": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/_rr_subfeas_off_daemon_output/ALL.TXT",
+    "dialFrequencyMHz": 14.074
+  },
+  "cat": {
+    "enabled": false,
+    "rigModel": "SerialCat",
+    "serialPort": "COM6",
+    "baudRate": 9600,
+    "rigctldHost": "127.0.0.1",
+    "rigctldPort": 4532,
+    "pollIntervalSeconds": 1,
+    "lastPolledFrequencyMHz": null
+  },
+  "ptt": {
+    "method": "AudioVox",
+    "serialPort": "COM7",
+    "serialLine": "Rts",
+    "leadTimeMs": 50,
+    "tailTimeMs": 50,
+    "watchdogTimeoutMs": 20000
+  },
+  "tx": {
+    "autoAnswer": false,
+    "callsign": "Q1OFZ",
+    "grid": "JO33",
+    "retryCount": 3,
+    "watchdogMinutes": 4,
+    "rxAudioOffsetHz": 1500,
+    "txAudioOffsetHz": 1500,
+    "holdTxFreq": false,
+    "role": "Answerer",
+    "callerPartnerSelect": "First",
+    "qsoConfirmation": true,
+    "retainedTxPower": "",
+    "retainedComment": "",
+    "retainedPropMode": ""
+  },
+  "remoteAccess": {
+    "enabled": false,
+    "passphrase": null
+  },
+  "decoder": {
+    "kMinScorePass2": 10,
+    "osdCorrThreshold": 0.1,
+    "osdNhardMax": 40,
+    "nhard40MigrationApplied": true,
+    "subtractionEnabled": false
+  },
+  "decodeNoiseSuppression": {
+    "suppressUnknownRegion": null,
+    "suppressSynthetic": false
+  },
+  "externalReporting": {
+    "enabled": false,
+    "targets": [],
+    "honourInboundCommands": false,
+    "restrictExternalRepliesToDecodeFilter": false,
+    "instanceId": "OpenWSFZ",
+    "role": "leader",
+    "leaderUrl": null,
+    "followerUrls": []
+  },
+  "cycleAudioArchive": {
+    "mode": "all",
+    "directory": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/_rr_subfeas_off_daemon_output/cycle-audio",
+    "maxSizeMb": 8192,
+    "maxAgeHours": 8,
+    "writeManifest": true
+  }
+}
