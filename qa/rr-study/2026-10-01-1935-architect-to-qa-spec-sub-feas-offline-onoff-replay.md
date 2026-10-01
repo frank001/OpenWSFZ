@@ -93,6 +93,18 @@ Per-cycle CSV: `stamp, W, n_off, n_on_b1, n_on_b2, M_off, M_on, M_on_b1, M_on_b2
 - **Still open after any outcome:** band replication; false-positive rate beyond the not-corroborated upper bound; live-path behaviour (plausibility and the real-time budget on another machine); multi-pass. **Flag default ON, and batch 2 reaching the answerer, remain the Captain's decisions.** This run informs them; it does not make them.
 - 🛑 Do not compare this NET's point value to +8.89 pp as if it were the same instrument: the match rule (text vs Stage 2's payload), the build (native vs Python fit) and the corpus all differ. Report both side by side, labelled, without a difference test.
 
+## 9a. Amendment 1 — 2026-10-01 ~20:05Z, BEFORE any decode on the on-air night (QA notes on harness `qa/onoff-replay` `7da9a2f0`)
+
+QA accepted the spec and refused no row. Its FILE:LINE answer settles §4's post-processing parity. Batch 1, batch 2 and the flag-OFF path all go through `MapNative` with one per-cycle `seen` set, which deduplicates (`Ft8Decoder.cs:528`) and then applies `IsPlausibleMessage` (`:534`) at `origin/main` `9bade2bc`. **No extra filter or dedup is applied by the harness.** Accepted. The amendment below responds to QA note 1. QA notes 2–4 are accepted as written and go in the report's limits.
+
+**V6 is re-worded. The reason: as written, it could fail for a timing reason that §6 already gates elsewhere.** The ON path has a wall-clock deadline, and the thin tail (27–30 signals) sits 0.2–0.4 s from it. A cycle can therefore abandon in one run and complete in the other. That is real run-to-run variation of the live behaviour, not non-determinism of the decoder. V5 already bounds abandonment. Voiding the whole night on one such cycle would make V6 a timing test with a 0-of-160 tolerance, which is stricter than V5's 5 %.
+
+| Row | Predicate (as code), replaces V6 |
+|---|---|
+| V6 | Over the first 160 included cycles, classify each cycle whose per-cycle union multiset differs between the main ON arm and the ON-repeat: **explained** iff the residual pass was abandoned in exactly one of the two runs for that cycle, otherwise **unexplained**. **PASS iff unexplained = 0 AND explained ≤ 8** (5 % of 160, V5's rate). |
+
+Report: every mismatching stamp, its class, and the abandon flags of both runs. If explained > 0, the report also gives NET recomputed with those cycles dropped from both arms. That figure is descriptive and not used for D1–D3. **Unexplained > 0 still voids the verdict.** That is the non-determinism V6 exists to catch.
+
 ## 10. Architect predictions (blind; scored at ruling time per the ledger's rule 1)
 
 | # | Prediction | P | Class |
