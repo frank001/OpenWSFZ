@@ -303,13 +303,13 @@ public sealed class SubfeasNativeSpeedTests
         grown.Should().BeLessThan(bytesPerWorkspace, "private memory must plateau after warm-up, not grow with the number of fits");
         Pool().Live.Should().Be(bound);
 
-        long beforeFree = PrivateBytes();
+        long beforeFree = ReturnableBytes();
         Ft8LibInterop.SubfeasPoolShutdown();
         var stats = Pool();
         stats.Live.Should().Be(0, "every idle workspace is freed at shutdown");
         stats.Idle.Should().Be(0);
         stats.Leased.Should().Be(0);
-        (beforeFree - PrivateBytes()).Should().BeGreaterThan((long)(0.3 * bound * bytesPerWorkspace),
+        (beforeFree - ReturnedBytesAfterFree()).Should().BeGreaterThan((long)(0.3 * bound * bytesPerWorkspace),
             "the memory really goes back, it is not just forgotten by the accounting");
 
         // A later decode after re-initialisation still works, and is still exact.
@@ -543,6 +543,44 @@ public sealed class SubfeasNativeSpeedTests
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
         using var p = Process.GetCurrentProcess();
         return p.PrivateMemorySize64;
+    }
+
+    /// <summary>
+    /// The figure "memory really goes back" is measured on. Windows: private bytes, as before (the CRT heap returns a freed
+    /// 25-30 MB block to the OS at once). Linux: .NET reports <c>VmData</c> as private bytes, which is VIRTUAL size, and
+    /// glibc keeps freed address space in its arenas (the mmap threshold rises after the first large free, so later blocks
+    /// are heap-backed) — it never falls at <c>free</c>, even though the pages do go back. Measured in WSL Debian: after
+    /// shutdown VmData unchanged, RssAnon -32 MB, and a further -74 MB after <c>malloc_trim(0)</c> (a property of the
+    /// allocator, not a leak: <c>Live</c>/<c>Idle</c>/<c>Leased</c> are 0). So on Linux the physical anonymous RSS is read.
+    /// </summary>
+    private static long ReturnableBytes()
+        => OperatingSystem.IsLinux() ? AnonRssBytes() : PrivateBytes();
+
+    /// <summary>The same figure after the free: on Linux the freed arena pages are first handed back with <c>malloc_trim(0)</c>.</summary>
+    private static long ReturnedBytesAfterFree()
+    {
+        if (OperatingSystem.IsLinux()) LibC.TrimHeap();
+        return ReturnableBytes();
+    }
+
+    private static long AnonRssBytes()
+    {
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        string line = File.ReadLines("/proc/self/status").Single(l => l.StartsWith("RssAnon:", StringComparison.Ordinal));
+        return long.Parse(line.Split(':', 2)[1].Trim().Split(' ')[0], System.Globalization.CultureInfo.InvariantCulture) * 1024;
+    }
+
+    private static class LibC
+    {
+        [DllImport("libc", EntryPoint = "malloc_trim")]
+        private static extern int MallocTrim(UIntPtr pad);
+
+        /// <summary>Ask glibc to return free heap pages to the OS. Absent on musl: then the measurement simply sees no trim.</summary>
+        public static void TrimHeap()
+        {
+            try { MallocTrim(UIntPtr.Zero); }
+            catch (EntryPointNotFoundException) { }
+        }
     }
 
     /// <summary>The cancel flag the native fit reads: an int in pinned managed memory, written with a volatile write.</summary>
