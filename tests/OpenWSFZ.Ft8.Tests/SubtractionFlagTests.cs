@@ -121,12 +121,15 @@ public sealed class SubtractionFlagTests
     /// fake can drive a full <see cref="Ft8Decoder.DecodeAsync(float[],CancellationToken)"/>
     /// round trip through both passes. EncodeMessage delegates to the real native encoder.
     /// </summary>
-    private sealed class SequencedInterop(Ft8NativeResult[] pass0, Ft8NativeResult[] residual) : IFt8NativeInterop
+    internal sealed class SequencedInterop(Ft8NativeResult[] pass0, Ft8NativeResult[] residual) : IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
         public bool ComputeAnalyticCalled { get; private set; }
         public int DecodeAllCallCount { get; private set; }
         public bool FitSignalThrows { get; init; }
+
+        /// <summary>Sleeps this long inside every fit (a slow residual pass), for the two-stage tests.</summary>
+        public int FitDelayMs { get; init; }
 
         public Ft8NativeResult[] DecodeAll(float[] pcm)
         {
@@ -151,6 +154,7 @@ public sealed class SubtractionFlagTests
             float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
         {
             if (FitSignalThrows) throw new NativeAccessViolationException();
+            if (FitDelayMs > 0) Thread.Sleep(FitDelayMs);
             return (0, new float[180_000]);
         }
 

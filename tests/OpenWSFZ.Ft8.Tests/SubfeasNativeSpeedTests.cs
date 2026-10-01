@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Ft8.Interop;
 using OpenWSFZ.Ft8.Subfeas;
+using OpenWSFZ.TestSupport;
 using Xunit;
 
 namespace OpenWSFZ.Ft8.Tests;
@@ -108,7 +109,7 @@ public sealed class SubfeasNativeSpeedTests
             return Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq, flag.Pointer);
         });
         started.Wait();
-        Thread.Sleep(300); // well inside a fit (about 1.2 s), and past the workspace lease
+        WaitForLeased(1); // the fit holds its workspace lease, so it is inside the fit (about 1.2 s long), not before it
         var setAt = Stopwatch.StartNew();
         flag.Set();
         var (rc, shat) = task.Result;
@@ -139,7 +140,7 @@ public sealed class SubfeasNativeSpeedTests
         var flags = new[] { doomed, f1, f2 };
         var tasks = ok.Select((p, i) => Bg.Run(() =>
             Ft8LibInterop.SubfeasFitSignal(re, im, grid[p.Idx].Tones, grid[p.Idx].Dt, grid[p.Idx].Freq, flags[i].Pointer))).ToArray();
-        Thread.Sleep(250);
+        WaitForLeased(3); // all three fits are inside their fit before one is cancelled
         doomed.Set();
         foreach (var b in tasks) b.Join();
 
@@ -177,7 +178,7 @@ public sealed class SubfeasNativeSpeedTests
                     // Forced cancels, mixed in: some pre-set, some raised part-way, some never.
                     int mode = (w + round) % 4;
                     if (mode == 0) flags[w].Set();
-                    else if (mode == 1) _ = Bg.Run(() => { Thread.Sleep(200 + 50 * w); flags[w].Set(); return 0; });
+                    else if (mode == 1) _ = Bg.Run(() => { WaitForLeased(1); flags[w].Set(); return 0; }); // raised once a fit is in flight
                     var j = grid[p.Idx];
                     return Ft8LibInterop.SubfeasFitSignal(re, im, j.Tones, j.Dt, j.Freq, flags[w].Pointer);
                 })).ToArray();
@@ -224,7 +225,7 @@ public sealed class SubfeasNativeSpeedTests
         using (var flag = new CancelFlag())
         {
             var t = Bg.Run(() => Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq, flag.Pointer));
-            Thread.Sleep(250);
+            WaitForLeased(1);
             flag.Set();
             t.Result.ReturnCode.Should().Be(-4);
         }
@@ -264,7 +265,7 @@ public sealed class SubfeasNativeSpeedTests
         Fresh(1);
         using var hold = new CancelFlag();
         var first = Bg.Run(() => Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq, hold.Pointer));
-        Thread.Sleep(300);
+        WaitForLeased(1); // the first fit holds the pool's only workspace
         var refused = () => Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq);
         refused.Should().Throw<InvalidOperationException>("the pool is at its bound with none idle: refuse rather than allocate past it");
         Pool().Refusals.Should().Be(1);
@@ -302,13 +303,13 @@ public sealed class SubfeasNativeSpeedTests
         grown.Should().BeLessThan(bytesPerWorkspace, "private memory must plateau after warm-up, not grow with the number of fits");
         Pool().Live.Should().Be(bound);
 
-        long beforeFree = PrivateBytes();
+        long beforeFree = ReturnableBytes();
         Ft8LibInterop.SubfeasPoolShutdown();
         var stats = Pool();
         stats.Live.Should().Be(0, "every idle workspace is freed at shutdown");
         stats.Idle.Should().Be(0);
         stats.Leased.Should().Be(0);
-        (beforeFree - PrivateBytes()).Should().BeGreaterThan((long)(0.3 * bound * bytesPerWorkspace),
+        (beforeFree - ReturnedBytesAfterFree()).Should().BeGreaterThan((long)(0.3 * bound * bytesPerWorkspace),
             "the memory really goes back, it is not just forgotten by the accounting");
 
         // A later decode after re-initialisation still works, and is still exact.
@@ -325,7 +326,7 @@ public sealed class SubfeasNativeSpeedTests
         (float[] re, float[] im, byte[] tones, float dt, float freq) = OneRealSignal();
         using var flag = new CancelFlag();
         var t = Bg.Run(() => Ft8LibInterop.SubfeasFitSignal(re, im, tones, dt, freq, flag.Pointer));
-        Thread.Sleep(300);
+        WaitForLeased(1);
 
         Ft8LibInterop.SubfeasPoolShutdown(); // the fit is mid-flight: its workspace must survive this call
         Pool().Leased.Should().Be(1);
@@ -432,6 +433,12 @@ public sealed class SubfeasNativeSpeedTests
         Ft8LibInterop.SubfeasPoolConfigure(bound);
     }
 
+    /// <summary>Blocks until the pool reports at least <paramref name="count"/> leased workspaces (a fit is in flight), instead of sleeping a guessed time.</summary>
+    private static void WaitForLeased(int count)
+        => Poll.UntilAsync(() => Pool().Leased >= count, timeout: TimeSpan.FromSeconds(30),
+                timeoutMessage: () => $"the pool never reached {count} leased workspace(s)")
+            .GetAwaiter().GetResult();
+
     private static float[] Norm(float[] raw) => Ft8Decoder.NormalisePcm(raw, 0.20f);
 
     private static float[] NoiseCycle()
@@ -536,6 +543,44 @@ public sealed class SubfeasNativeSpeedTests
         GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
         using var p = Process.GetCurrentProcess();
         return p.PrivateMemorySize64;
+    }
+
+    /// <summary>
+    /// The figure "memory really goes back" is measured on. Windows: private bytes, as before (the CRT heap returns a freed
+    /// 25-30 MB block to the OS at once). Linux: .NET reports <c>VmData</c> as private bytes, which is VIRTUAL size, and
+    /// glibc keeps freed address space in its arenas (the mmap threshold rises after the first large free, so later blocks
+    /// are heap-backed) — it never falls at <c>free</c>, even though the pages do go back. Measured in WSL Debian: after
+    /// shutdown VmData unchanged, RssAnon -32 MB, and a further -74 MB after <c>malloc_trim(0)</c> (a property of the
+    /// allocator, not a leak: <c>Live</c>/<c>Idle</c>/<c>Leased</c> are 0). So on Linux the physical anonymous RSS is read.
+    /// </summary>
+    private static long ReturnableBytes()
+        => OperatingSystem.IsLinux() ? AnonRssBytes() : PrivateBytes();
+
+    /// <summary>The same figure after the free: on Linux the freed arena pages are first handed back with <c>malloc_trim(0)</c>.</summary>
+    private static long ReturnedBytesAfterFree()
+    {
+        if (OperatingSystem.IsLinux()) LibC.TrimHeap();
+        return ReturnableBytes();
+    }
+
+    private static long AnonRssBytes()
+    {
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        string line = File.ReadLines("/proc/self/status").Single(l => l.StartsWith("RssAnon:", StringComparison.Ordinal));
+        return long.Parse(line.Split(':', 2)[1].Trim().Split(' ')[0], System.Globalization.CultureInfo.InvariantCulture) * 1024;
+    }
+
+    private static class LibC
+    {
+        [DllImport("libc", EntryPoint = "malloc_trim")]
+        private static extern int MallocTrim(UIntPtr pad);
+
+        /// <summary>Ask glibc to return free heap pages to the OS. Absent on musl: then the measurement simply sees no trim.</summary>
+        public static void TrimHeap()
+        {
+            try { MallocTrim(UIntPtr.Zero); }
+            catch (EntryPointNotFoundException) { }
+        }
     }
 
     /// <summary>The cancel flag the native fit reads: an int in pinned managed memory, written with a volatile write.</summary>

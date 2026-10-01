@@ -290,7 +290,7 @@ public sealed class SubtractionDeadlineTests
         while (Marshal.ReadInt32(flag) == 0)
         {
             if (sw.Elapsed > guard) return (0, new float[PcmLength]); // guard: the flag never came (test would fail on its asserts)
-            Thread.Sleep(1);
+            Thread.Yield(); // a spin-wait on the flag, not a synchronisation delay
         }
         return (Ft8LibInterop.SubfeasRcCancelled, new float[PcmLength]);
     }
