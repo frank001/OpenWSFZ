@@ -88,8 +88,11 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     ap.add_argument("--run", default="2026-09-23-5f17b43")
     ap.add_argument("--pc1", default=None, help="pc1.json: apply A7 (DESCRIPTIVE-ABOVE-RANGE)")
+    ap.add_argument("--carry", default=None, help="previous thresholds.json: every threshold value except lag_lost is carried unchanged (A10)")
+    ap.add_argument("--extra-above-range", default="", help="comma list of cells to mark DESCRIPTIVE-ABOVE-RANGE (A9 results)")
     a = ap.parse_args()
     d = Path(a.sidecars)
+    carry = json.loads(Path(a.carry).read_text(encoding="utf-8")) if a.carry else None
     data = {s: [r for r in load(d / f"sidecar_{s}.csv") if not r["ref_mismatch"]] for s in SIDES}
     th = {"calibration_run": a.run, "k_sigma": sc.K_SIGMA, "mad_scale": sc.MAD_SCALE,
           "scan_core_py_sha256": sha_lf(Path(sc.__file__)),
@@ -107,8 +110,13 @@ def main() -> None:
                 vals = [r[m] for r in rows if r[m] == r[m] and abs(r[m]) != float("inf")]
                 if not vals:
                     continue
-                row = sc.threshold_row(vals, kind, floor)
-                row["n_values"] = len(vals)
+                old = carry["sides"][s][g].get(m) if carry and m != "lag_lost" else None
+                if old is not None:
+                    row = {k: v for k, v in old.items() if k not in
+                           ("DESCRIPTIVE", "DESCRIPTIVE_ABOVE_RANGE", "flagged_total", "flagged_one_sided")}
+                else:
+                    row = sc.threshold_row(vals, kind, floor)
+                    row["n_values"] = len(vals)
                 th["sides"][s][g][m] = row
     # cross-side (dg_db, dtau_ms) per group
     by = {s: {r["slot"]: r for r in data[s]} for s in SIDES}
@@ -123,8 +131,12 @@ def main() -> None:
                 cross["dtau_ms"].append(o["tau_ms"] - w["tau_ms"])
         for m, (kind, floor) in sc.CROSS_RULES.items():
             if cross[m]:
-                row = sc.threshold_row(cross[m], kind, floor)
-                row["n_values"] = len(cross[m])
+                oldc = carry["cross"][g].get(m) if carry else None
+                if oldc is not None:
+                    row = {k: v for k, v in oldc.items() if k not in ("DESCRIPTIVE", "flagged_total")}
+                else:
+                    row = sc.threshold_row(cross[m], kind, floor)
+                    row["n_values"] = len(cross[m])
                 th["cross"][g][m] = row
     # 2. raw flags, BOTH classification by family, mechanical DESCRIPTIVE test
     flags = {s: {r["slot"]: slot_flags(th, s, r) for r in data[s]} for s in SIDES}
@@ -174,22 +186,17 @@ def main() -> None:
                 th["descriptive"].append(f"cross:{g}:{m}")
     # A7 (ruling 2026-10-02 1925): a cell whose 2x injection is not representable in ANY drawn copy
     # becomes DESCRIPTIVE-ABOVE-RANGE. A list change only: no threshold value changes.
-    th["descriptive_above_range"] = []
-    if a.pc1:
-        for r in json.loads(Path(a.pc1).read_text(encoding="utf-8"))["results"]:
-            rates = r.get("rates")
-            if rates and "n_slots" in r and rates["2.0"]["of"] < r["n_slots"] and not r["cell"].endswith(":hiccup"):
-                th["descriptive_above_range"].append(r["cell"])
-                if r["cell"] not in th["descriptive"]:
-                    th["descriptive"].append(r["cell"])
-                side, group, metric = r["cell"].split(":")
-                if metric in th["sides"][side][group]:
-                    th["sides"][side][group][metric]["DESCRIPTIVE"] = True
-                    th["sides"][side][group][metric]["DESCRIPTIVE_ABOVE_RANGE"] = True
-        th["descriptive_above_range"].sort()
-    # A7 (ruling 2026-10-02 1925): a cell whose 2x injection is not representable in ANY drawn copy
-    # becomes DESCRIPTIVE-ABOVE-RANGE. A list change only: no threshold value changes.
-    th["descriptive_above_range"] = []
+    th["descriptive_above_range"] = list(carry.get("descriptive_above_range", [])) if carry else []
+    for cell in [c for c in a.extra_above_range.split(",") if c]:
+        if cell not in th["descriptive_above_range"]:
+            th["descriptive_above_range"].append(cell)
+    for cell in th["descriptive_above_range"]:
+        if cell not in th["descriptive"]:
+            th["descriptive"].append(cell)
+        sd, gr, mt = cell.split(":")
+        if mt in th["sides"][sd][gr]:
+            th["sides"][sd][gr][mt]["DESCRIPTIVE"] = True
+            th["sides"][sd][gr][mt]["DESCRIPTIVE_ABOVE_RANGE"] = True
     if a.pc1:
         for r in json.loads(Path(a.pc1).read_text(encoding="utf-8"))["results"]:
             rates = r.get("rates")
@@ -219,7 +226,6 @@ def main() -> None:
     sha = sha_lf(Path(a.out))
     print(f"wrote {a.out}  sha256 {sha}")
     print("scan_core.py sha256", th["scan_core_py_sha256"])
-    print("DESCRIPTIVE-ABOVE-RANGE (A7):", len(th["descriptive_above_range"]), th["descriptive_above_range"])
     print("DESCRIPTIVE-ABOVE-RANGE (A7):", len(th["descriptive_above_range"]), th["descriptive_above_range"])
     print("DESCRIPTIVE cells:", len(th["descriptive"]))
     for x in th["descriptive"]:

@@ -138,6 +138,17 @@ def _runs(mask: np.ndarray):
     return list(zip(st.tolist(), (en - st).tolist()))
 
 
+def ref_is_ambiguous(r: np.ndarray) -> bool:
+    """A3' (ruling 2026-10-02 1955): the reference's OWN autocorrelation has a second distinct peak
+    (more than AMBIG_EXCL samples from zero lag) >= AMBIG_RATIO x its zero-lag peak. Independent of
+    the capture, so no chain fault can switch it on."""
+    lags, c, rho = _xcorr(r, r)
+    zero = int(np.argmax(rho))
+    far = np.abs(np.arange(len(rho)) - zero) > AMBIG_EXCL
+    second = float(np.max(np.abs(rho[far]))) if far.any() else 0.0
+    return bool(second >= AMBIG_RATIO * float(rho[zero]))
+
+
 def measure(x_i16: np.ndarray, ref: np.ndarray, fade_s: float = FADE_S) -> dict:
     """All section-4 per-slot numbers for one captured slot against its reference.
 
@@ -158,7 +169,11 @@ def measure(x_i16: np.ndarray, ref: np.ndarray, fade_s: float = FADE_S) -> dict:
     i = int(np.argmax(rho * out["rho_sign"]))
     far = np.abs(np.arange(len(rho)) - i) > AMBIG_EXCL
     second = float(np.max(np.abs(rho[far]))) if far.any() else 0.0
-    out["lag_ambiguous"] = bool(second >= AMBIG_RATIO * out["rho_peak"])
+    cap_ambiguous = bool(second >= AMBIG_RATIO * out["rho_peak"])     # the OLD A3 test, on the capture
+    out["lag_ambiguous"] = ref_is_ambiguous(r)                        # A3': a property of the reference only
+    # A10: on a slot whose reference is NOT ambiguous, a capture that has lost its clean correlation
+    # peak is itself a timing anomaly ("lag_lost", timing family). NaN where not applicable.
+    out["lag_lost"] = float(cap_ambiguous) if not out["lag_ambiguous"] else float("nan")
     tau = float(lags[0]) + _parabolic(c * out["rho_sign"], i)
     t0 = int(round(tau))
 
@@ -276,6 +291,7 @@ RULES = {
     "g_db":           ("dev", 0.5),
     "tau_ms":         ("dev", 2.0),
     "step_db_max":    ("up", 0.5),
+    "lag_lost":       ("up", None),     # A10: new, calibrated like any metric
     "drift_ppm":      ("abs", 20.0),
     "zero_run_ms":    ("up", 5.0),
     "tile_excess_db": ("up", 10.0),
@@ -302,7 +318,7 @@ MIN_GROUP_N = 20                 # a group below this uses its 09-23 thresholds 
 DESCRIPTIVE_FRACTION = 0.02      # one-sided flags above this share of a group => DESCRIPTIVE
 # metric families for the BOTH classification (same slot, same family, both sides)
 FAMILIES = {"g_db": "level", "step_db_max": "level",
-            "tau_ms": "timing", "drift_ppm": "timing",
+            "tau_ms": "timing", "drift_ppm": "timing", "lag_lost": "timing",
             "zero_run_ms": "dropout", "head_zero_ms": "dropout", "tail_zero_ms": "dropout",
             "tile_excess_db": "spectral", "click_max": "spectral", "resid_db": "spectral",
             "clip_n": "clip"}

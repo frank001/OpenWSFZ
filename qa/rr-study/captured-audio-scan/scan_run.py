@@ -31,7 +31,7 @@ SIDES = ("owsfz", "wsjt-x")
 R0C_MARGIN = 0.2          # spec section 3
 R0C_MAX_FAIL_FRAC = 0.02  # spec section 3
 NONDISCRIM_REF_RHO = 0.5  # (deviation D3, see report) reference-vs-neighbour-reference rho at/above this
-METRICS = ["g_db", "tau_ms", "resid_db", "step_db_max", "drift_ppm", "drift_dlag_samples",
+METRICS = ["lag_lost", "g_db", "tau_ms", "resid_db", "step_db_max", "drift_ppm", "drift_dlag_samples",
            "zero_run_ms", "head_zero_ms", "tail_zero_ms", "click_max", "tile_excess_db", "clip_n"]
 
 
