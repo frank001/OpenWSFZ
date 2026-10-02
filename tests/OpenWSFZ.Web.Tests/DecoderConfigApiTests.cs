@@ -416,7 +416,7 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
         store.Current.Decoder!.Nhard40MigrationApplied.Should().BeFalse("the stored value wins; the client value is ignored");
     }
 
-    [Theory(DisplayName = "A5: a POST body carrying subtractionOnMigrationApplied (either value) cannot change the stored marker")]
+    [Theory(DisplayName = "FR-082: A5: a POST body carrying subtractionOnMigrationApplied (either value) cannot change the stored marker")]
     [InlineData(true,  false)]
     [InlineData(false, true)]
     public async Task PostConfig_BodyCarriesSubtractionMarker_StoredMarkerKept(bool stored, bool sent)
@@ -441,7 +441,7 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
             "the marker is server-owned: the stored value wins whatever the client sends");
     }
 
-    [Fact(DisplayName = "A4 (web): a POST that creates the decoder section and sets subtractionEnabled false stores the marker true")]
+    [Fact(DisplayName = "FR-082: A4 (web): a POST that creates the decoder section and sets subtractionEnabled false stores the marker true")]
     public async Task PostConfig_CreatesDecoderSectionWithSubtractionOff_MarkerTrue()
     {
         var store = _factory.Services.GetRequiredService<IConfigStore>();

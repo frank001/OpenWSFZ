@@ -34,7 +34,7 @@ public sealed class SubtractionOnMigrationTests
     private static bool EffectiveSubtraction(JsonConfigStore store)
         => (store.Current.Decoder ?? new DecoderConfig()).SubtractionEnabled;
 
-    [Fact(DisplayName = "A0: the DecoderConfig code default is subtractionEnabled true and the marker default is false")]
+    [Fact(DisplayName = "FR-082: A0: the DecoderConfig code default is subtractionEnabled true and the marker default is false")]
     public void CodeDefaults()
     {
         new DecoderConfig().SubtractionEnabled.Should().BeTrue();
@@ -44,7 +44,7 @@ public sealed class SubtractionOnMigrationTests
             .Decoder!.SubtractionEnabled.Should().BeTrue("an absent key resolves to the new default");
     }
 
-    [Fact(DisplayName = "A1: no config file: loaded subtractionEnabled is true and the marker is true on disk after the first load")]
+    [Fact(DisplayName = "FR-082: A1: no config file: loaded subtractionEnabled is true and the marker is true on disk after the first load")]
     public void NoConfigFile_On_MarkerTrueOnDisk()
     {
         using var dir = new TempDirectory();
@@ -59,7 +59,7 @@ public sealed class SubtractionOnMigrationTests
         disk.SubtractionOnMigrationApplied.Should().BeTrue("a fresh install must never carry marker false");
     }
 
-    [Fact(DisplayName = "A2: legacy subtractionEnabled false with no marker: migrated to true, marker true, written to disk, one stderr line")]
+    [Fact(DisplayName = "FR-082: A2: legacy subtractionEnabled false with no marker: migrated to true, marker true, written to disk, one stderr line")]
     public void LegacyFalse_MigratesOnce_WritesBack_OneStderrLine()
     {
         using var dir = new TempDirectory();
@@ -86,7 +86,7 @@ public sealed class SubtractionOnMigrationTests
             "the line names the old and new value and how to turn it off");
     }
 
-    [Fact(DisplayName = "A3: subtractionEnabled false with the marker true stays false across 2 reloads")]
+    [Fact(DisplayName = "FR-082: A3: subtractionEnabled false with the marker true stays false across 2 reloads")]
     public void FalseWithMarkerTrue_StaysFalse_AcrossTwoReloads()
     {
         using var dir = new TempDirectory();
@@ -97,7 +97,7 @@ public sealed class SubtractionOnMigrationTests
         EffectiveSubtraction(new JsonConfigStore(path)).Should().BeFalse();
     }
 
-    [Fact(DisplayName = "A4: fresh install, operator saves subtractionEnabled false, reload twice: stays false (the #199 trap, for this flag)")]
+    [Fact(DisplayName = "FR-082: A4: fresh install, operator saves subtractionEnabled false, reload twice: stays false (the #199 trap, for this flag)")]
     public async Task FreshInstall_ExplicitOff_SurvivesTwoReloads()
     {
         using var dir = new TempDirectory();
@@ -113,7 +113,7 @@ public sealed class SubtractionOnMigrationTests
         EffectiveSubtraction(new JsonConfigStore(path)).Should().BeFalse();
     }
 
-    [Fact(DisplayName = "A4b: a section created from nothing by a save (store held no decoder section) carries the marker true")]
+    [Fact(DisplayName = "FR-082: A4b: a section created from nothing by a save (store held no decoder section) carries the marker true")]
     public async Task SaveCreatingDecoderSection_MarkerTrue()
     {
         using var dir = new TempDirectory();
@@ -128,7 +128,7 @@ public sealed class SubtractionOnMigrationTests
         EffectiveSubtraction(new JsonConfigStore(path)).Should().BeFalse();
     }
 
-    [Fact(DisplayName = "A4c: a decoder section already at the default ON with the marker false: the load sets the marker, a later OFF survives")]
+    [Fact(DisplayName = "FR-082: A4c: a decoder section already at the default ON with the marker false: the load sets the marker, a later OFF survives")]
     public async Task DefaultOnSectionMarkerFalse_LaterOffSurvives()
     {
         using var dir = new TempDirectory();
@@ -142,7 +142,7 @@ public sealed class SubtractionOnMigrationTests
         EffectiveSubtraction(new JsonConfigStore(path)).Should().BeFalse();
     }
 
-    [Fact(DisplayName = "a second Load of an already-migrated config writes nothing (content and modification time unchanged)")]
+    [Fact(DisplayName = "FR-082: a second Load of an already-migrated config writes nothing (content and modification time unchanged)")]
     public void SecondLoad_WritesNothing()
     {
         using var dir = new TempDirectory();
@@ -161,7 +161,7 @@ public sealed class SubtractionOnMigrationTests
         File.GetLastWriteTimeUtc(path).Should().Be(stamp, "an idempotent Load must not rewrite the file");
     }
 
-    [Fact(DisplayName = "a legacy subtractionEnabled false plus a legacy osdNhardMax 60 migrate in one write")]
+    [Fact(DisplayName = "FR-082: a legacy subtractionEnabled false plus a legacy osdNhardMax 60 migrate in one write")]
     public void LegacyFalseAndLegacy60_MigrateInOneWrite()
     {
         using var dir = new TempDirectory();
@@ -187,7 +187,7 @@ public sealed class SubtractionOnMigrationTests
         File.GetLastWriteTimeUtc(path).Should().Be(stamp);
     }
 
-    [Fact(DisplayName = "a file with no decoder key still writes nothing on Load (there is no section to carry a marker)")]
+    [Fact(DisplayName = "FR-082: a file with no decoder key still writes nothing on Load (there is no section to carry a marker)")]
     public void NoDecoderKey_NothingWritten()
     {
         using var dir = new TempDirectory();
