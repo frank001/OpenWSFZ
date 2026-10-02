@@ -1,0 +1,51 @@
+{
+ "margin": 0.2,
+ "max_fail_fraction": 0.02,
+ "sides": {
+  "owsfz": {
+   "paired_slots": 244,
+   "discriminating": 84,
+   "nondiscriminating": 160,
+   "nondiscriminating_by_scenario": {
+    "S1": 13,
+    "S5": 57,
+    "S7": 85,
+    "S8": 5
+   },
+   "largest_neighbour_rho_run": 0.5543526669986126,
+   "own_rho_min_disc": 0.674353651844235,
+   "own_rho_median_disc": 0.9357628153635926,
+   "spec_literal_fail_all_slots": 3,
+   "spec_literal_fail_fraction_all": 0.012295081967213115,
+   "spec_literal_fail_discriminating": 1,
+   "spec_literal_PASS": true,
+   "A1_fail_slots": [],
+   "A1_fail_fraction": 0.0,
+   "A1_PASS": true
+  },
+  "wsjt-x": {
+   "paired_slots": 244,
+   "discriminating": 84,
+   "nondiscriminating": 160,
+   "nondiscriminating_by_scenario": {
+    "S1": 13,
+    "S5": 57,
+    "S7": 85,
+    "S8": 5
+   },
+   "largest_neighbour_rho_run": 0.5180728447004788,
+   "own_rho_min_disc": 0.6816850803802526,
+   "own_rho_median_disc": 0.9669630015082213,
+   "spec_literal_fail_all_slots": 3,
+   "spec_literal_fail_fraction_all": 0.012295081967213115,
+   "spec_literal_fail_discriminating": 1,
+   "spec_literal_PASS": true,
+   "A1_fail_slots": [],
+   "A1_fail_fraction": 0.0,
+   "A1_PASS": true
+  }
+ },
+ "wall_seconds": 157.2,
+ "n_slots_truth": 407,
+ "n_paired": 244
+}

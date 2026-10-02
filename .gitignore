@@ -258,3 +258,5 @@ qa/rr-study/fp-parity/_out/
 
 # LATENESS edge test: renders/decodes staging (gitignored)
 qa/rr-study/lateness-edge/_out/
+# #194 captured-audio scan: measurement output staging (gitignored; promotion into results/ is a separate step)
+qa/rr-study/captured-audio-scan/_out/
