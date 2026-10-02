@@ -29,6 +29,77 @@ S1_GUARD = ("🛑 S1 `g_db` / `resid_db` below are descriptive chain gains. The 
             "by the Captain on 2026-09-29; these numbers do not reopen it and are never cited as a build or chain effect.")
 
 
+def family_set(fl: dict) -> set:
+    return {sc.FAMILIES[m] for m, f in fl.items() if f}
+
+
+def classify(flags_o: dict, flags_w: dict) -> list:
+    """BOTH / OWSFZ-ONLY / WSJTX-ONLY by metric family, for one slot (a side with no entry = nothing flagged).
+    Same family flagged on both sides of the same slot (the same 15 s cycle, i.e. within +-0.5 s) = BOTH."""
+    fo, fw = family_set(flags_o), family_set(flags_w)
+    return ([("BOTH", f) for f in sorted(fo & fw)] + [("OWSFZ-ONLY", f) for f in sorted(fo - fw)]
+            + [("WSJTX-ONLY", f) for f in sorted(fw - fo)])
+
+
+def run_centres(scanned: dict) -> dict:
+    """A11: this run's own median tau_ms per (side, group); and the owsfz-minus-wsjtx tau difference per group."""
+    cen, by = {}, {}
+    for side, rows in scanned.items():
+        for r in rows:
+            if r["tau_ms"] == r["tau_ms"]:
+                by.setdefault((side, r["group"]), []).append(r["tau_ms"])
+    for (side, g), v in by.items():
+        cen[(side, g, "tau_ms")] = statistics.median(v)
+    return cen
+
+
+def dtau_centres(by_slot: dict) -> dict:
+    d = {}
+    for k, o in by_slot["owsfz"].items():
+        w = by_slot["wsjtx"].get(k)
+        if w is not None and o["tau_ms"] == o["tau_ms"] and w["tau_ms"] == w["tau_ms"]:
+            d.setdefault(o["group"], []).append(o["tau_ms"] - w["tau_ms"])
+    return {g: statistics.median(v) for g, v in d.items()}
+
+
+def run_level_deltas(th: dict, scanned: dict) -> list:
+    """Run median g_db minus the calibration median per (side, group); RUN-LEVEL if |delta| > 0.5 dB."""
+    out = []
+    for side, rows in scanned.items():
+        for g in sc.GROUPS:
+            row = th["sides"][side][g].get("g_db")
+            v = [r["g_db"] for r in rows if r["group"] == g and r["g_db"] == r["g_db"]]
+            if row and v:
+                d = statistics.median(v) - row["median"]
+                out.append({"side": side, "group": g, "delta_db": d, "RUN-LEVEL": abs(d) > sc.RUN_LEVEL_DELTA_DB})
+    return out
+
+
+def evaluate(th: dict, desc: set, scanned: dict, by_slot: dict, mode: str) -> dict:
+    centres = run_centres(scanned) if mode == "a11" else None
+    dcen = dtau_centres(by_slot) if mode == "a11" else {}
+    flags = {s: {} for s in fz.SIDES}
+    for s in fz.SIDES:
+        for r in scanned[s]:
+            fl = fz.slot_flags(th, s, r, centres)
+            flags[s][r["slot"]] = {m: bool(f and f"{s}:{r['group']}:{m}" not in desc) for m, f in fl.items()}
+    classes = defaultdict(list)
+    for k in set(flags["owsfz"]) | set(flags["wsjtx"]):
+        for c in classify(flags["owsfz"].get(k, {}), flags["wsjtx"].get(k, {})):
+            classes[k].append(c)
+    for k, o in by_slot["owsfz"].items():
+        w = by_slot["wsjtx"].get(k)
+        if w is None:
+            continue
+        g = o["group"]
+        for m, val in (("dg_db", o["g_db"] - w["g_db"]),
+                       ("dtau_ms", (o["tau_ms"] - w["tau_ms"]) if o["tau_ms"] == o["tau_ms"] and w["tau_ms"] == w["tau_ms"] else float("nan"))):
+            row = th["cross"].get(g, {}).get(m)
+            if row and f"cross:{g}:{m}" not in desc and sc.flagged(val, row, dcen.get(g) if m == "dtau_ms" and mode == "a11" else None):
+                classes[k].append(("CROSS", m))
+    return {"flags": flags, "classes": classes, "mode": mode}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", required=True)
@@ -37,6 +108,8 @@ def main() -> None:
     ap.add_argument("--audio", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--calibration", action="store_true")
+    ap.add_argument("--registered", choices=("a11", "freeze3"), default="a11",
+                    help="which centring rule is the registered result of this report (09-29 stays freeze3; the other is shown beside it)")
     a = ap.parse_args()
     thp = Path(a.thresholds)
     th = json.loads(thp.read_text(encoding="utf-8"))
@@ -49,34 +122,13 @@ def main() -> None:
     scanned = {s: [r for r in data[s] if not r["ref_mismatch"]] for s in fz.SIDES}
     files = list(csv.DictReader(open(sd / "files.csv", newline="", encoding="utf-8")))
 
-    # ---- flags (non-DESCRIPTIVE only), BOTH / one-sided / CROSS
-    flags = {s: {} for s in fz.SIDES}
-    for s in fz.SIDES:
-        for r in scanned[s]:
-            fl = fz.slot_flags(th, s, r)
-            flags[s][r["slot"]] = {m: bool(f and f"{s}:{r['group']}:{m}" not in desc) for m, f in fl.items()}
-    fam = lambda fl: {sc.FAMILIES[m] for m, f in fl.items() if f}  # noqa: E731
-    classes = defaultdict(list)             # slot -> list of (class, family)
-    for k in set(flags["owsfz"]) | set(flags["wsjtx"]):
-        fo = fam(flags["owsfz"].get(k, {}))
-        fw = fam(flags["wsjtx"].get(k, {}))
-        for f in sorted(fo & fw):
-            classes[k].append(("BOTH", f))
-        for f in sorted(fo - fw):
-            classes[k].append(("OWSFZ-ONLY", f))
-        for f in sorted(fw - fo):
-            classes[k].append(("WSJTX-ONLY", f))
+    # ---- flags (non-DESCRIPTIVE only), BOTH / one-sided / CROSS, under two centring modes:
+    #   "freeze3": every dev metric on the calibration median (the REGISTERED rule for 09-29)
+    #   "a11":     tau_ms / dtau_ms on this run's own median (forward rule, ruling 2026-10-02 2055)
     by_slot = {s: {r["slot"]: r for r in scanned[s]} for s in fz.SIDES}
-    for k, o in by_slot["owsfz"].items():
-        w = by_slot["wsjtx"].get(k)
-        if w is None:
-            continue
-        g = o["group"]
-        for m, val in (("dg_db", o["g_db"] - w["g_db"]),
-                       ("dtau_ms", (o["tau_ms"] - w["tau_ms"]) if o["tau_ms"] == o["tau_ms"] and w["tau_ms"] == w["tau_ms"] else float("nan"))):
-            row = th["cross"].get(g, {}).get(m)
-            if row and f"cross:{g}:{m}" not in desc and sc.flagged(val, row):
-                classes[k].append(("CROSS", m))
+    ev = {mode: evaluate(th, desc, scanned, by_slot, mode) for mode in ("freeze3", "a11")}
+    main_mode = "freeze3" if a.registered == "freeze3" else "a11"
+    flags, classes = ev[main_mode]["flags"], ev[main_mode]["classes"]
     n_cls = Counter(c for v in classes.values() for c, _ in v)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -182,6 +234,27 @@ def main() -> None:
     for s in fz.SIDES:
         if s1[s]:
             w(f"- {s}: median `g_db` {statistics.median(r['g_db'] for r in s1[s]):.2f}, median `resid_db` {statistics.median(r['resid_db'] for r in s1[s]):.2f} (n = {len(s1[s])}).")
+    other = "a11" if main_mode == "freeze3" else "freeze3"
+    w("")
+    w(f"## Registered result: `{main_mode}` centring" + ("; the A11 reclassification below is 'applied after reading; forward rule'" if main_mode == "freeze3" else " (A11 forward rule)"))
+    w("")
+    def cnt(e):
+        c = Counter((cl, f) for v in e["classes"].values() for cl, f in v)
+        return c
+    c_main, c_oth = cnt(ev[main_mode]), cnt(ev[other])
+    w(f"| class | family | slots (`{main_mode}`, registered) | slots (`{other}`, " + ("A11, applied after reading; forward rule" if other == "a11" else "freeze 3 rule") + ") |")
+    w("|---|---|---:|---:|")
+    for key in sorted(set(c_main) | set(c_oth)):
+        w(f"| {key[0]} | {key[1]} | {c_main.get(key, 0)} | {c_oth.get(key, 0)} |")
+    w("")
+    w("**Cite as shared-path events only** the BOTH findings that survive A11 plus the level, drift and `lag_lost` families.")
+    w("")
+    w("### Run-level lines (A11)")
+    w("")
+    w("(a) run median `g_db` minus the calibration median, per (side, group); `RUN-LEVEL` if |Δ| > 0.5 dB:")
+    for d in run_level_deltas(th, scanned):
+        w(f"- {d['side']} {d['group']}: {d['delta_db']:+.2f} dB" + (" **RUN-LEVEL**" if d["RUN-LEVEL"] else ""))
+    w("(b) the run's own median `tau_ms` offset per (side, group) and `dtau_ms` offset: descriptive only, in the table below.")
     # ---- descriptive preview, NOT frozen (an "A11" question for the Architect): the frozen dev rule centres
     # g_db / tau_ms / dg_db / dtau_ms on the CALIBRATION run's median; a per-run shift of the chain's timing
     # offset then flags most slots. Here: the median of this run per (side, group) and the same frozen T.

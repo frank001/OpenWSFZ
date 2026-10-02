@@ -1,4 +1,4 @@
-thresholds.json  e1789e2ec8a02caf66898dd15b2e208df6ebec3508460f2f29433a81b1146d11
-scan_core.py     6ca48d41fe3e957f2bea7bbdaf03b94150079ba80f341c2d6a36ff6d50b18eb4
+thresholds.json  c1d793ec773520267dcc0545f0d114bec635d63436b9c1960b3e7891b4a26d8d
+scan_core.py     582f422e27e7d9f2d949de7ac10f6fb0cee07c2c48d53c7dbcb6dbc4c7722a21
 (SHA-256 of the LF-normalised bytes, i.e. of the git blobs.
-RE-FREEZE 3 (A3', A10 lag_lost, A9 above-range cells; Architect ruling 1955): every threshold value except lag_lost unchanged (checked cell by cell); supersedes f1575f55... of edb5b56f. 09-29 still unread.)
+RE-FREEZE 4 (A11 split, Architect ruling 2055): threshold values unchanged (checked cell by cell); adds the centre rule (tau/dtau on each run's own median; g_db/dg_db on the calibration median) and RUN-LEVEL delta 0.5 dB. Supersedes e1789e2e... of d4316452.)

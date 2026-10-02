@@ -35,6 +35,16 @@ METRICS = ["lag_lost", "g_db", "tau_ms", "resid_db", "step_db_max", "drift_ppm",
            "zero_run_ms", "head_zero_ms", "tail_zero_ms", "click_max", "tile_excess_db", "clip_n"]
 
 
+def is_discriminating(r: dict) -> bool:
+    """A1: a slot's reference correlates < NONDISCRIM_REF_RHO with each neighbour's reference."""
+    return r["ref_vs_neighbour_ref_rho"] < NONDISCRIM_REF_RHO
+
+
+def a1_fails(r: dict) -> bool:
+    """A1: own rho_peak must exceed BOTH own neighbours' by >= R0C_MARGIN (rho_neighbour_max is their max)."""
+    return r["rho_peak"] - r["rho_neighbour_max"] < R0C_MARGIN
+
+
 def assert_untracked(path: Path) -> None:
     """Refuse to write where git tracks anything (measurement output must never overwrite results/)."""
     r = subprocess.run(["git", "ls-files", "--", str(path)], capture_output=True, text=True,
@@ -142,15 +152,15 @@ def main() -> None:
     r0c = {"margin": R0C_MARGIN, "max_fail_fraction": R0C_MAX_FAIL_FRAC, "sides": {}}
     mism = {side: set() for side in SIDES}
     for side in SIDES:
-        disc = [r for r in rows[side] if r["ref_vs_neighbour_ref_rho"] < NONDISCRIM_REF_RHO]
-        nondisc = [r for r in rows[side] if r["ref_vs_neighbour_ref_rho"] >= NONDISCRIM_REF_RHO]
+        disc = [r for r in rows[side] if is_discriminating(r)]
+        nondisc = [r for r in rows[side] if not is_discriminating(r)]
         nb_max = max(r["rho_neighbour_max"] for r in disc)
         # R0c exactly as written: own rho must beat the RUN's largest neighbour rho by >= 0.2.
         fails_spec = [r["slot"] for r in rows[side] if r["rho_peak"] - nb_max < R0C_MARGIN]
         fails_spec_disc = [r["slot"] for r in disc if r["rho_peak"] - nb_max < R0C_MARGIN]
         # Amendment A1 (proposed; used for classification): the same margin, per slot, against
         # that slot's OWN neighbours, on slots whose reference differs from its neighbours'.
-        fails = [r["slot"] for r in disc if r["rho_peak"] - r["rho_neighbour_max"] < R0C_MARGIN]
+        fails = [r["slot"] for r in disc if a1_fails(r)]
         mism[side] = set(fails)
         r0c["sides"][side] = {
             "paired_slots": len(rows[side]), "discriminating": len(disc), "nondiscriminating": len(nondisc),

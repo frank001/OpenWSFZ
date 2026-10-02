@@ -352,11 +352,20 @@ def threshold_row(values, kind: str, floor):
             "flag_if": "abs(m) > T" if kind == "abs" else "m > T"}
 
 
-def flagged(value: float, row: dict) -> bool:
+# A11 (ruling 2026-10-02 2055, freeze 4): which centre the two-sided "dev" metrics use on a run other than the
+# calibration run. tau/dtau: each run's OWN median per (side, group), frozen T (the absolute lag is a property of
+# each stream start). g_db/dg_db: the CALIBRATION median (a between-run level change is a mixer change).
+CENTRE_RULE = {"g_db": "calibration", "dg_db": "calibration", "tau_ms": "run", "dtau_ms": "run"}
+RUN_LEVEL_DELTA_DB = 0.5          # |run median g_db - calibration median| above this => RUN-LEVEL
+
+
+def flagged(value: float, row: dict, centre: "float | None" = None) -> bool:
+    """`centre` overrides the stored (calibration) median for the two-sided "dev" kind only (A11)."""
     if value != value:
         return False
     if row["kind"] == "dev":
-        return abs(value - row["median"]) > row["T"]
+        c = row["median"] if centre is None else centre
+        return abs(value - c) > row["T"]
     if row["kind"] == "abs":
         return abs(value) > row["T"]
     return value > row["T"]

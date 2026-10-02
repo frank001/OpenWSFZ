@@ -68,18 +68,31 @@ def fixed_flag(side: str, metric: str, value: float) -> bool:
     raise KeyError(metric)
 
 
-def cell_flag(th: dict, side: str, group: str, metric: str, value: float) -> bool:
+def cell_flag(th: dict, side: str, group: str, metric: str, value: float, centres: "dict | None" = None) -> bool:
     """Raw flag (threshold exceeded) irrespective of DESCRIPTIVE status."""
     if metric in FIXED_METRICS:
         return fixed_flag(side, metric, value)
     row = th["sides"][side][group].get(metric)
     if row is None:          # no valid values in this group (e.g. tau/drift on all-ambiguous slots)
         return False
-    return sc.flagged(value, row)
+    centre = None if centres is None else centres.get((side, group, metric))
+    return sc.flagged(value, row, centre)
 
 
-def slot_flags(th: dict, side: str, row: dict) -> dict:
-    return {m: cell_flag(th, side, row["group"], m, row[m]) for m in ALL_METRICS}
+def slot_flags(th: dict, side: str, row: dict, centres: "dict | None" = None) -> dict:
+    """centres: {(side, group, metric): run median} for the A11 metrics (tau_ms); None = calibration centre."""
+    return {m: cell_flag(th, side, row["group"], m, row[m], centres) for m in ALL_METRICS}
+
+
+def above_range_cells(pc1_results: list) -> list:
+    """A7: a (side, group, metric) cell whose 2x injection is not representable in ANY drawn copy is
+    DESCRIPTIVE-ABOVE-RANGE. The hiccup row is an injection, not a metric cell."""
+    out = []
+    for r in pc1_results:
+        rates = r.get("rates")
+        if rates and "n_slots" in r and rates["2.0"]["of"] < r["n_slots"] and not r["cell"].endswith(":hiccup"):
+            out.append(r["cell"])
+    return sorted(out)
 
 
 def main() -> None:
@@ -101,6 +114,7 @@ def main() -> None:
           "tail_rule": {"wsjtx": "abs(tail_zero_ms - 600.0) > 5", "owsfz": "tail_zero_ms > 5"},
           "head_rule": "head_zero_ms > 5 (both sides)",
           "sides": {s: {g: {} for g in sc.GROUPS} for s in SIDES}, "cross": {g: {} for g in sc.GROUPS},
+          "centre_rule": dict(sc.CENTRE_RULE), "run_level_delta_db": sc.RUN_LEVEL_DELTA_DB,
           "descriptive": [], "counts": {}}
     # 1. thresholds per side x group
     for s in SIDES:

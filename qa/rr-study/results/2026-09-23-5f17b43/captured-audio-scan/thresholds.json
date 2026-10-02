@@ -1322,6 +1322,12 @@
    "side": "wsjtx"
   }
  ],
+ "centre_rule": {
+  "dg_db": "calibration",
+  "dtau_ms": "run",
+  "g_db": "calibration",
+  "tau_ms": "run"
+ },
  "counts": {
   "descriptive_cells": 30,
   "lag_ambiguous_by_group": {
@@ -2203,7 +2209,8 @@
  "k_sigma": 6.0,
  "mad_scale": 1.4826,
  "min_group_n": 20,
- "scan_core_py_sha256": "6ca48d41fe3e957f2bea7bbdaf03b94150079ba80f341c2d6a36ff6d50b18eb4",
+ "run_level_delta_db": 0.5,
+ "scan_core_py_sha256": "582f422e27e7d9f2d949de7ac10f6fb0cee07c2c48d53c7dbcb6dbc4c7722a21",
  "sides": {
   "owsfz": {
    "multi": {
