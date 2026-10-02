@@ -1213,7 +1213,7 @@
   }
  ],
  "counts": {
-  "descriptive_cells": 18,
+  "descriptive_cells": 28,
   "lag_ambiguous_by_group": {
    "owsfz": {
     "multi": 1,
@@ -1366,6 +1366,7 @@
  "descriptive": [
   "owsfz:multi:resid_db",
   "owsfz:multi:tail_zero_ms",
+  "owsfz:multi:tile_excess_db",
   "owsfz:multi:zero_run_ms",
   "owsfz:noise:tail_zero_ms",
   "owsfz:noise:zero_run_ms",
@@ -1373,15 +1374,36 @@
   "owsfz:single:resid_db",
   "owsfz:single:step_db_max",
   "owsfz:single:tail_zero_ms",
+  "owsfz:single:tile_excess_db",
   "owsfz:single:zero_run_ms",
   "owsfz:tone2:tail_zero_ms",
+  "owsfz:tone2:tile_excess_db",
   "owsfz:tone3:click_max",
   "owsfz:tone3:resid_db",
   "owsfz:tone3:step_db_max",
   "owsfz:tone3:tail_zero_ms",
+  "owsfz:tone3:tile_excess_db",
+  "wsjtx:multi:click_max",
+  "wsjtx:multi:tile_excess_db",
+  "wsjtx:noise:click_max",
   "wsjtx:single:click_max",
+  "wsjtx:single:tile_excess_db",
   "wsjtx:tone2:resid_db",
-  "wsjtx:tone2:tile_excess_db"
+  "wsjtx:tone2:tile_excess_db",
+  "wsjtx:tone3:click_max",
+  "wsjtx:tone3:tile_excess_db"
+ ],
+ "descriptive_above_range": [
+  "owsfz:multi:tile_excess_db",
+  "owsfz:single:tile_excess_db",
+  "owsfz:tone2:tile_excess_db",
+  "owsfz:tone3:tile_excess_db",
+  "wsjtx:multi:click_max",
+  "wsjtx:multi:tile_excess_db",
+  "wsjtx:noise:click_max",
+  "wsjtx:single:tile_excess_db",
+  "wsjtx:tone3:click_max",
+  "wsjtx:tone3:tile_excess_db"
  ],
  "descriptive_fraction": 0.02,
  "flagged_slots_calibration": {
@@ -2154,7 +2176,8 @@
      "rule_value": 41.7966976690911
     },
     "tile_excess_db": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 27.456580013260144,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -2410,7 +2433,8 @@
      "rule_value": 50.14068179531015
     },
     "tile_excess_db": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 31.341527529441226,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -2510,7 +2534,8 @@
      "rule_value": 1.2907398943521837e-06
     },
     "tile_excess_db": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 178.9365980440651,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -2610,7 +2635,8 @@
      "rule_value": 2.07186839516681e-05
     },
     "tile_excess_db": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 97.97561368168442,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -2642,7 +2668,8 @@
   "wsjtx": {
    "multi": {
     "click_max": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 188.45441715329463,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -2740,7 +2767,8 @@
      "rule_value": 57.81540969198767
     },
     "tile_excess_db": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 26.700429152562105,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -2770,7 +2798,8 @@
    },
    "noise": {
     "click_max": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 22.2691635404799,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -2996,7 +3025,8 @@
      "rule_value": 81.39106519288045
     },
     "tile_excess_db": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 50.12324415977263,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -3126,7 +3156,8 @@
    },
    "tone3": {
     "click_max": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 497.3265457691672,
      "flag_if": "m > T",
      "flagged_one_sided": 0,
@@ -3196,7 +3227,8 @@
      "rule_value": 0.07496346152918248
     },
     "tile_excess_db": {
-     "DESCRIPTIVE": false,
+     "DESCRIPTIVE": true,
+     "DESCRIPTIVE_ABOVE_RANGE": true,
      "T": 79.94724748264677,
      "flag_if": "m > T",
      "flagged_one_sided": 0,

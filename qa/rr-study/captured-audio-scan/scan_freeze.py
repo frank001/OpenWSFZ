@@ -87,6 +87,7 @@ def main() -> None:
     ap.add_argument("--sidecars", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--run", default="2026-09-23-5f17b43")
+    ap.add_argument("--pc1", default=None, help="pc1.json: apply A7 (DESCRIPTIVE-ABOVE-RANGE)")
     a = ap.parse_args()
     d = Path(a.sidecars)
     data = {s: [r for r in load(d / f"sidecar_{s}.csv") if not r["ref_mismatch"]] for s in SIDES}
@@ -171,6 +172,36 @@ def main() -> None:
             row["DESCRIPTIVE"] = bool(vals and len(fl) / len(vals) > sc.DESCRIPTIVE_FRACTION)
             if row["DESCRIPTIVE"]:
                 th["descriptive"].append(f"cross:{g}:{m}")
+    # A7 (ruling 2026-10-02 1925): a cell whose 2x injection is not representable in ANY drawn copy
+    # becomes DESCRIPTIVE-ABOVE-RANGE. A list change only: no threshold value changes.
+    th["descriptive_above_range"] = []
+    if a.pc1:
+        for r in json.loads(Path(a.pc1).read_text(encoding="utf-8"))["results"]:
+            rates = r.get("rates")
+            if rates and "n_slots" in r and rates["2.0"]["of"] < r["n_slots"] and not r["cell"].endswith(":hiccup"):
+                th["descriptive_above_range"].append(r["cell"])
+                if r["cell"] not in th["descriptive"]:
+                    th["descriptive"].append(r["cell"])
+                side, group, metric = r["cell"].split(":")
+                if metric in th["sides"][side][group]:
+                    th["sides"][side][group][metric]["DESCRIPTIVE"] = True
+                    th["sides"][side][group][metric]["DESCRIPTIVE_ABOVE_RANGE"] = True
+        th["descriptive_above_range"].sort()
+    # A7 (ruling 2026-10-02 1925): a cell whose 2x injection is not representable in ANY drawn copy
+    # becomes DESCRIPTIVE-ABOVE-RANGE. A list change only: no threshold value changes.
+    th["descriptive_above_range"] = []
+    if a.pc1:
+        for r in json.loads(Path(a.pc1).read_text(encoding="utf-8"))["results"]:
+            rates = r.get("rates")
+            if rates and "n_slots" in r and rates["2.0"]["of"] < r["n_slots"] and not r["cell"].endswith(":hiccup"):
+                th["descriptive_above_range"].append(r["cell"])
+                if r["cell"] not in th["descriptive"]:
+                    th["descriptive"].append(r["cell"])
+                side, group, metric = r["cell"].split(":")
+                if metric in th["sides"][side][group]:
+                    th["sides"][side][group][metric]["DESCRIPTIVE"] = True
+                    th["sides"][side][group][metric]["DESCRIPTIVE_ABOVE_RANGE"] = True
+        th["descriptive_above_range"].sort()
     th["descriptive"].sort()
     th["cells"] = cells
     th["counts"] = {
@@ -188,6 +219,8 @@ def main() -> None:
     sha = sha_lf(Path(a.out))
     print(f"wrote {a.out}  sha256 {sha}")
     print("scan_core.py sha256", th["scan_core_py_sha256"])
+    print("DESCRIPTIVE-ABOVE-RANGE (A7):", len(th["descriptive_above_range"]), th["descriptive_above_range"])
+    print("DESCRIPTIVE-ABOVE-RANGE (A7):", len(th["descriptive_above_range"]), th["descriptive_above_range"])
     print("DESCRIPTIVE cells:", len(th["descriptive"]))
     for x in th["descriptive"]:
         print("  ", x)

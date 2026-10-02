@@ -1,3 +1,4 @@
-thresholds.json  a3b19753d66fa0d603dc2b6f5388a093d2b0d402da702320aadbbd5aac84cad9
+thresholds.json  f1575f55aa4485b4d760a9eecf3e1ec01fe990d726628d3067d3ca27a06e924b
 scan_core.py     07e8d11691c851917dcc6ec3768c558a458c940c47454c0684db6fc81d0c52f4
-(SHA-256 of the LF-normalised bytes, i.e. of the git blobs: verify with git show <commit>:<path> | sha256sum. Supersedes the CRLF-byte hashes in commit 766eb7a4, which was made before any 09-29 audio was read.)
+(SHA-256 of the LF-normalised bytes, i.e. of the git blobs: git show <commit>:<path> | sha256sum.
+RE-FREEZE 2 (A7, Architect ruling 09b0e389): threshold values unchanged; 10 cells added as DESCRIPTIVE-ABOVE-RANGE; supersedes a3b19753... of commit 3953ac35. 09-29 still unread.)
