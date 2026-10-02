@@ -192,6 +192,16 @@ Document the agreed strategy in the relevant OpenSpec change artifacts. One does
 
 
 
+# Tests That Do Not Flake — a standing rule
+
+Flaky tests were written, then found, analysed and fixed, again and again (D-015, capture-autostart, the macOS goldens, 2026-10-01). Do not write them in the first place, and do not let them pass review. Read `TESTING_STRATEGY.md` §11 before writing or reviewing any async, timing, numeric or memory test. In short:
+
+- **Wait on a positive condition** (`OpenWSFZ.TestSupport.Poll.*`), never a fixed delay. Gate G10 only sees delay literals; the rest is on you.
+- **"Queue empty" is not "processed".** Wait for the effect, or use `ObservedDecodeChannel` for the QSO service tests.
+- **Never swap a delay seam for a no-op** when the test asserts exact counts on state a background loop also changes. Park it on a `TaskCompletionSource`, or poll.
+- **A numeric golden holds only on the platform that recorded it** (arm64 differs from x86-64 in the last bits). Compare in-process, record per platform, or state a tolerance. Memory-return assertions need a branch per OS (Windows, Linux, macOS).
+- **You cannot run macOS locally**: ask QA to push the branch early; CI gives the macOS result in about 6 minutes. Only QA pushes.
+
 # Acceptable Behaviour \& Quality Standards
 
 

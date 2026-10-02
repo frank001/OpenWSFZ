@@ -2054,13 +2054,28 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         await sut.StartAsync(stopCts.Token);
 
-        // Trigger CQ → TxAnswer → WaitReport.
+        // Trigger CQ → TxAnswer → WaitReport. Feed no further batches: the 300 ms watchdog fires and
+        // drives the service to Idle.
         channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
             [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
-        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
-        // Feed no further batches — watchdog fires after 300 ms and drives the service to Idle.
-        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+        // Wait for the OUTCOME on the event bus, which is persistent, not for the transient
+        // WaitReport state. The state lasts about one watchdog period (300 ms, set short on purpose
+        // for this test), so a poll that is delayed past that window by a loaded CI runner never sees
+        // it and then reads Idle for the rest of its budget (the failures on 2026-10-02, #203). The
+        // recorded Publish calls cannot be missed, whenever the poll runs.
+        await Poll.UntilAsync(
+            () => AnswererPublishes(eventBus).Any(IsWatchdogTimeoutIdle),
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: () => "no Idle publish with 'Watchdog timeout' was recorded; answerer publishes: " +
+                string.Join(" | ", AnswererPublishes(eventBus).Select(a => $"{a[0]}/{a[4]}")));
+
+        // The session really ran: a non-Idle state was published before the watchdog's Idle.
+        var publishes = AnswererPublishes(eventBus);
+        var firstActive = publishes.FindIndex(a => (string?)a[0] != "Idle");
+        var watchdogIdle = publishes.FindIndex(IsWatchdogTimeoutIdle);
+        firstActive.Should().BeGreaterThanOrEqualTo(0, "the answerer must have left Idle for the watchdog to have anything to expire");
+        firstActive.Should().BeLessThan(watchdogIdle, "the non-Idle state precedes the watchdog's Idle publish");
 
         // The Idle publish must carry "Watchdog timeout" as the abort reason.
         eventBus.Received().Publish(
@@ -2076,6 +2091,18 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StopAsync(CancellationToken.None);
         await ptt.DisposeAsync();
     }
+
+    /// <summary>The arguments of every <c>Publish</c> call the answerer made on the substitute event bus, in order
+    /// (state, role, partner, ..., abortReason at index 4).</summary>
+    private static List<object?[]> AnswererPublishes(ITxEventBus eventBus) =>
+        eventBus.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == "Publish")
+            .Select(c => c.GetArguments())
+            .Where(a => (string?)a[1] == "answerer")
+            .ToList();
+
+    private static bool IsWatchdogTimeoutIdle(object?[] publish) =>
+        (string?)publish[0] == "Idle" && (string?)publish[4] == "Watchdog timeout";
 
     [Fact(DisplayName = "FR-UX-002: operator AbortAsync publishes Idle with 'Operator abort' abort reason")]
     public async Task SafeAbortToIdleAsync_OperatorAbort_EmitsAbortReason()

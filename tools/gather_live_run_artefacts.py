@@ -335,10 +335,54 @@ def filter_alltxt(src: Path, dst: Path, start: datetime, end: datetime) -> int:
     return kept
 
 
+OWSFZ_WAV_MODES = ("auto", "copy", "move")
+
+
+def resolve_wav_mode(mode: str, src_dir: Path, out_root: Path) -> str:
+    """Resolve the --owsfz-wav-mode `auto` to `move` or `copy`.
+
+    `auto` MOVES when the OpenWSFZ cycle-audio directory already lives under --out-root (the
+    endurance runs point the daemon's cycleAudioArchive.directory straight into the run's own
+    artefacts folder), because copying from there into <run>-gathered/owsfz/wav/ left the same
+    WAVs on disk twice (about 1 to 1.5 GB per run; found 2026-10-02 on 20260925_2010 and
+    20260930_1930). Anywhere else (the default %APPDATA% archive, a capture instance's own
+    directory) it COPIES, so the live archive and its retention are never disturbed."""
+    if mode not in OWSFZ_WAV_MODES:
+        raise ValueError(f"unknown WAV mode {mode!r}; expected one of {OWSFZ_WAV_MODES}")
+    if mode != "auto":
+        return mode
+    try:
+        return "move" if src_dir.resolve().is_relative_to(out_root.resolve()) else "copy"
+    except (OSError, ValueError):
+        return "copy"
+
+
+def transfer_wav(src: Path, dst: Path, mode: str) -> None:
+    """Put `src` at `dst`: `copy` leaves the source; `move` removes it. A move on one volume is an
+    atomic os.replace; across volumes it copies, verifies the size, and only then unlinks, so a
+    failed copy never loses the source."""
+    if mode == "copy":
+        shutil.copy2(src, dst)
+        return
+    if mode != "move":
+        raise ValueError(f"transfer_wav: mode must be 'copy' or 'move', got {mode!r}")
+    try:
+        os.replace(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+        if dst.stat().st_size != src.stat().st_size:
+            dst.unlink()
+            raise
+        src.unlink()
+
+
 def copy_wav_window(
-    src_dir: Path, dst_dir: Path, start: datetime, end: datetime, pad: timedelta
+    src_dir: Path, dst_dir: Path, start: datetime, end: datetime, pad: timedelta,
+    mode: str = "copy",
 ) -> int:
-    """Copy WAVs named `YYMMDD_HHMMSS.wav` whose timestamp falls within [start-pad, end+pad]."""
+    """Copy (or, with mode="move", move) WAVs named `YYMMDD_HHMMSS.wav` whose timestamp falls
+    within [start-pad, end+pad]. `mode` is `copy` or `move` (already resolved; see
+    resolve_wav_mode)."""
     dst_dir.mkdir(parents=True, exist_ok=True)
     if not src_dir.is_dir():
         print(f"  (skip) {src_dir} not found")
@@ -349,9 +393,9 @@ def copy_wav_window(
         ts = parse_cycle_ts(wav.stem)
         if ts is None or not (lo <= ts <= hi):
             continue
-        shutil.copy2(wav, dst_dir / wav.name)
+        transfer_wav(wav, dst_dir / wav.name, mode)
         count += 1
-    print(f"  {src_dir} -> {dst_dir} ({count} WAV files in window)")
+    print(f"  {src_dir} -> {dst_dir} ({count} WAV files in window, {mode})")
     return count
 
 
@@ -775,6 +819,7 @@ def copy_wav_window_split_by_band(
     end: datetime,
     pad: timedelta,
     band_by_filename: dict[str, str],
+    mode: str = "copy",
 ) -> dict[str, int]:
     """Like copy_wav_window, but splits output into dst_root/<band>/wav/ using the manifest-
     derived band_by_filename lookup. A WAV in the time window but absent from the manifest
@@ -797,7 +842,7 @@ def copy_wav_window_split_by_band(
         band = sanitize_band_label(band)
         band_wav_dir = dst_root / band / "wav"
         band_wav_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(wav, band_wav_dir / wav.name)
+        transfer_wav(wav, band_wav_dir / wav.name, mode)
         counts[band] = counts.get(band, 0) + 1
     for band, n in sorted(counts.items()):
         print(f"  {src_dir} -> {dst_root / band / 'wav'} ({n} WAV files in window)")
@@ -1079,6 +1124,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--owsfz-cycle-audio-dir", help="Override the cycle-audio-archive directory "
                                                      "(default: config.json's cycleAudioArchive.directory, "
                                                      "or the platform default).")
+    p.add_argument("--owsfz-wav-mode", choices=OWSFZ_WAV_MODES, default="auto",
+                    help="How OpenWSFZ WAVs reach <out>/owsfz/wav: 'copy' leaves the source, 'move' "
+                         "removes it (no duplicate on disk), 'auto' (default) moves when the "
+                         "cycle-audio dir is already under --out-root and copies otherwise. "
+                         "WSJT-X WAVs are never moved.")
     p.add_argument("--owsfz-config", help="Path to THIS instance's own config.json, used only "
                                            "for the contents.md 'Device / session metadata' "
                                            "section (audio device, dial frequency snapshot, "
@@ -1212,6 +1262,7 @@ def main(argv: list[str] | None = None) -> int:
              (platform_appdata_root() / "OpenWSFZ" / "cycle-audio"))
     )
     wsjtx_link_from = Path(args.wsjtx_link_from) if args.wsjtx_link_from else None
+    owsfz_wav_mode = resolve_wav_mode(args.owsfz_wav_mode, cycle_audio_dir, Path(args.out_root))
     wsjtx_root = Path(args.wsjtx_root) if args.wsjtx_root else (platform_localappdata_root() / "WSJT-X")
     wsjtx_alltxt = wsjtx_root / "ALL.TXT"
     wsjtx_wav_dir = wsjtx_root / "save"
@@ -1268,6 +1319,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  wsjt-x ALL.TXT       = {wsjtx_alltxt}")
         print(f"  wsjt-x save/ wav dir = {wsjtx_wav_dir}")
 
+    print(f"OpenWSFZ WAVs:  {owsfz_wav_mode}"
+          + (" (source removed once placed: no duplicate left on disk)" if owsfz_wav_mode == "move" else ""))
+
     if args.dry_run:
         print("\n--dry-run: no files copied, no directories created.")
         return 0
@@ -1292,7 +1346,7 @@ def main(argv: list[str] | None = None) -> int:
         line_counts = filter_alltxt_split_by_band(owsfz_alltxt, owsfz_dir, start, end)
         owsfz_logs = copy_log_files(owsfz_log_dirs, owsfz_dir, start, end, log_pad)
         wav_counts = copy_wav_window_split_by_band(
-            cycle_audio_dir, owsfz_dir, start, end, pad, band_by_filename
+            cycle_audio_dir, owsfz_dir, start, end, pad, band_by_filename, owsfz_wav_mode
         )
         copy_cycle_archive_manifest(cycle_audio_dir, owsfz_dir)
         write_band_manifests(manifest_rows, owsfz_dir, start, end)
@@ -1306,7 +1360,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         owsfz_lines = filter_alltxt(owsfz_alltxt, owsfz_dir / "ALL.TXT", start, end)
         owsfz_logs = copy_log_files(owsfz_log_dirs, owsfz_dir, start, end, log_pad)
-        owsfz_wavs = copy_wav_window(cycle_audio_dir, owsfz_wav_dir, start, end, pad)
+        owsfz_wavs = copy_wav_window(cycle_audio_dir, owsfz_wav_dir, start, end, pad, owsfz_wav_mode)
         copy_cycle_archive_manifest(cycle_audio_dir, owsfz_dir)
 
     if wsjtx_link_from:

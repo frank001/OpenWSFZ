@@ -96,33 +96,4 @@ public sealed class SelfContainedNonAotE2ETests
             because: "an empty array is an acceptable pass — CI runners have no real capture " +
                      "hardware");
     }
-
-    /// <summary>
-    /// Reserves an ephemeral port and an isolated temp config directory for one test's daemon,
-    /// so it cannot collide with another concurrently-running test class's daemon on the shared
-    /// default port/config file (see this class's own doc comment). Cleans up the temp
-    /// directory on <see cref="Dispose"/>.
-    /// </summary>
-    private sealed class IsolatedDaemonEnvironment : IDisposable
-    {
-        private readonly string _tempDir = Path.Combine(
-            Path.GetTempPath(), "openwsfz-selfcontained-e2e-" + Path.GetRandomFileName());
-
-        public Task<DaemonProcess> StartAsync()
-        {
-            Directory.CreateDirectory(_tempDir);
-            var configPath = Path.Combine(_tempDir, "config.json");
-            var port = DaemonProcess.ReserveEphemeralPort();
-
-            return DaemonProcess.StartAsync(
-                startupTimeout: TimeSpan.FromSeconds(10),
-                explicitPort: port,
-                configPath: configPath);
-        }
-
-        public void Dispose()
-        {
-            try { Directory.Delete(_tempDir, recursive: true); } catch { /* best-effort */ }
-        }
-    }
 }

@@ -1,0 +1,172 @@
+{
+ "consistency": {
+  "M_equals_b1_plus_b2_matched": {
+   "pass": true
+  },
+  "all_cycles_present_in_both_arms": {
+   "missing": 0,
+   "pass": true
+  },
+  "wsjtx_W_identical_in_both_arms": {
+   "pass": true
+  }
+ },
+ "descriptive": {
+  "NET_by_ows_snr_band_pp": {
+   "A": 0.7731004258996358,
+   "B": 4.710357385346583,
+   "C": 3.751311647429171,
+   "D": 2.4913585581136966
+  },
+  "batch2_decodes_per_cycle_mean": 3.655886458818055,
+  "matched_by_batch": {
+   "b1": 78033,
+   "b2": 15293
+  },
+  "replay_fidelity_off_vs_live_ows": {
+   "cycles_equal": 188,
+   "mean_diff_off_minus_live": -3.6484411354118196,
+   "n": 4298,
+   "sum_live": 95383,
+   "sum_off": 79702
+  }
+ },
+ "estimand": {
+  "B": 10000,
+  "NET_pp": 11.726128016789087,
+  "block": 40,
+  "ci95": [
+   11.410122209275555,
+   12.034874731397522
+  ],
+  "n_blocks": 108,
+  "seed": 20261001,
+  "sum_M_off": 78128,
+  "sum_M_on": 93326,
+  "sum_M_on_b1": 78033,
+  "sum_M_on_b2": 15293,
+  "sum_W": 129608
+ },
+ "failing_rows": [],
+ "fp_watch": {
+  "A": {
+   "FLAG": false,
+   "b1_ci": [
+    0.0138,
+    0.0169
+   ],
+   "b1_n": 24257,
+   "b1_notcorr": 370,
+   "b2_ci": [
+    0.0033,
+    0.0141
+   ],
+   "b2_n": 1022,
+   "b2_notcorr": 7
+  },
+  "B": {
+   "FLAG": false,
+   "b1_ci": [
+    0.017,
+    0.02
+   ],
+   "b1_n": 30587,
+   "b1_notcorr": 563,
+   "b2_ci": [
+    0.0112,
+    0.017
+   ],
+   "b2_n": 6245,
+   "b2_notcorr": 86
+  },
+  "C": {
+   "FLAG": false,
+   "b1_ci": [
+    0.0183,
+    0.023
+   ],
+   "b1_n": 13763,
+   "b1_notcorr": 282,
+   "b2_ci": [
+    0.0224,
+    0.0313
+   ],
+   "b2_n": 5017,
+   "b2_notcorr": 133
+  },
+  "D": {
+   "FLAG": true,
+   "b1_ci": [
+    0.0374,
+    0.0448
+   ],
+   "b1_n": 11095,
+   "b1_notcorr": 454,
+   "b2_ci": [
+    0.0493,
+    0.0648
+   ],
+   "b2_n": 3429,
+   "b2_notcorr": 194
+  }
+ },
+ "generated_utc": "2026-10-02T06:04:27Z",
+ "n_included": 4298,
+ "n_scored": 4298,
+ "numpy": "2.4.6",
+ "reported_not_used": {
+  "acf_of_d": {
+   "1": 0.20277198299836752,
+   "4": 0.45795493541075427,
+   "40": 0.33602463858922504
+  },
+  "ci_by_block": {
+   "160": [
+    11.246832646055879,
+    12.16806829461837
+   ],
+   "20": [
+    11.46709180848659,
+    11.9789640384363
+   ]
+  }
+ },
+ "selection_sha256_lf": "55a951c86147e92a8262be9d84ffd29362ecd7b63995f62caa7981bd53c977cf",
+ "validity": {
+  "V1": {
+   "checked": 6,
+   "failed_or_missing": [],
+   "pass": true
+  },
+  "V2": {
+   "pass": true,
+   "problems": []
+  },
+  "V3": {
+   "nonzero": {},
+   "pass": true
+  },
+  "V4": {
+   "equal": 4298,
+   "n": 4298,
+   "pass": true
+  },
+  "V5": {
+   "abandoned": 0,
+   "fraction": 0.0,
+   "included": 4298,
+   "missing_from_abandon_file": 0,
+   "pass": true
+  },
+  "V6": {
+   "explained": 0,
+   "explained_stamps": [],
+   "identical": 160,
+   "mismatching": [],
+   "n": 160,
+   "pass": true,
+   "unexplained": 0
+  }
+ },
+ "verdict": "D1"
+}

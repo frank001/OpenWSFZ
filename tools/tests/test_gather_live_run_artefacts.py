@@ -252,3 +252,87 @@ def test_sibling_gather_collision_warns(tmp_path, capsys):
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+# ── 2026-10-02: no duplicate OpenWSFZ WAVs on disk (artefacts 20260925_2010 and 20260930_1930) ──
+
+from datetime import datetime, timedelta  # noqa: E402
+
+_WAV_START = datetime(2026, 1, 1, 12, 0, 0)
+_WAV_END = datetime(2026, 1, 1, 12, 1, 0)
+_NO_PAD = timedelta(seconds=0)
+
+
+def _make_wavs(src: Path) -> dict[str, bytes]:
+    src.mkdir(parents=True, exist_ok=True)
+    made = {}
+    for name, payload in ((IN_WINDOW_TS + ".wav", b"RIFF-in-window"), ("260101_130000.wav", b"RIFF-outside")):
+        (src / name).write_bytes(payload)
+        made[name] = payload
+    return made
+
+
+def test_copy_mode_leaves_the_source_in_place(tmp_path):
+    src, dst = tmp_path / "cycle-audio", tmp_path / "gathered" / "owsfz" / "wav"
+    made = _make_wavs(src)
+    n = gla.copy_wav_window(src, dst, _WAV_START, _WAV_END, _NO_PAD, mode="copy")
+    assert n == 1
+    assert (dst / (IN_WINDOW_TS + ".wav")).read_bytes() == made[IN_WINDOW_TS + ".wav"]
+    assert (src / (IN_WINDOW_TS + ".wav")).exists(), "copy must not remove the source"
+
+
+def test_move_mode_removes_the_source_and_keeps_the_bytes(tmp_path):
+    src, dst = tmp_path / "cycle-audio", tmp_path / "gathered" / "owsfz" / "wav"
+    made = _make_wavs(src)
+    n = gla.copy_wav_window(src, dst, _WAV_START, _WAV_END, _NO_PAD, mode="move")
+    assert n == 1
+    assert (dst / (IN_WINDOW_TS + ".wav")).read_bytes() == made[IN_WINDOW_TS + ".wav"]
+    assert not (src / (IN_WINDOW_TS + ".wav")).exists(), "move must leave no duplicate in the source"
+    assert (src / "260101_130000.wav").exists(), "a WAV outside the window must not be touched"
+
+
+def test_move_mode_split_by_band_removes_the_source(tmp_path):
+    src, dst_root = tmp_path / "cycle-audio", tmp_path / "gathered" / "owsfz"
+    made = _make_wavs(src)
+    counts = gla.copy_wav_window_split_by_band(
+        src, dst_root, _WAV_START, _WAV_END, _NO_PAD, {IN_WINDOW_TS + ".wav": "20m"}, mode="move")
+    assert sum(counts.values()) == 1
+    assert (dst_root / "20m" / "wav" / (IN_WINDOW_TS + ".wav")).read_bytes() == made[IN_WINDOW_TS + ".wav"]
+    assert not (src / (IN_WINDOW_TS + ".wav")).exists()
+
+
+def test_auto_moves_only_when_the_source_is_under_out_root(tmp_path):
+    out_root = tmp_path / "artefacts"
+    inside = out_root / "run" / "cycle-audio"
+    outside = tmp_path / "appdata" / "cycle-audio"
+    inside.mkdir(parents=True)
+    outside.mkdir(parents=True)
+    assert gla.resolve_wav_mode("auto", inside, out_root) == "move"
+    assert gla.resolve_wav_mode("auto", outside, out_root) == "copy", (
+        "a live archive outside the artefacts tree must never be emptied by default")
+    assert gla.resolve_wav_mode("copy", inside, out_root) == "copy"
+    assert gla.resolve_wav_mode("move", outside, out_root) == "move"
+    with pytest.raises(ValueError):
+        gla.resolve_wav_mode("bogus", inside, out_root)
+
+
+def test_failed_cross_volume_move_never_loses_the_source(tmp_path, monkeypatch):
+    src, dst = tmp_path / "a.wav", tmp_path / "out" / "a.wav"
+    src.write_bytes(b"payload")
+    dst.parent.mkdir()
+
+    def _no_replace(*_a, **_k):
+        raise OSError("cross-device")
+
+    real_copy2 = gla.shutil.copy2
+
+    def _short_copy(s, d):
+        real_copy2(s, d)
+        Path(d).write_bytes(b"short")          # a copy whose size does not verify
+
+    monkeypatch.setattr(gla.os, "replace", _no_replace)
+    monkeypatch.setattr(gla.shutil, "copy2", _short_copy)
+    with pytest.raises(OSError):
+        gla.transfer_wav(src, dst, "move")
+    assert src.read_bytes() == b"payload", "the source must survive a copy whose size does not verify"
+    assert not dst.exists(), "the bad partial copy must be removed"

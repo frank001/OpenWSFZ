@@ -37,8 +37,9 @@ public sealed record DecoderConfig
         float osdCorrThreshold         = 0.10f,
         int   osdNhardMax              = 40,
         bool  nhard40MigrationApplied  = false,
-        bool  subtractionEnabled       = false,
-        int   subtractionMaxThreads    = 0)
+        bool  subtractionEnabled       = true,
+        int   subtractionMaxThreads    = 0,
+        bool  subtractionOnMigrationApplied = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -46,6 +47,7 @@ public sealed record DecoderConfig
         Nhard40MigrationApplied = nhard40MigrationApplied;
         SubtractionEnabled      = subtractionEnabled;
         SubtractionMaxThreads   = subtractionMaxThreads;
+        SubtractionOnMigrationApplied = subtractionOnMigrationApplied;
     }
 
     /// <summary>
@@ -118,19 +120,34 @@ public sealed record DecoderConfig
     /// <summary>
     /// sub-feas-native-subtraction (design.md Decision 6, shim 20260055): gates the
     /// additive residual-decode pass (data-aided fit + time-varying-envelope subtraction,
-    /// <see cref="OpenWSFZ.Ft8.Subfeas.SubtractionPass"/>). Default <c>false</c> — with the
-    /// flag off, decode output is byte-identical to pre-change behaviour (spec's own
-    /// "Flag OFF leaves decode output unchanged" scenario).
+    /// <see cref="OpenWSFZ.Ft8.Subfeas.SubtractionPass"/>). Default <c>true</c> (ON by default since
+    /// v0.54; existing installs are migrated to ON once, see <see cref="SubtractionOnMigrationApplied"/>).
+    /// Set <c>false</c> to turn it off; with the flag off, decode output is byte-identical to
+    /// pre-change behaviour (spec's own "Flag OFF leaves decode output unchanged" scenario).
     /// <para>
-    /// <b>Live-use readiness gate (spec's own ADDED requirement, tasks.md §8):</b> this flag
-    /// SHALL NOT be set <c>true</c> in any live or production run until BOTH the measured
-    /// decode-cycle runtime (flag enabled) and a second-corpus decode-rate acceptance result
-    /// have been taken and reported to the Captain — neither has happened yet as of this
-    /// field's introduction. The build may exist and this flag may exist with the flag off;
-    /// only enabling it in a live run is gated.
+    /// <b>History — the live-use readiness gate (spec's own ADDED requirement, tasks.md §8):</b>
+    /// at this field's introduction the flag SHALL NOT have been set <c>true</c> in any live or
+    /// production run until BOTH the measured decode-cycle runtime (flag enabled) and a
+    /// second-corpus decode-rate acceptance result had been taken and reported to the Captain;
+    /// the build could exist with the flag off, and only enabling it in a live run was gated.
+    /// <b>The gate was lifted by the Captain on 2026-09-28 for the scoped, flag-gated build, and
+    /// the default ON was decided by the Captain on 2026-10-02</b> (v0.54, FR-082): the flag is
+    /// now ON by default and existing installs are migrated once, see
+    /// <see cref="SubtractionOnMigrationApplied"/>.
     /// </para>
     /// </summary>
-    public bool  SubtractionEnabled { get; init; } = false;
+    public bool  SubtractionEnabled { get; init; } = true;
+
+    /// <summary>
+    /// One-time migration marker for the default-ON change (v0.54): means "no subtraction-ON
+    /// migration is pending for this install". <c>JsonConfigStore.Load()</c> migrates a persisted
+    /// <c>subtractionEnabled: false</c> to <c>true</c> once and sets this to <c>true</c>; it also
+    /// sets it on any other decoder section it loads, and a decoder section created from nothing
+    /// carries it <c>true</c> (the #199 rule), so an operator's later deliberate OFF persists.
+    /// Default <c>false</c> so a legacy file without the key is migrated once.
+    /// <para><b>Server-owned</b> — a request body can neither set nor clear it.</para>
+    /// </summary>
+    public bool  SubtractionOnMigrationApplied { get; init; } = false;
 
     /// <summary>
     /// sub-feas-speed-redesign A4: the number of concurrent residual-pass fit workers, and the size of
