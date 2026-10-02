@@ -39,7 +39,7 @@ pattern, not itself risky, but still a currently-matching site that must be trac
 the whole helper method it lives in is deleted.
 
 
-### `tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs` — MIGRATED, 6 permanent justified exceptions remain
+### `tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs` — MIGRATED, 2 permanent justified exceptions remain
 
 52 of the original 58 sites migrated onto `Poll`/`WaitForBatchDrainedAsync` (a private per-file
 helper polling `_channel.Reader.Count == 0`, since the decode channel is specific to this test
@@ -58,30 +58,26 @@ specific, precise signal each cycle actually produces instead: `Poll.WaitForCall
 a transmit-and-release sequence is fully done), and `WaitForBatchDrainedAsync` only for genuine
 skip cycles (which have no observable side effect to poll for at all).
 
-The 6 remaining sites are two distinct, deliberately **not** migrated shapes — no polling helper
-fits either, and forcing one would be worse than the fixed delay it replaces:
+The 2 remaining sites are one deliberately **not** migrated shape — no polling helper fits it, and
+forcing one would be worse than the fixed delay it replaces:
 
 - **Background feeder throttle** (2 sites, `Task.Delay(10, feedCts.Token)`, lines ~1065 and 1891):
   a `Task.Run` loop continuously feeding synthetic noise decodes every 10ms until cancelled, to
   keep retries cycling without pause while a watchdog-timeout race is proven. The 10ms *is* the
   feed rate — a deliberate test-load parameter, not a guess at how long something takes.
-- **Wall-clock stray-wakeup settle** (4 sites, `Task.Delay(50)`, lines ~2504, 2534, 2613, 2646,
-  each already preceded by `sut._wakeupChannel.Reader.TryRead(out _)`): `AnswerCqAsync`/
-  `EngageAtAsync`'s wakeup push is computed from real `DateTimeOffset.UtcNow`, not the test's
-  injected `FakeTimeProvider`, so it races the background loop's own concurrent read of the same
-  internal channel. There is no externally observable condition to poll for this internal race
-  (see each site's own inline comment); this is a deliberate, documented wall-clock margin, not a
-  synchronization-barrier guess about production behavior — same rationale already accepted at the
-  precedent this file itself cites (`QsoCallerServiceTests`).
+**Resolved 2026-10-01 (`fix/qso-test-sync-settle-and-drain`): the 4 "wall-clock stray-wakeup settle"
+sites that used to be listed here are gone, and the justification above them ("no externally
+observable condition") was wrong.** The stray wakeup *is* observable and, better, *preventable*: the
+test installs `WakeupChannelProbe.Discard(sut)` before `StartAsync`, which swallows the real-clock
+wakeup on the writer side (the loop can never see it) and counts it, and the test asserts
+`wakeups.Discarded == 1`. That closes the race the drain-then-sleep pattern only waited out. Also
+fixed at the same time: `WaitForBatchDrainedAsync` now proves a batch was *processed*, not just
+dequeued (`ObservedDecodeChannel`). See the helper's doc comment.
 
 tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1065: Task.Delay(10, feedCts.Token)
 tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:1891: Task.Delay(10, feedCts.Token)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2504: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2534: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2613: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoAnswererServiceTests.cs:2646: Task.Delay(50)
 
-### `tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs` — MIGRATED, 5 permanent justified exceptions remain
+### `tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs` — MIGRATED, 1 permanent justified exception remains
 
 40 of the original 45 sites migrated onto `Poll`/a per-file `WaitForBatchDrainedAsync(Channel<DecodeBatch>,
 TimeSpan?)` helper (this file has no class-level `_channel` field — every SUT is built per-test via
@@ -92,25 +88,16 @@ run more than Answerer's 5x given this file shares the exact same skip/retry cyc
 that broke once during the Answerer migration (see that file's debt-file note); no repeat of that
 failure surfaced here, but the extra runs were worth the few seconds given the precedent.
 
-The 5 remaining sites are the same two categories already established and justified in
-`QsoAnswererServiceTests.cs` above — no polling helper fits either:
+The 1 remaining site is the category already established and justified in
+`QsoAnswererServiceTests.cs` above — no polling helper fits it:
 
-- **Wall-clock stray-wakeup settle** (4 sites, `Task.Delay(50)`, lines ~524, 1338, 1643, 1782, each
-  already preceded by `sut._wakeupChannel.Reader.TryRead(out _)`): identical rationale to
-  `QsoAnswererServiceTests`' equivalent sites — `SelectResponderAsync`'s wakeup push is computed
-  from real wall-clock time, racing the background loop's own concurrent read of the same internal
-  channel, with no externally observable condition to poll for.
 - **Simulated KeyDownAsync latency** (1 site, line ~1253, `.Returns(c => Task.Delay(100,
   (CancellationToken)c.Args()[0]))`): a mock configuration, not a test synchronization wait — see
   `HandleWaitAnswer_NoneMode_RetriesWhenNoBatchResponder`'s own XML doc comment: without this,
   `KeyDownAsync` returns instantly and the `TxCq`/`TxAnswer` state window is too narrow for any
   poller (shared library or otherwise) to ever observe.
 
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:524: Task.Delay(50)
 tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1253: Task.Delay(100, (CancellationToken)c.Args()[0])
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1338: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1643: Task.Delay(50)
-tests/OpenWSFZ.Daemon.Tests/QsoCallerServiceTests.cs:1782: Task.Delay(50)
 
 
 ## Phase 2 — External reporting and CAT polling/PTT files
@@ -267,3 +254,14 @@ entries are tracked here instead and are not expected to ever be removed.
 tests/OpenWSFZ.TestSupport.Tests/PollTests.cs:72: Task.Delay(30)
 tests/OpenWSFZ.TestSupport.Tests/PollTests.cs:107: Task.Delay(30)
 tests/OpenWSFZ.TestSupport.Tests/PollTests.cs:134: Task.Delay(20)
+
+
+## sub-feas two-stage publish — `DecodePumpTests.cs` (1 permanent justified exception)
+
+`DecodePumpTests.Pump_StaysSerial` (S3(i)) proves an **absence**: while window 1's residual pass is held
+open, the pump must NOT start decoding window 2. There is no positive condition to poll for (the event it
+guards is precisely the one that must not happen), so a bounded grace wait before asserting the absence is
+the only available shape. The positive half is polled (`Poll.UntilAsync` on batch 1), and the test then
+releases the pass and asserts the exact event order, so a regression to a non-serial pump still fails it.
+
+tests/OpenWSFZ.Daemon.Tests/DecodePumpTests.cs:270: Task.Delay(300)

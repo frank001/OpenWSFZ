@@ -1,0 +1,12 @@
+unit_us: analytic=9498 gaussian_pulse=31 r_fit_drift=15415 apply_freq_shift=1658 mix=138 freq_search=4230 fft_convolve_same=13089 step3_candidate=101
+phase_ms: step1_dt_search=895 step2_fdot_search=879 final_template=19 step3_dt_refine=20 envelope=26 sum=1839 measured_whole_fit=1788
+longest_uninterruptible_stretch_ms (one loop iteration, flag checked per iteration)=21  (dt_iteration=4 fdot_iteration=21 envelope_convolution=13)
+uncancellable_per_cycle_ms: compute_analytic=9
+unit_us: analytic=9282 gaussian_pulse=32 r_fit_drift=15122 apply_freq_shift=1824 mix=137 freq_search=4125 fft_convolve_same=12938 step3_candidate=102
+phase_ms: step1_dt_search=874 step2_fdot_search=870 final_template=19 step3_dt_refine=20 envelope=26 sum=1808 measured_whole_fit=1792
+longest_uninterruptible_stretch_ms (one loop iteration, flag checked per iteration)=21  (dt_iteration=4 fdot_iteration=21 envelope_convolution=13)
+uncancellable_per_cycle_ms: compute_analytic=9
+unit_us: analytic=9154 gaussian_pulse=32 r_fit_drift=15008 apply_freq_shift=1659 mix=139 freq_search=4194 fft_convolve_same=12933 step3_candidate=104
+phase_ms: step1_dt_search=888 step2_fdot_search=861 final_template=18 step3_dt_refine=21 envelope=26 sum=1814 measured_whole_fit=1792
+longest_uninterruptible_stretch_ms (one loop iteration, flag checked per iteration)=21  (dt_iteration=4 fdot_iteration=21 envelope_convolution=13)
+uncancellable_per_cycle_ms: compute_analytic=9

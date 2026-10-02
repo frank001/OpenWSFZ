@@ -98,6 +98,44 @@ def main() -> int:
                           "this flag; use it to decide whether snapping is even needed.")
     ap.add_argument("--b-snap-grid", action="store_true",
                      help="Same as --a-snap-grid, for the WSJT-X side.")
+    ap.add_argument("--arm-config", default=None,
+                     help="Path to arm_config.json from the standard endurance supervisor "
+                          "(qa/endurance/endurance_supervisor.py) -- supplies band, DLL "
+                          "SHA-256, shim, nhard for the historical table (Section 4) without "
+                          "having to restate them by hand.")
+    ap.add_argument("--reference", choices=("live_wsjtx", "offline_jt9"), default="live_wsjtx",
+                     help="What the second appraiser actually was. This script always reads "
+                          "a real WSJT-X ALL.TXT so the default is live_wsjtx; pass "
+                          "offline_jt9 only if that file was itself produced by an offline "
+                          "jt9 -d 3 re-decode rather than the live application (HK-031: jt9 "
+                          "-d 3 offline is not a valid reference decoder -- the historical "
+                          "table marks such rows non-comparable).")
+    ap.add_argument("--radio-chain", default="Yaesu FT-991A -> Voicemeeter Out B1",
+                     help="Free-text radio chain for the historical table (Section 4). "
+                          "Defaults to this project's standard chain.")
+    ap.add_argument("--hours", type=float, default=None,
+                     help="Run length for the historical table. Computed from --start/--end "
+                          "if omitted and both are given, else required.")
+    ap.add_argument("--drift-contaminated", default=None,
+                     help="If this run is known drift-contaminated (e.g. the 2026-08-02 "
+                          "8080 leg, or the July 40m sessions), a short note for the "
+                          "historical table's footnote. Omit for a clean run.")
+    ap.add_argument("--no-historical", action="store_true",
+                     help="Skip Section 4 (historical table) and the meta.json sidecar this "
+                          "run would otherwise write for future reports to pick up.")
+    ap.add_argument("--endurance-root", default=None,
+                     help="Root directory to scan for historical *.meta.json sidecars "
+                          "(Section 4) and to also write this run's own sidecar into. "
+                          "Defaults to this script's own directory (qa/endurance/), which is "
+                          "correct regardless of where --out lands -- deliberately NOT "
+                          "derived from --out's parent: the standardised run_endurance.py "
+                          "pipeline writes --out under artefacts/<run>-gathered/, a sibling "
+                          "of unrelated artefacts/ subdirectories (other workstreams' own "
+                          "*.meta.json files), not qa/endurance/<run>/ the way every "
+                          "pre-standardisation invocation did. Found live 2026-09-23: "
+                          "out_dir-derived root silently (a) missed all pre-existing "
+                          "historical rows and (b) picked up 7 unrelated density-remedy "
+                          "*.meta.json files as phantom endurance rows.")
     ap.add_argument("--stratum", type=int, default=None,
                      help="After matching, keep only pairs whose snapped side's ORIGINAL "
                           "(pre-snap) offset equals this many seconds (e.g. 0 for the "
@@ -202,6 +240,72 @@ def main() -> int:
     response_results = ac.run_responses(pairs, out_dir, out_stem, "OpenWSFZ", "WSJT-X")
 
     report = gate_section + ac.render_report(response_results, meta)
+
+    if not args.no_historical:
+        arm = {}
+        if args.arm_config and os.path.isfile(args.arm_config):
+            import json
+            arm = json.load(open(args.arm_config, encoding="utf-8"))
+        d = arm.get("daemon", {})
+        hours = args.hours
+        if hours is None and start and end:
+            hours = (end - start).total_seconds() / 3600.0
+        if hours is None:
+            print("[WARN] --hours not given and not derivable from --start/--end -- this "
+                  "run's own row is omitted from the historical table (Section 4 still "
+                  "renders every OTHER already-recorded run).", file=sys.stderr)
+        if start:
+            date_str = start.strftime("%Y-%m-%d")
+        elif arm.get("recorded_utc"):
+            date_str = arm["recorded_utc"][:10]
+        else:
+            date_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+        snr_stats = next((s for r, s, _ in response_results if r["key"] == "snr"), None)
+        dt_stats = next((s for r, s, _ in response_results if r["key"] == "dt"), None)
+        this_meta = {
+            "date": date_str,
+            "band": arm.get("band") or "?",
+            "hours": hours,
+            "dll_sha256": d.get("dll_sha256") or "?",
+            "build_branch": d.get("build_branch") or ac.NOT_RECORDED,
+            "build_commit": d.get("build_commit") or ac.NOT_RECORDED,
+            "shim": d.get("shim_version") or "?",
+            "nhard": d.get("osd_nhard_max") or "?",
+            "reference": args.reference,
+            "radio_chain": args.radio_chain,
+            "comparable": args.reference == "live_wsjtx",
+            "grid_gate_g": min(gate_a["g"], gate_b["g"]),
+            "n_pairs": len(pairs),
+            "matched_pct_of_ref": (100.0 * len(pairs) / meta["n_b"]) if meta["n_b"] else float("nan"),
+            "ows_only_pct": (100.0 * (meta["n_a"] - len(pairs)) / meta["n_a"]) if meta["n_a"] else float("nan"),
+            "snr_gap_db": (snr_stats["appraiser_means"]["a"] - snr_stats["appraiser_means"]["b"]) if snr_stats and "appraiser_means" in snr_stats else float("nan"),
+            "dt_gap_s": (dt_stats["appraiser_means"]["a"] - dt_stats["appraiser_means"]["b"]) if dt_stats and "appraiser_means" in dt_stats else float("nan"),
+            "dt_gap_sd_s": ac.NOT_RECORDED,
+            "drift_contaminated": bool(args.drift_contaminated),
+            "drift_note": args.drift_contaminated or "",
+            "run_dir": os.path.dirname(os.path.abspath(args.out)),
+            "source_files": [os.path.relpath(os.path.abspath(args.out), start=os.getcwd()).replace("\\", "/")],
+        }
+        # Root for the historical scan/write, independent of --out's own location (see
+        # --endurance-root's help for why: --out no longer reliably lives directly under
+        # qa/endurance/<run>/ now that the standardised pipeline gathers into
+        # artefacts/<run>-gathered/ instead).
+        endurance_root = args.endurance_root or os.path.dirname(os.path.abspath(__file__))
+        if hours is not None:
+            # Always co-write next to the report itself (convenience, local reference --
+            # this copy may land in a gitignored artefacts/ dir and not persist to VCS).
+            ac.write_run_meta(os.path.splitext(args.out)[0] + ".meta.json", this_meta)
+            # Also write into a stable, git-tracked location under endurance_root so this
+            # run's sidecar is discoverable by future scans regardless of where --out was
+            # pointed -- aggregate stats only (no callsigns), NFR-021-safe to commit.
+            history_dir = os.path.join(endurance_root, "history")
+            os.makedirs(history_dir, exist_ok=True)
+            history_name = os.path.basename(out_dir.rstrip("\\/")) or out_stem
+            history_path = os.path.join(history_dir, f"{history_name}.meta.json")
+            ac.write_run_meta(history_path, this_meta)
+        entries = ac.scan_historical_runs(endurance_root)
+        report += ac.render_historical_section(entries)
+
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(report)
     print(f"wrote {args.out}")

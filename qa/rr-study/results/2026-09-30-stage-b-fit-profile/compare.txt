@@ -1,0 +1,1 @@
+EQUIVALENT: 111 single-worker fits, rc and sha256(out_shat) identical

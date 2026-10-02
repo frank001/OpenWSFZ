@@ -4,9 +4,7 @@
 
 Specifies audio capture device enumeration and the REST endpoint that exposes the available
 input device list to the web frontend for selection.
-
 ## Requirements
-
 ### Requirement: USB audio capture device enumeration
 
 The application SHALL enumerate audio capture devices available on the host OS and expose them through a stable `IAudioDeviceProvider` interface. The implementation SHALL use OS-native APIs (WASAPI on Windows; subprocess-based enumeration on Linux and macOS). The interface SHALL return an empty list — never throw — when no devices are found or the underlying tool is unavailable. On Windows, enumeration SHALL be performed on a COM STA thread to satisfy WASAPI's apartment-threading requirement.
@@ -14,7 +12,7 @@ The application SHALL enumerate audio capture devices available on the host OS a
 #### Scenario: Devices enumerated on Windows via WASAPI
 
 - **WHEN** `IAudioDeviceProvider.GetDevicesAsync()` is called on Windows
-- **THEN** the implementation SHALL return a list of `AudioDeviceInfo` records, one per active WASAPI capture endpoint, each containing at minimum a non-empty `Id` and a human-readable `Name`
+- **THEN** the implementation SHALL return a list of `AudioDeviceInfo` records, one per WASAPI capture endpoint that is Active or Disabled (read from the endpoint's `DeviceState`; a Disabled endpoint is listed with `Available = false` per the "Enumerated devices report their availability" Requirement below, not excluded), each containing at minimum a non-empty `Id` and a human-readable `Name`
 
 #### Scenario: Devices enumerated on Linux via arecord
 
@@ -51,3 +49,24 @@ The web server SHALL expose `GET /api/v1/audio/devices` that returns the current
 
 - **WHEN** a client sends `GET /api/v1/audio/devices` and no capture devices are available
 - **THEN** the server SHALL respond with HTTP 200 and an empty JSON array `[]`
+
+### Requirement: Enumerated devices report their availability
+
+Each `AudioDeviceInfo` returned by `IAudioDeviceProvider` SHALL carry an `Available` flag that is
+`true` when capture can be opened on the device now. On Windows, `Available` SHALL be `true` exactly
+when the WASAPI endpoint state is Active. Disabled endpoints SHALL still be listed, with
+`Available = false`. Providers that list only devices they can currently see (Linux, macOS) SHALL
+report `Available = true`. `GET /api/v1/audio/devices` SHALL include the flag as a boolean
+`available` field on each element.
+
+#### Scenario: Disabled Windows endpoint is listed but not available
+
+- **WHEN** a WASAPI capture endpoint is disabled in Windows Sound Settings
+- **THEN** it SHALL appear in the device list with `Available = false`, and in
+  `GET /api/v1/audio/devices` with `"available": false`
+
+#### Scenario: Active Windows endpoint is available
+
+- **WHEN** a WASAPI capture endpoint is active
+- **THEN** it SHALL appear with `Available = true`
+

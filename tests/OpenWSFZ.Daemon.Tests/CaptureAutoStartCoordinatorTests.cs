@@ -182,8 +182,11 @@ public sealed class CaptureAutoStartCoordinatorTests
         store.OnSaved += _ => savedConfigs++;
         var recovery = new CaptureRecoveryState();
 
+        // The self-rescheduled retry's delay PARKS (never completes): a no-op delay would let that fire-and-forget retry
+        // free-run in the background, recording further failures while this test asserts "exactly one".
+        var park = new TaskCompletionSource();
         var sut = BuildSut(store, provider, recovery, out var startCalls,
-            delayAsync: (_, _) => Task.CompletedTask); // avoid the self-rescheduled retry's real delay
+            delayAsync: (_, _) => park.Task);
 
         await sut.RunAsync(applyBackoffDelay: false);
 
@@ -202,8 +205,10 @@ public sealed class CaptureAutoStartCoordinatorTests
         var provider = new FakeAudioDeviceProvider { Devices = [new AudioDeviceInfo("id-1", "Mic", Available: false)] };
         var recovery = new CaptureRecoveryState();
 
+        // Parked retry delay, not a no-op one: see the Ambiguous test above.
+        var park = new TaskCompletionSource();
         var sut = BuildSut(store, provider, recovery, out var startCalls,
-            delayAsync: (_, _) => Task.CompletedTask);
+            delayAsync: (_, _) => park.Task);
 
         await sut.RunAsync(applyBackoffDelay: false);
 
@@ -226,15 +231,19 @@ public sealed class CaptureAutoStartCoordinatorTests
         // branch than the one this test exercises).
         var provider = new FakeAudioDeviceProvider { Devices = [new AudioDeviceInfo("id-x", "Some Other Mic")] };
         var recovery = new CaptureRecoveryState();
+        // The retry's backoff delay is HELD until the test releases it: with a no-op delay the retry free-runs in the
+        // background and keeps recording failures, so "exactly one failure" below would race it.
+        var releaseRetry = new TaskCompletionSource();
         var sut = BuildSut(store, provider, recovery, out var startCalls,
-            delayAsync: (_, _) => Task.CompletedTask);
+            delayAsync: (_, _) => releaseRetry.Task);
 
         await sut.RunAsync(applyBackoffDelay: false);
         recovery.ConsecutiveCaptureFailures.Should().Be(1, "first attempt found nothing");
 
-        // The device appears; the self-scheduled retry (a fire-and-forget Task.Run) needs a
-        // moment to run — poll briefly rather than a fixed delay.
+        // The device appears, then the self-scheduled retry (a fire-and-forget Task.Run) is let go; poll for its
+        // effect rather than a fixed delay.
         provider.Devices = [new AudioDeviceInfo("{GONE}", "Mic")]; // now resolvable via UseConfigured
+        releaseRetry.SetResult();
         await Poll.UntilAsync(() => startCalls.Count > 0,
             timeoutMessage: () => "self-scheduled retry never called startCaptureAsync");
 

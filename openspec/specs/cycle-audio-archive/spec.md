@@ -9,9 +9,7 @@ re-decode investigation: the archive format is byte-compatible with WSJT-X's own
 the existing offline decode harness (`rewindow.py`, `run_phase.py`, `D001ParamSweep`) consumes an
 OpenWSFZ capture with zero changes. Default mode is `Off`; recordings contain real off-air audio
 and real third-party callsigns and are never written inside the repository (NFR-021).
-
 ## Requirements
-
 ### Requirement: Operator-controlled cycle audio archiving
 
 The daemon SHALL be able to write each decode cycle's 15-second PCM window to a `.wav` file on
@@ -122,11 +120,31 @@ decode count, the dial frequency in MHz, the clipped-sample count, and the numbe
 since the previous row. A header row SHALL be written when the file is created. The manifest SHALL
 contain no decoded message text and no callsigns.
 
+A manifest row SHALL NOT be lost because another process has the manifest open. When the append
+cannot open the manifest (an editor, a scanner or a reader holds it), the archive SHALL retry the
+open a bounded number of times with a short wait between attempts, and SHALL consume the
+dropped-since-previous-row count only when the row has really been written. If every attempt fails
+the archive SHALL log one Warning naming the archive file (never message text) and stating that the
+audio file exists without its manifest row, and SHALL continue with the next cycle.
+
 #### Scenario: Manifest row is written per archived cycle
 
 - **WHEN** four cycles are archived
 - **THEN** the manifest SHALL contain a header row followed by exactly four data rows, in cycle
   order
+
+#### Scenario: A row is not lost when another process holds the manifest
+
+- **WHEN** another process holds the manifest open when a cycle is archived and releases it during
+  the retry wait
+- **THEN** that cycle's row SHALL be written on a retry, in order, and no failure SHALL be logged
+
+#### Scenario: A manifest held beyond the retry budget is reported, not silent
+
+- **WHEN** the manifest stays held for every attempt
+- **THEN** one Warning SHALL name the archive file and say its audio file exists without a manifest
+  row, the next cycle SHALL still be archived, and the dropped-cycle count the failed row would have
+  carried SHALL appear on the next row that is written
 
 #### Scenario: Manifest records the framer's off-grid offset
 
@@ -196,3 +214,18 @@ two windows produce the same timestamp label.
 
 - **WHEN** two windows are archived with the same `cycleStart` label
 - **THEN** two distinct files SHALL exist and neither SHALL have been overwritten
+
+### Requirement: The operator controls the archive from the Settings page
+
+The Settings page SHALL contain an **Audio archive** group with a mode selector, a directory text field (blank meaning the default location, sent as `null`), a maximum-size field (MB), a maximum-age field (hours) and a write-manifest checkbox. The group SHALL be sent on every save and SHALL participate in the FR-040 unsaved-changes flow. Server-side validation SHALL match how `CycleArchiveService` treats each value (design D5). A field that needs a restart SHALL say so on the page.
+
+#### Scenario: Mode set in the UI survives reload and an unrelated save
+
+- **WHEN** the operator sets the archive mode to All, saves, reloads the page, and then saves an unrelated setting
+- **THEN** the page SHALL show All after the reload and again after the second save
+
+#### Scenario: A blank directory means the default location
+
+- **WHEN** the operator leaves the directory field blank and saves
+- **THEN** `cycleAudioArchive.directory` SHALL be persisted as `null`
+

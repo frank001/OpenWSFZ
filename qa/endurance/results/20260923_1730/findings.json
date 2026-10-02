@@ -1,0 +1,42 @@
+{
+ "data_quality": {
+  "ok": true,
+  "n_files": 5763,
+  "n_errors": 0,
+  "format_consistent": true,
+  "clipping_file_count": 0,
+  "silent_file_count": 0,
+  "hot_file_count": 0,
+  "dbfs_median": -27.882711730169255,
+  "dbfs_mad": 0.8675806699264577,
+  "dbfs_range": [
+   -32.157899371157214,
+   -21.072846889392363
+  ]
+ },
+ "hum": {
+  "this_run_median_db": 21.813546866381586,
+  "verdict": "no control run supplied -- not claiming chain-independence, compare manually if a comparator exists"
+ },
+ "spur": {
+  "ran": true,
+  "material": true,
+  "top_freq_hz": 1375,
+  "top_count": 427,
+  "share_of_files": 0.07409335415582162,
+  "xref_tolerance_hz": 3.0,
+  "n_hits": 1656,
+  "distinct_messages": 352,
+  "top_message_share": 0.6672705314009661,
+  "snr_min": -29,
+  "snr_max": 27,
+  "verdict": "RESOLVED: real station traffic, not a hardware/decoder artefact"
+ },
+ "representative_file": "260923_181045.wav",
+ "spectral_trace_panels": [
+  "QUIET",
+  "TYPICAL",
+  "LOUD",
+  "SPUR-RESOLVED"
+ ]
+}

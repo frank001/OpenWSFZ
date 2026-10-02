@@ -2,13 +2,14 @@
 
 **You are the DEVELOPER session.** If asked which persona you are, answer **Developer**.
 
-You are one of three parallel Claude Code sessions on this machine, each in its own git worktree of
+You are one of four parallel Claude Code sessions on this machine, each in its own git worktree of
 one repository:
 
 | Directory | Persona | Launcher |
 |---|---|---|
 | `D:\Projects\claude\OpenWSFZ` | Architect | `claude-architect` |
 | `D:\Projects\claude\OpenWSFZ\worktrees\qa` | QA | `claude-qa` |
+| `D:\Projects\claude\OpenWSFZ\worktrees\eng` | Engineer | `claude-eng` / `claude-engineer` |
 | `D:\Projects\claude\OpenWSFZ\worktrees\dev` | **Developer — you** | `claude-developer` |
 
 - The others are **separate sessions**. `ListAgents` shows them under generated names
@@ -186,6 +187,16 @@ Document the agreed strategy in the OpenSpec change artifacts so it travels with
 ---
 
 
+
+# Tests That Do Not Flake — a standing rule
+
+Flaky tests were written, then found, analysed and fixed, again and again (D-015, capture-autostart, the macOS goldens, 2026-10-01). Do not write them in the first place. Read `TESTING_STRATEGY.md` §11 before writing any async, timing, numeric or memory test. In short:
+
+- **Wait on a positive condition** (`OpenWSFZ.TestSupport.Poll.*`), never a fixed delay. Gate G10 only sees delay literals; the rest is on you.
+- **"Queue empty" is not "processed".** Wait for the effect, or use `ObservedDecodeChannel` for the QSO service tests.
+- **Never swap a delay seam for a no-op** when the test asserts exact counts on state a background loop also changes. Park it on a `TaskCompletionSource`, or poll.
+- **A numeric golden holds only on the platform that recorded it** (arm64 differs from x86-64 in the last bits). Compare in-process, record per platform, or state a tolerance. Memory-return assertions need a branch per OS (Windows, Linux, macOS).
+- **You cannot run macOS locally**: ask QA to push your branch early; CI gives the macOS result in about 6 minutes. Only QA pushes.
 
 # Code Style & Quality Rules
 

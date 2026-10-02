@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Ft8.Interop;
+using OpenWSFZ.Ft8.Subfeas;
 
 namespace OpenWSFZ.Ft8;
 
@@ -45,11 +46,66 @@ namespace OpenWSFZ.Ft8;
 /// logging — is unaffected.
 /// </para>
 /// </summary>
-public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
+public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 {
     private const int   ExpectedSampleCount         = 180_000;  // 15 s × 12 000 Hz
     private const float SilenceRmsThreshold         = 1e-6f;    // all-zero codeword guard
     private const float PcmNormalisationTargetRms   = 0.20f;    // D-002 SNR-bias fix: bring PCM to a fixed RMS level before native decode
+
+    /// <summary>
+    /// sub-feas-speed-redesign A4: the configured <c>decoder.subtractionMaxThreads</c> (0 = auto). The effective
+    /// number of concurrent residual-pass fits, and the native workspace pool's bound, is resolved from it once
+    /// per decode cycle by <see cref="SubtractionThreads.Resolve"/> and takes effect on the next cycle. Replaces
+    /// the fixed <c>Math.Min(Environment.ProcessorCount, 4)</c> cap of the base change.
+    /// </summary>
+    private volatile int _subtractionMaxThreads;
+
+    /// <summary>The last out-of-range configured value already warned about (never warned about twice).</summary>
+    private int _warnedSubtractionMaxThreads;
+
+    /// <summary>
+    /// sub-feas-speed-redesign A4: sets the configured fit thread count (<c>0</c> = auto, otherwise clamped to
+    /// <c>[1, ProcessorCount]</c>). Called when the config is applied (startup and every config save). Logs
+    /// <b>one</b> warning when a non-zero value had to be clamped, never per decode cycle and not again for the
+    /// same value on later, unrelated config saves. Takes effect on the next decode cycle.
+    /// </summary>
+    public void SetSubtractionMaxThreads(int configured)
+    {
+        _subtractionMaxThreads = configured;
+
+        int effective = SubtractionThreads.Resolve(configured, Environment.ProcessorCount, out bool clamped);
+        if (!clamped)
+        {
+            _warnedSubtractionMaxThreads = 0;
+            return;
+        }
+        if (Interlocked.Exchange(ref _warnedSubtractionMaxThreads, configured) == configured)
+            return;
+        _logger?.LogWarning(
+            "Decoder: subtractionMaxThreads {Original} out of range [1, {Max}] - clamped to {Clamped}.",
+            configured, Math.Max(1, Environment.ProcessorCount), effective);
+    }
+
+    /// <summary>
+    /// The effective residual-pass fit parallelism for the current configuration on this machine:
+    /// <c>0</c> means auto, <c>max(1, ProcessorCount - 2)</c>. Read once per decode cycle.
+    /// </summary>
+    internal int EffectiveSubtractionThreads
+        => SubtractionThreads.Resolve(_subtractionMaxThreads, Environment.ProcessorCount, out _);
+
+    /// <summary>
+    /// Frees the native residual-pass workspace pool (sub-feas-speed-redesign A3). The daemon calls this at
+    /// shutdown, after the decode pump has stopped. Idempotent, and it does not load the native library.
+    /// </summary>
+    public void Dispose() => _interop.SubfeasPoolShutdown();
+
+    /// <summary>
+    /// Hard per-cycle wall-clock budget (13 s, tasks.md runtime gate) for pass-0 plus the
+    /// residual pass. The residual pass gets whatever remains after pass-0 and abandons itself
+    /// (pass-0-only) if it runs out. A hard bound since sub-feas-speed-redesign A5: the native fits are
+    /// cancelled at <c>budget - SubtractionPass.SubtractionResidualDecodeReserve</c>.
+    /// </summary>
+    private static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
 
     // Singleton default — stateless adapter; safe to share across instances.
     private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
@@ -101,6 +157,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// </summary>
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
         => _interop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
+
+    /// <summary>
+    /// sub-feas-native-subtraction (design.md Decision 6): gates the additive residual-decode
+    /// pass (<see cref="SubtractionPass"/>). Default <c>false</c> at construction — with the
+    /// flag off, <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/>'s output
+    /// is byte-identical to pre-change behaviour. Takes effect on the next decode cycle, no
+    /// rebuild required (spec's own "Feature can be enabled without a rebuild" scenario).
+    /// Thread-safe: <c>volatile</c> bool, read once at the top of each decode cycle.
+    /// </summary>
+    public void SetSubtractionEnabled(bool enabled)
+        => _subtractionEnabled = enabled;
+
+    private volatile bool _subtractionEnabled;
 
     /// <summary>
     /// Return the process-lifetime count of Type 4 callsign announcements the native decoder
@@ -222,12 +291,93 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
     /// current band is unresolvable.
     /// </param>
     /// <param name="ct">Cancellation token.</param>
-    public async Task<IReadOnlyList<DecodeResult>> DecodeAsync(
+    public Task<IReadOnlyList<DecodeResult>> DecodeAsync(
         float[]           pcm,
         DateTime          cycleStart,
         string?           currentBand,
         CancellationToken ct = default)
+        => DecodeCoreAsync(pcm, cycleStart, currentBand, onFirstBatch: null, ct);
+
+    /// <summary>
+    /// Whether the residual-decode pass (<c>decoder.subtractionEnabled</c>) is currently on. The daemon pump reads
+    /// it once per window to choose between <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/>
+    /// (one batch, exactly as before) and <see cref="DecodeTwoStageAsync"/>.
+    /// </summary>
+    public bool SubtractionEnabled => _subtractionEnabled;
+
+    /// <summary>
+    /// sub-feas-speed-redesign two-stage publish (design.md D9). Decodes one window and hands the caller the cycle's
+    /// decodes in <b>two batches</b> when the residual pass is on:
+    /// <list type="number">
+    ///   <item><b>Batch 1</b> = pass-0, delivered through <paramref name="publishFirstBatch"/> as soon as pass 0 has
+    ///   returned and been mapped, <i>before</i> the residual pass starts;</item>
+    ///   <item><b>Batch 2</b> = the residual pass's genuinely new decodes, mapped exactly like batch 1 (the text
+    ///   de-duplication set is per cycle and spans both batches) and <b>returned</b>. It is empty when the pass is
+    ///   abandoned, fails, or finds nothing new: an empty return means "publish nothing".</item>
+    /// </list>
+    /// <para>
+    /// With the flag OFF (or nothing decoded, or a skipped silent cycle) this is the ordinary single-batch decode:
+    /// <paramref name="publishFirstBatch"/> is called exactly once with what
+    /// <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/> would have returned, and the return value
+    /// is empty. <paramref name="publishFirstBatch"/> is called <b>exactly once, always</b> (an empty batch 1 is a
+    /// real cycle: the answerer, caller and ALL.TXT count it).
+    /// </para>
+    /// <para>
+    /// Callable from a test or replay harness with no daemon pump (a lambda that records the batch is enough).
+    /// <see cref="IModeDecoder.DecodeAsync"/> is unchanged; this is an additional entry on the concrete type.
+    /// </para>
+    /// </summary>
+    /// <param name="pcm">15 s x 12 000 Hz mono PCM samples.</param>
+    /// <param name="cycleStart">UTC instant the capture window began accumulating.</param>
+    /// <param name="currentBand">The session's current band, or <c>null</c>.</param>
+    /// <param name="publishFirstBatch">Publishes batch 1. Awaited before the residual pass begins.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Batch 2 (may be empty).</returns>
+    public async Task<IReadOnlyList<DecodeResult>> DecodeTwoStageAsync(
+        float[]                                   pcm,
+        DateTime                                  cycleStart,
+        string?                                   currentBand,
+        Func<IReadOnlyList<DecodeResult>, Task>   publishFirstBatch,
+        CancellationToken                         ct = default)
     {
+        ArgumentNullException.ThrowIfNull(publishFirstBatch);
+
+        bool published = false;
+        async Task MarkAndPublish(IReadOnlyList<DecodeResult> batch1)
+        {
+            published = true;
+            await publishFirstBatch(batch1).ConfigureAwait(false);
+        }
+
+        var second = await DecodeCoreAsync(pcm, cycleStart, currentBand, MarkAndPublish, ct).ConfigureAwait(false);
+
+        if (!published)
+        {
+            // Single-batch outcome (flag OFF, silent cycle, native AV, ...): what the core returned IS the cycle.
+            await publishFirstBatch(second).ConfigureAwait(false);
+            return [];
+        }
+        return second;
+    }
+
+    /// <summary>
+    /// The decode itself. <paramref name="onFirstBatch"/> <c>null</c> = the single-batch behaviour of
+    /// <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/> (with the flag ON the residual pass runs
+    /// inside this call and its decodes are appended to the one returned list). Non-null AND the flag ON = two-stage
+    /// (see <see cref="DecodeTwoStageAsync"/>): batch 1 goes to the callback, the return value is batch 2.
+    /// </summary>
+    private async Task<IReadOnlyList<DecodeResult>> DecodeCoreAsync(
+        float[]                                    pcm,
+        DateTime                                   cycleStart,
+        string?                                    currentBand,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onFirstBatch,
+        CancellationToken                          ct)
+    {
+        // The flag is read ONCE per cycle. Two-stage only when the caller asked for it AND the flag is on: with the
+        // flag off this method is, statement for statement, the pre-change single-batch path (P-9).
+        bool subtractionOn = _subtractionEnabled;
+        bool twoStage      = onFirstBatch is not null && subtractionOn;
+
         // ── R2: Pre-condition guard ──────────────────────────────────────────
         // Declared async so that this throw surfaces as a faulted Task rather than
         // propagating synchronously to callers expecting Task-based exception semantics.
@@ -329,13 +479,49 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
             return [];
         }
 
-        sw.Stop();
+        // ── sub-feas-native-subtraction: additive residual-decode pass ──────
+        // Flag OFF (default): native is untouched -- byte-identical to pre-change behaviour
+        // (spec's own "Flag OFF leaves decode output unchanged" scenario). Flag ON: fits and
+        // subtracts every re-encodable pass-0 signal, decodes the residual, and appends only
+        // the genuinely new (payload-deduped) decodes to native BEFORE the existing per-
+        // message mapping loop below runs -- so pass-0 and residual-pass results go through
+        // the identical plausibility-filter/text-dedup/region/worked-before pipeline, no
+        // duplicated logic (design.md's own intent for this two-call shape). Included inside
+        // the same `sw` timing window as pass-0 so the existing per-cycle "elapsed" log line
+        // (below) already captures total cost with the flag on -- exactly the number tasks.md
+        // 8.1's runtime gate needs, with no separate instrumentation required.
+        // SubtractionPass contains EVERY non-cancellation failure internally (returns empty +
+        // logs a warning) per design.md Decision 4, so pass-0's results are never lost here.
+        // It also receives the AP constraints (native AP state is thread-local) and a wall-clock
+        // budget = whatever remains of the cycle budget after pass-0.
+        if (!twoStage && subtractionOn && native.Length > 0)
+        {
+            var newFromResidual = await SubtractionPass.RunAsync(
+                _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+            if (newFromResidual.Length > 0)
+            {
+                var combined = new Ft8NativeResult[native.Length + newFromResidual.Length];
+                native.CopyTo(combined, 0);
+                newFromResidual.CopyTo(combined, native.Length);
+                native = combined;
+            }
+        }
+
+        // Two-stage: the stopwatch keeps running, because the residual pass's wall-clock budget is measured from the
+        // start of this decode; the per-cycle "elapsed" line below then reports the time to BATCH 1 (design.md D9).
+        if (!twoStage) sw.Stop();
 
         // ── Map native results → DecodeResult ────────────────────────────────
-        var results = new List<DecodeResult>(native.Length);
+        // The text de-duplication set is per CYCLE: in two-stage mode batch 2 is mapped with the SAME set, so a
+        // residual decode whose text already appeared in batch 1 is not published twice.
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (ref readonly Ft8NativeResult nr in native.AsSpan())
+        List<DecodeResult> MapNative(Ft8NativeResult[] source)
+        {
+        var mapped = new List<DecodeResult>(source.Length);
+
+        foreach (ref readonly Ft8NativeResult nr in source.AsSpan())
         {
             // D-005 fix: ft8_lib pads FT8Result.message to 36 bytes with trailing spaces
             // before the null terminator.  A Type 4 hash message such as "<HASH> CALLSIGN"
@@ -403,7 +589,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 }
             }
 
-            results.Add(new DecodeResult(
+            mapped.Add(new DecodeResult(
                 Time:         timeStr,
                 Snr:          nr.Snr,
                 Dt:           Math.Round(nr.Dt, 1),
@@ -414,15 +600,25 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
                 Band:         currentBand));
         }
 
+        return mapped;
+        }
+
+        var results = MapNative(native);
+
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────
         // Loop over passCounts.Length so the log scales correctly with K_MAX_PASSES
         // without needing further code changes when the pass count changes.
-        for (int p = 0; p < passCounts.Length; p++)
+        // M3 (sub-feas-speed-redesign): guarded, so with Debug logging off no loop runs and no message is formatted.
+        bool debugLogging = _logger?.IsEnabled(LogLevel.Debug) == true;
+        if (debugLogging)
         {
-            int candidates = p < candidateCounts.Length ? candidateCounts[p] : -1;
-            _logger?.LogDebug(
-                "Iterative subtraction: pass {Pass} of {Max}, {Candidates} candidates found, {K} decoded.",
-                p + 1, passCounts.Length, candidates, passCounts[p]);
+            for (int p = 0; p < passCounts.Length; p++)
+            {
+                int candidates = p < candidateCounts.Length ? candidateCounts[p] : -1;
+                _logger!.LogDebug(
+                    "Iterative subtraction: pass {Pass} of {Max}, {Candidates} candidates found, {K} decoded.",
+                    p + 1, passCounts.Length, candidates, passCounts[p]);
+            }
         }
 
         // ── D-001 LLR diagnostic log ─────────────────────────────────────────
@@ -434,12 +630,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         // co_channel fail cands show prenormVar 37–60 (not small). Revised
         // failure model: high-confidence wrong-sign LLRs under equal-SNR
         // co-channel. Probe retained for longitudinal monitoring.
-        for (int p = 0; p < llrStats.LlrMeanAbs.Length; p++)
+        if (debugLogging)
         {
-            _logger?.LogDebug(
-                "Iterative subtraction: pass {Pass} LDPC fail stats — " +
-                "failCands={FailCount} meanAbsLLR={MeanAbs:F3} prenormVar={PrenormVar:F4}",
-                p + 1, llrStats.LlrFailCount[p], llrStats.LlrMeanAbs[p], llrStats.LlrPrenormVariance[p]);
+            for (int p = 0; p < llrStats.LlrMeanAbs.Length; p++)
+            {
+                _logger!.LogDebug(
+                    "Iterative subtraction: pass {Pass} LDPC fail stats — " +
+                    "failCands={FailCount} meanAbsLLR={MeanAbs:F3} prenormVar={PrenormVar:F4}",
+                    p + 1, llrStats.LlrFailCount[p], llrStats.LlrMeanAbs[p], llrStats.LlrPrenormVariance[p]);
+            }
         }
 
         // ── Diagnostic log ───────────────────────────────────────────────────
@@ -490,6 +689,25 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink
         _logger?.LogInformation(
             "Cycle {Time}: noise_floor={NoiseFloor:F1} dB (waterfall histogram median).",
             timeStr, noiseFloorDb);
+
+        if (twoStage)
+        {
+            // Batch 1 leaves NOW, through the caller's publish path, before any residual work starts. Nothing else
+            // sits between "pass 0 returned and was mapped" and this hand-off (the logs above are cheap and
+            // Debug-guarded), because acceptance row S2 times exactly that gap.
+            await onFirstBatch!(results).ConfigureAwait(false);
+
+            if (native.Length == 0) return [];
+
+            // The residual pass, after batch 1 is out. Its wall-clock budget is what remains of the cycle budget,
+            // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
+            var newFromResidual = await SubtractionPass.RunAsync(
+                _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+
+            // Batch 2: nothing when the pass was abandoned, failed, or found nothing new.
+            return newFromResidual.Length == 0 ? [] : MapNative(newFromResidual);
+        }
 
         return results;
     }

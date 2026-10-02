@@ -797,8 +797,62 @@ extern "C" {
  *              have NO IFt8NativeInterop / Ft8LibInterop binding and no DllImport in
  *              src/ (harness-only, like the probe exports); ft8_get_decoder_params has
  *              ONE read-only managed binding. 26 -> 29 exports.
+ *
+ *   20260055 — sub-feas-native-subtraction (design.md, this change): adds two new
+ *              exported entry points, ft8_subfeas_compute_analytic() and
+ *              ft8_subfeas_fit_signal(), implementing the data-aided fit +
+ *              time-varying-envelope subtraction method validated offline by
+ *              SUB-FEAS (net +8.89pp, Captain-authorised 2026-09-28). Both are
+ *              implemented in the new native/ft8_lib_vendor/subfeas/subfeas_fit.c
+ *              (OpenWSFZ-original, same provenance footing as refine/ --
+ *              design.md D7 precedent), a direct port of this repo's own
+ *              qa/rr-study/sub-feas/fitter.py and qa/rr-study/synth/modulator.py,
+ *              already-clean-room implementations per their own docstrings.
+ *              NO CALL SITE from ft8_decode_all or any other existing decode-path
+ *              function -- both new exports are reachable only from the managed
+ *              orchestration layer this change is building on top (C#-driven,
+ *              one ft8_subfeas_fit_signal call per signal, run concurrently --
+ *              design.md's Decision 2 addendum), which does not yet exist at
+ *              this shim version. Existing decode output is therefore
+ *              byte-for-byte unchanged by this bump: ft8_decode_all,
+ *              ftx_find_candidates, and every existing exported entry point are
+ *              untouched. Version bump exists purely so the startup ABI check
+ *              catches a native binary built without the new exports, matching
+ *              this project's existing convention (e.g. 20260040's
+ *              ft8_refine_candidate precedent) for a diagnostic/staging export
+ *              added ahead of its own call site.
+ *
+ *   20260056 — sub-feas-speed-redesign (Stage A: exact optimisations, hard deadline, thread
+ *              count, lean hot path). The fit's OUTPUT is bit-identical to 20260055 for any
+ *              input with no deadline (proved by the E1 hash probe, tests/Ft8.FitProbe, not
+ *              argued from the code). Changes: (A1) the Gaussian-smoothed tone track is computed
+ *              once per signal instead of once per template; (A2) the Gaussian-pulse and Hann-
+ *              window spectra are cached per workspace; (A3) fit workspaces and FFT plans come
+ *              from a bounded, locked pool of heap workspaces, leased per fit and returned on
+ *              every exit path, no thread-local state -- new exports
+ *              ft8_subfeas_pool_configure / _shutdown / _get_stats; (A5) ft8_subfeas_fit_signal
+ *              gains a trailing `const volatile int* cancel_flag` parameter (NULL = no deadline)
+ *              and a new return code -4 = cancelled by the deadline; (M2) new per-thread
+ *              ft8_set_diagnostics_enabled(int) switch that skips the LDPC-failure LLR-statistics
+ *              accumulation for the calling thread's next decode (default ON; decode output does
+ *              not depend on it). Deliberately NOT changed: the LLR statistics themselves and
+ *              their getters (M1 is deferred), ft8_decode_all, ftx_find_candidates and every
+ *              other export. The changed ft8_subfeas_fit_signal signature is why the version is
+ *              bumped: a 20260055 binary would be called with one argument too many.
+ *
+ *   20260057 — sync decoding_improvement with main (2026-10-01): the UNION of both lines of
+ *              native work, NO new native behaviour. Exports from decoding_improvement
+ *              (20260053 pass-1 probe: ft8_set_probe, ft8_clear_probe, ft8_get_probe_llrs,
+ *              ft8_get_last_suppression; 20260054 decoder-param-readout:
+ *              ft8_get_decoder_params, ft8_set_supp_params, ft8_get_supp_params) and from
+ *              main (20260055/20260056 SUB-FEAS: ft8_subfeas_compute_analytic,
+ *              ft8_subfeas_fit_signal, ft8_subfeas_pool_configure/_shutdown/_get_stats,
+ *              ft8_set_diagnostics_enabled) are all present. Flag-OFF decode output and the
+ *              suppression ramp defaults are as each side had them. The number is new so a
+ *              merged DLL cannot be mistaken for either parent's (it identifies nothing;
+ *              pin the DLL SHA-256).
  */
-#define FT8_SHIM_VERSION 20260054
+#define FT8_SHIM_VERSION 20260057
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1000,6 +1054,15 @@ int ft8_get_last_snr_terms(
     float* out_signal_db,
     float* out_local_noise_db,
     int    capacity);
+
+/*
+ * ft8_set_diagnostics_enabled -- sub-feas-speed-redesign M2. Per-thread (thread-local) switch:
+ * 0 skips the per-pass LDPC-failure LLR statistics accumulation for subsequent ft8_decode_all calls
+ * on the CALLING thread (ft8_get_last_llr_stats then reports zero failure counts for that call); any
+ * non-zero value restores it. Default 1 (on). Decode output is identical either way. Call it on the
+ * same thread as the decode it governs, and restore it afterwards.
+ */
+void ft8_set_diagnostics_enabled(int enabled);
 
 /*
  * ft8_set_ap_bits — supply known AP bit constraints for the next decode cycle
@@ -1457,6 +1520,103 @@ int ft8_set_supp_params(float snr_min_db, float snr_max_db, float side_weight);
  * return 0 (-1 if out3 is NULL). Harness-only, like ft8_set_supp_params.
  */
 int ft8_get_supp_params(float* out3);
+
+/*
+ * ft8_subfeas_compute_analytic / ft8_subfeas_fit_signal -- data-aided fit +
+ * time-varying-envelope subtraction (sub-feas-native-subtraction, shim
+ * 20260055). Implemented in
+ * native/ft8_lib_vendor/subfeas/subfeas_fit.c -- see that file and
+ * subfeas_fit.h for the full algorithm, constants, and provenance
+ * (a direct port of qa/rr-study/sub-feas/fitter.py + qa/rr-study/synth/
+ * modulator.py). No production call site yet at this shim version -- see
+ * this file's shim-20260055 changelog entry above.
+ *
+ * ft8_subfeas_compute_analytic -- ONE call per cycle: Hilbert-transforms a
+ * real PCM buffer to its analytic signal (real/imaginary parts), shared
+ * read-only input to every subsequent ft8_subfeas_fit_signal call for that
+ * cycle.
+ *
+ * Parameters:
+ *   pcm    -- float32 samples, 12 kHz mono, normalised to [-1, 1], exactly
+ *             180 000 long (matches FT8_EXPECTED_SAMPLES)
+ *   out_re, out_im -- caller-allocated, 180 000 floats each
+ *
+ * Returns: 0 on success. -1 if any pointer is NULL. -2 on SEH fault
+ * (MSVC/Windows builds only; same containment discipline as ft8_decode_all).
+ */
+int ft8_subfeas_compute_analytic(
+    const float* pcm,
+    float*       out_re,
+    float*       out_im);
+
+/*
+ * ft8_subfeas_fit_signal -- ONE call per pass-0 decoded, re-encodable
+ * signal. Runs the full data-aided fit (coarse-to-fine Δt/Δf/ḟ search) +
+ * time-varying envelope + subtract pipeline for exactly one signal against
+ * the cycle's shared analytic buffer, and writes that signal's full-cycle-
+ * length, zero-padded subtraction waveform into a caller-allocated buffer.
+ *
+ * Concurrency (sub-feas-speed-redesign A3, superseding the shim-20260055
+ * "allocates its own buffers per call" model): each call LEASES one heap
+ * workspace from a bounded, locked pool for the duration of the call and returns
+ * it on every exit path. No thread-local state. Safe to call CONCURRENTLY from
+ * multiple threads, each with its own (shared, read-only) x_a_re/x_a_im and its
+ * own out_shat, up to the pool bound (see ft8_subfeas_pool_configure); a call
+ * beyond the bound is refused with -1 rather than allocating past it.
+ *
+ * Parameters:
+ *   x_a_re, x_a_im  -- analytic signal from ft8_subfeas_compute_analytic,
+ *                      180 000 floats each (read-only, not mutated)
+ *   tones           -- 79 tone indices, each in [0,7], as returned by
+ *                      ft8_encode_message() on this signal's decoded text
+ *   decoded_dt_s    -- this signal's decoded DT (seconds)
+ *   decoded_freq_hz -- this signal's decoded frequency (Hz)
+ *   out_shat        -- caller-allocated, 180 000 floats; on success,
+ *                      receives the full-cycle-length subtraction waveform,
+ *                      zero outside the fitted signal's ~12.64 s window.
+ *                      Unconditionally zeroed by this function, including
+ *                      on failure.
+ *   cancel_flag     -- NULL (no deadline; behaviour and output identical to
+ *                      the pre-A5 build) or a pointer to an int owned by the
+ *                      caller and valid for the whole call. The caller sets it
+ *                      non-zero (volatile write) to cancel; the fit checks it
+ *                      at entry and at the top of every dt, fdot and envelope
+ *                      iteration.
+ *
+ * Returns: 0 on success. -4 if cancelled (the flag was set): out_shat is all
+ *          zero, the workspace is returned, other in-flight fits are not
+ *          disturbed. -4 is a DEADLINE OUTCOME, not an error. -1 on bad arguments (NULL pointer, tone index
+ *          outside [0,7]). -2 on SEH fault (MSVC/Windows builds only) --
+ *          caller must treat exactly as ft8_decode_all's -2 (log and skip);
+ *          per design.md Decision 4, a -2 from ANY signal in a cycle means
+ *          the WHOLE cycle's residual pass is abandoned, not a per-signal
+ *          skip. -3 if every fit candidate ran off the buffer edge (no
+ *          valid fit found -- a normal outcome for a signal near a cycle
+ *          boundary, not a failure requiring cycle fallback).
+ */
+int ft8_subfeas_fit_signal(
+    const float*   x_a_re,
+    const float*   x_a_im,
+    const uint8_t* tones,
+    float          decoded_dt_s,
+    float          decoded_freq_hz,
+    float*         out_shat,
+    const volatile int* cancel_flag);
+
+/*
+ * Workspace pool control (sub-feas-speed-redesign A3). See subfeas_fit.h for the
+ * full contract; repeated here because this header is the exported ABI.
+ *
+ * ft8_subfeas_pool_configure(bound)  -- set the bound (clamped to [1, 64]) and
+ *     (re)open the pool. Call at a cycle boundary with no fit in flight.
+ * ft8_subfeas_pool_shutdown()        -- free idle workspaces now, leased ones as
+ *     they return; never frees a workspace in use. Call at decoder dispose.
+ * ft8_subfeas_pool_get_stats(out[7]) -- [0] bound [1] live [2] idle [3] leased
+ *     [4] peak leased [5] refusals (both since the last configure) [6] bytes per workspace.
+ */
+void ft8_subfeas_pool_configure(int bound);
+void ft8_subfeas_pool_shutdown(void);
+void ft8_subfeas_pool_get_stats(int* out);
 
 #ifdef __cplusplus
 }

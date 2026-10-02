@@ -198,25 +198,56 @@ public sealed class CycleArchiveServiceTests : IDisposable
 
     // ── Manifest (design.md Decision 6) ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Counts the items the writer loop has fully processed, so a test can wait for N items on the
+    /// service's own completion signal instead of polling the manifest while the writer may still
+    /// be appending to it. <see cref="CycleArchiveService.ItemProcessedForTests"/> fires after the
+    /// item's files, including the manifest writer, are closed (whether it succeeded or the loop
+    /// caught and logged a failure), so once the expected count has been reached nothing else
+    /// touches the manifest and the test can read it once.
+    /// <para>
+    /// Why not poll the file: on Windows <c>File.ReadAllLines</c> opens it <c>FileShare.Read</c>,
+    /// which does not allow a concurrent writer (on Linux and macOS .NET emulates FileShare with
+    /// advisory locks and a <c>FileShare.Read</c> holder does not stop a writer, so this failure
+    /// mode is a Windows one). If the writer's append-open lands while a poll tick holds
+    /// the file open, the append fails with a sharing violation; the writer loop catches, logs
+    /// "failed to archive a cycle - continuing" and never retries, so the row is lost for good
+    /// and the poll then waits out its whole budget (the recurring 15 s timeouts, #204 and the
+    /// earlier file-lock flakes). Subscribe BEFORE the first <c>TryEnqueue</c>.
+    /// </para>
+    /// </summary>
+    private sealed class ProcessedItems
+    {
+        private static readonly TimeSpan WaitBudget = TimeSpan.FromSeconds(5);
+        private readonly SemaphoreSlim _processed = new(0);
+
+        public ProcessedItems(CycleArchiveService service) => service.ItemProcessedForTests += () => _processed.Release();
+
+        /// <summary>Waits for <paramref name="count"/> MORE items to be processed (counts accumulate across calls).</summary>
+        public async Task WaitForAsync(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (!await _processed.WaitAsync(WaitBudget))
+                    throw new TimeoutException($"The writer loop did not process item {i + 1} of {count} within {WaitBudget.TotalSeconds:F0}s.");
+            }
+        }
+    }
+
     [Fact(DisplayName = "cycle-audio-archive: manifest row is written per archived cycle, in order")]
     public async Task Manifest_WritesOneRowPerArchivedCycle_InOrder()
     {
         var service = MakeService(CycleAudioArchiveMode.All);
         await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
 
         for (int i = 0; i < 4; i++)
             service.TryEnqueue(new float[FullWindowSamples], CycleAt(i), CycleAt(i), decodeCount: i, dialMhz: 7.074);
 
         var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
-        // Widened from Poll.DefaultTimeout (5s): this poll waits on real disk I/O from
-        // CycleArchiveService's background writer loop, which occasionally misses a 5s budget
-        // under this repo's own full-suite parallel test load (thread-pool scheduling delay +
-        // contended disk I/O), not a functional defect — see qa/2026-09-01-webtests-isolation-
-        // findings:dev-tasks/2026-09-01-cyclearchiveservicetests-manifest-poll-timeout.md.
-        await Poll.UntilAsync(() => File.Exists(manifestPath) && File.ReadAllLines(manifestPath).Length == 5,
-            timeout: TimeSpan.FromSeconds(15),
-            timeoutMessage: () => "manifest line count");
-
+        // Wait on the writer's completion signal, then read once (see ProcessedItems: polling a file
+        // the writer is appending to can make the writer's own append fail and lose the row).
+        await processed.WaitForAsync(4);
         var lines = await File.ReadAllLinesAsync(manifestPath);
         lines[0].Should().Be("filename,cycle_start_utc,window_closed_utc,decode_count,dial_mhz,clipped_samples,dropped_before");
         lines.Should().HaveCount(5, "one header row plus one row per archived cycle");
@@ -236,6 +267,7 @@ public sealed class CycleArchiveServiceTests : IDisposable
     {
         var service = MakeService(CycleAudioArchiveMode.All);
         await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
 
         var cycleStart = new DateTime(2026, 7, 25, 10, 0, 0, DateTimeKind.Utc);
         var offset     = TimeSpan.FromSeconds(5.958);
@@ -244,13 +276,7 @@ public sealed class CycleArchiveServiceTests : IDisposable
         service.TryEnqueue(new float[FullWindowSamples], cycleStart, closedUtc, decodeCount: 1, dialMhz: 7.074);
 
         var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
-        // Same real-disk-I/O-behind-a-default-timeout shape as
-        // Manifest_WritesOneRowPerArchivedCycle_InOrder above — see that test's comment and
-        // dev-tasks/2026-09-01-cyclearchiveservicetests-manifest-poll-timeout.md (qa/2026-09-01-
-        // webtests-isolation-findings).
-        await Poll.UntilAsync(() => File.Exists(manifestPath) && File.ReadAllLines(manifestPath).Length == 2,
-            timeout: TimeSpan.FromSeconds(15),
-            timeoutMessage: () => "manifest line count");
+        await processed.WaitForAsync(1);   // see ProcessedItems: wait on the writer's signal, read once
 
         const string manifestTimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
         var cols = (await File.ReadAllLinesAsync(manifestPath))[1].Split(',');
@@ -281,17 +307,12 @@ public sealed class CycleArchiveServiceTests : IDisposable
             CycleAudioArchiveMode.All, queueCapacity: 1, retentionSweepInterval: 1000,
             stallHook: _ => stallArmed ? stallGate.Task : Task.CompletedTask);
         await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
 
         var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
 
         service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074); // row1
-        // Same real-disk-I/O-behind-a-default-timeout shape as
-        // Manifest_WritesOneRowPerArchivedCycle_InOrder above — see that test's comment and
-        // dev-tasks/2026-09-01-cyclearchiveservicetests-manifest-poll-timeout.md (qa/2026-09-01-
-        // webtests-isolation-findings).
-        await Poll.UntilAsync(() => File.Exists(manifestPath) && File.ReadAllLines(manifestPath).Length == 2,
-            timeout: TimeSpan.FromSeconds(15),
-            timeoutMessage: () => "manifest line count after item1");
+        await processed.WaitForAsync(1);   // row1 is on disk and the writer has closed the file
 
         stallArmed = true;
         service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 1, 7.074); // dequeued, stalls
@@ -304,19 +325,199 @@ public sealed class CycleArchiveServiceTests : IDisposable
         service.DroppedCycles.Should().Be(3);
 
         stallGate.SetResult();
-        // >= rather than == : once the gate resolves it stays resolved, so item3 (also gated by
-        // the same now-completed stallArmed check) can drain right behind item2 — the assertion
-        // below only needs row2 (line index 2) to have landed, regardless of whether row3 has too.
-        // Same real-disk-I/O-behind-a-default-timeout shape as
-        // Manifest_WritesOneRowPerArchivedCycle_InOrder above — see that test's comment and
-        // dev-tasks/2026-09-01-cyclearchiveservicetests-manifest-poll-timeout.md (qa/2026-09-01-
-        // webtests-isolation-findings).
-        await Poll.UntilAsync(() => File.ReadAllLines(manifestPath).Length >= 3,
-            timeout: TimeSpan.FromSeconds(15),
-            timeoutMessage: () => "manifest line count after item2");
+        // Once the gate resolves it stays resolved, so item3 (queued behind item2) drains right after
+        // it: wait for BOTH (item2 and item3) before reading, so the writer is idle when the test
+        // reads the manifest (see ProcessedItems). Row 2 is item2's.
+        await processed.WaitForAsync(2);
 
         var row2 = (await File.ReadAllLinesAsync(manifestPath))[2].Split(',');
         row2[^1].Should().Be("3", "the three cycles dropped while item2 was in flight must appear on item2's own row");
+
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    // ── Issue #205: a manifest held open by another process must not lose a row ──────────────
+
+    /// <summary>
+    /// Opens the manifest the way a process that REFUSES the writer does, on every platform:
+    /// read access with <c>FileShare.None</c>. On Windows that denies the writer's write access (a
+    /// <c>FileShare.Read</c> holder, as <c>File.ReadAllLines</c> is, does too, but only on Windows).
+    /// On Linux and macOS .NET emulates FileShare with advisory <c>flock</c>, where a
+    /// <c>FileShare.Read</c> holder does NOT stop a writer's open, but <c>FileShare.None</c> takes the
+    /// exclusive lock that makes the writer's open fail. Using <c>FileShare.None</c> therefore makes
+    /// the writer reach its retry on all three platforms.
+    /// </summary>
+    private static FileStream HoldManifestExclusively(string manifestPath) =>
+        new(manifestPath, FileMode.Open, FileAccess.Read, FileShare.None);
+
+    /// <summary>
+    /// The retry-delay seam for the manifest-append retry, PARKED rather than a no-op: each call
+    /// announces itself and then waits until the test releases it. A seam that returned
+    /// <see cref="Task.CompletedTask"/> would turn the retry into a free-running loop that burns its
+    /// whole budget before the test can act (TESTING_STRATEGY.md section 11; found 2026-10-01 in
+    /// capture-autostart). Parked, the writer waits exactly where the test wants it to, so the test
+    /// can release the file from inside the retry, deterministically and with no wall-clock wait.
+    /// </summary>
+    private sealed class ParkedRetryDelay
+    {
+        private readonly SemaphoreSlim _entered = new(0);
+        private readonly SemaphoreSlim _release = new(0);
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+        public TimeSpan? LastDelay { get; private set; }
+
+        public Func<TimeSpan, CancellationToken, Task> Seam => async (delay, ct) =>
+        {
+            LastDelay = delay;
+            Interlocked.Increment(ref _calls);
+            _entered.Release();
+            await _release.WaitAsync(ct);
+        };
+
+        /// <summary>Waits until the writer is parked in the seam (a manifest-open attempt has just failed).</summary>
+        public async Task WaitUntilParkedAsync()
+        {
+            if (!await _entered.WaitAsync(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("The writer never reached the retry delay.");
+        }
+
+        /// <summary>Lets the parked writer continue to its next attempt.</summary>
+        public void Release() => _release.Release();
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: a manifest row is not lost when another process holds the manifest open; it lands on a retry")]
+    public async Task Manifest_ReaderHoldsFile_RowLandsOnRetry()
+    {
+        var delay   = new ParkedRetryDelay();
+        var logger  = new CapturingLogger();
+        var service = MakeService(CycleAudioArchiveMode.All, retentionSweepInterval: 1000,
+            logger: logger, manifestRetryDelay: delay.Seam);
+        await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
+        var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
+
+        service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
+        await processed.WaitForAsync(1);                       // header + row 1 are on disk
+
+        // Another process holds the manifest so that the writer's open is refused (see
+        // HoldManifestExclusively: FileShare.None is the holder that refuses a writer on every platform).
+        var reader = HoldManifestExclusively(manifestPath);
+        try
+        {
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 2, 7.074);
+            await delay.WaitUntilParkedAsync();                // the first append attempt failed; the writer waits to retry
+            delay.Calls.Should().Be(1);
+            delay.LastDelay.Should().Be(CycleArchiveService.ManifestAppendRetryDelay);
+        }
+        finally
+        {
+            reader.Dispose();                                  // the other process lets go, from inside the retry delay
+        }
+        delay.Release();
+        await processed.WaitForAsync(1);
+
+        var lines = await File.ReadAllLinesAsync(manifestPath);
+        lines.Should().HaveCount(3, "header + row 1 + the row that had to be retried");
+        lines[2].Split(',')[0].Should().Contain(CycleAt(1).ToString("yyMMdd_HHmmss"), "rows stay in order");
+        logger.HasWarningContaining("failed to archive").Should().BeFalse();
+        logger.HasWarningContaining("could not be appended").Should().BeFalse("the retry succeeded");
+
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: a manifest held beyond the retry budget logs a specific Warning, and the next item's row still lands")]
+    public async Task Manifest_ReaderHoldsBeyondBudget_LoudWarning_NextRowStillLands()
+    {
+        var delay   = new ParkedRetryDelay();
+        var logger  = new CapturingLogger();
+        var service = MakeService(CycleAudioArchiveMode.All, retentionSweepInterval: 1000,
+            logger: logger, manifestRetryDelay: delay.Seam);
+        await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
+        var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
+
+        service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
+        await processed.WaitForAsync(1);
+
+        var reader = HoldManifestExclusively(manifestPath);
+        try
+        {
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 2, 7.074);
+
+            // The writer fails every attempt: one retry delay between each pair of attempts.
+            for (int retry = 0; retry < CycleArchiveService.ManifestAppendMaxAttempts - 1; retry++)
+            {
+                await delay.WaitUntilParkedAsync();
+                delay.Release();
+            }
+            await processed.WaitForAsync(1);                   // the item is finished (row given up), not stuck
+        }
+        finally
+        {
+            reader.Dispose();
+        }
+
+        delay.Calls.Should().Be(CycleArchiveService.ManifestAppendMaxAttempts - 1);
+        logger.HasWarningContaining("could not be appended").Should().BeTrue("a lost row must be loud, not silent");
+        logger.HasWarningContaining(CycleAt(1).ToString("yyMMdd_HHmmss")).Should().BeTrue("the Warning names the file");
+        logger.HasWarningContaining("without its manifest row").Should().BeTrue();
+        CountWavFiles().Should().Be(2, "the WAV of the item whose row was given up exists");
+
+        // The writer loop is not stalled: the next item archives, and its row lands now the file is free.
+        service.TryEnqueue(new float[FullWindowSamples], CycleAt(2), CycleAt(2), 3, 7.074);
+        await processed.WaitForAsync(1);
+
+        var lines = await File.ReadAllLinesAsync(manifestPath);
+        lines.Should().HaveCount(3, "header + row 1 + the later row; the given-up row is the one that is missing");
+        lines[2].Split(',')[0].Should().Contain(CycleAt(2).ToString("yyMMdd_HHmmss"));
+        delay.Calls.Should().Be(CycleArchiveService.ManifestAppendMaxAttempts - 1, "the free file needed no retry");
+
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: the dropped-cycle gap marker is not consumed by a failed append and lands on the row that is retried")]
+    public async Task Manifest_FirstAppendFails_DroppedCountSurvivesToTheRetriedRow()
+    {
+        bool stallArmed = false;
+        var stallGate = new TaskCompletionSource();
+        var delay   = new ParkedRetryDelay();
+        var service = MakeService(CycleAudioArchiveMode.All, queueCapacity: 1, retentionSweepInterval: 1000,
+            stallHook: _ => stallArmed ? stallGate.Task : Task.CompletedTask, manifestRetryDelay: delay.Seam);
+        await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
+        var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
+
+        service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
+        await processed.WaitForAsync(1);
+
+        var reader = HoldManifestExclusively(manifestPath);
+        try
+        {
+            stallArmed = true;
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 1, 7.074);   // dequeued, stalls
+            await Poll.WaitForEqualAsync(() => service.DequeuedCountForTests, 2, what: "dequeued item count");
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(2), CycleAt(2), 1, 7.074);   // queued
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(3), CycleAt(3), 1, 7.074);   // dropped
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(4), CycleAt(4), 1, 7.074);   // dropped
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(5), CycleAt(5), 1, 7.074);   // dropped
+            service.DroppedCycles.Should().Be(3);
+
+            stallGate.SetResult();                             // item 1 proceeds; its first append attempt fails
+            await delay.WaitUntilParkedAsync();
+        }
+        finally
+        {
+            reader.Dispose();
+        }
+        delay.Release();                                       // the retry succeeds
+        await processed.WaitForAsync(2);                       // item 1 (retried) and item 2 (queued behind it)
+
+        var lines = await File.ReadAllLinesAsync(manifestPath);
+        lines.Should().HaveCount(4, "header + rows for items 0, 1 and 2");
+        lines[2].Split(',')[^1].Should().Be("3",
+            "the three cycles dropped while item 1 was in flight must appear on item 1's row even though its first append failed");
+        lines[3].Split(',')[^1].Should().Be("0", "the count is reported once");
 
         await service.StopAsync(CancellationToken.None);
     }
@@ -326,17 +527,12 @@ public sealed class CycleArchiveServiceTests : IDisposable
     {
         var service = MakeService(CycleAudioArchiveMode.All);
         await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
 
         service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), decodeCount: 3, dialMhz: 7.074);
 
         var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
-        // Same real-disk-I/O-behind-a-default-timeout shape as
-        // Manifest_WritesOneRowPerArchivedCycle_InOrder above — see that test's comment and
-        // dev-tasks/2026-09-01-cyclearchiveservicetests-manifest-poll-timeout.md (qa/2026-09-01-
-        // webtests-isolation-findings).
-        await Poll.UntilAsync(() => File.Exists(manifestPath) && File.ReadAllLines(manifestPath).Length == 2,
-            timeout: TimeSpan.FromSeconds(15),
-            timeoutMessage: () => "manifest line count");
+        await processed.WaitForAsync(1);   // see ProcessedItems: wait on the writer's signal, read once
 
         var content = await File.ReadAllTextAsync(manifestPath);
         // The manifest's own column set (filename/timestamps/counts/frequency) contains no field
@@ -606,7 +802,8 @@ public sealed class CycleArchiveServiceTests : IDisposable
         int                    maxAgeHours            = 168,
         Func<CancellationToken, Task>? stallHook       = null,
         Func<string, long>?    freeBytesProvider       = null,
-        ILogger<CycleArchiveService>? logger           = null)
+        ILogger<CycleArchiveService>? logger           = null,
+        Func<TimeSpan, CancellationToken, Task>? manifestRetryDelay = null)
     {
         var config = new AppConfig() with
         {
@@ -619,7 +816,8 @@ public sealed class CycleArchiveServiceTests : IDisposable
             logger ?? NullLogger<CycleArchiveService>.Instance,
             queueCapacity,
             retentionSweepInterval,
-            freeBytesProvider);
+            freeBytesProvider,
+            manifestRetryDelay);
 
         if (stallHook is not null)
             service.WriterStallHookForTests = stallHook;

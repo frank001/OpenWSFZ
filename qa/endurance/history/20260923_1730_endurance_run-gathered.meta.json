@@ -1,0 +1,27 @@
+{
+ "date": "2026-09-23",
+ "band": "40m",
+ "hours": 24.0,
+ "dll_sha256": "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba",
+ "build_branch": "decoding_improvement",
+ "build_commit": "84cac11919e567cd3769db8ee0ebeeab37f9dffc",
+ "shim": 20260054,
+ "nhard": 40,
+ "reference": "live_wsjtx",
+ "radio_chain": "FT-991A -> Microphone (2- USB Audio CODEC), DIRECT (Voicemeeter/CABLE out of the loop for this arm)",
+ "comparable": true,
+ "grid_gate_g": 1.0,
+ "n_pairs": 97279,
+ "matched_pct_of_ref": 61.07996107117069,
+ "ows_only_pct": 0.6890989648202217,
+ "snr_gap_db": -3.2253621028176687,
+ "snr_gap_sd_db": 4.793462796295937,
+ "dt_gap_s": 0.6483835154555455,
+ "dt_gap_sd_s": 0.050242877282800566,
+ "drift_contaminated": false,
+ "drift_note": "",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\artefacts\\20260923_1730_endurance_run-gathered",
+ "source_files": [
+  "artefacts/20260923_1730_endurance_run-gathered/anova_report.md"
+ ]
+}

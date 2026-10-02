@@ -1,0 +1,26 @@
+{
+ "date": "2026-09-30",
+ "band": "40m",
+ "hours": 17.9,
+ "dll_sha256": "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c",
+ "build_branch": "feat/sub-feas-two-stage-publish",
+ "build_commit": "247ac391d11f6a7474fd4c42ae4815a23e09fd45",
+ "shim": 20260056,
+ "nhard": 40,
+ "reference": "live_wsjtx",
+ "radio_chain": "Yaesu FT-991A -> Voicemeeter Out B1 [SUB-FEAS flag ON, 8 workers: NOT poolable with flag-OFF rows]",
+ "comparable": true,
+ "grid_gate_g": 1.0,
+ "n_pairs": 94307,
+ "matched_pct_of_ref": 72.76325535460774,
+ "ows_only_pct": 1.128083620770997,
+ "snr_gap_db": -1.5461418558537545,
+ "dt_gap_s": 0.661065456434835,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": false,
+ "drift_note": "",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\artefacts\\20260930_1930_endurance_run-gathered",
+ "source_files": [
+  "artefacts/20260930_1930_endurance_run-gathered/anova_report.md"
+ ]
+}

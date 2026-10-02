@@ -36,12 +36,18 @@ public sealed record DecoderConfig
         int   kMinScorePass2           = 10,
         float osdCorrThreshold         = 0.10f,
         int   osdNhardMax              = 40,
-        bool  nhard40MigrationApplied  = false)
+        bool  nhard40MigrationApplied  = false,
+        bool  subtractionEnabled       = true,
+        int   subtractionMaxThreads    = 0,
+        bool  subtractionOnMigrationApplied = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
         OsdNhardMax             = osdNhardMax;
         Nhard40MigrationApplied = nhard40MigrationApplied;
+        SubtractionEnabled      = subtractionEnabled;
+        SubtractionMaxThreads   = subtractionMaxThreads;
+        SubtractionOnMigrationApplied = subtractionOnMigrationApplied;
     }
 
     /// <summary>
@@ -110,4 +116,47 @@ public sealed record DecoderConfig
     /// </para>
     /// </summary>
     public bool  Nhard40MigrationApplied { get; init; } = false;
+
+    /// <summary>
+    /// sub-feas-native-subtraction (design.md Decision 6, shim 20260055): gates the
+    /// additive residual-decode pass (data-aided fit + time-varying-envelope subtraction,
+    /// <see cref="OpenWSFZ.Ft8.Subfeas.SubtractionPass"/>). Default <c>true</c> (ON by default since
+    /// v0.54; existing installs are migrated to ON once, see <see cref="SubtractionOnMigrationApplied"/>).
+    /// Set <c>false</c> to turn it off; with the flag off, decode output is byte-identical to
+    /// pre-change behaviour (spec's own "Flag OFF leaves decode output unchanged" scenario).
+    /// <para>
+    /// <b>History — the live-use readiness gate (spec's own ADDED requirement, tasks.md §8):</b>
+    /// at this field's introduction the flag SHALL NOT have been set <c>true</c> in any live or
+    /// production run until BOTH the measured decode-cycle runtime (flag enabled) and a
+    /// second-corpus decode-rate acceptance result had been taken and reported to the Captain;
+    /// the build could exist with the flag off, and only enabling it in a live run was gated.
+    /// <b>The gate was lifted by the Captain on 2026-09-28 for the scoped, flag-gated build, and
+    /// the default ON was decided by the Captain on 2026-10-02</b> (v0.54, FR-082): the flag is
+    /// now ON by default and existing installs are migrated once, see
+    /// <see cref="SubtractionOnMigrationApplied"/>.
+    /// </para>
+    /// </summary>
+    public bool  SubtractionEnabled { get; init; } = true;
+
+    /// <summary>
+    /// One-time migration marker for the default-ON change (v0.54): means "no subtraction-ON
+    /// migration is pending for this install". <c>JsonConfigStore.Load()</c> migrates a persisted
+    /// <c>subtractionEnabled: false</c> to <c>true</c> once and sets this to <c>true</c>; it also
+    /// sets it on any other decoder section it loads, and a decoder section created from nothing
+    /// carries it <c>true</c> (the #199 rule), so an operator's later deliberate OFF persists.
+    /// Default <c>false</c> so a legacy file without the key is migrated once.
+    /// <para><b>Server-owned</b> — a request body can neither set nor clear it.</para>
+    /// </summary>
+    public bool  SubtractionOnMigrationApplied { get; init; } = false;
+
+    /// <summary>
+    /// sub-feas-speed-redesign A4: the number of concurrent residual-pass fit workers, and the size of
+    /// the native workspace pool. <b>0 (the default) means auto</b>: <c>max(1, ProcessorCount - 2)</c>,
+    /// leaving two threads for capture, the web UI and any co-resident program. Any other value is
+    /// clamped to <c>[1, ProcessorCount]</c> (a negative value therefore becomes 1), with one warning
+    /// when the config is applied. Read once per decode cycle; takes effect on the next cycle.
+    /// Optional config-file key with no Settings-page control: because 0 means auto, a config reset
+    /// degrades this key to a sensible value rather than a wrong one. See <see cref="SubtractionThreads"/>.
+    /// </summary>
+    public int   SubtractionMaxThreads { get; init; } = 0;
 }
