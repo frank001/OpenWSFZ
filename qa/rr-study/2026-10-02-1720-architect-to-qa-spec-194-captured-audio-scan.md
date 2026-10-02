@@ -3,6 +3,7 @@
 - **To:** QA (owner; the Engineer may build it if QA assigns it, one owner recorded on the board) — cc Captain  **From:** Architect  **Date:** 2026-10-02 ~17:20Z (HK-017)
 - **Branch:** `arch/194-rr-improvements`. Docs only: `git diff --stat -- src/ native/` empty. **QA tooling under `qa/` only. No daemon change.**
 - **Source:** GitHub #194 (Captain's proposal, 2026-09-29) and the Architect review comment on it (four points; all four are written into this spec).
+- **Captain's GO to build the scan: 2026-10-02 ~18:35Z** (in the Architect's window). The Engineer is building it (`eng/194-scan`).
 - **Status:** PRE-REGISTERED. Thresholds are fixed by the mechanical rule in §5 **before** the scan reads the validation runs. Changes after that only by a dated amendment that says why.
 - **Needs:** no station time, no playback, no build. CPU only. 🔴 Not while a QA timing run or a live/overnight run is on (the PC's CPU is shared).
 
