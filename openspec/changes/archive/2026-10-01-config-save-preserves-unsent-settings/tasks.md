@@ -38,7 +38,8 @@ and L1 are defined in the source spec §7 and are quoted in the delta specs.
 
 - [x] 5.1 `qa/config_drift.py` with tests (design D7). No edit to any tool not on `main`.
       **Evidence:** `qa/tests/test_config_drift.py`, 18 passed (`python -m pytest qa/tests/test_config_drift.py -q`).
-- [ ] 5.2 Tell QA before it lands on `main`. Record wiring gaps in the report.
+- [x] 5.2 Tell QA before it lands on `main`. Record wiring gaps in the report.
+      **Evidence:** #193 went to `main` through PR #196 (`d3c53ed0`, 2026-10-01) with QA's knowledge; the Engineer closed this item in substance, no wiring gap to record.
 - [x] 5.3 RUNBOOK note: drift aborts or not, per battery. **Evidence:** `qa/rr-study/RUNBOOK.md` §2.1.
 
 ## 6. Docs and version
@@ -50,8 +51,9 @@ and L1 are defined in the source spec §7 and are quoted in the delta specs.
 ## 7. Acceptance
 
 - [x] 7.0 T1-T15 run by the Engineer on `a2d216c3`/`be8dd882`, unfiltered: Web.Tests 359/359 (30/30 re-loop on `be8dd882`, 18:07:54Z-18:23:52Z), `node --test web/js/*.test.js` 65/65, Playwright T15 27/27. The T8 flake (1 in 13, 1 in 30 before the fix) was a test-fixture defect, fixed in `be8dd882` (design D3).
-- [ ] 7.1 T16: full suite green on all three CI platforms. Known intermittent on `main` itself (not from this change): `OpenWSFZ.Daemon.Tests` timing tests (cycle-audio-archive manifest order, TX-D04/decode-panel-filtering SelectResponder None-mode, D-CALLER-021 A late click, fix-external-reporting-clear-and-reply-filter default config).
+- [x] 7.1 T16: full suite green on all three CI platforms. **Evidence (2026-10-01):** CI on the #196 PR head `0e096e78` green on macOS, Windows and Ubuntu (runs 36909023185, 36909033884); CI on `main` at `9bade2bc` green on all three (run 36911434239). (The earlier macOS failure on `d3c53ed0` was a flake family in Daemon.Tests, fixed test-only by #197.) Known intermittent on `main` itself (not from this change): `OpenWSFZ.Daemon.Tests` timing tests (cycle-audio-archive manifest order, TX-D04/decode-panel-filtering SelectResponder None-mode, D-CALLER-021 A late click, fix-external-reporting-clear-and-reply-filter default config).
 - [x] 7.2 L1 MET 2026-09-30, **deviation from "on the station" (accepted by the Architect):** run on an isolated daemon (port 18193, own config and archive directory) capturing `CABLE Output` (granted by QA) with low-level noise played to `CABLE Input` by explicit device index, because the station was reserved for QA's overnight run. The property under test, config persistence and archive continuity across a real Settings-page save, does not depend on the audio source. Run 2, 18:04:00Z-18:07:13Z: a Playwright Settings save at 18:05:27Z; 13 WAVs, every gap 15 s (6 before, 7 after); `mode=all`, `decodingEnabled`, `decoder` unchanged; Part D line paths only; `config_drift` wrote no row. Run 1 (config without a `decoder` section) correctly flagged `decoder.*` absent to present, the page materialising the section. No real band audio, no real CODEC. Station not touched.
-- [ ] 7.3 `/opsx:verify`, then QA-peer review is the Captain's call. Every merge needs the Captain (HK-010).
+- [x] 7.3 `/opsx:verify`, then QA-peer review is the Captain's call. Every merge needs the Captain (HK-010).
+      **Evidence (2026-10-01):** `/opsx:verify` PASS with one minor note (Engineer, on `eng/base` at `9bade2bc`; Web.Tests 359/359, `config_drift` 18/18). QA review ordered by the Captain, done post-merge: APPROVE, no blocker, notes R1 to R5 (`QA-REVIEW-config-save-preserves-unsent-settings.md`). Merged by the Captain's sign-off (HK-010).
 - [ ] 7.4 After merge: Architect updates memory `hk035`; nudge the Developer worktree (HK-032); sync to
-      `decoding_improvement`.
+      `decoding_improvement`. **Status at archive (2026-10-01):** `hk035` updated by QA (addendum), Developer and Engineer nudged (HK-032); the **`decoding_improvement` sync is tracked on the BOARD**, not here (Captain decided 2026-10-01: sync before the next endurance run, one dedicated merge by QA with a new arm label).

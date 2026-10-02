@@ -9,9 +9,7 @@ re-decode investigation: the archive format is byte-compatible with WSJT-X's own
 the existing offline decode harness (`rewindow.py`, `run_phase.py`, `D001ParamSweep`) consumes an
 OpenWSFZ capture with zero changes. Default mode is `Off`; recordings contain real off-air audio
 and real third-party callsigns and are never written inside the repository (NFR-021).
-
 ## Requirements
-
 ### Requirement: Operator-controlled cycle audio archiving
 
 The daemon SHALL be able to write each decode cycle's 15-second PCM window to a `.wav` file on
@@ -196,3 +194,18 @@ two windows produce the same timestamp label.
 
 - **WHEN** two windows are archived with the same `cycleStart` label
 - **THEN** two distinct files SHALL exist and neither SHALL have been overwritten
+
+### Requirement: The operator controls the archive from the Settings page
+
+The Settings page SHALL contain an **Audio archive** group with a mode selector, a directory text field (blank meaning the default location, sent as `null`), a maximum-size field (MB), a maximum-age field (hours) and a write-manifest checkbox. The group SHALL be sent on every save and SHALL participate in the FR-040 unsaved-changes flow. Server-side validation SHALL match how `CycleArchiveService` treats each value (design D5). A field that needs a restart SHALL say so on the page.
+
+#### Scenario: Mode set in the UI survives reload and an unrelated save
+
+- **WHEN** the operator sets the archive mode to All, saves, reloads the page, and then saves an unrelated setting
+- **THEN** the page SHALL show All after the reload and again after the second save
+
+#### Scenario: A blank directory means the default location
+
+- **WHEN** the operator leaves the directory field blank and saves
+- **THEN** `cycleAudioArchive.directory` SHALL be persisted as `null`
+
