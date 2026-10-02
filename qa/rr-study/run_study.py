@@ -104,11 +104,15 @@ def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command via the venv Python, streaming output in real time."""
     cmd = [str(_VENV_PYTHON), *args]
     print(f"\n>>> {' '.join(cmd)}\n", flush=True)
-    result = subprocess.run(cmd, cwd=str(_HERE), check=check)
+    # CREATE_NO_WINDOW: this process may itself be console-less (run_study_detached.py's --poll
+    # child); without it Windows gives every child a fresh visible console (found live 2026-09-22).
+    result = subprocess.run(cmd, cwd=str(_HERE), check=check,
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return result
 
 
 def main() -> None:
+    global WSJT_ALL_TXT, OWSFZ_ALL_TXT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", default="CABLE Input",
                         help="Audio output device name substring")
@@ -137,7 +141,14 @@ def main() -> None:
                         help="the daemon build's commit SHA (arm_config.json), recorded in the S3c result")
     parser.add_argument("--s3c-dll-sha256-prefix", default="unknown",
                         help="libft8.dll SHA-256 prefix of the daemon under test (HK-022)")
+    # Overridable ALL.TXT locations (run_study_detached.py forwards the ones it read from the
+    # daemon's own config; the constants above stay the defaults so no old invocation changes).
+    parser.add_argument("--wsjt-all-txt", default=str(WSJT_ALL_TXT), metavar="PATH",
+                        help="Path to WSJT-X's ALL.TXT.")
+    parser.add_argument("--owsfz-all-txt", default=str(OWSFZ_ALL_TXT), metavar="PATH",
+                        help="Path to OpenWSFZ's ALL.TXT.")
     args = parser.parse_args()
+    WSJT_ALL_TXT, OWSFZ_ALL_TXT = Path(args.wsjt_all_txt), Path(args.owsfz_all_txt)
 
     # ── Build scenario list ────────────────────────────────────────────────
     scenario_part_overrides: dict[str, str] = {}
