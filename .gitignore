@@ -255,3 +255,6 @@ qa/rr-study/awgn-fp-replay/_work/
 # separate, deliberate redact-then-rescan-then-commit step -- never this directory's
 # own content.
 qa/rr-study/fp-parity/_out/
+
+# #194 captured-audio scan: measurement output staging (gitignored; promotion into results/ is a separate step)
+qa/rr-study/captured-audio-scan/_out/
