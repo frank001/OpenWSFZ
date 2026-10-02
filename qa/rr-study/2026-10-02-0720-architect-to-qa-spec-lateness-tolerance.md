@@ -3,6 +3,7 @@
 - **To:** QA (owner) — cc Captain  **From:** Architect  **Date:** 2026-10-02 ~07:20Z (HK-017)
 - **Branch:** `arch/subtraction-feasibility`. Docs only: `git diff --stat -- src/ native/` empty.
 - **Why now (Captain, 2026-10-02):** batch-2 (residual) decodes should be handled by the auto-QSO, but they land after the 17.36 s reply deadline. Captain: *"let us measure first the forgiveness of both wsjt-x and openwsfz for lateness of a signal."* This is step 1 of the #194 start-time proposal (2026-09-30), late side only.
+- **Amendment 1 (2026-10-02 ~07:40Z, before any playback, §5 only):** option (a) corrected to N+3 (Captain). No row, grid or predicate changed.
 - **Status:** PRE-REGISTERED. QA commits the scenario, the renders' manifest and the row predicates as code **before any playback**. Changes after playback only by a dated amendment that says why.
 - **Needs:** an evening slot on the PC (≈ 3.5 h playback, WSJT-X running, receive only, radio not in the chain). No build. No `src/`/`native/` change.
 
@@ -55,7 +56,7 @@ Already known, and **not** re-measured (`#194`; DT-MISS 2026-09-22): on live tra
 ## 5. What the result decides (for the Captain, after the report)
 
 The options put to the Captain on 2026-10-02 for batch-2 → auto-QSO:
-- **(a) reply one slot later**: needs no edge. The QSO is ~15 s slower and the transmission is full length.
+- ~~**(a) reply one slot later**~~ **WRONG, struck (Captain, 2026-10-02):** one slot later is the other station's own TX slot, so it would not hear us. **(a′) Reply in the next slot of OUR parity (N+3, ≈ 30 s late), full length.** This is protocol-correct: a CQ caller who got no answer calls again in N+2 and listens in N+3, and a QSO partner who did not hear us repeats in N+2 and listens in N+3. It needs no edge. It does need a guard: N+2's **pass-0** decodes (available ≈ 0.5 s into N+3) must show the station is still free. If it is now working someone else, do not transmit. N+2's batch 2 arrives too late to be part of that guard.
 - **(b) reply immediately, cut at the slot end**: viable only if Q2's fraction under WSJT-X's `E50`/`E90` is material.
 - **(c) act only when in time, with a grace of `E90`**: same input as (b).
 
