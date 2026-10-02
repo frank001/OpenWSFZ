@@ -334,6 +334,180 @@ public sealed class CycleArchiveServiceTests : IDisposable
         await service.StopAsync(CancellationToken.None);
     }
 
+    // ── Issue #205: a manifest held open by another process must not lose a row ──────────────
+
+    /// <summary>
+    /// The retry-delay seam for the manifest-append retry, PARKED rather than a no-op: each call
+    /// announces itself and then waits until the test releases it. A seam that returned
+    /// <see cref="Task.CompletedTask"/> would turn the retry into a free-running loop that burns its
+    /// whole budget before the test can act (TESTING_STRATEGY.md section 11; found 2026-10-01 in
+    /// capture-autostart). Parked, the writer waits exactly where the test wants it to, so the test
+    /// can release the file from inside the retry, deterministically and with no wall-clock wait.
+    /// </summary>
+    private sealed class ParkedRetryDelay
+    {
+        private readonly SemaphoreSlim _entered = new(0);
+        private readonly SemaphoreSlim _release = new(0);
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+        public TimeSpan? LastDelay { get; private set; }
+
+        public Func<TimeSpan, CancellationToken, Task> Seam => async (delay, ct) =>
+        {
+            LastDelay = delay;
+            Interlocked.Increment(ref _calls);
+            _entered.Release();
+            await _release.WaitAsync(ct);
+        };
+
+        /// <summary>Waits until the writer is parked in the seam (a manifest-open attempt has just failed).</summary>
+        public async Task WaitUntilParkedAsync()
+        {
+            if (!await _entered.WaitAsync(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("The writer never reached the retry delay.");
+        }
+
+        /// <summary>Lets the parked writer continue to its next attempt.</summary>
+        public void Release() => _release.Release();
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: a manifest row is not lost when another process holds the manifest open; it lands on a retry")]
+    public async Task Manifest_ReaderHoldsFile_RowLandsOnRetry()
+    {
+        var delay   = new ParkedRetryDelay();
+        var logger  = new CapturingLogger();
+        var service = MakeService(CycleAudioArchiveMode.All, retentionSweepInterval: 1000,
+            logger: logger, manifestRetryDelay: delay.Seam);
+        await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
+        var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
+
+        service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
+        await processed.WaitForAsync(1);                       // header + row 1 are on disk
+
+        // Hold the manifest exactly as File.ReadAllLines does (read access, FileShare.Read): a writer
+        // asking for write access is refused whatever share mode it offers.
+        var reader = new FileStream(manifestPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 2, 7.074);
+            await delay.WaitUntilParkedAsync();                // the first append attempt failed; the writer waits to retry
+            delay.Calls.Should().Be(1);
+            delay.LastDelay.Should().Be(CycleArchiveService.ManifestAppendRetryDelay);
+        }
+        finally
+        {
+            reader.Dispose();                                  // the other process lets go, from inside the retry delay
+        }
+        delay.Release();
+        await processed.WaitForAsync(1);
+
+        var lines = await File.ReadAllLinesAsync(manifestPath);
+        lines.Should().HaveCount(3, "header + row 1 + the row that had to be retried");
+        lines[2].Split(',')[0].Should().Contain(CycleAt(1).ToString("yyMMdd_HHmmss"), "rows stay in order");
+        logger.HasWarningContaining("failed to archive").Should().BeFalse();
+        logger.HasWarningContaining("could not be appended").Should().BeFalse("the retry succeeded");
+
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: a manifest held beyond the retry budget logs a specific Warning, and the next item's row still lands")]
+    public async Task Manifest_ReaderHoldsBeyondBudget_LoudWarning_NextRowStillLands()
+    {
+        var delay   = new ParkedRetryDelay();
+        var logger  = new CapturingLogger();
+        var service = MakeService(CycleAudioArchiveMode.All, retentionSweepInterval: 1000,
+            logger: logger, manifestRetryDelay: delay.Seam);
+        await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
+        var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
+
+        service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
+        await processed.WaitForAsync(1);
+
+        var reader = new FileStream(manifestPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 2, 7.074);
+
+            // The writer fails every attempt: one retry delay between each pair of attempts.
+            for (int retry = 0; retry < CycleArchiveService.ManifestAppendMaxAttempts - 1; retry++)
+            {
+                await delay.WaitUntilParkedAsync();
+                delay.Release();
+            }
+            await processed.WaitForAsync(1);                   // the item is finished (row given up), not stuck
+        }
+        finally
+        {
+            reader.Dispose();
+        }
+
+        delay.Calls.Should().Be(CycleArchiveService.ManifestAppendMaxAttempts - 1);
+        logger.HasWarningContaining("could not be appended").Should().BeTrue("a lost row must be loud, not silent");
+        logger.HasWarningContaining(CycleAt(1).ToString("yyMMdd_HHmmss")).Should().BeTrue("the Warning names the file");
+        logger.HasWarningContaining("without its manifest row").Should().BeTrue();
+        CountWavFiles().Should().Be(2, "the WAV of the item whose row was given up exists");
+
+        // The writer loop is not stalled: the next item archives, and its row lands now the file is free.
+        service.TryEnqueue(new float[FullWindowSamples], CycleAt(2), CycleAt(2), 3, 7.074);
+        await processed.WaitForAsync(1);
+
+        var lines = await File.ReadAllLinesAsync(manifestPath);
+        lines.Should().HaveCount(3, "header + row 1 + the later row; the given-up row is the one that is missing");
+        lines[2].Split(',')[0].Should().Contain(CycleAt(2).ToString("yyMMdd_HHmmss"));
+        delay.Calls.Should().Be(CycleArchiveService.ManifestAppendMaxAttempts - 1, "the free file needed no retry");
+
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact(DisplayName = "cycle-audio-archive: the dropped-cycle gap marker is not consumed by a failed append and lands on the row that is retried")]
+    public async Task Manifest_FirstAppendFails_DroppedCountSurvivesToTheRetriedRow()
+    {
+        bool stallArmed = false;
+        var stallGate = new TaskCompletionSource();
+        var delay   = new ParkedRetryDelay();
+        var service = MakeService(CycleAudioArchiveMode.All, queueCapacity: 1, retentionSweepInterval: 1000,
+            stallHook: _ => stallArmed ? stallGate.Task : Task.CompletedTask, manifestRetryDelay: delay.Seam);
+        await service.StartAsync(CancellationToken.None);
+        var processed = new ProcessedItems(service);
+        var manifestPath = Path.Combine(_tempDir, CycleArchiveService.ManifestFileName);
+
+        service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
+        await processed.WaitForAsync(1);
+
+        var reader = new FileStream(manifestPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try
+        {
+            stallArmed = true;
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 1, 7.074);   // dequeued, stalls
+            await Poll.WaitForEqualAsync(() => service.DequeuedCountForTests, 2, what: "dequeued item count");
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(2), CycleAt(2), 1, 7.074);   // queued
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(3), CycleAt(3), 1, 7.074);   // dropped
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(4), CycleAt(4), 1, 7.074);   // dropped
+            service.TryEnqueue(new float[FullWindowSamples], CycleAt(5), CycleAt(5), 1, 7.074);   // dropped
+            service.DroppedCycles.Should().Be(3);
+
+            stallGate.SetResult();                             // item 1 proceeds; its first append attempt fails
+            await delay.WaitUntilParkedAsync();
+        }
+        finally
+        {
+            reader.Dispose();
+        }
+        delay.Release();                                       // the retry succeeds
+        await processed.WaitForAsync(2);                       // item 1 (retried) and item 2 (queued behind it)
+
+        var lines = await File.ReadAllLinesAsync(manifestPath);
+        lines.Should().HaveCount(4, "header + rows for items 0, 1 and 2");
+        lines[2].Split(',')[^1].Should().Be("3",
+            "the three cycles dropped while item 1 was in flight must appear on item 1's row even though its first append failed");
+        lines[3].Split(',')[^1].Should().Be("0", "the count is reported once");
+
+        await service.StopAsync(CancellationToken.None);
+    }
+
     [Fact(DisplayName = "cycle-audio-archive: manifest contains no message text or callsigns")]
     public async Task Manifest_ContainsNoMessageTextOrCallsigns()
     {
@@ -614,7 +788,8 @@ public sealed class CycleArchiveServiceTests : IDisposable
         int                    maxAgeHours            = 168,
         Func<CancellationToken, Task>? stallHook       = null,
         Func<string, long>?    freeBytesProvider       = null,
-        ILogger<CycleArchiveService>? logger           = null)
+        ILogger<CycleArchiveService>? logger           = null,
+        Func<TimeSpan, CancellationToken, Task>? manifestRetryDelay = null)
     {
         var config = new AppConfig() with
         {
@@ -627,7 +802,8 @@ public sealed class CycleArchiveServiceTests : IDisposable
             logger ?? NullLogger<CycleArchiveService>.Instance,
             queueCapacity,
             retentionSweepInterval,
-            freeBytesProvider);
+            freeBytesProvider,
+            manifestRetryDelay);
 
         if (stallHook is not null)
             service.WriterStallHookForTests = stallHook;
