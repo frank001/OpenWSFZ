@@ -415,4 +415,46 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         store.Current.Decoder!.Nhard40MigrationApplied.Should().BeFalse("the stored value wins; the client value is ignored");
     }
+
+    [Theory(DisplayName = "A5: a POST body carrying subtractionOnMigrationApplied (either value) cannot change the stored marker")]
+    [InlineData(true,  false)]
+    [InlineData(false, true)]
+    public async Task PostConfig_BodyCarriesSubtractionMarker_StoredMarkerKept(bool stored, bool sent)
+    {
+        var store = _factory.Services.GetRequiredService<IConfigStore>();
+        await store.SaveAsync(new AppConfig() with
+        {
+            Decoder = new DecoderConfig(kMinScorePass2: 10, osdCorrThreshold: 0.10f, osdNhardMax: 40,
+                nhard40MigrationApplied: true, subtractionEnabled: true, subtractionMaxThreads: 0,
+                subtractionOnMigrationApplied: stored),
+        });
+        var storedNow = store.Current.Decoder!.SubtractionOnMigrationApplied;
+
+        var client = _factory.CreateClient();
+        var body = "{\"decoder\":{\"kMinScorePass2\":10,\"osdCorrThreshold\":0.10,\"osdNhardMax\":40,"
+                 + "\"subtractionOnMigrationApplied\":" + (sent ? "true" : "false") + "}}";
+        var resp = await client.PostAsync("/api/v1/config", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var loaded = await resp.Content.ReadFromJsonAsync(AppJsonContext.Default.AppConfig);
+        loaded!.Decoder!.SubtractionOnMigrationApplied.Should().Be(storedNow,
+            "the marker is server-owned: the stored value wins whatever the client sends");
+    }
+
+    [Fact(DisplayName = "A4 (web): a POST that creates the decoder section and sets subtractionEnabled false stores the marker true")]
+    public async Task PostConfig_CreatesDecoderSectionWithSubtractionOff_MarkerTrue()
+    {
+        var store = _factory.Services.GetRequiredService<IConfigStore>();
+        await store.SaveAsync(new AppConfig() with { Decoder = null });
+        store.Current.Decoder.Should().BeNull("precondition: no decoder section");
+
+        var client = _factory.CreateClient();
+        const string body = """{"decoder":{"kMinScorePass2":10,"osdCorrThreshold":0.10,"osdNhardMax":40,"subtractionEnabled":false}}""";
+        var resp = await client.PostAsync("/api/v1/config", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        store.Current.Decoder!.SubtractionEnabled.Should().BeFalse();
+        store.Current.Decoder.SubtractionOnMigrationApplied.Should().BeTrue(
+            "no migration is pending for a section created from nothing; otherwise the next restart turns the OFF back ON");
+    }
 }
