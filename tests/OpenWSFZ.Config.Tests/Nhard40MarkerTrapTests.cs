@@ -7,10 +7,11 @@ using Xunit;
 namespace OpenWSFZ.Config.Tests;
 
 /// <summary>
-/// QA's test of the "nhard40 marker trap" the Architect read in <c>JsonConfigStore.Load</c> (JsonConfigStore.cs, the M2 migration):
-/// the marker <c>decoder.nhard40MigrationApplied</c> is set to <c>true</c> ONLY when the 60 -> 40 migration actually fires, so on a
-/// config that never held a 60 it stays <c>false</c> for ever. If an operator then sets <c>osdNhardMax</c> to 60 on purpose and the daemon
-/// restarts, the migration (which matches <c>OsdNhardMax: 60, Nhard40MigrationApplied: false</c>) rewrites the operator's choice to 40.
+/// QA's tests of the "nhard40 marker trap" (issue #199) the Architect read in <c>JsonConfigStore.Load</c> (the M2 migration). Before the fix
+/// the marker <c>decoder.nhard40MigrationApplied</c> was set to <c>true</c> ONLY when the 60 -> 40 migration actually fired, so on a
+/// config that never held a 60 it stayed <c>false</c> for ever. It now means "no migration is pending" and is set wherever that holds.
+/// Under the old behaviour, an operator who set <c>osdNhardMax</c> to 60 on purpose and restarted the daemon had the migration (which matches
+/// <c>OsdNhardMax: 60, Nhard40MigrationApplied: false</c>) rewrite the choice to 40.
 /// These tests assert the CORRECT behaviour (an explicit 60 survives a save and a reload); a failure is the trap.
 /// All values are synthetic.
 /// </summary>
@@ -32,7 +33,7 @@ public sealed class Nhard40MarkerTrapTests
         using var dir = new TempDirectory();
         var path = System.IO.Path.Combine(dir.Path, "config.json");
 
-        var first = new JsonConfigStore(path);                       // fresh install: defaults written, marker never set
+        var first = new JsonConfigStore(path);                       // fresh install: defaults written (marker true: nothing to migrate)
         await first.SaveAsync(WithNhard(first.Current, 60));         // the operator deliberately chooses 60 (Settings save)
         first.Current.Decoder!.OsdNhardMax.Should().Be(60, "the save itself keeps what the operator chose");
         first.Current.Decoder.Nhard40MigrationApplied.Should().BeTrue("no migration is pending on a fresh install (#199), so Load sets the marker");
@@ -48,7 +49,7 @@ public sealed class Nhard40MarkerTrapTests
     {
         using var dir = new TempDirectory();
         var path = System.IO.Path.Combine(dir.Path, "config.json");
-        var seed = new AppConfig { Decoder = new DecoderConfig() };  // osdNhardMax at the code default (40), marker false
+        var seed = new AppConfig { Decoder = new DecoderConfig() };  // osdNhardMax at the code default (40), marker false (legacy-shaped file)
         File.WriteAllText(path, JsonSerializer.Serialize(seed, ConfigJsonContext.Default.AppConfig));
 
         var store = new JsonConfigStore(path);
@@ -56,7 +57,7 @@ public sealed class Nhard40MarkerTrapTests
         await store.SaveAsync(WithNhard(store.Current, 60));
 
         new JsonConfigStore(path).Current.Decoder!.OsdNhardMax.Should().Be(60,
-            "the operator's explicit 60 must not be reverted just because the marker was never set");
+            "the operator's explicit 60 must not be reverted just because the marker was false on a config that never held a 60");
     }
 
     [Fact(DisplayName = "CONTROL: a pre-migration config (60, marker false) migrates once to 40 and the guard then protects a later explicit 60")]
