@@ -125,12 +125,15 @@ public sealed record DecoderConfig
     /// Set <c>false</c> to turn it off; with the flag off, decode output is byte-identical to
     /// pre-change behaviour (spec's own "Flag OFF leaves decode output unchanged" scenario).
     /// <para>
-    /// <b>Live-use readiness gate (spec's own ADDED requirement, tasks.md §8):</b> this flag
-    /// SHALL NOT be set <c>true</c> in any live or production run until BOTH the measured
-    /// decode-cycle runtime (flag enabled) and a second-corpus decode-rate acceptance result
-    /// have been taken and reported to the Captain — neither has happened yet as of this
-    /// field's introduction. The build may exist and this flag may exist with the flag off;
-    /// only enabling it in a live run is gated.
+    /// <b>History — the live-use readiness gate (spec's own ADDED requirement, tasks.md §8):</b>
+    /// at this field's introduction the flag SHALL NOT have been set <c>true</c> in any live or
+    /// production run until BOTH the measured decode-cycle runtime (flag enabled) and a
+    /// second-corpus decode-rate acceptance result had been taken and reported to the Captain;
+    /// the build could exist with the flag off, and only enabling it in a live run was gated.
+    /// <b>The gate was lifted by the Captain on 2026-09-28 for the scoped, flag-gated build, and
+    /// the default ON was decided by the Captain on 2026-10-02</b> (v0.54, FR-082): the flag is
+    /// now ON by default and existing installs are migrated once, see
+    /// <see cref="SubtractionOnMigrationApplied"/>.
     /// </para>
     /// </summary>
     public bool  SubtractionEnabled { get; init; } = true;
