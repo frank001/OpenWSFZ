@@ -88,8 +88,7 @@ def test_design_is_deterministic(scen):
 
 
 def test_scenario_json_is_lf_canonical():
-    raw = SCENARIO.read_bytes()
-    assert b"\r" not in raw
+    raw = SCENARIO.read_bytes().replace(bytes((13, 10)), bytes((10,)))      # a CRLF checkout (autocrlf) is fine
     assert raw == S.canonical_json(json.loads(raw))
 
 

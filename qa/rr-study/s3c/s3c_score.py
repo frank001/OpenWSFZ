@@ -36,6 +36,7 @@ for p in (str(HERE), str(RR), str(RR / "lateness-edge")):
 import s3c_design as S  # noqa: E402
 import analysis as EA  # noqa: E402  (the edge test's analysis.py)
 
+CRLF, LF = bytes((13, 10)), bytes((10,))
 PARTS = ("S3c-L90", "S3c-L50", "S3c-E90", "S3c-E50")
 DECODERS = (("owsfz", "OpenWSFZ"), ("wsjtx", "WSJT-X"))
 TREND_FIELDS = ["run_date", "build_sha", "subtraction_enabled", "dll_sha256_prefix"] + \
@@ -123,9 +124,7 @@ def main() -> None:
     res = score(scen, Path(a.wsjtx_alltxt), Path(a.owsfz_alltxt), out_dir / "playback_log.csv")
     meta = {"subtraction_enabled": a.subtraction_enabled, "build_sha": a.build_sha,
             "dll_sha256_prefix": a.dll_sha256_prefix,
-            "scenario_sha256": hashlib.sha256(scen_path.read_bytes().replace(b"
-", b"
-")).hexdigest()}  # LF-normalised: same on any checkout
+            "scenario_sha256": hashlib.sha256(scen_path.read_bytes().replace(CRLF, LF)).hexdigest()}  # LF-normalised: same on any checkout
     res["meta"] = meta
     (out_dir / "s3c_result.json").write_text(json.dumps(res, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     (out_dir / "s3c_report.md").write_text(render_md(res, meta), encoding="utf-8")
