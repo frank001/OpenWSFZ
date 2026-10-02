@@ -1,2 +1,3 @@
-thresholds.json  43b1d91f4a698ea9cd0f2b7657eadec196f46cd25e243159c1f4104b62662f62
-scan_core.py     ecb705d38315912fa46646d0825e08cdb493c9bc1caa80e332c6544e6c610f48
+thresholds.json  a3b19753d66fa0d603dc2b6f5388a093d2b0d402da702320aadbbd5aac84cad9
+scan_core.py     07e8d11691c851917dcc6ec3768c558a458c940c47454c0684db6fc81d0c52f4
+(SHA-256 of the LF-normalised bytes, i.e. of the git blobs: verify with git show <commit>:<path> | sha256sum. Supersedes the CRLF-byte hashes in commit 766eb7a4, which was made before any 09-29 audio was read.)

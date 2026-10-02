@@ -33,6 +33,14 @@ assert sc.CROSS_RULES["dg_db"][1] == 0.5 and sc.CROSS_RULES["dtau_ms"][1] == 2.0
 assert sc.GROUPS == ("single", "multi", "noise", "tone2", "tone3")
 
 
+CRLF, LF = bytes([13, 10]), bytes([10])
+
+
+def sha_lf(path: Path) -> str:
+    """SHA-256 of the file with CRLF normalised to LF (what git stores; stable across checkouts)."""
+    return hashlib.sha256(Path(path).read_bytes().replace(CRLF, LF)).hexdigest()
+
+
 def load(path: Path):
     rows = []
     with open(path, newline="", encoding="utf-8") as fh:
@@ -83,7 +91,7 @@ def main() -> None:
     d = Path(a.sidecars)
     data = {s: [r for r in load(d / f"sidecar_{s}.csv") if not r["ref_mismatch"]] for s in SIDES}
     th = {"calibration_run": a.run, "k_sigma": sc.K_SIGMA, "mad_scale": sc.MAD_SCALE,
-          "scan_core_py_sha256": hashlib.sha256(Path(sc.__file__).read_bytes()).hexdigest(),
+          "scan_core_py_sha256": sha_lf(Path(sc.__file__)),
           "descriptive_fraction": sc.DESCRIPTIVE_FRACTION, "min_group_n": sc.MIN_GROUP_N,
           "groups": {g: {s: sum(1 for r in data[s] if r["group"] == g) for s in SIDES} for g in sc.GROUPS},
           "tail_rule": {"wsjtx": "abs(tail_zero_ms - 600.0) > 5", "owsfz": "tail_zero_ms > 5"},
@@ -175,8 +183,9 @@ def main() -> None:
     th["flagged_slots_calibration"] = {
         s: {slot: sorted(m for m, f in fl.items() if f) for slot, fl in flags[s].items() if any(fl.values())}
         for s in SIDES}
-    Path(a.out).write_text(json.dumps(th, indent=1, sort_keys=True), encoding="utf-8")
-    sha = hashlib.sha256(Path(a.out).read_bytes()).hexdigest()
+    with open(a.out, "w", encoding="utf-8", newline=chr(10)) as fh:
+        fh.write(json.dumps(th, indent=1, sort_keys=True))
+    sha = sha_lf(Path(a.out))
     print(f"wrote {a.out}  sha256 {sha}")
     print("scan_core.py sha256", th["scan_core_py_sha256"])
     print("DESCRIPTIVE cells:", len(th["descriptive"]))

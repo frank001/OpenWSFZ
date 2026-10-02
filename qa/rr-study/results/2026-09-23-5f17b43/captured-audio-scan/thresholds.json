@@ -2051,7 +2051,7 @@
  "k_sigma": 6.0,
  "mad_scale": 1.4826,
  "min_group_n": 20,
- "scan_core_py_sha256": "ecb705d38315912fa46646d0825e08cdb493c9bc1caa80e332c6544e6c610f48",
+ "scan_core_py_sha256": "07e8d11691c851917dcc6ec3768c558a458c940c47454c0684db6fc81d0c52f4",
  "sides": {
   "owsfz": {
    "multi": {
