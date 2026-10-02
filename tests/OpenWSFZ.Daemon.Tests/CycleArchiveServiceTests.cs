@@ -206,8 +206,10 @@ public sealed class CycleArchiveServiceTests : IDisposable
     /// caught and logged a failure), so once the expected count has been reached nothing else
     /// touches the manifest and the test can read it once.
     /// <para>
-    /// Why not poll the file: <c>File.ReadAllLines</c> opens it <c>FileShare.Read</c>, which does
-    /// not allow a concurrent writer. If the writer's append-open lands while a poll tick holds
+    /// Why not poll the file: on Windows <c>File.ReadAllLines</c> opens it <c>FileShare.Read</c>,
+    /// which does not allow a concurrent writer (on Linux and macOS .NET emulates FileShare with
+    /// advisory locks and a <c>FileShare.Read</c> holder does not stop a writer, so this failure
+    /// mode is a Windows one). If the writer's append-open lands while a poll tick holds
     /// the file open, the append fails with a sharing violation; the writer loop catches, logs
     /// "failed to archive a cycle - continuing" and never retries, so the row is lost for good
     /// and the poll then waits out its whole budget (the recurring 15 s timeouts, #204 and the
@@ -337,6 +339,18 @@ public sealed class CycleArchiveServiceTests : IDisposable
     // ── Issue #205: a manifest held open by another process must not lose a row ──────────────
 
     /// <summary>
+    /// Opens the manifest the way a process that REFUSES the writer does, on every platform:
+    /// read access with <c>FileShare.None</c>. On Windows that denies the writer's write access (a
+    /// <c>FileShare.Read</c> holder, as <c>File.ReadAllLines</c> is, does too, but only on Windows).
+    /// On Linux and macOS .NET emulates FileShare with advisory <c>flock</c>, where a
+    /// <c>FileShare.Read</c> holder does NOT stop a writer's open, but <c>FileShare.None</c> takes the
+    /// exclusive lock that makes the writer's open fail. Using <c>FileShare.None</c> therefore makes
+    /// the writer reach its retry on all three platforms.
+    /// </summary>
+    private static FileStream HoldManifestExclusively(string manifestPath) =>
+        new(manifestPath, FileMode.Open, FileAccess.Read, FileShare.None);
+
+    /// <summary>
     /// The retry-delay seam for the manifest-append retry, PARKED rather than a no-op: each call
     /// announces itself and then waits until the test releases it. A seam that returned
     /// <see cref="Task.CompletedTask"/> would turn the retry into a free-running loop that burns its
@@ -386,9 +400,9 @@ public sealed class CycleArchiveServiceTests : IDisposable
         service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
         await processed.WaitForAsync(1);                       // header + row 1 are on disk
 
-        // Hold the manifest exactly as File.ReadAllLines does (read access, FileShare.Read): a writer
-        // asking for write access is refused whatever share mode it offers.
-        var reader = new FileStream(manifestPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        // Another process holds the manifest so that the writer's open is refused (see
+        // HoldManifestExclusively: FileShare.None is the holder that refuses a writer on every platform).
+        var reader = HoldManifestExclusively(manifestPath);
         try
         {
             service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 2, 7.074);
@@ -426,7 +440,7 @@ public sealed class CycleArchiveServiceTests : IDisposable
         service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
         await processed.WaitForAsync(1);
 
-        var reader = new FileStream(manifestPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = HoldManifestExclusively(manifestPath);
         try
         {
             service.TryEnqueue(new float[FullWindowSamples], CycleAt(1), CycleAt(1), 2, 7.074);
@@ -477,7 +491,7 @@ public sealed class CycleArchiveServiceTests : IDisposable
         service.TryEnqueue(new float[FullWindowSamples], CycleAt(0), CycleAt(0), 1, 7.074);
         await processed.WaitForAsync(1);
 
-        var reader = new FileStream(manifestPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var reader = HoldManifestExclusively(manifestPath);
         try
         {
             stallArmed = true;

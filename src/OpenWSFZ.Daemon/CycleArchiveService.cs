@@ -418,9 +418,17 @@ public sealed class CycleArchiveService : IHostedService, IAsyncDisposable
     /// it open (issue #205). Only the OPEN is retried, never a partly written row, so a retry cannot
     /// duplicate or tear a row. Returns <see langword="null"/> when every attempt failed.
     /// <para>
-    /// Why a retry and not a share mode: a sharing violation is decided by BOTH handles. A reader that
-    /// got in first with <c>FileShare.Read</c> (the default of <c>File.ReadAllLines</c>) refuses any
-    /// writer, whatever share mode the writer offers, so widening the writer's share would not help.
+    /// Why a retry and not a share mode: a sharing violation is decided by BOTH handles. On Windows a
+    /// reader that got in first with <c>FileShare.Read</c> (the default of <c>File.ReadAllLines</c>)
+    /// refuses any writer, whatever share mode the writer offers, so widening the writer's share would
+    /// not help.
+    /// </para>
+    /// <para>
+    /// Platform scope: that refusal of a <c>FileShare.Read</c> reader is a Windows effect. On Linux and
+    /// macOS .NET emulates <c>FileShare</c> with advisory <c>flock</c>, where a <c>FileShare.Read</c>
+    /// holder does not stop a writer's open and only an exclusive lock (a holder opened with
+    /// <c>FileShare.None</c>, or another process taking an exclusive <c>flock</c>) refuses it. The retry
+    /// is the same on every platform; what triggers it differs.
     /// </para>
     /// <para>
     /// What is retried: an <see cref="IOException"/> from the open, except the permanent family
