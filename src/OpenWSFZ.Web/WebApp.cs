@@ -525,6 +525,8 @@ public static class WebApp
                         // No stored decoder section: no persisted 60 can ever have existed, so
                         // no migration is pending and the new section's marker is true (#199).
                         Nhard40MigrationApplied = store.Current.Decoder?.Nhard40MigrationApplied ?? true,
+                        // Same rule for the subtraction default-ON marker (v0.54): server-owned.
+                        SubtractionOnMigrationApplied = store.Current.Decoder?.SubtractionOnMigrationApplied ?? true,
                     },
                 };
             }

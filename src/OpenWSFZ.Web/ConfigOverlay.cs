@@ -28,8 +28,8 @@ namespace OpenWSFZ.Web;
 ///         scalar that makes deserialisation throw, which the handler answers with 400 (today's behaviour);</item>
 ///   <item>unknown keys: ignored by the deserialiser.</item>
 /// </list>
-/// The server-owned <c>decoder.nhard40MigrationApplied</c> is <b>not</b> handled here: the handler
-/// forces it from the store after deserialisation.
+/// The server-owned <c>decoder.nhard40MigrationApplied</c> and <c>decoder.subtractionOnMigrationApplied</c> are <b>not</b> handled here: the handler
+/// forces them from the store after deserialisation.
 /// </remarks>
 internal static class ConfigOverlay
 {

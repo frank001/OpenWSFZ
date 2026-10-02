@@ -77,8 +77,15 @@ public sealed class JsonConfigStore : IConfigStore
         // have held a legacy 60, so no 60 -> 40 migration is pending for it and the marker is
         // true. Without this, a first save that creates the section with the marker false is
         // reverted by Load's M2 migration on the next restart if osdNhardMax is 60.
-        if (_current.Decoder is null && config.Decoder is { Nhard40MigrationApplied: false })
-            config = config with { Decoder = config.Decoder with { Nhard40MigrationApplied = true } };
+        if (_current.Decoder is null && config.Decoder is { } createdDecoder)
+            config = config with
+            {
+                Decoder = createdDecoder with
+                {
+                    Nhard40MigrationApplied       = true,
+                    SubtractionOnMigrationApplied = true,
+                },
+            };
 
         // RemoteAccess (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md §4):
         // same belt-and-braces reasoning as CycleAudioArchive above, bundled in as a one-line
@@ -249,6 +256,10 @@ public sealed class JsonConfigStore : IConfigStore
                     config = config with { Tx = tx };
             }
 
+            // One write for all the one-time migrations below (nhard 40 and subtraction-ON): each
+            // sets its "no migration pending" marker (#199) and the file is written back at most once.
+            var migrationDirty = false;
+
             // M2 migration (NHARD40-DEFAULT, 2026-09-12): a persisted exactly-60
             // osdNhardMax becomes 40 once, with a marker (Nhard40MigrationApplied) that
             // stops it re-applying after an operator deliberately sets 60 again. An
@@ -270,14 +281,7 @@ public sealed class JsonConfigStore : IConfigStore
                     "[OpenWSFZ] osdNhardMax: migrated persisted default 60 -> 40 " +
                     "(NHARD40-DEFAULT arm, 2026-09-12). Set decoder.osdNhardMax " +
                     "explicitly to restore 60.");
-
-                // Written back immediately, unlike the legacy-rename guards above (which
-                // are idempotent and don't need to persist themselves every load): without
-                // a disk write, the marker never survives a restart and the "stops it
-                // re-applying after an operator deliberately sets 60 again" guarantee is
-                // not met. Same temp-file-then-rename crash-safety as an operator-triggered
-                // SaveAsync — see WriteAtomic's own remarks.
-                WriteAtomic(path, config);
+                migrationDirty = true;
             }
             else if (config.Decoder is { Nhard40MigrationApplied: false })
             {
@@ -290,8 +294,38 @@ public sealed class JsonConfigStore : IConfigStore
                 {
                     Decoder = config.Decoder with { Nhard40MigrationApplied = true },
                 };
-                WriteAtomic(path, config);
+                migrationDirty = true;
             }
+
+            // Subtraction default-ON migration (SUB-FEAS, v0.54): a persisted
+            // subtractionEnabled false becomes true once. The marker is set whenever a decoder
+            // section is loaded with it false, migrated or not (the #199 rule), so an operator's
+            // later deliberate OFF persists and the config is migrated at most once in its life.
+            if (config.Decoder is { SubtractionOnMigrationApplied: false })
+            {
+                var wasOff = !config.Decoder.SubtractionEnabled;
+                config = config with
+                {
+                    Decoder = config.Decoder with
+                    {
+                        SubtractionEnabled            = true,
+                        SubtractionOnMigrationApplied = true,
+                    },
+                };
+                if (wasOff)
+                    Console.Error.WriteLine(
+                        "[OpenWSFZ] decoder.subtractionEnabled: migrated persisted false -> true " +
+                        "(SUB-FEAS is ON by default since v0.54). Set decoder.subtractionEnabled " +
+                        "to false (Settings or config.json) to turn it off; the choice then persists.");
+                migrationDirty = true;
+            }
+
+            // Written back immediately, once, unlike the legacy-rename guards above (which are
+            // idempotent and don't need to persist themselves every load): without a disk write
+            // the markers never survive a restart. Same temp-file-then-rename crash-safety as an
+            // operator-triggered SaveAsync — see WriteAtomic's own remarks.
+            if (migrationDirty)
+                WriteAtomic(path, config);
 
             return config;
         }
@@ -365,7 +399,7 @@ public sealed class JsonConfigStore : IConfigStore
                 Tx                = new TxConfig(),
                 RemoteAccess      = new RemoteAccessConfig(),
                 // Marker true: a fresh install has no legacy 60 to migrate (#199).
-                Decoder           = new DecoderConfig() with { Nhard40MigrationApplied = true },
+                Decoder           = new DecoderConfig() with { Nhard40MigrationApplied = true, SubtractionOnMigrationApplied = true },
                 ExternalReporting = new ExternalReportingConfig(),
             },
             ConfigJsonContext.Default.AppConfig);

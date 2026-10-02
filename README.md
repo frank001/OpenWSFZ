@@ -18,7 +18,7 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.53**. v0.x scope: FT8 receive and transmit,
+> The current release is **v0.54**. v0.x scope: FT8 receive and transmit,
 > CAT rig control, a web UI (loopback or passphrase-protected LAN),
 > single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
@@ -214,6 +214,11 @@ callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
   (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) are configurable
   at runtime from the Decoder settings page, so the false-positive/sensitivity
   trade-off can be adjusted without a native rebuild.
+- **Residual-decode subtraction (SUB-FEAS)** — an additional pass that subtracts decoded signals and
+  decodes what they were hiding; **on by default since v0.54**, and an existing install that had it
+  off is switched on once the first time v0.54 starts (one line is logged). To turn it off, set
+  `decoder.subtractionEnabled` to `false` in `config.json`; the choice then persists. Worker count:
+  `decoder.subtractionMaxThreads` (`0` = automatic).
 - **External reporting** — optional and **off by default**: the daemon speaks the WSJT-X UDP
   network protocol (heartbeat, status, decodes, logged QSOs) to GridTracker2 and similar tools,
   to one or more configured targets. An inbound *Halt Tx* is always honoured as a safety path;
