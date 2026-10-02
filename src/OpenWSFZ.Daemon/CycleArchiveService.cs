@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Channels;
@@ -44,6 +45,19 @@ public sealed class CycleArchiveService : IHostedService, IAsyncDisposable
     /// <summary>Free-disk-space floor (design.md Decision 7) below which archiving stops for the session.</summary>
     public const int FreeSpaceFloorMb = 500;
 
+    /// <summary>
+    /// Total attempts to open the manifest for append before the row is given up (issue #205). The
+    /// first attempt plus <c>ManifestAppendMaxAttempts - 1</c> retries.
+    /// </summary>
+    internal const int ManifestAppendMaxAttempts = 5;
+
+    /// <summary>
+    /// Wait between manifest-open attempts (issue #205). The worst case blocks the single writer
+    /// loop for <c>(ManifestAppendMaxAttempts - 1) * ManifestAppendRetryDelay</c> = 0.8 s, far
+    /// below the 15 s cycle cadence and the queue's capacity of eight cycles.
+    /// </summary>
+    internal static readonly TimeSpan ManifestAppendRetryDelay = TimeSpan.FromMilliseconds(200);
+
     // Archive's own filename pattern (design.md Decision 5): YYMMDD_HHMMSS[_n].wav.
     // Retention deletion is restricted to files matching this pattern — never a directory wipe.
     private static readonly Regex ArchiveFilenamePattern =
@@ -54,6 +68,7 @@ public sealed class CycleArchiveService : IHostedService, IAsyncDisposable
     private readonly int                              _queueCapacity;
     private readonly int                              _retentionSweepInterval;
     private readonly Func<string, long>                _freeBytesProvider;
+    private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
 
     private Channel<ArchiveItem>?    _channel;
     private CancellationTokenSource? _cts;
@@ -92,27 +107,31 @@ public sealed class CycleArchiveService : IHostedService, IAsyncDisposable
 
     /// <summary>Production constructor — all dependencies from DI, standard cadence constants.</summary>
     public CycleArchiveService(IConfigStore configStore, ILogger<CycleArchiveService> logger)
-        : this(configStore, logger, queueCapacity: 8, retentionSweepInterval: 100, freeBytesProvider: null)
+        : this(configStore, logger, queueCapacity: 8, retentionSweepInterval: 100, freeBytesProvider: null, delayAsync: null)
     {
     }
 
     /// <summary>
     /// Test constructor — allows overriding the queue capacity, the retention-sweep cadence, and
     /// the free-disk-space provider so unit tests can exercise capacity/retention/free-space-floor
-    /// behaviour without waiting for 100 real cycles or filling a real disk.
+    /// behaviour without waiting for 100 real cycles or filling a real disk. <paramref name="delayAsync"/>
+    /// is the wait between manifest-open attempts (issue #205); a test supplies one it controls
+    /// (parked, then released) so the retry is deterministic. Default <see cref="Task.Delay(TimeSpan, CancellationToken)"/>.
     /// </summary>
     internal CycleArchiveService(
         IConfigStore                  configStore,
         ILogger<CycleArchiveService>  logger,
         int                           queueCapacity,
         int                           retentionSweepInterval,
-        Func<string, long>?           freeBytesProvider)
+        Func<string, long>?           freeBytesProvider,
+        Func<TimeSpan, CancellationToken, Task>? delayAsync = null)
     {
         _configStore            = configStore;
         _logger                 = logger;
         _queueCapacity          = queueCapacity;
         _retentionSweepInterval = retentionSweepInterval;
         _freeBytesProvider      = freeBytesProvider ?? DefaultFreeBytesProvider;
+        _delayAsync             = delayAsync ?? Task.Delay;
     }
 
     // ── IHostedService ────────────────────────────────────────────────────────
@@ -352,7 +371,12 @@ public sealed class CycleArchiveService : IHostedService, IAsyncDisposable
     {
         var manifestPath = Path.Combine(directory, ManifestFileName);
         bool exists      = File.Exists(manifestPath);
-        var droppedSincePrevious = Interlocked.Exchange(ref _droppedSincePreviousRow, 0);
+
+        // Issue #205: PEEK the gap marker; do not consume it. It is subtracted only once the row is
+        // really on disk (below), so a failed append leaves the count to ride on the next row that
+        // does land. Drops recorded by TryEnqueue while this append runs are preserved (subtract,
+        // not exchange-to-zero).
+        var droppedSincePrevious = Volatile.Read(ref _droppedSincePreviousRow);
 
         var row = string.Join(',',
             filename,
@@ -363,11 +387,74 @@ public sealed class CycleArchiveService : IHostedService, IAsyncDisposable
             clipped.ToString(CultureInfo.InvariantCulture),
             droppedSincePrevious.ToString(CultureInfo.InvariantCulture));
 
-        await using var writer = new StreamWriter(manifestPath, append: true) { NewLine = "\n" };
-        if (!exists)
-            await writer.WriteLineAsync(ManifestHeader).ConfigureAwait(false);
-        await writer.WriteLineAsync(row).ConfigureAwait(false);
+        var stream = await OpenManifestForAppendAsync(manifestPath, ct).ConfigureAwait(false);
+        if (stream is null)
+        {
+            // Retries spent (issue #205): loud and specific, never silent. Only the file NAME is
+            // logged (HK-037: no message text); the WAV was already written by ProcessItemAsync.
+            _logger.LogWarning(
+                "cycle-audio-archive: the manifest row for '{Filename}' could not be appended after " +
+                "{Attempts} attempts because the manifest is held open by another process; the WAV " +
+                "exists without its manifest row.",
+                filename, ManifestAppendMaxAttempts);
+            return;
+        }
+
+        // The StreamWriter owns the stream and closes it when disposed, so the row is flushed and the
+        // file released before ItemProcessedForTests fires.
+        await using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { NewLine = "\n" })
+        {
+            if (!exists)
+                await writer.WriteLineAsync(ManifestHeader).ConfigureAwait(false);
+            await writer.WriteLineAsync(row).ConfigureAwait(false);
+        }
+
+        // The row is on disk: only now consume the gap marker it carried.
+        Interlocked.Add(ref _droppedSincePreviousRow, -droppedSincePrevious);
     }
+
+    /// <summary>
+    /// Opens the manifest for append, retrying a bounded number of times when another process holds
+    /// it open (issue #205). Only the OPEN is retried, never a partly written row, so a retry cannot
+    /// duplicate or tear a row. Returns <see langword="null"/> when every attempt failed.
+    /// <para>
+    /// Why a retry and not a share mode: a sharing violation is decided by BOTH handles. A reader that
+    /// got in first with <c>FileShare.Read</c> (the default of <c>File.ReadAllLines</c>) refuses any
+    /// writer, whatever share mode the writer offers, so widening the writer's share would not help.
+    /// </para>
+    /// <para>
+    /// What is retried: an <see cref="IOException"/> from the open, except the permanent family
+    /// (file/directory/drive not found, path too long), which no wait can cure. Anything else
+    /// (including <see cref="OperationCanceledException"/>) propagates. On Unix the open fails the
+    /// same way through the advisory lock, with no stable HRESULT, so the filter is by exception type
+    /// and not by Windows error code; a persistent non-sharing I/O error costs four short waits and
+    /// then lands in the same loud warning.
+    /// </para>
+    /// </summary>
+    private async Task<FileStream?> OpenManifestForAppendAsync(string manifestPath, CancellationToken ct)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return new FileStream(
+                    manifestPath, FileMode.Append, FileAccess.Write, FileShare.Read, bufferSize: 4096, useAsync: true);
+            }
+            catch (IOException ex) when (IsRetryableManifestOpenFailure(ex))
+            {
+                if (attempt >= ManifestAppendMaxAttempts)
+                    return null;
+
+                _logger.LogDebug(ex,
+                    "cycle-audio-archive: manifest is held open by another process (attempt {Attempt} of {Max}) — retrying.",
+                    attempt, ManifestAppendMaxAttempts);
+                await _delayAsync(ManifestAppendRetryDelay, ct).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsRetryableManifestOpenFailure(IOException ex) =>
+        ex is not (FileNotFoundException or DirectoryNotFoundException or PathTooLongException or DriveNotFoundException);
 
     private static string FormatManifestTimestamp(DateTime value) =>
         value.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);

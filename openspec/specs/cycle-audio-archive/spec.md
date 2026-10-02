@@ -120,11 +120,31 @@ decode count, the dial frequency in MHz, the clipped-sample count, and the numbe
 since the previous row. A header row SHALL be written when the file is created. The manifest SHALL
 contain no decoded message text and no callsigns.
 
+A manifest row SHALL NOT be lost because another process has the manifest open. When the append
+cannot open the manifest (an editor, a scanner or a reader holds it), the archive SHALL retry the
+open a bounded number of times with a short wait between attempts, and SHALL consume the
+dropped-since-previous-row count only when the row has really been written. If every attempt fails
+the archive SHALL log one Warning naming the archive file (never message text) and stating that the
+audio file exists without its manifest row, and SHALL continue with the next cycle.
+
 #### Scenario: Manifest row is written per archived cycle
 
 - **WHEN** four cycles are archived
 - **THEN** the manifest SHALL contain a header row followed by exactly four data rows, in cycle
   order
+
+#### Scenario: A row is not lost when another process holds the manifest
+
+- **WHEN** another process holds the manifest open when a cycle is archived and releases it during
+  the retry wait
+- **THEN** that cycle's row SHALL be written on a retry, in order, and no failure SHALL be logged
+
+#### Scenario: A manifest held beyond the retry budget is reported, not silent
+
+- **WHEN** the manifest stays held for every attempt
+- **THEN** one Warning SHALL name the archive file and say its audio file exists without a manifest
+  row, the next cycle SHALL still be archived, and the dropped-cycle count the failed row would have
+  carried SHALL appear on the next row that is written
 
 #### Scenario: Manifest records the framer's off-grid offset
 
