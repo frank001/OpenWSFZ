@@ -123,7 +123,9 @@ def main() -> None:
     res = score(scen, Path(a.wsjtx_alltxt), Path(a.owsfz_alltxt), out_dir / "playback_log.csv")
     meta = {"subtraction_enabled": a.subtraction_enabled, "build_sha": a.build_sha,
             "dll_sha256_prefix": a.dll_sha256_prefix,
-            "scenario_sha256": hashlib.sha256(scen_path.read_bytes()).hexdigest()}
+            "scenario_sha256": hashlib.sha256(scen_path.read_bytes().replace(b"
+", b"
+")).hexdigest()}  # LF-normalised: same on any checkout
     res["meta"] = meta
     (out_dir / "s3c_result.json").write_text(json.dumps(res, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     (out_dir / "s3c_report.md").write_text(render_md(res, meta), encoding="utf-8")
