@@ -12,6 +12,10 @@ Interpretations the spec leaves open (all stated again in the report):
   * `tile_excess_db`: residual power in 1 s x 100 Hz tiles, 200-3000 Hz, the 14 whole
     seconds of the slot (Hann window); max tile over the median tile, in dB.
   * `drift_ppm`: signed; the anomaly rule applies to |drift_ppm|.
+
+Architect ruling 2026-10-02 1915 (A1-A6) adds the FIXED rules below (GROUPS, FAMILIES, the tail
+and head rules, clip at >= 1). This file is the definition of record for the scan (A4); its
+SHA-256 is written into thresholds.json.
 """
 from __future__ import annotations
 
@@ -274,13 +278,38 @@ RULES = {
     "step_db_max":    ("up", 0.5),
     "drift_ppm":      ("abs", 20.0),
     "zero_run_ms":    ("up", 5.0),
-    "tail_zero_ms":   ("up", 5.0),
     "tile_excess_db": ("up", 10.0),
-    "clip_n":         ("up", 1.0),
+    "clip_n":         ("up", 0.0),     # A6: any clipped sample flags (m > 0 == m >= 1)
     "click_max":      ("up", None),
     "resid_db":       ("up", None),
 }
 CROSS_RULES = {"dg_db": ("dev", 0.5), "dtau_ms": ("dev", 2.0)}
+# --- Ruling 2026-10-02 1915 -------------------------------------------------------------
+# A5: groups fixed by what the scenario plays, not by medians.
+def group_of(scenario: str, part) -> str:
+    part = int(part)
+    if scenario in ("S1", "S1b", "S2", "S3"):
+        return "single"
+    if scenario in ("S4", "S7", "S8"):
+        return "multi"
+    if scenario == "S5":
+        return {0: "noise", 1: "noise", 2: "tone2", 3: "tone3"}[part]
+    raise ValueError(f"no group for scenario {scenario}")
+
+
+GROUPS = ("single", "multi", "noise", "tone2", "tone3")
+MIN_GROUP_N = 20                 # a group below this uses its 09-23 thresholds (never recalibrated)
+DESCRIPTIVE_FRACTION = 0.02      # one-sided flags above this share of a group => DESCRIPTIVE
+# metric families for the BOTH classification (same slot, same family, both sides)
+FAMILIES = {"g_db": "level", "step_db_max": "level",
+            "tau_ms": "timing", "drift_ppm": "timing",
+            "zero_run_ms": "dropout", "head_zero_ms": "dropout", "tail_zero_ms": "dropout",
+            "tile_excess_db": "spectral", "click_max": "spectral", "resid_db": "spectral",
+            "clip_n": "clip"}
+WSJTX_TAIL_MS = 600.0            # WSJT-X writes 14.4 s then zeros (A2); blind spot: its last 600 ms
+TAIL_HEAD_TOL_MS = 5.0
+CLIP_FLAG_MIN = 1                # A6: flag at clip_n >= 1
+
 K_SIGMA = 6.0
 MAD_SCALE = 1.4826
 

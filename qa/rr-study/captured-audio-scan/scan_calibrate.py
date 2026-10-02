@@ -24,7 +24,7 @@ import scan_core as sc  # noqa: E402
 assert sc.K_SIGMA == 6.0 and sc.MAD_SCALE == 1.4826
 assert sc.RULES["step_db_max"][1] == 0.5 and sc.RULES["g_db"][1] == 0.5
 assert sc.RULES["drift_ppm"][1] == 20.0 and sc.RULES["zero_run_ms"][1] == 5.0
-assert sc.RULES["tile_excess_db"][1] == 10.0 and sc.RULES["clip_n"][1] == 1.0
+assert sc.RULES["tile_excess_db"][1] == 10.0 and sc.RULES["clip_n"][1] == 0.0
 assert sc.RULES["tau_ms"][1] == 2.0
 assert sc.CROSS_RULES["dg_db"][1] == 0.5 and sc.CROSS_RULES["dtau_ms"][1] == 2.0
 
