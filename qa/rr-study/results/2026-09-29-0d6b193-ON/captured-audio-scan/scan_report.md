@@ -1,6 +1,6 @@
 # Captured-audio scan report: 2026-09-29-62e8e74-ON
 
-- Frozen `thresholds.json` SHA-256 (LF): `e1789e2ec8a02caf66898dd15b2e208df6ebec3508460f2f29433a81b1146d11`; `scan_core.py` `6ca48d41fe3e957f2bea7bbdaf03b94150079ba80f341c2d6a36ff6d50b18eb4`; calibration run `2026-09-23-5f17b43`.
+- Frozen `thresholds.json` SHA-256 (LF): `c1d793ec773520267dcc0545f0d114bec635d63436b9c1960b3e7891b4a26d8d`; `scan_core.py` `582f422e27e7d9f2d949de7ac10f6fb0cee07c2c48d53c7dbcb6dbc4c7722a21`; calibration run `2026-09-23-5f17b43`.
 - Tool: `qa/rr-study/captured-audio-scan/` (`scan_run.py measure`, `scan_apply.py`). Measure wall time: **267.1 s** (V3, one core).
 - Audio only. No decoder, `ALL.TXT` or message text was read; counts, slot keys and hashes only (NFR-021).
 
@@ -55,6 +55,41 @@ The full list (slot key, cycle, class, family, metrics) is `flagged_slots.csv`; 
 🛑 S1 `g_db` / `resid_db` below are descriptive chain gains. The +1.45 dB SNR-bias follow-up was dropped by the Captain on 2026-09-29; these numbers do not reopen it and are never cited as a build or chain effect.
 - owsfz: median `g_db` -1.86, median `resid_db` -9.73 (n = 30).
 - wsjtx: median `g_db` -0.85, median `resid_db` -11.17 (n = 30).
+
+## Registered result: `freeze3` centring; the A11 reclassification below is 'applied after reading; forward rule'
+
+| class | family | slots (`freeze3`, registered) | slots (`a11`, A11, applied after reading; forward rule) |
+|---|---|---:|---:|
+| BOTH | dropout | 2 | 2 |
+| BOTH | level | 26 | 26 |
+| BOTH | spectral | 18 | 18 |
+| BOTH | timing | 22 | 23 |
+| CROSS | dg_db | 3 | 3 |
+| CROSS | dtau_ms | 153 | 15 |
+| OWSFZ-ONLY | dropout | 1 | 1 |
+| OWSFZ-ONLY | spectral | 11 | 11 |
+| OWSFZ-ONLY | timing | 2 | 1 |
+| WSJTX-ONLY | dropout | 9 | 9 |
+| WSJTX-ONLY | level | 10 | 10 |
+| WSJTX-ONLY | spectral | 7 | 7 |
+| WSJTX-ONLY | timing | 78 | 44 |
+
+**Cite as shared-path events only** the BOTH findings that survive A11 plus the level, drift and `lag_lost` families.
+
+### Run-level lines (A11)
+
+(a) run median `g_db` minus the calibration median, per (side, group); `RUN-LEVEL` if |Δ| > 0.5 dB:
+- owsfz single: -0.05 dB
+- owsfz multi: -0.00 dB
+- owsfz noise: -0.02 dB
+- owsfz tone2: -0.00 dB
+- owsfz tone3: +0.00 dB
+- wsjtx single: -0.02 dB
+- wsjtx multi: -0.00 dB
+- wsjtx noise: +0.04 dB
+- wsjtx tone2: -0.00 dB
+- wsjtx tone3: -0.00 dB
+(b) the run's own median `tau_ms` offset per (side, group) and `dtau_ms` offset: descriptive only, in the table below.
 
 ## Descriptive, NOT frozen: run-level offset of the dev metrics (question for the Architect)
 

@@ -259,7 +259,7 @@ def main() -> None:
     # g_db / tau_ms / dg_db / dtau_ms on the CALIBRATION run's median; a per-run shift of the chain's timing
     # offset then flags most slots. Here: the median of this run per (side, group) and the same frozen T.
     w("")
-    w("## Descriptive, NOT frozen: run-level offset of the dev metrics (question for the Architect)")
+    w("## Descriptive: run-level timing offset (the A11 evidence; the frozen two-sided rule for g_db stays on the calibration median)")
     w("")
     w("The frozen `tau_ms` / `dtau_ms` / `g_db` / `dg_db` rule is two-sided around the **calibration run's** median. Medians per run (ms for tau, dB for g):")
     w("")

@@ -602,7 +602,18 @@ table) of `report.md` automatically. **The QA engineer must complete:**
    python qa/rr-study/render_report.py <path/to/report.md>
    ```
 
-5. **Commit the result directory:**
+5. **Captured-audio scan (after the gather; synthetic R&R runs only; #194, ruling 2026-10-02 2055):**
+   ```powershell
+   python qa/rr-study/captured-audio-scan/post_run_scan.py --run <run> --truth <results/<run>/truth.csv> `
+       --audio <results/<run>-captured-audio> --results <results/<run>> --harness-commit <sha>
+   ```
+   About 5 minutes of one core. It starts only when no timing or live/overnight run is running (otherwise it writes a
+   SKIPPED `scan_report.md` and exits 0: rerun it later). It never deletes anything, a failure never fails the run
+   (the error goes into `scan_report.md`), and the headline carries the scan's holes verbatim. Read its
+   `captured-audio-scan/scan_report.md` before the commit below; a WAV is recorded before either decoder runs, so
+   no finding is ever a decoder defect.
+
+6. **Commit the result directory:**
    ```bash
    git add qa/rr-study/results/<run-dir>/
    git commit -m "qa(rr-study): cross-platform R&R run <date> — <brief finding>"
