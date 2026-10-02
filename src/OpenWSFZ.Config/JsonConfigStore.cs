@@ -73,6 +73,13 @@ public sealed class JsonConfigStore : IConfigStore
         if (config.CycleAudioArchive is null)
             config = config with { CycleAudioArchive = _current.CycleAudioArchive ?? new CycleAudioArchiveConfig() };
 
+        // Issue #199: a decoder section created from nothing (the store holds none) can never
+        // have held a legacy 60, so no 60 -> 40 migration is pending for it and the marker is
+        // true. Without this, a first save that creates the section with the marker false is
+        // reverted by Load's M2 migration on the next restart if osdNhardMax is 60.
+        if (_current.Decoder is null && config.Decoder is { Nhard40MigrationApplied: false })
+            config = config with { Decoder = config.Decoder with { Nhard40MigrationApplied = true } };
+
         // RemoteAccess (dev-tasks/2026-07-28-fix-cycle-audio-archive-null-config-crash.md §4):
         // same belt-and-braces reasoning as CycleAudioArchive above, bundled in as a one-line
         // fix. A fresh default (not a _current fallback) is correct here — see the matching
@@ -272,6 +279,19 @@ public sealed class JsonConfigStore : IConfigStore
                 // SaveAsync — see WriteAtomic's own remarks.
                 WriteAtomic(path, config);
             }
+            else if (config.Decoder is { Nhard40MigrationApplied: false })
+            {
+                // Issue #199: the marker means "no migration is pending for this install".
+                // A decoder section whose osdNhardMax is not exactly 60 has nothing to migrate,
+                // so the marker is set (and persisted once) here too. Otherwise an operator's
+                // later deliberate osdNhardMax 60 would match { 60, false } on the next restart
+                // and be reverted to 40. Idempotent: once true, later loads write nothing.
+                config = config with
+                {
+                    Decoder = config.Decoder with { Nhard40MigrationApplied = true },
+                };
+                WriteAtomic(path, config);
+            }
 
             return config;
         }
@@ -344,7 +364,8 @@ public sealed class JsonConfigStore : IConfigStore
                 Ptt               = new PttConfig(),
                 Tx                = new TxConfig(),
                 RemoteAccess      = new RemoteAccessConfig(),
-                Decoder           = new DecoderConfig(),
+                // Marker true: a fresh install has no legacy 60 to migrate (#199).
+                Decoder           = new DecoderConfig() with { Nhard40MigrationApplied = true },
                 ExternalReporting = new ExternalReportingConfig(),
             },
             ConfigJsonContext.Default.AppConfig);

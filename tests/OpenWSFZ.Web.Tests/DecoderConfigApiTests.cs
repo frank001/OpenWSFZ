@@ -380,4 +380,39 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
             "a client cannot turn the marker on any more than it can turn it off — only " +
             "JsonConfigStore.Load()'s own migration logic may set this field");
     }
+
+    [Fact(DisplayName = "#199: a POST that CREATES the decoder section (store had none) stores the marker true")]
+    public async Task PostConfig_CreatesDecoderSectionFromNothing_MarkerTrue()
+    {
+        var store = _factory.Services.GetRequiredService<IConfigStore>();
+        await store.SaveAsync(new AppConfig() with { Decoder = null });
+        store.Current.Decoder.Should().BeNull("precondition: no decoder section");
+
+        var client = _factory.CreateClient();
+        const string body = """{"decoder":{"kMinScorePass2":10,"osdCorrThreshold":0.10,"osdNhardMax":60}}""";
+        var resp = await client.PostAsync("/api/v1/config", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        store.Current.Decoder!.OsdNhardMax.Should().Be(60);
+        store.Current.Decoder.Nhard40MigrationApplied.Should().BeTrue(
+            "no persisted 60 can have existed, so no migration is pending; otherwise the next restart reverts this 60");
+    }
+
+    [Fact(DisplayName = "#199: a POST with the decoder section already present keeps the stored marker (server-owned), even if the client sends the opposite")]
+    public async Task PostConfig_DecoderSectionPresent_StoredMarkerKept()
+    {
+        var store = _factory.Services.GetRequiredService<IConfigStore>();
+        await store.SaveAsync(new AppConfig() with
+        {
+            Decoder = new DecoderConfig(kMinScorePass2: 10, osdCorrThreshold: 0.10f,
+                osdNhardMax: 40, nhard40MigrationApplied: false),
+        });
+
+        var client = _factory.CreateClient();
+        const string body = """{"decoder":{"kMinScorePass2":10,"osdCorrThreshold":0.10,"osdNhardMax":40,"nhard40MigrationApplied":true}}""";
+        var resp = await client.PostAsync("/api/v1/config", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        store.Current.Decoder!.Nhard40MigrationApplied.Should().BeFalse("the stored value wins; the client value is ignored");
+    }
 }

@@ -515,14 +515,16 @@ public static class WebApp
             // own migration logic flips it to true. The overlay merge would otherwise let a body carry
             // it, so force it back to whatever is persisted, whether or not the key was sent. A body
             // that sends no "decoder" leaves the stored decoder section untouched (the overlay keeps
-            // it); a body that sends one over a stored null gets a marker of false.
+            // it); a body that sends one over a stored null gets a marker of true (#199).
             if (config.Decoder is { } decoderForMarker)
             {
                 config = config with
                 {
                     Decoder = decoderForMarker with
                     {
-                        Nhard40MigrationApplied = store.Current.Decoder?.Nhard40MigrationApplied ?? false,
+                        // No stored decoder section: no persisted 60 can ever have existed, so
+                        // no migration is pending and the new section's marker is true (#199).
+                        Nhard40MigrationApplied = store.Current.Decoder?.Nhard40MigrationApplied ?? true,
                     },
                 };
             }

@@ -690,8 +690,8 @@ public sealed class JsonConfigStoreTests
         store.Current.Decoder!.OsdNhardMax.Should().Be(nhard,
             $"osdNhardMax={nhard} is an operator's own deliberate choice within the valid range " +
             "and must pass through untouched — the migration targets exactly 60, not a threshold");
-        store.Current.Decoder!.Nhard40MigrationApplied.Should().BeFalse(
-            "no migration means no marker set");
+        store.Current.Decoder!.Nhard40MigrationApplied.Should().BeTrue(
+            "the marker means no migration is pending (#199): a non-60 value has nothing to migrate, so the marker is set");
     }
 
     [Fact(DisplayName = "NHARD40-DEFAULT M2: a config file with no decoder key at all yields the new code default (40) and writes no migration marker")]
