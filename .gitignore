@@ -255,3 +255,6 @@ qa/rr-study/awgn-fp-replay/_work/
 # separate, deliberate redact-then-rescan-then-commit step -- never this directory's
 # own content.
 qa/rr-study/fp-parity/_out/
+
+# LATENESS edge test: renders/decodes staging (gitignored)
+qa/rr-study/lateness-edge/_out/
