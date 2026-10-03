@@ -31,7 +31,8 @@ AS2_GAIN_TOL = 0.01
 READBACK_SETTLE_S = 1.5
 AS3_DURATION_S = 600
 AS3_CPU_MAX_FRACTION = 0.01        # <= 1 % of one core
-AS3_SAMPLE_MAX_MS = 500.0
+AS3_WARM_SAMPLE_MAX_MS = sampler.WARM_SAMPLE_MAX_MS     # Amendment 1 (architect ruling 2026-10-03)
+AS3_COLD_SAMPLE_MAX_MS = sampler.COLD_SAMPLE_MAX_S * 1000
 AS4_HEARTBEAT_GAP_MAX_S = sampler.MAX_HEARTBEAT_GAP_S
 BUSY_PROCESS_MARKERS = ("run_study", "run_scenario", "endurance", "OpenWSFZ.Host", "OpenWSFZ.Daemon")
 
@@ -264,15 +265,21 @@ def as34(out: Path, ini: str, duration: float = AS3_DURATION_S) -> dict:
         jsonschema.validate(r, SCHEMA)
     hb = [parse_utc(r["utc"]) for r in recs if r["type"] == "heartbeat"]
     gaps = [round(b - a, 1) for a, b in zip(hb, hb[1:])]
-    sm = [r["sample_ms_max"] for r in recs if r["type"] == "heartbeat"]
+    hbs = [r for r in recs if r["type"] == "heartbeat"]
+    cold_ms = hbs[0]["sample_ms_max"]                       # first heartbeat covers only the cold first sample
+    warm_ms = max(r["sample_ms_max"] for r in hbs[1:])
     orphans = active_sampler_orphans()
     res = {"row": "AS3+AS4", "duration_s": round(t1 - t0), "cpu_fraction_of_one_core": round(cpu_frac, 5),
-           "sample_ms_max_over_run": max(sm), "heartbeats": len(hb), "max_heartbeat_gap_s": max(gaps),
+           "cold_sample_ms": cold_ms, "warm_sample_ms_max": warm_ms,
+           "vm_dirty_calls": sum(r["vm_dirty_calls"] for r in hbs), "vm_dirty_nonzero": sum(r["vm_dirty_nonzero"] for r in hbs),
+           "vm_dirty_loop_max": max(r["vm_dirty_loop_max"] for r in hbs),
+           "unverified_start_diffs": sum(r["type"] == "unverified_start_diff" for r in recs), "heartbeats": len(hb), "max_heartbeat_gap_s": max(gaps),
            "changes_logged": sum(r["type"] == "change" for r in recs),
            "worker_crashes": sum(r["type"] == "worker_crash" for r in recs),
            "worker_pids_measured": len(tree.last), "records_schema_valid": len(recs),
            "teardown": td, "orphans": orphans}
-    res["AS3_PASS"] = cpu_frac <= AS3_CPU_MAX_FRACTION and max(sm) <= AS3_SAMPLE_MAX_MS
+    res["AS3_PASS_amended"] = (cpu_frac <= AS3_CPU_MAX_FRACTION and warm_ms <= AS3_WARM_SAMPLE_MAX_MS
+                               and cold_ms <= AS3_COLD_SAMPLE_MAX_MS)
     res["AS4_PASS"] = (res["worker_crashes"] == 0 and max(gaps) <= AS4_HEARTBEAT_GAP_MAX_S and not td["force_killed"] and td["returncode"] == 0
                        and td["pidfile_removed"] and not orphans and recs[-1]["type"] == "snapshot" and recs[-1]["kind"] == "end")
     return res

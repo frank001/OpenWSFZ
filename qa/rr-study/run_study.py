@@ -28,6 +28,14 @@ if str(_HERE) not in sys.path:
 
 from harness.common import make_run_dir  # noqa: E402
 
+# #194 audio-setup sampler hook. A sampler problem must NEVER fail a battery: import errors included.
+sys.path.insert(0, str(_HERE.parent / "audio-setup"))
+try:
+    import run_hook  # noqa: E402
+except Exception as _exc:  # pragma: no cover
+    run_hook = None
+    print(f"  [audio-setup] hook unavailable, battery continues without it: {_exc}", flush=True)
+
 # ── Timing ─────────────────────────────────────────────────────────────────
 # Pause after each scenario to let the final cycle's decodes propagate into
 # ALL.TXT before the log-collection step reads it.
@@ -277,6 +285,17 @@ def main() -> None:
                       f"(R&R-009 default-battery override; see run_study.py)")
     print()
 
+    # ── Step -1: audio-setup sampler (#194) ───────────────────────────────
+    # Started >= 12 s before the first played audio (Amendment 1: a cold sample must not overlap a cycle) and
+    # stopped by an explicit teardown right after the last scenario; atexit covers a crash or sys.exit.
+    _as_handle = None
+    if run_hook is not None:
+        _as_ini = (arm.get("wsjtx") or {}).get("ini_path") if isinstance(arm, dict) else None
+        _as_handle = run_hook.start(run_dir, _as_ini)
+        if _as_handle is not None:
+            import atexit
+            atexit.register(run_hook.stop, _as_handle)
+
     # ── Step 0: Pre-flight warm-up check ──────────────────────────────────
     # Play one FT8 cycle at +6 dB SNR and ask the operator to confirm both
     # WSJT-X and OpenWSFZ decoded it.  This catches routing failures before
@@ -316,6 +335,8 @@ def main() -> None:
         print(f"  [OK] {sf.name} complete\n", flush=True)
         time.sleep(_POST_SCENARIO_SETTLE_S)
 
+    if run_hook is not None:
+        run_hook.stop(_as_handle)
     print(f"\nRun directory: {run_dir.relative_to(_HERE)}")
 
     # ── Step 3: Collect log files ──────────────────────────────────────────
@@ -376,6 +397,13 @@ def main() -> None:
     print("\nRunning analyser ...")
     _py("harness/analyse.py", "--run-dir", str(run_dir),
         *(["--legacy-no-arm-config"] if args.legacy_no_arm_config else []))
+
+    # ── Step 6: audio-setup summary (#194): crashes, restarts, coverage, changes; into the report ──
+    if run_hook is not None:
+        _md = run_hook.finish(_as_handle, run_dir)
+        if _md:
+            with open(run_dir / "report.md", "a", encoding="utf-8") as _fh:
+                _fh.write("\n\n" + _md)
 
     print("\n" + "=" * 70)
     print(f"Study complete.  Report: {run_dir / 'report.md'}")

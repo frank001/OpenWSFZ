@@ -26,8 +26,11 @@ import time
 from pathlib import Path
 
 SCHEMA_VERSION = 1
-VM_SETTLE_INTERVAL_S = 0.25          # login settle: reads this far apart must agree before we trust them
-VM_SETTLE_MAX_READS = 12
+VM_DIRTY_LOOP_MAX_CALLS = 10         # architect ruling 2026-10-03 3b: bounded 'call until it returns 0' before reading
+VM_DIRTY_LOOP_INTERVAL_S = 0.05
+UNVERIFIED_MAX_TICKS = 12            # start/restart state stays unverified until two consecutive ticks agree
+COLD_SAMPLE_MAX_S = 2.0              # Amendment 1: cold first sample (and a restart's) <= 2 s
+WARM_SAMPLE_MAX_MS = 500.0           # Amendment 1: every later sample
 SAMPLE_PERIOD_S = 5.0
 HEARTBEAT_PERIOD_S = 60.0
 MAX_HEARTBEAT_GAP_S = 70.0           # AS4 bound
@@ -75,6 +78,10 @@ def diff_states(old: dict, new: dict) -> list[tuple[str, object, object]]:
 
 
 # ---------------------------------------------------------------- Voicemeeter (read-only)
+class TypeTableUnverified(OSError):
+    """The API reported a Voicemeeter type our table has no verified row for. Never guess counts."""
+
+
 class VoicemeeterReader:
     """ctypes over the installed Remote API, as an OS API. Only Login/Get*/IsParametersDirty/Logout."""
 
@@ -83,20 +90,31 @@ class VoicemeeterReader:
         if self._dll.VBVMR_Login() != 0:
             raise OSError("VBVMR_Login failed")
         self._open = True
-        self.settle_reads = self._settle()
+        self.dirty_calls = 0            # per-heartbeat statistics of VBVMR_IsParametersDirty (ruling 3b)
+        self.dirty_nonzero = 0
+        self.dirty_loop_max = 0
 
-    def _settle(self) -> int:
-        # 2026-10-03 (AS2 run): the FIRST read after a fresh VBVMR_Login returned stale values
-        # (Strip[3].Gain -30 vs true -33, two more fields wrong); the next tick was right. Wait for two
-        # consecutive reads to agree before the first sample is trusted.
-        prev = None
-        for n in range(1, VM_SETTLE_MAX_READS + 1):
-            cur = self.read()
-            if cur == prev:
-                return n
-            prev = cur
-            time.sleep(VM_SETTLE_INTERVAL_S)
-        return VM_SETTLE_MAX_READS
+    def _refresh(self) -> None:
+        # IsParametersDirty returns 1 if parameters changed since the last call, 0 if not, <0 on error.
+        # Its return value was previously discarded (the architect's lead). Log every value, and loop
+        # (bounded) until it returns 0 so the cache is quiescent before we read.
+        used = 0
+        for _ in range(VM_DIRTY_LOOP_MAX_CALLS):
+            rc = self._dll.VBVMR_IsParametersDirty()
+            used += 1
+            self.dirty_calls += 1
+            if rc != 0:
+                self.dirty_nonzero += 1
+            if rc == 0:
+                break
+            time.sleep(VM_DIRTY_LOOP_INTERVAL_S)
+        self.dirty_loop_max = max(self.dirty_loop_max, used)
+
+    def take_dirty_stats(self) -> dict:
+        out = {"vm_dirty_calls": self.dirty_calls, "vm_dirty_nonzero": self.dirty_nonzero,
+               "vm_dirty_loop_max": self.dirty_loop_max}
+        self.dirty_calls = self.dirty_nonzero = self.dirty_loop_max = 0
+        return out
 
     def close(self) -> None:
         if self._open:
@@ -114,14 +132,14 @@ class VoicemeeterReader:
         return None if rc != 0 else buf.value.decode("utf-8", "replace")
 
     def read(self) -> dict:
-        self._dll.VBVMR_IsParametersDirty()          # refreshes the API's cached values
+        self._refresh()
         t = ctypes.c_long()
         self._dll.VBVMR_GetVoicemeeterType(ctypes.byref(t))
         ver = ctypes.c_long()
         self._dll.VBVMR_GetVoicemeeterVersion(ctypes.byref(ver))
         vm_type = t.value
         if vm_type not in VM_TYPES:
-            raise OSError(f"unknown Voicemeeter type {vm_type}")
+            raise TypeTableUnverified(f"unknown Voicemeeter type {vm_type}")
         name, n_strip, n_bus, routes = VM_TYPES[vm_type]
         v = ver.value
         state = {
@@ -215,8 +233,12 @@ class Sampler:
         self.period, self.heartbeat = period, heartbeat
         self._stop = threading.Event()
         self._vm = None
-        self._vm_error_logged = False
+        self._vm_type_unverified = False
         self._prev: dict | None = None
+        self._start_state: dict | None = None
+        self._verified = False
+        self._unverified_ticks = 0
+        self.dirty_stats = {"vm_dirty_calls": 0, "vm_dirty_nonzero": 0, "vm_dirty_loop_max": 0}
         self._last_hb = 0.0
         self.sample_ms: list[float] = []
 
@@ -229,18 +251,26 @@ class Sampler:
 
     def _sample(self) -> dict:
         state: dict = {}
-        if self._vm is None:
-            try:
-                self._vm = VoicemeeterReader(self.vm_dll)
-            except OSError:
-                state["voicemeeter"] = "unavailable"
-        if self._vm is not None:
-            try:
-                state["voicemeeter"] = self._vm.read()
-            except Exception:
-                state["voicemeeter"] = "unavailable"
-                self._vm.close()
-                self._vm = None
+        if self._vm_type_unverified:
+            state["voicemeeter"] = "unavailable: type table unverified"
+        else:
+            if self._vm is None:
+                try:
+                    self._vm = VoicemeeterReader(self.vm_dll)
+                except OSError:
+                    state["voicemeeter"] = "unavailable"
+            if self._vm is not None:
+                try:
+                    state["voicemeeter"] = self._vm.read()
+                except TypeTableUnverified:           # keep sampling Windows; never guess counts
+                    state["voicemeeter"] = "unavailable: type table unverified"
+                    self._vm_type_unverified = True
+                    self._vm.close()
+                    self._vm = None
+                except Exception:
+                    state["voicemeeter"] = "unavailable"
+                    self._vm.close()
+                    self._vm = None
         for key, fn in (("windows", read_windows), ("wsjtx", lambda: read_wsjtx_ini(self.wsjtx_ini))):
             try:
                 state[key] = fn()
@@ -268,21 +298,39 @@ class Sampler:
     def _tick(self, first: bool) -> None:
         t0 = time.perf_counter()
         state = self._sample()
-        self.sample_ms.append((time.perf_counter() - t0) * 1000)
+        ms = (time.perf_counter() - t0) * 1000
+        self.sample_ms.append(ms)
+        if self._vm is not None:
+            for k, v in self._vm.take_dirty_stats().items():
+                self.dirty_stats[k] = max(self.dirty_stats[k], v) if k == "vm_dirty_loop_max" else self.dirty_stats[k] + v
         if first:
-            self._emit({"type": "snapshot", "kind": self.start_kind, "state": state})
+            # Ruling 3b: a start / restart snapshot is UNVERIFIED until two consecutive ticks agree.
+            self._emit({"type": "snapshot", "kind": self.start_kind, "state": state, "verified": False,
+                        "cold_sample_ms": round(ms, 1)})
             for src, v in state.items():
                 if isinstance(v, str) and v.startswith("unavailable"):
                     self._emit({"type": "unavailable", "source": src, "detail": v})
+            self._start_state, self._verified, self._unverified_ticks = state, False, 1
+        elif not self._verified:
+            self._unverified_ticks += 1
+            agreed = state == self._prev
+            if agreed or self._unverified_ticks >= UNVERIFIED_MAX_TICKS:
+                self._verified = True
+                self._emit({"type": "verified", "after_ticks": self._unverified_ticks, "agreed": agreed,
+                            "state_sha256": state_hash(state)})
+                for field, old, new in diff_states(self._start_state, state):
+                    self._emit({"type": "unverified_start_diff", "field": field, "old": old, "new": new})
         else:
             for field, old, new in diff_states(self._prev, state):
-                self._emit({"type": "change", "field": field, "old": old, "new": new})
+                self._emit({"type": "change", "field": field, "old": old, "new": new, "detected_utc": utc_now()})
         self._prev = state
         now = time.monotonic()
         if first or now - self._last_hb >= self.heartbeat:
-            ms, self.sample_ms = self.sample_ms, []
-            self._emit({"type": "heartbeat", "state_sha256": state_hash(state), "samples": len(ms),
-                        "sample_ms_max": round(max(ms), 1), "sample_ms_mean": round(sum(ms) / len(ms), 1)})
+            msl, self.sample_ms = self.sample_ms, []
+            self._emit({"type": "heartbeat", "state_sha256": state_hash(state), "samples": len(msl),
+                        "sample_ms_max": round(max(msl), 1), "sample_ms_mean": round(sum(msl) / len(msl), 1),
+                        "verified": self._verified, **self.dirty_stats})
+            self.dirty_stats = {"vm_dirty_calls": 0, "vm_dirty_nonzero": 0, "vm_dirty_loop_max": 0}
             self._last_hb = now
 
 

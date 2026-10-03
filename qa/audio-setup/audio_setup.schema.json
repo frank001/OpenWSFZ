@@ -6,17 +6,21 @@
   "properties": {
     "schema": {"const": 1},
     "utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$"},
-    "type": {"enum": ["snapshot", "change", "heartbeat", "unavailable", "worker_crash"]}
+    "type": {"enum": ["snapshot", "change", "heartbeat", "unavailable", "worker_crash", "verified", "unverified_start_diff"]}
   },
   "allOf": [
     {"if": {"properties": {"type": {"const": "snapshot"}}},
      "then": {"required": ["kind", "state"],
               "properties": {"kind": {"enum": ["start", "restart", "end"]}, "state": {"$ref": "#/$defs/state"}}}},
     {"if": {"properties": {"type": {"const": "change"}}},
-     "then": {"required": ["field", "old", "new"], "properties": {"field": {"type": "string", "minLength": 1}}}},
+     "then": {"required": ["field", "old", "new", "detected_utc"], "properties": {"field": {"type": "string", "minLength": 1}}}},
     {"if": {"properties": {"type": {"const": "heartbeat"}}},
-     "then": {"required": ["state_sha256", "samples", "sample_ms_max", "sample_ms_mean"],
+     "then": {"required": ["state_sha256", "samples", "sample_ms_max", "sample_ms_mean", "verified", "vm_dirty_calls", "vm_dirty_nonzero", "vm_dirty_loop_max"],
               "properties": {"state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}},
+    {"if": {"properties": {"type": {"const": "unverified_start_diff"}}},
+     "then": {"required": ["field", "old", "new"]}},
+    {"if": {"properties": {"type": {"const": "verified"}}},
+     "then": {"required": ["after_ticks", "agreed", "state_sha256"]}},
     {"if": {"properties": {"type": {"const": "worker_crash"}}},
      "then": {"required": ["exit_code", "restarts_so_far", "stderr_tail"]}},
     {"if": {"properties": {"type": {"const": "unavailable"}}},
