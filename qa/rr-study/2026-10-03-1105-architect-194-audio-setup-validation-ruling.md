@@ -68,3 +68,11 @@
 ## 5. Housekeeping
 
 `qa/audio-setup-194` and this ruling go to the remote only on the Captain's go (QA pushes; HK-014/HK-033).
+
+## 6. Addendum (2026-10-03 ~11:20Z, Captain): five-run review, with no runs scheduled for it
+
+**Captain:** *"yes, add the five-run review. but only when we need to run it. do not schedule 5 runs now."*
+
+- **No run is scheduled for the sampler.** It rides along on R&R batteries and endurance nights that happen anyway, for their own reasons. Nobody books station time to fill the count.
+- **Every integrated run's report adds two numbers:** the setup changes recorded (excluding `unverified_start_diff`), and the scan-flagged slots with at least one change in their §2.2 join window.
+- **Review trigger:** when the fifth integrated run is gathered, QA puts the five runs' figures to the Architect. If the five runs together show **0 changes and 0 joined slots**, the Architect recommends cutting the sampler back to a **start and end snapshot only, without the per-app session enumeration** (the `pycaw.GetAllSessions` path that crashed). Otherwise it stays as built. The Captain decides.
