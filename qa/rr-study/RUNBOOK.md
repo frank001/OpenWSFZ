@@ -347,7 +347,19 @@ The harness is built; this is the procedure the flag-ON `main` baseline (`2026-1
 6. A battery crash needs a human decision: resume with `run_study_detached.py --resume` (`resume_study.py` does not know S3c:
    run `s3c/s3c_play.py` and `s3c/s3c_score.py` by hand).
 7. ALL.TXT is CUMULATIVE and every battery plays the same seeded texts: anything that counts decodes must key on the
-   cycle stamp AND the run's own time window (the S3c scorer does).
+   cycle stamp AND the run's own time window (the S3c scorer does). Since 2026-10-03 `run_study.py` TRIMS its two
+   `ALL.TXT` copies to the battery's own window (start minus 120 s; an undatable line is kept, never dropped), so a run's
+   `*_matched.csv` no longer carry an earlier battery's decodes as unmatched rows. **The two baseline runs
+   (`2026-10-02-96077a0`, `2026-10-03-96077a0`) predate that trim:** run 2's local, gitignored `owsfz-all.txt`,
+   `wsjt-all.txt` and `*_matched.csv` still hold run 1's decodes as unmatched rows. Every matched=True row and the
+   Unexplained table are bound to each run's own window (checked by the Architect), so the report is right; only a raw
+   read of those CSVs would mislead.
+8. **Gate A-W's window** is printed with its members (the analyser lists them). A trend row whose SHA7 equals the current
+   run's is excluded, so a repeat run on the same tooling commit does not see the run before it. `trend.csv` has no
+   flag column: until four flag-ON `main` sweeps exist the window is MIXED and Gate A-W is a compliance reading across
+   builds, not a flag-ON-only one.
+9. **Stamp every log entry with `date -u`, never from memory** (HK-017; the exceptions log's first stamps were guesses
+   and some were ahead of the clock). `git log --date=format:` prints the commit's own +02:00 offset: convert it.
 
 ---
 
