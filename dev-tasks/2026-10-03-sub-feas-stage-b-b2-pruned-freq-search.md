@@ -50,7 +50,7 @@ QA owns the measurements. In this order, any miss rejects B2 however fast it is:
 | R1′ | max whole-call elapsed ≤ 13 000 ms |
 | R3 | 0 access violations, 0 contained faults, 0 exits |
 | **R4′** | deadline-abandon rate ≤ 5 %, read **at 8 workers on the T2′ list** |
-| **T2′ — the bar** | on a replay of the 2026-09-30 night (flag ON, `subtractionMaxThreads` = 8, `nhard` 40, `replay81` mode `two1`, every 4th cycle of the frozen 10-01 selection), **median `T2_replay` ≤ 2.50 s**, with a same-session Stage A baseline |
+| **T2′ — the bar** | on a replay of the 2026-09-30 night (flag ON, `subtractionMaxThreads` = 8, `nhard` 40, `replay81` mode `two1`, every 4th cycle of the frozen 10-01 selection), **median `T2_replay` ≤ 2.50 s**, with every deadline-abandoned cycle counted as T2 = +∞ (Architect `4301e8c5`) and a same-session Stage A baseline |
 
 T′ (4 workers) is report-only. A replay PASS makes **no on-air claim**.
 

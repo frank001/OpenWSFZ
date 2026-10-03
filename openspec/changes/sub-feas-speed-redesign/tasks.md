@@ -251,13 +251,17 @@ Stage A; the two combine at merge (both are Captain decisions). **Not decided he
 - [ ] 15.5 **Re-time each accepted item (Amendment 5 protocol; QA-owned, a TIMING run: the PC to itself, WSJT-X closed, machine state recorded).**
       **T2′ (the bar):** replay of the 2026-09-30 night on the §15.2(c) list, flag ON, `subtractionMaxThreads = 8`, `nhard` 40, harness `replay81` mode
       `two1` (records the time to batch 1 and the batch-2 time per cycle). `T2_replay` = **0.032 s** (the on-air median decode-start offset, a labelled constant)
-      + time to batch 1 + residual `elapsedMs`, over cycles with ≥ 1 residual decode. **PASS iff median `T2_replay` ≤ 2.50 s.** The 0.45 s below the 2.95 s
+      + time to batch 1 + residual `elapsedMs`, over cycles with ≥ 1 residual decode, **plus every deadline-ABANDONED cycle counted as T2 = +∞** (an abandoned pass delivers
+      nothing in time; Architect `4301e8c5`, QA (k) note (b)); cycles whose pass **completed with 0 residual decodes stay out** (nothing to answer). **PASS iff the median of that
+      population ≤ 2.50 s** (so more than half the population abandoned makes the median +∞, a FAIL). The rule lives in the predicate code of §15.12, not in prose. The 0.45 s below the 2.95 s
       condition is a margin for the unmeasured keying latency k (companion spec `qa/rr-study/2026-10-03-1235-architect-to-qa-spec-keying-latency.md`) and for
       replay against live; it is not a tolerance to spend. **Same-session Stage A baseline:** the current `main` build on the same list, reported beside every
       item (descriptive), so each item's gain is measured, not inferred. **Also bars for every item:** E2, E3 first, then R1′ (max ≤ 13 000 ms), R3, and **R4′
       (abandon ≤ 5 %, now read at 8 workers on the T2′ list)**; R6 must still hold; R5′ if the item touches the flag-OFF path. **T′ (4 workers, H) is
       report-only**, run once at the end. **Also reported (descriptive):** per-fit median at 8 workers per item; `T2_replay` p5/p95/max; the fraction of cycles
-      with `T2_replay` ≤ 2.95 s by UTC hour (comparable with the lateness Q2 table); **the abandon fraction beside `T2_replay`** (see design D11 note 2).
+      with `T2_replay` ≤ 2.95 s by UTC hour (comparable with the lateness Q2 table); **the abandon fraction printed beside EVERY `T2_replay` figure** (design D11 note 2).
+      **Reading the bar (Architect `4301e8c5`, QA note (a)):** a T2′ PASS is not by itself "same-slot answerable"; the acceptance ruling reads the measured `k_PC` (keying-latency
+      spec) and says so: if `k_PC` > 0.45 s, T2′ can pass while median T2 ≤ 2.95 s − `k_PC` fails.
 - [ ] 15.6 **B1 licence:** permissive only (MIT/BSD/ISC); pocketfft-C (BSD-3) qualifies; **FFTW is GPL and prohibited.** Add the
       licence file under `native/` and make `tools/LicenseInventoryCheck` pass.
 - [ ] 15.7 **After the last item:** full unfiltered `dotnet test`; every DLL pinned by SHA-256 (actual and pinned). Stage B merges **after** the SUB-FEAS + config-save merge (Captain's plan); the §10.5 end-to-end flag-OFF run is **repeated on Stage B's build** (it changes the native DLL).
@@ -280,4 +284,12 @@ Stage A; the two combine at merge (both are Captain decisions). **Not decided he
       chosen: only the bins with |f| ≤ `SUBFEAS_DF_RANGE_HZ` (2.0 Hz) may influence the result, the argmax tie-break must be stated (the current code keeps the first
       strictly greater magnitude, scanning bins in index order 0, 1, …, N/2−1, then −N/2 … −1), and E2's ±1-bin tolerance is the equivalence the item is judged on, so
       an interpolated or sub-bin result must be reported as such and still land within ±1 bin (0.0458 Hz) of the Stage A value on ≥ 99 % of signals.
+- [ ] 15.12 **The T2′ predicate is CODE, committed before the first Stage B measurement (QA-owned; HK-021 mechanical).** A pure function in
+      `qa/rr-study/sub-feas/replay_t2prime_rows.py` (new) with its tests, taking per cycle: abandoned (0/1) and ran (0/1) from the `--abandon-out` file (`stamp,ran,abandoned,contained`),
+      `tb1_ms` from the `two1` CSV (`run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n`), and `residualDecodes` and `elapsedMs` from the `Sub-feas residual pass:` line (joined on
+      the stamp, as `replay_speed_rows.py` does). Constants asserted in the file, not in prose: `DECODE_START_S = 0.032`, `T2_BAR_S = 2.50`, `SAME_SLOT_S = 2.95`, `KEYING_MARGIN_S = 0.45` (= 2.95 − 2.50),
+      the selection SHA-256 of §15.2(c) and the list count. **Rules, each with a test on synthetic data:** (i) abandoned ⇒ `T2 = +∞` whatever its residual count; (ii) completed with 0 residual decodes ⇒ excluded;
+      (iii) otherwise `T2 = DECODE_START_S + tb1_ms/1000 + elapsedMs/1000`; (iv) the median is taken over the population of (i) and (iii), and **PASS iff median ≤ `T2_BAR_S` (equal passes)**;
+      (v) an empty population is **UNDEFINED, never PASS**; (vi) more than half abandoned ⇒ median `+∞` ⇒ FAIL; (vii) the output prints, beside the median, the counts of each class and the abandon fraction
+      (abandoned ÷ cycles whose pass ran), plus `T2_replay` p5/p95/max over the finite values and the ≤ 2.95 s fraction by UTC hour. A run of the tests is a CPU job: not while the Engineer's #122 run is on.
 

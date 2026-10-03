@@ -282,9 +282,11 @@ cases). On the precision branch T2′ fires both ways: the Architect's arithmeti
 1. **A replay PASS is not "batch 2 can be answered in the same slot".** The margin (0.45 s under the 2.95 s condition) has to cover the keying latency k and the gap
    between replay and live. k is being measured (`qa/rr-study/2026-10-03-1235-architect-to-qa-spec-keying-latency.md`: K1 logs, K2 no-RF loopback). If the measured k
    exceeds 0.45 s, T2′ can pass while the same-slot condition still fails; the ruling reads **2.95 s − k_PC**, not 2.50 s, and says which.
-2. **Survivorship in the median.** `T2_replay` is taken over cycles with at least one residual decode. A cycle whose residual pass is abandoned at the deadline contributes
-   no residual decode and drops out, which biases the median down, for the baseline and for every item alike. R4′ (abandon ≤ 5 % at eight workers on this list) bounds it, and
-   the report prints the abandon fraction beside every `T2_replay` so the bound is visible, not assumed. E3 already stops an item from buying speed by losing decodes.
+2. **Survivorship in the median: FIXED in the spec before any Stage B build (Architect `4301e8c5`, this note accepted).** As first written, `T2_replay` was taken over cycles with at least
+   one residual decode, so a cycle whose residual pass was abandoned at the deadline (no decode, nothing published) dropped out and biased the median down, for the baseline and for every
+   item alike. **Now: every abandoned cycle counts as T2 = +∞; a cycle that completed with 0 residual decodes stays out (nothing to answer).** More than half abandoned makes the median +∞,
+   a FAIL. The rule is in the predicate code (tasks 15.12), with a test per rule, and the abandon fraction is printed beside every `T2_replay` figure. R4′ (abandon ≤ 5 % at eight
+   workers on this list) still bounds it, and E3 still stops an item from buying speed by losing decodes.
 3. **One night, one corpus.** The T2′ list is a stratified every-fourth sample of one night's frozen selection (about 1 075 cycles, SHA pinned). A pass says "this build, on that
    night's load", not "any night": the by-UTC-hour fraction (descriptive) shows whether the median hides a busy hour.
 4. **The 0.032 s offset is a constant, not a measurement of this replay.** It is the on-air median decode-start offset, labelled as such; the report says so.

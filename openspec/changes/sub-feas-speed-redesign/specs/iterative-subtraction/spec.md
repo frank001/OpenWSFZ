@@ -334,7 +334,8 @@ accepted on equivalence within tolerance to the Stage A fit and on no loss of re
 The finish line, fixed before any Stage B build (Amendment 5), SHALL be T2′: on a replay of the 2026-09-30 night with the subtraction
 flag ON, `decoder.subtractionMaxThreads` = 8, `nhard` 40, over every fourth cycle of the frozen 2026-10-01 selection, the median
 `T2_replay` at most 2.50 s, where `T2_replay` is a labelled 0.032 s constant (the on-air median decode-start offset) plus the time to
-batch 1 plus the residual pass time, over cycles with at least one residual decode, measured in the same session as a Stage A baseline.
+batch 1 plus the residual pass time, over cycles with at least one residual decode, with every deadline-abandoned cycle counted as positive infinity and cycles whose pass
+completed with no residual decode left out, measured in the same session as a Stage A baseline; the abandon fraction SHALL be reported beside every figure.
 Equivalence (E2), no loss (E3, residual decodes at least 0.98 of the Stage A build's), the maximum whole call at most 13 000 ms (R1′),
 no access violation, contained fault or exit (R3) and a deadline-abandon rate at most 5 % read at eight workers on the T2′ list (R4′)
 SHALL remain bars for every item. The four-worker heavy-stratum criterion T′ SHALL be report-only. Stage B SHALL stop at the first item
@@ -362,6 +363,11 @@ default or the fence between batch 2 and the QSO automation.
 
 - **WHEN** the last item has been accepted and the median `T2_replay` is still above 2.50 s
 - **THEN** the remaining gap is reported, batch 2 stays unanswerable in the same slot, and the change stops
+
+#### Scenario: Abandoned cycles count as infinite
+
+- **WHEN** more than half of the cycles in the T2′ population are deadline-abandoned
+- **THEN** the median `T2_replay` is infinite and T2′ fails, and a cycle that completed with no residual decode is not in the population
 
 #### Scenario: A pass on the replay is not a claim about the live station
 
