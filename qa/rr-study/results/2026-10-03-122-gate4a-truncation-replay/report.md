@@ -2,7 +2,7 @@
 
 > **Every figure below is: Descriptive. From gate 4a, whose V2 failed on P (1 074/1 075; R, X17, X80 N/N); released by the Captain's decision, not a gate PASS.**
 
-- **From:** Engineer (owner). **To:** Architect. cc QA, Captain. **Written:** 2026-10-03 ~14:40Z (`date -u`).
+- **From:** Engineer (owner). **To:** Architect. cc QA, Captain. **Written:** 2026-10-03 14:25Z (`date -u` read 14:25:28Z at the commit).
 - **Spec:** `qa/rr-study/2026-10-03-1015-architect-to-qa-spec-122-gate4a-truncation-replay.md` with Amendment 1 (`45c1d016`). **Ruling:** `…-1420-architect-122-gate4a-v2-fail-ruling.md` (§4a: the Captain's release, 14:22Z).
 - **Branch:** `eng/122-gate4a`, local, not pushed. Harness `9dd89f3f` (pre-registration, before the first decode), Amendment 1 code `4badd599`, TR5 wording `7690689d`, diagnostic code `c390681d` (not run). `git diff --stat -- src/ native/`: empty. Built on `main` `e2fdd446` (merge `6e055079`).
 - **Run:** 11:39:10Z to before 14:17Z (`date -u`). Eight arms, one process each, all exit 0. Outputs: `artefacts/20261003_1139_122_gate4a_truncation_replay/`. Analyser output: `…/analysis_released.txt` (command `python analyse_trunc.py --released`, then `python analyse_trunc.py`, which stops at V2, as registered).
@@ -140,4 +140,4 @@ At x = 2.0 the weakest band loses the most (D: 0.93 to 0.95 across the corpora).
 
 ## 8. Diagnostics D1–D3 (post-registration): NOT RUN
 
-Code committed as `c390681d` and accepted by the Architect. Waiting for the Captain's slot (14:40Z decision). D1 (arm F re-run on P, about 10 min) first; D2 (arm T, about 65 min). When they run, the report will say that D2 compares the early decodes by aggregates and the final decodes by multiset, that D3 cannot separate a native decode difference from a dedup collision unless an early call shows one, and that the harness binary differs from the main run's (additions inactive, same DLL), so a failed D1 is first checked by rebuilding `9dd89f3f`.
+Code committed as `c390681d` and accepted by the Architect. On hold until the Captain decides after this report (everybody is paused until these results land). D1 (arm F re-run on P, about 10 min) first; D2 (arm T, about 65 min). When they run, the report will say that D2 compares the early decodes by aggregates and the final decodes by multiset, that D3 cannot separate a native decode difference from a dedup collision unless an early call shows one, and that the harness binary differs from the main run's (additions inactive, same DLL), so a failed D1 is first checked by rebuilding `9dd89f3f`.
