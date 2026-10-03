@@ -193,6 +193,9 @@ link /DLL ^
   /EXPORT:ft8_subfeas_pool_configure ^
   /EXPORT:ft8_subfeas_pool_shutdown ^
   /EXPORT:ft8_subfeas_pool_get_stats ^
+  /EXPORT:ft8_hash_state_size ^
+  /EXPORT:ft8_hash_state_save ^
+  /EXPORT:ft8_hash_state_restore ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\decode.obj" ^

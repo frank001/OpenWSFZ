@@ -769,8 +769,19 @@ extern "C" {
  *              their getters (M1 is deferred), ft8_decode_all, ftx_find_candidates and every
  *              other export. The changed ft8_subfeas_fit_signal signature is why the version is
  *              bumped: a 20260055 binary would be called with one argument too many.
+ *
+ *   20260058 — decode-early-batch-panel (#122 step 4, phase 4a). Three new exports, ft8_hash_state_size,
+ *              ft8_hash_state_save and ft8_hash_state_restore, which copy the WHOLE process-global decode state
+ *              (the session callsign hash table and its initialised flag, the reject count, the announce clock,
+ *              the g_h12_* counters and per-code arrays, g_h12_code_out_of_range) to and from a CALLER-SUPPLIED
+ *              buffer. The managed early decode (a zero-filled copy of the first 13.0 s, panel only) brackets
+ *              itself with save / restore so it leaves nothing behind that could change the final decode of the
+ *              same window. NO change to ft8_decode_all, to any existing export or to any decode output: the
+ *              pair is called only by the early entry; the ordinary decode never calls it. The list of what is
+ *              in the image, and why every thread-local is exempt, is the HSM-IMAGE / HSM-EXEMPT block in
+ *              ft8_shim.c, checked mechanically by HashStateCompletenessTests.
  */
-#define FT8_SHIM_VERSION 20260056
+#define FT8_SHIM_VERSION 20260058
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1364,6 +1375,21 @@ int ft8_subfeas_fit_signal(
 void ft8_subfeas_pool_configure(int bound);
 void ft8_subfeas_pool_shutdown(void);
 void ft8_subfeas_pool_get_stats(int* out);
+
+/*
+ * ft8_hash_state_size / _save / _restore -- decode-early-batch-panel (shim 20260058). See ft8_shim.c's
+ * "snapshot / restore of the process-global decode state" block for the full contract and the completeness manifest.
+ *
+ * ft8_hash_state_size()          -- bytes the caller must supply (about 150 KB: heap, never a stack).
+ * ft8_hash_state_save(buf, cap)  -- copy the process-global decode state into buf; returns bytes written, or -1
+ *                                   (NULL buf, or cap < size). Padding bytes are zeroed, so two saves of an
+ *                                   identical state are byte-identical.
+ * ft8_hash_state_restore(buf, len) -- put a saved image back; returns 0, or -1 (NULL buf, or len != size).
+ * Not thread-safe by itself: the managed caller makes the save / decode / restore bracket exclusive (the decode gate).
+ */
+int ft8_hash_state_size(void);
+int ft8_hash_state_save(void* buf, int cap);
+int ft8_hash_state_restore(const void* buf, int len);
 
 #ifdef __cplusplus
 }

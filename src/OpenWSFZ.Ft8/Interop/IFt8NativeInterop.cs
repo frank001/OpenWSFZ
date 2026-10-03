@@ -224,4 +224,21 @@ internal interface IFt8NativeInterop
     /// not depend on it. Default: no-op.
     /// </summary>
     void SetDiagnosticsEnabled(bool enabled) { }
+
+    /// <summary>
+    /// decode-early-batch-panel (shim 20260058): the size in bytes of the native process-global decode-state image.
+    /// Default: 0 (a fake that does not model the state needs no implementation).
+    /// </summary>
+    int HashStateSize() => 0;
+
+    /// <summary>
+    /// decode-early-batch-panel: copies the process-global decode state (session hash table, reject count, announce
+    /// clock, h12 counters) into <paramref name="buffer"/> (at least <see cref="HashStateSize"/> bytes). Default: no-op.
+    /// </summary>
+    void HashStateSave(byte[] buffer) { }
+
+    /// <summary>
+    /// decode-early-batch-panel: puts an image written by <see cref="HashStateSave"/> back. Default: no-op.
+    /// </summary>
+    void HashStateRestore(byte[] buffer) { }
 }

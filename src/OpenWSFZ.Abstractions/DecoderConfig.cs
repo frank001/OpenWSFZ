@@ -159,4 +159,29 @@ public sealed record DecoderConfig
     /// degrades this key to a sensible value rather than a wrong one. See <see cref="SubtractionThreads"/>.
     /// </summary>
     public int   SubtractionMaxThreads { get; init; } = 0;
+
+    /// <summary>The default for <see cref="EarlyDecodeCutSeconds"/>: the early decode runs 2.0 s before the window closes (at 13.0 s).</summary>
+    public const double DefaultEarlyDecodeCutSeconds = 2.0;
+
+    /// <summary>The smallest accepted <see cref="EarlyDecodeCutSeconds"/>.</summary>
+    public const double MinEarlyDecodeCutSeconds = 0.5;
+
+    /// <summary>The largest accepted <see cref="EarlyDecodeCutSeconds"/>.</summary>
+    public const double MaxEarlyDecodeCutSeconds = 3.0;
+
+    /// <summary>
+    /// decode-early-batch-panel (#122 step 4, phase 4a, FR-083): when <c>true</c> an <b>early decode</b> of the first part
+    /// of each window runs <see cref="EarlyDecodeCutSeconds"/> before the window closes (13.0 s at the default) and its
+    /// rows appear on the decode panel, marked <i>early</i> until the cycle's final decode confirms them. <b>Panel only</b>:
+    /// ALL.TXT, UDP, the QSO answerer and caller, the archive and decode-filter admission never see an early row.
+    /// Default <c>false</c>; with it <c>false</c> nothing early exists. Read once per window; takes effect on the next window.
+    /// </summary>
+    public bool   EarlyDecodeEnabled { get; init; } = false;
+
+    /// <summary>
+    /// decode-early-batch-panel: how many seconds before the end of the 15 s window the early decode runs. Default
+    /// <see cref="DefaultEarlyDecodeCutSeconds"/>; accepted <see cref="MinEarlyDecodeCutSeconds"/> to
+    /// <see cref="MaxEarlyDecodeCutSeconds"/>, clamped server-side like the other decoder values. Read once per window.
+    /// </summary>
+    public double EarlyDecodeCutSeconds { get; init; } = DefaultEarlyDecodeCutSeconds;
 }

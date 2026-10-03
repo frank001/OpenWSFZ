@@ -18,7 +18,7 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.54**. v0.x scope: FT8 receive and transmit,
+> The current release is **v0.56**. v0.x scope: FT8 receive and transmit,
 > CAT rig control, a web UI (loopback or passphrase-protected LAN),
 > single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
@@ -94,6 +94,7 @@ VoiceMeeter software loopback.
 | capture-device-reresolution — a stale audio device heals itself | A Windows endpoint ID that changed after a replug or driver reset is re-resolved by its friendly name before every automatic capture start; automatic restarts use a bounded backoff and never give up; the status endpoint reports the recovery state; enumerated devices report whether they are available (FR-070 to FR-073) | ✅ merged |
 | config-save-preserves-unsent-settings — a save never resets a setting | `POST /api/v1/config` applies the request as an overlay on the stored configuration: a key the request does not send keeps its value at any depth, so an unrelated Settings save cannot silently reset, for example, the cycle audio archive; every save logs the paths it changed (FR-074, FR-076) | ✅ merged |
 | sub-feas — residual-decode subtraction | An additional decode pass that subtracts the decoded signals and decodes what they were hiding, with a configurable worker count; the normal decode is shown first and the pass's extra decodes follow as a second batch. Built behind a flag, then **on by default since v0.54** with a one-time migration of existing installs (FR-077, FR-082) | ✅ merged |
+| early decode (#122 step 4) | An optional decode of the first part of each window that runs about 2 s before the window ends, so rows reach the decode panel sooner. Early rows are marked *early* and are replaced by the final row when the full decode agrees, or stay marked *unconfirmed* when it does not. **Panel only**: nothing early is written to ALL.TXT, sent over UDP, used by the QSO automation or archived. Off by default (Settings, Advanced Decoder Settings; `decoder.earlyDecodeEnabled`, FR-083) | ✅ built, off by default |
 
 ## Decoder Measurement System Analysis (Gage R&R)
 
