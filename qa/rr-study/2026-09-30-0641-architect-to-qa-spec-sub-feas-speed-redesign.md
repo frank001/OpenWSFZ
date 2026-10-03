@@ -370,6 +370,13 @@ not implied by this amendment.
 5. **Stop:** at the first item after which E2, E3, R1′, R3, R4′ **and T2′** pass. Or after B1. Or when the Captain says
    so. If T2′ still fails after all three items, report the remaining gap. Batch 2 then stays not answerable in the
    same slot, which is today's state.
+   - **Survivorship fix (QA's (k) review note (b), accepted 2026-10-03 ~12:5xZ, before any Stage B build):** the median
+     is taken over cycles with ≥ 1 residual decode **plus every abandoned cycle, counted as T2 = +∞** (an abandoned pass
+     delivers nothing in time). Cycles whose pass completed with 0 residual decodes stay out (nothing to answer). The
+     abandon fraction is printed beside every `T2_replay` figure.
+   - **Reading the bar (QA's note (a), accepted):** a T2′ PASS is not by itself "same-slot answerable". The acceptance
+     ruling reads the measured `k_PC` (keying-latency spec). If `k_PC` > 0.45 s, T2′ can pass while median T2 ≤ 2.95 −
+     `k_PC` fails, and the ruling says so.
 6. **Also reported (descriptive):** per-fit median at 8 workers per item; `T2_replay` p5/p95/max; the fraction of
    cycles with `T2_replay` ≤ 2.95 s, by UTC hour (comparable with the lateness Q2 table).
 
