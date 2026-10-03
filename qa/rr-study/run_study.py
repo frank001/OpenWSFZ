@@ -70,10 +70,16 @@ _SCENARIO_REGISTRY: dict[str, Path] = {
     # --scenarios S8HN, like S3b -- deliberately NOT in _CONTROLLED_SCENARIO_IDS and does
     # NOT touch S8's own entry above or s8-band-scene.json itself.
     "S8HN": _SCENARIOS / "s8hn-band-scene-highn.json",
+    # S3c (#194 part B step 2, spec 2026-10-02-1730): the lean start-time edge guard. NOT a
+    # harness/run_scenario.py scenario and not in truth.csv: it is played by s3c/s3c_play.py after
+    # the other scenarios (same daemon session) and scored by s3c/s3c_score.py after the logs are
+    # collected. Additive: S1-S8's own rows, truth.csv and the analyser are untouched.
+    "S3c": _SCENARIOS / "s3c-edge-guard.json",
 }
+_S3C_ID = "S3c"
 
 # Controlled scenarios run by default (S8 handled separately via prompt / --skip-s8)
-_CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7"]
+_CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7", _S3C_ID]
 
 # R&R-009 (2026-08-23) restricted S5's routine battery to parts 0,1, reasoning
 # that parts 2 (steady carrier @1500Hz) and 3 (multi-carrier "birdies") had
@@ -98,11 +104,15 @@ def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command via the venv Python, streaming output in real time."""
     cmd = [str(_VENV_PYTHON), *args]
     print(f"\n>>> {' '.join(cmd)}\n", flush=True)
-    result = subprocess.run(cmd, cwd=str(_HERE), check=check)
+    # CREATE_NO_WINDOW: this process may itself be console-less (run_study_detached.py's --poll
+    # child); without it Windows gives every child a fresh visible console (found live 2026-09-22).
+    result = subprocess.run(cmd, cwd=str(_HERE), check=check,
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return result
 
 
 def main() -> None:
+    global WSJT_ALL_TXT, OWSFZ_ALL_TXT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", default="CABLE Input",
                         help="Audio output device name substring")
@@ -124,7 +134,21 @@ def main() -> None:
                              "of a single scenario (e.g. --scenarios S7 --parts 0,1,2). "
                              "Applied to every scenario when multiple are selected — use "
                              "with care. Not applicable to S8 (silently ignored).")
+    parser.add_argument("--s3c-flag-state", default="unknown", choices=["true", "false", "unknown"],
+                        help="decoder.subtractionEnabled as read back from the daemon under test "
+                             "(recorded in the S3c result and trend, never pooled)")
+    parser.add_argument("--s3c-build-sha", default="unknown",
+                        help="the daemon build's commit SHA (arm_config.json), recorded in the S3c result")
+    parser.add_argument("--s3c-dll-sha256-prefix", default="unknown",
+                        help="libft8.dll SHA-256 prefix of the daemon under test (HK-022)")
+    # Overridable ALL.TXT locations (run_study_detached.py forwards the ones it read from the
+    # daemon's own config; the constants above stay the defaults so no old invocation changes).
+    parser.add_argument("--wsjt-all-txt", default=str(WSJT_ALL_TXT), metavar="PATH",
+                        help="Path to WSJT-X's ALL.TXT.")
+    parser.add_argument("--owsfz-all-txt", default=str(OWSFZ_ALL_TXT), metavar="PATH",
+                        help="Path to OpenWSFZ's ALL.TXT.")
     args = parser.parse_args()
+    WSJT_ALL_TXT, OWSFZ_ALL_TXT = Path(args.wsjt_all_txt), Path(args.owsfz_all_txt)
 
     # ── Build scenario list ────────────────────────────────────────────────
     scenario_part_overrides: dict[str, str] = {}
@@ -215,7 +239,15 @@ def main() -> None:
         parts_for_this = args.parts or scenario_part_overrides.get(sid)
         if parts_for_this:
             run_args += ["--parts", parts_for_this]
-        _py(*run_args)
+        if sid == _S3C_ID:
+            # S3c is the LAST playback and additive: its failure must never cost S1-S8's logs,
+            # matcher and analyser (check=False; the scorer then finds no playback log and warns).
+            r3 = _py("s3c/s3c_play.py", "--scenario", str(sf), "--run-dir", str(run_dir),
+                     "--device", args.device, check=False)
+            if r3.returncode != 0:
+                print(f"  [WARN] S3c playback exited {r3.returncode}; S1-S8 continue", flush=True)
+        else:
+            _py(*run_args)
         print(f"  [OK] {sf.name} complete\n", flush=True)
         time.sleep(_POST_SCENARIO_SETTLE_S)
 
@@ -248,6 +280,8 @@ def main() -> None:
     # ── Step 4: Run matcher for each scenario ──────────────────────────────
     print("\nRunning matcher ...")
     for scen_id in scenario_ids:
+        if scen_id == _S3C_ID:
+            continue                      # not in truth.csv; scored by s3c_score.py below
         _py(
             "harness/matcher.py",
             "--run-dir", str(run_dir),
@@ -256,6 +290,19 @@ def main() -> None:
             "--owsfz", str(owsfz_dest),
         )
         print(f"  [OK] {scen_id} matched\n", flush=True)
+
+    # ── Step 4b: S3c rows (counts only; a failure here never blocks the analyser) ─────────────
+    if _S3C_ID in scenario_ids:
+        print("\nScoring S3c ...")
+        r = _py("s3c/s3c_score.py", "--scenario", str(_SCENARIO_REGISTRY[_S3C_ID]),
+                "--run-dir", str(run_dir), "--wsjtx-alltxt", str(wsjt_dest),
+                "--owsfz-alltxt", str(owsfz_dest),
+                "--subtraction-enabled", args.s3c_flag_state, "--build-sha", args.s3c_build_sha,
+                "--dll-sha256-prefix", args.s3c_dll_sha256_prefix,
+                "--trend", str(_HERE / "s3c_trend.csv"), check=False)
+        if r.returncode != 0:
+            print(f"  [WARN] S3c scoring exited {r.returncode}; the battery continues (see the run log)",
+                  flush=True)
 
     # ── Step 5: Analyse ────────────────────────────────────────────────────
     print("\nRunning analyser ...")
