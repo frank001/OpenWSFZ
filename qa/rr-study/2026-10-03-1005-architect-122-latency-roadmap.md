@@ -72,7 +72,7 @@ The QSO state machines key the transmitter, which makes them the most delicate c
   - duplicates to handle;
   - the automation acting on an early decode whose final version differs (it should not happen; it gets a row).
 - **Which stations an early decode can catch (indicative, from the lateness ruling):** a transmission occupies `L + 0.5 … L + 13.14` s of the slot. In the edge run, a signal still decoded with **≈ 0.89 s of its tail cut** (`L` 2.75 ⇒ cut 0.89 s) and failed at 1.14 s. That is synthetic AWGN at −8/−16 dB, a cliff, both decoders. So an early decode at `15 − x` might catch stations with `L` ≲ `2.75 − x`: at x = 1 s, every station up to `L` ≈ 1.75. This is a rough guide, not a design value.
-- **Gate 4a (offline, test-only, no station, no build; can run when the PC is quiet, independent of steps 1–3):** a **truncation replay** on recorded real windows (the cycle-audio archive). For each window, zero everything after `15 − x` for x ∈ {0.5, 1.0, 1.5, 2.0, 2.5} and decode it with the shipped DLL. Report, per x: the fraction of the full-window decodes that the early decode already finds, the early decodes that the full window does **not** find (spurious; there must be ~0), and the decode time. Recordings measure real stations' real timing directly, so the DT-convention item (≈ 0.65 s, 0.2 s of it unexplained) becomes an **explanation**, not a blocker. My full spec for 4a comes when the Captain asks for it.
+- **Gate 4a (offline, test-only, no station, no build; can run when the PC is quiet, independent of steps 1–3):** a **truncation replay** on recorded real windows (the cycle-audio archive). For each window, zero everything after `15 − x` for x ∈ {0.5, 1.0, 1.5, 2.0, 2.5} and decode it with the shipped DLL. Report, per x: the fraction of the full-window decodes that the early decode already finds, the early decodes that the full window does **not** find (spurious; there must be ~0), and the decode time. Recordings measure real stations' real timing directly, so the DT-convention item (≈ 0.65 s, 0.2 s of it unexplained) becomes an **explanation**, not a blocker. **Full spec written 2026-10-03 (Captain's request): `2026-10-03-1015-architect-to-qa-spec-122-gate4a-truncation-replay.md`.**
 - **Gate to build:** 4a reported and ruled. Step 2 accepted if the automation is to use the early batch. The CPU interaction with the residual pass measured on the station.
 
 ### 2.4 Step 5: thread the native passes (`native/`, Developer; prototype first)
@@ -100,5 +100,5 @@ step 5: prototype only after 3 or 4 has landed and step 1's numbers say there is
 ## 4. What the Captain decides now
 
 1. **Whether and when step 1 runs** (#122 stays on HOLD until he says go). It needs one WSJT-X UDP setting changed and then restored by him (step 1 §3.2).
-2. **Whether I write gate 4a as a full spec now.** It needs no station, it is cheap, and it answers the largest unknown (how much an early decode would catch on real traffic).
+2. **Whether and when gate 4a runs** (full spec `…-1015-…`; about 2 h of exclusive PC time, no station; run by QA or the Engineer).
 3. Nothing else. Steps 2, 3 and 5 wait for step 1's report.
