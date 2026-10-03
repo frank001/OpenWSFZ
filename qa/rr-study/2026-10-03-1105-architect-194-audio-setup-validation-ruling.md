@@ -69,7 +69,7 @@
 
 `qa/audio-setup-194` and this ruling go to the remote only on the Captain's go (QA pushes; HK-014/HK-033).
 
-## 6. Addendum (2026-10-03 ~11:20Z, Captain): five-run review, with no runs scheduled for it
+## 6. Addendum (2026-10-03 ~11:07Z, `date -u`; Captain): five-run review, with no runs scheduled for it
 
 **Captain:** *"yes, add the five-run review. but only when we need to run it. do not schedule 5 runs now."*
 
