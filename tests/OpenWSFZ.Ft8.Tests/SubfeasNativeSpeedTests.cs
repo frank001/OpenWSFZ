@@ -8,6 +8,7 @@ using OpenWSFZ.Ft8.Interop;
 using OpenWSFZ.Ft8.Subfeas;
 using OpenWSFZ.TestSupport;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace OpenWSFZ.Ft8.Tests;
 
@@ -28,6 +29,20 @@ namespace OpenWSFZ.Ft8.Tests;
 [Collection("subfeas-native-pool")]
 public sealed class SubfeasNativeSpeedTests
 {
+    private readonly ITestOutputHelper _out;
+
+    public SubfeasNativeSpeedTests(ITestOutputHelper output) => _out = output;
+
+    /// <summary>
+    /// Where the recorded golden hashes (<c>e1-base-5a6a4dc0.csv</c>) are valid: they are bit-exact floats recorded on
+    /// win-x64, and Linux x86-64 happens to agree. macOS arm64 clang fuses multiply-add (FMA) by default, so the same C
+    /// code differs in the last bits there. The Captain declined a build change (<c>-ffp-contract=off</c>, 2026-10-01), so
+    /// the goldens stay x64-only. The ONE place to widen if that decision ever changes.
+    /// </summary>
+    private static bool GoldenApplies
+        => (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
+           && RuntimeInformation.ProcessArchitecture == Architecture.X64;
+
     private const int PcmLen = 180_000;
     private const int GridSeed = 20260930; // the seed the golden CSV's grid rows were recorded with
     private const int GridCount = 48;
@@ -39,13 +54,24 @@ public sealed class SubfeasNativeSpeedTests
     {
         Fresh(4);
         var golden = Golden();
+        bool exact = GoldenApplies;
+        if (!exact)
+            _out.WriteLine("8.1: bit-identity to the base DLL's golden hashes is asserted on x64 (Windows/Linux) only; on " +
+                           $"{RuntimeInformation.OSDescription} {RuntimeInformation.ProcessArchitecture} each output is instead " +
+                           "computed twice in-process and the two results must be bit-equal (portable determinism).");
 
         // The analytic signal of every fixture cycle.
         foreach (string wav in new[] { "synth-qso-01.wav", "synth-qso-02.wav", "synth-qso-03.wav" })
         {
             float[] norm = Norm(Fixture(wav));
             (float[] re, float[] im) = Ft8LibInterop.SubfeasComputeAnalytic(norm);
-            golden.Single(r => r.Kind == "analytic" && r.Label == wav).Hash.Should().Be(Hash(re, im), $"analytic of {wav}");
+            if (exact)
+                golden.Single(r => r.Kind == "analytic" && r.Label == wav).Hash.Should().Be(Hash(re, im), $"analytic of {wav}");
+            else
+            {
+                (float[] re2, float[] im2) = Ft8LibInterop.SubfeasComputeAnalytic(norm);
+                Hash(re2, im2).Should().Be(Hash(re, im), $"analytic of {wav}, computed twice");
+            }
         }
 
         // Every pass-0 signal of synth-qso-01, fitted through the same path SubtractionPass uses.
@@ -53,15 +79,22 @@ public sealed class SubfeasNativeSpeedTests
         (float[] re1, float[] im1) = Ft8LibInterop.SubfeasComputeAnalytic(norm1);
         var jobs = Pass0Jobs(norm1);
         var fixtureRows = golden.Where(r => r.Kind == "fit" && r.Label == "synth-qso-01.wav").OrderBy(r => r.Idx).ToList();
-        jobs.Count.Should().Be(fixtureRows.Count);
+        if (exact) jobs.Count.Should().Be(fixtureRows.Count);
+        else jobs.Count.Should().BeGreaterThan(0, "the fixture cycle has pass-0 signals to fit");
         for (int i = 0; i < jobs.Count; i++)
         {
             (int rc, float[] shat) = Ft8LibInterop.SubfeasFitSignal(re1, im1, jobs[i].Tones, jobs[i].Dt, jobs[i].Freq);
-            rc.ToString().Should().Be(fixtureRows[i].Rc, $"rc of fixture signal {i}");
-            Hash(shat).Should().Be(fixtureRows[i].Hash, $"out_shat of fixture signal {i}");
+            if (exact)
+            {
+                rc.ToString().Should().Be(fixtureRows[i].Rc, $"rc of fixture signal {i}");
+                Hash(shat).Should().Be(fixtureRows[i].Hash, $"out_shat of fixture signal {i}");
+            }
+            else
+                AssertSameFitTwice(re1, im1, jobs[i], rc, shat, $"fixture signal {i}");
         }
 
-        // A spread of the grid: both rc 0 and rc -3 rows (signals near the buffer edges).
+        // A spread of the grid: both rc 0 and rc -3 rows (signals near the buffer edges). The picks are chosen from the
+        // golden's rows (inputs only); which grid signals to fit does not depend on any platform-specific output.
         var grid = GridJobs();
         var picks = golden.Where(r => r.Kind == "grid" && r.Rc == "0").Take(5)
             .Concat(golden.Where(r => r.Kind == "grid" && r.Rc == "-3").Take(4)).ToList();
@@ -70,9 +103,35 @@ public sealed class SubfeasNativeSpeedTests
         {
             var j = grid[p.Idx];
             (int rc, float[] shat) = Ft8LibInterop.SubfeasFitSignal(re1, im1, j.Tones, j.Dt, j.Freq);
-            rc.ToString().Should().Be(p.Rc, $"rc of grid signal {p.Idx}");
-            Hash(shat).Should().Be(p.Hash, $"out_shat of grid signal {p.Idx}");
+            if (exact)
+            {
+                rc.ToString().Should().Be(p.Rc, $"rc of grid signal {p.Idx}");
+                Hash(shat).Should().Be(p.Hash, $"out_shat of grid signal {p.Idx}");
+            }
+            else
+                AssertSameFitTwice(re1, im1, j, rc, shat, $"grid signal {p.Idx}");
         }
+    }
+
+    /// <summary>Portable determinism: fits the same signal again in-process; return code and output must be bit-equal.</summary>
+    private static void AssertSameFitTwice(float[] re, float[] im, (byte[] Tones, float Dt, float Freq) job,
+        int firstRc, float[] firstShat, string what)
+    {
+        (int rc, float[] shat) = Ft8LibInterop.SubfeasFitSignal(re, im, job.Tones, job.Dt, job.Freq);
+        rc.Should().Be(firstRc, $"rc of {what}, fitted twice");
+        Hash(shat).Should().Be(Hash(firstShat), $"out_shat of {what}, fitted twice");
+    }
+
+    /// <summary>
+    /// The in-process single-thread reference for a grid signal: the same fit run alone, sequentially, on this machine.
+    /// Platform-independent by construction (unlike the x64 golden), and a truer statement of what the concurrency tests
+    /// claim: a concurrent fit equals the same fit run alone.
+    /// </summary>
+    private static string SingleThreadReferenceHash(float[] re, float[] im, (byte[] Tones, float Dt, float Freq) job, string what)
+    {
+        (int rc, float[] shat) = Ft8LibInterop.SubfeasFitSignal(re, im, job.Tones, job.Dt, job.Freq);
+        rc.Should().Be(0, $"premise: the single-thread reference fit of {what} completes");
+        return Hash(shat);
     }
 
     // ── 8.2: cancellation ────────────────────────────────────────────────────────────────────────────
@@ -133,6 +192,8 @@ public sealed class SubfeasNativeSpeedTests
         (float[] re, float[] im) = Ft8LibInterop.SubfeasComputeAnalytic(norm);
         var grid = GridJobs();
         var ok = golden.Where(r => r.Kind == "grid" && r.Rc == "0").Take(3).ToList();
+        // Reference: each signal fitted alone, sequentially, in this process, before any concurrency (not the x64 golden).
+        var reference = ok.Select(p => SingleThreadReferenceHash(re, im, grid[p.Idx], $"grid signal {p.Idx}")).ToList();
 
         using var doomed = new CancelFlag();
         using var f1 = new CancelFlag();
@@ -148,7 +209,7 @@ public sealed class SubfeasNativeSpeedTests
         for (int i = 1; i < 3; i++)
         {
             tasks[i].Result.ReturnCode.Should().Be(0);
-            Hash(tasks[i].Result.Shat).Should().Be(ok[i].Hash, "a fit running beside a cancelled one must be untouched");
+            Hash(tasks[i].Result.Shat).Should().Be(reference[i], "a fit running beside a cancelled one must equal the same fit run alone");
         }
         Pool().Leased.Should().Be(0);
     }
@@ -166,6 +227,8 @@ public sealed class SubfeasNativeSpeedTests
         var grid = GridJobs();
         var signals = golden.Where(r => r.Kind == "grid" && r.Rc == "0").Take(workers).ToList();
         signals.Count.Should().Be(workers);
+        // Reference: each signal fitted alone, sequentially, in this process, before any concurrency (not the x64 golden).
+        var reference = signals.Select(p => SingleThreadReferenceHash(re, im, grid[p.Idx], $"grid signal {p.Idx}")).ToList();
 
         int completed = 0, cancelled = 0;
         for (int round = 0; round < rounds; round++)
@@ -190,7 +253,7 @@ public sealed class SubfeasNativeSpeedTests
                     if (rc == 0)
                     {
                         completed++;
-                        Hash(shat).Should().Be(signals[w].Hash,
+                        Hash(shat).Should().Be(reference[w],
                             $"worker {w}, round {round}: a completed fit must equal its single-thread hash");
                     }
                     else
@@ -293,6 +356,9 @@ public sealed class SubfeasNativeSpeedTests
             _ => Ft8LibInterop.SubfeasFitSignal(re, im, j.Tones, j.Dt, j.Freq).ReturnCode.Should().Be(0));
 
         Round(); // warm-up: the pool builds its workspaces
+        // Reference for the "usable again, still exact" check at the end, taken in this process (the x64 golden does not
+        // apply on every platform). Runs on an already-built workspace, so it does not grow the pool.
+        string reference = SingleThreadReferenceHash(re, im, j, "the 8.7 signal");
         int bytesPerWorkspace = Pool().BytesPerWorkspace;
         bytesPerWorkspace.Should().BeGreaterThan(20_000_000, "a workspace is about 25-30 MB");
 
@@ -303,20 +369,24 @@ public sealed class SubfeasNativeSpeedTests
         grown.Should().BeLessThan(bytesPerWorkspace, "private memory must plateau after warm-up, not grow with the number of fits");
         Pool().Live.Should().Be(bound);
 
-        long beforeFree = ReturnableBytes();
+        long beforeFree = ReturnsFreedMemoryToOs ? ReturnableBytes() : 0;
         Ft8LibInterop.SubfeasPoolShutdown();
         var stats = Pool();
         stats.Live.Should().Be(0, "every idle workspace is freed at shutdown");
         stats.Idle.Should().Be(0);
         stats.Leased.Should().Be(0);
-        (beforeFree - ReturnedBytesAfterFree()).Should().BeGreaterThan((long)(0.3 * bound * bytesPerWorkspace),
-            "the memory really goes back, it is not just forgotten by the accounting");
+        if (ReturnsFreedMemoryToOs)
+            (beforeFree - ReturnedBytesAfterFree()).Should().BeGreaterThan((long)(0.3 * bound * bytesPerWorkspace),
+                "the memory really goes back, it is not just forgotten by the accounting");
+        else
+            _out.WriteLine("8.7: macOS: the plateau (no growth after warm-up) and the pool accounting (Live/Idle/Leased = 0 after " +
+                           "shutdown) are asserted; that freed bytes return to the OS is not (libmalloc retains freed pages).");
 
         // A later decode after re-initialisation still works, and is still exact.
         Fresh(1);
         (int rc, float[] shat) = Ft8LibInterop.SubfeasFitSignal(re, im, j.Tones, j.Dt, j.Freq);
         rc.Should().Be(0);
-        Hash(shat).Should().Be(row.Hash);
+        Hash(shat).Should().Be(GoldenApplies ? row.Hash : reference);
     }
 
     [Fact(DisplayName = "8.7: a shutdown while a fit holds a lease frees that workspace as it returns, never under the fit")]
@@ -555,6 +625,15 @@ public sealed class SubfeasNativeSpeedTests
     /// </summary>
     private static long ReturnableBytes()
         => OperatingSystem.IsLinux() ? AnonRssBytes() : PrivateBytes();
+
+    /// <summary>
+    /// Whether this OS gives freed workspace pages back to the process's measured footprint where the test can see it.
+    /// Windows (CRT heap) and Linux (<c>RssAnon</c> after <c>malloc_trim</c>) do. macOS does not: libmalloc keeps freed pages
+    /// resident and the Linux <c>malloc_trim</c> step (<c>a8abe4de</c>) has no macOS analogue, so a "bytes went back"
+    /// assertion there would measure the allocator, not a leak. Not asserted on macOS rather than left unproven (no macOS
+    /// machine is available to verify an alternative such as <c>malloc_zone_pressure_relief</c>).
+    /// </summary>
+    private static bool ReturnsFreedMemoryToOs => !OperatingSystem.IsMacOS();
 
     /// <summary>The same figure after the free: on Linux the freed arena pages are first handed back with <c>malloc_trim(0)</c>.</summary>
     private static long ReturnedBytesAfterFree()

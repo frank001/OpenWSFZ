@@ -1,0 +1,21 @@
+=== SUMMARY
+cycles=161  (all values milliseconds unless a count; share = stage median / whole-call median)
+stage                                 median       p95       max   share%
+WHOLE CALL (DecodeAsync)             492.387   542.320   564.511    100.0
+managed before native (normalise)      0.916     1.088     1.275      0.2
+marshalling + P/Invoke (derived)       0.033     0.065     0.076      0.0
+native: waterfall build                4.446     4.882     7.322      0.9
+native: noise floor                    0.074     0.090     0.189      0.0
+native: pass0 find candidates          2.149     2.445     4.111      0.4
+native: pass0 candidate decode loop   168.289   196.901   204.631     34.2
+native: pass1 suppression              0.057     0.074     0.219      0.0
+native: pass1 find candidates          2.102     2.308     3.782      0.4
+native: pass1 candidate decode loop   311.477   339.914   366.864     63.3
+native: cleanup                        0.004     0.028     0.041      0.0
+native: unattributed (total - stages)     0.004     0.005     0.006      0.0
+native TOTAL (ft8_decode_all)        491.061   540.968   563.099     99.7
+managed after native + scheduling (derived)     0.477     0.832     1.168      0.1
+native stages sum vs ft8_decode_all total: unattributed mean = 0.00 % of the native total
+managed-after is derived (whole - normalise - managed native call), so the stages sum to the whole call by construction; the checks that can fail are the native stage sum vs ft8_decode_all's own total (above) and the timed-vs-shipped whole-call comparison (compare mode).
+candidates: pass0 median=140 decoded median=24;  pass1 candidates median=200 decoded median=2
+timer reads per decode (median) = 18; at 16 ns per read = 0.28 us of timer overhead per decode (0.000 % of the whole call)

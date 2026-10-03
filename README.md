@@ -18,7 +18,7 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.51**. v0.x scope: FT8 receive and transmit,
+> The current release is **v0.54**. v0.x scope: FT8 receive and transmit,
 > CAT rig control, a web UI (loopback or passphrase-protected LAN),
 > single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
@@ -90,6 +90,10 @@ VoiceMeeter software loopback.
 | engagement-target-validation — TX target gate | A decoded token that is not a plausible callsign is refused as a TX target (checked against the region prefix table when real region data is loaded) | ✅ merged |
 | qso-transcript-panel — QSO transcript | The TX panel shows the actual messages of the live QSO, so the thread is not lost when a decode-panel filter hides the rows | ✅ merged |
 | cycle-audio-archive — per-cycle recordings | Optional `.wav` capture of each 15-second receive window (`Off` default, `All`, `Decoded`, `NoDecodes`), in WSJT-X-compatible 12 kHz mono 16-bit PCM | ✅ merged |
+| capture-stall-detection-unattended — unattended capture watchdog | Capture health is evaluated by one daemon-lifetime loop, independent of any connected browser, so a silent capture stall on an unattended run is noticed; `GET /api/v1/status` and the WebSocket status carry live, non-latching data-flow fields, and `audioActive` means the same thing on every surface (FR-067 to FR-069) | ✅ merged |
+| capture-device-reresolution — a stale audio device heals itself | A Windows endpoint ID that changed after a replug or driver reset is re-resolved by its friendly name before every automatic capture start; automatic restarts use a bounded backoff and never give up; the status endpoint reports the recovery state; enumerated devices report whether they are available (FR-070 to FR-073) | ✅ merged |
+| config-save-preserves-unsent-settings — a save never resets a setting | `POST /api/v1/config` applies the request as an overlay on the stored configuration: a key the request does not send keeps its value at any depth, so an unrelated Settings save cannot silently reset, for example, the cycle audio archive; every save logs the paths it changed (FR-074, FR-076) | ✅ merged |
+| sub-feas — residual-decode subtraction | An additional decode pass that subtracts the decoded signals and decodes what they were hiding, with a configurable worker count; the normal decode is shown first and the pass's extra decodes follow as a second batch. Built behind a flag, then **on by default since v0.54** with a one-time migration of existing installs (FR-077, FR-082) | ✅ merged |
 
 ## Decoder Measurement System Analysis (Gage R&R)
 
@@ -135,6 +139,13 @@ noise realisation, giving non-zero repeatability variance.
 all metric gates pass.  S7 and S5 figures above reflect subsequent shim improvements
 (H6 AP decode + OSD fallback for D-001; K_MIN_SCORE_PASS2 = 10 for D-009).
 S7 co-channel gap and D-001 remain open; next step is on-air QSO testing.
+
+**Newer batteries.** The table above is the 2026-06-14 snapshot. Later full S1-S8 batteries exist under
+[`qa/rr-study/results/`](qa/rr-study/results/); the most recent is
+[`2026-09-23-5f17b43`](qa/rr-study/results/2026-09-23-5f17b43/report.md), the first full run of the standardised
+detached runner. It measured a `decoding_improvement` build, not `main`: its report header says so and
+corrects the build provenance. Read that report, and the [Programme Dossier](docs/programme-dossier.md), for the
+current standing, not the 2026-06-14 table.
 
 See [`qa/rr-study/STUDY-SPEC.md`](qa/rr-study/STUDY-SPEC.md) for the full study design
 and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedure.
@@ -214,6 +225,18 @@ callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
   (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) are configurable
   at runtime from the Decoder settings page, so the false-positive/sensitivity
   trade-off can be adjusted without a native rebuild.
+- **Residual-decode subtraction (SUB-FEAS)** — an additional pass that subtracts decoded signals and
+  decodes what they were hiding; **on by default since v0.54**, and an existing install that had it
+  off is switched on once the first time v0.54 starts (one line is logged). To turn it off, set
+  `decoder.subtractionEnabled` to `false` in `config.json`; the choice then persists. Worker count:
+  `decoder.subtractionMaxThreads` (`0` = automatic).
+  The normal decode is published first and the pass's extra decodes follow as a second batch.
+- **Self-healing audio capture** — capture health is watched by the daemon itself (no browser needed);
+  a device whose Windows endpoint ID changed after a replug is re-resolved by its friendly name, and
+  automatic restarts back off but never stop. `GET /api/v1/status` reports `dataFlowing`,
+  `captureState` and the restart counters, so an unattended run can be checked from outside.
+- **Settings saves never reset a setting** — a save changes only the keys it sends; each save logs
+  the paths it changed.
 - **External reporting** — optional and **off by default**: the daemon speaks the WSJT-X UDP
   network protocol (heartbeat, status, decodes, logged QSOs) to GridTracker2 and similar tools,
   to one or more configured targets. An inbound *Halt Tx* is always honoured as a safety path;

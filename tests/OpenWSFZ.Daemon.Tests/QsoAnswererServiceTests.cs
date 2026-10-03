@@ -34,7 +34,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private readonly Channel<DecodeBatch> _channel =
-        Channel.CreateUnbounded<DecodeBatch>();
+        ObservedDecodeChannel.Create();
 
     private readonly IPttController _ptt = Substitute.For<IPttController>();
 
@@ -137,29 +137,25 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         => _channel.Writer.TryWrite(new DecodeBatch(cycleStart, results));
 
     /// <summary>
-    /// Polls until the shared decode channel has been drained by <see cref="_sut"/>'s background
-    /// loop, replacing a fixed "wait N ms, assume the batch was processed" delay between two
-    /// <see cref="Send(DecodeResult[])"/> calls (fix-flaky-test-delay-synchronization).
+    /// Polls until the shared decode channel has been drained AND every batch the service dequeued has
+    /// been fully PROCESSED, replacing a fixed "wait N ms, assume the batch was processed" delay
+    /// (fix-flaky-test-delay-synchronization).
     ///
-    /// <para><b>Known residual gap, deliberately accepted:</b> <c>QsoAnswererService.ExecuteAsync</c>
-    /// (src/OpenWSFZ.Daemon/QsoAnswererService.cs:516-538) fully <c>await</c>s
-    /// <c>ProcessBatchAsync</c> before looping back to read the next channel item, so by the time a
-    /// *second* batch could ever be dequeued, the first is guaranteed fully processed — but
-    /// <c>Channel&lt;T&gt;.Reader.Count</c> decrements at the moment of the read itself, a instant
-    /// before that <c>await</c> completes, not after. So this proves "the batch has been picked up,"
-    /// not "every consequence of processing it has landed" — strictly tighter than a blind fixed
-    /// delay (which proved nothing about the batch at all), but not provably airtight without
-    /// production-code instrumentation, which is out of scope for a test-only change (proposal.md).
-    /// In practice every batch processed by these tests only does mocked, non-blocking work
-    /// (PTT calls returning <c>Task.CompletedTask</c>), so the gap between "dequeued" and "fully
-    /// processed" is a scheduling instant, not a real wait — the same order of margin already
-    /// accepted throughout this migration (e.g. <see cref="Poll"/>'s own default 10ms poll interval).
-    /// </para>
+    /// <para><b>History:</b> this used to poll <c>Reader.Count == 0</c>, which turns true the moment the
+    /// service READS a batch, before <c>ProcessBatchAsync</c> has acted on it. That read-versus-processed
+    /// gap was accepted as "a scheduling instant" and then bit as the D-015 flake, and it is invisible to
+    /// Gate G10 (no delay literal). It is now closed at the source: every test channel is an
+    /// <see cref="ObservedDecodeChannel"/>, and <c>QsoAnswererService.ExecuteAsync</c> awaits
+    /// <c>ProcessBatchAsync</c> strictly before its next <c>ReadNextBatchAsync</c>, so "the reader was
+    /// touched again after the last dequeue" proves the batch was processed. All ~27 call sites keep this
+    /// name and signature.</para>
     /// </summary>
     private async Task WaitForBatchDrainedAsync(Channel<DecodeBatch>? channel = null, TimeSpan? timeout = null)
     {
-        var target = channel ?? _channel;
-        await Poll.UntilAsync(() => target.Reader.Count == 0, timeout: timeout ?? TimeSpan.FromSeconds(2));
+        var target = ObservedDecodeChannel.From(channel ?? _channel);
+        await Poll.UntilAsync(() => target.IsProcessedThroughLastDequeue,
+            timeout: timeout ?? TimeSpan.FromSeconds(5),
+            timeoutMessage: () => "the service never finished processing the batch it dequeued");
     }
 
     // ── Task 6.2: initial state ───────────────────────────────────────────────
@@ -194,7 +190,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         pttDisabled.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         pttDisabled.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel  = Channel.CreateUnbounded<DecodeBatch>();
+        var channel  = ObservedDecodeChannel.Create();
         var adifLog  = new AdifLogWriter(disabledStore, NullLogger<AdifLogWriter>.Instance);
         var sut      = new QsoAnswererService(channel.Reader, disabledStore, pttDisabled,
                            new TxEventBus(), adifLog, new AudioOffsetEventBus(),
@@ -241,7 +237,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         pttEmpty.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         pttEmpty.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(unconfiguredStore, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, unconfiguredStore, pttEmpty,
                           new TxEventBus(), adifLog, new AudioOffsetEventBus(),
@@ -291,7 +287,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
         var decoder = Substitute.For<IApConstraintSink>();
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, store, ptt,
                           new TxEventBus(), adifLog, new AudioOffsetEventBus(),
@@ -857,7 +853,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
@@ -915,7 +911,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
@@ -1052,7 +1048,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var sut     = new QsoAnswererService(channel.Reader, store, racyPtt, new TxEventBus(),
                           adifLog, new AudioOffsetEventBus(),
                           NullLogger<QsoAnswererService>.Instance);
@@ -1117,7 +1113,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
 
         var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
                       adifLog, new AudioOffsetEventBus(),
@@ -1547,7 +1543,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         // D-CALLER-021: FakeTimeProvider at second=0 so TransmitAsync sees a full window and
         // never truncates.
@@ -1612,7 +1608,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
                           adifLog, new AudioOffsetEventBus(),
@@ -1652,7 +1648,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
                           adifLog, new AudioOffsetEventBus(),
@@ -1696,7 +1692,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
                           adifLog, new AudioOffsetEventBus(),
@@ -1827,7 +1823,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(slowStore, NullLogger<AdifLogWriter>.Instance);
         // D-CALLER-021: FakeTimeProvider at second=0 so TransmitAsync sees a full window and
         // never truncates.
@@ -1892,7 +1888,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
 
         // Override watchdog to 10 s so the test doesn't need to wait 1 minute.
         var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
@@ -1952,7 +1948,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         });
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
 
         var sut = new QsoAnswererService(channel.Reader, store, ptt, new TxEventBus(),
                       adifLog, new AudioOffsetEventBus(),
@@ -2018,7 +2014,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         var eventBus    = Substitute.For<ITxEventBus>();
         var resolvedLog = adifLog ?? new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
-        var channel     = Channel.CreateUnbounded<DecodeBatch>();
+        var channel     = ObservedDecodeChannel.Create();
         var stopCts     = new CancellationTokenSource();
 
         var sut = new QsoAnswererService(
@@ -2058,13 +2054,28 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         await sut.StartAsync(stopCts.Token);
 
-        // Trigger CQ → TxAnswer → WaitReport.
+        // Trigger CQ → TxAnswer → WaitReport. Feed no further batches: the 300 ms watchdog fires and
+        // drives the service to Idle.
         channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
             [new DecodeResult("12:00:00", -5, 0.1, AudioFreqHz, $"CQ {PartnerCall} {PartnerGrid}")]));
-        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
-        // Feed no further batches — watchdog fires after 300 ms and drives the service to Idle.
-        await Poll.WaitForEqualAsync(() => sut.State, QsoState.Idle, timeout: TimeSpan.FromSeconds(3));
+        // Wait for the OUTCOME on the event bus, which is persistent, not for the transient
+        // WaitReport state. The state lasts about one watchdog period (300 ms, set short on purpose
+        // for this test), so a poll that is delayed past that window by a loaded CI runner never sees
+        // it and then reads Idle for the rest of its budget (the failures on 2026-10-02, #203). The
+        // recorded Publish calls cannot be missed, whenever the poll runs.
+        await Poll.UntilAsync(
+            () => AnswererPublishes(eventBus).Any(IsWatchdogTimeoutIdle),
+            timeout: TimeSpan.FromSeconds(5),
+            timeoutMessage: () => "no Idle publish with 'Watchdog timeout' was recorded; answerer publishes: " +
+                string.Join(" | ", AnswererPublishes(eventBus).Select(a => $"{a[0]}/{a[4]}")));
+
+        // The session really ran: a non-Idle state was published before the watchdog's Idle.
+        var publishes = AnswererPublishes(eventBus);
+        var firstActive = publishes.FindIndex(a => (string?)a[0] != "Idle");
+        var watchdogIdle = publishes.FindIndex(IsWatchdogTimeoutIdle);
+        firstActive.Should().BeGreaterThanOrEqualTo(0, "the answerer must have left Idle for the watchdog to have anything to expire");
+        firstActive.Should().BeLessThan(watchdogIdle, "the non-Idle state precedes the watchdog's Idle publish");
 
         // The Idle publish must carry "Watchdog timeout" as the abort reason.
         eventBus.Received().Publish(
@@ -2080,6 +2091,18 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await sut.StopAsync(CancellationToken.None);
         await ptt.DisposeAsync();
     }
+
+    /// <summary>The arguments of every <c>Publish</c> call the answerer made on the substitute event bus, in order
+    /// (state, role, partner, ..., abortReason at index 4).</summary>
+    private static List<object?[]> AnswererPublishes(ITxEventBus eventBus) =>
+        eventBus.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == "Publish")
+            .Select(c => c.GetArguments())
+            .Where(a => (string?)a[1] == "answerer")
+            .ToList();
+
+    private static bool IsWatchdogTimeoutIdle(object?[] publish) =>
+        (string?)publish[0] == "Idle" && (string?)publish[4] == "Watchdog timeout";
 
     [Fact(DisplayName = "FR-UX-002: operator AbortAsync publishes Idle with 'Operator abort' abort reason")]
     public async Task SafeAbortToIdleAsync_OperatorAbort_EmitsAbortReason()
@@ -2475,7 +2498,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
             ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-            var channel = Channel.CreateUnbounded<DecodeBatch>();
+            var channel = ObservedDecodeChannel.Create();
             var stopCts = new CancellationTokenSource();
             var sut = new QsoAnswererService(
                 channel.Reader, store, ptt, new TxEventBus(),
@@ -2554,7 +2577,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         store.SaveAsync(Arg.Any<AppConfig>(), Arg.Any<CancellationToken>())
              .Returns(Task.CompletedTask);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
@@ -2575,20 +2598,19 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 5, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        var wakeups = WakeupChannelProbe.Discard(sut); // swallow the real-clock-stamped wakeup (see below)
         await sut.StartAsync(stopCts.Token);
 
         // Arm pending target: CQ at B-phase (:15) → answer phase is A (:00/:30).
         await sut.AnswerCqAsync(PartnerCall, AudioFreqHz,
             new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero),
             CancellationToken.None);
-        sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup to prevent early fire
         // The wakeup pushed by AnswerCqAsync/EngageAtAsync is computed from REAL wall-clock time
-        // (ArmPendingTarget uses DateTimeOffset.UtcNow, not the injected FakeTimeProvider), so it
-        // races the background loop's own concurrent read of the same channel. Settle briefly so
-        // any such stray wakeup is fully processed (or confirmed drained) before this test's
-        // deliberately-timed batches are written — matching the precedent in
-        // QsoCallerServiceTests.SelectResponderAsync_PhaseSemanticsCorrect.
-        await Task.Delay(50);
+        // (ArmPendingTarget uses DateTimeOffset.UtcNow, not the injected FakeTimeProvider), so the
+        // loop would act on it by the real clock's phase. It was swallowed on the writer side by
+        // WakeupChannelProbe.Discard, so the loop never sees it; this replaces "drain, then
+        // sleep 50 ms", which lost the race whenever the loop read the wakeup before the drain.
+        wakeups.Discarded.Should().Be(1, "AnswerCqAsync must push exactly one wakeup, and it must not reach the loop");
 
         // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ (phase check passes).
         // FakeTime is 5 s into the A-phase window — must fire in THIS cycle, not be deferred.
@@ -2611,14 +2633,14 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 0, 500, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        var wakeups = WakeupChannelProbe.Discard(sut); // swallow the real-clock-stamped wakeup (see below)
         await sut.StartAsync(stopCts.Token);
 
         // Arm pending target: CQ at B-phase (:15) → answer phase is A (:00/:30).
         await sut.AnswerCqAsync(PartnerCall, AudioFreqHz,
             new DateTimeOffset(2026, 6, 27, 17, 29, 15, TimeSpan.Zero),
             CancellationToken.None);
-        sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
-        await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
+        wakeups.Discarded.Should().Be(1, "AnswerCqAsync must push exactly one wakeup, and it must not reach the loop");
 
         // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ → TX fires immediately.
         channel.Writer.TryWrite(new DecodeBatch(
@@ -2686,6 +2708,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 6, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        var wakeups = WakeupChannelProbe.Discard(sut); // swallow the real-clock-stamped wakeup (see below)
         await sut.StartAsync(stopCts.Token);
 
         // EngageAtAsync: partner decoded at B-phase (:15) → _jumpIsAPhase = !B = A.
@@ -2696,8 +2719,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             "+07",
             7,
             CancellationToken.None);
-        sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
-        await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
+        wakeups.Discarded.Should().Be(1, "EngageAtAsync must push exactly one wakeup, and it must not reach the loop");
 
         // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ — must fire in THIS cycle.
         channel.Writer.TryWrite(new DecodeBatch(
@@ -2719,6 +2741,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 0, 200, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        var wakeups = WakeupChannelProbe.Discard(sut); // swallow the real-clock-stamped wakeup (see below)
         await sut.StartAsync(stopCts.Token);
 
         // EngageAtAsync: partner decoded at B-phase (:15) → _jumpIsAPhase = A.
@@ -2729,8 +2752,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             "+07",
             7,
             CancellationToken.None);
-        sut._wakeupChannel.Reader.TryRead(out _); // drain wakeup
-        await Task.Delay(50); // let a real-time-based stray wakeup (if any) settle — see note above
+        wakeups.Discarded.Should().Be(1, "EngageAtAsync must push exactly one wakeup, and it must not reach the loop");
 
         // Batch: CycleStart :45 (B-phase) → +15 s = :00 A-phase ✓ → TX fires immediately.
         channel.Writer.TryWrite(new DecodeBatch(
@@ -3445,7 +3467,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         ptt.KeyUpAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        var channel     = Channel.CreateUnbounded<DecodeBatch>();
+        var channel     = ObservedDecodeChannel.Create();
         var adifLog     = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var filterStore = new MutableDecodeFilterStore();
         var earlyInWindow = new FakeTimeProvider(
@@ -3581,7 +3603,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         validator.Validate(PartnerCall)
             .Returns(EngagementValidationResult.Rejected("implausible callsign shape"));
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, store, ptt,
                           new TxEventBus(), adifLog, new AudioOffsetEventBus(),
@@ -3635,7 +3657,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             .Returns(EngagementValidationResult.Rejected("implausible callsign shape"));
         validator.Validate(PartnerCall).Returns(EngagementValidationResult.Allowed);
 
-        var channel = Channel.CreateUnbounded<DecodeBatch>();
+        var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var sut     = new QsoAnswererService(channel.Reader, store, ptt,
                           new TxEventBus(), adifLog, new AudioOffsetEventBus(),

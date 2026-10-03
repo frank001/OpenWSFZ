@@ -89,6 +89,20 @@ const loggingSchedule       = /** @type {HTMLSelectElement} */ (document.getElem
 const loggingTime           = /** @type {HTMLInputElement}  */ (document.getElementById('logging-rotation-time'));
 const loggingDay            = /** @type {HTMLSelectElement} */ (document.getElementById('logging-rotation-day'));
 const loggingMaxFiles       = /** @type {HTMLInputElement}  */ (document.getElementById('logging-max-files'));
+// Audio archive controls (config-save-preserves-unsent-settings, Part C).
+const archiveMode           = /** @type {HTMLSelectElement} */ (document.getElementById('archive-mode'));
+const archiveDirectory      = /** @type {HTMLInputElement}  */ (document.getElementById('archive-directory'));
+const archiveMaxSizeMb      = /** @type {HTMLInputElement}  */ (document.getElementById('archive-max-size-mb'));
+const archiveMaxAgeHours    = /** @type {HTMLInputElement}  */ (document.getElementById('archive-max-age-hours'));
+const archiveWriteManifest  = /** @type {HTMLInputElement}  */ (document.getElementById('archive-write-manifest'));
+
+// Bounds the daemon enforces (400 otherwise) — mirrors CycleAudioArchiveConfig.MinMaxSizeMb,
+// MinMaxAgeHours and MaxMaxAgeHours. 0 or a negative value would make the retention sweep delete
+// the whole archive, so the page refuses to send one.
+const ARCHIVE_MIN_SIZE_MB   = 1;
+const ARCHIVE_MIN_AGE_HOURS = 1;
+const ARCHIVE_MAX_AGE_HOURS = 87600;
+
 const loggingDependent      = /** @type {HTMLElement}       */ (document.getElementById('logging-dependent'));
 const loggingTimeGroup      = /** @type {HTMLElement}       */ (document.getElementById('logging-time-group'));
 const loggingDayGroup       = /** @type {HTMLElement}       */ (document.getElementById('logging-day-group'));
@@ -401,6 +415,14 @@ function snapshotForm() {
       targets:                                collectExtRepTargets(),
       honourInboundCommands:                  extRepHonourInbound?.checked ?? false,
       restrictExternalRepliesToDecodeFilter:  extRepRestrictReplies?.checked ?? false,
+    },
+    // Audio archive group (FR-040 dirty state).
+    cycleAudioArchive: {
+      mode:          archiveMode.value,
+      directory:     archiveDirectory.value.trim(),
+      maxSizeMb:     archiveMaxSizeMb.value,
+      maxAgeHours:   archiveMaxAgeHours.value,
+      writeManifest: archiveWriteManifest.checked,
     },
   });
 }
@@ -762,6 +784,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     loggingMaxFiles.value       = String(lg.maxFiles   ?? 7);
 
     updateLoggingVisibility();
+
+    // Pre-fill audio archive controls. Defaults mirror CycleAudioArchiveConfig.
+    const arch = config.cycleAudioArchive ?? {};
+    archiveMode.value            = arch.mode          ?? 'off';
+    archiveDirectory.value       = arch.directory     ?? '';
+    archiveMaxSizeMb.value       = String(arch.maxSizeMb   ?? 2048);
+    archiveMaxAgeHours.value     = String(arch.maxAgeHours ?? 168);
+    archiveWriteManifest.checked = arch.writeManifest ?? true;
 
     // Pre-fill CAT controls (p16).
     const cat = config.cat ?? {};
@@ -1250,6 +1280,28 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
+  // Audio archive: same bounds as the daemon (design D5), so the operator gets immediate feedback
+  // instead of a round-trip 400. A blank or non-integer field is refused rather than defaulted:
+  // silently substituting a number here would change a setting the operator did not choose.
+  const archiveMaxSizeMbValue   = Number(archiveMaxSizeMb.value);
+  const archiveMaxAgeHoursValue = Number(archiveMaxAgeHours.value);
+  if (archiveMaxSizeMb.value.trim() === '' || !Number.isInteger(archiveMaxSizeMbValue)
+      || archiveMaxSizeMbValue < ARCHIVE_MIN_SIZE_MB) {
+    showFeedback(
+      `Audio archive: maximum size must be a whole number of MB, at least ${ARCHIVE_MIN_SIZE_MB}.`,
+      'error');
+    saveBtn.disabled = false;
+    return;
+  }
+  if (archiveMaxAgeHours.value.trim() === '' || !Number.isInteger(archiveMaxAgeHoursValue)
+      || archiveMaxAgeHoursValue < ARCHIVE_MIN_AGE_HOURS || archiveMaxAgeHoursValue > ARCHIVE_MAX_AGE_HOURS) {
+    showFeedback(
+      `Audio archive: maximum age must be a whole number of hours between ${ARCHIVE_MIN_AGE_HOURS} and ${ARCHIVE_MAX_AGE_HOURS}.`,
+      'error');
+    saveBtn.disabled = false;
+    return;
+  }
+
   // p16: collect CAT config — carry forward opaque server-managed fields (FR-039).
   const cat = {
     ...catOpaqueFields,          // ← carry forward server-managed fields
@@ -1349,6 +1401,15 @@ saveBtn.addEventListener('click', async () => {
       restrictExternalRepliesToDecodeFilter:  extRepRestrictReplies?.checked ?? false,
     };
 
+    // Audio archive (Part C). A blank directory is sent as null: "use the default location".
+    const cycleAudioArchive = {
+      mode:          archiveMode.value,
+      directory:     archiveDirectory.value.trim() || null,
+      maxSizeMb:     archiveMaxSizeMbValue,
+      maxAgeHours:   archiveMaxAgeHoursValue,
+      writeManifest: archiveWriteManifest.checked,
+    };
+
     // POST config and frequencies in parallel (FR-043 / FR-007).
     await Promise.all([
       postConfig({
@@ -1368,6 +1429,7 @@ saveBtn.addEventListener('click', async () => {
         decoder,
         decodeNoiseSuppression,
         externalReporting,
+        cycleAudioArchive,
       }),
       postFrequencies(freqEntries),
     ]);

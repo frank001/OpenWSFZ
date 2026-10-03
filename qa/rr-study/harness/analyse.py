@@ -218,6 +218,52 @@ def _git_sha() -> str:
     return "unknown"
 
 
+def _read_arm_config(run_dir: Path) -> dict | None:
+    """The daemon-under-test's own provenance record, if the launcher left one in the run dir
+    (run_study_detached.py copies arm_config.json there). The report header must name the BUILD, not
+    the analysis worktree's HEAD (`_git_sha`): that defect was corrected by hand four times (HK-022).
+    Display only: the trend file and every gate keep using `_git_sha` (their history is keyed on it)."""
+    try:
+        import json as _json
+        return _json.loads((Path(run_dir) / "arm_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _require_build_provenance(run_dir: Path, allow_legacy: bool) -> None:
+    """FAIL LOUDLY (Architect, 2026-10-03: not a fallback to HEAD) when the run has no build commit."""
+    arm = _read_arm_config(run_dir)
+    commit = ((arm or {}).get("build") or {}).get("commit")
+    if commit and len(str(commit)) >= 7:
+        return
+    if allow_legacy:
+        print("WARNING: no build commit in arm_config.json; --legacy-no-arm-config given: the report header "
+              "will say the build is NOT VERIFIED.", flush=True)
+        return
+    sys.exit(f"ERROR: {Path(run_dir) / 'arm_config.json'} is missing or has no build.commit. The report header "
+             "would name the analysis worktree's HEAD, not the daemon build (wrong four times, HK-022). Launch the "
+             "battery with run_study_detached.py (it copies arm_config.json into the run dir), or pass "
+             "--legacy-no-arm-config to re-analyse an old run.")
+
+
+def _header_sha_rows(run_dir: Path, git_sha: str) -> list[str]:
+    arm = _read_arm_config(run_dir)
+    if not arm or not (arm.get("build") or {}).get("commit"):
+        return [f"| OpenWSFZ SHA | `{git_sha}` (**build NOT VERIFIED**: the analysis worktree's HEAD, legacy run "
+                "without arm_config.json) |"]
+    commit = arm["build"]["commit"]
+    d = arm.get("daemon") or {}
+    rows = [f"| OpenWSFZ SHA | `{commit}` (the daemon build, from arm_config.json; the analysis worktree's HEAD was "
+            f"`{git_sha[:8]}`) |"]
+    if d.get("dll_sha256"):
+        rows.append(f"| `libft8.dll` SHA-256 | `{d['dll_sha256']}` (shim {d.get('shim_version')}, daemon "
+                    f"{d.get('daemon_version')}) |")
+    dec = d.get("decoder_readback")
+    if dec:
+        rows.append("| Decoder flags (read back) | " + ", ".join(f"`{k}` = {v}" for k, v in sorted(dec.items())) + " |")
+    return rows
+
+
 def _verdict_grr(pct: float) -> str:
     if pct < THRESH_GRR_PASS:
         return "PASS"
@@ -888,6 +934,35 @@ def _s5_window_history(qa_rr_root: Path) -> list[tuple[str, int, int]]:
                 continue
     rows.reverse()  # trend.csv is chronological (oldest first) -> newest first
     return rows
+
+
+def _window_member_lines(used: list[tuple[str, int, int]], qa_rr_root: Path) -> list[str]:
+    """Name the sweeps that make up Gate A-W's window (Architect, 2026-10-03: the report never said which).
+    `used` is `_verdict_s5_window`'s own newest-first list. Dates come from trend.csv (display only). Two
+    standing caveats are printed with it, because both change how the 0/480 may be read:
+      * a trend row whose SHA7 equals the CURRENT run's is excluded from the history (it is the same sha key), so
+        a second run on the same tooling commit does NOT see the first run in its window;
+      * trend.csv has no flag column: until four flag-ON `main` sweeps exist the window is MIXED (flag-OFF and
+        other-build rows), so it is a compliance reading across builds, not a flag-ON-only one."""
+    dates: dict[str, str] = {}
+    try:
+        with open(Path(qa_rr_root) / "trend.csv", newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                dates.setdefault((row.get("git_sha") or "")[:7], row.get("run_date") or "?")
+    except OSError:
+        pass
+    members = ", ".join(
+        f"{'this run' if i == 0 else dates.get(sha, 'seed')} `{sha}` {ev}/{sl}" for i, (sha, ev, sl) in enumerate(used))
+    return [
+        f"**Window members (newest first; events/slots):** {members}.",
+        "",
+        "_Reading the members: a trend row with the same SHA7 as this run is excluded from the window (the key is the "
+        "analysis worktree's HEAD, shared by two runs of one baseline), so a repeat run does not see the run before it. "
+        "`trend.csv` has no flag column: **until four flag-ON `main` sweeps exist (4 x 120 AWGN slots) the window is MIXED** "
+        "(older rows are flag-OFF or other builds). Read Gate A-W as a compliance reading across builds, not as a flag-ON-only "
+        "one, and never as evidence about the flag._",
+        "",
+    ]
 
 
 def _s5_window_gate(
@@ -2447,6 +2522,7 @@ def _s5_window_report_lines(s5_window_result: dict | None) -> list[str]:
         + "_",
         "",
     ]
+    lines += _window_member_lines(w["used"], _QA_ROOT)
     return lines
 
 
@@ -2484,7 +2560,7 @@ def _write_report(
         f"| Field | Value |",
         f"|---|---|",
         f"| Run date | {run_date_str} |",
-        f"| OpenWSFZ SHA | `{git_sha}` |",
+        *_header_sha_rows(run_dir, git_sha),
         f"| WSJT-X version | {wsjt_ver} |",
         "",
     ]
@@ -2792,11 +2868,18 @@ def main() -> None:
         "--scenario",
         help="Comma-separated scenario IDs to analyse (default: all found in run-dir)",
     )
+    parser.add_argument(
+        "--legacy-no-arm-config", action="store_true",
+        help="Re-analyse an OLD run directory that has no arm_config.json. The report header then says the "
+             "build is NOT VERIFIED (it shows the analysis worktree's HEAD). Without this flag a run with "
+             "no build commit in arm_config.json is REFUSED (HK-022: the header named the wrong build four times).",
+    )
     args = parser.parse_args()
 
     run_dir = Path(args.run_dir)
     if not run_dir.exists():
         sys.exit(f"ERROR: run directory does not exist: {run_dir}")
+    _require_build_provenance(run_dir, args.legacy_no_arm_config)
 
     scenario_filter = [s.strip() for s in args.scenario.split(",")] if args.scenario else None
     scenarios_dir = _QA_ROOT / "scenarios"

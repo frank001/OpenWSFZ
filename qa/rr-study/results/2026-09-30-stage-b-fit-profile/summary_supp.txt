@@ -1,0 +1,28 @@
+=== SUMMARY
+# logical_processors=16 workers_pinned=no cycles=5 counter_hz=10000000
+all values milliseconds; one row per phase, medians per worker count, then the penalty vs 1 worker
+phase            W=4 med      p95      max     W=8 med      p95      max    W=12 med      p95      max    W=14 med      p95      max
+wall              1759.3   1875.2   1875.2      1904.0   1977.0   1983.4      2281.5   2387.7   2534.3      2853.1   3040.4   3074.1
+lease                0.0     23.9     23.9         0.0     24.9     25.0         0.0     25.7     26.3         0.0     26.7     29.4
+smooth              13.3     14.7     14.7        14.3     15.5     15.9        15.8     18.0     19.5        18.4     24.0     35.6
+step1             1232.2   1332.1   1332.1      1357.6   1402.6   1404.4      1678.8   1749.9   1894.5      2137.0   2287.2   2303.3
+step2              428.9    471.8    471.8       468.9    494.6    497.6       518.0    536.9    545.4       609.4    667.2    695.3
+final                6.2      7.6      7.6         7.3      7.8      8.1         7.3      7.8      7.9         7.8     10.6     11.9
+step3               33.1     41.6     41.6        35.5     42.3     43.1        37.9     41.9     42.4        39.0     43.5     48.3
+envelope            25.6     30.4     30.4        27.9     32.0     32.6        30.2     37.0     37.9        34.2     46.4     50.9
+write                0.1      0.2      0.2         0.2      0.2      0.2         0.2      0.2      0.2         0.2      0.2      0.2
+fit_total         1745.5   1874.8   1874.8      1901.7   1965.4   1974.0      2279.3   2367.0   2517.4      2839.8   3039.8   3073.6
+per-fit concurrency penalty (median wall at W / median wall at the first worker count): W=4: 1.00x, W=8: 1.08x, W=12: 1.30x, W=14: 1.62x
+per-phase penalty vs first worker count:
+  step1     W=4: 1.00x  W=8: 1.10x  W=12: 1.36x  W=14: 1.73x
+  step2     W=4: 1.00x  W=8: 1.09x  W=12: 1.21x  W=14: 1.42x
+  final     W=4: 1.00x  W=8: 1.17x  W=12: 1.18x  W=14: 1.25x
+  step3     W=4: 1.00x  W=8: 1.07x  W=12: 1.14x  W=14: 1.18x
+  envelope  W=4: 1.00x  W=8: 1.09x  W=12: 1.18x  W=14: 1.33x
+analytic         median     12.1 ms  max     15.1 ms  (5 cycles)
+residual_decode  median    607.7 ms  max    821.3 ms  (5 cycles)
+pass0_decode     median    731.8 ms  max    822.7 ms  (5 cycles)
+batch W=4: 16 fits in 7191 ms wall = 449 ms per fit of throughput
+batch W=8: 32 fits in 7760 ms wall = 242 ms per fit of throughput
+batch W=12: 48 fits in 9527 ms wall = 198 ms per fit of throughput
+batch W=14: 56 fits in 11691 ms wall = 209 ms per fit of throughput

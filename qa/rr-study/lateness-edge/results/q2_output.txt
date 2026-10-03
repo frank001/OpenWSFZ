@@ -1,0 +1,49 @@
+Cycle lines 4300  residual lines paired 4298  Cycle lines without a residual line 2
+check vs report: n 4298 p50 5002.0 p95~ 6421 max 9421 resid decodes 16701 mean 3.89 abandoned 0 exc 0
+cycles with >=1 residual decode: 4135 of 4298
+decode-start offset (derived: Cycle-line stamp - elapsed - slot end): sel n=4135: min -0.013 p5 0.003 p50 0.032 p95 0.061 max 0.072
+batch-1 publish (Cycle-line stamp - slot end): sel n=4135: min 0.225 p5 0.431 p50 0.557 p95 0.632 max 0.696
+T2 = start + b1 + residual elapsed (spec formula): sel n=4135: min 2.066 p5 3.545 p50 5.711 p95 6.985 max 9.934
+T2 from residual-line stamp (check): sel n=4135: min 2.067 p5 3.546 p50 5.711 p95 6.986 max 9.934
+max |T2_sum - T2_log| s: 0.004999999999999893
+WSJT-X E50 L {-8: 2.75, -16: 2.75} DT_edge {-8: 2.45, -16: 2.45}
+
+Q2 fraction of cycles-with->=1-residual-decode with T2+k-0.5 <= edge  (n=4135)
+  k=0.0  SNR -16  vs DT_edge=+2.45:  63/4135 = 1.524 %
+  k=0.0  SNR -16  vs L_edge=+2.75:  72/4135 = 1.741 %
+  k=0.0  SNR  -8  vs DT_edge=+2.45:  63/4135 = 1.524 %
+  k=0.0  SNR  -8  vs L_edge=+2.75:  72/4135 = 1.741 %
+  k=0.5  SNR -16  vs DT_edge=+2.45:  22/4135 = 0.532 %
+  k=0.5  SNR -16  vs L_edge=+2.75:  53/4135 = 1.282 %
+  k=0.5  SNR  -8  vs DT_edge=+2.45:  22/4135 = 0.532 %
+  k=0.5  SNR  -8  vs L_edge=+2.75:  53/4135 = 1.282 %
+  k=1.0  SNR -16  vs DT_edge=+2.45:  0/4135 = 0.000 %
+  k=1.0  SNR -16  vs L_edge=+2.75:  7/4135 = 0.169 %
+  k=1.0  SNR  -8  vs DT_edge=+2.45:  0/4135 = 0.000 %
+  k=1.0  SNR  -8  vs L_edge=+2.75:  7/4135 = 0.169 %
+
+shortest T2 and the L it would give at k=0: 2.066 1.566
+how many T2 values below 3.25 s (any k=0 L<=2.75 would need T2<=3.25): 72
+median T2 by UTC hour: {0: 6.56, 1: 6.67, 2: 6.66, 3: 6.68, 4: 5.45, 5: 6.64, 6: 6.69, 7: 6.61, 8: 6.24, 9: 4.49, 10: 3.84, 11: 3.61, 12: 3.65, 13: 3.61, 19: 6.81, 20: 6.58, 21: 4.7, 22: 4.82, 23: 6.51}
+FILE:LINE first/last cycle line: openswfz-20260930T193054Z.log 44 openswfz-20261001T000000Z.log 35551
+
+BY UTC HOUR: n, median T2, in-time share k=0 DT form
+  00Z n= 240 med=6.56 in-time(k=0,DT)=0/240
+  01Z n= 239 med=6.67 in-time(k=0,DT)=0/239
+  02Z n= 239 med=6.66 in-time(k=0,DT)=0/239
+  03Z n= 239 med=6.68 in-time(k=0,DT)=0/239
+  04Z n= 240 med=5.45 in-time(k=0,DT)=0/240
+  05Z n= 240 med=6.64 in-time(k=0,DT)=0/240
+  06Z n= 239 med=6.69 in-time(k=0,DT)=0/239
+  07Z n= 236 med=6.61 in-time(k=0,DT)=0/236
+  08Z n= 236 med=6.24 in-time(k=0,DT)=0/236
+  09Z n= 227 med=4.49 in-time(k=0,DT)=2/227
+  10Z n= 211 med=3.84 in-time(k=0,DT)=4/211
+  11Z n= 192 med=3.61 in-time(k=0,DT)=21/192
+  12Z n= 210 med=3.65 in-time(k=0,DT)=27/210
+  13Z n=  91 med=3.61 in-time(k=0,DT)=5/91
+  19Z n= 116 med=6.81 in-time(k=0,DT)=0/116
+  20Z n= 237 med=6.58 in-time(k=0,DT)=0/237
+  21Z n= 236 med=4.70 in-time(k=0,DT)=0/236
+  22Z n= 230 med=4.82 in-time(k=0,DT)=4/230
+  23Z n= 237 med=6.51 in-time(k=0,DT)=0/237

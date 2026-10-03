@@ -46,7 +46,8 @@ _SCENARIO_FILES = {
 def run(*args: str, device: str) -> None:
     cmd = [str(_VENV_PYTHON)] + list(args) + ["--device", device]
     print(f"\n>>> {' '.join(cmd)}\n", flush=True)
-    subprocess.run(cmd, cwd=str(_HERE), check=True)
+    subprocess.run(cmd, cwd=str(_HERE), check=True,
+                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def find_run_dir() -> Path:
@@ -85,6 +86,7 @@ def _scenario_ids_in_truth(run_dir: Path) -> list[str]:
 
 
 def main() -> None:
+    global WSJT_ALL_TXT, OWSFZ_ALL_TXT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--device", default="CABLE Input",
@@ -100,7 +102,12 @@ def main() -> None:
             f"Valid values: {', '.join(_RESUMABLE_ORDER)}. Default: S2"
         ),
     )
+    parser.add_argument("--wsjt-all-txt", default=str(WSJT_ALL_TXT), metavar="PATH",
+                        help="Path to WSJT-X's ALL.TXT.")
+    parser.add_argument("--owsfz-all-txt", default=str(OWSFZ_ALL_TXT), metavar="PATH",
+                        help="Path to OpenWSFZ's ALL.TXT.")
     args = parser.parse_args()
+    WSJT_ALL_TXT, OWSFZ_ALL_TXT = Path(args.wsjt_all_txt), Path(args.owsfz_all_txt)
 
     # Derive the play set from the resume point. The match set is NOT
     # derived here -- see the comment above Step 4 below. A resume can

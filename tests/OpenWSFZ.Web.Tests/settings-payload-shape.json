@@ -1,0 +1,79 @@
+{
+  "_comment": "The key set of the object web/js/settings.js passes to postConfig({...}). Single source of truth for BOTH the C# tests (ConfigSaveOverlayTests, SettingsPayload) and web/js/settingsPayload.test.js (T13). null = scalar leaf; an array = the keys of a nested object. Change the payload in settings.js and this file together, or CI fails.",
+  "shape": {
+    "audioDeviceId": null,
+    "audioDeviceFriendlyName": null,
+    "audioOutputDeviceId": null,
+    "audioOutputFriendlyName": null,
+    "port": null,
+    "showCycleCountdown": null,
+    "logLevel": null,
+    "decodeLog": [
+      "enabled",
+      "path",
+      "dialFrequencyMHz"
+    ],
+    "logging": [
+      "fileEnabled",
+      "directory",
+      "fileLogLevel",
+      "rotationSchedule",
+      "rotationTime",
+      "rotationDayOfWeek",
+      "maxFiles"
+    ],
+    "cat": [
+      "enabled",
+      "rigModel",
+      "serialPort",
+      "baudRate",
+      "rigctldHost",
+      "rigctldPort",
+      "pollIntervalSeconds",
+      "lastPolledFrequencyMHz"
+    ],
+    "ptt": [
+      "method",
+      "serialPort",
+      "serialLine",
+      "leadTimeMs",
+      "tailTimeMs",
+      "watchdogTimeoutMs"
+    ],
+    "tx": [
+      "callsign",
+      "grid",
+      "watchdogMinutes",
+      "retryCount",
+      "role",
+      "callerPartnerSelect",
+      "qsoConfirmation"
+    ],
+    "remoteAccess": [
+      "enabled",
+      "passphrase"
+    ],
+    "decoder": [
+      "kMinScorePass2",
+      "osdCorrThreshold",
+      "osdNhardMax"
+    ],
+    "decodeNoiseSuppression": [
+      "suppressUnknownRegion",
+      "suppressSynthetic"
+    ],
+    "externalReporting": [
+      "enabled",
+      "targets",
+      "honourInboundCommands",
+      "restrictExternalRepliesToDecodeFilter"
+    ],
+    "cycleAudioArchive": [
+      "mode",
+      "directory",
+      "maxSizeMb",
+      "maxAgeHours",
+      "writeManifest"
+    ]
+  }
+}

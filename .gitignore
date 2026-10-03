@@ -221,7 +221,7 @@ windows-all.txt
 # WINDOW_20M 20m off-air window (b_dt_c1/c3 sibling arms' report.json/run.log carry no
 # "message" field and are unaffected). Confirmed by QA 2026-08-22 (fix-negative-time-
 # offset-snr-collapse review): every replay_*.json file's "message" values are real,
-# assignable-format amateur callsigns (e.g. SJ6AVS, VA7ZM, KB7AWG) — NFR-021 violation,
+# assignable-format amateur callsigns (e.g. QA1ABC, QB2DEF, QC3GHI) — NFR-021 violation,
 # merge-blocking, regardless of how the change proposal that produces them describes
 # them ("committed"). Never commit; regenerate locally via the harness against the
 # pinned DLL when a regression check needs to be re-run.
@@ -255,3 +255,8 @@ qa/rr-study/awgn-fp-replay/_work/
 # separate, deliberate redact-then-rescan-then-commit step -- never this directory's
 # own content.
 qa/rr-study/fp-parity/_out/
+
+# LATENESS edge test: renders/decodes staging (gitignored)
+qa/rr-study/lateness-edge/_out/
+# #194 captured-audio scan: measurement output staging (gitignored; promotion into results/ is a separate step)
+qa/rr-study/captured-audio-scan/_out/

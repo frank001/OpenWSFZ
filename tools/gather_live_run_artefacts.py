@@ -104,6 +104,7 @@ project virtualenv guaranteed to be active.
 from __future__ import annotations
 
 import argparse
+import json
 import csv
 import json
 import os
@@ -286,6 +287,9 @@ def load_owsfz_config() -> dict:
 
 
 def git_build_info() -> str:
+    """The GATHERER'S OWN checkout (branch, short SHA, dirty). This is the tooling worktree the script
+    runs from, NOT the build the daemon ran: it was recorded as "the build" by mistake on 2026-09-23
+    (`345e75ff` against the daemon's `84cac119`). Use `build_info(arm_config)` for the section."""
     def run(*args: str) -> str | None:
         try:
             return subprocess.run(
@@ -307,6 +311,38 @@ def git_build_info() -> str:
             "what was actually in play"
         )
     return f"`{branch}` at `{sha}` ({dirty_note})."
+
+
+_ARM_CONFIG_BUILD_KEYS = ("git_sha", "commit", "build_sha", "daemon_commit")
+
+
+def build_info(arm_config: Path | None) -> str:
+    """Text for the 'Build under test' section, taken from the run's OWN record (`arm_config.json`'s
+    `daemon` block: version, shim, libft8.dll SHA-256, exe, and a commit if one was recorded). Without a
+    record the section says so plainly and shows the gatherer's checkout only as labelled information."""
+    if arm_config is not None:
+        try:
+            rec = json.loads(Path(arm_config).read_text(encoding="utf-8"))
+            d = rec.get("daemon") or {}
+        except (OSError, ValueError):
+            rec, d = {}, {}
+        if d:
+            parts = []
+            for label, key in (("daemon version", "daemon_version"), ("shim", "shim_version"),
+                               ("libft8.dll SHA-256", "dll_sha256"), ("exe", "exe")):
+                if d.get(key) not in (None, ""):
+                    parts.append(f"{label} `{d[key]}`")
+            for key in _ARM_CONFIG_BUILD_KEYS:
+                if d.get(key):
+                    parts.insert(0, f"commit `{d[key]}`")
+                    break
+            return (f"From the daemon's own record (`{Path(arm_config).name}`, recorded "
+                    f"{rec.get('recorded_utc', 'time unknown')}): " + "; ".join(parts) + ". "
+                    "(The gatherer's own checkout is deliberately NOT used as the build.)")
+    return ("**NOT RECORDED**: no readable `--arm-config` (the daemon's own `arm_config.json`) was given, "
+            "so the build under test is unknown to this gather. For information only, the gatherer's "
+            f"own checkout is {git_build_info()} That is the tooling worktree, not necessarily the daemon "
+            "build (the 2026-09-23 R&R gather recorded `345e75ff` while the daemon ran `84cac119`).")
 
 
 # ── Copy helpers ─────────────────────────────────────────────────────────────────────────
@@ -335,10 +371,54 @@ def filter_alltxt(src: Path, dst: Path, start: datetime, end: datetime) -> int:
     return kept
 
 
+OWSFZ_WAV_MODES = ("auto", "copy", "move")
+
+
+def resolve_wav_mode(mode: str, src_dir: Path, out_root: Path) -> str:
+    """Resolve the --owsfz-wav-mode `auto` to `move` or `copy`.
+
+    `auto` MOVES when the OpenWSFZ cycle-audio directory already lives under --out-root (the
+    endurance runs point the daemon's cycleAudioArchive.directory straight into the run's own
+    artefacts folder), because copying from there into <run>-gathered/owsfz/wav/ left the same
+    WAVs on disk twice (about 1 to 1.5 GB per run; found 2026-10-02 on 20260925_2010 and
+    20260930_1930). Anywhere else (the default %APPDATA% archive, a capture instance's own
+    directory) it COPIES, so the live archive and its retention are never disturbed."""
+    if mode not in OWSFZ_WAV_MODES:
+        raise ValueError(f"unknown WAV mode {mode!r}; expected one of {OWSFZ_WAV_MODES}")
+    if mode != "auto":
+        return mode
+    try:
+        return "move" if src_dir.resolve().is_relative_to(out_root.resolve()) else "copy"
+    except (OSError, ValueError):
+        return "copy"
+
+
+def transfer_wav(src: Path, dst: Path, mode: str) -> None:
+    """Put `src` at `dst`: `copy` leaves the source; `move` removes it. A move on one volume is an
+    atomic os.replace; across volumes it copies, verifies the size, and only then unlinks, so a
+    failed copy never loses the source."""
+    if mode == "copy":
+        shutil.copy2(src, dst)
+        return
+    if mode != "move":
+        raise ValueError(f"transfer_wav: mode must be 'copy' or 'move', got {mode!r}")
+    try:
+        os.replace(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+        if dst.stat().st_size != src.stat().st_size:
+            dst.unlink()
+            raise
+        src.unlink()
+
+
 def copy_wav_window(
-    src_dir: Path, dst_dir: Path, start: datetime, end: datetime, pad: timedelta
+    src_dir: Path, dst_dir: Path, start: datetime, end: datetime, pad: timedelta,
+    mode: str = "copy",
 ) -> int:
-    """Copy WAVs named `YYMMDD_HHMMSS.wav` whose timestamp falls within [start-pad, end+pad]."""
+    """Copy (or, with mode="move", move) WAVs named `YYMMDD_HHMMSS.wav` whose timestamp falls
+    within [start-pad, end+pad]. `mode` is `copy` or `move` (already resolved; see
+    resolve_wav_mode)."""
     dst_dir.mkdir(parents=True, exist_ok=True)
     if not src_dir.is_dir():
         print(f"  (skip) {src_dir} not found")
@@ -349,9 +429,9 @@ def copy_wav_window(
         ts = parse_cycle_ts(wav.stem)
         if ts is None or not (lo <= ts <= hi):
             continue
-        shutil.copy2(wav, dst_dir / wav.name)
+        transfer_wav(wav, dst_dir / wav.name, mode)
         count += 1
-    print(f"  {src_dir} -> {dst_dir} ({count} WAV files in window)")
+    print(f"  {src_dir} -> {dst_dir} ({count} WAV files in window, {mode})")
     return count
 
 
@@ -775,6 +855,7 @@ def copy_wav_window_split_by_band(
     end: datetime,
     pad: timedelta,
     band_by_filename: dict[str, str],
+    mode: str = "copy",
 ) -> dict[str, int]:
     """Like copy_wav_window, but splits output into dst_root/<band>/wav/ using the manifest-
     derived band_by_filename lookup. A WAV in the time window but absent from the manifest
@@ -797,7 +878,7 @@ def copy_wav_window_split_by_band(
         band = sanitize_band_label(band)
         band_wav_dir = dst_root / band / "wav"
         band_wav_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(wav, band_wav_dir / wav.name)
+        transfer_wav(wav, band_wav_dir / wav.name, mode)
         counts[band] = counts.get(band, 0) + 1
     for band, n in sorted(counts.items()):
         print(f"  {src_dir} -> {dst_root / band / 'wav'} ({n} WAV files in window)")
@@ -931,6 +1012,8 @@ def write_contents(
     config: dict,
     owsfz_band_breakdown: dict[str, dict[str, int]] | None = None,
     provenance: dict | None = None,
+    arm_config: Path | None = None,
+    synthetic: bool = False,
 ) -> Path:
     decoder = config.get("decoder", {})
     decode_log = config.get("decodeLog", {})
@@ -967,6 +1050,20 @@ def write_contents(
             f"future use regardless)."
         )
 
+    if synthetic:
+        privacy_note = ("SYNTHETIC R&R run: the decodes in this folder are of synthetic Q-prefix callsigns "
+                        "the harness played; the folder still stays out of VCS (git-ignored, `artefacts/`).")
+        todo_note = ("This is a synthetic run, not a live-band session: the analysis lives in the run's own "
+                     "R&R report (see the Headline section).")
+        headline_note = ("See the R&R report for this run (`qa/rr-study/results/<run>/report.md`) and its "
+                         "`truth.csv`; no live-band result is claimed here.")
+    else:
+        privacy_note = ("Not committed to VCS (git-ignored, `artefacts/` — NFR-021/GDPR: these files contain "
+                        "real third-party callsigns).")
+        todo_note = ("**TODO (QA/Developer to fill in before closing out the run):** link the analysis this run "
+                     "supports and fill in the \"Headline result\" section below.")
+        headline_note = "TODO — one-line pointer to wherever the actual analysis/report for this run lives."
+
     provenance_section = render_provenance_section(provenance) if provenance else (
         "TODO — this run was gathered before the G1 provenance fix; source instance/hash "
         "not recorded. See qa/cycleframer-alignment-replay/2026-08-10-1559-architect-to-qa-"
@@ -979,12 +1076,9 @@ def write_contents(
     # this file's name, or any filename under it (naming is date/time-only throughout).
     body = f"""# Live run contents — {start:%Y-%m-%d} (session {start:%H:%M:%S} → {end:%H:%M:%S} UTC)
 
-Gathered automatically by `tools/gather_live_run_artefacts.py` (HK-016). Not committed to
-VCS (git-ignored, `artefacts/` — NFR-021/GDPR: these files contain real third-party
-callsigns).
+Gathered automatically by `tools/gather_live_run_artefacts.py` (HK-016). {privacy_note}
 
-**TODO (QA/Developer to fill in before closing out the run):** link the analysis this run
-supports and fill in the "Headline result" section below.
+{todo_note}
 
 ## Contents
 
@@ -999,7 +1093,7 @@ supports and fill in the "Headline result" section below.
 
 ## Build under test
 
-{git_build_info()}
+{build_info(arm_config)}
 
 ## Device / session metadata
 
@@ -1013,7 +1107,7 @@ Session duration: {end - start} ({start:%H:%M:%S} → {end:%H:%M:%S}).
 
 ## Headline result
 
-TODO — one-line pointer to wherever the actual analysis/report for this run lives.
+{headline_note}
 """
     contents_path = out_dir / "contents.md"
     if contents_path.exists():
@@ -1069,6 +1163,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
                                    "Default: today.")
     p.add_argument("--name", help="Override the output folder name "
                                    "(default: <YYYYMMDD>_live_run_<HHMM start>).")
+    p.add_argument("--no-index", action="store_true",
+                   help="do not regenerate <out-root>/INDEX.md at the end (default: regenerate)")
     p.add_argument("--out-root", default=str(REPO_ROOT / "artefacts"),
                     help="Root artefacts/ directory (default: %(default)s).")
     p.add_argument("--owsfz-alltxt", help="Path to OpenWSFZ's live ALL.TXT "
@@ -1079,6 +1175,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--owsfz-cycle-audio-dir", help="Override the cycle-audio-archive directory "
                                                      "(default: config.json's cycleAudioArchive.directory, "
                                                      "or the platform default).")
+    p.add_argument("--owsfz-wav-mode", choices=OWSFZ_WAV_MODES, default="auto",
+                    help="How OpenWSFZ WAVs reach <out>/owsfz/wav: 'copy' leaves the source, 'move' "
+                         "removes it (no duplicate on disk), 'auto' (default) moves when the "
+                         "cycle-audio dir is already under --out-root and copies otherwise. "
+                         "WSJT-X WAVs are never moved.")
     p.add_argument("--owsfz-config", help="Path to THIS instance's own config.json, used only "
                                            "for the contents.md 'Device / session metadata' "
                                            "section (audio device, dial frequency snapshot, "
@@ -1148,12 +1249,38 @@ def build_arg_parser() -> argparse.ArgumentParser:
                          "(or exists on only one side) is left untouched and reported. Skips the "
                          "rest of the normal gather entirely when given -- an in-place-edit mode, "
                          "not a session gather.")
+    p.add_argument("--arm-config", metavar="PATH",
+                   help="The daemon's OWN record of the build under test (the run's arm_config.json). The "
+                        "'Build under test' section is taken from it; without it the section says NOT "
+                        "RECORDED rather than presenting the gatherer's checkout as the build.")
+    p.add_argument("--synthetic-run", action="store_true",
+                   help="Use the synthetic-run wording in contents.md (R&R runs play synthetic Q-prefix "
+                        "callsigns): no 'real third-party callsigns' statement and no live-run TODO headline.")
     p.add_argument("--dry-run", action="store_true", help="Print what would happen; copy nothing.")
     p.add_argument("--report-md", action="append", dest="report_md_paths", metavar="PATH",
                     help="Also render this Markdown file to HTML (e.g. a companion "
                          "qa/endurance/<date>-<sha>/report.md incident write-up), alongside "
                          "this run's own contents.md/contents.html. Repeatable.")
     return p
+
+
+def refresh_artefacts_index(out_root: Path, skip: bool = False) -> bool:
+    """Regenerate <out-root>/INDEX.md as the gatherer's last step, so a new run is indexed at once.
+
+    The index is folder names and dates only (tools/make_index.py). Found stale on 2026-10-03: the
+    generator lived in a scratch folder and nothing called it. A failure here must NEVER fail a
+    gather: the artefacts are already on disk, so it is reported and the gather still succeeds."""
+    if skip:
+        return False
+    try:
+        import make_index
+        n = make_index.write_index(out_root)
+        print(f"Refreshed {out_root / make_index.INDEX_NAME} ({n} entries)")
+        return True
+    except Exception as exc:
+        print(f"  [WARN] artefacts index NOT refreshed ({type(exc).__name__}: {exc}); "
+              f"run `python tools/make_index.py` by hand. The gather itself is complete.")
+        return False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1212,6 +1339,7 @@ def main(argv: list[str] | None = None) -> int:
              (platform_appdata_root() / "OpenWSFZ" / "cycle-audio"))
     )
     wsjtx_link_from = Path(args.wsjtx_link_from) if args.wsjtx_link_from else None
+    owsfz_wav_mode = resolve_wav_mode(args.owsfz_wav_mode, cycle_audio_dir, Path(args.out_root))
     wsjtx_root = Path(args.wsjtx_root) if args.wsjtx_root else (platform_localappdata_root() / "WSJT-X")
     wsjtx_alltxt = wsjtx_root / "ALL.TXT"
     wsjtx_wav_dir = wsjtx_root / "save"
@@ -1268,6 +1396,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  wsjt-x ALL.TXT       = {wsjtx_alltxt}")
         print(f"  wsjt-x save/ wav dir = {wsjtx_wav_dir}")
 
+    print(f"OpenWSFZ WAVs:  {owsfz_wav_mode}"
+          + (" (source removed once placed: no duplicate left on disk)" if owsfz_wav_mode == "move" else ""))
+
     if args.dry_run:
         print("\n--dry-run: no files copied, no directories created.")
         return 0
@@ -1292,7 +1423,7 @@ def main(argv: list[str] | None = None) -> int:
         line_counts = filter_alltxt_split_by_band(owsfz_alltxt, owsfz_dir, start, end)
         owsfz_logs = copy_log_files(owsfz_log_dirs, owsfz_dir, start, end, log_pad)
         wav_counts = copy_wav_window_split_by_band(
-            cycle_audio_dir, owsfz_dir, start, end, pad, band_by_filename
+            cycle_audio_dir, owsfz_dir, start, end, pad, band_by_filename, owsfz_wav_mode
         )
         copy_cycle_archive_manifest(cycle_audio_dir, owsfz_dir)
         write_band_manifests(manifest_rows, owsfz_dir, start, end)
@@ -1306,7 +1437,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         owsfz_lines = filter_alltxt(owsfz_alltxt, owsfz_dir / "ALL.TXT", start, end)
         owsfz_logs = copy_log_files(owsfz_log_dirs, owsfz_dir, start, end, log_pad)
-        owsfz_wavs = copy_wav_window(cycle_audio_dir, owsfz_wav_dir, start, end, pad)
+        owsfz_wavs = copy_wav_window(cycle_audio_dir, owsfz_wav_dir, start, end, pad, owsfz_wav_mode)
         copy_cycle_archive_manifest(cycle_audio_dir, owsfz_dir)
 
     if wsjtx_link_from:
@@ -1373,6 +1504,8 @@ def main(argv: list[str] | None = None) -> int:
     contents_path = write_contents(
         out_dir, name, start, end, owsfz_lines, owsfz_wavs, owsfz_logs, wsjtx_lines, wsjtx_wavs,
         metadata_config, owsfz_band_breakdown, provenance,
+        arm_config=Path(args.arm_config) if args.arm_config else None,
+        synthetic=args.synthetic_run,
     )
     print(f"\nWrote {contents_path} — fill in the TODO sections before closing out the run.")
 
@@ -1380,6 +1513,8 @@ def main(argv: list[str] | None = None) -> int:
         print("\nRendering companion report(s):")
         for report_md in args.report_md_paths:
             render_markdown_html(Path(report_md))
+
+    refresh_artefacts_index(Path(args.out_root), skip=args.no_index)
 
     print(f"Done: {out_dir}")
     return 0

@@ -51,17 +51,31 @@ public sealed class DaemonProcess : IAsyncDisposable
     /// same default port and default config file).
     /// </param>
     /// <param name="configPath">
-    /// Explicit <c>--config</c> path, or <see langword="null"/> to use the platform default
-    /// config location. Pass an isolated temp path alongside a non-null
-    /// <paramref name="explicitPort"/> for the same cross-test-class isolation reason.
+    /// Explicit <c>--config</c> path. <b>Required</b>: a daemon started without one resolves the
+    /// platform default config (<c>%APPDATA%\OpenWSFZ\config.json</c>), which on the station is the
+    /// live config, and the daemon's config store migrates and rewrites that file on load
+    /// (2026-10-02: a test run rewrote the station's real config this way). A <see langword="null"/>
+    /// value therefore throws <see cref="ArgumentNullException"/> rather than defaulting to a temp path:
+    /// a silent default would hide that the test did not choose its own config. Use
+    /// <see cref="IsolatedDaemonEnvironment"/>, which supplies an isolated temp path and an ephemeral port.
+    /// </param>
+    /// <param name="environment">
+    /// Optional environment-variable overrides for the daemon process (for example to point
+    /// <c>APPDATA</c> at a sentinel directory when proving isolation).
     /// </param>
     public static async Task<DaemonProcess> StartAsync(
         TimeSpan? startupTimeout = null,
         CancellationToken ct = default,
         string publishSubdir = "publish",
         int? explicitPort = null,
-        string? configPath = null)
+        string? configPath = null,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
+        if (configPath is null)
+            throw new ArgumentNullException(nameof(configPath),
+                "A daemon started by a test must be given an explicit --config (see IsolatedDaemonEnvironment); " +
+                "without one it would use, and could rewrite, the machine's real per-user config.");
+
         var timeout = startupTimeout ?? TimeSpan.FromSeconds(10);
         var binaryPath = ResolveBinaryPath(publishSubdir);
 
@@ -76,10 +90,12 @@ public sealed class DaemonProcess : IAsyncDisposable
             psi.ArgumentList.Add("--port");
             psi.ArgumentList.Add(explicitPort.Value.ToString());
         }
-        if (configPath is not null)
+        psi.ArgumentList.Add("--config");
+        psi.ArgumentList.Add(configPath);
+        if (environment is not null)
         {
-            psi.ArgumentList.Add("--config");
-            psi.ArgumentList.Add(configPath);
+            foreach (var (key, value) in environment)
+                psi.Environment[key] = value;
         }
 
         var process = Process.Start(psi)
