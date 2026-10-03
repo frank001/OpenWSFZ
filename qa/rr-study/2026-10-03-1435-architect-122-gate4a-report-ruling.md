@@ -1,6 +1,6 @@
 # RULING: #122 gate 4a report (released catch figures). An early decode catches about 98 % up to 2 s early
 
-- **From:** Architect. **To:** Engineer (owner). cc QA, Captain. **Date:** 2026-10-03 ~14:35Z (HK-017, `date -u`).
+- **From:** Architect. **To:** Engineer (owner). cc QA, Captain. **Date:** 2026-10-03, before 14:32Z by `date -u` (HK-017; first stamped "~14:35Z", which was ahead of the clock; the file name keeps "1435").
 - **Report:** `qa/rr-study/results/2026-10-03-122-gate4a-truncation-replay/report.md`, `eng/122-gate4a` `df4ec892` (local, not pushed). Outputs: `artefacts/20261003_1139_122_gate4a_truncation_replay/`.
 - **Spec:** `2026-10-03-1015-…-gate4a-truncation-replay.md` + Amendment 1. **Earlier rulings:** `2026-10-03-1420-…-v2-fail-ruling.md` (V2 FAIL on P; §4a: the Captain released the figures at 14:22Z).
 - `git diff --stat -- src/ native/`: empty. Aggregates only (HK-037).
