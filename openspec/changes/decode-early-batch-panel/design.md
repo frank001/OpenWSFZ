@@ -83,11 +83,18 @@ That fits "1 decode in 20 175, text differs" and is exactly the kind of thing a 
    the panel shows two rows. (ii) lets the early decode behave exactly like a final decode inside the call.
 2. (i) leaves the `g_h12_*` diagnostic counters polluted by the early decode's lookups (the endurance reports read them); (ii) restores them.
 
-**Shape.** Two new exports, for example `ft8_hash_state_save()` and `ft8_hash_state_restore()`, copying the whole list above into one static
-buffer (about 165 KB; tens of microseconds). The pair is **non-reentrant** (assert it, never nested) and relies on the D2 gate (no other
-decode runs between them). Managed side: `try { save; decode; } finally { restore; }`, so a native access violation (the SEH wrapper only
+**Shape.** Three new exports, for example `ft8_hash_state_size()`, `ft8_hash_state_save(buf, cap)` and `ft8_hash_state_restore(buf, len)`,
+copying the whole list above to and from a **caller-supplied buffer** (about 165 KB; a heap `byte[]` on the managed side, never a stack; tens
+of microseconds). A caller-supplied buffer, not a static one, is what lets acceptance **A2b** compare two saved images byte for byte (a static
+buffer would hide the image from the test; Architect's Amendment 1, `e24d541b`). The pair relies on the D2 gate (no other decode runs between
+them). Managed side: `try { save; decode; } finally { restore; }`, so a native access violation (the SEH wrapper only
 detaches the thread pointer) still restores. The managed bracket runs **inside the same `Task.Run` lambda** as the decode (`Ft8Decoder.cs:443-459`),
 because the native TLS is per-thread.
+
+**The completeness of the list is checked mechanically, not trusted (HK-026: an instrument cannot bound its own blind spot).** A2b compares saved
+images, so it can only see the globals the image contains. A test therefore scans `ft8_shim.c` for every mutable file-scope `g_` / `static` variable
+the decode can write (a script or a C# test over the source text) and **fails when one is not in the image** (and when the image names one that no
+longer exists). Adding a global to the shim without adding it to the image then fails the build, instead of silently re-opening R4.
 
 The Developer records the final choice (and why, with FILE:LINE) in this file before coding. **Acceptance A2 tests the guarantee, not the
 mechanism.** If (i) is chosen after all, the Developer states how the lost within-call resolution is handled.
@@ -140,11 +147,12 @@ and no new WebSocket frame exists. Characterisation tests in the style of `TwoSt
 | **A1** flag OFF identity | Sound: it is the merge guard, and it fires on any code path that leaks early output with the flag OFF. | Fires both ways (a deliberate leak fails it). | Kept. |
 | **(gap) R3 with the flag ON** | **No row covers it.** R3 says ALL.TXT, UDP, the QSO channels and the archive see nothing of the early batch, but A1 is flag OFF, A2 looks only at the final decode's numbers, A5 is the panel. A build could publish early rows to ALL.TXT and pass every row. | n/a | **A1b (new):** with `earlyDecodeEnabled = true` on a fixed set of recorded cycles, the ALL.TXT lines, UDP datagrams, QSO-channel batches and archive manifest rows are **identical** to the flag-OFF run (only the panel frames differ). Guards R3 and the merge. |
 | **A2** final decode unaffected | Valid only if the replay drives **the product's early path** (the same early entry, with the snapshot and restore), not a copy of it in the harness. | **A2 alone is weak against the known defect.** If the V2 loss is a per-cycle chance of 1 in 1 075 (the observed rate), a build that still has it passes N/N on P with probability about 0.37 (0.19 on P plus R). A PASS therefore says little. | Run on **P and R** (R passed V2 N/N in gate 4a, so it adds power). And an **A2 positive control (HK-026):** run the same replay against the **unprotected** build (R4 disabled) and show it **reproduces the known loss** at stamp `261001_112700` (the 1 731 Hz decode, list position 956 on P). If the unprotected product build does not reproduce it, A2 cannot see this defect and must say so. Strict N/N reference (D1 removed the fallback). |
+| **A2b** state round trip (Architect's Amendment 1, `e24d541b`; QA agrees) | Valid by construction: a deterministic test, no corpus and no luck. It captures **every** process-global value in the image (design D4) before an early decode, runs the early decode, restores, captures again, and asserts the two images are **byte-identical**. A decode that adds callsigns and moves the counters is used, so the restore has something to undo. | Fires both ways: omit one global from the restore (for example the announce clock) and it fails. It sees only what the image contains, so it is paired with the **completeness test** of D4. | **Merge needs A2b PASS plus A2 N/N on P and R.** If A2's positive control cannot reproduce the known loss at stamp `261001_112700`, A2 is reported as **"not evaluable for this defect"** and the merge rests on A2b: a rare-event replay cannot carry R4 on its own. |
 | **A3** live timing | (a) and (b) read straight from the R7 line and the `Cycle` line: valid. (c) must not use "cycles in which the early decode was skipped" as the control: skips happen when the decoder is busy, so those cycles are systematically the heavy ones (confounded). | (c) is a difference of medians with a 0.10 s bar; the spread is unknown until measured. | **(c) uses flag-OFF hours as the control** (alternate `earlyDecodeEnabled` each hour through a partial config POST, read back every time, FR-074 overlay). QA states per-hour sample sizes and the spread before the first A3, and reads (c) with its interval. >= 2 h gives one hour per arm; QA recommends >= 4 h. Receive only, 40 m, the Captain's go and the station slot. |
 | **A4** consistency with gate 4a | Valid as a label on the figures. | `C` over about 20 000 decodes has a standard error near 0.001, so a +/-0.01 window is about ten standard errors wide: **A4 can only see a gross path difference** (a different cut, a missing normalisation), not a subtle one. | Kept; the report says what A4 can and cannot see. |
 | **A5** panel | Valid. | Fires both ways (a deliberate duplicate row fails it). | Add: the mark is present in the **accessibility tree** (keyboard focus and screen-reader text), not only in the DOM text. Plus `live_verify_9_axes.py` (the decode-panel filtering policy). |
 
-**Stops stay scoped (sibling (ab)):** A1, A1b, A2 and A5 block the merge; A3 blocks the default-ON decision only (the flag ships OFF); A4 labels
+**Stops stay scoped (sibling (ab)):** A1, A1b, A2b, A2 (as scoped in its row) and A5 block the merge; A3 blocks the default-ON decision only (the flag ships OFF); A4 labels
 the figures and goes back to the Architect.
 
 ## Risks
@@ -153,7 +161,7 @@ the figures and goes back to the Architect.
   also bumps the shim; both expect the next free number. Whichever merges second takes the next one after it: `git grep` over `origin/*` and the
   handoffs before choosing, and keep the two native diffs separate.
 - **Heap and stack:** `g_session_hash_table` is 80 KB and the snapshot buffer is static. Do not put either on a stack (the project's AV history).
-- **Concurrency is the historical crash class** (see `iterative-subtraction`). The gate (D2) and the non-reentrant pair (D4) are the controls; a
+- **Concurrency is the historical crash class** (see `iterative-subtraction`). The gate (D2) and the save/restore pair with A2b and its completeness test (D4) are the controls; a
   stress test (early decode and ordinary decode contending for many cycles, forced cancellation) runs before any timing is read.
 - **CPU:** one more ordinary decode per cycle while a residual pass may be running. R2's skip rule and A3(b) and (c) measure it.
 - **Version collision:** `decoding_improvement` already carries VERSION 0.55. Check it before choosing this change's number.
