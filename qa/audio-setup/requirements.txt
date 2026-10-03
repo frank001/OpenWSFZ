@@ -1,0 +1,3 @@
+pycaw>=20260927   # MIT
+comtypes>=1.4   # MIT
+jsonschema>=4   # MIT
