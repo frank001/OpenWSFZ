@@ -16,10 +16,10 @@ no change to ft8_decode_all or any other function. The Stage A fit's outputs are
 (SubfeasNativeSpeedTests 8.1, not re-recorded) and on 111/111 real fits of the fit profile.
 
   Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
-    70d4032336482df98021f1c42acdef8e1f604e3998acdff36819c4bb1d29af1c
+    2535dec1b08d08302df721df81b74439af8adf486e53562aa1f8400755216696
     (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
   Linux x64   (build_linux.sh, GCC via WSL2 Debian): built, exports checked with nm, committed. SHA256
-    ed36bb432efc79316808257059b4ed6ceb0188a33d3d70ac837a867386146d8d
+    42fad0511bf0d4cc7877625f2942e227cddb8b6b70e1db58559e5ab2ea57dcee
     tools/check_native_version.py reports shim 20260059 for both files built here.
   macOS ARM64: NOT rebuilt here -- no Mac available locally (the same limitation every prior native change recorded). CI owns it.
 

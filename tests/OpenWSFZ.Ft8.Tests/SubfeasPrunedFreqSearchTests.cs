@@ -16,7 +16,7 @@ namespace OpenWSFZ.Ft8.Tests;
 /// (<c>run_freq_search_selftest.py</c>: MSVC <c>/std:c11 /O2 /W3</c> on Windows, <c>cc -std=c11 -O2</c> elsewhere, the shipped
 /// flags) and requires: every synthetic tone across the full ±2.0 Hz range (both edges, 0, bin centres, between bins, just
 /// outside), with and without noise at a fixed seed, and every chirp, returns the SAME bin as the reference; two tones 1 % and
-/// 0.1 % apart both pick the larger; an exactly equal pair keeps the reference's scan-order tie-break; a set cancel flag
+/// 0.1 % apart both pick the larger; the argmax helper, driven with exactly equal magnitudes, keeps the reference's scan-order tie-break (D2); a length off a multiple of 64 is handled; a set cancel flag
 /// returns -4 promptly. It fails, it does not skip, when no C compiler can be found: the same compilers build the product.
 /// </para>
 ///
@@ -79,6 +79,9 @@ public sealed class SubfeasPrunedFreqSearchTests(ITestOutputHelper output)
         text.Should().MatchRegex(@"A: \d+ tones \(noise-free and noisy\), 0 bin disagreements");
         text.Should().MatchRegex(@"B: \d+ chirps, 0 bin disagreements");
         text.Should().MatchRegex(@"C: 4 two-tone cases \(1% and 0\.1% gaps\), 0 disagreements");
+        text.Should().MatchRegex(@"D2: tie-break helper vs the reference scan on \d+ exact-tie and ordering cases, 0 disagreements",
+            "the tie-break is tested on the argmax helper with exactly equal magnitudes (a decimated signal never produces an exact tie)");
+        text.Should().MatchRegex(@"F: lengths off a multiple of 64 .* 0 disagreements");
         text.Should().Contain("E: cancel flag set -> -4");
     }
 }

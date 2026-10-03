@@ -79,8 +79,7 @@
  * FS_SMALL_N = 4 096-point FFT. The bin spacing is unchanged: (FS / 64) / 4 096 = FS / 262 144 = 0.0458 Hz. */
 #define FS_DECIM         64
 #define FS_SMALL_N       (N_FFT / FS_DECIM)      /* 4096 */
-/* compile-time checks (a negative array size is an error): the product is whole blocks, and its decimated image fits in the small FFT */
-typedef char subfeas_check_decim_divides_ntx[(SUBFEAS_N_TX % FS_DECIM == 0) ? 1 : -1];
+/* compile-time check (a negative array size is an error): the product's decimated image fits in the small FFT */
 typedef char subfeas_check_decim_fits_small[(SUBFEAS_N_TX / FS_DECIM + 1 <= FS_SMALL_N) ? 1 : -1];
 
 #define TRANSMISSION_S   (N_TX / FS)   /* 12.64, exact */
@@ -383,6 +382,33 @@ static void apply_freq_shift(const cf32* r_unit, int len, double df_hz, cf32* ou
     }
 }
 
+/* B2: the argmax of freq_search over bin magnitudes, in the REFERENCE'S INDEX ORDER and with its tie-break. `mag` holds the
+ * magnitude of bin k at mag[k + kmax], k = -kmax .. +kmax. The reference scans FFT indices 0, 1, ..., kmax (frequencies 0 to
+ * +kmax bins) and THEN N-kmax, ..., N-1 (frequencies -kmax to -1 bins), keeping the first strictly greater magnitude, so on an
+ * exact tie the lower index wins: +k before -k, 0 before everything, and among negatives the more negative frequency. It is a
+ * separate function so the self-test (tests/Ft8.FitProbe/native/freq_search_selftest.c) can drive it with exactly equal
+ * magnitudes, which a decimated, FFT'd and droop-corrected signal never produces. */
+static void argmax_in_index_order(
+    const double* mag, int kmax, double bin_hz, double f_range_hz,
+    double* out_best_f, double* out_best_val)
+{
+    int k;
+    double best_val = -1.0;
+    double best_f = 0.0;
+    for (k = 0; k <= kmax; k++) {                                    /* reference indices 0 .. kmax */
+        double f = (double)k * bin_hz;
+        if (fabs(f) > f_range_hz) continue;
+        if (mag[k + kmax] > best_val) { best_val = mag[k + kmax]; best_f = f; }
+    }
+    for (k = -kmax; k <= -1; k++) {                                  /* reference indices N-kmax .. N-1 */
+        double f = (double)k * bin_hz;
+        if (fabs(f) > f_range_hz) continue;
+        if (mag[k + kmax] > best_val) { best_val = mag[k + kmax]; best_f = f; }
+    }
+    *out_best_f = best_f;
+    *out_best_val = best_val;
+}
+
 /* fitter.py:_freq_search -- argmax_f |FFT(mixed, n_fft)| restricted to |f| <= f_range_hz. mixed is N_TX long
  * (zero-padded to n_fft in the reference). Returns best_f_hz and best_val via out-params.
  *
@@ -412,19 +438,21 @@ static void freq_search(
     double* out_best_f, double* out_best_val)
 {
     int i, j, m, k, kmax;
-    double best_val = -1.0;
-    double best_f = 0.0;
     double bin_hz = FS / (double)N_FFT;
     kiss_fft_cpx* y = ws->scratch_search;     /* the first FS_SMALL_N entries */
-    const int blocks = mixed_len / FS_DECIM;  /* whole blocks; mixed_len is N_TX, a multiple of FS_DECIM */
+    /* mixed_len is N_TX = 2 370 x 64 at both call sites. A length that is not a multiple of 64 is handled (the last block is
+     * short: its missing samples are zero, the reference's padding), and one too long for the small FFT is cut to what fits. */
+    int blocks = (mixed_len + FS_DECIM - 1) / FS_DECIM;
     float prev_br = 0.0f, prev_bi = 0.0f;
+    if (blocks > FS_SMALL_N - 1) { blocks = FS_SMALL_N - 1; mixed_len = blocks * FS_DECIM; }
 
     /* 1. Linear-interpolation decimation: Y[m] = A[m] + B[m-1], A[m] = sum_j mixed[64m+j] (64-j)/64,
      *    B[m] = sum_j mixed[64m+j] j/64. (64 is a power of two, so the weights are exact in float.) */
     for (m = 0; m < blocks; m++) {
         float ar = 0.0f, ai = 0.0f, br = 0.0f, bi = 0.0f;
         const cf32* blk = mixed + (size_t)m * FS_DECIM;
-        for (j = 0; j < FS_DECIM; j++) {
+        const int jn = (mixed_len - m * FS_DECIM < FS_DECIM) ? mixed_len - m * FS_DECIM : FS_DECIM;
+        for (j = 0; j < jn; j++) {
             float wa = (float)(FS_DECIM - j) * (1.0f / FS_DECIM);
             float wb = (float)j * (1.0f / FS_DECIM);
             ar += blk[j].r * wa; ai += blk[j].i * wa;
@@ -441,29 +469,21 @@ static void freq_search(
     /* 2. The 4 096-point FFT, in place. */
     kiss_fft(ws->fwd_small, y, y);
 
-    /* 3. Bins in the reference's index order, only those within the range. */
-    kmax = 0;
-    while (kmax + 1 < FS_SMALL_N / 2 && fabs((double)(kmax + 1) * bin_hz) <= f_range_hz) kmax++;
-    for (k = 0; k <= kmax; k++) {                                    /* reference indices 0 .. kmax */
-        double f = (double)k * bin_hz;
-        double mag, d;
-        if (fabs(f) > f_range_hz) continue;
-        mag = sqrt((double)y[k].r * y[k].r + (double)y[k].i * y[k].i);
-        d = (k == 0) ? 1.0 : sin(M_PI * k * (double)FS_DECIM / (double)N_FFT) / ((double)FS_DECIM * sin(M_PI * k / (double)N_FFT));
-        mag /= d * d;
-        if (mag > best_val) { best_val = mag; best_f = f; }
+    /* 3. The in-range bins' magnitudes, droop-corrected, into the tail of the search scratch (entries FS_SMALL_N and up are
+     *    unused here; at most 4 095 doubles fit in the N_FFT - FS_SMALL_N entries), then the reference-ordered argmax. */
+    {
+        double* mag = (double*)(ws->scratch_search + FS_SMALL_N);
+        kmax = 0;
+        while (kmax + 1 < FS_SMALL_N / 2 && fabs((double)(kmax + 1) * bin_hz) <= f_range_hz) kmax++;
+        for (k = -kmax; k <= kmax; k++) {
+            const kiss_fft_cpx* b = &y[k >= 0 ? k : FS_SMALL_N + k];
+            double m2 = sqrt((double)b->r * b->r + (double)b->i * b->i);
+            double d = (k == 0) ? 1.0
+                     : sin(M_PI * k * (double)FS_DECIM / (double)N_FFT) / ((double)FS_DECIM * sin(M_PI * k / (double)N_FFT));
+            mag[k + kmax] = m2 / (d * d);
+        }
+        argmax_in_index_order(mag, kmax, bin_hz, f_range_hz, out_best_f, out_best_val);
     }
-    for (k = -kmax; k <= -1; k++) {                                  /* reference indices N-kmax .. N-1 */
-        double f = (double)k * bin_hz;
-        double mag, d;
-        if (fabs(f) > f_range_hz) continue;
-        mag = sqrt((double)y[FS_SMALL_N + k].r * y[FS_SMALL_N + k].r + (double)y[FS_SMALL_N + k].i * y[FS_SMALL_N + k].i);
-        d = sin(M_PI * k * (double)FS_DECIM / (double)N_FFT) / ((double)FS_DECIM * sin(M_PI * k / (double)N_FFT));
-        mag /= d * d;
-        if (mag > best_val) { best_val = mag; best_f = f; }
-    }
-    *out_best_f = best_f;
-    *out_best_val = best_val;
 }
 
 /* ========================================================================

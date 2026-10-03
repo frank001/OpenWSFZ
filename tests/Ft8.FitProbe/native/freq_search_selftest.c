@@ -13,8 +13,12 @@
  *      SAME bin (frequency) as the reference;
  *   B. a chirp (the step-2 case: residual drift after mixing): same bin;
  *   C. two tones whose magnitudes differ by 1 % and by 0.1 %: both pick the larger, and agree with the reference;
- *   D. the tie-break: an exactly equal pair (+9 and -9 bins) returns one of the two, and where the reference prefers the
- *      positive bin so does the pruned search (reported, and asserted only when the reference's own magnitudes tie);
+ *   D. a float-level near-tie through the whole pipeline returns one of the two bins (descriptive; a decimated, FFT'd,
+ *      droop-corrected signal never produces an EXACTLY equal pair, so this cannot test the tie-break);
+ *   D2. the tie-break, BINDING: argmax_in_index_order (the product's scan, a separate function) is driven with hand-built
+ *      magnitude arrays holding exact ties (+k and -k, two positive bins, two negative bins, 0 and +-1, every bin equal) and
+ *      must pick what the reference's scan loop (Stage A's, verbatim) picks;
+ *   F.  a product length that is not a multiple of 64 is handled like the reference;
  *   E. the cancel flag: a set flag returns -4 promptly from the public entry and from fine_fit_with_drift.
  * Descriptive output: how often the two disagree for gaps of 1e-4 and 1e-5 (the method's documented error bound), and the
  * time per call of each search.
@@ -226,6 +230,72 @@ int main(void)
         freq_search_reference(&ws, g_mixed, N_TX, SUBFEAS_DF_RANGE_HZ, &r2, &v2);
         printf("D: real cosine at 12 bins (conjugate-symmetric): reference -> %+.0f, pruned -> %+.0f\n", r2 / bin, r1 / bin);
         CHECK(fabs(r1) == 12 * bin && fabs(r2) == 12 * bin, "D: the cosine's peak must be at +-12 bins");
+    }
+
+    /* ---- D2. the tie-break, BINDING: drive the argmax helper with exactly equal magnitudes ----------------------- */
+    /* A decimated, FFT'd, droop-corrected signal never yields an exactly equal pair, so D above cannot fire. The scan is
+       therefore a helper that takes magnitudes (argmax_in_index_order), and here it is compared with the REFERENCE's scan
+       loop (Stage A's, verbatim, over FFT indices) on hand-built magnitude arrays with exact ties. */
+    {
+        enum { KMAX = 43 };
+        static double full[N_FFT];
+        double mag[2 * KMAX + 1];
+        struct { const char* name; int n; int bins[6]; } cases[] = {
+            { "+9 and -9",        2, { 9, -9 } },
+            { "-9 and +9",        2, { -9, 9 } },
+            { "+3 and +20",       2, { 3, 20 } },
+            { "-5 and -30",       2, { -5, -30 } },
+            { "0, +1 and -1",     3, { 0, 1, -1 } },
+            { "+43 and -43",      2, { 43, -43 } },
+            { "-1 and +43",       2, { -1, 43 } },
+            { "-43, -1, +1, +43", 4, { -43, -1, 1, 43 } },
+        };
+        int c, i, d2_total = 0, d2_bad = 0;
+        for (c = 0; c < (int)(sizeof(cases) / sizeof(cases[0])) + 2; c++) {
+            double r_ref = 0.0, v_ref = -1.0, r_new, v_new;
+            int idx, b;
+            memset(full, 0, sizeof(full));
+            if (c < (int)(sizeof(cases) / sizeof(cases[0]))) {
+                for (b = 0; b < cases[c].n; b++) full[cases[c].bins[b] >= 0 ? cases[c].bins[b] : N_FFT + cases[c].bins[b]] = 5.0;
+            } else if (c == (int)(sizeof(cases) / sizeof(cases[0]))) {
+                for (b = -KMAX; b <= KMAX; b++) full[b >= 0 ? b : N_FFT + b] = 2.0;           /* every in-range bin equal */
+            } else {
+                for (b = -KMAX; b <= KMAX; b++) full[b >= 0 ? b : N_FFT + b] = 1.0 + 0.001 * (b + KMAX);   /* strictly increasing in k */
+            }
+            /* the reference's scan, verbatim: FFT index order, first strictly greater wins */
+            for (idx = 0; idx < N_FFT; idx++) {
+                double f = (idx < N_FFT / 2) ? (double)idx * bin : (double)(idx - N_FFT) * bin;
+                if (fabs(f) > SUBFEAS_DF_RANGE_HZ) continue;
+                if (full[idx] > v_ref) { v_ref = full[idx]; r_ref = f; }
+            }
+            for (i = -KMAX; i <= KMAX; i++) mag[i + KMAX] = full[i >= 0 ? i : N_FFT + i];
+            argmax_in_index_order(mag, KMAX, bin, SUBFEAS_DF_RANGE_HZ, &r_new, &v_new);
+            d2_total++;
+            if (r_new != r_ref || v_new != v_ref) {
+                d2_bad++;
+                CHECK(0, "D2: case %d: helper picked %+.6f (%g), the reference scan %+.6f (%g)", c, r_new, v_new, r_ref, v_ref);
+            }
+        }
+        printf("D2: tie-break helper vs the reference scan on %d exact-tie and ordering cases, %d disagreements\n", d2_total, d2_bad);
+    }
+
+    /* ---- F. a length that is not a multiple of 64 and a short product are handled like the reference ------------- */
+    {
+        int lens[] = { N_TX - 17, N_TX - 63, 64 * 1000 + 5, 64 * 10 };
+        int li;
+        int f_bad = 0;
+        for (li = 0; li < 4; li++) {
+            double r1, v1, r2, v2;
+            clear_mixed();
+            add_tone(1.0, -1.37, 0.0, 0.2);
+            add_noise(3.0);
+            freq_search(&ws, g_mixed, lens[li], SUBFEAS_DF_RANGE_HZ, &r1, &v1);
+            freq_search_reference(&ws, g_mixed, lens[li], SUBFEAS_DF_RANGE_HZ, &r2, &v2);
+            if (li < 2 && r1 != r2) { f_bad++; CHECK(0, "F: length %d: pruned %.6f vs reference %.6f", lens[li], r1, r2); }
+            /* the two short products carry too little tone to compare bins; only that nothing crashes and a bin is returned */
+            CHECK(fabs(r1) <= SUBFEAS_DF_RANGE_HZ, "F: length %d: result %.6f out of range", lens[li], r1);
+        }
+        printf("F: lengths off a multiple of 64 (%d, %d) agree with the reference, short products return in range, %d disagreements\n", lens[0], lens[1], f_bad);
     }
 
     /* ---- speed (descriptive) ---------------------------------------------------------------------------------- */

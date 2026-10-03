@@ -302,7 +302,7 @@ cases). On the precision branch T2′ fires both ways: the Architect's arithmeti
 spacing `FS / 262144` = 0.0458 Hz) may influence the result. Instead of zero-padding the 151 680-sample product to 262 144 and running the full FFT:
 1. **Decimate by 64 with linear-interpolation weights.** Sample `i = 64 m + j` contributes `(64 - j)/64` to output `m` and `j/64` to output `m + 1` (a triangular kernel, a
    partition of unity, so a DC input keeps its sum; 64 is a power of two, so the weights are exact in float). `N_TX = 151 680 = 2 370 x 64`, so the outputs are `Y[0..2370]` and the rest of
-   the 4 096 is zero, the same zero padding the reference applies. Compile-time checks fail the build if `N_TX` is not a multiple of 64 or the image does not fit.
+   the 4 096 is zero, the same zero padding the reference applies. A compile-time check fails the build if the image does not fit; a product length that is not a multiple of 64 is handled (the last block is short, its missing samples zero, as the reference pads) and one too long for the small FFT is cut to what fits (`mixed_len` is `N_TX` at both call sites).
 2. **A 4 096-point FFT** of `Y` (kiss_fft, float, in place in the first 4 096 entries of `ws->scratch_search`). The bin spacing is unchanged, `(FS/64)/4096 = FS/262144`, so bin
    `k` here is bin `k` of the reference, at the same frequency.
 3. **The magnitude at the in-range bins, divided by the kernel's droop** `D(k)^2`, `D(k) = sin(pi k 64/N) / (64 sin(pi k / N))` (0.9996 at the edge bin, so the compensation is 8e-4), so the
@@ -312,7 +312,7 @@ spacing `FS / 262144` = 0.0458 Hz) may influence the result. Instead of zero-pad
 (-79 dB), and the within-block phase variation of the kernel is a second-order term of the same size. The measured behaviour is in the self-test below.
 
 **The argmax tie-break (unchanged from the reference).** Bins are scanned in the reference's INDEX order, `0, 1, ..., +kmax` and then `-kmax, ..., -1` (the FFT layout's `[0, N/2)`
-then `[N/2, N)`), keeping the **first strictly greater** magnitude. The reference's order is `subfeas_fit.c:385-391` at `origin/main`. **Interpolation:** none. The result is always a bin
+then `[N/2, N)`), keeping the **first strictly greater** magnitude. The reference's order is `subfeas_fit.c:385-391` at `origin/main`. The scan is a SEPARATE static function, `argmax_in_index_order`, that takes the bin magnitudes (`mag[k + kmax]`), so the self-test can drive it with exactly equal magnitudes (a decimated, FFT'd, droop-corrected signal never produces an exact tie): on an exact tie the lower FFT index wins, so `+k` before `-k`, `0` before everything, and among negatives the more negative frequency. QA's mutations (`>` to `>=` in either scan) are caught by the binding case D2. **Interpolation:** none. The result is always a bin
 centre, as before, so E2's "within 1 bin" is judged on the same quantity.
 
 **Cost.** One more FFT plan per workspace (4 096 points, about 100 KB), so `ft8_subfeas_pool_get_stats` `out[6]` (bytes per workspace) grows by that plan; `workspace_bytes()` includes it.
