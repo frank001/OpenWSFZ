@@ -1163,6 +1163,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
                                    "Default: today.")
     p.add_argument("--name", help="Override the output folder name "
                                    "(default: <YYYYMMDD>_live_run_<HHMM start>).")
+    p.add_argument("--no-index", action="store_true",
+                   help="do not regenerate <out-root>/INDEX.md at the end (default: regenerate)")
     p.add_argument("--out-root", default=str(REPO_ROOT / "artefacts"),
                     help="Root artefacts/ directory (default: %(default)s).")
     p.add_argument("--owsfz-alltxt", help="Path to OpenWSFZ's live ALL.TXT "
@@ -1260,6 +1262,25 @@ def build_arg_parser() -> argparse.ArgumentParser:
                          "qa/endurance/<date>-<sha>/report.md incident write-up), alongside "
                          "this run's own contents.md/contents.html. Repeatable.")
     return p
+
+
+def refresh_artefacts_index(out_root: Path, skip: bool = False) -> bool:
+    """Regenerate <out-root>/INDEX.md as the gatherer's last step, so a new run is indexed at once.
+
+    The index is folder names and dates only (tools/make_index.py). Found stale on 2026-10-03: the
+    generator lived in a scratch folder and nothing called it. A failure here must NEVER fail a
+    gather: the artefacts are already on disk, so it is reported and the gather still succeeds."""
+    if skip:
+        return False
+    try:
+        import make_index
+        n = make_index.write_index(out_root)
+        print(f"Refreshed {out_root / make_index.INDEX_NAME} ({n} entries)")
+        return True
+    except Exception as exc:
+        print(f"  [WARN] artefacts index NOT refreshed ({type(exc).__name__}: {exc}); "
+              f"run `python tools/make_index.py` by hand. The gather itself is complete.")
+        return False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1492,6 +1513,8 @@ def main(argv: list[str] | None = None) -> int:
         print("\nRendering companion report(s):")
         for report_md in args.report_md_paths:
             render_markdown_html(Path(report_md))
+
+    refresh_artefacts_index(Path(args.out_root), skip=args.no_index)
 
     print(f"Done: {out_dir}")
     return 0
