@@ -5,6 +5,13 @@
 - **Why (Captain, 2026-10-03):** *"write the offline step-4 spec in full"*. Roadmap `2026-10-03-1005-architect-122-latency-roadmap.md` §2.3 (step 4 = an **extra** early decode before the slot closes; the final decode stays unchanged).
 - 🔴 **#122 stays on HOLD.** This spec is **ready to run, not authorised.** It runs on the Captain's go, given in QA's or the Engineer's window.
 - **Status:** PRE-REGISTERED. QA commits the harness changes, both frozen cycle lists and the row predicates as code **before the first decode**. Changes after that only by a dated amendment that says why.
+- **Amendment 1 (2026-10-03 13:53Z by `date -u`; during the run, BEFORE any catch figure is read; V4 only):**
+  - **Why.** The Engineer asked (harness `9dd89f3f`, unchanged) before reading any result. In his discarded 4-cycle smoke test, `C(4.0)` was ≈ 0.78. FT8's LDPC code still decodes many strong signals from a window that ends at 11 s. My 0.20 margin rested on the edge run's tail tolerance (≈ 0.89 s, at −8/−16 dB), which plainly does not carry over to strong real signals. So V4 as written could FAIL with the instrument working. 🔴 This amendment was prompted by that smoke number. The new predicate is therefore derived from the **failure it exists to catch**, not from the number.
+  - **The failure V4 guards against:** a cut that never reaches the decoder (the harness hands over the uncut window). Its signature is exact: every early decode equals the final decode, so `C(x)` = 1.000 at every `x`, and `S_corr` = `S_unc` = 0.
+  - **V4′ (replaces V4), per corpus:** PASS iff **(i)** `C(4.0)` ≤ 0.98 **and (ii)** the 95 % block-bootstrap CI (the §5 bootstrap, same blocks and seed) of `D = C(0.5) − C(4.0)` has a lower bound > 0. A FAIL stops that corpus's catch figures, as before.
+  - **Always reported, PASS or FAIL:** V4 as first registered (`C(4.0) ≤ C(0.5) − 0.20`), labelled *"superseded by Amendment 1; reported, not used"*; `C(0.5)`, `C(4.0)`, `D` and its CI; V1's result beside them. Option (b) of the Engineer's question is therefore built in.
+  - **Not changed:** every other row, every output, and the predictions. TR1/TR2 were made on the same wrong tail-tolerance premise and are scored as registered.
+  - The Engineer commits this amendment before reading any result.
 - **Needs:** no station, no radio, no build. About **3 h of exclusive PC time** (four corpora, §3) (decode times are measured, so the CPU rule applies in full: no other runs, suites, builds or daemons). No `src/` or `native/` change: the harness is test-only code under `qa/`.
 
 ## 1. Question
