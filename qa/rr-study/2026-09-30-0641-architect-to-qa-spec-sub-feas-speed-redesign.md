@@ -387,6 +387,7 @@ not implied by this amendment.
 - **No on-air claim.** A replay PASS is followed, before any reply-policy spec, by one receive-only on-air night on the
   accepted build. On-air T2 is read there with the measured k. That night is a separate decision.
 - **Flag default, thread default:** unchanged.
+- ⏰ **At the Stage B acceptance ruling (Captain, 2026-10-03):** re-evaluate an **early residual pass**, i.e. running the residual on #122 step 4's 13.0 s window as well (batch 2 ≈ 3.7 s instead of ≈ 5.71 s, against ≈ 2.95 s − k). That is arithmetic only. The memory note `todo-early-residual-pass-after-stage-b.md` lists the unknowns and the cheapest first test. Nothing is specced before that ruling.
 
 ### Process
 
