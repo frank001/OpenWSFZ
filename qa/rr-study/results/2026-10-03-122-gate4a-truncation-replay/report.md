@@ -138,6 +138,13 @@ At x = 2.0 the weakest band loses the most (D: 0.93 to 0.95 across the corpora).
 - **`C(x)` is a fraction of OpenWSFZ's own final decodes**, not of WSJT-X's and not of what is on the band.
 - **Not tested:** the early decode's cost when it runs alongside the previous cycle's residual pass (flag ON).
 
-## 8. Diagnostics D1–D3 (post-registration): NOT RUN
+## 8a. D1 result (post-registration; run 14:32:25Z to before 14:43Z by `date -u`; code `c390681d`; exit 0)
+
+- **D1: arm F re-run on P in a fresh process reproduced the original arm F in 1 075/1 075 cycles** (final numeric multisets identical). Arm F is not run-to-run nondeterministic on this corpus, so the one V2 miss is **not** explained by F wandering. Nothing about arm T's own reproducibility is known: **D2 is off the table** (Captain, via the Architect), and step-4 acceptance A2 will test the final-decode guarantee on the new build.
+- **Binary note:** the D1 binary contains the diagnostic additions (inactive without `--diag-stamp`/`--early-outcomes`; here `--diag-stamp` was on, which also enables counting of Debug template events and the outcome writer). The DLL is the same (`ee00d118…`). D1 reproduced, so the rebuild-of-`9dd89f3f` check the ruling reserved for a failed D1 is not needed.
+- **D3, F side only (stamp `261001_112700`, final call; booleans and counts):** 16 decodes; 0 with an unresolved `<...>`; a decode within 10 Hz of 1 731 Hz is present; its text equals no other final decode's text (no dedup collision, as it should be after de-duplication); it passes `IsPlausibleMessage`; 0 "filtered implausible" events logged in the call.
+- **What D3 cannot see:** the T side. The 1 731 Hz decode is absent from arm T's final output, and without a D2 run nothing is known about why. The F-side figures say only that, in F, the decode is ordinary: plausible, unique, with no placeholder. **Native decode difference, dedup collision or plausibility change: not separable here.** Under §4 of the ruling this is the branch "F reproduces; T not tested".
+
+## 8. Diagnostics D1–D3 (post-registration): D1 done (above); D2 and the T side of D3 NOT RUN (off the table)
 
 Code committed as `c390681d` and accepted by the Architect. On hold until the Captain decides after this report (everybody is paused until these results land). D1 (arm F re-run on P, about 10 min) first; D2 (arm T, about 65 min). When they run, the report will say that D2 compares the early decodes by aggregates and the final decodes by multiset, that D3 cannot separate a native decode difference from a dedup collision unless an early call shows one, and that the harness binary differs from the main run's (additions inactive, same DLL), so a failed D1 is first checked by rebuilding `9dd89f3f`.
