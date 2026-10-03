@@ -9,6 +9,26 @@
   - It also produced early-only decodes: `S_unc` (uncorroborated) 0.22–0.47 per 100, and `S_corr` (corroborated by the live WSJT-X) 0.26–0.96 per 100.
   - One final decode in 20 175 was lost on P when early decodes ran first (cause under diagnosis, D1–D3).
 
+## 0. Amendment 1 (2026-10-03 14:56Z by `date -u`, before any build): QA's code reading, all nine points accepted
+
+QA's findings (`qa/122-step4-docs` `f941dae9`, design D1–D10). The Architect checked the two load-bearing ones in the code himself.
+
+1. **R9 (new): the early decode is the ordinary decode ONLY, never the residual pass.** Verified: `Ft8Decoder.DecodeCoreAsync` reads the flag (`Ft8Decoder.cs:370`), and with the flag ON and no first-batch callback it runs `SubtractionPass` inside the same call (`:489-501`). Subtraction is default ON, so an early decode through `DecodeAsync` would take ≈ 5 s, and A3(a) could never hold. ⇒ The early decode uses a pass-0-only entry that does not read the flag. Gate 4a measured exactly that (flag OFF).
+2. **R4: snapshot/restore is required, and it is `native/` (new shim number).** Verified: `cb_save_hash` adds unconditionally (`ft8_shim.c:839-841`), so "suppressed writes" does not exist either. The shared state is wider than the table: `g_session_hash_table` (`:795`), `g_hash_table_reject_count` (`:711`), `g_h12_announce_clock` (`:722`) and the `g_h12_*` counters and arrays (`:726-747`). **Snapshot/restore of ALL of them around the early decode** is chosen over suppressed writes. Suppressed writes would lose hash resolution within the call (the early text would read `<...>` where the final reads the call, so R5 could not confirm the row), and would still pollute the h12 counters. The Developer records the exact list in design.md, with FILE:LINE.
+3. **R10 (new):** the dial-frequency guard (`DecodePump.cs:79-89`) applies to the early decode. A band change while the window fills discards the early batch too.
+4. **R11 (new):** early rows pass the same `DecodeNoiseSuppressionFilter` as batch 1, so a row the operator has hidden is never shown early.
+5. **A1b (new; my gap):** with the flag **ON**, ALL.TXT, UDP datagrams, the QSO channels and the archive are **identical** to flag OFF over a fixed set of recorded cycles (outcome fields). Without it, a build could leak early rows to ALL.TXT and pass every row.
+6. **A2: positive control and power (HK-026, HK-021 (k) precision branch).** At 1 miss in 1 075 cycles, a build that kept the defect would pass N/N on P with probability ≈ 0.37. ⇒
+   - **A2 runs on P and R** (≈ 0.19 to miss it);
+   - **A2-PC:** the same replay on the build with R4 disabled must reproduce the known loss at stamp `261001_112700` (the 1 731 Hz decode). If it does not, A2 is **blind** to this defect;
+   - **A2b (new, deterministic, the main guarantee):** a test that captures **every global listed in point 2** before the early decode, runs the early decode, restores, and asserts the state is **byte-identical** to the captured one. A rare-event replay alone cannot carry R4.
+   - **Merge needs A2b PASS and A2 N/N on P and R.** If A2-PC is blind, A2 is reported as *"not evaluable for this defect"*, and the merge rests on A2b.
+7. **A3(c):** the control is **flag-OFF hours**, alternated by partial config POST and read back each time. Cycles where the early decode was skipped are not a control: skips happen when the decoder is busy, so those are the heavy cycles.
+8. **A4:** ±0.01 is ≈ 10 standard errors over ≈ 20 000 decodes. That is deliberate: **A4 detects only a gross path difference**, and the report says so.
+9. **Panel wire format:** the existing WebSocket `decode` frame stays **byte-identical** when there are no early rows (part of A1). Early rows use a **new `decode-early` frame type**. Batch 1's message gains an **optional `resolves` list** (which early rows it confirms), so confirmation and the final rows arrive in one frame.
+
+**Shim numbers:** B2 (Stage B) and step 4 each take the next free number. Whichever merges second takes the one after.
+
 ## 1. What changes, in one paragraph
 
 When a cycle's window holds **13.0 s of audio** (156 000 of 180 000 samples), the daemon decodes a **copy** of that partial window, zero-filled to full length, exactly as gate 4a did. It publishes the result to the **decode panel only**, as an **early batch**, with each row marked *early*. At the slot end, the **ordinary decode runs exactly as today** and publishes batch 1 (and batch 2 with the flag ON) to every consumer, as today. On the panel, a final row that matches an early row **confirms** it: the mark is removed, with no duplicate row. An early row that no final row confirms stays visible, marked *unconfirmed*. **ALL.TXT, external reporting (UDP), the QSO automation and the cycle-audio archive see nothing of the early batch.** Their behaviour stays as today, byte for byte.
