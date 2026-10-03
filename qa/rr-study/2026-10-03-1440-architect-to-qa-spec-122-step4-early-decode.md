@@ -29,6 +29,18 @@ QA's findings (`qa/122-step4-docs` `f941dae9`, design D1–D10). The Architect c
 
 **Shim numbers:** B2 (Stage B) and step 4 each take the next free number. Whichever merges second takes the one after.
 
+## 0b. Ruling on A2 / A2-PC (2026-10-03 17:36Z by `date -u`; QA's review of the Developer's `feat/122-step4-early-decode-panel` `fee81a2b`, shim 20260058)
+
+- **Reported:**
+  - A2b PASS (17/17), with native mutations that each remove one global from the restore and are each caught, plus a stray-static mutation caught by completeness test 2.4a.
+  - A2 N/N on P (1 075/1 075) and R (720/720).
+  - **A2-PC NOT reproduced:** the restore-removed build was also 1 075/1 075, so this replay cannot see the defect. That is likely because gate 4a ran six early decodes per cycle and the product runs one.
+  - Per the pre-set merge rule (§0 point 6), **A2 is "not evaluable for this defect", and R4 rests on A2b.**
+- **The stronger control** (replaying P with all six gate-4a cuts on the restore-removed build and on the real build; ≈ 80 min per build) is **NOT required.** A2b tests the guarantee mechanically and is mutation-proven. A replay can only show a rare event, never its absence. The original loss's mechanism is unknown, so even a reproduced loss would only show that this pattern of use triggers it.
+- **Required instead, because A2b covers only what the image holds (HK-026):** extend completeness test 2.4a from `ft8_shim.c` to **every native source compiled into `libft8.dll`**: the vendored `ft8_lib` (`native/ft8_lib_vendor/**`, `native/ft8_lib_build/patched/**`), `common/`, `fft/`, `refine/` and `subfeas/`. Every mutable file-scope or thread-local static is listed as *"in the image"*, *"reset per call (FILE:LINE)"* or *"not written on the pass-0 path (FILE:LINE)"*. A quick scan by the Architect found no mutable static in the ft8 core files and only the `subfeas_fit.c` pool statics (`:596-612`), which pass 0 does not touch. The test makes that mechanical. **Merge needs A2b PASS with the extended 2.4a.**
+- **Blind spot, stated:** A2 ran the final decode with subtraction OFF (the product default is ON). A2b is independent of the flag. A3 (live, flag ON) does not check identity. This is accepted and stated in the report.
+- **Next:** A1b, then A5 (Playwright + `live_verify_9_axes.py`), A4, and then A3 (live; needs the Captain's go and a slot).
+
 ## 1. What changes, in one paragraph
 
 When a cycle's window holds **13.0 s of audio** (156 000 of 180 000 samples), the daemon decodes a **copy** of that partial window, zero-filled to full length, exactly as gate 4a did. It publishes the result to the **decode panel only**, as an **early batch**, with each row marked *early*. At the slot end, the **ordinary decode runs exactly as today** and publishes batch 1 (and batch 2 with the flag ON) to every consumer, as today. On the panel, a final row that matches an early row **confirms** it: the mark is removed, with no duplicate row. An early row that no final row confirms stays visible, marked *unconfirmed*. **ALL.TXT, external reporting (UDP), the QSO automation and the cycle-audio archive see nothing of the early batch.** Their behaviour stays as today, byte for byte.
