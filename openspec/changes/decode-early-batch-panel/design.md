@@ -57,6 +57,7 @@ through `DecodeAsync` would run the residual pass too (about 5 s, not the 0.53 s
 - The Developer confirms from the gate 4a harness (`eng/122-gate4a`, `trunc` mode of `qa/rr-study/sub-feas/replay81/Program.cs`) that its early arm
   was the single-pass `DecodeAsync` with the flag OFF, and records FILE:LINE. If it was something else, A4 is comparing two different paths and
   the Architect is told.
+- **The early lambda sets the AP bits exactly as the final decode does** (`Ft8Decoder.cs:445-452`: `SetApBits` with the current constraints, or cleared). They are thread-local and `ft8_decode_all` does not reset them (D4's table); the early decode may run on a different pool thread than the final.
 - The silence guard and the RMS normalisation (`:386-393`, `:421`) apply as they do to the final decode. A zero-filled copy has a lower RMS, so
   its normalisation gain differs a little from the final decode's; gate 4a had the same path, so this is the path A4 compares against.
 
@@ -95,6 +96,22 @@ because the native TLS is per-thread.
 images, so it can only see the globals the image contains. A test therefore scans `ft8_shim.c` for every mutable file-scope `g_` / `static` variable
 the decode can write (a script or a C# test over the source text) and **fails when one is not in the image** (and when the image names one that no
 longer exists). Adding a global to the shim without adding it to the image then fails the build, instead of silently re-opening R4.
+
+**Thread-local state counts too (Architect, follow-up to `e24d541b`).** The early and the final decode may run on the same pump thread, so a
+`_Thread_local` the decode writes and that survives into the next call can carry the early decode into the final one. The image and the
+completeness scan cover **thread-local statics as well as file-scope globals** (`_Thread_local` today; also `__declspec(thread)` or any TLS macro
+the shim adopts), and record **per variable** either "in the image" or "reset per call (FILE:LINE)". QA's first-pass reading of
+`ft8_shim.c` (the Developer's scan output replaces it and any disagreement is raised):
+
+| Variable (`ft8_shim.c`) | Disposition |
+|---|---|
+| `tls_pass_counts`, `tls_candidate_counts`, `tls_llr_mean_abs_sum`, `tls_llr_prenorm_var_sum`, `tls_llr_fail_count` (`:577-581`), `tls_num_passes` (`:582`), `tls_num_decoded_snr_terms` (`:591`) | **Reset per call** at the top of `ft8_decode_all` (`:1515-1521`). Diagnostic outputs read right after the call, on the same thread. |
+| `tls_last_noise_floor_db` (`:583`) | **Assigned per call** (`:1508`) before anything reads it. |
+| `tls_signal_db`, `tls_local_noise_db` (`:589-590`) | Overwritten per decoded message, bounded by `tls_num_decoded_snr_terms` (reset `:1520`). **Verify** the bound is what the getters use. |
+| `tls_hash_table` (`:811`) | **Assigned per call** (`:1502`) and cleared at the end (`:1806`, `:1826`). |
+| `tls_h12_lookup_performed`, `tls_h12_suppressed` (`:804`, `:809`) | **Reset per message** (`:1676-1677`). `tls_h12_resolved`, `tls_h12_multiplicity`, `tls_h12_divergent`, `tls_h12_code` (`:805-808`) are written whenever a 12-bit lookup is performed and read only if `tls_h12_lookup_performed`; **verify** that reading rule. |
+| `tls_ap_mycall_bits`, `tls_ap_hiscall_bits`, `tls_ap_num_*_bits` (`:605-608`) | **NOT reset by `ft8_decode_all`.** Set by `ft8_set_ap_bits` (`:1423-1441`), which the managed caller invokes before **every** `DecodeAll` (`Ft8Decoder.cs:445-452`). So they are "reset per call **by the caller**", and the early lambda **must call it the same way** (or an early decode on a different pool thread decodes with whatever that thread last held). |
+| `tls_diagnostics_enabled` (`:616`) | **Persists.** Written only by `ft8_set_diagnostics_enabled` (`:1418-1420`), which `SubtractionPass` brackets around the residual decode. The pass-0-only early entry never calls it. **Verify** no path leaves it at 0 (a faulted residual pass). |
 
 The Developer records the final choice (and why, with FILE:LINE) in this file before coding. **Acceptance A2 tests the guarantee, not the
 mechanism.** If (i) is chosen after all, the Developer states how the lost within-call resolution is handled.

@@ -21,7 +21,7 @@ The native library SHALL export functions that report the size of, save into, an
 
 ### Requirement: The saved image SHALL cover every mutable process-global the decode can write, and a test SHALL fail when it does not
 
-A test SHALL enumerate the mutable file-scope variables in the native shim source that the decode path can write, and SHALL fail if any is missing from the saved image or if the image names one that no longer exists, so that adding a global to the shim without adding it to the image fails the build.
+A test SHALL enumerate the mutable file-scope variables and the thread-local statics in the native shim source that the decode path can write, and SHALL fail if any is neither in the saved image nor recorded as reset at the start of every decode call, or if the image names one that no longer exists, so that adding a global or a thread-local to the shim without handling it fails the build.
 
 #### Scenario: A new global is added
 
