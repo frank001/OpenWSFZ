@@ -19,6 +19,8 @@ from collections import defaultdict
 from pathlib import Path
 
 CORPORA = ["p", "r", "x17", "x80"]
+LABEL = ("Descriptive. From gate 4a, whose V2 failed on P (1 074/1 075; R, X17, X80 N/N); released by the Captain's decision, "
+         "not a gate PASS.")
 GRID = [0.5, 1.0, 1.5, 2.0, 2.5]
 CONTROL = 4.0
 PARENT_SHA = "55a951c86147e92a8262be9d84ffd29362ecd7b63995f62caa7981bd53c977cf"
@@ -115,11 +117,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="_out")
     ap.add_argument("--sel", default="../results/2026-10-03-122-gate4a-truncation-replay")
+    ap.add_argument("--released", action="store_true", help="Captain 2026-10-03 14:22Z: V2 and V4' do not withhold catch figures; each is reported with its verdict and the label")
     ap.add_argument("--allow-incomplete", action="store_true", help="dry-run on a partial output; never for the report")
     a = ap.parse_args()
     out, sel = Path(a.out), Path(a.sel)
     frozen = json.loads((sel / "selection_shas.json").read_text(encoding="utf-8"))
-    fails, F, T = [], {}, {}
+    fails, notes, F, T = [], [], {}, {}
 
     # ---- V0 inputs, V3 stability, V2 undisturbed final decode, V1 is asserted in-process (a failure exits 3) ----
     for c in CORPORA:
@@ -149,7 +152,10 @@ def main() -> int:
         of, ot = read_outcomes(d / "outcomes_F.csv", "final_F"), read_outcomes(d / "outcomes_T.csv", "final_T")
         bad = [s for s in F[c].stamps if of.get(s, []) != ot.get(s, [])]
         if bad:
-            fails.append(f"V2 {c}: {len(bad)}/{len(F[c].stamps)} cycles differ (PASS iff N/N)")
+            msg = f"V2 {c}: {len(F[c].stamps) - len(bad)}/{len(F[c].stamps)} cycles identical (PASS iff N/N)"
+            (notes if a.released else fails).append(msg)
+        else:
+            notes.append(f"V2 {c}: {len(F[c].stamps)}/{len(F[c].stamps)} identical (PASS)")
 
     def catch(c, x):
         t, f = T[c], F[c]
@@ -161,6 +167,9 @@ def main() -> int:
         print("VALIDITY FAILED; no catch figure is reported:")
         for f in fails: print("  FAIL", f)
         return 1
+    for n in notes: print("  note", n)
+    if a.released:
+        print(LABEL)
 
     # ---- V4' positive control (Amendment 1): always reported, PASS or FAIL; a FAIL withholds that corpus only ----
     active, old_v4 = [], {}
@@ -172,8 +181,9 @@ def main() -> int:
         print(f"     V4 as first registered, C(4.0)<=C(0.5)-0.20: {'PASS' if r['old_v4_pass'] else 'FAIL'} "
               "(superseded by Amendment 1; reported, not used)  |  V1 (cut exactness) is asserted in-process: the run exited 0")
         old_v4[c] = r["old_v4_pass"]
-        if r["pass"]: active.append(c)
-        else: print(f"     {c}: catch figures WITHHELD (V4' FAIL)")
+        if r["pass"] or a.released: active.append(c)
+        if not r["pass"]:
+            print(f"     {c}: V4' FAIL" + (" -- reported with this label, not withheld (Captain's release)" if a.released else ": catch figures WITHHELD"))
     if not active:
         return 1
 
@@ -188,17 +198,19 @@ def main() -> int:
     for c in active:
         den = {s: F[c].n_final(s) for s in F[c].stamps}
         print(f"\n=== corpus {c}: {len(F[c].stamps)} cycles, {sum(den.values())} arm-F decodes ===")
-        print("x      C(x)   [95% CI]          S_corr/100  S_unc/100  SNRshift(med)  t(x) med/p95 ms")
+        print("x      C(x)   [95% CI]          S_corr/100 [95% CI]   S_unc/100 [95% CI]   SNRshift(med)  t(x) med/p95 ms")
         for x in GRID + [CONTROL]:
             num, _ = catch(c, x)
             lo, hi = boot(F[c].stamps, num, den, rng)
             cv = sum(num.values()) / sum(den.values())
-            sp = {k: sum(int(r["n"]) for s in T[c].stamps for r in T[c].by[(s, f"{x:.1f}", "spur")] if r["key"] == k) for k in ("corr", "unc")}
+            spc = {k: {s: sum(int(r["n"]) for r in T[c].by[(s, f"{x:.1f}", "spur")] if r["key"] == k) for s in T[c].stamps} for k in ("corr", "unc")}
+            sp = {k: sum(v.values()) for k, v in spc.items()}
             sc, su = 100 * sp["corr"] / sum(den.values()), 100 * sp["unc"] / sum(den.values())
+            cil = {k: tuple(100 * b for b in boot(F[c].stamps, spc[k], den, rng)) for k in spc}
             C[(c, x)], S[(c, x)] = cv, su
             sh = [int(r["key"]) for r in T[c].rows if r["row"] == "shift" and r["x"] == f"{x:.1f}"]
             ms = sorted(T[c].call_ms(x))
-            print(f"{x:<5}  {cv:.3f}  [{lo:.3f}, {hi:.3f}]   {sc:9.2f}  {su:9.2f}  {statistics.median(sh) if sh else float('nan'):>11}  {statistics.median(ms):.0f}/{ms[int(0.95 * len(ms)) - 1]:.0f}")
+            print(f"{x:<5}  {cv:.3f}  [{lo:.3f}, {hi:.3f}]   {sc:5.2f}[{cil["corr"][0]:.2f},{cil["corr"][1]:.2f}]  {su:5.2f}[{cil["unc"][0]:.2f},{cil["unc"][1]:.2f}]  {statistics.median(sh) if sh else float('nan'):>11}  {statistics.median(ms):.0f}/{ms[int(0.95 * len(ms)) - 1]:.0f}")
         ms0 = sorted(F[c].call_ms(0.0))
         t0 = statistics.median(ms0)
         print(f"t(0) full decode median/p95 ms: {t0:.0f}/{ms0[int(0.95 * len(ms0)) - 1]:.0f}")

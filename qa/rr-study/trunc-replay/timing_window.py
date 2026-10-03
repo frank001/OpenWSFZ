@@ -24,7 +24,32 @@ def p95(v):
     return v[max(0, int(0.95 * len(v)) - 1)]
 
 
+XS = ["4.0", "2.5", "2.0", "1.5", "1.0", "0.5", "0"]   # arm T call order within a cycle: the 6 cuts, then the final
+
+
+def by_x(log, lo, hi, margin_min=10):
+    """Per call type (x): inside the window versus the stretches [lo-margin, lo) and (hi, hi+margin] directly around it."""
+    from datetime import timedelta
+    rows, started = [], False
+    for line in open(log, encoding="utf-8", errors="replace"):
+        if line.startswith("# readback start"):
+            started = True
+        m = LINE.match(line)
+        if m and started:
+            rows.append((ts(m.group(1)), int(m.group(2))))
+    assert len(rows) % 7 == 0, len(rows)
+    near = timedelta(minutes=margin_min)
+    print("x     inside n/med/p95        around n/med/p95 (the margin before and after)")
+    for k, x in enumerate(XS):
+        ins = [ms for i, (t, ms) in enumerate(rows) if i % 7 == k and lo <= t <= hi]
+        out = [ms for i, (t, ms) in enumerate(rows) if i % 7 == k and (lo - near <= t < lo or hi < t <= hi + near)]
+        f = lambda v: f"{len(v)}/{statistics.median(v):.0f}/{p95(v)}" if v else "0"
+        print(f"{x:<4}  {f(ins):<22} {f(out)}")
+
+
 def main() -> int:
+    if sys.argv[1] == "--by-x":
+        by_x(sys.argv[2], ts(sys.argv[3]), ts(sys.argv[4])); return 0
     log, lo, hi = sys.argv[1], ts(sys.argv[2]), ts(sys.argv[3])
     inside, outside = [], []
     for line in open(log, encoding="utf-8", errors="replace"):
