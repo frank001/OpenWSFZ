@@ -163,7 +163,7 @@ def main() -> int:
         return 1
 
     # ---- V4' positive control (Amendment 1): always reported, PASS or FAIL; a FAIL withholds that corpus only ----
-    active = []
+    active, old_v4 = [], {}
     for c in CORPORA:
         num4, den = catch(c, CONTROL); num05, _ = catch(c, 0.5)
         r = v4_rows(F[c].stamps, num05, num4, den)
@@ -171,6 +171,7 @@ def main() -> int:
               f"D={r['d']:.3f} [{r['d_lo']:.3f}, {r['d_hi']:.3f}]  (i) C(4.0)<=0.98: {r['i']}  (ii) CI lower bound>0: {r['ii']}")
         print(f"     V4 as first registered, C(4.0)<=C(0.5)-0.20: {'PASS' if r['old_v4_pass'] else 'FAIL'} "
               "(superseded by Amendment 1; reported, not used)  |  V1 (cut exactness) is asserted in-process: the run exited 0")
+        old_v4[c] = r["old_v4_pass"]
         if r["pass"]: active.append(c)
         else: print(f"     {c}: catch figures WITHHELD (V4' FAIL)")
     if not active:
@@ -223,7 +224,10 @@ def main() -> int:
         print("TR2 C_P(2.0) in [0.55,0.85] (as registered):", 0.55 <= C[("p", 2.0)] <= 0.85, round(C[("p", 2.0)], 3))
         print("TR3 S_unc_P(1.0)<=0.50:", S[("p", 1.0)] <= 0.50, round(S[("p", 1.0)], 3))
     print("TR4 |C_P(1.0)-C_R(1.0)|<=0.05:", (abs(C[("p", 1.0)] - C[("r", 1.0)]) <= 0.05) if have("p", "r") else "n/a (P or R withheld)")
-    print("TR5 V0-V3 and V4' all pass the first time:", len(active) == len(CORPORA))
+    # TR5 is the Architect's prediction and stays AS REGISTERED ("V0-V4 all pass the first time"), scored against the ORIGINAL V4
+    # (Amendment 1 leaves the predictions unchanged). V4' is shown beside it as a note.
+    print("TR5 V0-V4 all pass the first time (original V4):", all(old_v4.values()),
+          {c: old_v4[c] for c in CORPORA}, "| note: V4' passed on", sorted(active))
     for c in ("x17", "x80"):
         print(f"TR6 {c}:", (abs(C[(c, 1.0)] - C[("p", 1.0)]) <= 0.08) if have(c, "p") and v5[c] else "n/a (withheld or V5 failed)")
     return 0

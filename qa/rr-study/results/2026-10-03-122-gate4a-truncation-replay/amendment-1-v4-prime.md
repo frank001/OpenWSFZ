@@ -20,7 +20,7 @@ A V4' FAIL withholds **that corpus's** catch figures. A V0–V3 failure still st
 
 ## Not changed
 
-Every other row, every output and the predictions TR1–TR6. TR1/TR2 are scored as registered. TR5 now reads "V0–V3 and V4' all pass the first time".
+Every other row, every output and the predictions TR1–TR6. TR1 to TR6 are scored as registered. TR5 stays "V0–V4 all pass the first time", scored against the ORIGINAL V4 (the Architect's prediction; Amendment 1 leaves predictions unchanged), with V4' shown beside it as a note.
 
 ## Why (the Architect's reasoning, in short)
 
