@@ -501,15 +501,23 @@ internal static partial class Program
         private readonly ReplayLog _log;
         public ReplayLogger(ReplayLog log) { _log = log; }
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+        // Gate 4a diagnostic D3: when --diag-stamp is given, Debug is enabled ONLY so the "filtered implausible message"
+        // template can be COUNTED. Its rendered text (which carries the message) is never formatted or written.
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information || (logLevel == LogLevel.Debug && DiagCountImplausible);
 
         public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception,
                                 Func<TState, Exception?, string> formatter)
         {
-            if (level < LogLevel.Information) return;
             string template = "";
             if (state is IReadOnlyList<KeyValuePair<string, object?>> kv)
                 foreach (var p in kv) if (p.Key == "{OriginalFormat}") template = p.Value?.ToString() ?? "";
+            if (level == LogLevel.Debug)
+            {
+                if (DiagCountImplausible && template.StartsWith("Cycle {Time}: filtered implausible message", StringComparison.Ordinal))
+                    Interlocked.Increment(ref DiagImplausibleDrops);
+                return;   // never write Debug text
+            }
+            if (level < LogLevel.Information) return;
 
             // Per-cycle residual-pass state for the offline replay's row V6 (Amendment 1): the aggregate line says whether
             // THIS cycle's pass was deadline-abandoned; DecodeTwo resets the probe before a call and reads it after.

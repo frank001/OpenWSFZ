@@ -76,6 +76,39 @@ internal static partial class Program
         return pa;
     }
 
+    // ---- Gate 4a diagnostic D3 (post-registration; ruling qa/rr-study/2026-10-03-1420-architect-122-gate4a-v2-fail-ruling.md) ----
+    // Booleans and counts only, computed INSIDE this function where the text lives; no text, no text-derived hash.
+    internal static bool DiagCountImplausible;
+    internal static int DiagImplausibleDrops;
+
+    private static readonly System.Reflection.MethodInfo? IsPlausibleMethod =
+        typeof(Ft8Decoder).GetMethod("IsPlausibleMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+    private static bool Plausible(string text) =>
+        IsPlausibleMethod is not null && (bool)IsPlausibleMethod.Invoke(null, [text, null])!;
+
+    /// <summary>
+    /// One line per call of the diagnosed stamp: x, n decodes, n with an unresolved "&lt;...&gt;" placeholder, whether a decode
+    /// within 10 Hz of <paramref name="diagFreq"/> is present in this call, whether its text equals the text of ANY decode of
+    /// the FINAL call (a dedup collision seen from inside one process), whether it passes IsPlausibleMessage, and the number of
+    /// "filtered implausible" events logged during the call (template counted, text never read).
+    /// </summary>
+    private static string DiagLine(string arm, string stamp, string xLabel, IReadOnlyList<DecodeResult> res,
+                                   IReadOnlyList<DecodeResult> final, int diagFreq, int implausibleDrops)
+    {
+        int ph = res.Count(r => r.Message.Contains("<...>", StringComparison.Ordinal));
+        var near = res.Where(r => Math.Abs(r.FreqHz - diagFreq) <= CorroborationDeltaHz).ToList();
+        string present = near.Count > 0 ? "1" : "0", eqFinal = "na", plaus = "na";
+        if (near.Count > 0)
+        {
+            string txt = near[0].Message.TrimEnd();
+            // equality with a final decode OTHER than a decode at diagFreq itself, i.e. the text the final call kept under another frequency
+            eqFinal = final.Any(f => Math.Abs(f.FreqHz - diagFreq) > CorroborationDeltaHz && string.Equals(f.Message.TrimEnd(), txt, StringComparison.Ordinal)) ? "1" : "0";
+            plaus = Plausible(txt) ? "1" : "0";
+        }
+        return string.Join(",", arm, stamp, xLabel, res.Count, ph, present, eqFinal, plaus, implausibleDrops);
+    }
+
     private static string Inv(double v, string f) => v.ToString(f, CultureInfo.InvariantCulture);
 
     /// <summary>V0: the SHA-256 of the libft8 module the process actually loaded.</summary>
@@ -112,6 +145,17 @@ internal static partial class Program
                 $"dllSha256={dllStart} dllPinned={PinnedDllSha256} dllMatch={dllStart == PinnedDllSha256} shim={Ft8Decoder.LoadedShimVersion}");
         if (decoder.SubtractionEnabled) throw new InvalidOperationException("V0: flag is not OFF");
 
+        a.TryGetValue("diag-stamp", out var diagStamp);
+        int diagFreq = a.TryGetValue("diag-freq", out var df) ? int.Parse(df, CultureInfo.InvariantCulture) : 0;
+        StreamWriter? diagOut = null;
+        if (diagStamp is not null)
+        {
+            DiagCountImplausible = true;
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(Req(a, "diag-out")))!);
+            diagOut = new StreamWriter(Req(a, "diag-out"), append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            diagOut.WriteLine("arm,stamp,x,n,n_placeholder,present_near_freq,text_equals_other_final,plausible,implausible_events");
+        }
+        bool earlyOutcomes = a.TryGetValue("early-outcomes", out var eo) && eo == "true";
         var done = new HashSet<string>();
         bool fresh = !File.Exists(outCsv);
         if (!fresh)
@@ -135,6 +179,8 @@ internal static partial class Program
 
             // Early decodes first (arm T only), kept in memory so the final decode can be matched against each.
             var early = new List<(double X, List<DecodeResult> Res)>();
+            var diagDrops = new List<int>();
+            bool diagThis = diagStamp == stamp;
             if (arm == "T")
                 foreach (double x in TruncCutsSecondsDescending)
                 {
@@ -142,12 +188,23 @@ internal static partial class Program
                     var cut = (float[])pcm.Clone();
                     Array.Clear(cut, n, PcmSamples - n);
                     AssertCut(pcm, cut, n);                                  // V1, before the decode
+                    Interlocked.Exchange(ref DiagImplausibleDrops, 0);
                     var (res, ms, exc) = await TimedDecode(decoder, cut, cyc);
+                    diagDrops.Add(Volatile.Read(ref DiagImplausibleDrops));
                     early.Add((x, res));
+                    if (earlyOutcomes) WriteOutcomes(stamp, "early_" + Inv(x, "F1"), res);
                     rows.Add(string.Join(",", stamp, Inv(x, "F1"), "call", "", res.Count, "", Inv(ms, "F1"), exc));
                 }
 
+            Interlocked.Exchange(ref DiagImplausibleDrops, 0);
             var (final, fms, fexc) = await TimedDecode(decoder, pcm, cyc);
+            int finalDrops = Volatile.Read(ref DiagImplausibleDrops);
+            if (diagThis && diagOut is not null)
+            {
+                for (int k = 0; k < early.Count; k++)
+                    diagOut.WriteLine(DiagLine(arm, stamp, Inv(early[k].X, "F1"), early[k].Res, final, diagFreq, diagDrops[k]));
+                diagOut.WriteLine(DiagLine(arm, stamp, "0.0", final, final, diagFreq, finalDrops));
+            }
             var finalKey = final.Select(r => (r.FreqHz, r.Message.TrimEnd())).ToList();
             var finalVsWs = PairOneToOne(finalKey, wsKey);
             int fcorr = finalVsWs.Count(i => i >= 0);
