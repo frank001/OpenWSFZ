@@ -876,42 +876,44 @@ static ftx_callsign_hash_interface_t s_hash_if = { cb_lookup_hash, cb_save_hash 
  * HSM-IMAGE g_h12_unresolved_by_code
  * HSM-IMAGE g_h12_code_out_of_range
  *
- * Thread-local statics.  The early and the final decode may run on the same pool thread, so a thread-local the
- * decode writes and that survives into the next call could carry the early decode into the final one.
- * HSM-EXEMPT tls_pass_counts            reset at the top of ft8_decode_all ("4. Cross-pass dedup state" loops)
- * HSM-EXEMPT tls_candidate_counts       reset at the top of ft8_decode_all ("4. Cross-pass dedup state" loops)
- * HSM-EXEMPT tls_llr_mean_abs_sum       reset at the top of ft8_decode_all ("4. Cross-pass dedup state" loops)
- * HSM-EXEMPT tls_llr_prenorm_var_sum    reset at the top of ft8_decode_all ("4. Cross-pass dedup state" loops)
- * HSM-EXEMPT tls_llr_fail_count         reset at the top of ft8_decode_all ("4. Cross-pass dedup state" loops)
- * HSM-EXEMPT tls_num_passes             reset at the top of ft8_decode_all ("tls_num_passes = 0")
- * HSM-EXEMPT tls_num_decoded_snr_terms  reset at the top of ft8_decode_all, set to num_decoded at the end ("6. Cleanup")
- * HSM-EXEMPT tls_last_noise_floor_db    assigned per call in ft8_decode_all ("3. Noise floor") before any read
- * HSM-EXEMPT tls_signal_db              overwritten per decoded message, read only below tls_num_decoded_snr_terms
- * HSM-EXEMPT tls_local_noise_db         overwritten per decoded message, read only below tls_num_decoded_snr_terms
- * HSM-EXEMPT tls_hash_table             assigned per call ("2. Callsign table") and cleared at "6. Cleanup" and in __except
- * HSM-EXEMPT tls_h12_lookup_performed   reset per message in ft8_decode_all before each ftx_message_decode
- * HSM-EXEMPT tls_h12_suppressed         reset per message in ft8_decode_all before each ftx_message_decode
- * HSM-EXEMPT tls_h12_resolved           written whenever a 12-bit lookup is performed; read only if tls_h12_lookup_performed
- * HSM-EXEMPT tls_h12_multiplicity       written whenever a 12-bit lookup is performed; read only if tls_h12_lookup_performed
- * HSM-EXEMPT tls_h12_divergent          written whenever a 12-bit lookup is performed; read only if tls_h12_lookup_performed
- * HSM-EXEMPT tls_h12_code               written whenever a 12-bit lookup is performed; read only if tls_h12_lookup_performed
- * HSM-EXEMPT tls_ap_mycall_bits         NOT reset by ft8_decode_all: set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early entry does too)
- * HSM-EXEMPT tls_ap_num_mycall_bits     as tls_ap_mycall_bits
- * HSM-EXEMPT tls_ap_hiscall_bits        as tls_ap_mycall_bits
- * HSM-EXEMPT tls_ap_num_hiscall_bits    as tls_ap_mycall_bits
- * HSM-EXEMPT tls_diagnostics_enabled    written only by ft8_set_diagnostics_enabled (SubtractionPass brackets it); the pass-0-only early entry never calls it
- *
- * Other native files and constants.
- * HSM-EXEMPT s_hash_if                  two function pointers, initialised, never written afterwards
- * HSM-EXEMPT g_pool_lock                subfeas fit-workspace pool (subfeas_fit.c), used only by the residual pass; the early decode never calls it
- * HSM-EXEMPT g_pool_idle                as g_pool_lock
- * HSM-EXEMPT g_pool_idle_n              as g_pool_lock
- * HSM-EXEMPT g_pool_bound               as g_pool_lock
- * HSM-EXEMPT g_pool_live                as g_pool_lock
- * HSM-EXEMPT g_pool_leased              as g_pool_lock
- * HSM-EXEMPT g_pool_peak_leased         as g_pool_lock
- * HSM-EXEMPT g_pool_refusals            as g_pool_lock
- * HSM-EXEMPT g_pool_closing             as g_pool_lock
+ * Thread-local statics and other statics the decode path touches, each classified by FILE:LINE evidence.
+ * HSM-RESET   = reset or assigned per call / per message (evidence: the line, inside a function on the pass-0 path);
+ * HSM-NOWRITE = not written on the pass-0 path (the test proves no function reachable from ft8_decode_all assigns it).
+ * HSM-RESET tls_pass_counts ft8_shim.c:1656  reset at the top of ft8_decode_all
+ * HSM-RESET tls_candidate_counts ft8_shim.c:1657  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_mean_abs_sum ft8_shim.c:1658  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_prenorm_var_sum ft8_shim.c:1659  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_fail_count ft8_shim.c:1660  reset at the top of ft8_decode_all
+ * HSM-RESET tls_num_passes ft8_shim.c:1662  reset at the top of ft8_decode_all
+ * HSM-RESET tls_num_decoded_snr_terms ft8_shim.c:1661  reset at the top of ft8_decode_all, set to the count at the end
+ * HSM-RESET tls_last_noise_floor_db ft8_shim.c:1649  assigned per call before any read
+ * HSM-RESET tls_signal_db ft8_shim.c:1919  overwritten per decoded message, read only below tls_num_decoded_snr_terms (ft8_get_last_snr_terms)
+ * HSM-RESET tls_local_noise_db ft8_shim.c:1920  overwritten per decoded message, read only below tls_num_decoded_snr_terms (ft8_get_last_snr_terms)
+ * HSM-RESET tls_hash_table ft8_shim.c:1643  assigned per call, cleared at the end and in the __except handler
+ * HSM-RESET tls_h12_lookup_performed ft8_shim.c:1817  reset per message before ftx_message_decode
+ * HSM-RESET tls_h12_suppressed ft8_shim.c:1818  reset per message before ftx_message_decode
+ * HSM-RESET tls_h12_resolved ft8_shim.c:1832  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed
+ * HSM-RESET tls_h12_multiplicity ft8_shim.c:1834  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_h12_divergent ft8_shim.c:1835  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_h12_code ft8_shim.c:1844  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_ap_mycall_bits ft8_shim.c:1581  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_num_mycall_bits ft8_shim.c:1574  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_hiscall_bits ft8_shim.c:1582  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_num_hiscall_bits ft8_shim.c:1575  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-NOWRITE tls_diagnostics_enabled ft8_shim.c:1561  written only by ft8_set_diagnostics_enabled, called only by SubtractionPass (residual pass); the pass-0 path only reads it
+ * HSM-NOWRITE s_k_min_score_pass2 ft8_shim.c:490  decoder config, written only by ft8_set_decode_params (the Settings page / config save); the pass-0 path only reads it
+ * HSM-NOWRITE s_osd_corr_threshold ft8_shim.c:491  as s_k_min_score_pass2
+ * HSM-NOWRITE s_osd_nhard_max ft8_shim.c:492  as s_k_min_score_pass2
+ * HSM-NOWRITE s_hash_if ft8_shim.c:842  two function pointers set by the initialiser, never assigned afterwards
+ * HSM-NOWRITE g_pool_lock subfeas_fit.c:600  subfeas fit-workspace pool: written only by the pool functions of the residual pass
+ * HSM-NOWRITE g_pool_idle subfeas_fit.c:605  as g_pool_lock
+ * HSM-NOWRITE g_pool_idle_n subfeas_fit.c:606  as g_pool_lock
+ * HSM-NOWRITE g_pool_bound subfeas_fit.c:607  as g_pool_lock
+ * HSM-NOWRITE g_pool_live subfeas_fit.c:608  as g_pool_lock
+ * HSM-NOWRITE g_pool_leased subfeas_fit.c:609  as g_pool_lock
+ * HSM-NOWRITE g_pool_peak_leased subfeas_fit.c:610  as g_pool_lock
+ * HSM-NOWRITE g_pool_refusals subfeas_fit.c:611  as g_pool_lock
+ * HSM-NOWRITE g_pool_closing subfeas_fit.c:612  as g_pool_lock
  */
 typedef struct {
     callsign_table_t session_table;                        /* g_session_hash_table          */

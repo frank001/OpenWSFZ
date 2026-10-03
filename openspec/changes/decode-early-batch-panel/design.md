@@ -46,7 +46,41 @@ restored in a `finally`), and the pass-0-only early entry never reaches it. **Ex
 `g_pool_*` variables of `subfeas_fit.c` (the residual pass's workspace pool, which the early decode never calls). Function-local statics in
 `subfeas_fit.c` exist only under `#ifdef SUBFEAS_SELFTEST` (a standalone test `main`) and are skipped by the scanner; any other function-local
 static fails the test.
-**Blind spot, said plainly (HK-026):** the scanner reads one declaration per line. A declaration whose name sits on a later line than its
+**SUPERSEDED where it differs: the extended scan (Architect's ruling `bffb4c95` §0b; QA handoff `2026-10-03-122-step4-extend-completeness-test-all-native-sources`).**
+Test 2.4a now scans **every native source compiled into `libft8`** (14 files, derived from `rebuild_shim.bat` and `build_linux.sh`, which must agree; any
+`.c` under `native/ft8_lib_vendor` or `native/ft8_lib_build/patched` outside that set fails test 2.4e). The scanner reads statements (not lines): it finds file-scope
+`static`, **plain (non-static) globals**, thread-local statics and function-scope static locals, and skips `const` tables. Result: **the ft8 core
+(`ft8/*.c`, patched `decode.c` and `monitor.c`, `kiss_fft*.c`, `refine/*.c`) contains no mutable variable at all**; every one lives in `ft8_shim.c` or
+`subfeas/subfeas_fit.c`. The scan also found **three plain globals the first, line-based scan had missed**: `s_k_min_score_pass2`, `s_osd_corr_threshold`,
+`s_osd_nhard_max` (`ft8_shim.c:478-480`, the decoder-params config, non-static because `decode.c` reads them by `extern`). They are written only by
+`ft8_set_decode_params` (`:490-492`, the config save / Settings page), never by the decode, so they are **`NOWRITE`**, not a state leak.
+Classes (three, exactly one per variable; evidence is checked by the test): **`HSM-IMAGE`** in the saved image; **`HSM-RESET FILE:LINE`** reset or assigned per call
+(the cited line names the variable and lies inside a function on the pass-0 path); **`HSM-NOWRITE FILE:LINE`** not written on the pass-0 path (the test builds a
+conservative call graph from `ft8_decode_all`, `ft8_set_ap_bits`, the three TLS getters and the `ft8_hash_state_*` trio, following the `s_hash_if` callback
+table, and fails if any reachable function assigns the variable; the graph reaches 90 functions, includes the ft8 core and the callbacks, and excludes the
+residual pass: test 2.4f). **Full table** (variable | declared | class | evidence), from the passing run:
+
+| Variable | Declared | Class | Evidence |
+|---|---|---|---|
+| `g_session_hash_table`, `g_hash_table_initialised`, `g_hash_table_reject_count`, `g_h12_announce_clock`, `g_h12_displaying`, `g_h12_ambiguous`, `g_h12_divergent`, `g_h12_suppressed`, `g_h12_by_code_displaying`, `g_h12_by_code_ambiguous`, `g_h12_by_code_divergent`, `g_h12_unresolved_by_code`, `g_h12_code_out_of_range` (13) | `ft8_shim.c:711-796` | IMAGE | saved and restored by `ft8_hash_state_save/_restore` (test 2.4b) |
+| `tls_pass_counts`, `tls_candidate_counts`, `tls_llr_mean_abs_sum`, `tls_llr_prenorm_var_sum`, `tls_llr_fail_count` | `ft8_shim.c:577-581` | RESET | `ft8_shim.c:1656-1660` (the reset loops at the top of `ft8_decode_all`) |
+| `tls_num_passes`, `tls_num_decoded_snr_terms` | `:582`, `:591` | RESET | `:1662`, `:1661` |
+| `tls_last_noise_floor_db` | `:583` | RESET | `:1649` (assigned per call before any read) |
+| `tls_signal_db`, `tls_local_noise_db` | `:589`, `:590` | RESET | `:1919`, `:1920` (overwritten per decoded message; read only below `tls_num_decoded_snr_terms`, `ft8_get_last_snr_terms`) |
+| `tls_hash_table` | `:811` | RESET | `:1643` (assigned per call; cleared at the end and in `__except`) |
+| `tls_h12_lookup_performed`, `tls_h12_suppressed` | `:804`, `:809` | RESET | `:1817`, `:1818` (reset per message before `ftx_message_decode`) |
+| `tls_h12_resolved`, `tls_h12_multiplicity`, `tls_h12_divergent`, `tls_h12_code` | `:805-808` | RESET | `:1832`, `:1834`, `:1835`, `:1844` (written whenever a lookup is performed, read only under `tls_h12_lookup_performed`) |
+| `tls_ap_mycall_bits`, `tls_ap_num_mycall_bits`, `tls_ap_hiscall_bits`, `tls_ap_num_hiscall_bits` | `:605-608` | RESET | `:1581`, `:1574`, `:1582`, `:1575` (`ft8_set_ap_bits`, called by the managed caller before every `DecodeAll`, the early lambda included) |
+| `tls_diagnostics_enabled` | `:616` | NOWRITE | `ft8_shim.c:1561` (`ft8_set_diagnostics_enabled`, called only by `SubtractionPass`) |
+| `s_k_min_score_pass2`, `s_osd_corr_threshold`, `s_osd_nhard_max` | `:478-480` | NOWRITE | `:490`, `:491`, `:492` (`ft8_set_decode_params`, the config save) |
+| `s_hash_if` | `:842` | NOWRITE | `:842` (initialiser only; two function pointers) |
+| `g_pool_lock`, `g_pool_idle`, `g_pool_idle_n`, `g_pool_bound`, `g_pool_live`, `g_pool_leased`, `g_pool_peak_leased`, `g_pool_refusals`, `g_pool_closing` | `subfeas_fit.c:596-612` | NOWRITE | `subfeas_fit.c:600`, `:605-612` (the fit-workspace pool; written only by the pool functions of the residual pass, none reachable from the pass-0 roots) |
+
+Mutation checks (run by the Developer, text-only, reverted): a stray `static int g_zz_stray_vendor = 0;` appended to the vendored `ft8/crc.c` fails 2.4a with
+`native/ft8_lib_vendor/ft8/crc.c:65: mutable variable 'g_zz_stray_vendor' is not classified`; an assignment `s_osd_nhard_max = s_osd_nhard_max;` added to
+`ft8_decode_all` fails 2.4a with `NOWRITE s_osd_nhard_max: pass-0-path function 'ft8_decode_all' assigns it ... STOP and tell QA`.
+
+**Blind spot, said plainly (HK-026):** the earlier line-based scanner read one declaration per line; the statement-based one reads whole declarations but treats a `const`-qualified declaration as immutable and sees no write through a pointer. (Superseded wording follows.) The first-pass scanner reads one declaration per line. A declaration whose name sits on a later line than its
 `static` would not be seen. A restore that is wrong in a way the image cannot express (a state that is not a plain global) is invisible to it; A2b
 and A2 are the other half.
 **Not covered, by construction:** `ft8_encode_message` (the TX encoder) runs `hash_table_add` on a *local* table but still bumps the global announce clock
