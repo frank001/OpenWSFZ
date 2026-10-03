@@ -1,6 +1,6 @@
 # R&R S1-S8 NEW BASELINE with the #194 improvements: run 1 (baseline) and run 2 (confirmation)
 
-- **From:** QA  **To:** Architect, Captain  **Date:** 2026-10-03 ~04:00Z (HK-017)
+- **From:** QA  **To:** Architect, Captain  **Date:** 2026-10-03 03:19Z (the time of the commit that first carried this document, `b248c8f9` at 03:19:14Z; corrected 09:2xZ by `date -u`, HK-017: it first said "~04:00Z", ahead of the clock, and the `0400` in the file name is that same wrong stamp, kept only because other documents cite the name)
 - **Order (Captain, 2026-10-03):** a new R&R S1-S8 baseline carrying the #194 improvements (S3c in the battery, the captured-audio scan in the analysis), then a second run to confirm it. Build `main` with subtraction ON.
 - **Result: BASELINE CONFIRMED.** Both runs PASS overall, S3c PASS twice, scan completed twice (not SKIPPED), no config drift, no orphan daemon.
 
@@ -55,7 +55,7 @@ Both scans completed after the gather (the first took 278.7 s on one core). No `
 
 ## 5. Exceptions
 
-The full log is `qa/rr-study/results/2026-10-03-baseline-194-exceptions.md` (18 entries). The ones that matter for reading the runs: E7 (the trimmed publish, found by the precheck trial before any audio), E13 (a watchdog false alarm during S5: my silence limit was too short), E15 (no separate pre-flight for run 2; checked afterwards), E16 (the S3c scorer counted a cumulative log's earlier battery as wrong-cycle; fixed with a test, both runs re-scored; match counts were never affected).
+The full log is `qa/rr-study/results/2026-10-03-baseline-194-exceptions.md` (19 entries). The ones that matter for reading the runs: E7 (the trimmed publish, found by the precheck trial before any audio), E13 (a watchdog false alarm during S5: my silence limit was too short), E15 (no separate pre-flight for run 2; checked afterwards), E16 (the S3c scorer counted a cumulative log's earlier battery as wrong-cycle; fixed with a test, both runs re-scored; match counts were never affected).
 
 ## 6. Proposals (the Architect decides)
 

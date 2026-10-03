@@ -936,6 +936,35 @@ def _s5_window_history(qa_rr_root: Path) -> list[tuple[str, int, int]]:
     return rows
 
 
+def _window_member_lines(used: list[tuple[str, int, int]], qa_rr_root: Path) -> list[str]:
+    """Name the sweeps that make up Gate A-W's window (Architect, 2026-10-03: the report never said which).
+    `used` is `_verdict_s5_window`'s own newest-first list. Dates come from trend.csv (display only). Two
+    standing caveats are printed with it, because both change how the 0/480 may be read:
+      * a trend row whose SHA7 equals the CURRENT run's is excluded from the history (it is the same sha key), so
+        a second run on the same tooling commit does NOT see the first run in its window;
+      * trend.csv has no flag column: until four flag-ON `main` sweeps exist the window is MIXED (flag-OFF and
+        other-build rows), so it is a compliance reading across builds, not a flag-ON-only one."""
+    dates: dict[str, str] = {}
+    try:
+        with open(Path(qa_rr_root) / "trend.csv", newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                dates.setdefault((row.get("git_sha") or "")[:7], row.get("run_date") or "?")
+    except OSError:
+        pass
+    members = ", ".join(
+        f"{'this run' if i == 0 else dates.get(sha, 'seed')} `{sha}` {ev}/{sl}" for i, (sha, ev, sl) in enumerate(used))
+    return [
+        f"**Window members (newest first; events/slots):** {members}.",
+        "",
+        "_Reading the members: a trend row with the same SHA7 as this run is excluded from the window (the key is the "
+        "analysis worktree's HEAD, shared by two runs of one baseline), so a repeat run does not see the run before it. "
+        "`trend.csv` has no flag column: **until four flag-ON `main` sweeps exist (4 x 120 AWGN slots) the window is MIXED** "
+        "(older rows are flag-OFF or other builds). Read Gate A-W as a compliance reading across builds, not as a flag-ON-only "
+        "one, and never as evidence about the flag._",
+        "",
+    ]
+
+
 def _s5_window_gate(
     qa_rr_root: Path,
     git_sha: str,
@@ -2493,6 +2522,7 @@ def _s5_window_report_lines(s5_window_result: dict | None) -> list[str]:
         + "_",
         "",
     ]
+    lines += _window_member_lines(w["used"], _QA_ROOT)
     return lines
 
 

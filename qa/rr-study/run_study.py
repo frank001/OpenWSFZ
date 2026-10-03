@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Resolve qa/rr-study as a package root so ``harness`` is importable, same
@@ -98,6 +99,35 @@ _CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7", _S3C_ID]
 # it for S5 without a new spec revisiting the population question the way this
 # one did.
 _DEFAULT_BATTERY_PART_OVERRIDES: dict[str, str] = {}
+
+
+_WINDOW_MARGIN_S = 120   # keep lines stamped up to two minutes before the battery's first playback
+
+
+def _trim_log_to_window(path: Path, start_utc: "datetime") -> tuple[int, int]:
+    """Drop the lines of an ALL.TXT COPY stamped before this battery began (the file is cumulative: an earlier
+    battery's decodes of the same seeded texts would otherwise ride along as unmatched / false-positive rows in
+    every *_matched.csv of this run, Architect 2026-10-03). A line is dated by its first token (YYMMDD_HHMMSS,
+    UTC); a line that cannot be dated is KEPT, never dropped. Counts only (HK-037). Returns (kept, dropped)."""
+    from datetime import timedelta
+    cutoff = start_utc - timedelta(seconds=_WINDOW_MARGIN_S)
+    kept: list[str] = []
+    dropped = 0
+    with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+        for line in fh:
+            tok = line.split(None, 1)[0] if line.strip() else ""
+            try:
+                stamp = datetime.strptime(tok, "%y%m%d_%H%M%S").replace(tzinfo=timezone.utc)
+            except ValueError:
+                kept.append(line)
+                continue
+            if stamp < cutoff:
+                dropped += 1
+            else:
+                kept.append(line)
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.writelines(kept)
+    return len(kept), dropped
 
 
 def _load_arm_config(run_dir: Path) -> dict:
@@ -258,6 +288,10 @@ def main() -> None:
     else:
         _py("harness/warmup.py", "--device", args.device)
 
+    # The battery's own window starts here (UTC). ALL.TXT is CUMULATIVE and every battery plays the same
+    # seeded texts, so the copies taken below are trimmed to this window (see _trim_log_to_window).
+    battery_start_utc = datetime.now(timezone.utc)
+
     # ── Step 1: Run all scenarios ──────────────────────────────────────────
     for sid, sf in zip(scenario_ids, scenario_files):
         if not sf.exists():
@@ -303,6 +337,9 @@ def main() -> None:
     shutil.copy2(OWSFZ_ALL_TXT, owsfz_dest)
     print(f"  Copied WSJT-X   -> {wsjt_dest.name}")
     print(f"  Copied OpenWSFZ -> {owsfz_dest.name}")
+    for dest in (wsjt_dest, owsfz_dest):
+        kept, dropped = _trim_log_to_window(dest, battery_start_utc)
+        print(f"  Trimmed {dest.name} to this battery's window: kept {kept} lines, dropped {dropped} earlier ones")
 
     # Record WSJT-X version
     ver_path = run_dir / "wsjt-version.txt"
