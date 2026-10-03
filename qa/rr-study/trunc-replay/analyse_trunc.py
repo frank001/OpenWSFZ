@@ -1,7 +1,9 @@
 """#122 gate 4a -- the pre-registered rows V0-V5, the outputs and the predictions TR1-TR6, as code (spec sections 5 and 8).
 
 Reads only the numeric CSVs the harness wrote under _out/<corpus>/ (counts and numbers; no message text exists in them).
-If any V0-V4 row FAILS on any corpus, NO catch figure is printed (spec section 5): the report names the row and stops.
+If any V0-V3 row FAILS, NO catch figure is printed (spec section 5): the report names the row and stops.
+V4 is replaced by V4' (Amendment 1, 2026-10-03 13:53Z): per corpus, a FAIL withholds THAT corpus's catch figures.
+The old V4 and C(0.5), C(4.0), D with its CI are always printed, PASS or FAIL.
 
   python analyse_trunc.py [--out _out] [--sel ../results/2026-10-03-122-gate4a-truncation-replay]
 """
@@ -21,7 +23,8 @@ GRID = [0.5, 1.0, 1.5, 2.0, 2.5]
 CONTROL = 4.0
 PARENT_SHA = "55a951c86147e92a8262be9d84ffd29362ecd7b63995f62caa7981bd53c977cf"
 DLL_SHA = "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c"
-V4_MARGIN = 0.20          # C(4.0) <= C(0.5) - 0.20
+V4_MARGIN = 0.20          # the ORIGINAL V4, superseded by Amendment 1; reported, not used
+V4P_C4_MAX = 0.98         # V4'(i): C(4.0) <= 0.98 (an uncut window gives exactly 1.000 at every x)
 V5_TOLERANCE_S = 0.10
 BLOCK = 10                # cycles per bootstrap block
 BOOT_B = 10_000
@@ -80,6 +83,34 @@ def boot(stamps, num, den, rng):
     return out[int(0.025 * len(out))], out[int(0.975 * len(out)) - 1]
 
 
+def boot_diff(stamps, num_a, num_b, den, rng):
+    """95 % percentile CI of D = sum(num_a)/sum(den) - sum(num_b)/sum(den): the same blocks as boot(), the three
+    sums resampled together (V4' (ii), Amendment 1)."""
+    blocks = [stamps[i:i + BLOCK] for i in range(0, len(stamps), BLOCK)]
+    ba = [sum(num_a.get(s, 0) for s in b) for b in blocks]
+    bb = [sum(num_b.get(s, 0) for s in b) for b in blocks]
+    bd = [sum(den.get(s, 0) for s in b) for b in blocks]
+    k, out = len(blocks), []
+    for _ in range(BOOT_B):
+        idx = [rng.randrange(k) for _ in range(k)]
+        d = sum(bd[i] for i in idx)
+        if d:
+            out.append((sum(ba[i] for i in idx) - sum(bb[i] for i in idx)) / d)
+    out.sort()
+    return out[int(0.025 * len(out))], out[int(0.975 * len(out)) - 1]
+
+
+def v4_rows(stamps, num05, num4, den):
+    """V4' (replaces V4, Amendment 1): PASS iff (i) C(4.0) <= 0.98 AND (ii) the CI lower bound of D = C(0.5) - C(4.0) > 0.
+    Also returns the superseded original V4 (reported, not used). Fresh Random(BOOT_SEED) per call: same blocks and seed."""
+    total = sum(den.values())
+    c05, c4 = sum(num05.values()) / total, sum(num4.values()) / total
+    lo, hi = boot_diff(stamps, num05, num4, den, random.Random(BOOT_SEED))
+    return {"c05": c05, "c4": c4, "d": c05 - c4, "d_lo": lo, "d_hi": hi,
+            "i": c4 <= V4P_C4_MAX, "ii": lo > 0, "pass": c4 <= V4P_C4_MAX and lo > 0,
+            "old_v4_pass": c4 <= c05 - V4_MARGIN}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="_out")
@@ -126,27 +157,34 @@ def main() -> int:
         den = {s: f.n_final(s) for s in f.stamps}
         return num, den
 
-    # ---- V4 positive control ----
-    if not fails:
-        for c in CORPORA:
-            num4, den = catch(c, CONTROL); num05, _ = catch(c, 0.5)
-            c4, c05 = sum(num4.values()) / sum(den.values()), sum(num05.values()) / sum(den.values())
-            if not c4 <= c05 - V4_MARGIN:
-                fails.append(f"V4 {c}: C(4.0)={c4:.3f} is not <= C(0.5)-{V4_MARGIN}={c05 - V4_MARGIN:.3f}")
     if fails:
         print("VALIDITY FAILED; no catch figure is reported:")
         for f in fails: print("  FAIL", f)
+        return 1
+
+    # ---- V4' positive control (Amendment 1): always reported, PASS or FAIL; a FAIL withholds that corpus only ----
+    active = []
+    for c in CORPORA:
+        num4, den = catch(c, CONTROL); num05, _ = catch(c, 0.5)
+        r = v4_rows(F[c].stamps, num05, num4, den)
+        print(f"V4' {c}: {'PASS' if r['pass'] else 'FAIL'}  C(0.5)={r['c05']:.3f}  C(4.0)={r['c4']:.3f}  "
+              f"D={r['d']:.3f} [{r['d_lo']:.3f}, {r['d_hi']:.3f}]  (i) C(4.0)<=0.98: {r['i']}  (ii) CI lower bound>0: {r['ii']}")
+        print(f"     V4 as first registered, C(4.0)<=C(0.5)-0.20: {'PASS' if r['old_v4_pass'] else 'FAIL'} "
+              "(superseded by Amendment 1; reported, not used)  |  V1 (cut exactness) is asserted in-process: the run exited 0")
+        if r["pass"]: active.append(c)
+        else: print(f"     {c}: catch figures WITHHELD (V4' FAIL)")
+    if not active:
         return 1
 
     rng = random.Random(BOOT_SEED)
     # ---- V5 window alignment ----
     med = {c: statistics.median(float(r["key"]) for r in F[c].rows if r["row"] == "v5") for c in CORPORA}
     v5 = {c: (c == "p") or abs(med[c] - med["p"]) <= V5_TOLERANCE_S for c in CORPORA}
-    print("V5 median DT(OpenWSFZ - WSJT-X) of corroborated pairs, arm F:", {c: round(med[c], 3) for c in CORPORA})
-    for c in CORPORA: print(f"  V5 {c}: {'PASS' if v5[c] else f'FAIL (offset differs from P by {med[c] - med['p']:+.2f} s; x not comparable)'}")
+    print("V5 median DT(OpenWSFZ - WSJT-X) of corroborated pairs, arm F:", {c: round(med[c], 3) for c in active})
+    for c in active: print(f"  V5 {c}: {'PASS' if v5[c] else f'FAIL (offset differs from P by {med[c] - med['p']:+.2f} s; x not comparable)'}")
 
     C, S = {}, {}
-    for c in CORPORA:
+    for c in active:
         den = {s: F[c].n_final(s) for s in F[c].stamps}
         print(f"\n=== corpus {c}: {len(F[c].stamps)} cycles, {sum(den.values())} arm-F decodes ===")
         print("x      C(x)   [95% CI]          S_corr/100  S_unc/100  SNRshift(med)  t(x) med/p95 ms")
@@ -175,17 +213,19 @@ def main() -> int:
                     cells.append(f"{lab}: {m}/{n}" + (f"={m / n:.2f}" if n else ""))
                 print(f"  C({x}) by {kind}: " + "; ".join(cells))
 
-    xstar = {c: max((x for x in GRID if C[(c, x)] >= XSTAR_C and S[(c, x)] <= XSTAR_SUNC), default=None) for c in CORPORA}
+    xstar = {c: max((x for x in GRID if C[(c, x)] >= XSTAR_C and S[(c, x)] <= XSTAR_SUNC), default=None) for c in active}
     print("\nx* (largest grid x with C>=0.90 and S_unc<=0.10 per 100), descriptive:", xstar, "(P is the design point; R beside it)")
 
     print("\nPredictions (scored at the Architect's ruling):")
-    print("TR1 C_P(1.0)>=0.85:", C[("p", 1.0)] >= 0.85, round(C[("p", 1.0)], 3))
-    print("TR2 C_P(2.0) in [0.55,0.85]:", 0.55 <= C[("p", 2.0)] <= 0.85, round(C[("p", 2.0)], 3))
-    print("TR3 S_unc_P(1.0)<=0.50:", S[("p", 1.0)] <= 0.50, round(S[("p", 1.0)], 3))
-    print("TR4 |C_P(1.0)-C_R(1.0)|<=0.05:", abs(C[("p", 1.0)] - C[("r", 1.0)]) <= 0.05)
-    print("TR5 V0-V4 all pass the first time: True (this report exists)")
+    have = lambda *cs: all(c in active for c in cs)
+    if have("p"):
+        print("TR1 C_P(1.0)>=0.85:", C[("p", 1.0)] >= 0.85, round(C[("p", 1.0)], 3))
+        print("TR2 C_P(2.0) in [0.55,0.85] (as registered):", 0.55 <= C[("p", 2.0)] <= 0.85, round(C[("p", 2.0)], 3))
+        print("TR3 S_unc_P(1.0)<=0.50:", S[("p", 1.0)] <= 0.50, round(S[("p", 1.0)], 3))
+    print("TR4 |C_P(1.0)-C_R(1.0)|<=0.05:", (abs(C[("p", 1.0)] - C[("r", 1.0)]) <= 0.05) if have("p", "r") else "n/a (P or R withheld)")
+    print("TR5 V0-V3 and V4' all pass the first time:", len(active) == len(CORPORA))
     for c in ("x17", "x80"):
-        print(f"TR6 {c}:", (abs(C[(c, 1.0)] - C[("p", 1.0)]) <= 0.08) if v5[c] else "n/a (V5 failed)")
+        print(f"TR6 {c}:", (abs(C[(c, 1.0)] - C[("p", 1.0)]) <= 0.08) if have(c, "p") and v5[c] else "n/a (withheld or V5 failed)")
     return 0
 
 
