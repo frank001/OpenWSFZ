@@ -29,7 +29,7 @@ using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Ft8;
 
-internal static class Program
+internal static partial class Program
 {
     private const int PcmSamples = 180_000;
     private const int SampleRateHz = 12_000;
@@ -158,6 +158,11 @@ internal static class Program
 
         var cycles = root.GetProperty("runs").GetProperty(run).GetProperty(stratum).EnumerateArray()
                          .Select(e => e.GetString()!).ToList();
+#if HAS_TWOSTAGE
+        // #122 gate 4a truncation replay (Trunc.cs): its own CSV via --trunc-out; --out keeps only the harness header.
+        if (mode == "trunc")
+            return await RunTruncAsync(a, decoder, log, run, stratum, WavDirFor(run), cycles, Req(a, "trunc-out"));
+#endif
 #if HAS_TWOSTAGE
         // Offline flag-OFF/ON replay: the arm's flag is set ONCE here and read back from the decoder object (spec V2).
         if (mode is "two0" or "two1") { SetFlag(decoder, mode == "two1"); Readback(decoder, log, "start", threadsNote); }
