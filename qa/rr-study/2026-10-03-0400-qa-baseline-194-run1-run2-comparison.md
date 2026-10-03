@@ -55,7 +55,7 @@ Both scans completed after the gather (the first took 278.7 s on one core). No `
 
 ## 5. Exceptions
 
-The full log is `qa/rr-study/results/2026-10-03-baseline-194-exceptions.md` (17 entries). The ones that matter for reading the runs: E7 (the trimmed publish, found by the precheck trial before any audio), E13 (a watchdog false alarm during S5: my silence limit was too short), E15 (no separate pre-flight for run 2; checked afterwards), E16 (the S3c scorer counted a cumulative log's earlier battery as wrong-cycle; fixed with a test, both runs re-scored; match counts were never affected).
+The full log is `qa/rr-study/results/2026-10-03-baseline-194-exceptions.md` (18 entries). The ones that matter for reading the runs: E7 (the trimmed publish, found by the precheck trial before any audio), E13 (a watchdog false alarm during S5: my silence limit was too short), E15 (no separate pre-flight for run 2; checked afterwards), E16 (the S3c scorer counted a cumulative log's earlier battery as wrong-cycle; fixed with a test, both runs re-scored; match counts were never affected).
 
 ## 6. Proposals (the Architect decides)
 

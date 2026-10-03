@@ -228,6 +228,17 @@ def main():
             _write_status(status_path, status)
             return 3
 
+        # Leave the daemon's provenance record IN THE RUN DIR: harness/analyse.py names the build from it
+        # (it used to read the analysis worktree's HEAD, wrong four times) and run_study.py reads the
+        # decoder-flag readback from it for the S3c record. A resume keeps the original (the first start's).
+        try:
+            _dst = os.path.join(str(predicted_run_dir), "arm_config.json")
+            if not (a.resume and os.path.isfile(_dst)):
+                import shutil as _sh
+                _sh.copy2(os.path.join(sup_dir, "arm_config.json"), _dst)
+        except OSError as _e:
+            print("WARNING: could not copy arm_config.json into the run dir: %r" % (_e,), flush=True)
+
         d = arm.get("daemon", {})
         wsjtx_all_txt = os.path.join(os.path.dirname(a.wsjtx_ini), "ALL.TXT")
         owsfz_all_txt = d.get("config_decode_log_path")

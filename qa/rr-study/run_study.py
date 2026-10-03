@@ -100,6 +100,19 @@ _CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7", _S3C_ID]
 _DEFAULT_BATTERY_PART_OVERRIDES: dict[str, str] = {}
 
 
+def _load_arm_config(run_dir: Path) -> dict:
+    """{commit, dll_sha256, subtraction_enabled ('true'/'false'/'unknown')} from <run_dir>/arm_config.json."""
+    import json
+    try:
+        d = json.loads((run_dir / "arm_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    flag = ((d.get("daemon") or {}).get("decoder_readback") or {}).get("subtractionEnabled")
+    return {"commit": (d.get("build") or {}).get("commit"),
+            "dll_sha256": (d.get("daemon") or {}).get("dll_sha256"),
+            "subtraction_enabled": {True: "true", False: "false"}.get(flag, "unknown")}
+
+
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command via the venv Python, streaming output in real time."""
     cmd = [str(_VENV_PYTHON), *args]
@@ -134,13 +147,18 @@ def main() -> None:
                              "of a single scenario (e.g. --scenarios S7 --parts 0,1,2). "
                              "Applied to every scenario when multiple are selected — use "
                              "with care. Not applicable to S8 (silently ignored).")
-    parser.add_argument("--s3c-flag-state", default="unknown", choices=["true", "false", "unknown"],
-                        help="decoder.subtractionEnabled as read back from the daemon under test "
-                             "(recorded in the S3c result and trend, never pooled)")
-    parser.add_argument("--s3c-build-sha", default="unknown",
-                        help="the daemon build's commit SHA (arm_config.json), recorded in the S3c result")
-    parser.add_argument("--s3c-dll-sha256-prefix", default="unknown",
-                        help="libft8.dll SHA-256 prefix of the daemon under test (HK-022)")
+    parser.add_argument("--s3c-flag-state", default="auto", choices=["auto", "true", "false", "unknown"],
+                        help="decoder.subtractionEnabled of the daemon under test, recorded in the S3c result "
+                             "and trend, never pooled. 'auto' (default) reads it from the run dir's "
+                             "arm_config.json (the launcher's read-back from the RUNNING daemon).")
+    parser.add_argument("--s3c-build-sha", default="auto",
+                        help="the daemon build's commit SHA; 'auto' reads arm_config.json")
+    parser.add_argument("--s3c-dll-sha256-prefix", default="auto",
+                        help="libft8.dll SHA-256 prefix of the daemon under test (HK-022); 'auto' reads arm_config.json")
+    parser.add_argument("--legacy-no-arm-config", action="store_true",
+                        help="allow a run with no arm_config.json in the run dir (a hand-run battery). Without it "
+                             "the run is REFUSED at the start, not after hours: the report header would name the "
+                             "wrong build (HK-022, four times). The analyser is passed the same flag.")
     # Overridable ALL.TXT locations (run_study_detached.py forwards the ones it read from the
     # daemon's own config; the constants above stay the defaults so no old invocation changes).
     parser.add_argument("--wsjt-all-txt", default=str(WSJT_ALL_TXT), metavar="PATH",
@@ -198,6 +216,19 @@ def main() -> None:
     # Section 1 and qa/rr-study/2026-08-27-2141-architect-to-qa-outstanding-
     # work-order.md Item 1.
     run_dir = make_run_dir(_RESULTS)
+
+    # The daemon-under-test's provenance record (run_study_detached.py copies it into the run dir).
+    arm = _load_arm_config(run_dir)
+    if not arm.get("commit") and not args.legacy_no_arm_config:
+        sys.exit(f"ERROR: {run_dir / 'arm_config.json'} is missing or has no build commit. Launch this battery "
+                 "through run_study_detached.py (it records the daemon's build and decoder flags), or pass "
+                 "--legacy-no-arm-config for a hand-run battery (the report then says the build is NOT VERIFIED).")
+    if args.s3c_flag_state == "auto":
+        args.s3c_flag_state = arm.get("subtraction_enabled", "unknown")
+    if args.s3c_build_sha == "auto":
+        args.s3c_build_sha = arm.get("commit") or "unknown"
+    if args.s3c_dll_sha256_prefix == "auto":
+        args.s3c_dll_sha256_prefix = (arm.get("dll_sha256") or "unknown")[:16]
 
     print("=" * 70)
     print("OpenWSFZ R&R Study -- live run")
@@ -306,7 +337,8 @@ def main() -> None:
 
     # ── Step 5: Analyse ────────────────────────────────────────────────────
     print("\nRunning analyser ...")
-    _py("harness/analyse.py", "--run-dir", str(run_dir))
+    _py("harness/analyse.py", "--run-dir", str(run_dir),
+        *(["--legacy-no-arm-config"] if args.legacy_no_arm_config else []))
 
     print("\n" + "=" * 70)
     print(f"Study complete.  Report: {run_dir / 'report.md'}")
