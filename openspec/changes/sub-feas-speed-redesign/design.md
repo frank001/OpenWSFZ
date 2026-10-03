@@ -263,6 +263,36 @@ on the Stage A build and is not gated on Stage B. Stage B is a separate follow-o
 **Consequences to keep in view:** a numerics-changing item **breaks bit-identity, so E1 no longer applies**; each item's DLL
 gets its own shim bump and SHA pin. **The flag-OFF control (native and managed) is a merge gate and runs ONCE, at the merge**, on whichever build the Captain decides to merge (Captain via the Architect, 2026-09-30); it is dropped from the current queue and not re-run per phase (tasks 10.5, 14.4, 15.7).
 
+### D11. Stage B re-aimed at batch 2's arrival time (Amendment 5, 2026-10-03): T2′, B2 first, and QA's HK-021 (k) review of T2′
+
+**Decision (Captain, 2026-10-03, "yes, proceed"; Architect spec §5h).** The Captain asked whether Stage B could give more time between batch 2 and the close
+of the reply window. The lateness ruling (`2026-10-02-2225` §3) puts the same-slot condition at median T2 ≤ about 2.95 s − k; the 2026-09-30 on-air night
+measured T2 p50 5.71 s (decode start 0.03 s + batch 1 about 0.53 s + residual pass about 5.0 s). The fit profile says where the residual time goes: per fit 1 561 ms
+at one worker and 1 904 ms at eight, step 1 (the time search, 201 full 262 144-point FFTs of which about ±44 bins are used) 71 %, step 2 25 %. B2 removes most of step 1
+and cheapens step 2's `freq_search`, so it goes first; B1 (a faster full FFT) buys little once B2 is in.
+
+**What changes:** the order (B2, B3, B1, each only if the bar is still missed), the finish line (T2′ median ≤ 2.50 s on the replay, bar), T′ (report-only), and R4′ (read at
+eight workers on the T2′ list). **What does not:** E2, E3, R1′, R3, the licence rule (B2 and B3 are own code; B1, if ever reached, is pocketfft-C only), the flag default,
+the thread default, the fence on batch 2 (P-5) and the Captain's parked batch-2 → auto-QSO choice. No on-air claim: a replay PASS is followed, before any reply-policy
+spec, by one receive-only on-air night on the accepted build, a separate decision.
+
+**QA's (k) review of T2′: accepted, no refusal, five notes.** Classified: *validity* (does the number mean what the claim needs) and *precision* (can it separate the
+cases). On the precision branch T2′ fires both ways: the Architect's arithmetic gives about 2.4 s if step 1 falls to a tenth and step 2 by 30 %, and about 3.4 s for a
+2× gain, so a build can pass or fail on the median; it is not decorative. On the validity branch the same row fires differently, so the notes are about validity:
+1. **A replay PASS is not "batch 2 can be answered in the same slot".** The margin (0.45 s under the 2.95 s condition) has to cover the keying latency k and the gap
+   between replay and live. k is being measured (`qa/rr-study/2026-10-03-1235-architect-to-qa-spec-keying-latency.md`: K1 logs, K2 no-RF loopback). If the measured k
+   exceeds 0.45 s, T2′ can pass while the same-slot condition still fails; the ruling reads **2.95 s − k_PC**, not 2.50 s, and says which.
+2. **Survivorship in the median.** `T2_replay` is taken over cycles with at least one residual decode. A cycle whose residual pass is abandoned at the deadline contributes
+   no residual decode and drops out, which biases the median down, for the baseline and for every item alike. R4′ (abandon ≤ 5 % at eight workers on this list) bounds it, and
+   the report prints the abandon fraction beside every `T2_replay` so the bound is visible, not assumed. E3 already stops an item from buying speed by losing decodes.
+3. **One night, one corpus.** The T2′ list is a stratified every-fourth sample of one night's frozen selection (about 1 075 cycles, SHA pinned). A pass says "this build, on that
+   night's load", not "any night": the by-UTC-hour fraction (descriptive) shows whether the median hides a busy hour.
+4. **The 0.032 s offset is a constant, not a measurement of this replay.** It is the on-air median decode-start offset, labelled as such; the report says so.
+5. **Timing instrument rules.** The replay is a TIMING run: the PC to itself, WSJT-X closed, machine state recorded, the Stage A baseline in the same session, no Developer
+   build or suite and no other job while it runs (CPU rule). The selection SHA and the list count are asserted in code before any build (tasks 15.2(c)).
+
+**Fitted-parameter visibility (tasks 15.3) is still required for E2** and is the Developer's design decision to record here before coding.
+
 ## Risks
 
 - **Concurrency is the historical crash class.** D2's ownership model is the highest-risk item; it needs a stress
