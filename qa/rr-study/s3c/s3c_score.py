@@ -52,6 +52,12 @@ def score(scen: dict, wsjtx_alltxt: Path, owsfz_alltxt: Path, log_path: Path) ->
     for dec, name in DECODERS:
         path = wsjtx_alltxt if dec == "wsjtx" else owsfz_alltxt
         rows, stamps, n_lines, n_other = EA.parse_all_txt(path, planted)
+        # ALL.TXT is CUMULATIVE and every battery plays the same seeded texts, so an earlier battery's
+        # decodes of the same texts sit in the file at their own (earlier) stamps. Only decodes inside
+        # THIS S3c playback's window (first to last boundary) belong to this battery: without the
+        # window, "wrong cycle" counted another battery's correct decodes (found on run 2, 2026-10-03).
+        lo, hi = min(boundaries.values()), max(boundaries.values())
+        rows = [r for r in rows if lo <= r["utc"] <= hi]
         matched, wrong = EA.match_decoder(design, boundaries, rows)
         per_part = {}
         for part in PARTS:

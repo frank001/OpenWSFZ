@@ -199,3 +199,14 @@ def test_renders_match_the_frozen_index(scen):
 def test_trend_columns_are_distinct():
     assert len(SC.TREND_FIELDS) == len(set(SC.TREND_FIELDS))
     assert {"x_owsfz_l90", "x_owsfz_e50", "x_wsjtx_l50", "x_wsjtx_e90"} <= set(SC.TREND_FIELDS)
+
+
+def test_an_earlier_batterys_decodes_in_the_cumulative_log_are_not_wrong_cycle(tmp_path, scen):
+    d = scen["design"]
+    b = _log(tmp_path / "playback_log.csv", d, datetime(2026, 10, 3, 12, 0, 0, tzinfo=timezone.utc))
+    earlier = {i: t - timedelta(hours=2) for i, t in b.items()}          # same texts, an earlier battery's stamps
+    _write_alltxt(tmp_path / "o.txt", d, earlier, _all(scen))
+    _write_alltxt(tmp_path / "w.txt", d, earlier, _all(scen))
+    r = SC.score(scen, tmp_path / "w.txt", tmp_path / "o.txt", tmp_path / "playback_log.csv")
+    assert r["decoders"]["OpenWSFZ"]["wrong_cycle_decodes"] == 0
+    assert all(v["X"] == 0 for v in r["decoders"]["OpenWSFZ"]["parts"].values())
