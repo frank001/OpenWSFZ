@@ -9,6 +9,7 @@ using OpenWSFZ.Ft8.Interop;
 //   Ft8.FitProbe e1   --dll <libft8.dll> --out <csv> [--wav <file>]... [--grid <n>] [--threads <t>] [--seed <s>]
 //   Ft8.FitProbe time --dll <libft8.dll> --wav <file> [--threads <t>]
 //   Ft8.FitProbe fitprofile|fitsummary|fitcompare ...   Stage B step-1 per-phase fit profile; see FitProfile.cs
+//   Ft8.FitProbe fitparams|fitparamscompare ...         Stage B E2: fitted parameters per signal, two DLLs; see FitProfile.cs
 //
 // e1   Hash probe (E1). Pass-0 decodes each cycle THROUGH the given DLL, encodes each re-encodable decode, fits it
 //      with NO deadline, and writes one CSV row per (label, signal): rc and sha256(out_shat), plus per-cycle rows
@@ -37,7 +38,7 @@ internal static class Probe
         if (args.Length == 0) return Usage();
         string mode = args[0];
         // Stage B step-1 fit profile (sub-feas-speed-redesign tasks.md 15.1): its own modes and arguments.
-        if (mode is "fitprofile" or "fitsummary" or "fitcompare") return FitProfile.Run(args);
+        if (mode is "fitprofile" or "fitsummary" or "fitcompare" or "fitparams" or "fitparamscompare") return FitProfile.Run(args);
         string? dll = null, outPath = null;
         var wavs = new List<string>();
         int grid = 0, threads = 1, seed = 20260930;

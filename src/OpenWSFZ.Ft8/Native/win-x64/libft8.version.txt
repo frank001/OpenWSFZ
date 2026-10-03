@@ -1,4 +1,29 @@
-=== CURRENT: sub-feas-speed-redesign, Stage A (FT8_SHIM_VERSION 20260056) ===
+=== CURRENT: sub-feas-speed-redesign Stage B item B2, pruned frequency search (FT8_SHIM_VERSION 20260059) ===
+
+Built 2026-10-03 from branch feat/sub-feas-stage-b (merged with origin/main e2fdd446, shim 20260056), via OpenSpec change
+openspec/changes/sub-feas-speed-redesign/ (tasks 15.3/15.4, design.md D11; QA handoff dev-tasks/2026-10-03-sub-feas-stage-b-b2-
+pruned-freq-search.md; Architect spec section 5h; the Captain's "yes, proceed" 2026-10-03). Developer session. Version literal chosen
+by checking every local and remote ref on 2026-10-03: main 20260056, decoding_improvement 20260057 (DI sync 4), #122 step 4
+(feat/122-step4-early-decode-panel, local) 20260058, nothing at 20260059 or above. This branch is NOT stacked on step 4; whichever
+of the two merges second rebases its number.
+
+NUMERICS-CHANGING (so Stage A's bit-identity E1 does not apply; acceptance is E2 and E3): ONLY subfeas_fit.c's freq_search changes.
+The 262 144-point FFT of the dt search (201 candidates) and the fdot search (41 candidates), of which only the 87 bins with
+|f| <= 2.0 Hz are used, becomes a decimation by 64 with linear-interpolation weights, a 4 096-point FFT (same 0.0458 Hz bin spacing),
+the magnitudes divided by the kernel droop, scanned in the reference's index order with its first-strictly-greater tie-break. One
+more 4 096-point FFT plan per workspace (the pool's bytes-per-workspace stat grows by it). NO new or changed export, no ABI change,
+no change to ft8_decode_all or any other function. The Stage A fit's outputs are reproduced bit-for-bit on the recorded golden
+(SubfeasNativeSpeedTests 8.1, not re-recorded) and on 111/111 real fits of the fit profile.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    70d4032336482df98021f1c42acdef8e1f604e3998acdff36819c4bb1d29af1c
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): built, exports checked with nm, committed. SHA256
+    ed36bb432efc79316808257059b4ed6ceb0188a33d3d70ac837a867386146d8d
+    tools/check_native_version.py reports shim 20260059 for both files built here.
+  macOS ARM64: NOT rebuilt here -- no Mac available locally (the same limitation every prior native change recorded). CI owns it.
+
+=== Previous: sub-feas-speed-redesign, Stage A (FT8_SHIM_VERSION 20260056) ===
 
 Built 2026-09-30 from branch feat/sub-feas-speed-redesign, on top of feat/sub-feas-native-subtraction
 (ab95bea1, code 2b39cf18, shim 20260055), via OpenSpec change openspec/changes/sub-feas-speed-redesign/

@@ -73,6 +73,16 @@
 /* Envelope window: round(0.32 * 12000) = 3840 samples */
 #define ENV_W_SAMPLES    3840
 
+/* B2 (sub-feas-speed-redesign tasks 15.4; design.md D11): the pruned frequency search. The product being searched is
+ * N_TX = 151 680 samples long and only the bins with |f| <= 2.0 Hz (about +-44 of the 262 144) are ever looked at, so
+ * the full 262 144-point FFT is replaced by a decimation by FS_DECIM = 64 (linear-interpolation weights) and a
+ * FS_SMALL_N = 4 096-point FFT. The bin spacing is unchanged: (FS / 64) / 4 096 = FS / 262 144 = 0.0458 Hz. */
+#define FS_DECIM         64
+#define FS_SMALL_N       (N_FFT / FS_DECIM)      /* 4096 */
+/* compile-time checks (a negative array size is an error): the product is whole blocks, and its decimated image fits in the small FFT */
+typedef char subfeas_check_decim_divides_ntx[(SUBFEAS_N_TX % FS_DECIM == 0) ? 1 : -1];
+typedef char subfeas_check_decim_fits_small[(SUBFEAS_N_TX / FS_DECIM + 1 <= FS_SMALL_N) ? 1 : -1];
+
 #define TRANSMISSION_S   (N_TX / FS)   /* 12.64, exact */
 
 typedef struct { float r, i; } cf32;
@@ -91,6 +101,11 @@ typedef struct { float r, i; } cf32;
 typedef struct {
     kiss_fft_cfg fwd, inv;
     void *work_fwd, *work_inv;
+
+    /* B2: the 4 096-point plan of the pruned frequency search (its input/output scratch is the first
+     * FS_SMALL_N entries of scratch_search). */
+    kiss_fft_cfg fwd_small;
+    void *work_small;
 
     /* N_FFT-sized (complex), used as FFT in/out scratch */
     kiss_fft_cpx *scratch_a, *scratch_full, *scratch_search;
@@ -128,6 +143,11 @@ static int workspace_alloc(workspace_t* ws)
     kiss_fft_alloc(N_FFT, 1, NULL, &ws_inv);
     ws->work_fwd = malloc(ws_fwd);
     ws->work_inv = malloc(ws_inv);
+    {
+        size_t ws_small = 0;
+        kiss_fft_alloc(FS_SMALL_N, 0, NULL, &ws_small);
+        ws->work_small = malloc(ws_small);
+    }
 
     ws->scratch_a      = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
     ws->scratch_full    = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
@@ -155,7 +175,7 @@ static int workspace_alloc(workspace_t* ws)
     ws->pulse_spec      = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
     ws->win_spec        = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
 
-    if (!ws->work_fwd || !ws->work_inv || !ws->scratch_a ||
+    if (!ws->work_fwd || !ws->work_inv || !ws->work_small || !ws->scratch_a ||
         !ws->scratch_full || !ws->scratch_search || !ws->tone_arr || !ws->smoothed ||
         !ws->r_unit || !ws->r_base || !ws->mixed || !ws->seg || !ws->r_base_final ||
         !ws->envelope || !ws->num || !ws->num_c || !ws->den_cf || !ws->den_c ||
@@ -166,12 +186,17 @@ static int workspace_alloc(workspace_t* ws)
 
     ws->fwd = kiss_fft_alloc(N_FFT, 0, ws->work_fwd, &ws_fwd);
     ws->inv = kiss_fft_alloc(N_FFT, 1, ws->work_inv, &ws_inv);
-    return (ws->fwd != NULL && ws->inv != NULL);
+    {
+        size_t ws_small = 0;
+        kiss_fft_alloc(FS_SMALL_N, 0, NULL, &ws_small);
+        ws->fwd_small = kiss_fft_alloc(FS_SMALL_N, 0, ws->work_small, &ws_small);
+    }
+    return (ws->fwd != NULL && ws->inv != NULL && ws->fwd_small != NULL);
 }
 
 static void workspace_free(workspace_t* ws)
 {
-    free(ws->work_fwd); free(ws->work_inv);
+    free(ws->work_fwd); free(ws->work_inv); free(ws->work_small);
     free(ws->scratch_a); free(ws->scratch_full); free(ws->scratch_search);
     free(ws->tone_arr); free(ws->smoothed);
     free(ws->r_unit); free(ws->r_base); free(ws->mixed); free(ws->seg);
@@ -358,35 +383,83 @@ static void apply_freq_shift(const cf32* r_unit, int len, double df_hz, cf32* ou
     }
 }
 
-/* fitter.py:_freq_search -- argmax_f |FFT(mixed, n_fft)| restricted to
- * |f| <= f_range_hz. mixed is N_TX long, zero-padded to n_fft inside this
- * function. Returns best_f_hz and best_val via out-params. */
+/* fitter.py:_freq_search -- argmax_f |FFT(mixed, n_fft)| restricted to |f| <= f_range_hz. mixed is N_TX long
+ * (zero-padded to n_fft in the reference). Returns best_f_hz and best_val via out-params.
+ *
+ * B2 (design.md D11): PRUNED. Only the bins with |f| <= f_range_hz (87 of 262 144 at the 2.0 Hz range) are used, so the
+ * 262 144-point FFT is replaced by
+ *   1. a decimation of `mixed` by FS_DECIM = 64 with LINEAR-INTERPOLATION weights (sample i = 64 m + j contributes
+ *      (64 - j)/64 to output m and j/64 to output m + 1: a triangular kernel, partition of unity, so a DC input keeps its
+ *      sum). `mixed` is N_TX = 2 370 x 64 long, so the outputs are Y[0..2370]; the rest of the 4 096 is zero, which is
+ *      the same zero padding the reference applies;
+ *   2. a 4 096-point FFT of Y. The bin spacing is unchanged: (FS/64)/4096 = FS/262144, so bin k here is bin k of the
+ *      reference, at the same frequency k * bin_hz;
+ *   3. the magnitude at the bins in range, divided by the kernel's response D(k)^2, D(k) = sin(pi k 64/N) /
+ *      (64 sin(pi k/N)) (the droop of the triangular kernel at that frequency, 0.9996 at the edge bin), so the values
+ *      are comparable with the reference's.
+ * Aliasing: bin k of the small FFT also holds the reference's bins k +- 4096 j, weighted by the kernel at that offset,
+ * D(k - 4096 j)^2 <= about 1.1e-4 at the edge (-79 dB); that is the method's error, bounded and tiny against a
+ * correlation peak. No other approximation: the products are summed in float exactly as the reference's FFT input is.
+ *
+ * TIE-BREAK, unchanged from the reference: bins are scanned in the reference's INDEX order, 0, 1, ..., +kmax and then
+ * -kmax, ..., -1 (the FFT layout's [0, N/2) then [N/2, N)), and the FIRST strictly greater magnitude wins. The set of bins
+ * is the reference's: those with fabs((double)k * bin_hz) <= f_range_hz. The lands-between-bins question does not arise:
+ * the result is always a bin centre, as before. Signature, cancel-flag handling (none inside: the callers check it) and
+ * workspace ownership (scratch_search, the 4 096-point plan) as before. */
 static void freq_search(
     workspace_t* ws,
     const cf32* mixed, int mixed_len, double f_range_hz,
     double* out_best_f, double* out_best_val)
 {
-    int i;
+    int i, j, m, k, kmax;
     double best_val = -1.0;
     double best_f = 0.0;
     double bin_hz = FS / (double)N_FFT;
-    int half = N_FFT / 2;
-    kiss_fft_cpx* scratch = ws->scratch_search;
+    kiss_fft_cpx* y = ws->scratch_search;     /* the first FS_SMALL_N entries */
+    const int blocks = mixed_len / FS_DECIM;  /* whole blocks; mixed_len is N_TX, a multiple of FS_DECIM */
+    float prev_br = 0.0f, prev_bi = 0.0f;
 
-    for (i = 0; i < N_FFT; i++) {
-        if (i < mixed_len) { scratch[i].r = mixed[i].r; scratch[i].i = mixed[i].i; }
-        else                { scratch[i].r = 0.0f;       scratch[i].i = 0.0f;       }
+    /* 1. Linear-interpolation decimation: Y[m] = A[m] + B[m-1], A[m] = sum_j mixed[64m+j] (64-j)/64,
+     *    B[m] = sum_j mixed[64m+j] j/64. (64 is a power of two, so the weights are exact in float.) */
+    for (m = 0; m < blocks; m++) {
+        float ar = 0.0f, ai = 0.0f, br = 0.0f, bi = 0.0f;
+        const cf32* blk = mixed + (size_t)m * FS_DECIM;
+        for (j = 0; j < FS_DECIM; j++) {
+            float wa = (float)(FS_DECIM - j) * (1.0f / FS_DECIM);
+            float wb = (float)j * (1.0f / FS_DECIM);
+            ar += blk[j].r * wa; ai += blk[j].i * wa;
+            br += blk[j].r * wb; bi += blk[j].i * wb;
+        }
+        y[m].r = ar + prev_br;
+        y[m].i = ai + prev_bi;
+        prev_br = br; prev_bi = bi;
     }
-    kiss_fft(ws->fwd, scratch, scratch);
+    y[blocks].r = prev_br;                    /* the last block's upper half lands one output further on */
+    y[blocks].i = prev_bi;
+    for (i = blocks + 1; i < FS_SMALL_N; i++) { y[i].r = 0.0f; y[i].i = 0.0f; }
 
-    /* kiss_fft bin layout matches numpy.fft.fftfreq's convention: bins
-     * [0, n_fft/2) are freqs [0, +Nyquist), bins [n_fft/2, n_fft) are freqs
-     * [-Nyquist, 0). */
-    for (i = 0; i < N_FFT; i++) {
-        double f = (i < half) ? (double)i * bin_hz : (double)(i - N_FFT) * bin_hz;
-        double mag;
+    /* 2. The 4 096-point FFT, in place. */
+    kiss_fft(ws->fwd_small, y, y);
+
+    /* 3. Bins in the reference's index order, only those within the range. */
+    kmax = 0;
+    while (kmax + 1 < FS_SMALL_N / 2 && fabs((double)(kmax + 1) * bin_hz) <= f_range_hz) kmax++;
+    for (k = 0; k <= kmax; k++) {                                    /* reference indices 0 .. kmax */
+        double f = (double)k * bin_hz;
+        double mag, d;
         if (fabs(f) > f_range_hz) continue;
-        mag = sqrt((double)scratch[i].r * scratch[i].r + (double)scratch[i].i * scratch[i].i);
+        mag = sqrt((double)y[k].r * y[k].r + (double)y[k].i * y[k].i);
+        d = (k == 0) ? 1.0 : sin(M_PI * k * (double)FS_DECIM / (double)N_FFT) / ((double)FS_DECIM * sin(M_PI * k / (double)N_FFT));
+        mag /= d * d;
+        if (mag > best_val) { best_val = mag; best_f = f; }
+    }
+    for (k = -kmax; k <= -1; k++) {                                  /* reference indices N-kmax .. N-1 */
+        double f = (double)k * bin_hz;
+        double mag, d;
+        if (fabs(f) > f_range_hz) continue;
+        mag = sqrt((double)y[FS_SMALL_N + k].r * y[FS_SMALL_N + k].r + (double)y[FS_SMALL_N + k].i * y[FS_SMALL_N + k].i);
+        d = sin(M_PI * k * (double)FS_DECIM / (double)N_FFT) / ((double)FS_DECIM * sin(M_PI * k / (double)N_FFT));
+        mag /= d * d;
         if (mag > best_val) { best_val = mag; best_f = f; }
     }
     *out_best_f = best_f;
@@ -728,10 +801,11 @@ void ft8_subfeas_pool_shutdown(void)
 /* Bytes one workspace occupies (buffers + both FFT plans): what a test multiplies by `live`. */
 static size_t workspace_bytes(void)
 {
-    size_t fwd = 0, inv = 0;
+    size_t fwd = 0, inv = 0, small = 0;
     kiss_fft_alloc(N_FFT, 0, NULL, &fwd);
     kiss_fft_alloc(N_FFT, 1, NULL, &inv);
-    return fwd + inv
+    kiss_fft_alloc(FS_SMALL_N, 0, NULL, &small);                /* B2: the pruned search's plan */
+    return fwd + inv + small
          + sizeof(workspace_t)
          + sizeof(kiss_fft_cpx) * (size_t)N_FFT * 5          /* scratch_a/full/search, pulse_spec, win_spec */
          + sizeof(cf32) * (size_t)N_TX * 12

@@ -324,30 +324,53 @@ by default.
 - **WHEN** a cycle is decoded through the two-stage path
 - **THEN** batch 1 equals the flag-OFF output of the same build
 
-### Requirement: Stage B SHALL be built one item at a time, accepted on equivalence first, and stopped at a finish line fixed in advance
+### Requirement: Stage B SHALL be built one item at a time, B2 first, accepted on equivalence first, and stopped at a finish line fixed in advance
 
-Stage B (a faster permissively licensed FFT, a pruned frequency search, a coarse-to-fine time search) SHALL be built only
-after the two-stage publish work, on its own branch and commits and never mixed into it, and SHALL start with a measured
-profile of the candidate DLL at 1, 4 and 14 concurrent workers. Items SHALL be built one at a time, each accepted on
-equivalence within tolerance to the Stage A fit and on no loss of residual decodes (never on speed) and only then re-timed.
-The finish line, fixed before any Stage B build, SHALL be: with `decoder.subtractionMaxThreads` = 4, over the heavy stratum,
-the deadline-abandon rate at most 5 % and the maximum whole call at most 13 000 ms. Stage B SHALL stop at the first item
-after which that holds, or after the third item, or when the Captain says so, and if the finish line is still not met SHALL
-report the residual gap. Because a numerics-changing item breaks bit-identity, each item's DLL SHALL be pinned by SHA-256 and
-the flag-OFF control SHALL be re-run on the final native DLL, native and managed paths.
+Stage B (a pruned frequency search B2, a coarse-to-fine time search B3, a faster permissively licensed FFT B1) SHALL be built only
+after the two-stage publish work, on its own branch and commits and never mixed into it, and SHALL be built in the order B2, then
+B3, then B1, each item only if the finish line is still missed. The measured profile of the candidate DLL (median per fit 1 561 ms
+at one worker and 1 904 ms at eight; step 1 the time search 71 %, step 2 the drift search 25 %) is the basis of that order. Items SHALL be
+accepted on equivalence within tolerance to the Stage A fit and on no loss of residual decodes (never on speed), and only then timed.
+The finish line, fixed before any Stage B build (Amendment 5), SHALL be T2′: on a replay of the 2026-09-30 night with the subtraction
+flag ON, `decoder.subtractionMaxThreads` = 8, `nhard` 40, over every fourth cycle of the frozen 2026-10-01 selection, the median
+`T2_replay` at most 2.50 s, where `T2_replay` is a labelled 0.032 s constant (the on-air median decode-start offset) plus the time to
+batch 1 plus the residual pass time, over cycles with at least one residual decode, with every deadline-abandoned cycle counted as positive infinity and cycles whose pass
+completed with no residual decode left out, measured in the same session as a Stage A baseline; the abandon fraction SHALL be reported beside every figure.
+Equivalence (E2), no loss (E3, residual decodes at least 0.98 of the Stage A build's), the maximum whole call at most 13 000 ms (R1′),
+no access violation, contained fault or exit (R3) and a deadline-abandon rate at most 5 % read at eight workers on the T2′ list (R4′)
+SHALL remain bars for every item. The four-worker heavy-stratum criterion T′ SHALL be report-only. Stage B SHALL stop at the first item
+after which every bar holds, or after the last item, or when the Captain says so, and if T2′ is still not met SHALL report the
+remaining gap. Because a numerics-changing item breaks bit-identity, each item's DLL SHALL be pinned by SHA-256 and the flag-OFF control
+SHALL be re-run on the final native DLL, native and managed paths. Stage B SHALL NOT decide the batch-2 reply policy, the subtraction flag
+default or the fence between batch 2 and the QSO automation.
 
 #### Scenario: An equivalent-but-slow or fast-but-inequivalent item
 
 - **WHEN** a Stage B item is faster but misses the equivalence or the residual-decode criterion
 - **THEN** it is rejected regardless of the speed gained
 
+#### Scenario: B2 first
+
+- **WHEN** Stage B starts
+- **THEN** the pruned frequency search is built and accepted or rejected before the coarse-to-fine time search or the faster FFT is started
+
 #### Scenario: Stop at the finish line
 
-- **WHEN** an accepted item brings the 4-worker heavy-stratum abandon rate to at most 5 % with the maximum whole call at most 13 000 ms
+- **WHEN** an accepted item brings the median `T2_replay` to at most 2.50 s with E2, E3, R1′, R3 and R4′ all passing
 - **THEN** no further Stage B item is built unless the Captain asks
 
 #### Scenario: Finish line not met after the last item
 
-- **WHEN** the third item has been accepted and the finish line is still not met
-- **THEN** the residual gap is reported and the change stops
+- **WHEN** the last item has been accepted and the median `T2_replay` is still above 2.50 s
+- **THEN** the remaining gap is reported, batch 2 stays unanswerable in the same slot, and the change stops
+
+#### Scenario: Abandoned cycles count as infinite
+
+- **WHEN** more than half of the cycles in the T2′ population are deadline-abandoned
+- **THEN** the median `T2_replay` is infinite and T2′ fails, and a cycle that completed with no residual decode is not in the population
+
+#### Scenario: A pass on the replay is not a claim about the live station
+
+- **WHEN** the median `T2_replay` is at most 2.50 s
+- **THEN** the report says it is a replay on an otherwise idle PC, says the 0.45 s margin has to cover the measured keying latency, and makes no on-air claim
 

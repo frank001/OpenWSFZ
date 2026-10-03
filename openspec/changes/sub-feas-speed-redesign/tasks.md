@@ -209,44 +209,87 @@
 
 ## 15. Stage B (numerics-changing; AUTHORISED by the Captain 2026-09-30, Architect's Amendment 4; a separate follow-on, after §13/§14, never mixed into them)
 
-**Finish line, fixed before any Stage B build (Amendment 4): T′ = at `subtractionMaxThreads = 4`, over the H stratum, the
-deadline-abandon rate ≤ 5 % AND the max whole call ≤ 13 000 ms.** Its purpose is other hardware. **R2′ at 14 workers is
-report-only now** (p95(H) ≤ 6 000 ms would be a bonus, not a gate). **Stop** at the first item after which T′ passes, or
-after B3, or when the Captain says so; if T′ still fails after B3, report the residual gap (a 4-worker machine then runs with
-more abandons, which is safe: the hard deadline held at 4 workers, max 12 095 ms). Branch: `feat/sub-feas-stage-b` off
-`feat/sub-feas-speed-redesign` (`ca0bcd9b`), not off the two-stage branch, so Stage B is measured on the same instrument as
-Stage A; the two combine at merge (both are Captain decisions).
+> **AMENDMENT 5 (2026-10-03, Captain "yes, proceed"; Architect spec §5h of `qa/rr-study/2026-09-30-0641-architect-to-qa-spec-sub-feas-speed-redesign.md`, commit `7f544638` on `arch/sub-feas-stage-b`) SUPERSEDES the finish line and the item order below.**
+> Stage B is re-aimed at **batch 2's arrival time** (can a batch-2 decode get a same-slot reply?). **Order: B2 first, then B3, then B1, each only if the bar is still missed.**
+> **New bar T2′:** on a replay of the 2026-09-30 night (flag ON, `subtractionMaxThreads = 8`, `nhard` 40, harness `replay81` mode `two1`, every 4th cycle of the frozen 10-01 selection), **median `T2_replay` ≤ 2.50 s**, with a same-session Stage A baseline. E2, E3, R1′, R3 and R4′ stay as bars (R4′ now read at 8 workers on the T2′ list). **T′ (4 workers) is REPORT-ONLY**, run once at the end. The old Amendment 4 text is kept below for the record where it is struck through.
 
-- [ ] 15.1 **Profile first (Developer, test-only, no product-path change).** Re-run `Ft8.FitProbe time` on the
+~~**Finish line, fixed before any Stage B build (Amendment 4): T′ = at `subtractionMaxThreads = 4`, over the H stratum, the
+deadline-abandon rate ≤ 5 % AND the max whole call ≤ 13 000 ms.** Its purpose is other hardware.~~ *(superseded by Amendment 5: T′ is report-only.)* **R2′ at 14 workers is
+report-only now** (p95(H) ≤ 6 000 ms would be a bonus, not a gate). **Stop** at the first item after which **T2′ and E2, E3, R1′, R3, R4′ all pass**, or
+after B1 (the last item), or when the Captain says so; if T2′ still fails after all three items, report the remaining gap (batch 2 then stays not answerable in the
+same slot, which is today's state). Branch: `feat/sub-feas-stage-b` off
+`feat/sub-feas-speed-redesign` (`ca0bcd9b`), not off the two-stage branch, so Stage B is measured on the same instrument as
+Stage A; the two combine at merge (both are Captain decisions). **Not decided here, whatever T2′ shows:** the batch-2 → auto-QSO choice stays the Captain's
+(parked 2026-10-02) and the automation stays fenced from batch 2 (P-5). A replay PASS is followed, before any reply-policy spec, by one receive-only on-air night on the accepted build; that night is a separate decision.
+
+- [x] 15.1 **DONE (Amendment 5 §5h; `Ft8.FitProbe fitprofile`, `feat/sub-feas-stage-b` `ef7e765c`, `artefacts/sub_feas_fitprofile/`: 5 cycles, 111 fits, timed DLL equivalent to the shipped one on 111/111): median per fit 1 561 ms at 1 worker and 1 904 ms at 8; step 1 (Δt search) is 71 % and step 2 (ḟ search) 25 %, everything else under 4 %.** It ranks B2 first. Original text, kept for the record: **Profile first (Developer, test-only, no product-path change).** Re-run `Ft8.FitProbe time` on the
       **candidate** DLL (`ee00d118…990e4c`) at **1 worker and at 14 concurrent workers**, and add 4 concurrent workers (the T′
       configuration). Report per-phase milliseconds (step 1 Δt search, step 2 ḟ search, final template, step 3, envelope, the
       analytic call, one residual `DecodeAll`) and the **per-fit concurrency penalty** (the ~2× at 14 workers is unmeasured
-      and is what the Architect's P2 arithmetic missed). Integers only (HK-037). The profile ranks the items; default order
-      B1 → B2 → B3, re-ordered by the profile.
+      and is what the Architect's P2 arithmetic missed). Integers only (HK-037). The profile ranks the items; the order is now
+      fixed by Amendment 5: **B2, then B3, then B1**, each only if T2′ is still missed.
 - [ ] 15.2 **QA baselines, before any Stage B build:** (a) the Stage A **E3 baseline**: total `residualDecodes` of the
       candidate on the 161 E1 cycles with no deadline in effect (14 workers; assert 0 deadline abandons so it equals the
       unbounded result), from the `Sub-feas residual pass:` lines; (b) the Stage A **T reference** (already measured: 337/605
-      abandoned, max 12 095 ms).
-- [ ] 15.3 **Fitted-parameter visibility for E2 (design decision, record in `design.md` D10 before coding).** E2 compares
+      abandoned, max 12 095 ms); (c) **the T2′ replay list (Amendment 5):** every 4th cycle (index ≡ 0 mod 4) of the frozen 10-01
+      selection (`qa/rr-study/results/2026-10-01-sub-feas-offline-onoff-replay/selection.json`, SHA-256 over LF-normalised bytes
+      `55a951c86147e92a8262be9d84ffd29362ecd7b63995f62caa7981bd53c977cf`, asserted in code as `onoff_replay_run.py:52` does), about
+      1 075 cycles; **the child list of the Engineer's #122 gate 4a may be reused with its SHA asserted.** The list is built and its
+      count printed **before** any Stage B build. A script, not a note, asserts the SHA and the count.
+- [x] 15.3 **DONE (Developer, 2026-10-03; mechanism and how to call it in `design.md` D11, "B2 as built"): a test-only build of the fit, `tests/Ft8.FitProbe/native/build_params_dll.py`, `Ft8.FitProbe fitparams` / `fitparamscompare`.** Original text: **Fitted-parameter visibility for E2 (design decision, record in `design.md` D10 before coding).** E2 compares
       per-signal Δt, Δf and ḟ between the Stage A and Stage B fits, but the shipped fit returns only `out_shat`. A
       **test-only** way to read the fitted parameters is needed (for example a build of the fit compiled with a test switch, or
       a test-only export that is not in the shipped export list). It must not change the shipped ABI beyond what the item
       itself needs.
-- [ ] 15.4 **Each item, one at a time (B1 faster permissive FFT; B2 pruned frequency search, |f| ≤ 2.0 Hz is about ±44 of
-      262 144 bins; B3 coarse-to-fine Δt, about 201 → 50 candidates):** implement; bump `FT8_SHIM_VERSION`; pin the new DLL
+- [ ] 15.4 *(B2 BUILT 2026-10-03 on `feat/sub-feas-stage-b`, shim 20260059, design.md D11 "B2 as built"; E2, E3, R1′, R3, R4′ and T2′ are QA's measurements and are NOT yet read; developer sanity: E2 on 12 E1 cycles identical on 257/257 fits.)* **Each item, one at a time, in the Amendment 5 order B2, then B3, then B1, each only if T2′ is still missed (B2 pruned frequency search, |f| ≤ 2.0 Hz is about ±44 of
+      262 144 bins; B3 coarse-to-fine Δt, about 201 → 50 candidates; B1 faster permissive FFT, pocketfft-C only):** implement; bump `FT8_SHIM_VERSION`; pin the new DLL
       SHA-256. **E1 (bit-identity) no longer applies** to a numerics-changing item; it is replaced by:
       **E2** per fitted signal, Stage B vs Stage A, no deadline, on the E1 cycles: Δt identical ±1 step (12 samples), Δf within
       ±1 bin (0.0458 Hz), ḟ the same step, on ≥ 99 % of signals; per-cycle residual energy within ±0.1 dB on ≥ 99 % of cycles.
       **E3** total `residualDecodes`(B) ≥ 0.98 × the §15.2 baseline on the same cycles, no deadline. **Then re-time** (§15.5).
       An item that misses E2 or E3 is rejected however fast it is.
-- [ ] 15.5 **Re-time each accepted item** on the frozen §8.1 selection, WSJT-X closed, machine state recorded: **T′** (4
-      workers, H), and at 14 workers R1′, R3, R4′ and R6 (which must still hold), with R2′ reported and R5′ if the item touches
-      the flag-OFF path. Same instrument as Stage A (the `--threads` argument exists).
+- [ ] 15.5 **Re-time each accepted item (Amendment 5 protocol; QA-owned, a TIMING run: the PC to itself, WSJT-X closed, machine state recorded).**
+      **T2′ (the bar):** replay of the 2026-09-30 night on the §15.2(c) list, flag ON, `subtractionMaxThreads = 8`, `nhard` 40, harness `replay81` mode
+      `two1` (records the time to batch 1 and the batch-2 time per cycle). `T2_replay` = **0.032 s** (the on-air median decode-start offset, a labelled constant)
+      + time to batch 1 + residual `elapsedMs`, over cycles with ≥ 1 residual decode, **plus every deadline-ABANDONED cycle counted as T2 = +∞** (an abandoned pass delivers
+      nothing in time; Architect `4301e8c5`, QA (k) note (b)); cycles whose pass **completed with 0 residual decodes stay out** (nothing to answer). **PASS iff the median of that
+      population ≤ 2.50 s** (so more than half the population abandoned makes the median +∞, a FAIL). The rule lives in the predicate code of §15.12, not in prose. The 0.45 s below the 2.95 s
+      condition is a margin for the unmeasured keying latency k (companion spec `qa/rr-study/2026-10-03-1235-architect-to-qa-spec-keying-latency.md`) and for
+      replay against live; it is not a tolerance to spend. **Same-session Stage A baseline:** the current `main` build on the same list, reported beside every
+      item (descriptive), so each item's gain is measured, not inferred. **Also bars for every item:** E2, E3 first, then R1′ (max ≤ 13 000 ms), R3, and **R4′
+      (abandon ≤ 5 %, now read at 8 workers on the T2′ list)**; R6 must still hold; R5′ if the item touches the flag-OFF path. **T′ (4 workers, H) is
+      report-only**, run once at the end. **Also reported (descriptive):** per-fit median at 8 workers per item; `T2_replay` p5/p95/max; the fraction of cycles
+      with `T2_replay` ≤ 2.95 s by UTC hour (comparable with the lateness Q2 table); **the abandon fraction printed beside EVERY `T2_replay` figure** (design D11 note 2).
+      **Reading the bar (Architect `4301e8c5`, QA note (a)):** a T2′ PASS is not by itself "same-slot answerable"; the acceptance ruling reads the measured `k_PC` (keying-latency
+      spec) and says so: if `k_PC` > 0.45 s, T2′ can pass while median T2 ≤ 2.95 s − `k_PC` fails.
 - [ ] 15.6 **B1 licence:** permissive only (MIT/BSD/ISC); pocketfft-C (BSD-3) qualifies; **FFTW is GPL and prohibited.** Add the
       licence file under `native/` and make `tools/LicenseInventoryCheck` pass.
 - [ ] 15.7 **After the last item:** full unfiltered `dotnet test`; every DLL pinned by SHA-256 (actual and pinned). Stage B merges **after** the SUB-FEAS + config-save merge (Captain's plan); the §10.5 end-to-end flag-OFF run is **repeated on Stage B's build** (it changes the native DLL).
-- [ ] 15.8 Report in the standard format with the blind spot up front: **T′ is measured at 4 workers on a 16-thread machine, a
-      proxy for a small machine, not the same thing** (a real 4-thread machine defaults to 2 workers and contends with the
-      rest of the system), and no real cycle has more than 31 signals. State that the flag stays OFF and a first on-air
-      flag-ON session needs the Captain's explicit go.
+- [ ] 15.8 Report in the standard format with the blind spot up front: **T2′ is a REPLAY on this PC with nothing else running, not the live station**
+      (live capture, WSJT-X, the web UI and the OS contend for the same cores; the 0.45 s margin is the only allowance and it also has to cover the unmeasured
+      keying latency k), **and T′ (report-only) is measured at 4 workers on a 16-thread machine, a proxy for a small machine, not the same thing** (a real
+      4-thread machine defaults to 2 workers and contends with the rest of the system), and no real cycle has more than 31 signals. State that the flag stays
+      OFF and a first on-air flag-ON session needs the Captain's explicit go.
+- [ ] 15.9 **Stop rule (Amendment 5).** After each item, in order: E2, E3, R1′, R3, R4′ first (any miss rejects the item however fast it is), then T2′. Stop at the
+      first item after which all six pass, **or** after B1, **or** when the Captain says so. If T2′ still fails after all three items, report the remaining gap;
+      batch 2 then stays not answerable in the same slot. **Nothing here changes the flag default, the thread default, the fence on batch 2 (P-5) or the Captain's
+      parked batch-2 → auto-QSO choice.**
+- [ ] 15.10 **Process and CPU rule (Amendment 5; Developer handoff `dev-tasks/2026-10-03-sub-feas-stage-b-b2-pruned-freq-search.md`).** The build is `native/` on
+      `feat/sub-feas-stage-b` in a separate Developer session (HK-011), with a **new `FT8_SHIM_VERSION` per item** and the DLL pinned by SHA-256 (actual and pinned).
+      🔴 **No Developer build or test suite until the Engineer reports #122 gate 4a done** (it measures decode wall-time; expected about 14:40Z on 2026-10-03)
+      **unless the Captain relaxes the rule**; reading, planning and writing code is fine. The T2′ replays are themselves timing runs and need the PC to themselves
+      (no Developer build or suite, no other QA/Engineer job).
+- [ ] 15.11 **B2's design freedom and its limit.** The spec names "decimation plus a small FFT, or a pruned DFT" for `freq_search` (`native/ft8_lib_vendor/subfeas/subfeas_fit.c:361-394`,
+      called from step 1 at `:443` (201 candidates) and step 2 at `:474`). The Developer chooses and records the choice in `design.md` D11 **before** coding. Whatever is
+      chosen: only the bins with |f| ≤ `SUBFEAS_DF_RANGE_HZ` (2.0 Hz) may influence the result, the argmax tie-break must be stated (the current code keeps the first
+      strictly greater magnitude, scanning bins in index order 0, 1, …, N/2−1, then −N/2 … −1), and E2's ±1-bin tolerance is the equivalence the item is judged on, so
+      an interpolated or sub-bin result must be reported as such and still land within ±1 bin (0.0458 Hz) of the Stage A value on ≥ 99 % of signals.
+- [ ] 15.12 **The T2′ predicate is CODE, committed before the first Stage B measurement (QA-owned; HK-021 mechanical).** A pure function in
+      `qa/rr-study/sub-feas/replay_t2prime_rows.py` (new) with its tests, taking per cycle: abandoned (0/1) and ran (0/1) from the `--abandon-out` file (`stamp,ran,abandoned,contained`),
+      `tb1_ms` from the `two1` CSV (`run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n`), and `residualDecodes` and `elapsedMs` from the `Sub-feas residual pass:` line (joined on
+      the stamp, as `replay_speed_rows.py` does). Constants asserted in the file, not in prose: `DECODE_START_S = 0.032`, `T2_BAR_S = 2.50`, `SAME_SLOT_S = 2.95`, `KEYING_MARGIN_S = 0.45` (= 2.95 − 2.50),
+      the selection SHA-256 of §15.2(c) and the list count. **Rules, each with a test on synthetic data:** (i) abandoned ⇒ `T2 = +∞` whatever its residual count; (ii) completed with 0 residual decodes ⇒ excluded;
+      (iii) otherwise `T2 = DECODE_START_S + tb1_ms/1000 + elapsedMs/1000`; (iv) the median is taken over the population of (i) and (iii), and **PASS iff median ≤ `T2_BAR_S` (equal passes)**;
+      (v) an empty population is **UNDEFINED, never PASS**; (vi) more than half abandoned ⇒ median `+∞` ⇒ FAIL; (vii) the output prints, beside the median, the counts of each class and the abandon fraction
+      (abandoned ÷ cycles whose pass ran), plus `T2_replay` p5/p95/max over the finite values and the ≤ 2.95 s fraction by UTC hour. A run of the tests is a CPU job: not while the Engineer's #122 run is on.
 

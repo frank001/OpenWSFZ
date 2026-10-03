@@ -12,6 +12,12 @@ using OpenWSFZ.Ft8.Interop;
 //              [--workers 1,4,14] [--fits-per-worker K] --out <csv>
 //   fitsummary <csv>                   per-phase table (median, p95, max ms) per worker count, penalty vs 1 worker
 //   fitcompare <a.csv> <b.csv>         equivalence: (cycle, signal, rc, sha256(out_shat)) identical between two runs
+//   fitparams --dll <test dll with ft8_subfeas_fit_params> (--selection <e1_selection.json> --artefacts-root <dir> [--cycles N]
+//             | --wav <f>...) --out <csv>      (Stage B E2) every re-encodable signal fitted once on one thread through the
+//             shipped path, with its fitted dt, df, fdot and start sample read right after the call (build the DLL with
+//             native/build_params_dll.py, once from Stage A's subfeas_fit.c and once from the B2 one)
+//   fitparamscompare <stageA.csv> <b2.csv>        E2: per signal dt within 12 samples, df within 1 bin (0.0458 Hz), fdot the same
+//             step, per-cycle residual energy within 0.1 dB; the fractions are printed against the 99 % bar
 //
 // HOW IT MEASURES. The fits go through the SHIPPED path: Ft8LibInterop.SubfeasFitSignal with the real workspace pool
 // sized by ft8_subfeas_pool_configure(W). W dedicated threads each run fits back to back (so W fits are in flight
@@ -40,6 +46,8 @@ internal static class FitProfile
         "fitprofile" => Profile(a[1..]),
         "fitsummary" => Summary(a[1..]),
         "fitcompare" => Compare(a[1..]),
+        "fitparams" => Params(a[1..]),
+        "fitparamscompare" => ParamsCompare(a[1..]),
         _ => 2,
     };
 
@@ -272,5 +280,142 @@ internal static class FitProfile
         Console.WriteLine(same ? $"EQUIVALENT: {x.Length} single-worker fits, rc and sha256(out_shat) identical"
                                : $"FAIL: {x.Length} vs {y.Length} fits, or a difference in rc / out_shat hash");
         return same ? 0 : 1;
+    }
+
+    // ── fitparams / fitparamscompare (Stage B E2, tasks.md 15.3/15.4) ─────────────────────────────────
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int PpGet(double[] o);
+
+    private const string ParamsHeader = "kind,cycle,signal,rc,dt_s,df_hz,fdot,start_sample,shat_sha256,residual_energy";
+
+    private static int Params(string[] a)
+    {
+        string? dll = null, outPath = null, selection = null, root = null;
+        var wavs = new List<string>();
+        int cycles = 60;
+        for (int i = 0; i < a.Length; i++)
+        {
+            switch (a[i])
+            {
+                case "--dll": dll = a[++i]; break;
+                case "--out": outPath = a[++i]; break;
+                case "--wav": wavs.Add(a[++i]); break;
+                case "--selection": selection = a[++i]; break;
+                case "--artefacts-root": root = a[++i]; break;
+                case "--cycles": cycles = int.Parse(a[++i]); break;
+                default: Console.Error.WriteLine($"unknown argument {a[i]}"); return 2;
+            }
+        }
+        if (dll is null || outPath is null) { Console.Error.WriteLine("need --dll and --out"); return 2; }
+
+        var paths = new List<(string Label, string Path)>();
+        foreach (var w in wavs) paths.Add((System.IO.Path.GetFileNameWithoutExtension(w), w));
+        if (selection is not null)
+        {
+            if (root is null) { Console.Error.WriteLine("--selection needs --artefacts-root"); return 2; }
+            using var doc = JsonDocument.Parse(File.ReadAllText(selection));
+            var all = doc.RootElement.GetProperty("cycles").EnumerateArray()
+                .Select(c => (Run: c.GetProperty("run").GetString()!, Stamp: c.GetProperty("stamp").GetString()!)).ToList();
+            int n = Math.Min(cycles, all.Count);
+            for (int k = 0; k < n; k++)
+            {
+                var c = all[k * all.Count / n];
+                paths.Add((c.Stamp, System.IO.Path.Combine(root, $"{c.Run}_endurance_run-gathered", "owsfz", "wav", $"{c.Stamp}.wav")));
+            }
+        }
+        if (paths.Count == 0) { Console.Error.WriteLine("no cycles"); return 2; }
+
+        string target = System.IO.Path.Combine(AppContext.BaseDirectory, "libft8.dll");
+        File.Copy(dll, target, overwrite: true);
+        Console.Error.WriteLine($"dll under test sha256={Probe.Hex(SHA256.HashData(File.ReadAllBytes(target)))}");
+        var interop = new Ft8NativeInteropAdapter();
+        var h = NativeLibrary.Load(target);
+        if (!NativeLibrary.TryGetExport(h, "ft8_subfeas_fit_params", out var pp))
+        { Console.Error.WriteLine("this DLL has no ft8_subfeas_fit_params export (build it with native/build_params_dll.py)"); return 2; }
+        var ppGet = Marshal.GetDelegateForFunctionPointer<PpGet>(pp);
+
+        var rows = new List<string> { $"# dll_sha256={Probe.Hex(SHA256.HashData(File.ReadAllBytes(target)))} cycles={paths.Count}", ParamsHeader };
+        interop.SubfeasPoolConfigure(1);
+        int ci = 0, signals = 0;
+        foreach (var (label, path) in paths)
+        {
+            if (!File.Exists(path)) { Console.Error.WriteLine($"missing wav {path}"); ci++; continue; }
+            float[] norm = Ft8Decoder.NormalisePcm(Probe.ReadWav(path), 0.20f);
+            var pass0 = interop.DecodeAll(norm);
+            (float[] re, float[] im) = interop.SubfeasComputeAnalytic(norm);
+            var residual = (float[])norm.Clone();
+            int sig = 0;
+            foreach (var nr in pass0)
+            {
+                string msg = nr.Message.TrimEnd();
+                if (!Probe.IsReencodable(msg)) continue;
+                byte[] tones;
+                try { tones = interop.EncodeMessage(msg); } catch (InvalidOperationException) { continue; }
+                var (rc, shat) = interop.SubfeasFitSignal(re, im, tones, nr.Dt, nr.FreqHz, IntPtr.Zero);
+                var v = new double[5];
+                bool have = ppGet(v) == 1;                       // same thread, right after the call
+                if (rc == 0) for (int s = 0; s < PcmLen; s++) residual[s] -= shat[s];
+                rows.Add(string.Join(',', "fit", ci, sig, rc,
+                    have ? v[0].ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "-",
+                    have ? v[1].ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "-",
+                    have ? v[2].ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "-",
+                    have ? ((long)v[3]).ToString() : "-",
+                    Probe.HashFloats(shat), "-"));
+                sig++; signals++;
+            }
+            double e = 0; foreach (float x in residual) e += (double)x * x;
+            rows.Add(string.Join(',', "cycle", ci, -1, sig, "-", "-", "-", "-", "-", e.ToString("R", System.Globalization.CultureInfo.InvariantCulture)));
+            ci++;
+        }
+        File.WriteAllText(outPath, string.Join('\n', rows) + "\n");
+        Console.Error.WriteLine($"signals={signals} over {ci} cycles -> {outPath}");
+        return signals > 0 ? 0 : 1;
+    }
+
+    private static int ParamsCompare(string[] a)
+    {
+        const double BinHz = 12000.0 / 262144.0, DtStepS = 12 / 12000.0;
+        List<string[]> Load(string f) => File.ReadAllLines(f).Where(l => l.StartsWith("fit,") || l.StartsWith("cycle,")).Select(l => l.Split(',')).ToList();
+        var x = Load(a[0]); var y = Load(a[1]);
+        var fx = x.Where(r => r[0] == "fit").ToDictionary(r => $"{r[1]}|{r[2]}");
+        var fy = y.Where(r => r[0] == "fit").ToDictionary(r => $"{r[1]}|{r[2]}");
+        var keys = fx.Keys.Intersect(fy.Keys).ToList();
+        int rcSame = 0, dtOk = 0, dfOk = 0, fdotOk = 0, allOk = 0, compared = 0, onlyOne = fx.Count + fy.Count - 2 * keys.Count;
+        double maxDt = 0, maxDf = 0;
+        var d = System.Globalization.CultureInfo.InvariantCulture;
+        foreach (var k in keys)
+        {
+            var p = fx[k]; var q = fy[k];
+            if (p[3] == q[3]) rcSame++;
+            if (p[3] != "0" || q[3] != "0") continue;               // a fit that did not complete has no parameters
+            compared++;
+            double ddt = Math.Abs(double.Parse(p[4], d) - double.Parse(q[4], d));
+            double ddf = Math.Abs(double.Parse(p[5], d) - double.Parse(q[5], d));
+            double dfd = Math.Abs(double.Parse(p[6], d) - double.Parse(q[6], d));
+            maxDt = Math.Max(maxDt, ddt); maxDf = Math.Max(maxDf, ddf);
+            bool a1 = ddt <= DtStepS + 1e-9, a2 = ddf <= BinHz + 1e-9, a3 = dfd < 1e-9;
+            if (a1) dtOk++; if (a2) dfOk++; if (a3) fdotOk++;
+            if (a1 && a2 && a3) allOk++;
+        }
+        var cx = x.Where(r => r[0] == "cycle").ToDictionary(r => r[1]);
+        var cy = y.Where(r => r[0] == "cycle").ToDictionary(r => r[1]);
+        int cycOk = 0, cycN = 0; double maxDb = 0;
+        foreach (var k in cx.Keys.Intersect(cy.Keys))
+        {
+            double ex = double.Parse(cx[k][9], d), ey = double.Parse(cy[k][9], d);
+            if (ex <= 0 || ey <= 0) continue;
+            double db = Math.Abs(10 * Math.Log10(ey / ex));
+            maxDb = Math.Max(maxDb, db); cycN++; if (db <= 0.1) cycOk++;
+        }
+        double Pct(int n, int dn) => dn == 0 ? 0 : 100.0 * n / dn;
+        Console.WriteLine($"signals in both: {keys.Count} (in one only: {onlyOne}); same rc: {rcSame}; both completed: {compared}");
+        Console.WriteLine($"dt within 12 samples: {dtOk}/{compared} ({Pct(dtOk, compared):F2} %), max |ddt| = {maxDt * 12000:F1} samples");
+        Console.WriteLine($"df within 1 bin (0.0458 Hz): {dfOk}/{compared} ({Pct(dfOk, compared):F2} %), max |ddf| = {maxDf / BinHz:F2} bins");
+        Console.WriteLine($"fdot the same step: {fdotOk}/{compared} ({Pct(fdotOk, compared):F2} %)");
+        Console.WriteLine($"all three: {allOk}/{compared} ({Pct(allOk, compared):F2} %)   [E2 bar: >= 99 %]");
+        Console.WriteLine($"per-cycle residual energy within 0.1 dB: {cycOk}/{cycN} ({Pct(cycOk, cycN):F2} %), max |d| = {maxDb:F3} dB   [E2 bar: >= 99 %]");
+        bool pass = compared > 0 && Pct(allOk, compared) >= 99.0 && cycN > 0 && Pct(cycOk, cycN) >= 99.0 && onlyOne == 0;
+        Console.WriteLine(pass ? "E2: PASS on this list" : "E2: NOT MET on this list");
+        return pass ? 0 : 1;
     }
 }

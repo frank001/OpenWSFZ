@@ -263,6 +263,84 @@ on the Stage A build and is not gated on Stage B. Stage B is a separate follow-o
 **Consequences to keep in view:** a numerics-changing item **breaks bit-identity, so E1 no longer applies**; each item's DLL
 gets its own shim bump and SHA pin. **The flag-OFF control (native and managed) is a merge gate and runs ONCE, at the merge**, on whichever build the Captain decides to merge (Captain via the Architect, 2026-09-30); it is dropped from the current queue and not re-run per phase (tasks 10.5, 14.4, 15.7).
 
+### D11. Stage B re-aimed at batch 2's arrival time (Amendment 5, 2026-10-03): T2′, B2 first, and QA's HK-021 (k) review of T2′
+
+**Decision (Captain, 2026-10-03, "yes, proceed"; Architect spec §5h).** The Captain asked whether Stage B could give more time between batch 2 and the close
+of the reply window. The lateness ruling (`2026-10-02-2225` §3) puts the same-slot condition at median T2 ≤ about 2.95 s − k; the 2026-09-30 on-air night
+measured T2 p50 5.71 s (decode start 0.03 s + batch 1 about 0.53 s + residual pass about 5.0 s). The fit profile says where the residual time goes: per fit 1 561 ms
+at one worker and 1 904 ms at eight, step 1 (the time search, 201 full 262 144-point FFTs of which about ±44 bins are used) 71 %, step 2 25 %. B2 removes most of step 1
+and cheapens step 2's `freq_search`, so it goes first; B1 (a faster full FFT) buys little once B2 is in.
+
+**What changes:** the order (B2, B3, B1, each only if the bar is still missed), the finish line (T2′ median ≤ 2.50 s on the replay, bar), T′ (report-only), and R4′ (read at
+eight workers on the T2′ list). **What does not:** E2, E3, R1′, R3, the licence rule (B2 and B3 are own code; B1, if ever reached, is pocketfft-C only), the flag default,
+the thread default, the fence on batch 2 (P-5) and the Captain's parked batch-2 → auto-QSO choice. No on-air claim: a replay PASS is followed, before any reply-policy
+spec, by one receive-only on-air night on the accepted build, a separate decision.
+
+**QA's (k) review of T2′: accepted, no refusal, five notes.** Classified: *validity* (does the number mean what the claim needs) and *precision* (can it separate the
+cases). On the precision branch T2′ fires both ways: the Architect's arithmetic gives about 2.4 s if step 1 falls to a tenth and step 2 by 30 %, and about 3.4 s for a
+2× gain, so a build can pass or fail on the median; it is not decorative. On the validity branch the same row fires differently, so the notes are about validity:
+1. **A replay PASS is not "batch 2 can be answered in the same slot".** The margin (0.45 s under the 2.95 s condition) has to cover the keying latency k and the gap
+   between replay and live. k is being measured (`qa/rr-study/2026-10-03-1235-architect-to-qa-spec-keying-latency.md`: K1 logs, K2 no-RF loopback). If the measured k
+   exceeds 0.45 s, T2′ can pass while the same-slot condition still fails; the ruling reads **2.95 s − k_PC**, not 2.50 s, and says which.
+2. **Survivorship in the median: FIXED in the spec before any Stage B build (Architect `4301e8c5`, this note accepted).** As first written, `T2_replay` was taken over cycles with at least
+   one residual decode, so a cycle whose residual pass was abandoned at the deadline (no decode, nothing published) dropped out and biased the median down, for the baseline and for every
+   item alike. **Now: every abandoned cycle counts as T2 = +∞; a cycle that completed with 0 residual decodes stays out (nothing to answer).** More than half abandoned makes the median +∞,
+   a FAIL. The rule is in the predicate code (tasks 15.12), with a test per rule, and the abandon fraction is printed beside every `T2_replay` figure. R4′ (abandon ≤ 5 % at eight
+   workers on this list) still bounds it, and E3 still stops an item from buying speed by losing decodes.
+3. **One night, one corpus.** The T2′ list is a stratified every-fourth sample of one night's frozen selection (about 1 075 cycles, SHA pinned). A pass says "this build, on that
+   night's load", not "any night": the by-UTC-hour fraction (descriptive) shows whether the median hides a busy hour.
+4. **The 0.032 s offset is a constant, not a measurement of this replay.** It is the on-air median decode-start offset, labelled as such; the report says so.
+5. **Timing instrument rules.** The replay is a TIMING run: the PC to itself, WSJT-X closed, machine state recorded, the Stage A baseline in the same session, no Developer
+   build or suite and no other job while it runs (CPU rule). The selection SHA and the list count are asserted in code before any build (tasks 15.2(c)).
+
+**Fitted-parameter visibility (tasks 15.3) is still required for E2** and is the Developer's design decision to record here before coding.
+
+#### B2 as built (Developer session, 2026-10-03; recorded in this file after the first build, not before it: the method was chosen before coding, written down after)
+
+**The method.** `freq_search` (`subfeas_fit.c`, called from step 1, 201 candidates, and step 2, 41 candidates) is replaced; its signature, the cancel-flag handling
+(none inside; the callers check it) and the workspace ownership rules are unchanged. Only the bins with `fabs(k * bin_hz) <= f_range_hz` (k = 0..43 and -43..-1 at 2.0 Hz; bin
+spacing `FS / 262144` = 0.0458 Hz) may influence the result. Instead of zero-padding the 151 680-sample product to 262 144 and running the full FFT:
+1. **Decimate by 64 with linear-interpolation weights.** Sample `i = 64 m + j` contributes `(64 - j)/64` to output `m` and `j/64` to output `m + 1` (a triangular kernel, a
+   partition of unity, so a DC input keeps its sum; 64 is a power of two, so the weights are exact in float). `N_TX = 151 680 = 2 370 x 64`, so the outputs are `Y[0..2370]` and the rest of
+   the 4 096 is zero, the same zero padding the reference applies. Compile-time checks fail the build if `N_TX` is not a multiple of 64 or the image does not fit.
+2. **A 4 096-point FFT** of `Y` (kiss_fft, float, in place in the first 4 096 entries of `ws->scratch_search`). The bin spacing is unchanged, `(FS/64)/4096 = FS/262144`, so bin
+   `k` here is bin `k` of the reference, at the same frequency.
+3. **The magnitude at the in-range bins, divided by the kernel's droop** `D(k)^2`, `D(k) = sin(pi k 64/N) / (64 sin(pi k / N))` (0.9996 at the edge bin, so the compensation is 8e-4), so the
+   values are comparable with the reference's.
+
+**Error of the method, bounded:** the small FFT's bin `k` also holds the reference's bins `k +- 4096 j` weighted by the kernel at that offset, at most `D^2` about 1.1e-4 at the edge bin
+(-79 dB), and the within-block phase variation of the kernel is a second-order term of the same size. The measured behaviour is in the self-test below.
+
+**The argmax tie-break (unchanged from the reference).** Bins are scanned in the reference's INDEX order, `0, 1, ..., +kmax` and then `-kmax, ..., -1` (the FFT layout's `[0, N/2)`
+then `[N/2, N)`), keeping the **first strictly greater** magnitude. The reference's order is `subfeas_fit.c:385-391` at `origin/main`. **Interpolation:** none. The result is always a bin
+centre, as before, so E2's "within 1 bin" is judged on the same quantity.
+
+**Cost.** One more FFT plan per workspace (4 096 points, about 100 KB), so `ft8_subfeas_pool_get_stats` `out[6]` (bytes per workspace) grows by that plan; `workspace_bytes()` includes it.
+No new or changed export, no change outside `subfeas_fit.c`'s numerics.
+
+**Fitted-parameter visibility (15.3), the mechanism: a TEST-ONLY BUILD of the fit, not a compile switch in the product file and not an export of the shipped DLL.**
+`tests/Ft8.FitProbe/native/build_params_dll.py <subfeas_fit.c> <out_dir>` builds a scratch `libft8.dll` from the checkout with ONE difference: `subfeas_fit.c` is replaced by a
+patched COPY of the file you name, which records the last fit's `dt_s, df_hz, fdot, start_sample, rc` in thread-local storage and exports `int ft8_subfeas_fit_params(double out[5])`
+(returns 1 if the last `ft8_subfeas_fit_signal` on THIS thread got through the fit). The same patch applies to Stage A's source (`git show origin/main:native/ft8_lib_vendor/subfeas/subfeas_fit.c`)
+and to B2's (every insertion is anchored on text both have; the script fails if an anchor is missing), so E2 compares like with like. The shipped export list and ABI are untouched
+and the product file is never edited. **How QA calls it:** `Ft8.FitProbe fitparams --dll <that DLL> --selection <e1_selection.json> --artefacts-root <dir> [--cycles N] --out <csv>` (every
+re-encodable pass-0 signal of each cycle fitted once, through the shipped `SubfeasFitSignal` path, parameters read on the same thread right after the call; also the per-cycle residual
+energy), run once per DLL, then `Ft8.FitProbe fitparamscompare <stageA.csv> <b2.csv>` (dt within 12 samples, df within 1 bin, fdot the same step, per-cycle residual energy within 0.1 dB;
+prints the fractions against the 99 % bar). Both test DLLs carry this checkout's `ft8_shim.c` (the same version literal), only the fit differs.
+
+**Unit tests (action 4).** `freq_search` is `static`, so the equivalence test is a C self-test, `tests/Ft8.FitProbe/native/freq_search_selftest.c`, that `#include`s the product source and
+carries Stage A's `freq_search` VERBATIM as the oracle (run by `run_freq_search_selftest.py`, wrapped as the xunit test `SubfeasPrunedFreqSearchTests`, which builds and runs it with the
+shipped compiler flags and FAILS, not skips, when no compiler is found). It asserts: a tone at every 0.01 Hz from -2.30 to +2.30 Hz plus both edge bins, 0, +-2.0, bin centres, between
+bins and just outside, noise-free and with Gaussian noise at fixed seeds: the same bin as the reference; chirps (the step-2 case): the same bin; two tones 1 % and 0.1 % apart: the larger
+one, agreeing with the reference; an exactly equal pair at +-9 bins keeps the reference's scan-order choice; a set cancel flag returns -4 promptly from the public entry and from
+`fine_fit_with_drift`. Result at this commit: 1 422 tones, 150 chirps, 4 two-tone cases, **0 disagreements**; the pruned search costs 300 us against the reference's 5 600 us per call.
+**The managed counterpart:** `SubfeasNativeSpeedTests` 8.1 asserts the recorded Stage A fit hashes bit-for-bit through the real `ft8_subfeas_fit_signal` and still passes with B2 in place
+(the golden was NOT re-recorded: tasks 15.4 says E1 no longer applies to a numerics-changing item, but on those signals B2 lands on Stage A's bins, so it still holds).
+
+**Measured at this commit (developer sanity, not the T2' acceptance; QA owns that).** E2 on 12 of the E1 cycles (261 signals, 257 completed fits): dt, df and fdot IDENTICAL on all 257,
+per-cycle residual energy 0.000 dB apart. Fit probe on 5 cycles (111 signals), median per fit in ms: Stage A 1 700 at one worker and 2 997 at eight; B2 389 and 649. Step 1: Stage A 1 191,
+B2 114 (one worker); step 2: Stage A 438, B2 203. `out_shat` sha256 identical on all 111 single-worker fits.
+
 ## Risks
 
 - **Concurrency is the historical crash class.** D2's ownership model is the highest-risk item; it needs a stress

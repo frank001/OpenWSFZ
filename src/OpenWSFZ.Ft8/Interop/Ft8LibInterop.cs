@@ -444,7 +444,12 @@ internal static class Ft8LibInterop
     /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
     /// a managed binding, per the pattern every prior entry in this file follows.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260056;
+    /// <remarks>
+    /// sub-feas-speed-redesign Stage B item B2, shim 20260059: a pruned frequency search inside the native fit
+    /// (<c>subfeas_fit.c</c>'s <c>freq_search</c>). Numerics-changing (accepted by E2 and E3, not by bit-identity); no new or
+    /// changed export, so this binding file changes only the expected version.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260059;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

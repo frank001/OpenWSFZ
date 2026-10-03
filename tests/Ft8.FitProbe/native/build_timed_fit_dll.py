@@ -20,8 +20,10 @@ root = os.path.abspath(os.path.join(here, '..', '..', '..'))
 os.makedirs(os.path.join(out_dir, 'obj'), exist_ok=True)
 
 timed_c = os.path.join(out_dir, 'subfeas_fit_timed.c')
-subprocess.run([sys.executable, os.path.join(here, 'make_timed_fit.py'),
-                os.path.join(root, 'native', 'ft8_lib_vendor', 'subfeas', 'subfeas_fit.c'), timed_c], check=True)
+# Optional second argument: the subfeas_fit.c to instrument (default: this checkout's). Stage B uses it to time Stage A's
+# source (git show origin/main:native/ft8_lib_vendor/subfeas/subfeas_fit.c) and the B2 source with the same instrument.
+source_c = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else os.path.join(root, 'native', 'ft8_lib_vendor', 'subfeas', 'subfeas_fit.c')
+subprocess.run([sys.executable, os.path.join(here, 'make_timed_fit.py'), source_c, timed_c], check=True)
 
 bat = open(os.path.join(root, 'native', 'ft8_lib_build', 'rebuild_shim.bat'), encoding='utf-8', newline='').read().replace('\r\n', '\n')
 

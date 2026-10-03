@@ -769,8 +769,18 @@ extern "C" {
  *              their getters (M1 is deferred), ft8_decode_all, ftx_find_candidates and every
  *              other export. The changed ft8_subfeas_fit_signal signature is why the version is
  *              bumped: a 20260055 binary would be called with one argument too many.
+ *
+ *   20260059 — sub-feas-speed-redesign Stage B item B2 (a pruned frequency search in the fit). NUMERICS-CHANGING, so the
+ *              Stage A bit-identity (E1) no longer applies; the acceptance is E2 (per-signal Δt, Δf, ḟ equivalence) and E3
+ *              (no loss of residual decodes), design.md D11. Changes ONLY subfeas_fit.c's freq_search: the 262 144-point
+ *              FFT of the Δt (step 1, 201 candidates) and ḟ (step 2, 41 candidates) searches, of which only the bins with
+ *              |f| <= 2.0 Hz (87) are used, is replaced by a decimation by 64 with linear-interpolation weights and a
+ *              4 096-point FFT (the bin spacing is unchanged), the magnitudes divided by the kernel's droop, scanned in the
+ *              reference's index order with its first-strictly-greater tie-break. The result is always a bin centre, as
+ *              before. Each workspace gains one 4 096-point FFT plan (the pool's bytes-per-workspace stat grows by it). NO
+ *              new or changed export, no ABI change, no change to ft8_decode_all or any other function.
  */
-#define FT8_SHIM_VERSION 20260056
+#define FT8_SHIM_VERSION 20260059
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
