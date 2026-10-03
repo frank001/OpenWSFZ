@@ -189,6 +189,23 @@ def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=F
     res["daemon"]["captureActive"] = st.get("captureActive")
     res["daemon"]["decodingEnabled"] = st.get("decodingEnabled")
 
+    # Read the decoder flags back from the RUNNING daemon (not the file we gave it): every arm_config.json
+    # records subtractionEnabled and subtractionMaxThreads (board rule, 2026-10-02), and the S3c / report
+    # header read the flag state from here instead of from hand-forwarded arguments. A failed read is
+    # recorded as such, never guessed (HK-035: GET only, nothing is written to the config).
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:%s/api/v1/config" % port, timeout=6) as r:
+            cfg_live = json.loads(r.read().decode("utf-8"))
+        dec = cfg_live.get("decoder") or {}
+        res["daemon"]["decoder_readback"] = {
+            k: dec.get(k) for k in ("subtractionEnabled", "subtractionMaxThreads", "subtractionOnMigrationApplied",
+                                    "nhard40MigrationApplied", "osdNhardMax", "kMinScorePass2", "osdCorrThreshold")}
+        res["checks"]["decoder_readback_ok"] = dec.get("subtractionEnabled") is not None
+    except Exception as e:  # noqa: BLE001
+        res["daemon"]["decoder_readback"] = None
+        res["checks"]["decoder_readback_ok"] = False
+        res["checks"]["decoder_readback_error"] = type(e).__name__
+
     cfgobj = cfgobj_pre
     res["daemon"]["config_audio_device_friendly_name"] = cfgobj.get("audioDeviceFriendlyName")
     res["daemon"]["config_audio_device_id"] = cfgobj.get("audioDeviceId")

@@ -318,18 +318,36 @@ tail -f <run-dir>/config-drift.log     # disposable
 
 ## 3. Running the study
 
-> ⏳ The harness (synthesizer, generator driver, matcher, analysis) is not yet built — see
-> `STUDY-SPEC.md` §12 and §15. This section will be completed as those components land. For now,
-> the runbook covers the **audio-routing prerequisite** required before any run.
+### 3.1 The standing procedure for a routine synthetic S1–S8 run on Windows (2026-10-03, Architect-approved)
 
-Planned procedure (subject to harness implementation):
+The harness is built; this is the procedure the flag-ON `main` baseline (`2026-10-02-96077a0`, confirmed by
+`2026-10-03-96077a0`) was run with.
 
-1. Complete the VB-CABLE setup in §1 and the application settings in §2.
-2. Run the synthesizer **self-validation gate** (`STUDY-SPEC.md` §5): WSJT-X must decode a clean
-   (+10 dB) rendering of every message used, or the run aborts.
-3. Execute the chosen scenario(s) from `STUDY-SPEC.md` §6 (S1–S6).
-4. Regenerate the Minitab-style report from the raw `ALL.TXT` logs with the single analysis command
-   (`STUDY-SPEC.md` §9, §11).
+1. **Build the daemon with `tools/publish_selfcontained.py` (`-p:PublishAot=false`), in a scratch worktree off the
+   commit under test, then `python tools/capture_build_provenance.py`.** NEVER a raw `dotnet publish`: the trimmed
+   build removes NAudio's COM interop and the daemon never captures (`InvalidProgramException`, exception E7).
+   Pin `libft8.dll`'s SHA-256 (HK-022).
+2. **Config:** a copy of `s1s8-config-subfeas-on/` (flag ON) or `-off/`, output paths changed, `decoder.subtractionEnabled`
+   and both migration markers set, `cycleAudioArchive.mode = "all"`, an empty passphrase. The launcher reads the flags
+   back from the RUNNING daemon into `arm_config.json`.
+3. **Station:** radio out of the chain, `Voicemeeter AUX Input` -> B1, WSJT-X FT8 Monitor ON (dial 14.074 MHz, cosmetic),
+   nothing else on the PC. **Pre-flight (with the daemon running on the same config):**
+   `python baseline_preflight.py --wsjt-all-txt <WSJT-X ALL.TXT> --owsfz-all-txt <daemon ALL.TXT> --out <json>`
+   (chain-quiet RMS on the B1 capture device below 1e-4, then the warm-up cycle must appear in BOTH logs; counts only).
+   Stop that daemon: the launcher refuses while another daemon runs.
+4. **Launch (detached, HK-023):** from `qa/rr-study/`
+   `python run_study_detached.py --daemon-exe <exe> --config <config> --port 8080 --wsjtx-ini <ini> -- --scenarios S1,S1b,S2,S3,S4,S5,S7,S8,S3c --skip-warmup --device "Voicemeeter AUX Input"`.
+   It runs PRECHECK, copies `arm_config.json` into the run dir (the analyser names the build from it, and REFUSES a run without
+   one unless `--legacy-no-arm-config`), plays the battery, then S3c (last, additive, never blocks S1–S8), scores it, runs
+   the analyser, stops the daemon and gathers the captured audio. Start `qa/config_drift.py` beside it and a watchdog whose
+   silence limit exceeds **S5's runtime (over an hour without log output)**. A full battery is about 1 h 55 min.
+5. **After the run, in this order (§5.4):** analyser (done by the launcher) -> gather (done) -> captured-audio scan
+   (`captured-audio-scan/post_run_scan.py`, with `-X utf8`; rerun if it writes SKIPPED) -> `baseline_assemble_report.py`
+   (adds Sections 1, 5, 6, the scan section quoted verbatim and the S3c section) -> `render_report.py` -> commit.
+6. A battery crash needs a human decision: resume with `run_study_detached.py --resume` (`resume_study.py` does not know S3c:
+   run `s3c/s3c_play.py` and `s3c/s3c_score.py` by hand).
+7. ALL.TXT is CUMULATIVE and every battery plays the same seeded texts: anything that counts decodes must key on the
+   cycle stamp AND the run's own time window (the S3c scorer does).
 
 ---
 
@@ -597,12 +615,17 @@ table) of `report.md` automatically. **The QA engineer must complete:**
    run-to-run history (`trend.csv`/`trend_xplat.csv` and prior `report.md`s),
    not just the immediately preceding sweep.
 
-4. **Render HTML:**
+4. **Captured-audio scan FIRST, then render (STANDING ORDER, Architect 2026-10-03, for every synthetic R&R run):** the
+   scan (step 5 below) runs BEFORE the HTML is rendered and is QUOTED IN `report.md` (a "Captured-audio scan (#194)"
+   section: the headline and holes verbatim, the flagged-slot counts, the run-level line, the scan's commit/freeze).
+   `python qa/rr-study/baseline_assemble_report.py <run-dir> --role baseline|confirmation --other <other-run-dir>` writes
+   Sections 1, 5, 6, the scan section and the S3c section from the run's own files. A SKIPPED or failed scan is NOT a
+   final state: rerun it when the machine is free. Then render the HTML (so it carries the scan):
    ```powershell
    python qa/rr-study/render_report.py <path/to/report.md>
    ```
 
-5. **Captured-audio scan (after the gather; synthetic R&R runs only; #194, ruling 2026-10-02 2055):**
+5. **Captured-audio scan (after the gather; synthetic R&R runs only; #194, ruling 2026-10-02 2055; run it with `python -X utf8`, its help text has an emoji and a cp1252 console crashes, HK-009):**
    ```powershell
    python qa/rr-study/captured-audio-scan/post_run_scan.py --run <run> --truth <results/<run>/truth.csv> `
        --audio <results/<run>-captured-audio> --results <results/<run>> --harness-commit <sha>
