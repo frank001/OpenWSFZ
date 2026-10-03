@@ -328,6 +328,77 @@ not implied by this amendment.
     until ruled.
 - **Machine:** not timing-sensitive, but it must not overlap QA's Test A profile (which is). QA gives the slot.
 
+## 5h. Amendment 5 (2026-10-03 ~12:30Z): Stage B re-aimed at batch 2's arrival time; B2 first (Captain)
+
+- **Captain, 2026-10-03 (Architect's window):** asked whether Stage B could give more time between batch 2 and the
+  close of the reply window. On the Architect's proposal (B2 first, finish line "batch 2 median ≈ 2.5 s on a replayed
+  night", plus a keying-latency measurement): *"yes, proceed"*.
+- **Why the aim changes.** Amendment 4 aimed Stage B at other hardware (T′, 4 workers). The Captain's question is
+  different: can a batch-2 decode get a **same-slot reply**? The lateness ruling (`2026-10-02-2225` §3) sets the
+  condition at **median T2 ≤ ≈ 2.95 s** into the reply slot, at keying latency k = 0. The 2026-09-30 on-air night
+  measured **T2 p50 5.71 s** (decode start 0.03 s + batch 1 ≈ 0.53 s + residual pass ≈ 5.0 s; Engineer's lateness
+  report `2026-10-02-2220`).
+- **Where the residual time goes** (Stage B step 1, `Ft8.FitProbe fitprofile`, `feat/sub-feas-stage-b` `ef7e765c`,
+  `artefacts/sub_feas_fitprofile/`, 5 cycles, 111 fits; timed DLL equivalent to shipped 111/111). Median per fit:
+  **1 561 ms at 1 worker, 1 904 ms at 8**. Of that, **step 1 (Δt search) is 71 %** (1 104 / 1 358 ms) and **step 2 (ḟ
+  search) is 25 %** (390 / 469 ms). Everything else is under 4 %. The residual **decode** itself is ≈ 0.61 s per cycle.
+  Step 1 is 201 full 262 144-point FFTs per signal, of which about ±44 bins are used (§1, B2's note).
+
+### Changes to Stage B (Amendment 4 is otherwise unchanged)
+
+1. **Order: B2 first**, then re-measure. Then B3, then B1, each **only if the finish line is still missed**. The
+   profile, not the default order, decides: B2 removes most of step 1 and cheapens step 2's `freq_search`. B1 (a faster
+   full FFT) buys little once B2 is in. B2 and B3 are own code, with no new library, so the licence policy is untouched.
+   B1, if it is ever reached, is pocketfft-C (BSD-3) only.
+2. **New finish line, a BAR (fixed now, before any Stage B build):**
+   - **T2′:** on a **replay** of the 2026-09-30 night, flag ON, `subtractionMaxThreads = 8` (as on air), `nhard` 40,
+     harness `replay81` mode `two1` (records the time to batch 1 and the batch-2 time per cycle), **every fourth cycle**
+     of the frozen 10-01 selection (`selection.json` SHA-256 `55a951c8…53c977cf`, index ≡ 0 mod 4, ≈ 1 075 cycles; the
+     same child list as #122 gate 4a may be reused, with its SHA asserted). Define `T2_replay` = 0.032 s (the on-air
+     median decode-start offset, a labelled constant) + time to batch 1 + residual `elapsedMs`, over cycles with ≥ 1
+     residual decode.
+   - **PASS iff median `T2_replay` ≤ 2.50 s.** The 0.45 s below the 2.95 s condition is a margin for the unmeasured
+     keying latency k (companion spec `2026-10-03-1235-…-keying-latency.md`) and for replay against live. It is not a
+     tolerance to spend.
+   - **Baseline in the same session:** the current `main` build (Stage A) on the same child list. It is reported beside
+     every Stage B item (descriptive), so each item's gain is measured, not inferred.
+3. **Kept as bars for every item:** E2 (equivalence) and E3 (no loss, `residualDecodes` ≥ 0.98 × the Stage A build's)
+   come first, then R1′ (max ≤ 13 000 ms), R3 (0 AV / 0 contained / 0 exits), and R4′ (abandon ≤ 5 %, now read **at 8
+   workers on the T2′ list**). 🔴 E3 matters most here: SUB-FEAS's value is its extra decodes (offline NET +11.73 pp
+   [11.41, 12.03], one night, replay against replay). A faster fit that loses them buys nothing.
+4. **T′ (4 workers, Amendment 4) becomes REPORT-ONLY.** It is still run once at the end, for the other-hardware record.
+5. **Stop:** at the first item after which E2, E3, R1′, R3, R4′ **and T2′** pass. Or after B1. Or when the Captain says
+   so. If T2′ still fails after all three items, report the remaining gap. Batch 2 then stays not answerable in the
+   same slot, which is today's state.
+6. **Also reported (descriptive):** per-fit median at 8 workers per item; `T2_replay` p5/p95/max; the fraction of
+   cycles with `T2_replay` ≤ 2.95 s, by UTC hour (comparable with the lateness Q2 table).
+
+### What this amendment does NOT do
+
+- It does **not** decide the batch-2 → auto-QSO choice. That stays the Captain's: parked 2026-10-02, kept open
+  2026-10-03 pending this work. The automation stays **fenced** from batch 2 (P-5) whatever T2′ shows.
+- **No on-air claim.** A replay PASS is followed, before any reply-policy spec, by one receive-only on-air night on the
+  accepted build. On-air T2 is read there with the measured k. That night is a separate decision.
+- **Flag default, thread default:** unchanged.
+
+### Process
+
+- QA authors the OpenSpec delta, `tasks.md` and the Developer handoff (HK-015/HK-000). The build is `native/` (the fit)
+  on `feat/sub-feas-stage-b` (step 1 already there), so it needs a separate Developer session (HK-011), and a new shim
+  number per item.
+- 🔴 **CPU rule:** the Engineer's #122 gate 4a run (started 11:39Z, ≈ 3 h) measures decode times. **No Developer build
+  or test suite until the Engineer reports it done**, unless the Captain relaxes the rule. The T2′ replays are
+  themselves timing runs and need the PC to themselves.
+
+### Predictions (blind; scored at the Stage B acceptance ruling)
+
+| # | Prediction | P | Class |
+|---|---|---:|:---:|
+| SB1 | B2 passes E2 and E3 on its first build | 0.60 | H |
+| SB2 | after B2 alone, median `T2_replay` ≤ 2.50 s (my rough arithmetic gives ≈ 2.4 s if step 1 falls to a tenth and step 2 by 30 %; a 2× gain gives ≈ 3.4 s) | 0.40 | H |
+| SB3 | after B2, the per-fit median at 8 workers ≤ 700 ms (from 1 904 ms) | 0.50 | H |
+| SB4 | T2′ passes after at most two items (B2, B3) | 0.50 | H |
+
 ## 6. Hygiene
 
 - 🔒 NFR-021 / HK-037: stamps and integers only, as in §8.1. The E1 harness writes hashes and rcs, never text.
