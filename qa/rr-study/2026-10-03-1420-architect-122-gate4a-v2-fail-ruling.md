@@ -47,6 +47,13 @@
 - **Unchanged:** the verdict in §1 stays *"V2 FAIL on P"*, and TR5 stays a MISS. TR1–TR4 and TR6 are now **scored** at the report's ruling, against the released figures, with the same label. D1–D3 still run when the Captain gives the slot (D1 first: the determinism question).
 - **Lesson (mine):** a single "any FAIL ⇒ withhold everything" clause over rows that guard **different** questions is a design defect. A validity row withholds only the outputs it actually guards. V2 guards the "final decode is undisturbed" claim; it does not guard `C(x)`. Future specs scope each stop to its own outputs (an HK-021 sibling).
 
+## 4b. D1 result (Engineer, run 14:32:25Z to before 14:43Z; `eng/122-gate4a` `e3e62e89`), ruled 14:43Z by `date -u`
+
+- **D1: arm F re-run on P reproduced the original arm F in 1 075/1 075 cycles** (final numeric multiset, fresh process, same DLL). The flag-OFF ordinary decode is **deterministic run to run on this corpus**. That matters beyond step 4: replay acceptances (Stage B's T2′/E2/E3, step-4 A2) can use strict N/N references.
+- **D3, F side** (stamp `261001_112700`): 16 decodes, 0 with an unresolved hash; the 1 731 Hz decode is present, its text is unique in the call, it passes `IsPlausibleMessage`, and 0 implausible-filter events fired.
+- **Reading:** a reproducible arm F means the only thing that differs in arm T is the early decodes running first in the same process. **The V2 miss is therefore attributed to shared state from the early decodes**: the most likely explanation, though not proven, because T's own reproducibility was not tested (D2 is off the table, Captain). The F-side facts point away from a dedup collision or a plausibility change on the managed side, but they cannot see T. The mechanism is **unexplained**, possibly inside the native decoder.
+- **Consequence:** none for the plan. Step-4 R4 already requires the final decode to be protected **whatever the mechanism**, and A2 tests that guarantee with a strict **N/N** reference (D1 removes the "within D1's run-to-run difference" fallback). If A2 fails on the new build with an unclear cause, D2 can come back as a new decision for the Captain.
+
 ## 5. Predictions
 
 **TR5 (V0–V4 all pass the first time, 0.65): ❌ MISS** (V2 on P). Scored now, ledger updated in the same edit. TR1–TR4 and TR6 stay **unscored** until a catch figure exists, if one ever does.
