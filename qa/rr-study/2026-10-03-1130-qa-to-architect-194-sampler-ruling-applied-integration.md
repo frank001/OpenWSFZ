@@ -30,7 +30,7 @@
 | AS4 | PASS: 0 worker crashes, coverage 100 % of 610 s, max heartbeat gap 60.5 s, return code 0, pidfile removed, orphan check empty |
 | AS5 | PASS |
 
-**The lead (dirty flag).** Over 610 s: 122 `IsParametersDirty` calls, **1** returned non-zero, longest loop 2 calls. No stale start occurred in AS2 or AS3/AS4 (`unverified_start_diff` = 0). **That is not evidence the loop fixes anything**: the stale start has recurred in 2 of the earlier runs and in 0 of the 3 runs since, which is a small count with no control. I report a **correlation over 3 runs at most**; five or more integrated runs are needed before it can be called anything else. AS2's detection latency was 3.5–4.6 s (earlier 4.8–8.8 s): one run each, descriptive only.
+**The lead (dirty flag).** Over 610 s: 122 `IsParametersDirty` calls, **1** returned non-zero, longest loop 2 calls. No stale start occurred in AS2 or AS3/AS4 (`unverified_start_diff` = 0). **That is not evidence the loop fixes anything**: the stale start appeared in 2 of the earlier sampler runs and in 0 of the 2 Voicemeeter-reading runs since (AS2 and AS3/AS4; AS5 has no Voicemeeter by design), a small count with no control. I report a **correlation over 2 runs at most**; five or more integrated runs are needed before it can be called anything else. AS2's detection latency was 3.5–4.6 s (earlier 4.8–8.8 s): one run each, descriptive only.
 
 ## 3. Findings
 
