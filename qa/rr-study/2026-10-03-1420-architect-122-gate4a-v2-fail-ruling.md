@@ -39,6 +39,14 @@
 - **If F and T each reproduce, and D3 shows a text collision or a plausibility change:** the shared-state effect is real, and the claim *"an early decode loses nothing by construction"* is **false**. The rate here is 1 decode in 1 cycle of 1 075, on one corpus. Step 4's build spec would then have to protect the final decode: for example, the final decode runs with the hash table as it was before the early decode, or de-duplication across batches is defined differently. Catch figures, if the Captain wants them, are then reported as *"descriptive, from a run whose V2 failed on P (1/1 075)"*, never as a gate result.
 - **If F and T each reproduce and D3 shows neither:** the mechanism is unexplained. I rule again then, and do not guess.
 
+## 4a. Captain's decision (2026-10-03 14:22Z by `date -u`): RELEASE the catch figures
+
+- **Captain:** *"yes, release the figures"*. He was answering the Architect, who said that the stop rule was the Architect's own design defect. It blocked all four corpora over 1 decode in 1 cycle on one of them (P), while R, X17 and X80 passed V2 N/N. And the catch figures do not depend on V2: V2 asks whether the final decode is disturbed, and `C(x)` asks how much the early decode finds.
+- ⇒ **Every catch output (§5 of the spec: `C(x)`, `S_corr`, `S_unc`, the SNR/DT splits, `t(x)`, `G(x)`, `x*`) is reported for all four corpora.** Every figure carries the label: *"Descriptive. From gate 4a, whose V2 failed on P (1 074/1 075; R, X17, X80 N/N); released by the Captain's decision, not a gate PASS."*
+- **V4′ (Amendment 1) is evaluated and reported as defined, per corpus.** A corpus that fails V4′ is reported with that label rather than withheld. The Captain's release covers the stop rule as a whole.
+- **Unchanged:** the verdict in §1 stays *"V2 FAIL on P"*, and TR5 stays a MISS. TR1–TR4 and TR6 are now **scored** at the report's ruling, against the released figures, with the same label. D1–D3 still run when the Captain gives the slot (D1 first: the determinism question).
+- **Lesson (mine):** a single "any FAIL ⇒ withhold everything" clause over rows that guard **different** questions is a design defect. A validity row withholds only the outputs it actually guards. V2 guards the "final decode is undisturbed" claim; it does not guard `C(x)`. Future specs scope each stop to its own outputs (an HK-021 sibling).
+
 ## 5. Predictions
 
 **TR5 (V0–V4 all pass the first time, 0.65): ❌ MISS** (V2 on P). Scored now, ledger updated in the same edit. TR1–TR4 and TR6 stay **unscored** until a catch figure exists, if one ever does.
