@@ -64,6 +64,8 @@ import sounddevice as sd
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RR_STUDY_DIR = REPO_ROOT / "qa" / "rr-study"
 REPORTS_DIR = Path(__file__).resolve().parent / "live-reports"
+# QA 2026-10-03: LIVE_VERIFY_DAEMON_ROOT = a checkout whose Release daemon (and git commit, for the report) is under test.
+DAEMON_ROOT = Path(os.environ["LIVE_VERIFY_DAEMON_ROOT"]) if os.environ.get("LIVE_VERIFY_DAEMON_ROOT") else REPO_ROOT
 
 PORT = 18765
 BASE = f"http://127.0.0.1:{PORT}"
@@ -71,6 +73,14 @@ SLOT_SECONDS = 15
 PREWARM_S = 0.5
 INPUT_DEVICE_SUBSTRINGS = ("cable output", "voicemeeter out")
 OUTPUT_DEVICE_SUBSTRINGS = ("cable input", "voicemeeter in", "speakers")
+# QA 2026-10-03: optional overrides so the same script can run through Voicemeeter (AUX Input -> B1) without a virtual
+# cable. LIVE_VERIFY_INPUT = daemon RX device substring; LIVE_VERIFY_TX_OUTPUT = daemon TX output substring (a sink
+# that goes nowhere near the radio); LIVE_VERIFY_PLAYBACK = where the script injects the tones. Unset = old behaviour.
+if os.environ.get("LIVE_VERIFY_INPUT"):
+    INPUT_DEVICE_SUBSTRINGS = (os.environ["LIVE_VERIFY_INPUT"].lower(),)
+if os.environ.get("LIVE_VERIFY_TX_OUTPUT"):
+    OUTPUT_DEVICE_SUBSTRINGS = (os.environ["LIVE_VERIFY_TX_OUTPUT"].lower(),)
+PLAYBACK_DEVICE_SUBSTRING = os.environ.get("LIVE_VERIFY_PLAYBACK", "CABLE Input")
 
 CALLSIGN_ALPHA, CALLSIGN_BRAVO = "Q1AAA", "Q1BBB"
 ENTITY_ALPHA, ENTITY_BRAVO = "Testland Alpha", "Testland Bravo"
@@ -184,7 +194,7 @@ def resolve_daemon_binary():
     exe_name = "OpenWSFZ.Daemon.exe" if platform.system() == "Windows" else "OpenWSFZ.Daemon"
     # Prefer a self-contained publish if present; fall back to the framework-dependent build.
     for candidate in [
-        REPO_ROOT / "src" / "OpenWSFZ.Daemon" / "bin" / "Release" / "net10.0" / exe_name,
+        DAEMON_ROOT / "src" / "OpenWSFZ.Daemon" / "bin" / "Release" / "net10.0" / exe_name,
     ]:
         if candidate.exists():
             return candidate
@@ -197,7 +207,7 @@ def start_daemon(config_path, log_path):
     log_file = open(log_path, "w", encoding="utf-8")
     proc = subprocess.Popen(
         [str(binary), "--port", str(PORT), "--config", str(config_path)],
-        stdout=log_file, stderr=subprocess.STDOUT, cwd=str(REPO_ROOT))
+        stdout=log_file, stderr=subprocess.STDOUT, cwd=str(DAEMON_ROOT))
     return proc, log_file
 
 def stop_daemon(proc, log_file):
@@ -212,9 +222,9 @@ def stop_daemon(proc, log_file):
 def write_report(results, environment_note=None, extra_notes=None):
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc)
-    sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(REPO_ROOT),
+    sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(DAEMON_ROOT),
                           capture_output=True, text=True).stdout.strip() or "unknown"
-    branch = subprocess.run(["git", "branch", "--show-current"], cwd=str(REPO_ROOT),
+    branch = subprocess.run(["git", "branch", "--show-current"], cwd=str(DAEMON_ROOT),
                              capture_output=True, text=True).stdout.strip() or "unknown"
     fname = REPORTS_DIR / f"{ts.strftime('%Y-%m-%dT%H%M%SZ')}-{sha}.md"
 
@@ -279,7 +289,7 @@ def main():
             print(f"ENVIRONMENT UNAVAILABLE — report written to {fname}")
             return 2
 
-        playback_device_idx = select_playback_device()
+        playback_device_idx = select_playback_device(PLAYBACK_DEVICE_SUBSTRING)
         if playback_device_idx is None:
             note = "sounddevice could not find a matching playback device for injection."
             fname, _ = write_report([], environment_note=note)
