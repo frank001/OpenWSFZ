@@ -233,7 +233,7 @@ def write_report(results, environment_note=None, extra_notes=None):
         "",
         f"- **Run at (UTC):** {ts.isoformat()}",
         f"- **Git commit:** `{sha}` (branch `{branch}`)",
-        f"- **Script:** `qa/decode-filter-synth-verify/live_verify_9_axes.py`",
+        f"- **Script:** `qa/decode-filter-synth-verify/live_verify_9_axes_fast.py` (pipelined)",
         "",
     ]
 
@@ -392,18 +392,16 @@ def main():
         time.sleep(0.5)
         http_post("/api/v1/tx/enable")
 
+        # QA 2026-10-04 PIPELINED variant: the slow version waits for the NEXT cycle boundary after every round (the decode of
+        # slot k is only delivered at the START of slot k+1), so every round cost two slots and left one slot of silence.
+        # Here round k's tones go out at the start of slot k, round k-1's result is read ~1 s into slot k, and the reset
+        # (abort, enable) and round k's filter are POSTed during slot k, long before slot k's own decode at the start of
+        # slot k+1. 10 rounds take about 10 slots (150 s) instead of 20 (300 s). The assertions are the same.
         results = []
-        for axis_name, filter_body in AXES:
-            http_post("/api/v1/tx/abort")
-            time.sleep(0.5)
-            http_post("/api/v1/tx/enable")
-            http_post("/api/v1/decode-filter", filter_body)
+        rounds = [(n, b_, combined) for n, b_ in AXES] + [("NewValueAdmission(Engaged)", {"allowedEntities": [ENTITY_BRAVO]}, alpha_pcm + charlie_pcm)]
+        expect = [CALLSIGN_BRAVO] * len(AXES) + [CALLSIGN_CHARLIE]
 
-            boundary_ts = next_cycle_boundary()
-            wait_for_cycle(boundary_ts)
-            sd.play(combined, samplerate=rate_a, device=playback_device_idx, blocking=False)
-            sd.wait()
-
+        def read_partner():
             deadline = time.time() + 8
             status = {}
             while time.time() < deadline:
@@ -411,52 +409,36 @@ def main():
                 if status.get("partner"):
                     break
                 time.sleep(0.3)
+            return status.get("partner"), status.get("state")
 
-            partner = status.get("partner")
-            state = status.get("state")
-            ok = partner == CALLSIGN_BRAVO
-            results.append((axis_name, ok, partner, state))
-            print(f"[{axis_name}] partner={partner} state={state} {'OK' if ok else 'FAIL'}")
+        def record(i):
+            partner, state = read_partner()
+            name = rounds[i][0]
+            ok = partner == expect[i]
+            results.append((name, ok, partner, state))
+            print(f"[{name}] partner={partner} state={state} {'OK' if ok else 'FAIL'}")
 
-        # ── Phase 7: fix-decode-filter-new-value-admission ───────────────────
-        # Narrow AllowedEntities to a set that EXCLUDES the already-seen ENTITY_ALPHA (Alpha
-        # was decoded on every one of the nine axis-loop cycles above, so it is unambiguously
-        # "seen this session"). Then decode CALLSIGN_CHARLIE — an entity that has never once
-        # appeared this run — summed with a repeat CQ from the still-excluded CALLSIGN_ALPHA.
-        # Confirms, against the real daemon: (a) Alpha stays excluded, exactly as the earlier
-        # AllowedEntities scenario already proved, and (b) Charlie — brand-new on this
-        # narrowed-but-non-empty axis — is auto-admitted by the daemon and engaged on the very
-        # same decode cycle it first appears in, not one cycle later. This is the defect this
-        # change fixes: previously Charlie would have been silently and permanently excluded.
-        http_post("/api/v1/tx/abort")
-        time.sleep(0.5)
-        http_post("/api/v1/tx/enable")
-        http_post("/api/v1/decode-filter", {"allowedEntities": [ENTITY_BRAVO]})
+        def reset_and_filter(i):
+            http_post("/api/v1/tx/abort")
+            time.sleep(0.5)
+            http_post("/api/v1/tx/enable")
+            http_post("/api/v1/decode-filter", rounds[i][1])
 
-        admission_combined = alpha_pcm + charlie_pcm
-        boundary_ts = next_cycle_boundary()
-        wait_for_cycle(boundary_ts)
-        sd.play(admission_combined, samplerate=rate_a, device=playback_device_idx, blocking=False)
-        sd.wait()
+        reset_and_filter(0)
+        slot0 = next_cycle_boundary()
+        for k, (name, body_, pcm_) in enumerate(rounds):
+            wait_for_cycle(slot0 + 15.0 * k)
+            sd.play(pcm_, samplerate=rate_a, device=playback_device_idx, blocking=False)
+            if k > 0:
+                time.sleep(1.0)                 # round k-1's decode lands ~0.6 s into this slot
+                record(k - 1)
+                reset_and_filter(k)             # before this slot's own decode, at the start of the next slot
+            sd.wait()
+        wait_for_cycle(slot0 + 15.0 * len(rounds))
+        time.sleep(1.0)
+        record(len(rounds) - 1)
 
-        deadline = time.time() + 8
-        status = {}
-        while time.time() < deadline:
-            status = http_get("/api/v1/tx/status")
-            if status.get("partner"):
-                break
-            time.sleep(0.3)
-
-        partner = status.get("partner")
-        state = status.get("state")
-        admission_engage_ok = partner == CALLSIGN_CHARLIE
-        results.append(("NewValueAdmission(Engaged)", admission_engage_ok, partner, state))
-        print(f"[NewValueAdmission(Engaged)] partner={partner} state={state} "
-              f"{'OK' if admission_engage_ok else 'FAIL'}")
-
-        # Independent confirmation: the daemon's own decode-filter state must now list
-        # Charlie's entity in AllowedEntities — proof the admission actually mutated
-        # IDecodeFilterStore, not just that this one decode happened to slip through.
+        # Independent confirmation of the final filter state (see Phase 7 of the slow script).
         filter_after = http_get("/api/v1/decode-filter")
         admitted_entities = filter_after.get("allowedEntities") or []
         admission_state_ok = ENTITY_CHARLIE in admitted_entities and ENTITY_ALPHA not in admitted_entities
@@ -470,7 +452,7 @@ def main():
         http_post("/api/v1/tx/abort")
         http_post("/api/v1/decode-filter", {})
 
-        # Independent cross-check against the daemon's own log.
+        # Independent cross-check against the daemon's own log (same as the slow script).
         log_text = daemon_log_path.read_text(encoding="utf-8", errors="ignore")
         cq_detections = log_text.count("QsoAnswererService: CQ detected from")
         bravo_detections = log_text.count(f"CQ detected from {CALLSIGN_BRAVO}")
