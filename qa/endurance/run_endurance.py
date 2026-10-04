@@ -45,6 +45,11 @@ def main():
     os.makedirs(os.path.join(corpus, "tools"), exist_ok=True)
     shutil.copy2(os.path.join(HERE, "endurance_supervisor.py"),
                  os.path.join(corpus, "tools", "endurance_supervisor.py"))
+    # #194 audio-setup sampler: copied in too, so a branch switch cannot change it under a running night.
+    as_src, as_dst = os.path.join(HERE, "..", "audio-setup"), os.path.join(corpus, "tools", "audio-setup")
+    os.makedirs(as_dst, exist_ok=True)
+    for fn in ("sampler.py", "summarize.py", "run_hook.py", "audio_setup.schema.json"):
+        shutil.copy2(os.path.join(as_src, fn), os.path.join(as_dst, fn))
 
     cmd = [sys.executable, os.path.join(corpus, "tools", "endurance_supervisor.py"),
            "--corpus", corpus, "--daemon-exe", a.daemon_exe, "--config", a.config,
