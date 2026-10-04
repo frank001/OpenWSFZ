@@ -841,6 +841,147 @@ static void cb_save_hash(const char* cs, uint32_t h) {
 }
 static ftx_callsign_hash_interface_t s_hash_if = { cb_lookup_hash, cb_save_hash };
 
+/* ── decode-early-batch-panel (shim 20260058): snapshot / restore of the process-global decode state ──────────
+ *
+ * WHY.  One decode WRITES the process-global hash state (hash_table_add via cb_save_hash, the announce clock, the
+ * reject count, the g_h12_* counters).  An early decode of a zero-filled partial window (phase 4a, panel only) must
+ * leave NONE of that behind, or it can change what the FINAL decode of the same window resolves (the V2 loss of the
+ * gate-4a replay: one decode in 20 175).  The managed caller brackets the early decode with
+ *   save -> DecodeAll -> restore (in a finally).
+ * The restore makes the final decode start from exactly the state a run without the early decode would have had.
+ * The pair relies on the managed decode gate (no other decode runs between them).
+ *
+ * THE IMAGE is one struct, copied to and from a CALLER-SUPPLIED buffer (heap on the managed side; ~150 KB, never a
+ * stack).  A caller-supplied buffer, not a static one, is what lets acceptance A2b compare two saved images byte
+ * for byte.  Padding bytes are zeroed on save (memset) so a byte compare is meaningful.
+ *
+ * COMPLETENESS IS CHECKED MECHANICALLY, not trusted (HK-026).  Every mutable file-scope static and every
+ * thread-local static in the native sources is listed below as either HSM-IMAGE (it is in the image) or HSM-EXEMPT
+ * (with the reason it cannot carry an early decode into a final one).  tests/OpenWSFZ.Ft8.Tests/
+ * HashStateCompletenessTests.cs scans the sources and FAILS when a variable is in neither list, or when a listed
+ * name no longer exists, or when the save/restore bodies below do not both mention every HSM-IMAGE name.
+ * Adding a global without listing it here therefore fails the build.  Keep each marker on its own line.
+ *
+ * HSM-IMAGE g_session_hash_table
+ * HSM-IMAGE g_hash_table_initialised
+ * HSM-IMAGE g_hash_table_reject_count
+ * HSM-IMAGE g_h12_announce_clock
+ * HSM-IMAGE g_h12_displaying
+ * HSM-IMAGE g_h12_ambiguous
+ * HSM-IMAGE g_h12_divergent
+ * HSM-IMAGE g_h12_suppressed
+ * HSM-IMAGE g_h12_by_code_displaying
+ * HSM-IMAGE g_h12_by_code_ambiguous
+ * HSM-IMAGE g_h12_by_code_divergent
+ * HSM-IMAGE g_h12_unresolved_by_code
+ * HSM-IMAGE g_h12_code_out_of_range
+ *
+ * Thread-local statics and other statics the decode path touches, each classified by FILE:LINE evidence.
+ * HSM-RESET   = reset or assigned per call / per message (evidence: the line, inside a function on the pass-0 path);
+ * HSM-NOWRITE = not written on the pass-0 path (the test proves no function reachable from ft8_decode_all assigns it).
+ * HSM-RESET tls_pass_counts ft8_shim.c:1656  reset at the top of ft8_decode_all
+ * HSM-RESET tls_candidate_counts ft8_shim.c:1657  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_mean_abs_sum ft8_shim.c:1658  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_prenorm_var_sum ft8_shim.c:1659  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_fail_count ft8_shim.c:1660  reset at the top of ft8_decode_all
+ * HSM-RESET tls_num_passes ft8_shim.c:1662  reset at the top of ft8_decode_all
+ * HSM-RESET tls_num_decoded_snr_terms ft8_shim.c:1661  reset at the top of ft8_decode_all, set to the count at the end
+ * HSM-RESET tls_last_noise_floor_db ft8_shim.c:1649  assigned per call before any read
+ * HSM-RESET tls_signal_db ft8_shim.c:1919  overwritten per decoded message, read only below tls_num_decoded_snr_terms (ft8_get_last_snr_terms)
+ * HSM-RESET tls_local_noise_db ft8_shim.c:1920  overwritten per decoded message, read only below tls_num_decoded_snr_terms (ft8_get_last_snr_terms)
+ * HSM-RESET tls_hash_table ft8_shim.c:1643  assigned per call, cleared at the end and in the __except handler
+ * HSM-RESET tls_h12_lookup_performed ft8_shim.c:1817  reset per message before ftx_message_decode
+ * HSM-RESET tls_h12_suppressed ft8_shim.c:1818  reset per message before ftx_message_decode
+ * HSM-RESET tls_h12_resolved ft8_shim.c:1832  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed
+ * HSM-RESET tls_h12_multiplicity ft8_shim.c:1834  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_h12_divergent ft8_shim.c:1835  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_h12_code ft8_shim.c:1844  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_ap_mycall_bits ft8_shim.c:1581  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_num_mycall_bits ft8_shim.c:1574  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_hiscall_bits ft8_shim.c:1582  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_num_hiscall_bits ft8_shim.c:1575  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-NOWRITE tls_diagnostics_enabled ft8_shim.c:1561  written only by ft8_set_diagnostics_enabled, called only by SubtractionPass (residual pass); the pass-0 path only reads it
+ * HSM-NOWRITE s_k_min_score_pass2 ft8_shim.c:490  decoder config, written only by ft8_set_decode_params (the Settings page / config save); the pass-0 path only reads it
+ * HSM-NOWRITE s_osd_corr_threshold ft8_shim.c:491  as s_k_min_score_pass2
+ * HSM-NOWRITE s_osd_nhard_max ft8_shim.c:492  as s_k_min_score_pass2
+ * HSM-NOWRITE s_hash_if ft8_shim.c:842  two function pointers set by the initialiser, never assigned afterwards
+ * HSM-NOWRITE g_pool_lock subfeas_fit.c:600  subfeas fit-workspace pool: written only by the pool functions of the residual pass
+ * HSM-NOWRITE g_pool_idle subfeas_fit.c:605  as g_pool_lock
+ * HSM-NOWRITE g_pool_idle_n subfeas_fit.c:606  as g_pool_lock
+ * HSM-NOWRITE g_pool_bound subfeas_fit.c:607  as g_pool_lock
+ * HSM-NOWRITE g_pool_live subfeas_fit.c:608  as g_pool_lock
+ * HSM-NOWRITE g_pool_leased subfeas_fit.c:609  as g_pool_lock
+ * HSM-NOWRITE g_pool_peak_leased subfeas_fit.c:610  as g_pool_lock
+ * HSM-NOWRITE g_pool_refusals subfeas_fit.c:611  as g_pool_lock
+ * HSM-NOWRITE g_pool_closing subfeas_fit.c:612  as g_pool_lock
+ */
+typedef struct {
+    callsign_table_t session_table;                        /* g_session_hash_table          */
+    int              hash_table_initialised;               /* g_hash_table_initialised      */
+    int              reject_count;                         /* g_hash_table_reject_count     */
+    uint32_t         announce_clock;                       /* g_h12_announce_clock          */
+    int              h12_displaying;                       /* g_h12_displaying              */
+    int              h12_ambiguous;                        /* g_h12_ambiguous               */
+    int              h12_divergent;                        /* g_h12_divergent               */
+    int              h12_suppressed;                       /* g_h12_suppressed              */
+    int              h12_code_out_of_range;                /* g_h12_code_out_of_range       */
+    int              by_code_displaying[H12_CODE_SPACE];   /* g_h12_by_code_displaying      */
+    int              by_code_ambiguous [H12_CODE_SPACE];   /* g_h12_by_code_ambiguous       */
+    int              by_code_divergent [H12_CODE_SPACE];   /* g_h12_by_code_divergent       */
+    int              unresolved_by_code[H12_CODE_SPACE];   /* g_h12_unresolved_by_code      */
+} ft8_hash_state_image_t;
+
+/* ft8_hash_state_size -- bytes a caller must supply to ft8_hash_state_save. */
+int ft8_hash_state_size(void)
+{
+    return (int)sizeof(ft8_hash_state_image_t);
+}
+
+/* ft8_hash_state_save -- copy the whole process-global decode state to `buf` (capacity `cap` bytes).
+ * Returns the number of bytes written (== ft8_hash_state_size()), or -1 when buf is NULL or cap is too small. */
+int ft8_hash_state_save(void* buf, int cap)
+{
+    if (!buf || cap < (int)sizeof(ft8_hash_state_image_t)) return -1;
+    ft8_hash_state_image_t* img = (ft8_hash_state_image_t*)buf;
+    memset(img, 0, sizeof(*img));                          /* padding bytes are deterministic */
+    img->session_table          = g_session_hash_table;
+    img->hash_table_initialised = g_hash_table_initialised ? 1 : 0;
+    img->reject_count           = g_hash_table_reject_count;
+    img->announce_clock         = g_h12_announce_clock;
+    img->h12_displaying         = g_h12_displaying;
+    img->h12_ambiguous          = g_h12_ambiguous;
+    img->h12_divergent          = g_h12_divergent;
+    img->h12_suppressed         = g_h12_suppressed;
+    img->h12_code_out_of_range  = g_h12_code_out_of_range;
+    memcpy(img->by_code_displaying, g_h12_by_code_displaying, sizeof(g_h12_by_code_displaying));
+    memcpy(img->by_code_ambiguous,  g_h12_by_code_ambiguous,  sizeof(g_h12_by_code_ambiguous));
+    memcpy(img->by_code_divergent,  g_h12_by_code_divergent,  sizeof(g_h12_by_code_divergent));
+    memcpy(img->unresolved_by_code, g_h12_unresolved_by_code, sizeof(g_h12_unresolved_by_code));
+    return (int)sizeof(*img);
+}
+
+/* ft8_hash_state_restore -- put the state held in `buf` (written by ft8_hash_state_save) back.
+ * Returns 0 on success, -1 when buf is NULL or len is not exactly ft8_hash_state_size(). */
+int ft8_hash_state_restore(const void* buf, int len)
+{
+    if (!buf || len != (int)sizeof(ft8_hash_state_image_t)) return -1;
+    const ft8_hash_state_image_t* img = (const ft8_hash_state_image_t*)buf;
+    g_session_hash_table       = img->session_table;
+    g_hash_table_initialised   = img->hash_table_initialised != 0;
+    g_hash_table_reject_count  = img->reject_count;
+    g_h12_announce_clock       = img->announce_clock;
+    g_h12_displaying           = img->h12_displaying;
+    g_h12_ambiguous            = img->h12_ambiguous;
+    g_h12_divergent            = img->h12_divergent;
+    g_h12_suppressed           = img->h12_suppressed;
+    g_h12_code_out_of_range    = img->h12_code_out_of_range;
+    memcpy(g_h12_by_code_displaying, img->by_code_displaying, sizeof(g_h12_by_code_displaying));
+    memcpy(g_h12_by_code_ambiguous,  img->by_code_ambiguous,  sizeof(g_h12_by_code_ambiguous));
+    memcpy(g_h12_by_code_divergent,  img->by_code_divergent,  sizeof(g_h12_by_code_divergent));
+    memcpy(g_h12_unresolved_by_code, img->unresolved_by_code, sizeof(g_h12_unresolved_by_code));
+    return 0;
+}
+
 /* ── Spectrogram-domain tile suppression ─────────────────────────────────── */
 /*
  * suppress_candidate_tiles — attenuate the waterfall tiles occupied by a

@@ -76,4 +76,10 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
     public void SubfeasPoolShutdown() => Ft8LibInterop.SubfeasPoolShutdown();
 
     public void SetDiagnosticsEnabled(bool enabled) => Ft8LibInterop.SetDiagnosticsEnabled(enabled);
+
+    public int HashStateSize() => Ft8LibInterop.HashStateSize();
+
+    public void HashStateSave(byte[] buffer) => Ft8LibInterop.HashStateSave(buffer);
+
+    public void HashStateRestore(byte[] buffer) => Ft8LibInterop.HashStateRestore(buffer);
 }

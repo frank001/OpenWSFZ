@@ -373,6 +373,19 @@ var framerOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart, doub
     SingleReader = true,
 });
 
+// decode-early-batch-panel (#122 step 4, phase 4a, design.md D1, D2): the optional EARLY window channel (bounded 1,
+// DropOldest, single writer and reader: a dropped early window is a skipped early decode) and the coordinator that
+// owns the decode gate. Always wired (the flag is changeable at run time); with the flag OFF (the default) the framer
+// emits no early window, the early service never wakes, and the pump's gate is always free.
+var earlyOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)>(new BoundedChannelOptions(1)
+{
+    FullMode     = BoundedChannelFullMode.DropOldest,
+    SingleWriter = true,
+    SingleReader = true,
+});
+var earlyCoordinator = new EarlyDecodeCoordinator(
+    startupLogger, (results, resolves) => decodeEventBus.Publish(results, resolves));
+
 CancellationTokenSource? framerCts        = null;
 Task?                    framerTask       = null;
 var                      restartSemaphore = new SemaphoreSlim(1, 1); // B2: serialise concurrent restart paths
@@ -840,9 +853,27 @@ app.Lifetime.ApplicationStarted.Register(() =>
         AnswererChannel:          qsoAnswererChannel.Writer,
         CallerChannel:            qsoCallerChannel.Writer,
         ExternalReportingChannel: externalReportingChannel.Writer,
-        Logger:                   startupLogger));
+        Logger:                   startupLogger)
+    {
+        Early = earlyCoordinator,
+    });
     _ = Task.Run(() => decodePump.RunAsync(
         framerOutput.Reader.ReadAllAsync(stoppingToken),
+        stoppingToken));
+
+    // decode-early-batch-panel: the early decode service reads ONLY the early channel (never framerOutput), takes the
+    // decode gate with Wait(0) (busy means skip) and publishes to the decode panel only.
+    var earlyService = new EarlyDecodeService(earlyCoordinator, new EarlyDecodeServiceDependencies(
+        CurrentDialFrequency:  () => (double?)WebApp.ResolveEffectiveFrequency(catState, configStore.Current),
+        FallbackDialFrequency: () => configStore.Current.DecodeLog?.DialFrequencyMHz ?? 0.0,
+        DeriveBand:            BandTable.DeriveBand,
+        DecodeEarly:           (pcm, cycleStart, band, ct) => ft8Decoder.DecodeEarlyAsync(pcm, cycleStart, band, ct),
+        ApplyNoiseSuppression: results => DecodeNoiseSuppressionFilter.Apply(
+                                   results, configStore.Current.DecodeNoiseSuppression, callsignRegionStore),
+        PublishEarlyToPanel:   rows => decodeEventBus.PublishEarly(rows),
+        Logger:                startupLogger));
+    _ = Task.Run(() => earlyService.RunAsync(
+        earlyOutput.Reader.ReadAllAsync(stoppingToken),
         stoppingToken));
 });
 
@@ -1063,9 +1094,16 @@ void StartPipeline(string deviceName)
         captureManager.Samples,
         clock,
         loggerFactory.CreateLogger<CycleFramer>(),
-        dialFreqProvider: () => WebApp.ResolveEffectiveFrequency(catState, configStore.Current));
+        dialFreqProvider: () => WebApp.ResolveEffectiveFrequency(catState, configStore.Current),
+        // decode-early-batch-panel D1: read once per window; ON by default (an absent key or a missing decoder section reads as
+        // true, FR-083); an explicit false means no early window is ever emitted.
+        earlyDecodeProvider: () =>
+        {
+            var dec = configStore.Current.Decoder ?? new DecoderConfig();
+            return (dec.EarlyDecodeEnabled, dec.EarlyDecodeCutSeconds);
+        });
 
-    framerTask = Task.Run(() => cycleFramer.RunAsync(framerOutput.Writer, ct));
+    framerTask = Task.Run(() => cycleFramer.RunAsync(framerOutput.Writer, earlyOutput.Writer, ct));
 }
 
 async Task StopFramerAsync()

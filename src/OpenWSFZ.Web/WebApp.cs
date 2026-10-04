@@ -580,6 +580,23 @@ public static class WebApp
                     }
                 }
 
+                // decode-early-batch-panel (FR-083): earlyDecodeCutSeconds is clamped to [0.5, 3.0] like the other
+                // decoder values (a non-finite value becomes the default).
+                if (double.IsNaN(decoderIn.EarlyDecodeCutSeconds) || double.IsInfinity(decoderIn.EarlyDecodeCutSeconds)
+                    || decoderIn.EarlyDecodeCutSeconds < DecoderConfig.MinEarlyDecodeCutSeconds
+                    || decoderIn.EarlyDecodeCutSeconds > DecoderConfig.MaxEarlyDecodeCutSeconds)
+                {
+                    double clamped = double.IsFinite(decoderIn.EarlyDecodeCutSeconds)
+                        ? Math.Clamp(decoderIn.EarlyDecodeCutSeconds,
+                            DecoderConfig.MinEarlyDecodeCutSeconds, DecoderConfig.MaxEarlyDecodeCutSeconds)
+                        : DecoderConfig.DefaultEarlyDecodeCutSeconds;
+                    configApiLogger.LogWarning(
+                        "Decoder: earlyDecodeCutSeconds {Original} out of range [{Min}, {Max}] — clamped to {Clamped}.",
+                        decoderIn.EarlyDecodeCutSeconds, DecoderConfig.MinEarlyDecodeCutSeconds,
+                        DecoderConfig.MaxEarlyDecodeCutSeconds, clamped);
+                    sanitisedDecoder = sanitisedDecoder with { EarlyDecodeCutSeconds = clamped };
+                }
+
                 if (!ReferenceEquals(sanitisedDecoder, decoderIn))
                     config = config with { Decoder = sanitisedDecoder };
             }

@@ -39,4 +39,20 @@ public sealed class DecodeEventBus
     /// </returns>
     public Task Publish(IReadOnlyList<DecodeResult> results)
         => WebSocketHub.BroadcastDecodes(_appScope, results);
+
+    /// <summary>
+    /// decode-early-batch-panel (design.md D5): broadcasts the cycle's final batch (batch 1) <b>together with</b> what
+    /// became of each early row of that cycle, in ONE <c>decode</c> frame carrying the optional <c>resolves</c> list.
+    /// <paramref name="results"/> may be empty (an empty final batch still resolves the cycle: every early row becomes
+    /// <c>unconfirmed</c>).
+    /// </summary>
+    public Task Publish(IReadOnlyList<DecodeResult> results, IReadOnlyList<EarlyResolution>? resolves)
+        => WebSocketHub.BroadcastDecodes(_appScope, results, resolves);
+
+    /// <summary>
+    /// decode-early-batch-panel (design.md D5): broadcasts a cycle's <b>early</b> batch as a <c>decode-early</c> frame.
+    /// Panel only.
+    /// </summary>
+    public Task PublishEarly(IReadOnlyList<EarlyRow> rows)
+        => WebSocketHub.BroadcastEarlyDecodes(_appScope, rows);
 }

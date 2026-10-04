@@ -1,4 +1,32 @@
-=== CURRENT: sub-feas-speed-redesign, Stage A (FT8_SHIM_VERSION 20260056) ===
+=== CURRENT: decode-early-batch-panel, #122 step 4 phase 4a (FT8_SHIM_VERSION 20260058) ===
+
+Built 2026-10-03 from branch feat/122-step4-early-decode-panel, off origin/main e2fdd446 (shim 20260056), via OpenSpec
+change openspec/changes/decode-early-batch-panel/ (QA handoff dev-tasks/2026-10-03-122-step4-early-decode-panel-only.md;
+Architect spec 2026-10-03-1440 with Amendment 1; the Captain's go "1. agreed" 2026-10-03). Developer session. Version
+literal chosen by checking every local and remote branch on 2026-10-03: main 20260056, decoding_improvement 20260057,
+nothing at 20260058 or above (git grep over every ref).
+
+ADDITIVE: three new exports, ft8_hash_state_size / ft8_hash_state_save / ft8_hash_state_restore, which copy the whole
+process-global decode state (session callsign hash table + its initialised flag, reject count, announce clock, the
+g_h12_* counters and per-code arrays, g_h12_code_out_of_range) to and from a CALLER-SUPPLIED buffer (147 492 bytes).
+ft8_decode_all and every existing export are untouched; no decode output changes; the ordinary decode never calls the
+new pair. Only the managed early decode (Ft8Decoder.DecodeEarlyAsync) brackets itself with save / restore (restore in a
+finally) so an early decode of a zero-filled partial window leaves nothing behind that could change the final decode.
+The list of what is in the image, and why every thread-local is exempt, is the HSM-IMAGE / HSM-EXEMPT block in
+ft8_shim.c, checked mechanically by HashStateCompletenessTests.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    2fa6d99302c6c602231c870c1e61755aeeddb7ad1b9ce392fb98a4bdbd94f365
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only. A mutated
+     rebuild used for QA-style checks during development was discarded and this exact file restored; the SHA above was
+     re-computed after the restore.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): built, exports checked with nm, committed. SHA256
+    211e9414f640574da4bc1c003be8c22b4d945f0a7d0163cc14bac097d1313777
+    tools/check_native_version.py reports shim 20260058 for both files built here.
+  macOS ARM64: NOT rebuilt here -- no Mac available locally (the same limitation every prior native change recorded).
+    CI owns it.
+
+=== Previous: sub-feas-speed-redesign, Stage A (FT8_SHIM_VERSION 20260056) ===
 
 Built 2026-09-30 from branch feat/sub-feas-speed-redesign, on top of feat/sub-feas-native-subtraction
 (ab95bea1, code 2b39cf18, shim 20260055), via OpenSpec change openspec/changes/sub-feas-speed-redesign/

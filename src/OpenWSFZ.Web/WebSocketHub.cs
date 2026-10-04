@@ -454,10 +454,19 @@ internal static class WebSocketHub
     /// and the assertion reading the frame.
     /// </returns>
     public static Task BroadcastDecodes(Guid scope, IReadOnlyList<DecodeResult> results)
+        => BroadcastDecodes(scope, results, resolves: null);
+
+    /// <summary>
+    /// As <see cref="BroadcastDecodes(Guid, IReadOnlyList{DecodeResult})"/>, with the optional <c>resolves</c> list of
+    /// decode-early-batch-panel (design.md D5): what became of each early row of this cycle. <c>null</c> writes the frame
+    /// exactly as before (no <c>resolves</c> property at all).
+    /// </summary>
+    public static Task BroadcastDecodes(
+        Guid scope, IReadOnlyList<DecodeResult> results, IReadOnlyList<EarlyResolution>? resolves)
     {
         if (ActiveSockets.IsEmpty) return Task.CompletedTask;
 
-        var msg   = new WsDecodeMessage(Type: "decode", Payload: [.. results]);
+        var msg   = new WsDecodeMessage(Type: "decode", Payload: [.. results], Resolves: resolves is null ? null : [.. resolves]);
         var json  = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsDecodeMessage);
         var bytes = Encoding.UTF8.GetBytes(json);
         var segment = new ArraySegment<byte>(bytes);
@@ -466,6 +475,28 @@ internal static class WebSocketHub
         foreach (var (ws, socketScope) in ActiveSockets)
         {
             if (socketScope != scope) continue;   // scope guard — same pattern as BroadcastCatStatus
+            tasks.Add(SendWithTimeoutAsync(ws, segment));
+        }
+
+        return Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// decode-early-batch-panel (design.md D5): broadcasts a <c>decode-early</c> event, the early batch of one cycle, to
+    /// every WebSocket client of the app instance <paramref name="scope"/>. Panel only: nothing else receives it.
+    /// </summary>
+    public static Task BroadcastEarlyDecodes(Guid scope, IReadOnlyList<EarlyRow> rows)
+    {
+        if (ActiveSockets.IsEmpty) return Task.CompletedTask;
+
+        var msg     = new WsEarlyDecodeMessage(Type: "decode-early", Payload: [.. rows]);
+        var json    = JsonSerializer.Serialize(msg, AppJsonContext.Default.WsEarlyDecodeMessage);
+        var segment = new ArraySegment<byte>(Encoding.UTF8.GetBytes(json));
+
+        var tasks = new List<Task>(ActiveSockets.Count);
+        foreach (var (ws, socketScope) in ActiveSockets)
+        {
+            if (socketScope != scope) continue;   // scope guard, as BroadcastDecodes
             tasks.Add(SendWithTimeoutAsync(ws, segment));
         }
 

@@ -444,7 +444,15 @@ internal static class Ft8LibInterop
     /// <c>FT8_SHIM_VERSION</c> on every native change regardless of whether the new export gets
     /// a managed binding, per the pattern every prior entry in this file follows.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260056;
+    /// <remarks>
+    /// decode-early-batch-panel (#122 step 4, phase 4a), shim 20260058: adds three exports,
+    /// <c>ft8_hash_state_size</c>, <c>ft8_hash_state_save</c> and <c>ft8_hash_state_restore</c>
+    /// (bound as <see cref="HashStateSize"/>, <see cref="HashStateSave"/>, <see cref="HashStateRestore"/>), which copy
+    /// the whole process-global decode state to and from a caller-supplied buffer. Used only by the early decode
+    /// (<c>Ft8Decoder.DecodeEarlyAsync</c>) so that it leaves nothing behind that could change the final decode of the
+    /// same window. Changes NO decode output and no existing export.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260058;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -767,6 +775,18 @@ internal static class Ft8LibInterop
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_set_diagnostics_enabled", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeSetDiagnosticsEnabled(int enabled);
+
+    /// <summary>decode-early-batch-panel (shim 20260058): bytes the caller must supply to <see cref="NativeHashStateSave"/>.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_hash_state_size", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeHashStateSize();
+
+    /// <summary>decode-early-batch-panel (shim 20260058): copy the process-global decode state into <paramref name="buf"/>.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_hash_state_save", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeHashStateSave([Out] byte[] buf, int cap);
+
+    /// <summary>decode-early-batch-panel (shim 20260058): put a saved image back.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_hash_state_restore", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeHashStateRestore([In] byte[] buf, int len);
 
     // ── Public API ───────────────────────────────────────────────────────
 
@@ -1337,6 +1357,44 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         NativeSetDiagnosticsEnabled(enabled ? 1 : 0);
+    }
+
+    /// <summary>
+    /// decode-early-batch-panel: the size in bytes of the native process-global decode-state image
+    /// (about 150 KB). Allocate the buffer on the heap, once, and reuse it.
+    /// </summary>
+    public static int HashStateSize()
+    {
+        EnsureInitialized();
+        return NativeHashStateSize();
+    }
+
+    /// <summary>
+    /// decode-early-batch-panel: copies the whole process-global decode state (session hash table, reject count,
+    /// announce clock, <c>g_h12_*</c> counters) into <paramref name="buffer"/>, which must be at least
+    /// <see cref="HashStateSize"/> bytes. Two saves of an identical state are byte-identical.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The native call rejected the buffer (too small).</exception>
+    public static void HashStateSave(byte[] buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        EnsureInitialized();
+        if (NativeHashStateSave(buffer, buffer.Length) < 0)
+            throw new InvalidOperationException(
+                $"ft8_hash_state_save rejected a {buffer.Length}-byte buffer (needs {NativeHashStateSize()}).");
+    }
+
+    /// <summary>
+    /// decode-early-batch-panel: puts an image written by <see cref="HashStateSave"/> back.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The native call rejected the image (wrong length).</exception>
+    public static void HashStateRestore(byte[] buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        EnsureInitialized();
+        if (NativeHashStateRestore(buffer, buffer.Length) != 0)
+            throw new InvalidOperationException(
+                $"ft8_hash_state_restore rejected a {buffer.Length}-byte image (needs exactly {NativeHashStateSize()}).");
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────
