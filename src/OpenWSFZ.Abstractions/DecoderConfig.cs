@@ -39,7 +39,12 @@ public sealed record DecoderConfig
         bool  nhard40MigrationApplied  = false,
         bool  subtractionEnabled       = true,
         int   subtractionMaxThreads    = 0,
-        bool  subtractionOnMigrationApplied = false)
+        bool  subtractionOnMigrationApplied = false,
+        // decode-early-batch-panel (FR-083): in the constructor, with their defaults, for the same reason as the fields above. A
+        // property outside the [JsonConstructor] is set to the CLR default (false, 0) when its key is ABSENT, which would turn
+        // the ON-by-default early decode off (and its cut to 0) for every config file written before the key existed.
+        bool   earlyDecodeEnabled      = true,
+        double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -48,6 +53,8 @@ public sealed record DecoderConfig
         SubtractionEnabled      = subtractionEnabled;
         SubtractionMaxThreads   = subtractionMaxThreads;
         SubtractionOnMigrationApplied = subtractionOnMigrationApplied;
+        EarlyDecodeEnabled      = earlyDecodeEnabled;
+        EarlyDecodeCutSeconds   = earlyDecodeCutSeconds;
     }
 
     /// <summary>
@@ -174,9 +181,11 @@ public sealed record DecoderConfig
     /// of each window runs <see cref="EarlyDecodeCutSeconds"/> before the window closes (13.0 s at the default) and its
     /// rows appear on the decode panel, marked <i>early</i> until the cycle's final decode confirms them. <b>Panel only</b>:
     /// ALL.TXT, UDP, the QSO answerer and caller, the archive and decode-filter admission never see an early row.
-    /// Default <c>false</c>; with it <c>false</c> nothing early exists. Read once per window; takes effect on the next window.
+    /// Default <c>true</c> (ON by default, the Captain's decision of 2026-10-04; an absent key therefore reads as <c>true</c>,
+    /// as does a missing <c>decoder</c> section); set <c>false</c> to turn it off, and with it <c>false</c> nothing early exists.
+    /// Read once per window; takes effect on the next window.
     /// </summary>
-    public bool   EarlyDecodeEnabled { get; init; } = false;
+    public bool   EarlyDecodeEnabled { get; init; } = true;
 
     /// <summary>
     /// decode-early-batch-panel: how many seconds before the end of the 15 s window the early decode runs. Default

@@ -41,8 +41,8 @@
 
 ## 7. Config
 
-- [x] 7.1 `DecoderConfig.cs` (`:139`, `:161`) and the overlay's `decoder` list (`ConfigOverlay.cs`): `earlyDecodeEnabled` (false) and `earlyDecodeCutSeconds` (2.0, clamped 0.5 to 3.0). The server-owned markers are untouched. Settings page: a checkbox and a number field with the range, off by default.
-- [x] 7.2 Tests: a partial POST leaves both fields as they were (HK-035); the clamp; the reflection-enumerated config-save tests T4 and T5 pass with the new fields; the defaults.
+- [x] 7.1 `DecoderConfig.cs` (`:139`, `:161`) and the overlay's `decoder` list (`ConfigOverlay.cs`): `earlyDecodeEnabled` (**true** since the Captain's decision of 2026-10-04; built false) and `earlyDecodeCutSeconds` (2.0, clamped 0.5 to 3.0). The server-owned markers are untouched. Settings page: a checkbox (shown checked when no value is stored) and a number field with the range.
+- [x] 7.2 Tests: a partial POST leaves both fields as they were (HK-035); the clamp; the reflection-enumerated config-save tests T4 and T5 pass with the new fields; the defaults (earlyDecodeEnabled true; an absent key and a missing `decoder` section read true, an explicit false stays false, through the real ConfigStore load path; the Settings checkbox shows the stored value).
 
 ## 8. Documentation and version
 
@@ -59,4 +59,4 @@
 - [ ] 9.4 **A3** live timing, receive only, 40 m, at least 2 h (QA recommends 4 h), the Captain's go and the station slot: (a) the early batch published at median <= 13.7 s into the slot, (b) skips <= 5 % of cycles, (c) batch 1's median publish time no more than +0.10 s later than the same session's flag-OFF hours (alternate the flag each hour by a partial POST, read back every time). QA states per-hour sample sizes and the spread before the first run.
 - [ ] 9.5 **A4** consistency with gate 4a: on A2's replay `C(2.0)` is within +/-0.01 of 0.984 (P). The report states that A4 can only see a gross path difference.
 - [ ] 9.6 **A5** panel: Playwright (HK-007): early rows appear marked; a confirming final row replaces its early row (one row, not two); an unconfirmed early row keeps its mark; the mark is in the accessibility tree; plus `live_verify_9_axes.py`.
-- [ ] 9.7 Every figure is labelled with its source; no decode-rate claim; the flag stays OFF by default until the Captain decides after A3. Report in the standard format with the blind spot first (replay is not the live path; A3 is).
+- [ ] 9.7 Every figure is labelled with its source; no decode-rate claim; the flag was OFF by default when built and measured; the Captain decided "default on" on 2026-10-04 (A3 live run reported first). Report in the standard format with the blind spot first (replay is not the live path; A3 is).

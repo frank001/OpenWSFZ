@@ -261,16 +261,23 @@ final decode then discards.
 
 ### D8. Config and log (R6, R7)
 
-- `decoder.earlyDecodeEnabled` (bool, default `false`) and `decoder.earlyDecodeCutSeconds` (double, default 2.0, accepted 0.5 to 3.0, clamped
+- `decoder.earlyDecodeEnabled` (bool, **default `true`** since the Captain's decision of 2026-10-04; it was specified and built `false`) and `decoder.earlyDecodeCutSeconds` (double, default 2.0, accepted 0.5 to 3.0, clamped
   server-side like the other decoder clamps) in `src/OpenWSFZ.Abstractions/DecoderConfig.cs` (next to `SubtractionEnabled` `:139`,
   `SubtractionMaxThreads` `:161`) and in the overlay's hand-listed `decoder` section (`src/OpenWSFZ.Web/ConfigOverlay.cs`). The reflection-enumerated
   config-save tests (T4, T5) pick up new fields and must pass. HK-035: a partial POST must leave both fields as they were (a test).
 - One file-log line per cycle, ms-stamped, aggregates only (HK-037): `Early decode: n=..., elapsedMs=..., skipped=..., finalWaitMs=...`
   (`finalWaitMs` is QA's addition: A3 needs it).
 
+**Absent-key finding (default-on handoff, 2026-10-04, HK-035; fixed).** `DecoderConfig` has an all-optional `[JsonConstructor]`, and the source-generated JSON context
+sets any property that is NOT a constructor parameter to the CLR default (`false`, `0`) when its key is absent. As built, `earlyDecodeEnabled` and `earlyDecodeCutSeconds` were
+init properties outside the constructor, so a stored config without the keys read `earlyDecodeEnabled = false` and `earlyDecodeCutSeconds = 0` (harmless while the default was OFF, wrong
+the moment the default became ON, and the cut would have been clamped from 0 to 0.5 s). Both are now constructor parameters with their defaults (`true`, `2.0`), the file's own Lesson 6 /
+D-WFC-001 pattern. Tests through the real `JsonConfigStore` load path: absent key reads true (and the cut 2.0), explicit false stays false across reloads and an unrelated save, a missing
+`decoder` section and a fresh install read true (`EarlyDecodeDefaultTests`).
+
 ### D9. Flag OFF changes nothing (R8)
 
-With `earlyDecodeEnabled = false` the provider returns disabled, the framer emits no early window, no early service runs, the gate is not injected,
+(The DEFAULT is now ON, D8; this section is about the explicit-`false` state, which is unchanged.) With `earlyDecodeEnabled = false` the provider returns disabled, the framer emits no early window, no early service runs, the gate is not injected,
 and no new WebSocket frame exists. Characterisation tests in the style of `TwoStageEngageCharacterisationTests.cs` and `DecodePumpTests.cs` pin the calls and their order.
 
 ### D10. QA's HK-021 (k) review of the acceptance rows (validity and precision; QA may refuse a row, none is refused)
