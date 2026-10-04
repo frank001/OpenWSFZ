@@ -79,11 +79,32 @@ def test_stopfile_ends_the_loop_and_writes_end_snapshot(tmp_path):
 
 
 def _worker_pids(parent_pid):
+    """PIDs of the sampler WORKER(S) below ``parent_pid``: the innermost process whose command line has ``--worker``.
+
+    2026-10-04: the first version took the direct children of the Popen pid. In a venv, ``sys.executable`` is the venv
+    launcher, whose one child is the real interpreter, so the test killed the supervisor itself and no crash was ever
+    logged. The supervisor starts the worker with ``sys.executable`` too, so the worker is launcher + interpreter,
+    both carrying ``--worker``. Walk the whole descendant tree and return only the leaves (the real interpreter):
+    killing it makes the launcher exit non-zero, which is what the supervisor sees as the crash.
+    """
     import subprocess
     out = subprocess.run(["powershell", "-NoProfile", "-Command",
-                          f"Get-CimInstance Win32_Process -Filter 'ParentProcessId={parent_pid}' | Select-Object -ExpandProperty ProcessId"],
+                          "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress"],
                          capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout
-    return [int(x) for x in out.split() if x.strip().isdigit()]
+    rows = json.loads(out) if out.strip() else []
+    rows = rows if isinstance(rows, list) else [rows]
+    kids_of = {}
+    for r in rows:
+        kids_of.setdefault(r["ParentProcessId"], []).append(r)
+    stack, below = list(kids_of.get(parent_pid, [])), []
+    while stack:
+        r = stack.pop()
+        below.append(r)
+        stack.extend(kids_of.get(r["ProcessId"], []))
+    workers = [r for r in below if "--worker" in (r["CommandLine"] or "")]
+    worker_ids = {r["ProcessId"] for r in workers}
+    leaves = [r["ProcessId"] for r in workers if not any(k["ProcessId"] in worker_ids for k in kids_of.get(r["ProcessId"], []))]
+    return leaves
 
 
 def test_supervisor_logs_worker_crash_and_restarts_then_stops_cleanly(tmp_path):
