@@ -1095,7 +1095,8 @@ void StartPipeline(string deviceName)
         clock,
         loggerFactory.CreateLogger<CycleFramer>(),
         dialFreqProvider: () => WebApp.ResolveEffectiveFrequency(catState, configStore.Current),
-        // decode-early-batch-panel D1: read once per window; OFF (the default) means no early window is ever emitted.
+        // decode-early-batch-panel D1: read once per window; ON by default (an absent key or a missing decoder section reads as
+        // true, FR-083); an explicit false means no early window is ever emitted.
         earlyDecodeProvider: () =>
         {
             var dec = configStore.Current.Decoder ?? new DecoderConfig();

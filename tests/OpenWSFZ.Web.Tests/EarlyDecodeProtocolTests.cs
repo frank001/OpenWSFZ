@@ -79,11 +79,11 @@ public sealed class EarlyDecodeProtocolTests
 
     // ── config (7.2) ──────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-083: 7.2a the defaults are earlyDecodeEnabled false and earlyDecodeCutSeconds 2.0")]
+    [Fact(DisplayName = "FR-083: 7.2a the defaults are earlyDecodeEnabled TRUE (ON by default, the Captain's decision of 2026-10-04) and earlyDecodeCutSeconds 2.0")]
     public void Defaults()
     {
         var d = new DecoderConfig();
-        d.EarlyDecodeEnabled.Should().BeFalse();
+        d.EarlyDecodeEnabled.Should().BeTrue("ON by default");
         d.EarlyDecodeCutSeconds.Should().Be(2.0);
         DecoderConfig.MinEarlyDecodeCutSeconds.Should().Be(0.5);
         DecoderConfig.MaxEarlyDecodeCutSeconds.Should().Be(3.0);
@@ -152,6 +152,36 @@ public sealed class EarlyDecodeConfigApiTests : IClassFixture<WebTestFactory>
             .StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
         store.Current.Decoder!.EarlyDecodeEnabled.Should().BeTrue();
         store.Current.Decoder.EarlyDecodeCutSeconds.Should().Be(1.5);
+    }
+
+    [Fact(DisplayName = "FR-083: 7.2e (HK-035) a stored DEFAULT (true, never set by anyone) survives a partial POST that does not name the field")]
+    public async Task PartialPost_KeepsTheDefaultTrue()
+    {
+        var store = _factory.Services.GetRequiredService<IConfigStore>();
+        await store.SaveAsync(new AppConfig() with { Decoder = new DecoderConfig() });
+        store.Current.Decoder!.EarlyDecodeEnabled.Should().BeTrue("precondition: the code default");
+
+        var resp = await PostAsync("");
+
+        resp.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        store.Current.Decoder!.EarlyDecodeEnabled.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "FR-083: 7.2f a POST of earlyDecodeEnabled false turns it off and persists, and a later partial POST keeps it off")]
+    public async Task ExplicitFalse_TurnsItOff_AndStaysOff()
+    {
+        var store = _factory.Services.GetRequiredService<IConfigStore>();
+        await store.SaveAsync(new AppConfig() with { Decoder = new DecoderConfig() });
+
+        var off = await PostAsync(",\"earlyDecodeEnabled\":false");
+
+        off.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        store.Current.Decoder!.EarlyDecodeEnabled.Should().BeFalse();
+        var loaded = await off.Content.ReadFromJsonAsync(AppJsonContext.Default.AppConfig);
+        loaded!.Decoder!.EarlyDecodeEnabled.Should().BeFalse("the response shows the stored value");
+
+        (await PostAsync("")).StatusCode.Should().Be(System.Net.HttpStatusCode.OK);   // a partial POST that does not name it
+        store.Current.Decoder!.EarlyDecodeEnabled.Should().BeFalse("an explicit false is not reset by a save that does not mention it");
     }
 }
 

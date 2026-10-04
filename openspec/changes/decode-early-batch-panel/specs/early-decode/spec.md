@@ -102,9 +102,16 @@ Within a cycle, a final row SHALL be matched to an early row by identical messag
 - **WHEN** two early rows could match one final row
 - **THEN** the one with the smaller frequency difference is matched (ties: the earlier early row), and the other stays unconfirmed
 
-### Requirement: The early decode SHALL be configurable and OFF by default
+### Requirement: The early decode SHALL be configurable and ON by default
 
-`decoder.earlyDecodeEnabled` SHALL default to false and `decoder.earlyDecodeCutSeconds` to 2.0, with an accepted range of 0.5 to 3.0 (out-of-range values clamped by the server). A configuration update that does not mention either field SHALL leave both as they were.
+`decoder.earlyDecodeEnabled` SHALL default to **true** (the Captain's decision of 2026-10-04) and `decoder.earlyDecodeCutSeconds` to 2.0, with an accepted range of 0.5 to 3.0 (out-of-range values clamped by the server). A configuration update that does not mention either field SHALL leave both as they were.
+
+#### Scenario: Absent key, absent section and explicit false
+
+- **WHEN** a stored configuration has a `decoder` object with no `earlyDecodeEnabled` key, or no `decoder` object at all
+- **THEN** the early decode is enabled
+- **WHEN** the stored value is an explicit `false`
+- **THEN** it stays disabled across restarts, and a configuration update that does not mention the field leaves it `false`
 
 #### Scenario: Partial update
 

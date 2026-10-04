@@ -37,7 +37,7 @@ publishes to every consumer as today. On the panel a final row that matches an e
 - New requirement on **`ft8lib-interop`**: the process-global callsign-hash state the native decode mutates can be **saved and
   restored** around the early decode (new exports, new `FT8_SHIM_VERSION`), so the final decode is unaffected **whatever the
   mechanism of the V2 loss turns out to be**.
-- Config: `decoder.earlyDecodeEnabled` (default **false**), `decoder.earlyDecodeCutSeconds` (default 2.0, range 0.5 to 3.0).
+- Config: `decoder.earlyDecodeEnabled` (default **true**: the Captain decided "default on" on 2026-10-04, after the build and the A3 live run; it was specified and built default false), `decoder.earlyDecodeCutSeconds` (default 2.0, range 0.5 to 3.0).
 - Web: new panel messages and marks (visual and accessible), no change to the existing `decode` message.
 - `FT8_SHIM_VERSION` bump, `libft8.dll` and `libft8.so` rebuilt (macOS by CI), `VERSION` and `REQUIREMENTS.md` (FR-083).
 
@@ -50,7 +50,7 @@ publishes to every consumer as today. On the panel a final row that matches an e
 - **CPU:** one extra ordinary pass-0 decode (≈ 0.5 s of one core) per cycle, inside the capture window, while a residual pass of the
   previous cycle may still be running. The never-in-the-way rule skips the early decode when the decoder is busy; A3 measures it live.
 - **Not changed:** the final decode, batch 2, the answerer and caller, ALL.TXT, UDP, the archive, the decode-filter admission, and
-  every default (the flag ships OFF; the Captain sets the default after A3).
+  every default EXCEPT this flag's own default, which the Captain set to ON on 2026-10-04 (it was OFF when built and measured).
 
 ## Out of scope (stated, not forgotten)
 
