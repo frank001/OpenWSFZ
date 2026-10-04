@@ -25,9 +25,9 @@ that carries #122 step 4 (the early decode of the first 13 s, decode panel only,
 - **H0(early decode is invisible to the batch):** the early decode is panel-only (design: ALL.TXT and every metric come from the final decode),
   so no headline metric leaves the baseline-194 run-to-run range. This is a prediction about the batch metrics only; it does not test the early path.
 - **H0(S3c):** no S3c-WSJT-X validity FAIL and no S3c-OWSFZ guard FAIL.
-- **H0(chain stable):** the scan finds no `RUN-LEVEL` offset and the run has no config drift.
+- **H0(chain stable):** the scan finds no `RUN-LEVEL` offset. **Config drift and the audio-setup before/after were NOT monitored in this run** (no `config_drift.py` output exists for it; the #194 audio-setup sampler is on unmerged `qa/audio-setup-194` and was not in the `main` build used), so this hypothesis is tested at the level of the recorded WAVs only.
 
-**What actually happened.** All four hold. Overall verdict PASS; S5 0/120 per app (Gate A-W 0/480, Gate A-Δ 0/120 vs 0/360); Check B 0/60 and
+**What actually happened.** The first three hold; the fourth holds at the WAV level only (see above). Overall verdict PASS; S5 0/120 per app (Gate A-W 0/480, Gate A-Δ 0/120 vs 0/360); Check B 0/60 and
 0/60; S3c PASS (both rows); scan completed, not SKIPPED, no `RUN-LEVEL` event. Headline, this run vs the baseline-194 runs (run 1 / run 2):
 S1 %GR&R 0.17% vs 0.14% / 0.19%; S3 0.72% vs 0.51% / 0.71%; S8 (WSJT-X / OpenWSFZ) 91.67% / 91.67% vs 91.67% / 91.67% and 93.33% / 91.67%;
 S7 recovery 97.21% / 83.26% vs 95.35% / 79.53% and 99.07% / 82.79%; pooled OpenWSFZ-of-WSJT-X 88.64% vs 86.92% / 86.62%.
@@ -451,7 +451,8 @@ No metric FAILED or is MARGINAL, so there is no defect to attribute. Next steps:
 8. **A small analyser oddity, not chased:** the Gate A-W "Window members" line lists `2026-10-02 96077a0` twice, while `trend.csv` holds one 2026-10-02 and one
    2026-10-03 row for that SHA7. Both baseline runs are in the window, and the window is still MIXED (it holds the 2026-09-29 `0d6b193` row, not
    three flag-ON `main` rows only).
-9. **Not done here:** the sampler (#194 integration: no run is booked for it), DO1-DO3 scoring, the early path itself (this battery only shows it did not disturb the
+9. **Monitoring gap (found after the first draft of this report, 2026-10-04):** neither the config-drift monitor (`qa/config_drift.py`, on `main`; RUNBOOK §3.1 step 4 says to start it beside the battery, and this run's launch did not) nor the #194 audio-setup sampler (on `qa/audio-setup-194`, unmerged, so absent from the `main` scratch build) produced any output. What exists: a settled Voicemeeter read before the run (13:23Z), the pre-flight chain RMS (0.0 over 12 s, 13:28Z) and the scan's per-run level offsets (all within 0.05 dB). There is no end-of-run audio-settings read and no drift log, so a mid-run settings change that left the WAV level unchanged would not have been seen. The first draft said "no config drift"; that had no evidence behind it and is corrected here.
+10. **Not done here:** the sampler (#194 integration: no run is booked for it), DO1-DO3 scoring, the early path itself (this battery only shows it did not disturb the
    final-decode metrics; A3 measured the early path).
 
 
