@@ -39,7 +39,7 @@ BIN = SCRATCH / "s3c-replay"
 WAV_DIR = Path(r"D:\Projects\claude\OpenWSFZ\artefacts\_rr_main766f9cc2_daemon_output\cycle-audio")
 BATTERY = RR / "results" / "2026-10-04-766f9cc"
 SCENARIO = RR / "scenarios" / "s3c-edge-guard.json"
-OUT = Path(r"D:\Projects\claude\OpenWSFZ\artefacts\20261005_s3c_replay")
+OUT = REPO / "artefacts" / "20261005_s3c_replay"   # the worktree's junction to the one artefacts folder; gitignored
 TARGET_PART, BATTERY3_X, TOLERANCE = "S3c-E50", 32, 2   # E -2.00 is part S3c-E50 (L = -2.0 in s3c_result.json)
 HARNESS_PROJ = HERE / "S3cReplay.csproj"
 
