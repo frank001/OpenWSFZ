@@ -157,6 +157,16 @@ public sealed class ConfigAbsentKeyTests
         cat.RigctldPort.Should().Be(4532, "the unnamed key keeps its default");
     }
 
+    [Fact(DisplayName = "FR-056/FR-031: an explicit null serialPort on Ptt and Cat loads as the platform default, the one documented exception")]
+    public void Store_ExplicitNullSerialPort_LoadsAsPlatformDefault()
+    {
+        var loaded = LoadStored("""{"ptt":{"serialPort":null},"cat":{"serialPort":null}}""");
+
+        loaded.Ptt!.SerialPort.Should().Be(new PttConfig().SerialPort).And.NotBeNullOrEmpty(
+            "the platform default cannot be a constant parameter default, so null resolves to it");
+        loaded.Cat!.SerialPort.Should().Be(new CatConfig().SerialPort).And.NotBeNullOrEmpty();
+    }
+
     [Fact(DisplayName = "FR-028: stored decodeLog section naming only enabled keeps the documented defaults")]
     public void Store_PartialDecodeLogSection_UsesDefaults()
     {
