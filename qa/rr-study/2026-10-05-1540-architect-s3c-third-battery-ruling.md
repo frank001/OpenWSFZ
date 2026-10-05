@@ -84,6 +84,62 @@ reading of arms 2–3).
 | S3X2 | Arms 1 and 2 agree within ±2 (early decode is NOT the cause) | 0.75 | H |
 | S3X3 | Arm 3 gives ≤ 24/32 (the build, not the run, moved) | 0.55 | H |
 
+## 4a. Separating replay: result and ruling (2026-10-05, after QA's note `qa/rr-study/2026-10-05-1552-qa-s3c-separating-replay-result.md`)
+
+QA ran it on the Captain's go: offline, battery 3's 12 archived S3c cycles, fresh process per arm, flag ON, nhard 40, both batches; harness
+committed before any decode (`db2da962`); DLL pins checked at start and end. **E −2.00: arm 1 = 32, arm 2 = 32, arm 3 = 32** (E −1.75 32,
+L +2.75 32, L +3.00 0 in all three). The stop rule passed.
+
+| # | Outcome |
+|---|---|
+| S3X1 | ✅ HIT (32) |
+| S3X2 | ✅ HIT (32 = 32): **(a), an early-path leak, is NOT supported** |
+| S3X3 | ❌ MISS (arm 3 = 32, not ≤ 24): **(b), the rebuilt DLL, is NOT supported** |
+
+**Ruling: step 4 is cleared for this cell.** The old build gets 32/32 on battery 3's recorded audio, so the cause sits on the "run" side, (c):
+either the **audio** that reached the decoder in battery 3 differs from batteries 1–2, or the **live daemon** in batteries 1–2 lost decodes
+that a fresh-process replay does not lose.
+
+**Already gathered, read before specifying (HK-018):**
+
+- **Playback scheduling is identical.** `s3c/playback_log.csv`: early cycles started −3.4995 ± 0.0002 s before the boundary in all three
+  batteries; late cycles −0.5000 ± 0.0003 s.
+- **Chain timing is identical at ALL.TXT's 0.1 s resolution.** WSJT-X's reported DT on the four early-part cycles: −2.3 (32) and −2.1 (29–32)
+  in every battery. OpenWSFZ's: −1.6 for the E −2.00 part and −1.4 for the E −1.75 part in every battery (17, 16, 32 rows at −1.6). The S3 and S1 mean
+  DT errors agree to ±0.02 s across the three. **So the signal did not arrive later in battery 3.** If anything, battery 3 had none of the
+  1–3 WSJT-X rows at −2.0 that batteries 1–2 had. (Aggregates only, computed from the root and QA-tree `wsjt-all.txt`/`owsfz-all.txt`;
+  no text read out, HK-037.)
+
+That leaves the **signal level or noise in the recording** (not measured), or **live-path loss** in batteries 1–2 (process state after S1–S8,
+or something on the live path the replay does not reproduce).
+
+## 4b. Next step — PRE-REGISTERED before any decode; needs the Captain's go
+
+**Replay batteries 1 and 2's archived S3c cycles** (`_rr_baseline194_daemon_output`: `261003_010600`–`010845` and `261003_030645`–`030930`)
+through the **same harness, unchanged** (`db2da962`), on two arms: `cddd7e34` and `766f9cc2` (early ON). Score all four parts with
+`s3c_score`. Same stop rule: none needed (there is no live count to reproduce on new audio; the arms check each other).
+
+**Plus one measurement on the archived audio of all three batteries (read-only, no decode):** for each early-part planted slot, the in-band
+power at the planted frequency (±25 Hz, over the samples the signal occupies) against the power in the idle cycle that follows at the same
+frequency. Reported per battery as a median dB with its IQR. This is the "level" half of (c). QA writes the predicate as code before running it
+(HK-025).
+
+Reading (mechanical, both arms must agree within ±2, or the replay is the finding and the rest is not read):
+
+| Batteries 1–2 replay at E −2.00 | Reading |
+|---|---|
+| ≤ 24 on both arms (each battery) | **Audio.** The recordings differ; the level measurement says whether the cause is level. |
+| ≥ 28 on both arms (each battery) | **Live path.** Batteries 1–2's live daemon lost decodes that a fresh-process replay keeps. That is a defect class to chase (state after S1–S8, or timing on the live path). |
+| 25–27 | Not separable at n = 32; report descriptively, no further arm without a ruling. |
+
+| # | Prediction (blind) | P | Class |
+|---|---|---:|:---:|
+| S3Y1 | The two arms agree within ±2 on each battery | 0.90 | H |
+| S3Y2 | Reading = **Audio** (≤ 24 on both arms, both batteries) | 0.60 | H |
+| S3Y3 | If Audio: battery 3's early-slot in-band level is ≥ 0.5 dB above batteries 1–2's median | 0.55 | H |
+
+🛑 Until this reports, the cell's history stays split at battery 3, as §5 says. Step 4 is no longer a candidate.
+
 ## 5. Standing consequences
 
 - S3c stays in the routine battery unchanged. `r_ref` and `k*` are pre-registered and stay as they are: a guard is not re-based on a movement
