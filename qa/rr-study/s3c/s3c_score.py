@@ -45,9 +45,35 @@ PARTS = ("S3c-L90", "S3c-L50", "S3c-E90", "S3c-E50")
 # chain-validity check and are unchanged.
 OWSFZ_DESCRIPTIVE_PARTS = ("S3c-E50",)
 DECODERS = (("owsfz", "OpenWSFZ"), ("wsjtx", "WSJT-X"))
-TREND_FIELDS = ["run_date", "build_sha", "subtraction_enabled", "dll_sha256_prefix"] + \
+TREND_FIELDS_V1 = ["run_date", "build_sha", "subtraction_enabled", "dll_sha256_prefix"] + \
     [f"x_{d}_{p[4:].lower()}" for d in ("owsfz", "wsjtx") for p in PARTS] + \
     ["wsjtx_validity", "owsfz_guard", "wrong_cycle_decodes", "report_state"]
+# Added 2026-10-05 (Architect, ruling 4c follow-up): cycles with >= 1 decode, per OpenWSFZ part. ADDITIVE: the existing columns are untouched and
+# the three earlier batteries stay BLANK here (never back-filled from the replay: the live batteries did not report it).
+CYCLE_FIELDS = [f"cycles_owsfz_{p[4:].lower()}" for p in PARTS]
+TREND_FIELDS = TREND_FIELDS_V1 + CYCLE_FIELDS
+
+
+def append_trend(tp: Path, row: dict) -> None:
+    """Append one row; an existing file with the V1 header is migrated by adding the new columns (old rows padded blank)."""
+    write_header = True
+    if tp.exists() and tp.stat().st_size > 0:
+        write_header = False
+        with open(tp, newline="", encoding="utf-8") as fh:
+            old = list(csv.reader(fh))
+        header, body = old[0], old[1:]
+        if header == TREND_FIELDS_V1:
+            with open(tp, "w", newline="", encoding="utf-8") as fh:
+                wr = csv.writer(fh, lineterminator="\n")
+                wr.writerow(TREND_FIELDS)
+                wr.writerows(r + [""] * len(CYCLE_FIELDS) for r in body)
+        elif header != TREND_FIELDS:
+            raise SystemExit(f"{tp}: unknown trend header, refusing to append (expected the V1 or the current header)")
+    with open(tp, "a", newline="", encoding="utf-8") as fh:
+        wr = csv.DictWriter(fh, fieldnames=TREND_FIELDS, lineterminator="\n")
+        if write_header:
+            wr.writeheader()
+        wr.writerow(row)
 
 
 def score(scen: dict, wsjtx_alltxt: Path, owsfz_alltxt: Path, log_path: Path) -> dict:
@@ -161,13 +187,9 @@ def main() -> None:
         for dec, name in DECODERS:
             for part in PARTS:
                 row[f"x_{dec}_{part[4:].lower()}"] = res["decoders"][name]["parts"][part]["X"]
-        tp = Path(a.trend)
-        new = not tp.exists()
-        with open(tp, "a", newline="", encoding="utf-8") as fh:
-            wr = csv.DictWriter(fh, fieldnames=TREND_FIELDS, lineterminator="\n")
-            if new:
-                wr.writeheader()
-            wr.writerow(row)
+        for part in PARTS:
+            row[f"cycles_owsfz_{part[4:].lower()}"] = res["decoders"]["OpenWSFZ"]["parts"][part]["cycles_with_decode"]
+        append_trend(Path(a.trend), row)
     print(json.dumps({"rows": res["rows"], "state": res["state"]}))
 
 

@@ -244,3 +244,24 @@ def test_cycles_with_decode_counts_cycles_not_signals(tmp_path, scen):
     ow2 = [i for i in _all(scen) if i not in {s["sig_id"] for s in sigs}] + list(per_cycle.values())
     p2 = _run(tmp_path, scen, ow2, _all(scen))["decoders"]["OpenWSFZ"]["parts"]["S3c-E50"]
     assert (p2["X"], p2["cycles_with_decode"], p2["cycles_total"]) == (4, 4, 4)
+
+
+def test_trend_gains_cycle_columns_additively_and_old_rows_stay_blank(tmp_path):
+    old = tmp_path / "trend.csv"
+    old.write_text(",".join(SC.TREND_FIELDS_V1) + "\n" + ",".join(f"v{i}" for i in range(len(SC.TREND_FIELDS_V1))) + "\n", encoding="utf-8")
+    row = {f: "n" for f in SC.TREND_FIELDS}
+    SC.append_trend(old, row)
+    rows = list(csv.DictReader(open(old, newline="", encoding="utf-8")))
+    assert list(rows[0].keys()) == SC.TREND_FIELDS and len(rows) == 2
+    assert all(rows[0][c] == "" for c in SC.CYCLE_FIELDS)                              # the earlier battery is NOT back-filled
+    assert rows[0]["x_owsfz_e50"] == "v7" and rows[1]["cycles_owsfz_e50"] == "n"      # existing columns untouched, new ones written
+    SC.append_trend(old, row)                                                          # a second append to the current header is plain
+    assert len(list(csv.DictReader(open(old, newline="", encoding="utf-8")))) == 3
+
+
+def test_trend_refuses_an_unknown_header(tmp_path):
+    bad = tmp_path / "trend.csv"
+    bad.write_text("a,b,c\n1,2,3\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        SC.append_trend(bad, {f: "n" for f in SC.TREND_FIELDS})
+    assert bad.read_text(encoding="utf-8") == "a,b,c\n1,2,3\n"                        # untouched
