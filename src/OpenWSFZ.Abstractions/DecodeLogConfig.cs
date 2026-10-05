@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
@@ -7,6 +9,21 @@ namespace OpenWSFZ.Abstractions;
 /// </summary>
 public sealed record DecodeLogConfig
 {
+
+    // Deserialization note (Lesson 6 / D-WFC-001 pattern, see LoggingConfig.cs and #209):
+    // without an explicit [JsonConstructor] the STJ source generator reads default(T) for a key
+    // that is absent from a PRESENT section, bypassing the initialisers below. Every property is
+    // therefore a constructor parameter carrying the same default as its initialiser.
+
+    /// <summary>Deserialization constructor (parameter defaults mirror the initialisers).</summary>
+    [JsonConstructor]
+    public DecodeLogConfig(bool enabled = false, string path = "ALL.TXT", double dialFrequencyMHz = 0.0)
+    {
+        Enabled          = enabled;
+        Path             = path;
+        DialFrequencyMHz = dialFrequencyMHz;
+    }
+
     /// <summary>When false (default), no decode log file is created or written.</summary>
     public bool   Enabled          { get; init; } = false;
 
