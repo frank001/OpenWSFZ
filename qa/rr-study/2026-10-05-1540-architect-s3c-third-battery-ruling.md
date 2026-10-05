@@ -24,7 +24,7 @@ Both are the easy direction ("nothing fails"), and S3C2 hit on a guard that is *
 fail on. S3C2's stated premise ("no sync-search change is planned") held for the source (§3), but the decoder's output at this cell did change,
 so the hit is on the letter of the row, not evidence that nothing moved.
 
-## 2. The movement is not luck — correction to the report
+## 2. ~~The movement is not luck — correction to the report~~ 🛑 WITHDRAWN 2026-10-05 (§4c): the signals are not independent; luck is NOT excluded (P ≈ 1/16 at the cycle level)
 
 `report.md` §5 item 3 (battery 3) says "a coincidence with run-to-run luck at one battery cannot be excluded". **Under the spec's own model it
 can.** Batteries 1–2 give 33/64 at E −2.00 (and the edge run 14/32 flag OFF, consistent with them). With independent signals at p = 33/64,
@@ -140,9 +140,61 @@ Reading (mechanical, both arms must agree within ±2, or the replay is the findi
 
 🛑 Until this reports, the cell's history stays split at battery 3, as §5 says. Step 4 is no longer a candidate.
 
+## 4c. Batteries 1–2 replay and level: result, and the withdrawal of §2 (2026-10-05, on QA's note `2026-10-05-1600-…`)
+
+**QA's result (Captain's go; harness `db2da962` unchanged; driver and predicate committed before any run):** batteries 1/2 at E −2.00 replay to
+**17/17 and 16/16** on `cddd7e34` / `766f9cc2`. That reproduces the live counts exactly. The other parts are unchanged. Level, as the median over 64 early
+signals: b1 +8.63, b2 +8.61, b3 +8.61 dB, so b3 minus b1+b2 = −0.02 dB.
+
+| # | Outcome |
+|---|---|
+| S3Y1 | ✅ HIT (arms agree exactly) |
+| S3Y2 | ✅ HIT (Audio: ≤ 24 on both arms, both batteries) |
+| S3Y3 | ❌ MISS (−0.02 dB, predicted ≥ +0.5): level is not what differs |
+
+**Deviation accepted:** QA's predicate v2 uses the planted cycle's post-transmission tail as the noise reference, committed before any number.
+v1 divided by zero because the idle cycles are ≈ 78 % exact digital zeros. My §4b also put the idle cycle after the planted one; in the design it sits
+before. That was my error, and it had no effect on v2.
+
+**What the recordings differ in, from data already gathered (HK-018, read after QA's note; aggregates only, HK-037).** OpenWSFZ's E −2.00
+decodes counted per early cycle from `owsfz-all.txt` (DT −1.6 rows; E −1.75 is the −1.4 rows, 8/8 in every cycle of every battery):
+
+| Battery | Cycle 1 | Cycle 2 | Cycle 3 | Cycle 4 | Total |
+|---|---:|---:|---:|---:|---:|
+| 1 | 3 | 0 | 8 | 6 | 17 |
+| 2 | 0 | 8 | 0 | 8 | 16 |
+| 3 | 8 | 8 | 8 | 8 | 32 |
+
+**The cell decodes a cycle at a time.** The eight E −2.00 signals in a cycle share one capture, so they mostly pass or fail together (10 of 12
+cycles are 0 or 8). The render is identical in every battery (`compute_seed` is a fixed SHA-256 of the scenario key, and `render.py` is frozen at
+`46994f57`), and so are the playback schedule and the level. The one thing that varies per cycle in the recording is the **capture alignment**.
+QA's exploratory figure puts it at ±20 ms per cycle, with mixed signs. At a decoder edge, that is enough to move a whole cycle's signals across a
+sync-search time bin. This mechanism is **plausible, not shown**.
+
+🛑 **§2 is WITHDRAWN.** It treated the 32 signals as independent. At the level that governs them, the cycle, battery 3 is **4 of 4 cycles**, and with batteries
+1–2 near one in two per cycle, P(4/4) ≈ **1/16**. **Luck is not excluded.** I dismissed over-dispersion by looking *between* batteries, when
+the dependence sits *within* one. QA's original sentence ("a coincidence with run-to-run luck at one battery cannot be excluded") was **right**, and
+I had it changed to a wrong one. **QA: please restore it** where it lives (`report.md` lines 442–443, `2026-10-04-766f9cc`), with a pointer to
+this section. My message of 2026-10-05 asking for the change is withdrawn.
+
+**Ruling on the movement:** no build, no early-decode path, no live state, no level. Battery 3's 32/32 is **4 favourable cycles out of 4** at
+a cliff where the capture alignment decides each cycle. That is ordinary variation of this instrument, not a decoder change. **Closed. No further arm.**
+
+**Consequence for S3c's design (the spec is mine; HK-021/HK-026):** the S3c-E50 row's `k*` was computed as binomial with n = 32. The
+effective n is ≈ 4 cycles, so its false-FAIL rate is far above the stated 1 %. P(X < 4) is roughly the chance that no cycle passes, about 1/16 at
+one in two per cycle. Batteries 1–2 already had cycles at 0. ⇒ **From the next battery, S3c-E50 is DESCRIPTIVE** (as S3c-L50 already is). It is reported as
+"cycles with ≥ 1 E −2.00 decode, of 4" plus the count. **The live early-side guard is S3c-E90 (E −1.75),** which is 8/8 in all 12 cycles so far. QA
+changes the row class in code and in the report template; `r_ref`, the scenario and the render are unchanged. The ~8 % per-battery multiplicity
+statement in spec §4 needs the same caveat for E90/L90 (their eight signals per cycle share fate too), but at 8/8 everywhere so far it binds only on a
+real collapse.
+
+**Optional, descriptive, not required:** QA's per-cycle capture lag against the per-cycle pass count above (12 points). It would show whether
+passing cycles sit on one side of a lag threshold. It is post hoc, so it can illustrate the mechanism, not establish it.
+
 ## 5. Standing consequences
 
 - S3c stays in the routine battery unchanged. `r_ref` and `k*` are pre-registered and stay as they are: a guard is not re-based on a movement
   whose cause is unknown.
-- 🛑 From battery 3 on, never pool S3c E −2.00 counts across `cddd7e34` and `766f9cc2`-or-later builds until §4 has reported.
+- ~~🛑 From battery 3 on, never pool S3c E −2.00 counts across `cddd7e34` and `766f9cc2`-or-later builds until §4 has reported.~~ Lifted by §4c:
+  the movement is instrument variation, not a build effect. E −2.00 becomes descriptive.
 - #122 phase 4a stays merged. Nothing here shows a defect. It shows that A1b's "identical" has not been tested at a start-time edge.
