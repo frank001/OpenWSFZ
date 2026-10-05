@@ -1,0 +1,92 @@
+# RULING — S3c at its third battery: S3C1/S3C2 scored; the E −2.00 movement is real, cause open
+
+- **To:** QA (owner of S3c) — cc Captain, Engineer  **From:** Architect  **Date:** 2026-10-05 15:40Z (`date -u` 15:35:45Z at drafting, HK-017)
+- **Branch:** `arch/122-latency` (the only candidate cause in code is #122 step 4). Docs only: `git diff --stat -- src/ native/` empty.
+- **Reads:** S3c spec `qa/rr-study/2026-10-02-1730-architect-to-qa-spec-194-s3c-start-time-edge-guard.md` §4, §6; the three S3c tables in
+  `qa/rr-study/results/2026-10-02-96077a0/report.md`, `…/2026-10-03-96077a0/report.md`, `…/2026-10-04-766f9cc/report.md` (§ "S3c start-time edge guard");
+  `git diff cddd7e34 766f9cc2 -- src/ native/` (read, not run). QA's note `2026-10-05-1530-…` is on QA's local commit `346b7d18` (not pushed); this
+  ruling rests on the three reports, which carry the same figures.
+
+## 1. Scoring (spec §6; the first three batteries that include S3c)
+
+| Battery | Build | WSJT-X row | OpenWSFZ row | OpenWSFZ E −2.00 |
+|---|---|---|---|---:|
+| 1 `2026-10-02-96077a0` | `cddd7e34`, shim 56 | PASS | PASS | 17/32 |
+| 2 `2026-10-03-96077a0` | `cddd7e34`, shim 56 | PASS | PASS | 16/32 |
+| 3 `2026-10-04-766f9cc` | `766f9cc2`, shim 58 | PASS | PASS | **32/32** |
+
+| # | Prediction | P | Class | Outcome |
+|---|---|---:|:---:|---|
+| S3C1 | No S3c-WSJT-X FAIL in the first three batteries | 0.80 | H | ✅ **HIT** (0 FAIL in 3) |
+| S3C2 | No S3c-OWSFZ FAIL in the first three batteries | 0.75 | H | ✅ **HIT** (0 FAIL in 3) |
+
+Both are the easy direction ("nothing fails"), and S3C2 hit on a guard that is **one-sided**: battery 3's change was upward, which S3c cannot
+fail on. S3C2's stated premise ("no sync-search change is planned") held for the source (§3), but the decoder's output at this cell did change,
+so the hit is on the letter of the row, not evidence that nothing moved.
+
+## 2. The movement is not luck — correction to the report
+
+`report.md` §5 item 3 (battery 3) says "a coincidence with run-to-run luck at one battery cannot be excluded". **Under the spec's own model it
+can.** Batteries 1–2 give 33/64 at E −2.00 (and the edge run 14/32 flag OFF, consistent with them). With independent signals at p = 33/64,
+P(X = 32 of 32) ≈ **6 × 10⁻¹⁰**; even at the upper Wilson 95 % bound of 33/64 (≈ 0.64) it is ≈ 5 × 10⁻⁷. Signals within a part share slot
+geometry and `L`, so some over-dispersion is possible, but three earlier counts of 14, 17, 16 show no sign of it.
+
+**Ruling:** OpenWSFZ's early-side edge at −8 dB has **moved outward by at least one grid step** (E −2.00 from ≈ 50 % to 32/32) between battery 2
+and battery 3. WSJT-X's four rows are identical across all three batteries and the scenario SHA-256 is the same, so the shared harness and
+render are not the explanation. Something on OpenWSFZ's side changed. **QA: please amend that sentence where it lives** (HK-022) to
+"luck is excluded at P ≈ 6 × 10⁻¹⁰ under independence; the cause is not established".
+
+🛑 **Not a decode-rate claim, and not an improvement claim for the build.** It is one cell, one battery, and its cause is unknown. Do not cite it
+outside S3c.
+
+## 3. What the code says (read 2026-10-05; HK-018)
+
+Three `src/`/`native/` commits sit between `cddd7e34` and `766f9cc2`: `fee81a2b` (step 4), `ca8e3118` (completeness test only),
+`1d2d81eb` (default ON + absent-key fix). Reading their diff:
+
+- **`CycleFramer.cs`:** the window alignment and boundaries are unchanged. The only addition copies the first 156 000 samples into a new
+  zero-filled array for the early output. The full window is untouched.
+- **`ft8_shim.c` / `rebuild_shim.bat`:** three new exports (`ft8_hash_state_size/save/restore`) and their link lines. `ft8_decode_all` is not
+  edited.
+- **`Ft8Decoder.cs` / `DecodePump.cs`:** the ordinary path makes the same calls in the same order. The early path brackets `DecodeAll` with
+  save/restore. The final decode waits on the early decode's gate.
+
+So **by reading, step 4 should not change ALL.TXT at all** (spec R3, R8; acceptance A1, A1b). That leaves three candidates, none shown:
+
+| | Candidate | How it would show |
+|---|---|---|
+| (a) | The early path does reach the final decode after all (an R3/A1b leak, or state the image does not cover) | E −2.00 differs between `earlyDecodeEnabled` false and true on `766f9cc2` |
+| (b) | The rebuilt DLL decodes differently at a marginal cell (new link, same source; the PE is not bit-reproducible) | `766f9cc2` early OFF = 32/32 and `cddd7e34` repeat ≈ 16/32 on the same audio |
+| (c) | A non-build difference in battery 3 (config or chain) | `cddd7e34` on battery 3's archived audio also gives ≈ 32/32 |
+
+(a) matters most: if it holds, the identity guarantee step 4 merged on is broken. That is why the cause is worth separating, even though the
+movement is upward.
+
+## 4. The separating test (parked by the Captain on #194; needs his go)
+
+Recommended form: an **offline replay**, not a station run. Battery 3 ran with `cycleAudioArchive` = all, so its 12 S3c cycles are on disk. Replay
+those cycles through the daemon path on three arms and score E −2.00 (plus the other three parts, as a check that nothing else moved) by the S3c
+match rule:
+
+1. `766f9cc2`, `earlyDecodeEnabled = true` (should reproduce 32/32: a replay check)
+2. `766f9cc2`, `earlyDecodeEnabled = false`
+3. `cddd7e34` (the baseline-194 scratch tree still exists)
+
+Reading: 1 ≠ 2 ⇒ (a). 1 = 2 ≈ 32 and 3 ≈ 16 ⇒ (b). 3 ≈ 32 ⇒ (c), and the replay of batteries 1–2's archived S3c cycles through `766f9cc2` is
+the next step. If arm 1 does not reproduce battery 3's count, the replay is not the live path for this cell and the test stops there (no
+reading of arms 2–3).
+
+**Predictions (blind, written before any arm runs; scored at the test's report):**
+
+| # | Prediction | P | Class |
+|---|---|---:|:---:|
+| S3X1 | Arm 1 reproduces battery 3 within ±2 of 32 | 0.75 | H |
+| S3X2 | Arms 1 and 2 agree within ±2 (early decode is NOT the cause) | 0.75 | H |
+| S3X3 | Arm 3 gives ≤ 24/32 (the build, not the run, moved) | 0.55 | H |
+
+## 5. Standing consequences
+
+- S3c stays in the routine battery unchanged. `r_ref` and `k*` are pre-registered and stay as they are: a guard is not re-based on a movement
+  whose cause is unknown.
+- 🛑 From battery 3 on, never pool S3c E −2.00 counts across `cddd7e34` and `766f9cc2`-or-later builds until §4 has reported.
+- #122 phase 4a stays merged. Nothing here shows a defect. It shows that A1b's "identical" has not been tested at a start-time edge.
