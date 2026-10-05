@@ -1685,10 +1685,16 @@ Monitor ON. <strong>Exceptions:</strong> two failed launch attempts before the r
 <li><strong>S3c, the third battery that includes it.</strong> Both rows PASS (S3c-WSJT-X validity, S3c-OWSFZ guard). One count moved: <strong>OpenWSFZ E -2.00 is 32/32;
    it was 17/32 and 16/32 in the baseline-194 runs</strong> (r_ref 0.282, k<em> = 4, so the guard row PASSES, and it can only fail on a collapse). Nothing else on the
    S3c grid moved (OpenWSFZ L +2.75 32, E -1.75 32, L +3.00 0; WSJT-X identical). The cause is NOT established: the only decoder-touching commits between
-   <code>cddd7e34</code> and <code>766f9cc2</code> are #122 step 4's (<code>fee81a2b</code>, <code>ca8e3118</code>: early decode, snapshot/restore, shim 56 to 58). </em><em>Luck is excluded at P ~ 6e-10 under independence</em><em> (32/32 at p = 33/64, the pooled
-   baseline-194 rate; ~5e-7 even at the Wilson upper bound 0.634); this replaces the first draft's "luck at one battery cannot be excluded", which was wrong
-   (Architect's correction, 2026-10-05, checked by QA). The cause is still not established, and S3c's own limit is that batch 1 equals flag OFF so ON can only ADD matches. </em><em>Read it, do not explain it;</em>*
-   S3C1/S3C2 (the Architect's blind predictions) are scored at the third S3c battery, which is this one: that scoring is the Architect's.</li>
+   <code>cddd7e34</code> and <code>766f9cc2</code> are #122 step 4's (<code>fee81a2b</code>, <code>ca8e3118</code>: early decode, snapshot/restore, shim 56 to 58), but a coincidence with run-to-run
+   luck at one battery cannot be excluded, and S3c's own limit is that batch 1 equals flag OFF so ON can only ADD matches. </em><em>Read it, do not explain it;</em><em>
+   S3C1/S3C2 (the Architect's blind predictions) are scored at the third S3c battery, which is this one: that scoring is the Architect's.
+   </em><em>Update 2026-10-05 (after this report was written; Architect ruling 08002c7f, section 4c):</em>* the cell passes or fails a CYCLE at a time. The E -2.00
+   decodes per early cycle (8 signals each) are 3/0/8/6 (battery 1), 0/8/0/8 (battery 2), 8/8/8/8 (this battery), so the effective n is about 4 cycles,
+   not 32 independent signals, and 4 of 4 cycles passing has P ~ 1/16: a 6e-10 figure assumed independent signals and does not apply (a first correction
+   of this paragraph to "luck excluded at P ~ 6e-10" was made and WITHDRAWN the same day; this paragraph is the original wording plus this update).
+   Replays of the archived audio (harness <code>db2da962</code>) reproduce each battery's count exactly on <code>cddd7e34</code> and on <code>766f9cc2</code> (17, 16, 32), so the build and
+   the early path are cleared; the in-band level is the same in all three batteries (gap -0.02 dB). Closed as instrument variation. From the next battery
+   S3c-E50 is a DESCRIPTIVE row (cycles with at least one E -2.00 decode, of 4, plus the count); the early-side guard is E90.</li>
 <li><strong>S7:</strong> OpenWSFZ 83.26% (79.53%, 82.79% in the baseline-194 runs) and WSJT-X 97.21% (95.35%, 99.07%): both inside the baseline range. The gap is 13.95 pp
    against 15.8 and 16.3 pp in the baseline runs; S7 is instrument-suspect by standing rule and no bare S7 mean is cited.</li>
 <li><strong>S1b:</strong> OpenWSFZ 0/3 at -21 dB in all three runs; WSJT-X 3/3 here against 2/3 and 1/3 (reference noise at n = 3).</li>

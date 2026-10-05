@@ -38,6 +38,12 @@ import analysis as EA  # noqa: E402  (the edge test's analysis.py)
 
 CRLF, LF = bytes((13, 10)), bytes((10,))
 PARTS = ("S3c-L90", "S3c-L50", "S3c-E90", "S3c-E50")
+# Architect ruling 2026-10-05 (section 4c, `arch/122-latency` 08002c7f), from the NEXT battery: the OpenWSFZ S3c-E50 (E -2.00) row is
+# DESCRIPTIVE, like L50, because that cell passes or fails a whole CYCLE at a time (E -2.00 decodes per early cycle were 3/0/8/6, 0/8/0/8 and
+# 8/8/8/8 in the first three batteries): its effective n is about 4, not 32, and a k* computed for 32 independent signals does not apply.
+# The early-side guard is E90. The scenario, r_ref and k* stay exactly as pre-registered; only the row class changes. WSJT-X's rows are the
+# chain-validity check and are unchanged.
+OWSFZ_DESCRIPTIVE_PARTS = ("S3c-E50",)
 DECODERS = (("owsfz", "OpenWSFZ"), ("wsjtx", "WSJT-X"))
 TREND_FIELDS = ["run_date", "build_sha", "subtraction_enabled", "dll_sha256_prefix"] + \
     [f"x_{d}_{p[4:].lower()}" for d in ("owsfz", "wsjtx") for p in PARTS] + \
@@ -64,10 +70,18 @@ def score(scen: dict, wsjtx_alltxt: Path, owsfz_alltxt: Path, log_path: Path) ->
             sigs = [s for s in design["signals"] if s["cell"] == part]
             x = sum(1 for s in sigs if s["sig_id"] in matched)
             ref = scen["reference"][part][name]
+            # Cycle-level statistic (ruling 2026-10-05 4c): a cell passes or fails a CYCLE at a time, so the effective n is the
+            # number of cycles that carry the part, not its 32 signals.
+            cycles_all = {s["cycle"] for s in sigs}
+            cycles_hit = {s["cycle"] for s in sigs if s["sig_id"] in matched}
+            descriptive = bool(ref["descriptive"]) or (name == "OpenWSFZ" and part in OWSFZ_DESCRIPTIVE_PARTS)
             ok = x >= ref["k_star"]
             per_part[part] = {"L": scen["points"][part], "X": x, "n": len(sigs), "r_ref": ref["r_ref"],
-                              "k_star": ref["k_star"], "descriptive": ref["descriptive"],
-                              "pass": True if ref["descriptive"] else ok,
+                              "k_star": ref["k_star"], "descriptive": descriptive,
+                              "descriptive_reason": ("k* = 0" if ref["descriptive"] else
+                                                     "cycle-clustered, effective n ~ cycles" if descriptive else ""),
+                              "cycles_with_decode": len(cycles_hit), "cycles_total": len(cycles_all),
+                              "pass": True if descriptive else ok,
                               "rate": x / len(sigs)}
         result["decoders"][name] = {"parts": per_part, "alltxt_lines": n_lines, "alltxt_other_lines": n_other,
                                     "wrong_cycle_decodes": len(wrong),
@@ -95,16 +109,19 @@ def render_md(res: dict, meta: dict) -> str:
                  if meta["subtraction_enabled"] != "false" else ""),
               f"- Build: `{meta['build_sha']}`  DLL SHA-256 prefix: `{meta['dll_sha256_prefix']}`",
               f"- Scenario SHA-256: `{meta['scenario_sha256']}`", ""]
-    lines += ["| decoder | part | L (s) | X / 32 | r_ref | k* | row |", "|---|---|---:|---:|---:|---:|---|"]
+    lines += ["| decoder | part | L (s) | X / 32 | cycles with >= 1 decode | r_ref | k* | row |", "|---|---|---:|---:|---:|---:|---:|---|"]
     for name in ("WSJT-X", "OpenWSFZ"):
         for part in PARTS:
             v = res["decoders"][name]["parts"][part]
-            row = "DESCRIPTIVE (k* = 0)" if v["descriptive"] else ("PASS" if v["pass"] else "FAIL")
-            lines.append(f"| {name} | {part} | {v['L']:+.2f} | {v['X']} | {v['r_ref']:.3f} | {v['k_star']} | {row} |")
+            row = (f"DESCRIPTIVE ({v['descriptive_reason']})" if v["descriptive"] else ("PASS" if v["pass"] else "FAIL"))
+            lines.append(f"| {name} | {part} | {v['L']:+.2f} | {v['X']} | {v['cycles_with_decode']} of {v['cycles_total']} "
+                         f"| {v['r_ref']:.3f} | {v['k_star']} | {row} |")
     lines += ["", "## Rows", ""] + [f"- **{k}:** {v}" for k, v in res["rows"].items()]
     lines += ["", "A FAIL of the OpenWSFZ guard is a flag, not a verdict (one battery's 32 signals per part cannot tell "
               "a regression from bad luck at the 1 % level). ~8 % chance of at least one false FAIL somewhere per "
-              "battery (4 parts x 2 decoders at 1 %), accepted by the spec. Counts only (NFR-021)."]
+              "battery (4 parts x 2 decoders at 1 %), accepted by the spec. Counts only (NFR-021).",
+              "", "OpenWSFZ S3c-E50 (E -2.00) is a DESCRIPTIVE row from the battery after 2026-10-05 (Architect ruling 4c): the cell passes or fails a "
+              "whole cycle at a time, so read 'cycles with >= 1 decode, of 4' beside the count; the early-side guard is S3c-E90."]
     for name in ("WSJT-X", "OpenWSFZ"):
         d = res["decoders"][name]
         lines.append(f"- {name}: planted slots with any decode pass {d['planted_slots_with_decode_pass']}/8; "
