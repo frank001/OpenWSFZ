@@ -1685,8 +1685,9 @@ Monitor ON. <strong>Exceptions:</strong> two failed launch attempts before the r
 <li><strong>S3c, the third battery that includes it.</strong> Both rows PASS (S3c-WSJT-X validity, S3c-OWSFZ guard). One count moved: <strong>OpenWSFZ E -2.00 is 32/32;
    it was 17/32 and 16/32 in the baseline-194 runs</strong> (r_ref 0.282, k<em> = 4, so the guard row PASSES, and it can only fail on a collapse). Nothing else on the
    S3c grid moved (OpenWSFZ L +2.75 32, E -1.75 32, L +3.00 0; WSJT-X identical). The cause is NOT established: the only decoder-touching commits between
-   <code>cddd7e34</code> and <code>766f9cc2</code> are #122 step 4's (<code>fee81a2b</code>, <code>ca8e3118</code>: early decode, snapshot/restore, shim 56 to 58), but a coincidence with run-to-run
-   luck at one battery cannot be excluded, and S3c's own limit is that batch 1 equals flag OFF so ON can only ADD matches. </em><em>Read it, do not explain it;</em>*
+   <code>cddd7e34</code> and <code>766f9cc2</code> are #122 step 4's (<code>fee81a2b</code>, <code>ca8e3118</code>: early decode, snapshot/restore, shim 56 to 58). </em><em>Luck is excluded at P ~ 6e-10 under independence</em><em> (32/32 at p = 33/64, the pooled
+   baseline-194 rate; ~5e-7 even at the Wilson upper bound 0.634); this replaces the first draft's "luck at one battery cannot be excluded", which was wrong
+   (Architect's correction, 2026-10-05, checked by QA). The cause is still not established, and S3c's own limit is that batch 1 equals flag OFF so ON can only ADD matches. </em><em>Read it, do not explain it;</em>*
    S3C1/S3C2 (the Architect's blind predictions) are scored at the third S3c battery, which is this one: that scoring is the Architect's.</li>
 <li><strong>S7:</strong> OpenWSFZ 83.26% (79.53%, 82.79% in the baseline-194 runs) and WSJT-X 97.21% (95.35%, 99.07%): both inside the baseline range. The gap is 13.95 pp
    against 15.8 and 16.3 pp in the baseline runs; S7 is instrument-suspect by standing rule and no bare S7 mean is cited.</li>
