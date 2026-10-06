@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""COH-GAIN (A' step 1): shared constants, the pinned decoder, the anchor mapping and the four-arm per-signal evaluation.
+
+Spec (PRE-REGISTERED, Architect 2026-10-06 16:22Z): qa/rr-study/2026-10-06-1625-architect-to-qa-spec-coh-gain-step1.md (branch arch/coherent-limb2).
+BAR_G = 1.0 pp was RATIFIED by the Captain 2026-10-06 ~16:26Z, before any harness or extraction, and is FROZEN.
+
+HK-037 / NFR-021: message text and every 77-bit / 174-bit array live ONLY inside evaluate_signal (the leg_fk2.py discipline). What leaves it is
+numeric: success flags, decoder path / ldpc_errors / crc_ok, a bit-error COUNT, and the estimator's offsets. No text, no bits, no text-derived hash.
+
+Arms (every arm feeds its 174 raw LLRs to ft8_ldpc_decode_llrs at nhard 40, max_iters 50, OSD depth 2: production's own BP -> OSD -> CRC):
+  G   shipped ft8_extract_llrs_at, any of GAP-LOCATE's 9 lattice cells around the anchor (the control)
+  C1  coherent order 1  (coherent_extract V1) at the data-free fine-sync estimate
+  C3  coherent orders 1+2+3 (V3) at the same estimate                                  <- the A' candidate
+  C3S as C3 at the ORACLE estimate (data-aided over all 79 tones): a ceiling, not a buildable decoder
+Success = out_crc_ok == 1 AND comparator.payload_match (ROW 0f's v_star, the RR73 equivalence).
+"""
+from __future__ import annotations
+
+import hashlib
+import os
+import sys
+import time
+
+import numpy as np
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
+RR = os.path.join(REPO_ROOT, "qa", "rr-study")
+for sub in ("gap-locate", "n2-coherent-llr-extractor", "r2-coherent-llr-instrument", "n1-extract-llrs-at-position", "."):
+    sys.path.insert(0, os.path.join(RR, sub))
+sys.path.insert(0, HERE)
+
+import coherent_extract as CE  # noqa: E402
+import comparator as CMP  # noqa: E402
+import fine_sync as FS  # noqa: E402
+import lattice  # noqa: E402
+import wavio  # noqa: E402
+from ldpc_decode_ctypes import LdpcDecodeLLRs, a91_to_bits  # noqa: E402
+
+# ---- frozen spec constants ---------------------------------------------------------------------------------------------------------
+BAR_G = 1.0                    # pp of WSJT-X's decodes; ratified by the Captain 2026-10-06 ~16:26Z, FROZEN
+SEED = 20261006
+B_RESAMPLES = 10_000
+BLOCK_CYCLES = 8               # section 5: 8 sampled cycles
+BLOCKS_REPORTED = (4, 16)
+SAMPLE_RESIDUE = 3             # section 4: positions i mod 10 == 3 (NHARD-REP used 0 and 5)
+SAMPLE_MODULUS_PRIMARY = 10
+SAMPLE_MODULUS_FALLBACK = 20   # if the 50-row timing pilot projects > PILOT_MAX_CPU_HOURS
+PILOT_ROWS = 50
+PILOT_RESIDUE = 7              # pilot rows come from positions i mod 10 == 7, i.e. NOT from the analysed sample
+PILOT_MAX_CPU_HOURS = 6.0
+V2_N = 200
+V2_SNR_DB = -14.0
+V2_DF_MAX_HZ = 1.5
+V2_DT_MAX_S = 0.06
+V2_C3_MIN = 0.95
+V2_G_MIN = 0.90
+# AMENDMENT 1 (Architect 2026-10-06 ~17:00Z, spec section 11, before any real-audio extraction): V2(b) -> (b'). The data-free Costas objective sums THREE
+# 7-symbol blocks 36 symbols (5.76 s) apart, so its df surface has grating lobes every 1/5.76 s = 0.174 Hz: the 0.15 Hz median bar was unpassable for it.
+V2_MEDIAN_DF_MAX_HZ = 0.20     # the lobe period 0.174 plus half a 0.1 Hz grid step
+V2_SIGNED_MEDIAN_DF_MAX_HZ = 0.05   # no systematic frequency bias
+V2_MEDIAN_DT_MAX_S = 0.0075
+V2T_N = 200                    # AMENDMENT 1: DESCRIPTIVE tier near threshold (no row, never cited as the gain)
+V2T_SNR_DB = -20.0
+V3_MAX_EDGE_SHARE = 0.05
+V4_G_MIN = 0.90
+V5_ROWS = 300
+ARMS = ("G", "C1", "C3", "C3S")
+
+# ---- frozen files, pinned by LF-normalised SHA-256 and ASSERTED by cg_run.py before anything is extracted ----
+ROWS_JSON_SHA256 = "34b97c22fa61f0cb17a3ac57b8a9cad385375467fa93b96ba1d3803ea6e5c0b6"     # results/2026-10-06-coh-gain/rows.json (rows + pilot rows)
+SYNTH_SHA256 = "ab787588b2a93a3817dc1f4781aee70199e7d6d87255a1ffcc11517c853f6a0e"        # synthetic_set.json (V2, -14 dB)
+SYNTH_T_SHA256 = "3b5422caafd504fea49b6bdfcbd0f72db6a76d000f42ed503efda6a58e5f89fb"      # synthetic_set_t.json (V2-T, -20 dB, descriptive)
+
+
+def sha256_lf(path: str) -> str:
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read().replace(b"\r\n", b"\n")).hexdigest()
+
+# ---- the pinned decoder -------------------------------------------------------------------------------------------------------------
+DLL_PIN = "2fa6d99302c6c602231c870c1e61755aeeddb7ad1b9ce392fb98a4bdbd94f365"   # shim 20260058 (the NHARD-REP pin)
+SHIM = 20260058
+PROD_PARAMS = (10, 0.10, 40)   # k_min_score_pass2, osd_corr_threshold, nhard: production, as in the NHARD-REP arms
+K_LDPC_ITERATIONS = 50         # ft8_shim.c:509 (gap-locate/gl_dll_pin.py's own constant, reused value)
+OSD_DEPTH = 2                  # decode.c:666 ndeep
+PAYLOAD_BITS = 77
+V_STAR = (0, 32373)            # GAP-LOCATE ROW 0f: (ir, igrid4) the on-air RR73 tokens pack as
+RR73_STD = CMP.RR73_STD
+DELTA_S = 0.7                  # GAP-LOCATE Amendment 2 convention: t = WS_DT + delta; delta = median(OWS_DT - WS_DT) on THIS night's exact matches
+                               # (measured 2026-10-06: median 0.7, mean 0.659 over 68,525 pairs; logging resolution 0.1 s)
+assert V_STAR == (0, 32373) and RR73_STD == (0, 32403) and K_LDPC_ITERATIONS == 50 and OSD_DEPTH == 2
+
+
+def file_sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_decoder(dll_path: str) -> LdpcDecodeLLRs:
+    """The pinned DLL, SHA-256 and shim version verified at load; production decode parameters set (nhard 40)."""
+    dec = LdpcDecodeLLRs(dll_path, verify=True, expected_sha256=DLL_PIN, expected_shim_version=SHIM, check_version=True)
+    dec.dll.ft8_set_decode_params(PROD_PARAMS[0], PROD_PARAMS[1], PROD_PARAMS[2])
+    return dec
+
+
+def encode_tones(dec, text: str):
+    """79 transmitted tones of a message via the vendored encoder (or None if it cannot pack it). Text stays with the caller."""
+    import ctypes
+    buf = (ctypes.c_uint8 * CE.N_SYM)()
+    rc = dec.dll.ft8_encode_message(text.encode("ascii", errors="replace"), buf, CE.N_SYM)
+    return list(buf) if rc == CE.N_SYM else None
+
+
+def anchor_time(ws_dt_s: float) -> float:
+    """GAP-LOCATE Amendment 2: the time offset handed to the extractors is WS_DT + delta, RAW (no +0.16)."""
+    return float(ws_dt_s) + DELTA_S
+
+
+def _decode_llr(dec, llr):
+    """-> (success_inputs) dict from ft8_ldpc_decode_llrs for a raw LLR vector (list/array of 174)."""
+    return dec.ldpc_decode_llrs([float(x) for x in llr], max_iters=K_LDPC_ITERATIONS, osd_depth=OSD_DEPTH)
+
+
+def _arm_result(dec, llr, truth_bits, text, truth_payload):
+    """One arm's numeric record from one LLR vector. truth_bits: 174-bit true codeword; text/payload used ONLY for the match, never returned."""
+    res = _decode_llr(dec, llr)
+    ok = False
+    if res["rc"] == 0 and res["a91"] is not None and res["crc_ok"] == 1:
+        recovered = a91_to_bits(res["a91"], PAYLOAD_BITS)
+        ok = CMP.payload_match(truth_payload, recovered, text, V_STAR)
+    hard = (np.asarray(llr, dtype=np.float64) > 0).astype(int)        # BP's sense: positive LLR means bit 1 (asserted on clean signals by V2's test)
+    nbe = int(np.sum(hard != np.asarray(truth_bits)))
+    return {"ok": int(ok), "path": int(res["path"]), "crc": int(res["crc_ok"]), "ldpc": int(res["ldpc_errors"]), "nbe": nbe}
+
+
+def coherent_llrs(pcm, anchor_f, anchor_t, est: dict) -> dict:
+    """V1 / V3 LLRs at an estimate (offsets from the anchor)."""
+    t = FS.anchor_dt_for_step(anchor_t, est["dt_step"])
+    return CE.extract_variants(pcm, anchor_f, t, df_hz=est["est_df_hz"])
+
+
+def evaluate_signal(dec, pcm: np.ndarray, anchor_f: float, anchor_t: float, text: str, true_df_hz=None, true_dt_s=None) -> dict:
+    """All four arms for ONE signal. Returns numeric fields only. `text` never leaves this function.
+
+    anchor_f / anchor_t: the anchor in the extractors' convention (real rows: WS freq, WS_DT + delta). true_*: synthetic truth, unused here."""
+    out = {"fault": 0}
+    truth_bits = dec.true_codeword(text)
+    tones = encode_tones(dec, text)
+    if truth_bits is None or tones is None:
+        return {"fault": 1}
+    truth_payload = truth_bits[:PAYLOAD_BITS]
+
+    # ---- G: any of the 9 lattice cells around the anchor (leg_fk2.py's own loop) ----
+    best = None
+    won = None
+    for cell in lattice.snap_and_neighbours(anchor_f, anchor_t):
+        rc, llr = dec.extract_at(pcm, cell["freq_hz"], cell["time_offset_s"])
+        if rc != 0:
+            out["fault"] = 1
+            continue
+        r = _arm_result(dec, llr, truth_bits, text, truth_payload)
+        if best is None or (r["ok"], -r["nbe"]) > (best["ok"], -best["nbe"]):
+            best = r
+        if r["ok"] and won is None:
+            won = r
+    g = won if won is not None else best
+    if g is None:
+        return {"fault": 1}
+    out.update({f"G_{k}": v for k, v in g.items()})
+
+    # ---- C1 / C3 at the DATA-FREE estimate; C3S at the ORACLE estimate ----
+    est = FS.estimate(pcm, anchor_f, anchor_t)
+    v = coherent_llrs(pcm, anchor_f, anchor_t, est)
+    for arm, key in (("C1", "V1"), ("C3", "V3")):
+        r = _arm_result(dec, v[key], truth_bits, text, truth_payload)
+        out.update({f"{arm}_{k}": val for k, val in r.items()})
+        out[f"{arm}_df"] = est["est_df_hz"]
+        out[f"{arm}_dt"] = est["est_dt_s"]
+    out["C3_edge"] = int(est["edge"])
+    est_o = FS.estimate(pcm, anchor_f, anchor_t, FS.oracle_tones(tones))
+    vo = coherent_llrs(pcm, anchor_f, anchor_t, est_o)
+    r = _arm_result(dec, vo["V3"], truth_bits, text, truth_payload)
+    out.update({f"C3S_{k}": val for k, val in r.items()})
+    out["C3S_df"] = est_o["est_df_hz"]
+    out["C3S_dt"] = est_o["est_dt_s"]
+    out["C3S_edge"] = int(est_o["edge"])
+    return out
+
+
+ROW_FIELDS = (["fault"] + [f"{a}_{k}" for a in ARMS for k in ("ok", "path", "crc", "ldpc", "nbe")]
+              + ["C1_df", "C1_dt", "C3_df", "C3_dt", "C3_edge", "C3S_df", "C3S_dt", "C3S_edge"])
+
+
+class CpuTimer:
+    """Per-row CPU time (process_time), for the timing pilot only; never part of the determinism comparison."""
+    def __enter__(self):
+        self.t0 = time.process_time()
+        return self
+
+    def __exit__(self, *a):
+        self.dt = time.process_time() - self.t0
