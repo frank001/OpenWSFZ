@@ -5,6 +5,7 @@
 - **Programme:** priority #1, item B (the Architect's memory note `todo-decode-improvement-prio1-2026-10-05.md`). Source: GitHub #3 comment 2026-10-04 17:15Z.
 - ~~**Status:** DRAFT until §9 Q1 (`BAR_N`) is ratified by the Captain.~~ ✅ **`BAR_N` = 0.5 pp RATIFIED by the Captain, 2026-10-06 ~14:34Z (`date -u`), "0.5 pp (Recommended)", before any harness change, noise set or decode exists. FROZEN for this arm.** Status: **PRE-REGISTERED.** QA commits the harness change and the frozen cycle list **before any decode**. Nothing below may change after a decode has run, except by a dated amendment that says why.
 - **Needs before arming:** the Captain's go for the CPU window (~~≈ 5 h~~ **≈ 1.6–1.8 h under Amendment 1**), given in the owner's window. Not given by this spec.
+- ⛔ **AMENDMENT 2 (2026-10-06 15:18Z): V2 FAILED as designed (0 vs 0 noise decodes); the ruling and the replacement row V2′ are in §13. No corpus arm has run. Read §13 before §5.**
 - ⛔ **AMENDMENT 1 (2026-10-06 15:01Z, before any datum) changes the cycle set, the bootstrap block, V2's and V6's sizes and the run time. Read it (§12) before §4, §5 and §8.** Unchanged: the question, corpus, build, match rule, `BAR_N` = 0.5 pp, every row predicate's form, and the predictions.
 
 ---
@@ -234,3 +235,60 @@ For included cycle *i*: `W_i` = WSJT-X decodes in that cycle; `M40_i`, `M60_i` =
 | §2 scope sentence | "One 40 m night …" | add: *"A systematic 1-in-10 sample of the night's cycles."* |
 
 **Not changed and not changeable:** `BAR_N` = 0.5 pp, the row predicates N-LEVER / N-CLOSED / N-OPEN, V1–V4's forms, the match rule, the corpus and the build. Predictions NR1–NR6 stand as written: they were made before any datum, and the sample does not change what they predict. **NR3/NR4 are now on the smaller V2/V6**, and if either misses on size alone the ruling says so.
+
+---
+
+## 13. Amendment 2 — 2026-10-06 15:18Z (`date -u`): the V2 ruling. V2 is replaced by an in-process gate probe, V2′. No corpus arm has run.
+
+**What QA reported (message 15:15:26Z by its `date -u`; evidence `artefacts/rr_2026-10-06_nhard_rep/v2_gate.json`, harness `qa/nhard-rep` `780b280a` + `3f70072f`, local):** V2 FAIL. On 200 noise WAVs, `n_false(40)` = 0 and `n_false(60)` = 0, where ≥ +3 was required. Build `be3cc5ac`, DLL `2fa6d993…f365`, pins equal at start and end, read-back `nhard` = 40 / 60 as intended, rc 0, orphan check empty. **QA stopped and refused nothing. That was correct: the gate did exactly what it was written to do.**
+
+**Checked myself (HK-018):**
+
+- **The noise level is right.** One file: 12 kHz, mono, 16-bit, 180,000 samples, RMS 6,553.6 = **0.200 FS**, peak 29,963. The generator is `normalise_rms(standard_normal)`, the E1 contract.
+- **Both batches are empty on every row** (`run_V2N60.csv`: `decodes` 0, `b1_n` 0, `b2_n` 0), at **43–68 ms per cycle**. A real cycle takes seconds. So the decoder does very little work on white noise on this build, which is consistent with nothing reaching OSD. Why it is so quiet (candidate search, PASSBAND-140, density suppression) is **not established** here, and this arm does not need it.
+
+**Ruling: V2 FAILED, VALIDLY, and it is RETIRED as a row.** It cannot separate the two readings QA named, so re-running it in another form would only show again that noise is quiet. **QA's option (b), proceeding on V6 alone, is REFUSED.** V6 shows the instrument reads "no change" as no change. It cannot show that the cap reached the decoder, and N-CLOSED needs exactly that. **QA's option (a) is taken, in a form that cannot be quiet:**
+
+### V2′ — the native gate, probed inside each corpus arm's own process
+
+The native export `ft8_ldpc_decode_llrs` (`ft8_shim.h:1228–1280`, shim 20260044+, test-only, no product call site) runs production's BP → OSD → CRC sequence. **Its OSD branch applies the same gate the product uses:** `if (nhard > OSD_NHARD_MAX)` at `patched/ft8/decode.c:995`, where `OSD_NHARD_MAX` is the process-global `s_osd_nhard_max` (`decode.c:58/62`). `ft8_set_decode_params` writes it, and the managed `SetDecodeParams` calls that. Probing it **in the harness process, after the managed decoder has set its parameters**, tests the actual value the arm decoded with, on the pinned DLL. The audio plays no part.
+
+**Calibration (QA, offline, committed BEFORE any corpus decode):**
+
+- **Two frozen 174-float RAW LLR vectors**, from a codeword of a Q-prefix message (`ft8_encode_message`, NFR-021), with chosen hard-decision errors:
+  - **`P_hi`**: true Hamming distance between the codeword and the LLR signs `nhard_true` ∈ **[48, 56]**;
+  - **`P_lo`**: `nhard_true` ∈ **[20, 32]**.
+- **The construction is QA's.** A suggestion: give the flipped positions the smallest |LLR| so they land outside OSD's reliable basis, and use a small `max_iters` so BP does not converge.
+- **Calibration predicate, by ctypes on the pinned DLL**, after `ft8_set_decode_params(10, 0.10, N)`, for each vector and each `N` ∈ {30, 40, 50, 60, 100}:
+  - `P_lo`: `out_path` = 1 (OSD) and `out_crc_ok` = 1 for every `N` ≥ `nhard_true`;
+  - `P_hi`: `out_path` = 1 and `out_crc_ok` = 1 iff `N` ≥ `nhard_true`, otherwise `out_path` = −1.
+  - **The returned payload equals the encoded message's** (`a91`).
+  - If a vector cannot be made to satisfy this, QA reports it and **stops**. The Architect rules; QA does not improvise a substitute.
+
+**The row (as code; replaces V2 in §5's table):**
+
+| row | predicate |
+|---|---|
+| **V2′** | In each of N40, N60 and AA, the harness probes `P_hi` and `P_lo` through `ft8_ldpc_decode_llrs` **after the decoder's `SetDecodeParams` and the warm-up, and again after the last cycle** (the harness P/Invokes the export directly; `qa/` code, no product binding). **PASS iff, at both points:** `P_lo` is accepted (path 1, CRC 1, payload matches) in every arm; `P_hi` is **accepted in N60** and **rejected (path −1) in N40 and AA**. |
+
+**HK-025(k), both ways:**
+
+- If the cap did not reach the native gate, `P_hi` gives the same answer in N40 and N60, so V2′ FAILS.
+- If OSD itself were broken, `P_lo` fails, so V2′ FAILS.
+- **What V2′ does not cover:** whether the *live* product applies the cap. That is the product's config path, out of scope here, and the station's `config.json` reads 40.
+- **The one remaining inference** is that `DecodeTwoStageAsync` decodes with the same process-global the probe reads. `s_osd_nhard_max` is one non-TLS global in one DLL, so no other value exists to decode with. Stated, not tested.
+
+**What else changes:**
+
+| where | change |
+|---|---|
+| §5 V2 | struck; V2′ above. The 200-WAV noise result stays in the report as **descriptive**: *"0 decodes at either cap on 200 white-noise cycles at RMS 0.20 on this build"* (E1 measured 10.3 % vs 0.35 % of slots at shim 20260050). |
+| §8 run order | calibration (offline) → corpus arms N40 → N60 → AA, each with V2′ probes inside it. **No separate V2 arm.** If V2′ fails in N40 (its first probe point), stop there. |
+| §4 citations | QA's correction is **accepted**: at `be3cc5ac`, `MapNative` is `Ft8Decoder.cs:563` and `IsPlausibleMessage` `:585`; `:528`/`:534` were stale. |
+| §5 V6 | QA's reading is **accepted and made explicit**: the gated per-cycle difference is `d_i = M_AA,i − M40,i` (the statistic's own noise). The union-multiset difference is reported per cycle, not gated. If any cycle differs in multiset **and** is not "explained" (a residual-pass abandon in exactly one run), the report says so in its first paragraph. |
+
+**Not changed:** `BAR_N` = 0.5 pp (FROZEN), N-LEVER / N-CLOSED / N-OPEN, the corpus, the sample, the build, the match rule and V1/V3–V6.
+
+🔴 **One consequence the Captain should see, stated now so it cannot be read later as a re-read of the bar:** §9's case for 0.5 pp assumed 60 costs about 0.136 false decodes per noise cycle (the 20260050 figure). On this build, white noise gives none at either cap. **The bar stays frozen.** Whether 60 costs false decodes on real audio is what the corpus arms' not-confirmed counts (§6 descriptive) will show. That is where the exchange rate gets read, not from noise.
+
+**Prediction scored now (ledger rule 1):** **NR3 "V2 passes" (0.85, C): 🔴 MISS.** It was a computed miss that I priced as safe. I took E1's noise rate from shim 20260050 and never checked whether today's build still decodes anything on noise. That is the SUB-FEAS lesson I cited in V6's own rationale: *measure the instrument on real "nothing" before writing the bar.* V2′ is written so that its pass condition does not depend on any rate.
