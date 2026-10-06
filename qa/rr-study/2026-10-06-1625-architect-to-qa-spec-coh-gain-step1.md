@@ -131,4 +131,37 @@ For each signal, starting from GAP-LOCATE's anchor (WSJT-X's frequency and DT ma
 | **CG1′** | *(added at ratification, before any datum; CG1/CG2 above were written at 2.0 and are kept as written)* Verdict **COH-GO at the ratified `BAR_G` = 1.0** | 0.45 | H |
 | **CG2′** | Verdict COH-STOP at 1.0 | 0.25 | H |
 
+---
+
+## 11. Amendment 1 — 2026-10-06 16:58Z (`date -u`): V2(b) re-specified; a near-threshold descriptive tier. Synthetic data only so far, no real-audio datum
+
+**QA's report (message received ~16:5xZ):** the first V2 run, on the 200 synthetic signals only, passes (a) C3 1.000, (c) G 1.000 and (b)'s dt half (median 1.3 ms ≤ 7.5 ms). It **fails (b)'s df half: median |est_df − true_df| = 0.162 Hz > 0.15.** C1 and C3\* are both 1.000. df error quantiles 10/50/90/99 % = 0.004 / 0.162 / 0.182 / 0.350 Hz. The oracle's median is 0.023 Hz.
+
+**Cause, accepted as measured:** the data-free objective sums three 7-symbol Costas blocks **36 symbols (5.76 s) apart** coherently. Its df surface therefore has **grating lobes every 1/5.76 s = 0.174 Hz** at nearly equal height, and the argmax lands one lobe off about as often as not.
+
+- It is **not a bias** (signed median −0.01 Hz), **not noise** (same spread at +20 dB), and **not the harness**: the oracle is tight on the same signals, and a unit test shows the matmul form equals naïve per-hypothesis downconversion.
+- **It does not hurt decoding at this level:** 0.17 Hz is ≈ 0.17 rad per symbol, negligible inside a 3-symbol coherent group, and C1/C3 decode 200/200.
+
+**Ruling (HK-025(k), QA's case accepted):** **(b) as written was a bar the specified estimator cannot pass on any run.** It sat inside the estimator's own lobe spacing, and it was not needed to catch what V2 exists for: a one-symbol origin error is 160 ms, integer-Hz rounding gives ≥ 5 ms or ≤ 0.5 Hz offsets, and a lattice-reconstructed frequency is off by up to 1.56 Hz. The defect is **mine**: I set 0.15 Hz without computing the estimator's ambiguity, which is a computable miss of the kind the ledger already records. **Re-specifying it now is not a re-read of a result**, because no real-audio datum exists, and the new bar still fires on every defect the row was written for.
+
+| row | was | now |
+|---|---|---|
+| **V2(b)** | median \|est_df − true_df\| ≤ 0.15 Hz AND median \|est_dt − true_dt\| ≤ 7.5 ms | **(b′)** median \|est_df − true_df\| **≤ 0.20 Hz** (the 0.174 Hz lobe period plus half a grid step) **AND \|median signed est_df − true_df\| ≤ 0.05 Hz** (no bias) **AND** median \|est_dt − true_dt\| ≤ 7.5 ms. (a) and (c) unchanged. |
+
+V2 is **re-evaluated on the same 200 synthetic signals** under (b′). No re-render, no new seed.
+
+**Added, DESCRIPTIVE ONLY (no row, cannot stop or license anything): V2-T**, a near-threshold tier. 200 more synthetic signals, same construction, at nominal **−20 dB**, decoded by all four arms. **Why:** at −14 dB every arm saturates at 1.000, so V2 can see only gross misalignment. V2-T shows G vs C1 vs C3 vs C3\* where the differences live, and whether the lobe ambiguity starts to cost anything near threshold (C3 vs C3\*). Its seed comes from a new label, `COH-GAIN-V2T`. It is committed with the harness before any real extraction. 🛑 It is synthetic AWGN: never cite it as the gain.
+
+**Also ruled, from QA's facts:**
+
+- **The anchor offset δ = 0.7 s (median; mean 0.659 over 68,525 exact matches)** is accepted and frozen. It agrees with the board's known ≈ 0.70 s DT convention difference.
+- **The 636 excluded rows** (523 hashed-call tokens, 113 other unencodable) are excluded before extraction, as specified. The **denominator is therefore encodable WSJT-X decodes (9,524)**. The report must **also** give `NET_C3` rescaled to **all** WSJT-X decodes in the sampled cycles, crediting the excluded rows with zero gain (conservative), and state both. **The verdict uses the specified (encodable) denominator.**
+- **The 1-in-10 sample stands** (≈ 1.3 h of CPU projected at ≈ 0.5 s per signal; the timing pilot still runs, as specified, from disjoint `i mod 10 == 7` cycles).
+
+**Scored now (ledger rule 1):** **CG6 "V2 passes first time" (0.55, C): 🔴 MISS**, on my own bar. CG1–CG5, CG1′ and CG2′ stay open.
+
+**Still required before real extraction:** V2 PASS under (b′), the pilot, everything committed, and **the Captain's go in QA's window** after `NHARD-REP`.
+
+---
+
 **On the ledger:** in the review I leaned *against* a build and the Captain overruled me. These probabilities are deliberately near even. Measurement geometry has cost limb 2 most of its time before, which is why V2 sits at 0.55.
