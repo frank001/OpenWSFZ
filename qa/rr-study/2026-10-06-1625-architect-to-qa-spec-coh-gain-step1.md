@@ -207,4 +207,40 @@ V2 is **re-evaluated on the same 200 synthetic signals** under (b′). No re-ren
 
 ---
 
+## 13. Amendment 3 — 2026-10-06 17:30Z (`date -u`): V4 re-specified on the population it was meant for. **Ruled BLIND**: the Architect has not seen any NET or arm figure
+
+**QA's report (main extraction done 17:18:26Z–17:27:48Z, 9,524 rows, 309 cycles, pin equal at start and end; verdict withheld):**
+
+- V1, V2 (b′), V3 (edge 2.2 %) and V5 (300 rows, 0 differences) PASS. **V4 FAIL: G success on live-hit rows = 0.800 (n 6,697) vs 0.90.**
+- QA has seen the descriptive NET figures, **withheld them from the Architect on purpose**, and has not committed or copied `rows.json`. That was correct, and it makes this ruling blind.
+- **Incident accepted:** a fixed zero-pad in `fine_sync` crashed on a late anchor (IndexError). Out-of-stream samples are zero by the spec's convention, so this was a harness bug. It was fixed with regression tests (`c2815cd3`) and the run resumed. The 8,624 rows already written could not have touched the overrun, and V5's fresh-process repeat covers them.
+
+**Cause, accepted, and computable from outcome-free figures:**
+
+- With subtraction ON, **14.1 % of the live path's matched decodes are batch 2** (`NHARD-REP` N40: 953/6,759): decodes found only in the **residual** audio.
+- **G reads the original audio**, so it cannot reproduce them, and its ceiling on "live hits" is ≈ 0.86 before any harness question.
+- G's rate rises with SNR (0.68 → 0.94) and falls with load (0.846 → 0.739). On ≥ 0 dB, lightest-load rows (n 473) it is **0.966**, matching GAP-LOCATE's `P_ctrl` 95.96 %.
+- 0 of 5,356 G successes are by OSD, as the sign finding predicts.
+
+**Ruling:**
+
+- **The defect is the Architect's.** V4's 0.90 came from `P_ctrl`, a **pre-subtraction** population, and I applied it to a flag-ON live population without accounting for batch 2. That makes three computed bars set wrong today (NR3, CG6, V4). The fault is the same each time: **I wrote the bar without computing what the instrument reads on this build's own population.**
+- **Option (i) is ADOPTED, with the bar unchanged.** **Option (ii) is REFUSED**: a stratum picked from this run's data is outcome-adjacent. **Option (iii) is not needed.**
+
+| row | predicate (as code) |
+|---|---|
+| **V4′** | Replay the 309 sampled COH-GAIN cycles through the **`NHARD-REP` harness at `nhard` 40** (same build, pin, flag ON, threads 8, Test B match rule), with the matched output extended to carry **each match's batch**. Population **P1** = COH-GAIN rows (encodable WSJT-X decodes) matched by that replay **in batch 1**. **PASS iff G success on P1 ≥ 0.90.** Rows matched only in batch 2, and rows unmatched by the replay, are not in P1. |
+
+- **Why this is the right population:** P1 is "what the decoder found on the original audio at this build", defined by an instrument **independent of G**. It is exactly what G is supposed to reproduce, and it is the analogue of `P_ctrl`. **The bar is not lowered.**
+- **Also report (descriptive, it tests QA's hypothesis directly):** G success on rows matched **only in batch 2** (expected low), the replay's batch-2 share on these cycles, and |P1|.
+- If V4′ **FAILS**, the verdict is VOID. QA reports and stops; the Architect rules.
+
+**Release scope (HK-025(ab): scope a stop rule to what it guards):** V4 guards the **G arm and the anchor mapping**, which every NET uses (`NET_C3`, `NET_GO`, `NET_C3O`, and C3\* relative to G). **Nothing is released or scored until V4′ is evaluated.** QA's stratified G rates above are V4 diagnostics and may be cited as such.
+
+**Prediction (blind; scored at the COH-GAIN ruling):** CG8: V4′ passes. P = 0.75 (C).
+
+**Order:** the V4′ replay (≈ 35 min, PC free, CPU only), committed with the batch-labelled matched output **before** any further scoring; then V4′; then, if PASS, the verdict and the descriptive arms as specified. The Captain's go for the main extraction covers this replay: it is a validity check inside the same arm, with no station time. If the Captain wants a separate go, he says so.
+
+---
+
 **On the ledger:** in the review I leaned *against* a build and the Captain overruled me. These probabilities are deliberately near even. Measurement geometry has cost limb 2 most of its time before, which is why V2 sits at 0.55.
