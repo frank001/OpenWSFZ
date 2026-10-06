@@ -51,9 +51,10 @@ def verdict_row(ci_lo, ci_hi, margin=BAR_SAFE_MARGIN_PP):
     return "O-OPEN"
 
 
-def row_v1(pins):
+def row_v1(pins, arm=None):
     """V1': the pin equal at the start and at the end of N0. A missing record FAILS."""
-    seen = {p["when"]: p.get("libft8_sha256") == NR.DLL_PIN and p.get("pinned", NR.DLL_PIN) == NR.DLL_PIN for p in pins if p.get("arm") == ARM}
+    arm = ARM if arm is None else arm
+    seen = {p["when"]: p.get("libft8_sha256") == NR.DLL_PIN and p.get("pinned", NR.DLL_PIN) == NR.DLL_PIN for p in pins if p.get("arm") == arm}
     bad = [w for w in ("start", "end") if not seen.get(w, False)]
     return (not bad), {"failed_or_missing": bad}
 
@@ -113,16 +114,19 @@ def _sum_b(cy, kind, idx):
     return sum(cy[kind][b][idx] for b in NR.BANDS)
 
 
-def analyse(n0_dir, n40_dir, results_dir=None, selection_path=None):
+def analyse(n0_dir, n40_dir, results_dir=None, selection_path=None, arm0=None, arm40=None, stratum="SAMPLE", out_name="n0_analysis.json"):
+    """arm0 / arm40 / stratum / out_name are parameters so the SAME rows score the OSD-OFF confirmation on fresh cycles (arms N0B / N40B, stratum SAMPLE_B); the defaults are the original run."""
+    arm0 = ARM if arm0 is None else arm0
+    arm40 = PAIRED_ARM if arm40 is None else arm40
     selection_path = selection_path or os.path.join(REPO, "qa", "rr-study", "results", "2026-10-06-nhard-rep", "selection.json")
     sel_bytes = open(selection_path, "rb").read().replace(b"\r\n", b"\n")
     sel_sha = hashlib.sha256(sel_bytes).hexdigest()
     probe_sha = hashlib.sha256(open(os.path.join(HERE, "probe_vectors.json"), "rb").read().replace(b"\r\n", b"\n")).hexdigest()
     sel = json.loads(sel_bytes)
     run = sel["run"]
-    stamps = sel["runs"][run]["SAMPLE"]
+    stamps = sel["runs"][run][stratum]
 
-    P0, P40 = NR.arm_paths(n0_dir, ARM), NR.arm_paths(n40_dir, PAIRED_ARM)
+    P0, P40 = NR.arm_paths(n0_dir, arm0), NR.arm_paths(n40_dir, arm40)
     t0, t40 = O.load_testb(P0["testb"]), O.load_testb(P40["testb"])
     m0, m40 = NR.load_matched(P0["matched"]), NR.load_matched(P40["matched"])
     log0 = O.parse_log(P0["log"])
@@ -134,7 +138,7 @@ def analyse(n0_dir, n40_dir, results_dir=None, selection_path=None):
     ab0 = O.load_abandon(P0["abandon"])
     ab40 = O.load_abandon(P40["abandon"])
 
-    v = {"V1": row_v1(pins), "V2pp": row_v2pp(_load_probe(P0["probe"]), _load_probe(P40["probe"])),
+    v = {"V1": row_v1(pins, arm0), "V2pp": row_v2pp(_load_probe(P0["probe"]), _load_probe(P40["probe"])),
          "V3": row_v3(O.load_run_csv(P0["run"]), restarts, log0["contained"]), "V4": row_v4(log0["readback"], sel_sha, probe_sha), "V5": row_v5(ab0, stamps)}
 
     present = [s for s in stamps if s in t0 and s in t40]
@@ -206,7 +210,7 @@ def analyse(n0_dir, n40_dir, results_dir=None, selection_path=None):
         result["verdict_withheld_because"] = failing or ["no scored cycles"]
     if results_dir:
         os.makedirs(results_dir, exist_ok=True)
-        json.dump(result, open(os.path.join(results_dir, "n0_analysis.json"), "w"), indent=1, sort_keys=True, default=str)
+        json.dump(result, open(os.path.join(results_dir, out_name), "w"), indent=1, sort_keys=True, default=str)
     return result
 
 
