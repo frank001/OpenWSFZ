@@ -164,4 +164,47 @@ V2 is **re-evaluated on the same 200 synthetic signals** under (b′). No re-ren
 
 ---
 
+## 12. Amendment 2 — 2026-10-06 17:10Z (`date -u`): production OSD receives sign-inverted LLRs. Two descriptive arms added. Still no main-extraction datum
+
+**QA's finding (on the 50 DISCARDED pilot rows, `i mod 10 == 7`, disjoint from the sample; harness `fcd553df`, pilot choice `dcb23a74`, `qa/coh-gain`, local).** Across those rows G decodes 37 by BP and **0 by OSD**, with 13 failing. With OSD forced on G's LLRs (`ft8_ldpc_decode_llrs`, `max_iters` 1, depth 2, `nhard` 40), it recovers the true payload on **0/50 as shipped and 16/50 with the LLR signs negated** (all 16 are rows BP also decodes).
+
+**Verified by the Architect from source at `be3cc5ac` (HK-018). The sign mismatch is real:**
+
+- **Extractor:** `ft8_extract_symbol` computes `logl = max(bit-1 tones) − max(bit-0 tones)`, i.e. log p(1)/p(0). **Positive = bit 1.**
+- **BP:** `ft8_lib_vendor/ft8/ldpc.c:149`: `plain = (sum > 0) ? 1 : 0`. **Positive = bit 1, consistent with the extractor.** (`ldpc.c:9`'s comment says the opposite; the code governs.)
+- **OSD:** `patched/ft8/decode.c` `osd_decode`, whose header says "positive = bit 0" and whose code is `hard = (llr < 0) ? 1 : 0`. **Positive = bit 0.**
+- **Call site** (`ftx_decode_candidate`, `decode.c:~643–666`): `llr_for_osd` is a plain copy of the same normalised `log174` BP receives, passed to `osd_decode` **unnegated**. The gate's `hd = (llr > 0) ? 0 : 1` and `hard_pm1` follow OSD's convention, so the gate is internally consistent with the inversion and never flags it.
+- ⇒ **Since OSD shipped (shim 20260025), production OSD has searched near the complement of the received hard decisions.** The all-ones word is not a codeword of this LDPC code (its parity rows have weight 6–7), so OSD returns a different codeword near the complement. That passes CRC-14 only by chance (≈ 2⁻¹⁴ per attempt). **On this reading every production OSD accept has been a chance-CRC false decode.**
+
+**It explains, with one mechanism:**
+
+- `NT` 0/710 and `CC` 0/3,681 genuine OSD rescues at **any** `nhard`;
+- the D-009 / OSD-FA-A false-accept history, with the `nhard` gate (R5) calibrated on chance-valid output;
+- `NHARD-REP`'s signature: 40 → 60 adds 2 confirmed and +207 unconfirmed decodes, and the batch-2 loss fits false decodes being subtracted.
+
+⚠️ **Not yet established:** (1) **how much a corrected OSD would add**: QA's 16/50 were all BP-decodable rows, and 0 of 13 BP failures were rescued, n = 50; (2) its **false-decode cost** at the current gate values, which were tuned on the inverted path and need re-calibration; (3) the D3 "10 WSJT-X-confirmed OSD-path decodes" and E3's "2 corroborated removals", whose path classification had a known blind spot (E3 ruling §4). A chance-CRC payload essentially cannot match a WSJT-X message, so those were probably misclassified.
+
+**Ruling: QA's proposal is ACCEPTED. Two DESCRIPTIVE arms are added (no row; they cannot stop or license anything):**
+
+| arm | definition |
+|---|---|
+| **GO** | G's LLRs. BP exactly as production. **If BP fails, OSD on the NEGATED LLRs** via `ft8_ldpc_decode_llrs` (`max_iters` 1, depth 2, `nhard` 40, corr 0.10, all with the gate in the corrected convention because the gate reads the same negated vector). It emulates a one-line sign fix of the production path. |
+| **C3O** | the same, on C3's LLRs |
+
+**Report, per arm:** success; `NET_GO` = (succ GO − succ G)/N and `NET_C3O` − `NET_C3`, with the same cycle-clustered CI; the number of rows where BP failed and corrected OSD recovered the **true** payload; and 🔴 **the number where corrected OSD returned a CRC-valid but WRONG payload** (a false decode at a true signal's position, which is the at-position half of the FP cost). Any `path` = 0 on the negated call (BP "converging" on the complement) is counted and reported, and counted as a failure.
+
+**What these arms cannot see, stated now:** the false-decode cost on **empty or crowded** positions. Every row here is a real WSJT-X signal. **A product fix therefore needs its own spec**: a native one-line change plus a gate re-calibration (Developer, HK-011), measured by an offline flag-OFF/ON replay against WSJT-X with an FP watch (the SUB-FEAS pattern) and a noise leg. **Not licensed here.**
+
+**Consequences for closed work (HK-022: correct a record where it lives):**
+
+- **`NHARD-REP` N-CLOSED stands as measured.** It is a statement about the shipped decoder. Its **reading changes**: the cap acted only on false decodes, so the result says nothing about a correct OSD's `nhard`.
+- **`NT`, `CC`, `E3`, OSD-FA-A and D-009 R5** measured a **sign-inverted** OSD. 🛑 **Never cite them as "OSD cannot rescue genuine decodes" or as calibrations of a correct gate.** The board's citation guards are updated in the same pass.
+- The `#3` comment posted today (6021435358) gives the "cap below 40" lead. That lead is **superseded**: with OSD fixed, the cap question has to be asked again from scratch. A correction is to be posted on #3 if the Captain wants it.
+
+**Unchanged:** the COH-GAIN verdict rows, `BAR_G` (1.0 pp, frozen), V1–V5, the sample, and the predictions. **The main extraction still needs the Captain's go in QA's window.**
+
+**Prediction (blind; descriptive; scored at the COH-GAIN ruling):** CG7: `NET_GO` point estimate ≥ +0.5 pp, P = 0.45 (H). The pilot's 0 of 13 argues low; WSJT-X's own OSD gain near threshold argues higher.
+
+---
+
 **On the ledger:** in the review I leaned *against* a build and the Captain overruled me. These probabilities are deliberately near even. Measurement geometry has cost limb 2 most of its time before, which is why V2 sits at 0.55.
