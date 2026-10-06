@@ -322,7 +322,7 @@ The native export `ft8_ldpc_decode_llrs` (`ft8_shim.h:1228–1280`, shim 2026004
 **HK-038, where the numbers come from:**
 
 - **0 (the O-GAIN and O-HARM boundaries)** is the no-change point, not a carried figure.
-- **−0.10 pp (O-SAFE)** is a **decision margin**. ⚠️ **It needs the Captain's ratification before N0 runs.** Proposed basis: the closed E3 leg found only 2 of 57,594 WSJT-X-confirmed decodes that depended on OSD at all (≈ 0.003 %), and the sign analysis predicts none. So 0.10 pp is ≈ 30× the largest plausible genuine dependency, while staying small against the gap.
+- **−0.10 pp (O-SAFE)** is a **decision margin.** ✅ **RATIFIED by the Captain, 2026-10-06 ~18:20Z, "0.10 pp (Recommended)" (over 0.05), before N0 has run. FROZEN.** Proposed basis: the closed E3 leg found only 2 of 57,594 WSJT-X-confirmed decodes that depended on OSD at all (≈ 0.003 %), and the sign analysis predicts none. So 0.10 pp is ≈ 30× the largest plausible genuine dependency, while staying small against the gap.
 
 **Consequence:** an O-GAIN or O-SAFE gives the Captain the evidence to set **OSD off as the interim default** for #215, until a working OSD exists. On C3's LLRs a corrected OSD is +0.26 pp (step-3 territory). The change itself would be a config default plus a migration, through a dev-task, a Developer (HK-011) and a merge sign-off (HK-010). **Not licensed here.**
 
