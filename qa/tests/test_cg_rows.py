@@ -200,6 +200,28 @@ def test_strata_structure():
 
 
 # ---- end to end through analyse() -----------------------------------------------------------------------------------------------------
+def test_osd_arm_report_counts_rescues_wrong_payloads_and_path0():
+    rows = _rows(n_cycles=10, per=10, g_rate=0.5)
+    for i, r in enumerate(rows):
+        bp = 1 if i % 4 == 0 else 0
+        # a row can have BP success in one lattice cell AND a corrected-OSD success in another: those are NOT BP-failure rescues
+        osd = 1 if ((not bp and i % 4 == 1) or (bp and i % 8 == 0)) else 0
+        r.update({"GO_bp_ok": bp, "GO_osd_ok": osd, "GO_ok": int(bp or osd), "GO_wrong": 1 if i % 20 == 2 else 0, "GO_neg0": 1 if i % 50 == 3 else 0})
+    rep = R.osd_arm_report(rows, "GO", "G")
+    assert rep["n_rows"] == 100 and rep["bp_only_success"] == 25 and rep["bp_fail_rows"] == 75
+    assert rep["bp_fail_rows_recovered_true_payload_by_corrected_osd"] == 25      # the 13 rows with BOTH are not counted
+    assert rep["rows_corrected_osd_returned_crc_valid_wrong_payload"] == 5 and rep["wrong_pct_of_rows"] == pytest.approx(5.0)
+    assert rep["wrong_pct_of_bp_fail_rows"] == pytest.approx(100.0 * 5 / 75) and rep["rows_negated_call_returned_path0"] == 2
+    assert set(rep["NET_vs_base"]) >= {"NET_pp", "ci95", "n_cycles"}
+
+
+def test_osd_arm_fields_are_part_of_the_persisted_columns_and_the_determinism_check():
+    for arm in CG.OSD_ARMS:
+        for f in CG.OSD_FIELDS:
+            assert f"{arm}_{f}" in CG.ROW_FIELDS and f"{arm}_{f}" in R.CSV_COLUMNS
+    assert CG.OSD_ARMS == ("GO", "C3O") and CG.NEG_MAX_ITERS == 1
+
+
 def _write_run(tmp_path, rows, synth=None, v5=None, pins=None):
     def dump(path, recs, cols):
         with open(path, "w", newline="\n") as fh:
@@ -368,3 +390,50 @@ def test_v4_uses_live_hit_rows_only_not_the_whole_population():
     for r in rows:
         r["G_ok"] = 0 if int(r["live_hit"]) == 1 else 1       # the opposite: fails on hits, succeeds on misses
     assert R.row_v4(rows)[0] is False
+
+
+PROBES = CGD.parent / "nhard-rep" / "probe_vectors.json"
+
+
+@pytest.mark.skipif(not DLL.exists(), reason="pinned DLL copy not present")
+def test_corrected_osd_arm_on_the_calibrated_vectors():
+    """The V2' vectors are built in OSD's own sign (positive = bit 0). NEGATING them gives the production sense (positive = bit 1): BP on that cannot decode the
+    26 / 52 pivot sign errors, and the corrected OSD (which negates back) is gated by nhard exactly as calibrated: P_lo (26) accepted, P_hi (52) rejected at 40."""
+    dec = CG.load_decoder(str(DLL))
+    j = json.loads(PROBES.read_bytes())
+    text = j["message"]
+    truth = dec.true_codeword(text)[:77]
+    shipped = {n: [-x for x in j["vectors"][n]["llr"]] for n in ("P_lo", "P_hi")}
+    lo = CG.corrected_osd_arm(dec, [shipped["P_lo"]], text, truth)
+    assert (lo["ok"], lo["bp_ok"], lo["osd_ok"], lo["wrong"], lo["neg0"]) == (1, 0, 1, 0, 0)
+    hi = CG.corrected_osd_arm(dec, [shipped["P_hi"]], text, truth)
+    assert (hi["ok"], hi["osd_ok"], hi["wrong"]) == (0, 0, 0)                      # 52 errors > nhard 40: the gate rejects
+    other = dec.true_codeword("Q4XYZ Q1ABC -07")[:77]
+    wrong = CG.corrected_osd_arm(dec, [shipped["P_lo"]], "Q4XYZ Q1ABC -07", other)
+    assert (wrong["ok"], wrong["osd_ok"], wrong["wrong"]) == (0, 0, 1)             # CRC-valid, but not the payload that was sent
+    assert CG.corrected_osd_arm(dec, [], text, truth)["ok"] == 0
+
+
+@pytest.mark.skipif(not DLL.exists(), reason="pinned DLL copy not present")
+def test_evaluate_signal_carries_the_osd_arms_and_a_clean_signal_is_a_bp_success():
+    dec = CG.load_decoder(str(DLL))
+    s = dict(json.loads((CGD / "synthetic_set.json").read_bytes())[0], snr_db=0.0)
+    out = SY.evaluate(dec, s)
+    for arm in CG.OSD_ARMS:
+        assert out[f"{arm}_ok"] == 1 and out[f"{arm}_bp_ok"] == 1 and out[f"{arm}_wrong"] == 0 and out[f"{arm}_neg0"] == 0
+
+
+@pytest.mark.skipif(not DLL.exists(), reason="pinned DLL copy not present")
+def test_corrected_osd_arm_a_negated_call_that_converges_in_bp_is_counted_and_is_a_failure():
+    """Hand the arm a CLEAN vector in OSD's sign (positive = bit 0). BP on it fails (it sees the complement), so the arm negates it; the negated vector is a clean
+    BP-sign vector and BP converges in one iteration: path 0 on the negated call. That is COUNTED (neg0) and is NOT a success."""
+    dec = CG.load_decoder(str(DLL))
+    j = json.loads(PROBES.read_bytes())
+    cw = np.array(j["codeword_bits"])
+    clean_osd_sign = list(np.where(cw == 0, 4.0, -4.0))
+    truth = dec.true_codeword(j["message"])[:77]
+    out = CG.corrected_osd_arm(dec, [clean_osd_sign], j["message"], truth)
+    assert out["neg0"] == 1 and out["ok"] == 0 and out["osd_ok"] == 0 and out["wrong"] == 0 and out["bp_ok"] == 0
+    shipped_clean = list(np.where(cw == 1, 4.0, -4.0))                     # a clean vector in the SHIPPED sense: BP converges, OSD is never reached
+    ok = CG.corrected_osd_arm(dec, [shipped_clean], j["message"], truth)
+    assert ok["bp_ok"] == 1 and ok["ok"] == 1 and ok["neg0"] == 0 and ok["osd_ok"] == 0

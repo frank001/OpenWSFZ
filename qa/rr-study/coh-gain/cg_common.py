@@ -13,6 +13,15 @@ Arms (every arm feeds its 174 raw LLRs to ft8_ldpc_decode_llrs at nhard 40, max_
   C3  coherent orders 1+2+3 (V3) at the same estimate                                  <- the A' candidate
   C3S as C3 at the ORACLE estimate (data-aided over all 79 tones): a ceiling, not a buildable decoder
 Success = out_crc_ok == 1 AND comparator.payload_match (ROW 0f's v_star, the RR73 equivalence).
+
+AMENDMENT 2 (Architect 2026-10-06 ~17:30Z, spec section 12; QA's OSD-sign finding, verified from source): osd_decode assumes positive = bit 0 while the extractor
+and BP use positive = bit 1, so the shipped OSD stage receives the COMPLEMENT of the soft decisions. Two DESCRIPTIVE arms (no row) measure what a sign fix
+would add at WSJT-X's positions:
+  GO   G's LLRs: BP as production (osd_depth -1: the BP stage alone); if BP fails in a cell, OSD on the NEGATED LLRs (max_iters 1 so BP cannot converge on
+       the complement, depth 2, nhard 40, corr 0.10). Any cell succeeding counts.
+  C3O  the same on C3's LLRs.
+Reported per arm: success, BP-only success, corrected-OSD TRUE recoveries, rows where corrected OSD returned a CRC-valid WRONG payload (the at-position FP
+cost), and rows where the negated call returned path 0 (counted, treated as a failure).
 """
 from __future__ import annotations
 
@@ -66,6 +75,9 @@ V3_MAX_EDGE_SHARE = 0.05
 V4_G_MIN = 0.90
 V5_ROWS = 300
 ARMS = ("G", "C1", "C3", "C3S")
+OSD_ARMS = ("GO", "C3O")                       # Amendment 2: descriptive, sign-corrected OSD
+OSD_FIELDS = ("ok", "bp_ok", "osd_ok", "wrong", "neg0")
+NEG_MAX_ITERS = 1                              # BP sees the complement of the negated LLRs and cannot converge in one iteration: the OSD path decides
 
 # ---- frozen files, pinned by LF-normalised SHA-256 and ASSERTED by cg_run.py before anything is extracted ----
 ROWS_JSON_SHA256 = "34b97c22fa61f0cb17a3ac57b8a9cad385375467fa93b96ba1d3803ea6e5c0b6"     # results/2026-10-06-coh-gain/rows.json (rows + pilot rows)
@@ -136,6 +148,32 @@ def _arm_result(dec, llr, truth_bits, text, truth_payload):
     return {"ok": int(ok), "path": int(res["path"]), "crc": int(res["crc_ok"]), "ldpc": int(res["ldpc_errors"]), "nbe": nbe}
 
 
+def corrected_osd_arm(dec, llrs, text, truth_payload) -> dict:
+    """AMENDMENT 2: BP as production, then OSD on the NEGATED LLRs, over one or several LLR vectors (G's nine lattice cells, or C3's single vector).
+    Per vector: BP alone (osd_depth -1, 50 iterations); if BP converges that is production's own outcome (true payload -> bp_ok, otherwise nothing further);
+    if BP fails, OSD on the negated vector (max_iters 1, depth 2). The negated call must reach the OSD gate: path 1 with CRC ok is an acceptance (true payload
+    -> osd_ok, WRONG payload -> wrong); path 0 on the negated call is COUNTED (neg0) and treated as a failure. Text and bits never leave this function."""
+    out = {"bp_ok": 0, "osd_ok": 0, "wrong": 0, "neg0": 0}
+    for llr in llrs:
+        r = dec.ldpc_decode_llrs([float(x) for x in llr], max_iters=K_LDPC_ITERATIONS, osd_depth=-1)
+        if r["rc"] == 0 and r["path"] == 0:
+            if r["crc_ok"] == 1 and CMP.payload_match(truth_payload, a91_to_bits(r["a91"], PAYLOAD_BITS), text, V_STAR):
+                out["bp_ok"] = 1
+            continue
+        n = dec.ldpc_decode_llrs([-float(x) for x in llr], max_iters=NEG_MAX_ITERS, osd_depth=OSD_DEPTH)
+        if n["rc"] != 0:
+            continue
+        if n["path"] == 0:
+            out["neg0"] = 1
+        elif n["path"] == 1 and n["crc_ok"] == 1 and n["a91"] is not None:
+            if CMP.payload_match(truth_payload, a91_to_bits(n["a91"], PAYLOAD_BITS), text, V_STAR):
+                out["osd_ok"] = 1
+            else:
+                out["wrong"] = 1
+    out["ok"] = int(bool(out["bp_ok"] or out["osd_ok"]))
+    return out
+
+
 def coherent_llrs(pcm, anchor_f, anchor_t, est: dict) -> dict:
     """V1 / V3 LLRs at an estimate (offsets from the anchor)."""
     t = FS.anchor_dt_for_step(anchor_t, est["dt_step"])
@@ -156,11 +194,13 @@ def evaluate_signal(dec, pcm: np.ndarray, anchor_f: float, anchor_t: float, text
     # ---- G: any of the 9 lattice cells around the anchor (leg_fk2.py's own loop) ----
     best = None
     won = None
+    g_llrs = []
     for cell in lattice.snap_and_neighbours(anchor_f, anchor_t):
         rc, llr = dec.extract_at(pcm, cell["freq_hz"], cell["time_offset_s"])
         if rc != 0:
             out["fault"] = 1
             continue
+        g_llrs.append(llr)
         r = _arm_result(dec, llr, truth_bits, text, truth_payload)
         if best is None or (r["ok"], -r["nbe"]) > (best["ok"], -best["nbe"]):
             best = r
@@ -170,6 +210,7 @@ def evaluate_signal(dec, pcm: np.ndarray, anchor_f: float, anchor_t: float, text
     if g is None:
         return {"fault": 1}
     out.update({f"G_{k}": v for k, v in g.items()})
+    out.update({f"GO_{k}": v for k, v in corrected_osd_arm(dec, g_llrs, text, truth_payload).items()})
 
     # ---- C1 / C3 at the DATA-FREE estimate; C3S at the ORACLE estimate ----
     est = FS.estimate(pcm, anchor_f, anchor_t)
@@ -180,6 +221,7 @@ def evaluate_signal(dec, pcm: np.ndarray, anchor_f: float, anchor_t: float, text
         out[f"{arm}_df"] = est["est_df_hz"]
         out[f"{arm}_dt"] = est["est_dt_s"]
     out["C3_edge"] = int(est["edge"])
+    out.update({f"C3O_{k}": v for k, v in corrected_osd_arm(dec, [v["V3"]], text, truth_payload).items()})
     est_o = FS.estimate(pcm, anchor_f, anchor_t, FS.oracle_tones(tones))
     vo = coherent_llrs(pcm, anchor_f, anchor_t, est_o)
     r = _arm_result(dec, vo["V3"], truth_bits, text, truth_payload)
@@ -191,7 +233,8 @@ def evaluate_signal(dec, pcm: np.ndarray, anchor_f: float, anchor_t: float, text
 
 
 ROW_FIELDS = (["fault"] + [f"{a}_{k}" for a in ARMS for k in ("ok", "path", "crc", "ldpc", "nbe")]
-              + ["C1_df", "C1_dt", "C3_df", "C3_dt", "C3_edge", "C3S_df", "C3S_dt", "C3S_edge"])
+              + ["C1_df", "C1_dt", "C3_df", "C3_dt", "C3_edge", "C3S_df", "C3S_dt", "C3S_edge"]
+              + [f"{a}_{k}" for a in OSD_ARMS for k in OSD_FIELDS])
 
 
 class CpuTimer:

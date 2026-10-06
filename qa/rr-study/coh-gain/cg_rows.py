@@ -208,6 +208,23 @@ def gains_losses(rows, arm_x, arm_base="G"):
     return out
 
 
+def osd_arm_report(rows, arm, base_arm):
+    """AMENDMENT 2 (descriptive, no row): a sign-corrected-OSD arm against its own base. Counts rows where BP-only failed and corrected OSD recovered the TRUE
+    payload, rows where corrected OSD returned a CRC-valid WRONG payload (the at-position FP cost), and rows where the negated call returned path 0 (counted,
+    treated as a failure)."""
+    n = len(rows)
+    bp_fail = [r for r in rows if not int(r[f"{arm}_bp_ok"])]
+    rescued = sum(1 for r in bp_fail if int(r[f"{arm}_osd_ok"]))
+    wrong = sum(1 for r in rows if int(r[f"{arm}_wrong"]))
+    neg0 = sum(1 for r in rows if int(r[f"{arm}_neg0"]))
+    return {"NET_vs_base": net_with_ci(rows, arm, arm_base=base_arm), "n_rows": n, "bp_only_success": sum(int(r[f"{arm}_bp_ok"]) for r in rows),
+            "bp_fail_rows": len(bp_fail), "bp_fail_rows_recovered_true_payload_by_corrected_osd": rescued,
+            "rows_corrected_osd_returned_crc_valid_wrong_payload": wrong,
+            "wrong_pct_of_rows": 100.0 * wrong / n if n else None,
+            "wrong_pct_of_bp_fail_rows": 100.0 * wrong / len(bp_fail) if bp_fail else None,
+            "rows_negated_call_returned_path0": neg0}
+
+
 def success_curve(rows, arm, min_n=MIN_BIN_N):
     """{ws_snr: success rate} for 1-dB bins with at least min_n rows, then made monotone non-decreasing in SNR (running max)."""
     cnt, suc = collections.Counter(), collections.Counter()
@@ -335,6 +352,10 @@ def analyse(out_dir, results_dir=None, modulus=10):
                                                                "2026-10-06-coh-gain", "rows.json")), modulus)
         result["descriptive"] = {"NET_C1": est["C1"], "NET_C3S": est["C3S"], "v2t_minus20dB_descriptive": v2t_descriptive(synth_t),
                                  "gains_losses": {arm: gains_losses(rows, arm) for arm in ("C1", "C3", "C3S")},
+                                 "amendment2_sign_corrected_osd_descriptive": {
+                                     "GO_vs_G": osd_arm_report(rows, "GO", "G"),
+                                     "C3O_vs_C3": osd_arm_report(rows, "C3O", "C3"),
+                                     "C3O_vs_G": net_with_ci(rows, "C3O", arm_base="G")},
                                  "path_G_counts": dict(collections.Counter(int(r["G_path"]) for r in rows)),
                                  "estimate_histograms": {
                                      "C3_df_hz_edges_-2..2_step0.5": histogram([r["C3_df"] for r in rows], np.arange(-2.0, 2.01, 0.5)),

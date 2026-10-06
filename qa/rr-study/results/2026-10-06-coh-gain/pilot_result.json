@@ -1,13 +1,13 @@
 {
  "pilot_rows": 50,
- "cpu_s_per_row": 0.135,
+ "cpu_s_per_row": 0.1640625,
  "rows_mod10": 9524,
  "rows_mod20": 4665,
- "projected_cpu_hours_mod10": 0.35715,
- "projected_cpu_hours_mod20": 0.17493750000000002,
+ "projected_cpu_hours_mod10": 0.4340364583333333,
+ "projected_cpu_hours_mod20": 0.21259765625,
  "rule": "> 6.0 h CPU for all four arms => 1-in-20",
  "chosen_modulus": 10,
  "rows_chosen": 9524,
- "wall_s": 3.6183083057403564,
+ "wall_s": 4.20330023765564,
  "workers": 4
 }
