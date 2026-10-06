@@ -132,3 +132,36 @@ def test_anchor_dt_for_step_is_whole_decimated_samples():
     for k in (-24, -1, 0, 5, 24):
         a = fs.anchor_dt_for_step(0.5, k)
         assert fs.symbol_start_samples(a) == fs.symbol_start_samples(0.5) + k * fs.DT_STEP_SAMPLES
+
+
+def test_a_late_or_early_anchor_never_runs_off_the_array_and_out_of_stream_symbols_are_zero():
+    """Regression for the first main run's IndexError: a signal starting near the end of the buffer put symbols beyond the old fixed padding."""
+    tones = make_tones()
+    bb = np.zeros(30000, dtype=np.complex128)
+    for anchor in (-3.0, -1.0, 0.0, 6.0, 9.0, 11.0, 13.5, 15.0, 30.0):
+        surf = fs.objective_surface(bb, anchor, fs.SYNC_SYMBOLS)
+        assert surf.shape == (fs.N_DF, fs.N_DT) and float(surf.max()) == 0.0          # nothing in the stream: all-zero surface, no exception
+        r = fs.estimate(np.zeros(180000, dtype=np.float32), 1500.0, anchor)
+        assert r["peak"] == 0.0
+        r = fs.estimate(np.zeros(180000, dtype=np.float32), 1500.0, anchor, fs.oracle_tones(tones))
+        assert r["peak"] == 0.0
+
+
+def test_a_signal_whose_last_symbols_fall_past_the_end_is_still_estimated_from_the_symbols_that_exist():
+    tones = make_tones(2)
+    anchor = 2.6 + 0.0                               # symbol 0 at about 2.4 s, so the last symbols are past 15 s
+    pcm = render(tones, 1400.0, anchor, 0.5, 0.02)
+    r = fs.estimate(pcm, 1400.0, anchor)
+    assert abs(r["est_df_hz"] - 0.5) <= 0.35 and abs(r["est_dt_s"] - 0.02) <= 0.0075      # lobe ambiguity (0.174 Hz) allowed; dt tight
+    assert r["peak"] > 0.0
+
+
+def test_padding_change_does_not_alter_a_surface_that_was_already_inside_the_stream():
+    tones = make_tones(6)
+    pcm = render(tones, 1000.0, 0.45, 0.6, 0.02)
+    bb = fs.CE.downconvert_decimate(pcm, 1000.0)
+    s1 = fs.objective_surface(bb, 0.45, fs.SYNC_SYMBOLS)
+    # recompute with a deliberately huge pad: identical values (zero padding is value-neutral when no index leaves the stream)
+    padded = np.concatenate([np.zeros(5000, dtype=np.complex128), bb, np.zeros(5000, dtype=np.complex128)])
+    s2 = fs.objective_surface(padded, 0.45 + 5000 / fs.RATE_HZ, fs.SYNC_SYMBOLS)
+    assert np.allclose(s1, s2, rtol=1e-9, atol=1e-9)

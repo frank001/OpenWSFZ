@@ -74,11 +74,16 @@ def objective_surface(bb: np.ndarray, anchor_dt_s: float, tones_by_symbol: dict)
     syms = np.array(sorted(tones_by_symbol))
     tones = np.array([tones_by_symbol[int(s)] for s in syms])
     s0 = symbol_start_samples(anchor_dt_s)
-    bbp = np.zeros(len(bb) + 2 * _PAD, dtype=np.complex128)
-    bbp[_PAD:_PAD + len(bb)] = bb
     starts = s0 + DT_STEPS * DT_STEP_SAMPLES                                  # (K,)
-    idx = (starts[:, None, None] + syms[None, :, None] * SPS + _N_IDX[None, None, :]) + _PAD   # (K, P, 320)
-    seg = bbp[idx]                                                            # (K, P, 320), zero outside the stream
+    idx = starts[:, None, None] + syms[None, :, None] * SPS + _N_IDX[None, None, :]            # (K, P, 320), may fall outside the stream
+    # Out-of-stream samples are ZERO, as coherent_extract.correlate_symbols zero-pads out-of-bounds symbols (and ft8_extract_likelihood's own convention).
+    # The padding is sized from the indices actually requested: a late anchor (a signal starting near the end of the buffer) or an early one must not
+    # run off the array (first main run, 2026-10-06 17:2xZ: IndexError on a late-starting row with the old fixed pad; fixed before any result was kept).
+    front = max(0, -int(idx.min()))
+    back = max(0, int(idx.max()) - (len(bb) - 1))
+    bbp = np.zeros(len(bb) + front + back, dtype=np.complex128)
+    bbp[front:front + len(bb)] = bb
+    seg = bbp[idx + front]                                                    # (K, P, 320), zero outside the stream
     ref = CE._DFT_MAT[:, tones].T                                             # (P, 320): exp(-j 2 pi tone n/320) per known symbol
     y = (seg * ref[None, :, :]).reshape(-1, SPS)                              # (K*P, 320)
     x = (y @ _E.T).reshape(len(starts), len(syms), N_DF)                      # (K, P, n_df): per-symbol correlation at each df
