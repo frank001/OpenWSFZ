@@ -4,7 +4,8 @@
 - **Branch:** `arch/nhard-replication` (cut from `origin/main` `be3cc5ac`). Docs only: `git diff --stat -- src/ native/` empty.
 - **Programme:** priority #1, item B (the Architect's memory note `todo-decode-improvement-prio1-2026-10-05.md`). Source: GitHub #3 comment 2026-10-04 17:15Z.
 - ~~**Status:** DRAFT until §9 Q1 (`BAR_N`) is ratified by the Captain.~~ ✅ **`BAR_N` = 0.5 pp RATIFIED by the Captain, 2026-10-06 ~14:34Z (`date -u`), "0.5 pp (Recommended)", before any harness change, noise set or decode exists. FROZEN for this arm.** Status: **PRE-REGISTERED.** QA commits the harness change and the frozen cycle list **before any decode**. Nothing below may change after a decode has run, except by a dated amendment that says why.
-- **Needs before arming:** the Captain's go for the CPU window (≈ 5 h, overnight is fine), given in the owner's window. Not given by this spec.
+- **Needs before arming:** the Captain's go for the CPU window (~~≈ 5 h~~ **≈ 1.6–1.8 h under Amendment 1**), given in the owner's window. Not given by this spec.
+- ⛔ **AMENDMENT 1 (2026-10-06 15:01Z, before any datum) changes the cycle set, the bootstrap block, V2's and V6's sizes and the run time. Read it (§12) before §4, §5 and §8.** Unchanged: the question, corpus, build, match rule, `BAR_N` = 0.5 pp, every row predicate's form, and the predictions.
 
 ---
 
@@ -209,3 +210,27 @@ For included cycle *i*: `W_i` = WSJT-X decodes in that cycle; `M40_i`, `M60_i` =
 - 🛑 No synthetic S5 run: at ≈ 1 event per 1,560 slots it plays in real time and cannot resolve two caps in useful time (#3 comment). V2's noise set is a positive control of the setting, not an FP-rate measurement.
 - It does not replicate across bands (one 40 m night), and it does not test the live path.
 - **HK-025 is available in full.** If any row above is a diagnostic dressed as a gate, name it, evaluate both branches, and refuse.
+
+---
+
+## 12. Amendment 1 — 2026-10-06 15:01Z (`date -u`), BEFORE any harness change, noise set or decode: a systematic 1-in-10 sample
+
+**Why.** The Captain asked whether ≈ 5 h was too much. Checking it showed **the estimate was wrong, and low**. §8's 2.4 s/cycle came from the priority-1 to-do, and that is the **Stage B B2** build's replay speed. B2 is not on `main`. The last flag-ON replay on a `main`-line build took **7 h 58 min for 4,298 cycles, ≈ 6.7 s/cycle** (`results/2026-10-01-sub-feas-offline-onoff-replay/report.md:40`). At that speed the design as written is ≈ 13 h. **The Captain chose "Every 10th cycle, ~1.6 h"** (2026-10-06 ~15:00Z), over a 1-in-5 sample (≈ 3 h) and the full night (≈ 13 h).
+
+**Why a sample can answer the question:** `BAR_N` is 0.5 pp, and the expected `NET` is near 0 (§10 NR2). At ≈ 31.6 WSJT-X decodes per cycle (98,156 over the night), ≈ 310 cycles give Σ`W` ≈ 9,800, so 0.5 pp ≈ 49 decodes. If one cycle in ten moved by ±1 decode by chance, Σ`d` would have a spread of ≈ ±6 decodes ≈ ±0.06 pp, so 0.5 pp stays resolvable. 🔴 **The risk this accepts:** if gains cluster in a few cycles, a 1-in-10 sample can miss or over-weight them. §4's clustering report (amended below) makes that visible, and N-OPEN catches it. Computed while drafting (HK-021(m)); V6 checks the noise side on real data.
+
+**Changes (they replace the cited text; everything else stands):**
+
+| where | was | now |
+|---|---|---|
+| §4 cycle set | every included cycle (≈ 3,104) | build the full included ordered list as before. The **sample** = the entries at positions `i` with `i mod 10 == 0` (0-based; position, not stamp, so a gap in the night shifts nothing). ≈ 310 cycles. **Both the full list and the sample** are frozen in `selection.json` and SHA-recorded before the first decode. Exclusion counts are reported for the full list. |
+| §4 bootstrap block | 40 cycles; 20 and 160 reported | **8 sampled cycles** (≈ 20 min of night, ≈ 39 blocks), the last partial block kept; **4 and 16 reported**, not used for the verdict. Autocorrelation of `d_i` at lags 1, 2 and 8 (sampled positions). B, seed and ratio estimator unchanged. |
+| §4 clustering report | top 5 of 40-cycle blocks | the same three figures on 8-cycle blocks: distinct cycles with `d_i ≠ 0`; the largest \|Σ`d_i`\| in one block; the share of a positive Σ`d_i` carried by the top 5 blocks. If that share is > ½, the report says so in its first paragraph. |
+| §5 V2 | 400 noise WAVs; PASS iff `n_false(60) ≥ n_false(40) + 5` | **200** noise WAVs (label `NHARD-REP-PC`); **PASS iff `n_false(60) ≥ n_false(40) + 3`**. At the E1 rates this expects ≈ 21 vs ≈ 1. The "quiet build" clause stands. |
+| §5 V6 | AA over the first 800 included cycles | AA over the **first 200 sampled cycles**. Same predicate, window (−0.25, +0.25) pp, block 8. |
+| §5 V5 | ≤ 5 % of included cycles | ≤ 5 % of **sampled** cycles, each corpus arm |
+| §8 run time | ≈ 5 h | V2 ≈ 15 min; N40 ≈ 310 × 6.7 s ≈ 35 min; N60 ≈ 35 min; AA ≈ 22 min. **≈ 1.6–1.8 h.** |
+| §6 N-OPEN | the Captain may add the second night | the Captain may **first** add the remaining sampled positions of this night (`i mod 10 == 5`, a second ≈ 310) under the same rows and **pooled with the first sample**. The second night stays the next step after that. |
+| §2 scope sentence | "One 40 m night …" | add: *"A systematic 1-in-10 sample of the night's cycles."* |
+
+**Not changed and not changeable:** `BAR_N` = 0.5 pp, the row predicates N-LEVER / N-CLOSED / N-OPEN, V1–V4's forms, the match rule, the corpus and the build. Predictions NR1–NR6 stand as written: they were made before any datum, and the sample does not change what they predict. **NR3/NR4 are now on the smaller V2/V6**, and if either misses on size alone the ruling says so.
