@@ -116,6 +116,14 @@ internal static class Program
         // NHARD-REP Amendment 2 (V2'): --probe-vectors <json> --probe-out <csv> probe the native OSD gate in THIS process.
         if (a.TryGetValue("probe-vectors", out var probeJson))
             LoadProbe(probeJson, Req(a, "probe-out"));
+        // COH-GAIN Amendment 3 (V4'): for every WSJT-X line the replay matched, WHICH batch matched it (1 = pass-0, 2 = the residual pass). Numeric only.
+        if (a.TryGetValue("matched-batch-out", out var matchedBatchPath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(matchedBatchPath))!);
+            bool freshMb = !File.Exists(matchedBatchPath);
+            _matchedBatch = new StreamWriter(matchedBatchPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (freshMb) _matchedBatch.WriteLine("stamp,wsjtx_idx_batch");
+        }
         // NHARD-REP: numeric indices (into the cycle's WSJT-X lines, in ALL.TXT order) of the WSJT-X decodes this arm matched.
         // An index is not message text and not text-derived (HK-037); it lets K and G be computed across two processes.
         if (a.TryGetValue("matched-out", out var matchedPath))
@@ -353,6 +361,7 @@ internal static class Program
         return true;
     }
 
+    private static StreamWriter? _matchedBatch;   // --matched-batch-out: stamp,idx:batch;idx:batch (matched WSJT-X line index and the batch of its match)
     private static StreamWriter? _matched;   // --matched-out: stamp,idx;idx;... (matched WSJT-X line indices, numeric)
     private static StreamWriter? _abandon;   // --abandon-out: stamp,ran,abandoned,contained (numeric flags, 0/1)
 
@@ -415,11 +424,13 @@ internal static class Program
         cands.Sort((x, y) => x.Df != y.Df ? x.Df.CompareTo(y.Df) : x.Oi != y.Oi ? x.Oi.CompareTo(y.Oi) : x.Wi.CompareTo(y.Wi));
         var usedO = new bool[ows.Count];
         var usedW = new bool[w.Count];
+        var matchBatch = new int[w.Count];     // the Kind (1 or 2) of the OpenWSFZ decode that matched each WSJT-X line; 0 = unmatched
         foreach (var (_, oi, wi) in cands)
         {
             if (usedO[oi] || usedW[wi]) continue;
             usedO[oi] = true;
             usedW[wi] = true;
+            matchBatch[wi] = ows[oi].Kind;
         }
         foreach (int kind in new[] { 1, 2 })
             foreach (var band in new[] { "A", "B", "C", "D" })
@@ -431,6 +442,7 @@ internal static class Program
                     n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
             }
         _matched?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j])));
+        _matchedBatch?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j]).Select(j => j.ToString(CultureInfo.InvariantCulture) + ":" + matchBatch[j].ToString(CultureInfo.InvariantCulture))));
         _testB.WriteLine(string.Join(",", run, stamp, "ws", "ALL", w.Count.ToString(CultureInfo.InvariantCulture),
             usedW.Count(x => x).ToString(CultureInfo.InvariantCulture)));
     }

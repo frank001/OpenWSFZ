@@ -222,7 +222,7 @@ def test_osd_arm_fields_are_part_of_the_persisted_columns_and_the_determinism_ch
     assert CG.OSD_ARMS == ("GO", "C3O") and CG.NEG_MAX_ITERS == 1
 
 
-def _write_run(tmp_path, rows, synth=None, v5=None, pins=None):
+def _write_run(tmp_path, rows, synth=None, v5=None, pins=None, v4p_batch2=None, v4p_ws=None):
     def dump(path, recs, cols):
         with open(path, "w", newline="\n") as fh:
             w = csv.writer(fh)
@@ -238,6 +238,16 @@ def _write_run(tmp_path, rows, synth=None, v5=None, pins=None):
     synth = synth or _synth()
     dump(tmp_path / "synthetic.csv", synth, list(synth[0].keys()))
     dump(tmp_path / "v5.csv", v5 if v5 is not None else full[:300], R.CSV_COLUMNS)
+    (tmp_path / "v4p").mkdir(exist_ok=True)
+    by = {}
+    for d in full:
+        by.setdefault(int(d["cycle_index"]), []).append(d)
+    lines, tb = ["stamp,wsjtx_idx_batch"], ["run,stamp,kind,band,n,corroborated"]
+    for ci, rs in by.items():
+        lines.append(f"c{ci}," + ";".join(f"{int(d['widx'])}:{1 if (v4p_batch2 is None or int(d['widx']) not in v4p_batch2) else 2}" for d in rs))
+        tb.append(f"x,c{ci},ws,ALL,{int(rs[0]['ws_load']) if v4p_ws is None else v4p_ws},0")
+    (tmp_path / "v4p" / "matched_batch.csv").write_text("\n".join(lines) + "\n")
+    (tmp_path / "v4p" / "testb.csv").write_text("\n".join(tb) + "\n")
     (tmp_path / "pins.jsonl").write_text("\n".join(json.dumps(p) for p in (pins or _pins())) + "\n")
 
 
@@ -253,7 +263,7 @@ def test_end_to_end_no_effect_gives_coh_stop(tmp_path):
     rows = _big()
     _set_success(rows, "C3", lambda r: r["G_ok"])
     _write_run(tmp_path, rows)
-    res = R.analyse(str(tmp_path))
+    res = R.analyse(str(tmp_path), stamp_of={})
     assert res["failing_rows"] == [] and res["verdict"] == "COH-STOP" and res["estimand"]["NET_C3"]["NET_pp"] == 0.0
 
 
@@ -262,7 +272,7 @@ def test_end_to_end_a_diffuse_gain_gives_coh_go(tmp_path):
     for i, r in enumerate(rows):
         r["C3_ok"] = 1 if r["G_ok"] or i % 10 == 9 else 0              # +10 pp: every row G fails is recovered
     _write_run(tmp_path, rows)
-    res = R.analyse(str(tmp_path))
+    res = R.analyse(str(tmp_path), stamp_of={})
     assert res["failing_rows"] == [] and res["verdict"] == "COH-GO" and res["estimand"]["NET_C3"]["ci95"][0] >= 1.0
     assert res["descriptive"]["gains_losses"]["C3"]["losses"] == 0 and res["first_paragraph_flags"] == []
 
@@ -276,7 +286,7 @@ def test_end_to_end_a_clustered_gain_near_the_bar_gives_coh_open_and_the_cluster
         if r["cycle_index"] in gain_cycles and not r["G_ok"]:
             r["C3_ok"] = 1
     _write_run(tmp_path, rows)
-    res = R.analyse(str(tmp_path))
+    res = R.analyse(str(tmp_path), stamp_of={})
     assert res["verdict"] in ("COH-OPEN", "COH-GO", "COH-STOP") and res["failing_rows"] == []
     assert res["cluster"]["top5_share_of_positive_sum"] is not None and res["cluster"]["flag_gt_half"] is True
     assert any("top-5 blocks" in f for f in res["first_paragraph_flags"])
@@ -287,12 +297,12 @@ def test_end_to_end_a_failed_validity_row_withholds_the_verdict_and_names_it(tmp
     for i, r in enumerate(rows):
         r["C3_ok"] = 1 if r["G_ok"] or i % 7 == 0 else 0
     _write_run(tmp_path, rows, synth=_synth(df_err=0.30))                   # an estimator that is NOT merely lobe-ambiguous
-    res = R.analyse(str(tmp_path))
+    res = R.analyse(str(tmp_path), stamp_of={})
     assert res["verdict"] == "NO VERDICT" and "V2" in res["verdict_withheld_because"]
     _write_run(tmp_path, rows, pins=_pins(sha="0" * 64))
-    assert "V1" in R.analyse(str(tmp_path))["verdict_withheld_because"]
+    assert "V1" in R.analyse(str(tmp_path), stamp_of={})["verdict_withheld_because"]
     _write_run(tmp_path, rows, v5=[dict({c: 0 for c in R.CSV_COLUMNS})] * 300)
-    assert "V5" in R.analyse(str(tmp_path))["verdict_withheld_because"]
+    assert "V5" in R.analyse(str(tmp_path), stamp_of={})["verdict_withheld_because"]
 
 
 # ---- selection helpers (pure) ------------------------------------------------------------------------------------------------------
@@ -437,3 +447,96 @@ def test_corrected_osd_arm_a_negated_call_that_converges_in_bp_is_counted_and_is
     shipped_clean = list(np.where(cw == 1, 4.0, -4.0))                     # a clean vector in the SHIPPED sense: BP converges, OSD is never reached
     ok = CG.corrected_osd_arm(dec, [shipped_clean], j["message"], truth)
     assert ok["bp_ok"] == 1 and ok["ok"] == 1 and ok["neg0"] == 0 and ok["osd_ok"] == 0
+
+
+# ---- V4' (Amendment 3) ---------------------------------------------------------------------------------------------------------------
+def _v4p_inputs(n_cycles=20, per=10, g_on_b1=1.0, g_on_b2=0.0):
+    """Rows where the replay matched widx 0..7 in batch 1 and widx 8..9 in batch 2; G reads batch-1 rows with rate g_on_b1 and batch-2 rows with g_on_b2."""
+    rows, mb, ws, stamp_of = [], {}, {}, {}
+    j1 = 0
+    for c in range(n_cycles):
+        ci = 3 + 10 * c
+        st = f"2610{c:02d}_000000"
+        stamp_of[ci] = st
+        ws[st] = per
+        mb[st] = {k: (1 if k < 8 else 2) for k in range(per)}
+        for k in range(per):
+            rate = g_on_b1 if k < 8 else g_on_b2
+            g_ok = 1 if (j1 % 10) < rate * 10 else 0          # a running counter over the rows of the class: exact rates, independent of widx
+            j1 += 1 if k < 8 else 0
+            rows.append({"cycle_index": ci, "widx": k, "ws_load": per, "fault": 0, "G_ok": g_ok})
+    return rows, mb, stamp_of, ws
+
+
+def test_v4p_passes_on_batch1_rows_even_when_the_whole_population_would_fail_v4():
+    rows, mb, st, ws = _v4p_inputs(g_on_b1=0.95, g_on_b2=0.0)
+    ok, d = R.row_v4p(rows, mb, st, ws)
+    assert ok is True and d["P1_n"] == 160 and d["G_success_on_P1"] >= 0.90 and d["batch2_rows_n"] == 40
+    assert d["replay_batch2_share_of_matches"] == pytest.approx(0.2) and d["G_success_on_batch2_only"] == 0.0
+    whole = sum(r["G_ok"] for r in rows) / len(rows)
+    assert whole < 0.90                                    # the original V4's population rate: the pre-subtraction bar the Architect withdrew
+
+
+def test_v4p_bar_is_unchanged_and_inclusive_and_fails_below_it():
+    rows, mb, st, ws = _v4p_inputs(g_on_b1=0.9)
+    assert R.row_v4p(rows, mb, st, ws)[0] is True          # exactly 0.90 on P1
+    rows, mb, st, ws = _v4p_inputs(g_on_b1=0.8)
+    ok, d = R.row_v4p(rows, mb, st, ws)
+    assert ok is False and d["G_success_on_P1"] == pytest.approx(0.8)
+
+
+def test_v4p_fails_on_an_empty_p1_and_on_a_ws_count_mismatch_between_replay_and_row_list():
+    rows, mb, st, ws = _v4p_inputs(g_on_b1=1.0)
+    assert R.row_v4p(rows, {}, st, ws)[0] is False                                   # the replay matched nothing: cannot read as a pass
+    ws2 = dict(ws)
+    ws2[st[3]] = 11                                                                  # the replay saw a different number of WSJT-X lines in one cycle
+    ok, d = R.row_v4p(rows, mb, st, ws2)
+    assert ok is False and d["ws_count_mismatch_cycles"] == 1
+    assert R.row_v4p(rows, mb, st, {})[0] is False                                   # no replay counts at all
+
+
+def test_load_matched_batch_parses_the_harness_file(tmp_path):
+    f = tmp_path / "mb.csv"
+    f.write_text("stamp,wsjtx_idx_batch\n261004_163415,\n261004_163430,0:1;3:2;7:1\n", encoding="utf-8")
+    d = R.load_matched_batch(str(f))
+    assert d["261004_163415"] == {} and d["261004_163430"] == {0: 1, 3: 2, 7: 1} and R.load_matched_batch(str(tmp_path / "x.csv")) == {}
+
+
+def test_end_to_end_v4p_replaces_v4_as_the_gate_and_v4_stays_a_diagnostic(tmp_path):
+    rows = _big(n_cycles=320)
+    for i, r in enumerate(rows):
+        r["C3_ok"] = 1 if r["G_ok"] or i % 10 == 9 else 0
+    # G (0.90 overall in _big) is unreadable on batch-2 matches: mark widx 9 as batch 2 (G fails there by construction: i % 10 == 9)
+    _write_run(tmp_path, rows, v4p_batch2={9})
+    res = R.analyse(str(tmp_path), stamp_of={})
+    assert "V4" not in res["validity"] and res["validity"]["V4P"]["P1_n"] == 2880 and res["validity"]["V4P"]["G_success_on_P1"] == 1.0
+    assert res["failing_rows"] == [] and res["verdict"] == "COH-GO"
+    assert res["v4_retired_diagnostic_whole_live_hit_population"]["G_success_on_live_hits"] == pytest.approx(0.9)
+    _write_run(tmp_path, rows, v4p_ws=99)
+    assert "V4P" in R.analyse(str(tmp_path), stamp_of={})["verdict_withheld_because"]
+
+
+def test_analysis_never_overwrites_the_frozen_row_list(tmp_path):
+    """Regression: the first analysis run wrote its result to rows.json, the frozen row list's own name, in the same results folder."""
+    assert R.ANALYSIS_NAME != "rows.json"
+    rows = _big(n_cycles=40)
+    for r in rows:
+        r["C3_ok"] = r["G_ok"]
+    _write_run(tmp_path, rows)
+    res_dir = tmp_path / "results"
+    frozen = res_dir / "rows.json"
+    res_dir.mkdir()
+    frozen.write_text("FROZEN")
+    R.analyse(str(tmp_path), str(res_dir), stamp_of={})
+    assert frozen.read_text() == "FROZEN" and (res_dir / R.ANALYSIS_NAME).exists()
+
+
+def test_v4p_replay_list_is_the_309_cycles_of_the_frozen_row_list_in_order():
+    import cg_v4p as V
+    cycles = V.sampled_cycles()
+    spec = json.loads((RESULTS / "rows.json").read_bytes())
+    by_index = {}
+    for r in spec["rows"]:
+        by_index.setdefault(r[0], r[1])
+    assert len(cycles) == 309 == len(by_index) and cycles == [by_index[i] for i in sorted(by_index)] and len(set(cycles)) == 309
+    assert V.DLL == CG.DLL_PIN and V.BUILD_COMMIT == "be3cc5ac" and V.THREADS == "8"

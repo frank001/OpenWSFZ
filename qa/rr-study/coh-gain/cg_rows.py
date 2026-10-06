@@ -32,6 +32,7 @@ import onoff_replay_rows as O  # noqa: E402
 import nhard_rep_rows as NR  # noqa: E402
 import cg_common as CG  # noqa: E402
 
+ANALYSIS_NAME = "analysis.json"   # the analysis result; the frozen row list is rows.json in the same folder and must never be overwritten
 META = ["cycle_index", "widx", "ws_snr", "ws_load", "live_hit"]
 CSV_COLUMNS = META + CG.ROW_FIELDS
 SNR_BANDS = (("<=-16", -99, -16), ("-15..-6", -15, -6), ("-5..+4", -5, 4), (">=+5", 5, 99))   # section 5
@@ -170,6 +171,59 @@ def row_v4(rows):
     k = sum(int(r["G_ok"]) for r in hit)
     rate = k / len(hit) if hit else float("nan")
     return (bool(hit) and rate >= CG.V4_G_MIN), {"G_success_on_live_hits": rate, "n_live_hits": len(hit)}
+
+
+def load_matched_batch(path):
+    """stamp -> {wsjtx_line_index: batch} from the replay's --matched-batch-out file (numeric; written inside the harness' matching function)."""
+    out = {}
+    if not os.path.exists(path):
+        return out
+    for line in open(path, encoding="utf-8").read().splitlines()[1:]:
+        stamp, _, rest = line.partition(",")
+        d = {}
+        for item in rest.split(";"):
+            if ":" in item:
+                i, b = item.split(":")
+                d[int(i)] = int(b)
+        out[stamp] = d
+    return out
+
+
+def stamp_map(rows_json_path):
+    """cycle_index -> cycle stamp from the frozen row list (numeric stamps only)."""
+    if not os.path.exists(rows_json_path):
+        return {}
+    spec = json.load(open(rows_json_path))
+    return {int(r[0]): r[1] for r in spec["rows"]}
+
+
+def row_v4p(rows, matched_batch, stamp_of, replay_ws_counts):
+    """V4' (AMENDMENT 3, replaces V4; the 0.90 bar is UNCHANGED): P1 = the COH-GAIN rows that the batch-labelled REPLAY matched in BATCH 1, i.e. decodes the live
+    path gets from the ORIGINAL audio, which is what G reads. PASS iff P1 is non-empty AND G success on P1 >= 0.90.
+    Instrument consistency (a FAIL here also fails the row): the replay's per-cycle WSJT-X line count must equal the row list's ws_load for every cycle, because the
+    row index (widx) is only meaningful if both read the same lines.
+    Descriptive (no bar): G on rows matched only in batch 2, the replay's batch-2 share of its matches, |P1|, and G on rows the replay did not match."""
+    ok = [r for r in rows if not r["fault"]]
+    bad_ws = []
+    seen_cycles = {}
+    for r in ok:
+        seen_cycles[int(r["cycle_index"])] = int(r["ws_load"])
+    for ci, load in seen_cycles.items():
+        st = stamp_of.get(ci, f"c{ci}")
+        if replay_ws_counts.get(st) != load:
+            bad_ws.append(ci)
+    p1, p2, none = [], [], []
+    for r in ok:
+        st = stamp_of.get(int(r["cycle_index"]), f"c{int(r['cycle_index'])}")
+        b = matched_batch.get(st, {}).get(int(r["widx"]))
+        (p1 if b == 1 else p2 if b == 2 else none).append(r)
+    g = lambda xs: (sum(int(r["G_ok"]) for r in xs) / len(xs)) if xs else float("nan")
+    n_matched = len(p1) + len(p2)
+    det = {"P1_n": len(p1), "G_success_on_P1": g(p1), "bar": CG.V4_G_MIN, "G_success_on_batch2_only": g(p2), "batch2_rows_n": len(p2),
+           "replay_batch2_share_of_matches": (len(p2) / n_matched) if n_matched else float("nan"),
+           "replay_unmatched_rows_n": len(none), "G_success_on_replay_unmatched": g(none),
+           "ws_count_mismatch_cycles": len(bad_ws), "ws_count_mismatch_examples": bad_ws[:5]}
+    return (bool(p1) and g(p1) >= CG.V4_G_MIN and not bad_ws), det
 
 
 def row_v5(main_rows, v5_rows, n=CG.V5_ROWS):
@@ -328,7 +382,7 @@ def histogram(values, edges):
 # =====================================================================================================================
 # assembly
 # =====================================================================================================================
-def analyse(out_dir, results_dir=None, modulus=10):
+def analyse(out_dir, results_dir=None, modulus=10, stamp_of=None):
     rows_all = load_rows(os.path.join(out_dir, "rows.csv"))
     synth_csv = os.path.join(out_dir, "synthetic.csv")
     synth = load_synth(synth_csv, os.path.join(HERE, "synthetic_set.json")) if os.path.exists(synth_csv) else []
@@ -338,12 +392,19 @@ def analyse(out_dir, results_dir=None, modulus=10):
     pins = load_pins(os.path.join(out_dir, "pins.jsonl"))
     rows = [r for r in rows_all if not r["fault"]]
 
-    v = {"V1": row_v1(pins), "V2": row_v2(synth), "V3": row_v3(rows_all), "V4": row_v4(rows_all), "V5": row_v5(rows_all, v5)}
+    v4p_dir = os.path.join(out_dir, "v4p")
+    mb = load_matched_batch(os.path.join(v4p_dir, "matched_batch.csv"))
+    replay_ws = {c: int(d["W"]) for c, d in O.load_testb(os.path.join(v4p_dir, "testb.csv")).items()}
+    v4_diag = row_v4(rows_all)                                   # AMENDMENT 3: V4 (whole live-hit population) is now a DIAGNOSTIC; V4' gates
+    v = {"V1": row_v1(pins), "V2": row_v2(synth), "V3": row_v3(rows_all),
+         "V4P": row_v4p(rows_all, mb, stamp_of if stamp_of is not None else stamp_map(
+             os.path.join(HERE, "..", "results", "2026-10-06-coh-gain", "rows.json")), replay_ws), "V5": row_v5(rows_all, v5)}
     all_valid = all(ok for ok, _ in v.values())
     failing = [k for k, (ok, _) in v.items() if not ok]
     result = {"generated_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "BAR_G_pp": CG.BAR_G,
               "n_rows": len(rows_all), "n_faulted": len(rows_all) - len(rows), "n_cycles": len({int(r["cycle_index"]) for r in rows}),
-              "validity": {k: {"pass": ok, **d} for k, (ok, d) in v.items()}, "failing_rows": failing, "first_paragraph_flags": []}
+              "validity": {k: {"pass": ok, **d} for k, (ok, d) in v.items()}, "failing_rows": failing, "first_paragraph_flags": [],
+              "v4_retired_diagnostic_whole_live_hit_population": {"pass_at_0.90": v4_diag[0], **v4_diag[1]}}
     if rows:
         est = {arm: net_with_ci(rows, arm) for arm in ("C3", "C1", "C3S")}
         result["estimand"] = {"NET_C3": est["C3"], "block_variants_not_used_for_verdict": {
@@ -380,7 +441,8 @@ def analyse(out_dir, results_dir=None, modulus=10):
         result["verdict_withheld_because"] = failing or ["no real rows"]
     if results_dir:
         os.makedirs(results_dir, exist_ok=True)
-        json.dump(result, open(os.path.join(results_dir, "rows.json"), "w"), indent=1, sort_keys=True, default=str)
+        # NOT rows.json: that name is the FROZEN row list in this same folder, and the first analysis run overwrote it (restored from git, SHA = the pin).
+        json.dump(result, open(os.path.join(results_dir, ANALYSIS_NAME), "w"), indent=1, sort_keys=True, default=str)
     return result
 
 
