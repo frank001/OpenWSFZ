@@ -124,6 +124,41 @@ def build(dll_path):
     return spec
 
 
+EXT_ROWS_JSON = os.path.join(OUT_DIR, "rows_ext.json")
+
+
+def build_extension(dll_path):
+    """AMENDMENT 4: the extension row list, positions i mod 10 == 5 of the SAME NHARD-REP frozen list (fresh cycles: neither the first sample's i mod 10 == 3 nor the pilot's == 7).
+    Same fields, same exclusion rules, same live_hit rule. No pilot rows."""
+    sel_bytes = open(NH_SELECTION, "rb").read().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(sel_bytes).hexdigest() == NR.SELECTION_SHA256, "NHARD-REP selection.json differs from its pin"
+    full = json.loads(sel_bytes)["runs"][RUN]["FULL"]
+    ws, ows = read_alltxt(WS_ALLTXT), read_alltxt(OWS_ALLTXT)
+    dec = CG.load_decoder(dll_path)
+    rows, excluded, n_cycles = [], collections.Counter(), 0
+    for i, stamp in [(i, s) for i, s in enumerate(full) if i % 10 == CG.EXT_RESIDUE]:
+        n_cycles += 1
+        wl = ws.get(stamp, [])
+        hits = test_b_matches(wl, ows.get(stamp, []))
+        for widx, (snr, dt, freq, text) in enumerate(wl):
+            if CG.encode_tones(dec, text) is None or dec.true_codeword(text) is None:
+                excluded[text_feature(text)] += 1
+                continue
+            rows.append([i, stamp, widx, freq, dt, snr, len(wl), int(hits[widx]), 0])
+    first = json.load(open(ROWS_JSON))
+    assert {r[0] for r in rows}.isdisjoint({r[0] for r in first["rows"]}) and {r[0] for r in rows}.isdisjoint({r[0] for r in first["pilot_rows"]}), "extension cycles overlap"
+    return {
+        "spec": "qa/rr-study/2026-10-06-1625-architect-to-qa-spec-coh-gain-step1.md (branch arch/coherent-limb2) section 14 (Amendment 4), the extension sample",
+        "night": RUN, "nhard_selection_sha256_lf": NR.SELECTION_SHA256,
+        "wsjtx_alltxt_sha256": CG.file_sha256(WS_ALLTXT), "owsfz_alltxt_sha256": CG.file_sha256(OWS_ALLTXT),
+        "columns": ["cycle_index", "stamp", "widx", "ws_freq", "ws_dt", "ws_snr", "ws_load", "live_hit", "in_mod20"],
+        "counts": {"full_list_cycles": len(full), "extension_cycles": len({r[0] for r in rows}), "rows": len(rows), "excluded_before_extraction": dict(excluded),
+                   "live_hit_rows": sum(r[7] for r in rows)},
+        "rule": {"sample": "position i of the NHARD-REP FULL list with i mod 10 == 5 (fresh: first sample 3, pilot 7)"},
+        "rows": rows, "pilot_rows": [],
+    }
+
+
 def serialise(spec):
     return (json.dumps(spec, indent=0, sort_keys=True) + "\n").encode("utf-8")
 
@@ -131,7 +166,17 @@ def serialise(spec):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dll", required=True)
+    ap.add_argument("--extension", action="store_true", help="Amendment 4: freeze the i mod 10 == 5 extension row list (rows_ext.json)")
     a = ap.parse_args()
+    if a.extension:
+        spec = build_extension(a.dll)
+        data = serialise(spec)
+        with open(EXT_ROWS_JSON, "wb") as fh:
+            fh.write(data)
+        print("wrote", EXT_ROWS_JSON)
+        print(spec["counts"])
+        print("rows_ext.json sha256(LF)", hashlib.sha256(data).hexdigest())
+        return 0
     spec = build(a.dll)
     data = serialise(spec)
     os.makedirs(OUT_DIR, exist_ok=True)

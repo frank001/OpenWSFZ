@@ -540,3 +540,134 @@ def test_v4p_replay_list_is_the_309_cycles_of_the_frozen_row_list_in_order():
         by_index.setdefault(r[0], r[1])
     assert len(cycles) == 309 == len(by_index) and cycles == [by_index[i] for i in sorted(by_index)] and len(set(cycles)) == 309
     assert V.DLL == CG.DLL_PIN and V.BUILD_COMMIT == "be3cc5ac" and V.THREADS == "8"
+
+
+# ---- Amendment 4: the extension, the pooled primary and the U row -------------------------------------------------------------------------
+EXT_JSON = RESULTS / "rows_ext.json"
+
+
+def test_extension_row_list_is_fresh_pinned_and_follows_the_same_rule():
+    spec = json.loads(EXT_JSON.read_bytes().replace(b"\r\n", b"\n"))
+    first = json.loads((RESULTS / "rows.json").read_bytes())
+    assert CG.sha256_lf(str(EXT_JSON)) == CG.ROWS_EXT_JSON_SHA256 and CG.EXT_RESIDUE == 5
+    idx = {r[0] for r in spec["rows"]}
+    assert all(i % 10 == 5 for i in idx)
+    assert idx.isdisjoint({r[0] for r in first["rows"]}) and idx.isdisjoint({r[0] for r in first["pilot_rows"]})     # fresh: neither sample 1 (3) nor the pilot (7)
+    assert spec["columns"] == first["columns"] and spec["pilot_rows"] == []
+    keys = [(r[0], r[2]) for r in spec["rows"]]
+    assert keys == sorted(keys) and len(set(keys)) == len(keys) and spec["counts"]["rows"] == len(spec["rows"])
+    assert not any(isinstance(x, str) and len(x.split()) > 1 for r in spec["rows"] for x in r)
+
+
+def test_pooled_with_one_sample_is_exactly_the_single_sample_estimate():
+    rows = _big(n_cycles=120)
+    for i, r in enumerate(rows):
+        r["C3_ok"] = 1 if r["G_ok"] or i % 10 == 9 else 0
+    single, pooled = R.net_with_ci(rows, "C3"), R.pooled_net_with_ci([rows], "C3")
+    assert pooled["NET_pp"] == pytest.approx(single["NET_pp"]) and pooled["ci95"] == pytest.approx(single["ci95"]) and pooled["n_blocks"] == single["n_blocks"]
+
+
+def test_pooled_keeps_each_samples_blocks_within_that_sample_and_pools_rows():
+    a, b = _big(n_cycles=20), _big(n_cycles=20)                      # 20 cycles each: blocks 8, 8, 4 within each sample (a partial block per sample is its own block)
+    for i, r in enumerate(a):
+        r["C3_ok"] = 1 if r["G_ok"] or i % 10 == 9 else 0
+    for r in b:
+        r["C3_ok"] = r["G_ok"]
+    out = R.pooled_net_with_ci([a, b], "C3")
+    assert out["n_blocks"] == 6 and out["n_cycles"] == 40 and out["n_rows"] == 400                                   # 3 + 3, NOT 5 (which a concatenated 40-cycle order would give)
+    assert out["NET_pp"] == pytest.approx((R.net_with_ci(a, "C3")["NET_pp"] + 0.0) / 2.0)                              # the pooled estimate is rows-weighted: half the gain over twice the rows
+
+
+def test_u_success_counts_c3_only_where_g_fails_and_a_wrong_payload_is_never_a_success():
+    base = {"G_ok": 0, "C3_ok": 0, "C3_crc": 0}
+    assert R.u_success(dict(base)) == 0
+    assert R.u_success(dict(base, C3_ok=1)) == 1                                  # G fails, C3 recovers
+    assert R.u_success(dict(base, C3_crc=1)) == 0                                 # G fails, C3 returns a CRC-valid WRONG payload: a false decode, NOT a success
+    assert R.u_success(dict(base, G_ok=1)) == 1 and R.u_success(dict(base, G_ok=1, C3_ok=0)) == 1       # G ok: C3 is never consulted, so its failure is no loss
+
+
+def test_net_u_equals_c3_gains_and_is_never_negative():
+    rows = _big(n_cycles=120)
+    for i, r in enumerate(rows):
+        r["C3_ok"] = 1 if (i % 10 == 9 or (r["G_ok"] and i % 7 == 0)) else 0     # C3 recovers G's failures on i % 10 == 9 and FAILS on many G successes
+        r["C3_crc"] = 1
+    u = R.net_u_with_ci(rows)
+    gains = sum(1 for r in rows if r["C3_ok"] and not r["G_ok"])
+    assert u["NET_U_pp"] == pytest.approx(100.0 * gains / len(rows)) and u["NET_U_pp"] > 0
+    assert R.net_with_ci(rows, "C3")["NET_pp"] < u["NET_U_pp"]                       # the union never pays for C3's losses
+
+
+@pytest.mark.parametrize("lo,hi,row", [(1.0, 3.0, "U-GO"), (0.4, 0.999, "U-STOP"), (0.5, 1.0, "U-OPEN"), (0.99, 2.0, "U-OPEN")])
+def test_u_rows_exclusive(lo, hi, row):
+    assert R.u_row(lo, hi) == row
+
+
+def test_fallback_report_counts_wrong_payloads_per_row_and_per_correct_recovery():
+    rows = [{"G_ok": 0, "C3_ok": 1, "C3_crc": 1}] * 4 + [{"G_ok": 0, "C3_ok": 0, "C3_crc": 1}] * 2 + [{"G_ok": 0, "C3_ok": 0, "C3_crc": 0}] * 4 + [{"G_ok": 1, "C3_ok": 0, "C3_crc": 1}] * 10
+    f = R.fallback_report(rows)
+    assert f["g_fail_rows"] == 10 and f["fallback_correct_recoveries"] == 4 and f["fallback_crc_valid_wrong_payloads"] == 2     # the 10 G-ok rows are never consulted
+    assert f["wrong_per_correct_recovery"] == pytest.approx(0.5) and f["wrong_per_row_pct"] == pytest.approx(100 * 2 / 20) and f["wrong_per_g_fail_row_pct"] == pytest.approx(20.0)
+    assert R.fallback_report([{"G_ok": 1, "C3_ok": 1, "C3_crc": 1}])["wrong_per_correct_recovery"] is None
+
+
+def _ext_world(tmp_path, ext_gain=True, ext_pin_ok=True, main_pin_ok=True):
+    main, ext = tmp_path / "main", tmp_path / "ext"
+    main.mkdir()
+    ext.mkdir()
+    for d, nc in ((main, 320), (ext, 320)):
+        rows = _big(n_cycles=nc)
+        for i, r in enumerate(rows):
+            r["C3_ok"] = 1 if r["G_ok"] or (i % 10 == 9 and (d is main or ext_gain)) else 0
+            r["C3_crc"] = 1 if (i % 10 == 9) else 0
+        bad = (d is main and not main_pin_ok) or (d is ext and not ext_pin_ok)
+        _write_run(d, rows, pins=_pins(sha="0" * 64 if bad else None))
+    return main, ext
+
+
+def test_end_to_end_extension_pooled_verdict_and_u_row(tmp_path):
+    main, ext = _ext_world(tmp_path)
+    res = R.analyse_extension(str(ext), str(main), stamp_of={}, stamp_of_ext={})
+    assert res["extension"]["failing_rows"] == [] and res["first_sample"]["failing_rows"] == []
+    assert res["verdict_pooled"] == "COH-GO" and res["U_row"] == "U-GO" and res["pooled_primary"]["NET_C3_pooled"]["n_rows"] == 6400
+    assert res["secondary_U_extension_rows_only"]["fallback_false_decodes"]["fallback_correct_recoveries"] == 320
+    assert "V2" in res["extension"]
+
+
+def test_end_to_end_extension_validity_failure_withholds_both_verdicts(tmp_path):
+    main, ext = _ext_world(tmp_path, ext_pin_ok=False)
+    res = R.analyse_extension(str(ext), str(main), stamp_of={}, stamp_of_ext={})
+    assert res["verdict_pooled"] == "NO VERDICT" and res["U_row"] == "NO VERDICT" and "extension:V1" in res["verdict_withheld_because"]
+
+
+def test_end_to_end_the_extension_without_a_gain_dilutes_the_pooled_estimate_and_u_stops(tmp_path):
+    main, ext = _ext_world(tmp_path, ext_gain=False)
+    res = R.analyse_extension(str(ext), str(main), stamp_of={}, stamp_of_ext={})
+    assert res["U_row"] == "U-STOP" and res["secondary_U_extension_rows_only"]["NET_U"]["NET_U_pp"] == 0.0
+    assert res["pooled_primary"]["NET_C3_pooled"]["NET_pp"] == pytest.approx(res["first_sample"]["NET_C3"]["NET_pp"] / 2.0)
+
+
+def test_extension_analysis_never_writes_a_rows_named_file(tmp_path):
+    main, ext = _ext_world(tmp_path)
+    res_dir = tmp_path / "res"
+    res_dir.mkdir()
+    (res_dir / "rows.json").write_text("FROZEN")
+    (res_dir / "rows_ext.json").write_text("FROZEN-EXT")
+    R.analyse_extension(str(ext), str(main), str(res_dir), stamp_of={}, stamp_of_ext={})
+    assert (res_dir / "rows.json").read_text() == "FROZEN" and (res_dir / "rows_ext.json").read_text() == "FROZEN-EXT" and (res_dir / R.EXT_ANALYSIS_NAME).exists()
+
+
+def test_pooled_estimate_is_weighted_by_rows_not_a_mean_of_the_two_sample_rates():
+    a, b = _big(n_cycles=30), _big(n_cycles=10)                       # 300 rows vs 100 rows
+    for i, r in enumerate(a):
+        r["C3_ok"] = 1 if r["G_ok"] or i % 10 == 9 else 0              # +10 pp in the big sample
+    for r in b:
+        r["C3_ok"] = r["G_ok"]                                         # 0 pp in the small one
+    out = R.pooled_net_with_ci([a, b], "C3")
+    assert out["NET_pp"] == pytest.approx(100.0 * 30 / 400)              # 30 gains over 400 rows (7.5 pp), NOT (10 + 0) / 2 = 5 pp
+
+
+def test_a_first_sample_validity_failure_alone_withholds_the_pooled_verdict(tmp_path):
+    main, ext = _ext_world(tmp_path, main_pin_ok=False)
+    res = R.analyse_extension(str(ext), str(main), stamp_of={}, stamp_of_ext={})
+    assert res["extension"]["failing_rows"] == [] and res["first_sample"]["failing_rows"] == ["V1"]
+    assert res["verdict_pooled"] == "NO VERDICT" and "first_sample:V1" in res["verdict_withheld_because"]

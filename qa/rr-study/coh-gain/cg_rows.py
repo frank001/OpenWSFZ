@@ -80,6 +80,75 @@ def net_with_ci(rows, arm_x, arm_base="G", block=CG.BLOCK_CYCLES):
     return {"NET_pp": net, "ci95": [lo, hi], "n_cycles": len(ids), "n_rows": int(n.sum()), "n_blocks": nb, "block": block}
 
 
+def _blocks(n, base, x, block):
+    """Per-block numerator and denominator over consecutive cycles (the last partial block kept as its own block)."""
+    d = x - base
+    edges = list(range(0, len(d), block))
+    return (np.array([d[i:i + block].sum() for i in edges], dtype=float), np.array([n[i:i + block].sum() for i in edges], dtype=float))
+
+
+def pooled_net_with_ci(samples, arm_x, arm_base="G", block=CG.BLOCK_CYCLES):
+    """AMENDMENT 4 (primary, pooled): NET over BOTH samples; block 8 over each sample's own cycle order (each sample's blocks are kept WITHIN that sample, the last partial block of
+    a sample is its own block), then the blocks of both are pooled as the resampling units; numerator and denominator resampled together; the same B and seed. With one sample this is
+    exactly net_with_ci (tested)."""
+    nums, dens, n_rows, n_cycles = [], [], 0, 0
+    tot_n = tot_d = 0.0
+    for rows in samples:
+        ids, n, base, x = per_cycle(rows, arm_x, arm_base)
+        nu, de = _blocks(n, base, x, block)
+        nums.append(nu)
+        dens.append(de)
+        n_rows += int(n.sum())
+        n_cycles += len(ids)
+        tot_n += float((x - base).sum())
+        tot_d += float(n.sum())
+    num, den = np.concatenate(nums), np.concatenate(dens)
+    rng = np.random.default_rng(CG.SEED)
+    idx = rng.integers(0, len(num), size=(CG.B_RESAMPLES, len(num)))
+    ratio = 100.0 * num[idx].sum(axis=1) / den[idx].sum(axis=1)
+    lo, hi = np.percentile(ratio, [2.5, 97.5])
+    return {"NET_pp": 100.0 * tot_n / tot_d, "ci95": [float(lo), float(hi)], "n_cycles": n_cycles, "n_rows": n_rows, "n_blocks": len(num), "block": block}
+
+
+def u_success(r):
+    """AMENDMENT 4's U: G, and C3 only where G FAILS. A C3 CRC-valid WRONG payload on a G-fail row is a false decode, NOT a success (it never adds to U)."""
+    return 1 if int(r["G_ok"]) else (1 if int(r["C3_ok"]) else 0)
+
+
+def net_u_with_ci(rows, block=CG.BLOCK_CYCLES):
+    """NET_U = 100 * (sum success_U - sum success_G) / N on the given rows, cycle-clustered block bootstrap (same method, B and seed)."""
+    by = collections.OrderedDict()
+    for r in rows:
+        c = by.setdefault(int(r["cycle_index"]), [0, 0, 0])
+        c[0] += 1
+        c[1] += int(r["G_ok"])
+        c[2] += u_success(r)
+    arr = np.array(list(by.values()), dtype=float).reshape(-1, 3)
+    net = O.net_pp(arr[:, 0], arr[:, 1], arr[:, 2])
+    lo, hi, nb = O.block_bootstrap_ci(arr[:, 0], arr[:, 1], arr[:, 2], block=block, B=CG.B_RESAMPLES, seed=CG.SEED)
+    return {"NET_U_pp": net, "ci95": [lo, hi], "n_cycles": len(by), "n_rows": int(arr[:, 0].sum()), "n_blocks": nb, "block": block}
+
+
+def u_row(ci_lo, ci_hi, bar=CG.BAR_G):
+    """Secondary row (Amendment 4, extension rows only). HK-038: 1.0 pp is BAR_G, which the Captain ratified as the gain that justifies a native build (a decision value)."""
+    if ci_lo >= bar:
+        return "U-GO"
+    if ci_hi < bar:
+        return "U-STOP"
+    return "U-OPEN"
+
+
+def fallback_report(rows):
+    """The fallback's FALSE DECODES (mandatory, descriptive): on G-fail rows, C3 returned a CRC-valid payload that is not the sent one. Per row and per correct recovery."""
+    gfail = [r for r in rows if not int(r["G_ok"])]
+    correct = sum(1 for r in gfail if int(r["C3_ok"]))
+    wrong = sum(1 for r in gfail if int(r["C3_crc"]) == 1 and not int(r["C3_ok"]))
+    n = len(rows)
+    return {"g_fail_rows": len(gfail), "fallback_correct_recoveries": correct, "fallback_crc_valid_wrong_payloads": wrong,
+            "wrong_per_row_pct": 100.0 * wrong / n if n else None, "wrong_per_g_fail_row_pct": 100.0 * wrong / len(gfail) if gfail else None,
+            "wrong_per_correct_recovery": (wrong / correct) if correct else None}
+
+
 def verdict_row(ci_lo, ci_hi, bar=CG.BAR_G):
     """Exclusive rows, first match wins (spec section 6)."""
     if ci_lo >= bar:
@@ -446,13 +515,81 @@ def analyse(out_dir, results_dir=None, modulus=10, stamp_of=None):
     return result
 
 
+EXT_ANALYSIS_NAME = "analysis_ext.json"
+
+
+def analyse_extension(ext_dir, main_dir, results_dir=None, stamp_of=None, stamp_of_ext=None):
+    """AMENDMENT 4: (1) the extension's own V1 / V3 / V4' (its own batch-labelled replay) / V5 (first 300 extension rows); V2 is carried (synthetic, sample-independent);
+    (2) the PRIMARY pooled NET_C3 over both samples (valid only if BOTH samples' validity rows pass) with the same COH-GO / STOP / OPEN rows at BAR_G; (3) the SECONDARY
+    U row on the EXTENSION ROWS ONLY, with the fallback's false decodes. Writes analysis_ext.json (never a rows*.json name)."""
+    first = analyse(main_dir, None, stamp_of=stamp_of)                              # the first sample's validity and figures, recomputed, not copied
+    rows_ext_all = load_rows(os.path.join(ext_dir, "rows.csv"))
+    rows_ext = [r for r in rows_ext_all if not r["fault"]]
+    pins = load_pins(os.path.join(ext_dir, "pins.jsonl"))
+    v4p_dir = os.path.join(ext_dir, "v4p")
+    mb = load_matched_batch(os.path.join(v4p_dir, "matched_batch.csv"))
+    replay_ws = {c: int(d["W"]) for c, d in O.load_testb(os.path.join(v4p_dir, "testb.csv")).items()}
+    ext_json = os.path.join(HERE, "..", "results", "2026-10-06-coh-gain", "rows_ext.json")
+    v = {"V1": row_v1(pins), "V3": row_v3(rows_ext_all),
+         "V4P": row_v4p(rows_ext_all, mb, stamp_of_ext if stamp_of_ext is not None else stamp_map(ext_json), replay_ws),
+         "V5": row_v5(rows_ext_all, load_rows(os.path.join(ext_dir, "v5.csv")))}
+    ext_valid = all(ok for ok, _ in v.values())
+    failing = [k for k, (ok, _) in v.items() if not ok]
+    first_valid = not first["failing_rows"]
+    result = {"generated_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "BAR_G_pp": CG.BAR_G,
+              "extension": {"n_rows": len(rows_ext_all), "n_faulted": len(rows_ext_all) - len(rows_ext), "n_cycles": len({int(r["cycle_index"]) for r in rows_ext}),
+                            "validity": {k: {"pass": ok, **d} for k, (ok, d) in v.items()}, "failing_rows": failing, "V2": "carried: synthetic, sample-independent, passed"},
+              "first_sample": {"failing_rows": first["failing_rows"], "n_rows": first["n_rows"], "NET_C3": first.get("estimand", {}).get("NET_C3")},
+              "first_paragraph_flags": []}
+    if rows_ext:
+        first_rows = [r for r in load_rows(os.path.join(main_dir, "rows.csv")) if not r["fault"]]
+        pooled = pooled_net_with_ci([first_rows, rows_ext], "C3")
+        ext_only = net_with_ci(rows_ext, "C3")
+        result["pooled_primary"] = {"NET_C3_pooled": pooled, "extension_only_NET_C3": ext_only,
+                                    "block_variants_not_used_for_verdict": {str(b): list(pooled_net_with_ci([first_rows, rows_ext], "C3", block=b)["ci95"]) for b in CG.BLOCKS_REPORTED}}
+        per = [per_cycle(s, "C3") for s in (first_rows, rows_ext)]
+        d = [int(b - a) for ids, n, base, x in per for a, b in zip(base, x)]
+        cl = NR.cluster_report(d, block=CG.BLOCK_CYCLES)
+        result["pooled_primary"]["cluster"] = cl
+        if cl["flag_gt_half"]:
+            result["first_paragraph_flags"].append("top-5 blocks carry more than half of the positive pooled net gain")
+        u = net_u_with_ci(rows_ext)
+        result["secondary_U_extension_rows_only"] = {"NET_U": u, "row_if_valid": u_row(*u["ci95"]), "fallback_false_decodes": fallback_report(rows_ext),
+                                                      "HK-038": "1.0 pp is BAR_G, ratified by the Captain as the gain that justifies a native build (a decision value)"}
+        result["extension_descriptive"] = {"gains_losses": {arm: gains_losses(rows_ext, arm) for arm in ("C1", "C3", "C3S")},
+                                           "NET_C1": net_with_ci(rows_ext, "C1"), "NET_C3S": net_with_ci(rows_ext, "C3S"),
+                                           "amendment2_sign_corrected_osd_descriptive": {"GO_vs_G": osd_arm_report(rows_ext, "GO", "G"),
+                                                                                         "C3O_vs_C3": osd_arm_report(rows_ext, "C3O", "C3")},
+                                           "path_G_counts": dict(collections.Counter(int(r["G_path"]) for r in rows_ext))}
+        lo, hi = pooled["ci95"]
+        if ext_valid and first_valid:
+            result["verdict_pooled"] = verdict_row(lo, hi)
+            result["U_row"] = u_row(*u["ci95"])
+        else:
+            result["verdict_pooled"] = result["U_row"] = "NO VERDICT"
+            result["verdict_withheld_because"] = ([f"extension:{k}" for k in failing] + [f"first_sample:{k}" for k in first["failing_rows"]])
+    else:
+        result["verdict_pooled"] = result["U_row"] = "NO VERDICT"
+        result["verdict_withheld_because"] = failing or ["no extension rows"]
+    if results_dir:
+        os.makedirs(results_dir, exist_ok=True)
+        json.dump(result, open(os.path.join(results_dir, EXT_ANALYSIS_NAME), "w"), indent=1, sort_keys=True, default=str)
+    return result
+
+
 def main(argv):
     import argparse
     art = os.environ.get("OPENWSFZ_ARTEFACTS", os.path.join(REPO, "artefacts"))
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(art, "rr_2026-10-06_coh_gain"))
     ap.add_argument("--results", default=os.path.join(REPO, "qa", "rr-study", "results", "2026-10-06-coh-gain"))
+    ap.add_argument("--extension", action="store_true", help="Amendment 4: score the i mod 10 == 5 extension, the pooled primary and the U row")
+    ap.add_argument("--ext-out", default=os.path.join(art, "rr_2026-10-06_coh_gain_ext"))
     a = ap.parse_args(argv)
+    if a.extension:
+        res = analyse_extension(a.ext_out, a.out, a.results)
+        print(json.dumps({k: res[k] for k in ("verdict_pooled", "U_row", "verdict_withheld_because", "first_paragraph_flags") if k in res}, indent=1, default=str))
+        return 0
     res = analyse(a.out, a.results)
     print(json.dumps({k: res[k] for k in ("verdict", "failing_rows", "estimand", "cluster", "first_paragraph_flags") if k in res}, indent=1, default=str))
     return 0

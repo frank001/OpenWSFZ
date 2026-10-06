@@ -53,6 +53,7 @@ B_RESAMPLES = 10_000
 BLOCK_CYCLES = 8               # section 5: 8 sampled cycles
 BLOCKS_REPORTED = (4, 16)
 SAMPLE_RESIDUE = 3             # section 4: positions i mod 10 == 3 (NHARD-REP used 0 and 5)
+EXT_RESIDUE = 5                # AMENDMENT 4 (Architect 2026-10-06 18:19Z, spec section 14): the extension sample is positions i mod 10 == 5 (NOT 7: it hosted the pilot rows)
 SAMPLE_MODULUS_PRIMARY = 10
 SAMPLE_MODULUS_FALLBACK = 20   # if the 50-row timing pilot projects > PILOT_MAX_CPU_HOURS
 PILOT_ROWS = 50
@@ -81,6 +82,7 @@ NEG_MAX_ITERS = 1                              # BP sees the complement of the n
 
 # ---- frozen files, pinned by LF-normalised SHA-256 and ASSERTED by cg_run.py before anything is extracted ----
 ROWS_JSON_SHA256 = "34b97c22fa61f0cb17a3ac57b8a9cad385375467fa93b96ba1d3803ea6e5c0b6"     # results/2026-10-06-coh-gain/rows.json (rows + pilot rows)
+ROWS_EXT_JSON_SHA256 = "7267de64c3979fe7838a32cbcd2a46d63e10316cc2dea1cad67220c9c4ff8852"  # results/2026-10-06-coh-gain/rows_ext.json (Amendment 4, i mod 10 == 5)
 SYNTH_SHA256 = "ab787588b2a93a3817dc1f4781aee70199e7d6d87255a1ffcc11517c853f6a0e"        # synthetic_set.json (V2, -14 dB)
 SYNTH_T_SHA256 = "3b5422caafd504fea49b6bdfcbd0f72db6a76d000f42ed503efda6a58e5f89fb"      # synthetic_set_t.json (V2-T, -20 dB, descriptive)
 

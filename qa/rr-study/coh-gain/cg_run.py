@@ -86,8 +86,12 @@ def _row_columns():
     return ROWS.CSV_COLUMNS
 
 
+FROZEN_PATH = SEL.ROWS_JSON          # --ext switches this to the extension row list (Amendment 4)
+FROZEN_SHA = CG.ROWS_JSON_SHA256
+
+
 def _load_frozen():
-    spec = json.load(open(SEL.ROWS_JSON))
+    spec = json.load(open(FROZEN_PATH))
     return spec
 
 
@@ -201,15 +205,21 @@ def main():
     ap.add_argument("--dll", default=None)
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--force", action="store_true", help="v2 mode: re-run tiers already on disk")
+    ap.add_argument("--ext", action="store_true", help="Amendment 4: run the i mod 10 == 5 extension row list (rows_ext.json, its own pin); modes main and v5 only")
     ap.add_argument("--modulus", type=int, default=CG.SAMPLE_MODULUS_PRIMARY, choices=[10, 20])
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    a.dll = a.dll or os.path.join(a.out, "bin", "libft8_20260058.dll")
+    global FROZEN_PATH, FROZEN_SHA
+    if a.ext:
+        assert a.mode in ("main", "v5"), "--ext applies to the main and v5 modes"
+        FROZEN_PATH, FROZEN_SHA = SEL.EXT_ROWS_JSON, CG.ROWS_EXT_JSON_SHA256
+    default_dll = os.path.join(SEL.ART, "rr_2026-10-06_coh_gain", "bin", "libft8_20260058.dll") if a.ext else os.path.join(a.out, "bin", "libft8_20260058.dll")
+    a.dll = a.dll or default_dll
     # frozen inputs: asserted BEFORE anything is extracted (a changed file refuses to run)
     if a.mode == "v2":
         assert CG.sha256_lf(SY.SET_PATH) == CG.SYNTH_SHA256 and CG.sha256_lf(SY.SET_T_PATH) == CG.SYNTH_T_SHA256, "synthetic set differs from its pin"
     else:
-        assert CG.sha256_lf(SEL.ROWS_JSON) == CG.ROWS_JSON_SHA256, "rows.json differs from its pin"
+        assert CG.sha256_lf(FROZEN_PATH) == FROZEN_SHA, "the frozen row list differs from its pin"
     _pin(a.out, a.mode, "start", a.dll)
     {"v2": mode_v2, "pilot": mode_pilot, "main": mode_main, "v5": mode_v5}[a.mode](a)
     _pin(a.out, a.mode, "end", a.dll)

@@ -34,6 +34,9 @@ RUN = SEL.RUN
 OUT = os.path.join(ART, "rr_2026-10-06_coh_gain", "v4p")
 RESULTS = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-06-coh-gain")
 MANIFEST = os.path.join(RESULTS, "v4p_replay_manifest.json")
+ROWS_PATH = SEL.ROWS_JSON            # --ext (Amendment 4): the extension row list, its own output folder and manifest
+ROWS_SHA = CG.ROWS_JSON_SHA256
+EXPECTED_CYCLES = 309
 CHECKOUT = r"D:\Projects\claude\_qa-scratch\nhard-rep\tree"
 BUILD_COMMIT = "be3cc5ac"
 HOUT = r"D:\Projects\claude\_qa-scratch\nhard-rep\out_v4p"
@@ -57,7 +60,7 @@ def competitors():
 
 def sampled_cycles():
     """The 309 cycles of the frozen COH-GAIN row list, in cycle order (the replay's list; derivable from rows.json)."""
-    spec = json.load(open(SEL.ROWS_JSON))
+    spec = json.load(open(ROWS_PATH))
     seen = {}
     for r in spec["rows"]:
         seen.setdefault(r[0], r[1])
@@ -68,7 +71,7 @@ def preflight():
     os.makedirs(OUT, exist_ok=True)
     art_repo = os.path.dirname(ART)
     assert sh("git", "check-ignore", "-q", os.path.join(OUT, "x"), cwd=art_repo).returncode == 0, "OUT not gitignored"
-    assert CG.sha256_lf(SEL.ROWS_JSON) == CG.ROWS_JSON_SHA256, "frozen rows.json differs from its pin"
+    assert CG.sha256_lf(ROWS_PATH) == ROWS_SHA, "the frozen row list differs from its pin"
     assert sh("git", "status", "--porcelain", "--", *GUARDED).stdout.strip() == "", "harness/scripts not committed"
     assert sh("git", "rev-parse", "HEAD", cwd=CHECKOUT).stdout.strip().startswith(BUILD_COMMIT)
     assert sh("git", "status", "--porcelain", cwd=CHECKOUT).stdout.strip() == "", "build checkout not clean"
@@ -82,14 +85,14 @@ def preflight():
     assert not comp, ("WSJT-X / jt9 / the daemon / another replay must not be running", comp)
     nh_sel = json.load(open(NR_SELECTION))
     cycles = sampled_cycles()
-    assert len(cycles) == 309, len(cycles)
+    assert len(cycles) == EXPECTED_CYCLES, len(cycles)
     sel = {"note": "COH-GAIN V4' replay list: the cycles of the frozen COH-GAIN row list", "run": RUN,
            "runs": {RUN: {"warmup": nh_sel["runs"][RUN]["warmup"], "V4P": cycles}}}
     sel_path = os.path.join(OUT, "v4p_selection.json")
     json.dump(sel, open(sel_path, "w"), indent=1, sort_keys=True)
     pre = {"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "spec": "COH-GAIN Amendment 3", "libft8_sha256": got, "build_commit": BUILD_COMMIT,
            "harness_commit": sh("git", "rev-parse", "HEAD").stdout.strip(), "replay81_dll_sha256": R.sha256(os.path.join(HOUT, "Replay81.dll")),
-           "cycles": len(cycles), "rows_json_sha256_lf": CG.ROWS_JSON_SHA256, "threads": THREADS, "nhard": 40}
+           "cycles": len(cycles), "rows_json_sha256_lf": ROWS_SHA, "threads": THREADS, "nhard": 40}
     json.dump(pre, open(os.path.join(OUT, "preflight.json"), "w"), indent=1)
     return pre, sel_path
 
@@ -132,6 +135,11 @@ def write_manifest(rc, secs, files, pre):
 
 
 def main():
+    global OUT, MANIFEST, ROWS_PATH, ROWS_SHA, EXPECTED_CYCLES
+    if "--ext" in sys.argv:
+        OUT = os.path.join(ART, "rr_2026-10-06_coh_gain_ext", "v4p")
+        MANIFEST = os.path.join(RESULTS, "v4p_ext_replay_manifest.json")
+        ROWS_PATH, ROWS_SHA, EXPECTED_CYCLES = SEL.EXT_ROWS_JSON, CG.ROWS_EXT_JSON_SHA256, 310
     pre, sel_path = preflight()
     print("preflight OK: harness commit", pre["harness_commit"][:8], "DLL", pre["libft8_sha256"][:8], "cycles", pre["cycles"], flush=True)
     if "--preflight-only" in sys.argv:
