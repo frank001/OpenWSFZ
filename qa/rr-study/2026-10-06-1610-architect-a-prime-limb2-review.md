@@ -6,9 +6,11 @@
 
 ---
 
+> ⛔ **SUPERSEDED 2026-10-06 ~16:2xZ (`date -u` 16:22Z): the Captain rejected §1's recommendation and REOPENED limb 2.** Captain: *"after pushing on the most probable improvement for the decoding we find we can maybe close the 30.2 pp gap with 17.88% and your advice is to park it. right."* **The Architect withdraws the recommendation: it applied the wrong bar** ("does it close the gap", C-GAP-D's framing) instead of the programme's ("what improves decoding most"). By this review's own §4, A′ is the largest sized lever left. The history (§2), the corrections (§3) and the figures (§4) stand. Next is **step 1, `COH-GAIN`**: `2026-10-06-1625-architect-to-qa-spec-coh-gain-step1.md`. Option (ii) is taken, with step 1 replacing "re-run ROW 0g-2 first" as the deciding measurement.
+
 ## 1. Answer first
 
-**Recommendation: do NOT restart A′ as a build. Keep it parked.** The reason is not that it doesn't work. It is that **the remaining gap is still not shaped like an SNR deficit**, so a better-bits lever is capped well below the gap:
+~~**Recommendation: do NOT restart A′ as a build. Keep it parked.**~~ *(withdrawn, see the note above)* The reason is not that it doesn't work. It is that **the remaining gap is still not shaped like an SNR deficit**, so a better-bits lever is capped well below the gap:
 
 - I re-asked, on the newest night (2026-10-04, subtraction ON), the question that stopped limb 2 in August. **The answer has not changed.**
 - A realistic coherent gain (≈ 2–3 dB) is worth **at most ≈ 3.8–5.4 pp** of today's **30.2 pp** gap. **Even the theoretical ceiling (4.8 dB) is worth at most ≈ 8.3 pp.** These are upper bounds by construction, and exploratory (§4).
