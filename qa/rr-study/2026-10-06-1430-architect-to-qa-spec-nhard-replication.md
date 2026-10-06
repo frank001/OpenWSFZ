@@ -61,6 +61,14 @@ So on the old build, the price of 40 was about 2 WSJT-X-confirmed decodes in 57,
 
 **Why 20261004_1634, by a criterion fixed before any decode:** it is the **only** eligible night recorded on the build family this replay uses (live build `040613d9`, v0.56, shim `20260058`, flag ON, `nhard` 40). So its live OpenWSFZ `ALL.TXT` is a usable **fidelity check** on the 40-leg (§6 descriptive). No other eligible night can give that. **20260930_1930 is the pre-named second night** if Stage 2 or §7 calls for one; 20260925_2010 is the third.
 
+> **Inventory completed 2026-10-06 ~14:4xZ (Architect), after the first commit and before any datum.** The full `find` also lists these WAV folders, which the table above did not name. **None changes the choice:** the build-family criterion excludes them all, whatever their chain.
+> - `20260922_1937`/`20260922_2056`/`20260923_1730_endurance_run-gathered`, `20260921_1624_live_run-live-gap-map`: older builds.
+> - `_24h_usbcodec_endurance_daemon_output`, `_40m_endurance_daemon_output`: daemon-output copies of older endurance runs.
+> - `_rr_*_daemon_output` (5), `rr_2026-09-29_subfeas_off_on`, `20261002_2115_lateness_edge_run`, `20260925_l1l4_capture_self_healing`: synthetic study playback or test captures, not an on-air night with a live reference.
+> - `d001_r4_sensitivity_gap`, `d001_r5_hybrid_ladder`, `d001_wav_source_cross_decode_2026-07-30`, `lr_phase_check`, `p10-…`/`p12-…_items`: small D-001/early-phase sets.
+>
+> Per-folder WAV counts include WSJT-X's own saved WAVs where gathered (e.g. 6,212 for `20261004_1634` = 3,106 OpenWSFZ + 3,106 WSJT-X). The corpus is the OpenWSFZ set only.
+
 ⚠️ **Paths moved (QA, note this):** the gatherer now **moves** WAVs into `…-gathered/owsfz/wav/`. The `…_endurance_run/cycle-audio/` folders hold only `cycle-archive.csv` now, so the 2026-10-01 spec's audio path is stale.
 
 ---
