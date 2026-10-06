@@ -43,11 +43,11 @@ OUT = os.path.join(ART, "rr_2026-09-29_replay81")
 RUNS = ["20260922_2056", "20260923_1730", "20260925_2010"]
 
 BUILDS = {  # label -> (harness output dir, expected libft8.dll sha256)
-    "2b39cf18": (r"C:\Users\Frank\w-replay81-out-2b39cf18",
+    "2b39cf18": (r"D:\Projects\claude\_qa-scratch\w-replay81-out-2b39cf18",
                  "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5"),
-    "84cac119": (r"C:\Users\Frank\w-replay81-out-84cac119",
+    "84cac119": (r"D:\Projects\claude\_qa-scratch\w-replay81-out-84cac119",
                  "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba"),
-    "51e40b55": (r"C:\Users\Frank\w-replay81-out-51e40b55",
+    "51e40b55": (r"D:\Projects\claude\_qa-scratch\w-replay81-out-51e40b55",
                  "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba"),
 }
 PRODUCING_BUILD = {"20260922_2056": "84cac119", "20260923_1730": "84cac119", "20260925_2010": "51e40b55"}

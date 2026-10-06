@@ -13,7 +13,7 @@ import argparse, ctypes, datetime, hashlib, json, os, shutil, subprocess, sys, t
 PIN_SHA = "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba"
 PIN_SHIM = 20260054
 PIN_VERSION_PREFIX = "0.50+"
-BIN = r"C:\Users\Frank\lgm-bin"
+BIN = r"D:\Projects\claude\_qa-scratch\lgm-bin"
 EXE = os.path.join(BIN, "OpenWSFZ.Daemon.exe")
 PORT = 8080
 WSJTX_DIR = os.path.expandvars(r"%LOCALAPPDATA%\WSJT-X - FT991A")
