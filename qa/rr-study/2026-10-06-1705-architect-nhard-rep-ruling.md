@@ -5,6 +5,8 @@
 - **Reviewed:** QA report `qa/rr-study/results/2026-10-06-nhard-rep/report.md` + `rows.json` @ `3ab15347` (`qa/nhard-rep`, local, not pushed); raw numeric files in `artefacts/rr_2026-10-06_nhard_rep/` (read, numeric only, HK-037).
 - **Against:** spec `2026-10-06-1430-architect-to-qa-spec-nhard-replication.md` + Amendments 1 (`722ff543`) and 2 (`f96b46c7`). `BAR_N` = 0.5 pp, ratified before any datum.
 
+> ⛔ **READING CORRECTED 2026-10-06 17:1xZ (Architect, HK-022). The verdict and every figure stand. What they MEAN changes.** QA found, and the Architect verified from source, that **production OSD receives sign-inverted LLRs**: the extractor and BP use positive = bit 1, `osd_decode` uses positive = bit 0, and the call site does not negate. ⇒ Every production OSD accept is a chance-CRC false decode. **This arm therefore measured a cap on an OSD that cannot produce genuine decodes.** The cap acted only on false decodes, which is exactly what §2 observed. **§2's mechanism reading and §3's "cap below 40" lead are SUPERSEDED.** With OSD fixed, `nhard` must be measured again from scratch. Evidence and the next measurement: `2026-10-06-1625-architect-to-qa-spec-coh-gain-step1.md` §12 (Amendment 2, `15582597`, `arch/coherent-limb2`).
+
 ## 1. Verdict: N-CLOSED, accepted
 
 **NET (60 − 40) = −0.581 pp of WSJT-X's decodes, 95 % CI [−0.79, −0.41]** (311 cycles, systematic 1-in-10, Σ`W` 9,466, block 8, 39 blocks, B 10,000). `CI_hi` −0.41 < `BAR_N` 0.5 ⇒ **N-CLOSED.** All validity rows pass.
