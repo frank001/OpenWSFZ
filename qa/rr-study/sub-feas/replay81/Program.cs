@@ -39,7 +39,9 @@ internal static class Program
     // NHARD-REP (spec 2026-10-06-1430, section 3): the OSD nhard cap is a REQUIRED --nhard argument, 40 or 60 only, and the
     // "# readback" lines log the value the decoder object was actually given. (Was a hard-coded const 40.)
     private static int OsdNhardMax;
-    private static readonly int[] AllowedNhard = [40, 60];
+    // NHARD-REP Amendment 3 (OSD-OFF): 0 is admitted as the third setting. At nhard 0 the OSD gate rejects every codeword, so OSD is effectively off. The managed
+    // SetDecodeParams path passes the value through with no range check (only the config layer enforces 30-100, and this harness bypasses it).
+    private static readonly int[] AllowedNhard = [0, 40, 60];
     private const float R6PeakCeiling = 0.99f;
 
     private static int Main(string[] args)
@@ -291,7 +293,7 @@ internal static class Program
     private delegate int LdpcDecodeLlrsFn(float[] llr174, int maxIters, int osdDepth, byte[] outA91,
                                           out int outLdpcErrors, out int outPath, out int outCrcOk);
 
-    private sealed record ProbeVector(string Name, float[] Llr, byte[] ExpectedA91);
+    private sealed record ProbeVector(string Name, float[] Llr, byte[] ExpectedA91, int NhardTrue);
 
     private sealed class ProbeSet
     {
@@ -315,7 +317,7 @@ internal static class Program
             var llr = v.GetProperty("llr").EnumerateArray().Select(e => (float)e.GetDouble()).ToArray();
             if (llr.Length != 174) throw new InvalidDataException("probe vector length");
             payloadBits = v.GetProperty("payload_bits").GetInt32();
-            vecs.Add(new ProbeVector(name, llr, Convert.FromHexString(v.GetProperty("expected_a91_hex").GetString()!)));
+            vecs.Add(new ProbeVector(name, llr, Convert.FromHexString(v.GetProperty("expected_a91_hex").GetString()!), v.GetProperty("nhard_true").GetInt32()));
         }
         // the same module the managed decoder loaded (same path => same handle): the process-global s_osd_nhard_max is shared
         IntPtr lib = NativeLibrary.Load(Path.Combine(AppContext.BaseDirectory, "libft8.dll"));
@@ -341,7 +343,9 @@ internal static class Program
             bool accepted = rc == 0 && path == 1 && crc == 1;
             // payload = the first PayloadBits bits of a91 (bits 77..90 are the zeroed CRC region, not compared)
             bool match = accepted && PayloadEqual(a91, v.ExpectedA91, p.PayloadBits);
-            bool expectAccepted = v.Name == "P_lo" || OsdNhardMax == 60;
+            // The gate accepts iff nhard_true <= the cap (calibrated by full scan: P_lo 26, P_hi 52). Cap 40: P_lo accepted, P_hi rejected; cap 60: both accepted;
+            // cap 0 (OSD-OFF): both REJECTED, which is V2'' (the setting reached the gate).
+            bool expectAccepted = v.NhardTrue <= OsdNhardMax;
             bool met = expectAccepted ? (accepted && match) : (rc == 0 && path == -1);
             all &= met;
             p.Out.WriteLine(string.Join(",", when, v.Name, rc.ToString(CultureInfo.InvariantCulture), path.ToString(CultureInfo.InvariantCulture),
@@ -381,7 +385,7 @@ internal static class Program
     private static int ParseNhard(string v)
     {
         if (!int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || Array.IndexOf(AllowedNhard, n) < 0)
-            throw new ArgumentException("--nhard must be 40 or 60");
+            throw new ArgumentException("--nhard must be 0, 40 or 60");
         return n;
     }
 
