@@ -35,7 +35,10 @@ internal static class Program
     private const int SampleRateHz = 12_000;
     private const int KMinScorePass2 = 10;
     private const float OsdCorrThreshold = 0.10f;
-    private const int OsdNhardMax = 40;
+    // NHARD-REP (spec 2026-10-06-1430, section 3): the OSD nhard cap is a REQUIRED --nhard argument, 40 or 60 only, and the
+    // "# readback" lines log the value the decoder object was actually given. (Was a hard-coded const 40.)
+    private static int OsdNhardMax;
+    private static readonly int[] AllowedNhard = [40, 60];
     private const float R6PeakCeiling = 0.99f;
 
     private static int Main(string[] args)
@@ -53,6 +56,7 @@ internal static class Program
         var a = ParseArgs(args);
         string selectionPath = Req(a, "selection"), run = Req(a, "run"), stratum = Req(a, "stratum");
         string wavRoot = Req(a, "wav-root"), outCsv = Req(a, "out"), logPath = Req(a, "log");
+        OsdNhardMax = ParseNhard(Req(a, "nhard"));
         string mode = a.TryGetValue("mode", out var m) ? m : "off";
         string label = a.TryGetValue("label", out var l) ? l : "unlabelled";
 
@@ -107,6 +111,15 @@ internal static class Program
             bool fresh = !File.Exists(tb);
             _testB = new StreamWriter(tb, append: true, new UTF8Encoding(false)) { AutoFlush = true };
             if (fresh) _testB.WriteLine("run,stamp,kind,band,n,corroborated");
+        }
+        // NHARD-REP: numeric indices (into the cycle's WSJT-X lines, in ALL.TXT order) of the WSJT-X decodes this arm matched.
+        // An index is not message text and not text-derived (HK-037); it lets K and G be computed across two processes.
+        if (a.TryGetValue("matched-out", out var matchedPath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(matchedPath))!);
+            bool freshM = !File.Exists(matchedPath);
+            _matched = new StreamWriter(matchedPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (freshM) _matched.WriteLine("stamp,wsjtx_idx");
         }
         if (a.TryGetValue("abandon-out", out var abandonPath))
         {
@@ -252,6 +265,7 @@ internal static class Program
         public static void Set(bool abandoned, bool contained) { Ran = true; Abandoned = abandoned; Contained = contained; }
     }
 
+    private static StreamWriter? _matched;   // --matched-out: stamp,idx;idx;... (matched WSJT-X line indices, numeric)
     private static StreamWriter? _abandon;   // --abandon-out: stamp,ran,abandoned,contained (numeric flags, 0/1)
 
     private static bool _wide;
@@ -267,6 +281,13 @@ internal static class Program
     /// Pre-registered SNR bands of the OpenWSFZ decode, for the per-band report (a pooled rate would hide whether
     /// uncorroborated decodes cluster at the weak end, where false positives live): A >= 0, B -10..-1, C -15..-11, D <= -16 dB.
     /// </summary>
+    private static int ParseNhard(string v)
+    {
+        if (!int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || Array.IndexOf(AllowedNhard, n) < 0)
+            throw new ArgumentException("--nhard must be 40 or 60");
+        return n;
+    }
+
     private static string BandOf(int snr) => snr >= 0 ? "A" : snr >= -10 ? "B" : snr >= -15 ? "C" : "D";
 
     private static void LoadWsjtx(string path)
@@ -321,6 +342,7 @@ internal static class Program
                 _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : "b2", band,
                     n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
             }
+        _matched?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j])));
         _testB.WriteLine(string.Join(",", run, stamp, "ws", "ALL", w.Count.ToString(CultureInfo.InvariantCulture),
             usedW.Count(x => x).ToString(CultureInfo.InvariantCulture)));
     }
