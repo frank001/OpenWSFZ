@@ -291,4 +291,46 @@ The native export `ft8_ldpc_decode_llrs` (`ft8_shim.h:1228–1280`, shim 2026004
 
 🔴 **One consequence the Captain should see, stated now so it cannot be read later as a re-read of the bar:** §9's case for 0.5 pp assumed 60 costs about 0.136 false decodes per noise cycle (the 20260050 figure). On this build, white noise gives none at either cap. **The bar stays frozen.** Whether 60 costs false decodes on real audio is what the corpus arms' not-confirmed counts (§6 descriptive) will show. That is where the exchange rate gets read, not from noise.
 
-**Prediction scored now (ledger rule 1):** **NR3 "V2 passes" (0.85, C): 🔴 MISS.** It was a computed miss that I priced as safe. I took E1's noise rate from shim 20260050 and never checked whether today's build still decodes anything on noise. That is the SUB-FEAS lesson I cited in V6's own rationale: *measure the instrument on real "nothing" before writing the bar.* V2′ is written so that its pass condition does not depend on any rate.
+**Prediction scored at Amendment 2 (ledger rule 1):** **NR3 "V2 passes" (0.85, C): 🔴 MISS.** It was a computed miss that I priced as safe. I took E1's noise rate from shim 20260050 and never checked whether today's build still decodes anything on noise. That is the SUB-FEAS lesson I cited in V6's own rationale: *measure the instrument on real "nothing" before writing the bar.* V2′ is written so that its pass condition does not depend on any rate.
+
+---
+
+## 14. Amendment 3 — 2026-10-06 18:19Z (`date -u`): `OSD-OFF`, one new arm against the existing N40 (#215)
+
+**Licence:** the Captain chose *"Yes, ~35 min replay"* (2026-10-06 ~18:1xZ), after COH-GAIN showed that a sign-**corrected** OSD is not a lever (GO +0.011 pp; 1 true vs 271 wrong payloads; ruling `418a6941` §4). Production OSD is sign-inverted (#215), so every accept it makes is a chance-CRC false decode. **Question: what do those false decodes cost the shipped decoder, and is "OSD off" a safe setting?**
+
+**Arm N0:** the same harness (`qa/nhard-rep`), build, pin, flag ON, threads 8, Test B rule and the **same 311 sampled cycles**, at **`--nhard 0`**. The harness must accept 0 (QA's change, `qa/` only). The managed `SetDecodeParams` → `ft8_set_decode_params` path passes the value through with no range check; only the config layer enforces 30–100, and the harness bypasses it. **At 0 the gate rejects every OSD codeword**: an inverted-OSD codeword sits near the complement, so `nhard` is far above 0. ⇒ OSD is effectively off. **It is paired with the existing N40 arm** (`artefacts/rr_2026-10-06_nhard_rep/`, same cycles, same build). N40 is **not re-run**.
+
+**Validity:**
+
+- **V1′:** pin equal at start and end.
+- **V2″ (the setting reached the gate):** in N0, **`P_lo` (`nhard_true` 26) is REJECTED** (path −1) at both probe points, while it was ACCEPTED in N40 (on file). `P_hi` is rejected. This is the outcome-independent proof that 0 applied.
+- **V3–V5 as before** (exits, read-back, abandons ≤ 5 %).
+- **V6 is carried:** N40's own A/A (200/200 exact) shows the instrument reads null as null on this build. It is not re-run.
+
+**Statistic:** `NET_0` = 100 × Σ(`M0_i` − `M40_i`)/Σ`W_i`, same block bootstrap (block 8, B 10,000, seed 20261006), plus the same descriptives: K/G split, by batch, not-confirmed per cycle and by band.
+
+**Rows (exclusive, first match wins):**
+
+| row | predicate | reading |
+|---|---|---|
+| **O-HARM** | `CI_hi(NET_0)` < 0 | Something genuine depended on the inverted OSD. **That contradicts #215's analysis**, so the Architect re-examines it before any default change. |
+| **O-GAIN** | `CI_lo(NET_0)` > 0 | Switching OSD off **gains** WSJT-X-confirmed decodes (the false-decodes-subtracted mechanism, measured). |
+| **O-SAFE** | `CI_lo(NET_0)` ≥ −0.10 pp | Off costs at most 0.10 pp of confirmed decodes. |
+| **O-OPEN** | otherwise | Unresolved. |
+
+**HK-038, where the numbers come from:**
+
+- **0 (the O-GAIN and O-HARM boundaries)** is the no-change point, not a carried figure.
+- **−0.10 pp (O-SAFE)** is a **decision margin**. ⚠️ **It needs the Captain's ratification before N0 runs.** Proposed basis: the closed E3 leg found only 2 of 57,594 WSJT-X-confirmed decodes that depended on OSD at all (≈ 0.003 %), and the sign analysis predicts none. So 0.10 pp is ≈ 30× the largest plausible genuine dependency, while staying small against the gap.
+
+**Consequence:** an O-GAIN or O-SAFE gives the Captain the evidence to set **OSD off as the interim default** for #215, until a working OSD exists. On C3's LLRs a corrected OSD is +0.26 pp (step-3 territory). The change itself would be a config default plus a migration, through a dev-task, a Developer (HK-011) and a merge sign-off (HK-010). **Not licensed here.**
+
+**Predictions (blind; scored at its ruling):**
+
+| # | prediction | P | class |
+|---|---|---:|:---:|
+| OO1 | O-GAIN | 0.40 | H |
+| OO2 | O-SAFE (and not O-GAIN) | 0.50 | H |
+| OO3 | O-HARM | 0.03 | H |
+| OO4 | not-confirmed per cycle falls from 0.47 by ≥ 0.10 | 0.55 | H |
