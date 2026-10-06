@@ -2,7 +2,8 @@
 
 - **To:** QA or the Engineer (one owner, recorded on the board; the Captain assigns)  **From:** Architect  **Date:** 2026-10-06 16:22Z (`date -u`, HK-017)
 - **Branch:** `arch/coherent-limb2` (off `origin/main` `be3cc5ac`). Docs only: `git diff --stat -- src/ native/` empty.
-- **Status:** DRAFT until §9 Q1 (`BAR_G`) is ratified. After that, PRE-REGISTERED: the harness, the frozen row list and the synthetic set are committed **before any real-audio extraction**. Nothing below may change after real data has been extracted, except by a dated amendment that says why.
+- ✅ **`BAR_G` = 1.0 pp RATIFIED by the Captain, 2026-10-06 ~16:26Z (`date -u`), over the proposed 2.0 pp, before any harness, synthetic set or extraction exists. FROZEN. Owner: QA (Captain).**
+- **Status:** ~~DRAFT until §9 Q1 (`BAR_G`) is ratified. After that,~~ PRE-REGISTERED: the harness, the frozen row list and the synthetic set are committed **before any real-audio extraction**. Nothing below may change after real data has been extracted, except by a dated amendment that says why.
 - **Needs before arming:** Q1, an owner, and the Captain's go. CPU only: **no station, no PC exclusivity** (practical load is fine, Captain 2026-10-03). It runs after `NHARD-REP` finishes, so the two don't share the CPU.
 
 ---
@@ -113,6 +114,8 @@ For each signal, starting from GAP-LOCATE's anchor (WSJT-X's frequency and DT ma
 - **Alternative: 1.0 pp.** It is more permissive and would fire COH-GO on a ~½ dB effect. Resolution isn't the limit: with ≈ 9,800 paired rows the CI half-width should be ≈ 0.5–1 pp after clustering (computed while drafting, HK-021(m); V5 and the bootstrap check it).
 - 🛑 Once ratified, FROZEN for this arm. Moving it after `NET_C3` is known VOIDs the verdict.
 
+> ✅ **CAPTAIN'S RULING, 2026-10-06 ~16:26Z: `BAR_G` = 1.0 pp** (over 2.0 pp). Recorded before any `COH-GAIN` datum. **FROZEN.** **Q2: owner QA.**
+
 **Q2 (not blocking):** owner, QA or the Engineer. `NHARD-REP` (QA) is running now; this arm runs after it either way.
 
 ## 10. Architect predictions (blind; scored at ruling time)
@@ -125,5 +128,7 @@ For each signal, starting from GAP-LOCATE's anchor (WSJT-X's frequency and DT ma
 | CG4 | `NET_C3*` − `NET_C3` ≥ 1.0 pp (the estimator leaves a material share) | 0.50 | H |
 | CG5 | Losses (G succeeds, C3 fails) ≥ 1 % of rows | 0.60 | H |
 | CG6 | V2 passes first time | 0.55 | C |
+| **CG1′** | *(added at ratification, before any datum; CG1/CG2 above were written at 2.0 and are kept as written)* Verdict **COH-GO at the ratified `BAR_G` = 1.0** | 0.45 | H |
+| **CG2′** | Verdict COH-STOP at 1.0 | 0.25 | H |
 
 **On the ledger:** in the review I leaned *against* a build and the Captain overruled me. These probabilities are deliberately near even. Measurement geometry has cost limb 2 most of its time before, which is why V2 sits at 0.55.
