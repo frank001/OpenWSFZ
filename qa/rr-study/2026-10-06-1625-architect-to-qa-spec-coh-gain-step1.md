@@ -243,4 +243,32 @@ V2 is **re-evaluated on the same 200 synthetic signals** under (b′). No re-ren
 
 ---
 
+## 14. Amendment 4 — 2026-10-06 18:19Z (`date -u`): the COH-OPEN extension, plus the fallback design registered BEFORE its data exist
+
+**Licence:** the ruling `2026-10-06-1815-architect-coh-gain-ruling.md` (`418a6941`) reads COH-OPEN. **The Captain chose "Extend + fallback row"** (2026-10-06 ~18:1xZ). Nothing below touches the first sample's figures.
+
+**E1, the extension sample:** cycle positions **`i mod 10 == 5`** of the same frozen ordered list. **Not `== 7`**, as §6 originally said: `== 7` hosted the 50 discarded pilot rows, whose outcomes QA has seen. `== 5` is untouched. ≈ 310 cycles. Same harness (`qa/coh-gain` at its current commit), pin, anchor δ 0.7 s, exclusion rules, all arms (G, C1, C3, C3\*, GO, C3O), V1, V3 and V5 (V5 on the first 300 extension rows). **V4′ is re-evaluated on the extension** with its own batch-labelled replay of the `== 5` cycles (bar 0.90, unchanged). V2 is not re-run: it is a synthetic, sample-independent check, already passed.
+
+**Primary, unchanged: `NET_C3` POOLED** over both samples (≈ 618 cycles), block 8 over the pooled cycle order (each sample's blocks kept within that sample, then pooled), the same B and seed, and the **same rows (COH-GO / STOP / OPEN) at `BAR_G` = 1.0 pp.** If the pooled verdict is again OPEN, the Captain decides; there is no automatic third sample.
+
+**Secondary, registered now, on the EXTENSION ROWS ONLY** (the first sample produced the idea, so it may not test it):
+
+- **`NET_U`** = 100 × (Σ success_U − Σ success_G)/N, where **U = G, and if G fails, C3** (C3 is consulted only on G-fail rows; a C3 success there counts; **a C3 CRC-valid wrong payload there counts as a false decode, not a success**). Same CI method.
+- **U-GO** iff `CI_lo(NET_U)` ≥ 1.0 pp. **U-STOP** iff `CI_hi(NET_U)` < 1.0 pp. **U-OPEN** otherwise.
+- **HK-038, where the bar comes from:** 1.0 pp is `BAR_G`, which the Captain ratified today as the gain that justifies a native build. It is a decision value, not one carried from an older measurement.
+- **Reported with it (descriptive, mandatory):** **the fallback's false decodes**. That is the number of G-fail rows where C3 returns a CRC-valid payload that is not the sent one, per row and per correct recovery (first sample: 198 per 500, not citable). A fallback that buys 1 pp at a high wrong-payload rate is not shippable as it stands, and the step-3 spec must gate on it.
+
+**Order:** freeze and commit the extension row list (SHA) and its V4′ replay manifest **before** any extension extraction. Then V4′ (extension) → extraction → V5 → pooled primary → U row. QA reports; the Architect rules.
+
+**Predictions (blind to the extension; scored at its ruling):**
+
+| # | prediction | P | class |
+|---|---|---:|:---:|
+| CE1 | pooled verdict COH-GO | 0.35 | H |
+| CE2 | pooled verdict COH-OPEN again | 0.50 | H |
+| CE3 | **U-GO** on the extension | 0.80 | H |
+| CE4 | fallback wrong payloads ≥ 0.25 per correct recovery on the extension | 0.65 | H |
+
+---
+
 **On the ledger:** in the review I leaned *against* a build and the Captain overruled me. These probabilities are deliberately near even. Measurement geometry has cost limb 2 most of its time before, which is why V2 sits at 0.55.
