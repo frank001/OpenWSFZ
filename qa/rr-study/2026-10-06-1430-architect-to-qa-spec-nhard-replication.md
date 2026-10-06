@@ -308,6 +308,8 @@ The native export `ft8_ldpc_decode_llrs` (`ft8_shim.h:1228–1280`, shim 2026004
 - **V3–V5 as before** (exits, read-back, abandons ≤ 5 %).
 - **V6 is carried:** N40's own A/A (200/200 exact) shows the instrument reads null as null on this build. It is not re-run.
 
+- **V7, pairing control** (added 2026-10-06 18:32Z on QA's review note, before N0 has run): N40 on file was produced by an earlier harness binary (`Replay81.dll` `4a9cf533…`). The new one adds only output switches and cap-0 admission. Exactness **across** binaries is not shown (V6 showed only same-binary exactness). ⇒ Before N0, re-run the **first 100 sampled cycles at `nhard` 40 with the new binary**. **PASS iff 0 cycles differ** in matched set (and decode multiset) from the N40 on file. **FAIL ⇒ do not pair with the old N40:** re-run N40 in full with the new binary (≈ 35 min) and pair N0 with that. HK-038: the bar is 0 because exact reproduction is what this build showed same-binary (V6, 200/200); no number is carried. **QA's harness fix** (probe expectations follow each vector's calibrated `nhard_true`, so cap 0 expects both `P_lo` and `P_hi` rejected) is accepted. **QA's HK-025(k) note** is accepted: a blind instrument would read O-SAFE, and V2″ is the guard, tested both ways.
+
 **Statistic:** `NET_0` = 100 × Σ(`M0_i` − `M40_i`)/Σ`W_i`, same block bootstrap (block 8, B 10,000, seed 20261006), plus the same descriptives: K/G split, by batch, not-confirmed per cycle and by band.
 
 **Rows (exclusive, first match wins):**
