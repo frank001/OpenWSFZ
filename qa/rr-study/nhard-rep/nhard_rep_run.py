@@ -9,15 +9,16 @@ computed afterwards by nhard_rep_rows.py, so nothing can be tuned while a run is
 because the spec makes it a gate on the corpus arms ("If V2 fails the Architect rules before anything else runs").
 
 Arms (each a FRESH process; flag ON, subtractionMaxThreads 8, DecodeTwoStageAsync one call per cycle, harness mode two1):
-  V2N40  noise positive control, nhard 40, 200 seeded pure-noise WAVs
-  V2N60  the same noise, nhard 60            -> V2 gate: n_false(60) >= n_false(40) + 3, else STOP here
   N40    the 311 sampled cycles, nhard 40
   N60    the same cycles, nhard 60
   AA     a second fresh nhard-40 process over the first 200 sampled cycles (row V6)
 The ONLY thing that differs between N40 and N60 is --nhard.
+AMENDMENT 2 (Architect 15:18Z): the noise V2 (0 vs 0 false decodes, run 15:13-15:15Z) is RETIRED. Row V2' is a probe INSIDE each arm's own
+process (the harness P/Invokes ft8_ldpc_decode_llrs on two frozen vectors after warm-up and after the last cycle). If the FIRST probe
+misses, the harness exits 5 before decoding a cycle and this script STOPS ("If V2' fails in N40, stop there"): no restart, nothing else runs.
 
 Pre-flight (all asserted; any failure aborts before a single decode):
-  - selection.json LF-normalised SHA-256 == the pinned value; the noise WAVs on disk match the manifest inside it;
+  - selection.json LF-normalised SHA-256 == the pinned value; probe_vectors.json LF SHA-256 == the pinned value (Amendment 2);
   - harness sources, scripts, tests and selection are COMMITTED (git status of GUARDED is empty): no decode before the commit;
   - the build under test is a clean checkout at BUILD_COMMIT, the harness builds against it, libft8.dll == the pinned SHA-256;
   - the harness REFUSES --nhard 50 (the setting is accepted only as 40 or 60);
@@ -69,12 +70,15 @@ RECORDED_RE = r"^(wsjtx|jt9|OpenWSFZ|testhost|MSBuild|dotnet|VBCSCompiler)"   # 
 GUARDED = [
     "qa/rr-study/sub-feas/replay81",
     "qa/rr-study/nhard-rep",
+    "qa/rr-study/nhard-rep/probe_vectors.json",
     "qa/tests/test_nhard_rep_rows.py",
     "qa/rr-study/results/2026-10-06-nhard-rep/selection.json",
 ]
 # (arm, run key in selection.json, stratum, nhard, corpus?)
-ARMS = [("V2N40", "NOISE", "ALL", 40, False), ("V2N60", "NOISE", "ALL", 60, False),
-        ("N40", RUN, "SAMPLE", 40, True), ("N60", RUN, "SAMPLE", 60, True), ("AA", RUN, "AA", 40, True)]
+ARMS = [("N40", RUN, "SAMPLE", 40, True), ("N60", RUN, "SAMPLE", 60, True), ("AA", RUN, "AA", 40, True)]
+V2P_FAIL_RC = 5   # harness exit code: the first V2' probe missed its expectation
+PROBES = os.path.join(HERE, "probe_vectors.json")
+PROBES_SHA256 = ROWS.PROBE_SHA256
 assert [a[0] for a in ARMS] == list(ROWS.ARMS) and all(a[3] == ROWS.ARM_NHARD[a[0]] for a in ARMS)
 
 
@@ -131,11 +135,7 @@ def preflight():
     sel_sha = sha256_lf(SELECTION)
     assert sel_sha == SELECTION_SHA256, ("selection.json SHA mismatch", sel_sha)
     sel = json.load(open(SELECTION))
-    manifest = sel["noise"]["wav_sha256"]
-    for st, want in manifest.items():
-        got = R.sha256(os.path.join(NOISE_DIR, st + ".wav"))
-        assert got == want, ("noise WAV differs from the frozen manifest", st)
-    assert len(manifest) == 201
+    assert sha256_lf(PROBES) == PROBES_SHA256, "probe_vectors.json differs from the frozen SHA"
     assert sh("git", "status", "--porcelain", "--", *GUARDED).stdout.strip() == "", "harness/scripts/selection not committed"
     assert os.path.isfile(WS_ALLTXT) and os.path.isdir(WAV_DIR)
     head = sh("git", "rev-parse", "HEAD", cwd=CHECKOUT).stdout.strip()
@@ -150,8 +150,8 @@ def preflight():
     assert got == DLL, got
     # the harness must refuse a cap outside {40, 60}: run it with --nhard 50 and require a non-zero exit and NO output file
     reject_dir = os.path.join(OUT, "_reject_probe")
-    rj = sh("dotnet", os.path.join(HOUT, "Replay81.dll"), "--selection", SELECTION, "--run", "NOISE", "--stratum", "ALL",
-            "--wav-root", ART, "--wav-dir", NOISE_DIR, "--out", os.path.join(reject_dir, "x.csv"),
+    rj = sh("dotnet", os.path.join(HOUT, "Replay81.dll"), "--selection", SELECTION, "--run", RUN, "--stratum", "AA",
+            "--wav-root", ART, "--wav-dir", WAV_DIR, "--out", os.path.join(reject_dir, "x.csv"),
             "--log", os.path.join(reject_dir, "x.log"), "--mode", "two1", "--threads", THREADS, "--nhard", "50")
     assert rj.returncode != 0 and not os.path.exists(reject_dir), ("harness accepted --nhard 50", rj.returncode)
     comp = processes(BLOCKING_RE)
@@ -161,7 +161,7 @@ def preflight():
            "harness_commit": sh("git", "rev-parse", "HEAD").stdout.strip(),
            "harness_dll_sha256": R.sha256(os.path.join(HOUT, "Replay81.dll")), "threads": THREADS,
            "subtractionEnabled": True, "kMinScorePass2": 10, "osdCorrThreshold": 0.10,
-           "arms": [a[0] for a in ARMS], "wav_dir": WAV_DIR.replace(ART, "<artefacts>"),
+           "probe_vectors_sha256_lf": PROBES_SHA256, "arms": [a[0] for a in ARMS], "wav_dir": WAV_DIR.replace(ART, "<artefacts>"),
            "harness_rejects_nhard_50": True}
     json.dump(pre, open(os.path.join(OUT, "preflight.json"), "w"), indent=1)
     R.env_snapshot("env_start.txt")
@@ -170,7 +170,8 @@ def preflight():
 
 def files_for(arm):
     return {k: os.path.join(OUT, f"{k}_{arm}.{ext}") for k, ext in
-            (("run", "csv"), ("testb", "csv"), ("outcomes", "csv"), ("abandon", "csv"), ("matched", "csv"), ("log", "log"))}
+            (("run", "csv"), ("testb", "csv"), ("outcomes", "csv"), ("abandon", "csv"), ("matched", "csv"), ("probe", "csv"),
+             ("log", "log"))}
 
 
 def done_stamps(csv_path):
@@ -209,6 +210,7 @@ def pin_record(arm, when):
 
 
 def run_arm(arm, runkey, stratum, nhard, corpus, sampler):
+    """Returns the final harness rc; V2P_FAIL_RC means the first probe missed (the caller stops the whole run)."""
     f = files_for(arm)
     n_expected = len(json.load(open(SELECTION))["runs"][runkey][stratum])
     sampler.arm = arm
@@ -222,7 +224,8 @@ def run_arm(arm, runkey, stratum, nhard, corpus, sampler):
                "--mode", "two1", "--threads", THREADS, "--nhard", str(nhard), "--label", f"{BUILD_COMMIT}:nhardrep_{arm}",
                "--outcomes", f["outcomes"], "--abandon-out", f["abandon"]]
         if corpus:
-            cmd += ["--wsjtx-alltxt", WS_ALLTXT, "--testb-out", f["testb"], "--matched-out", f["matched"]]
+            cmd += ["--wsjtx-alltxt", WS_ALLTXT, "--testb-out", f["testb"], "--matched-out", f["matched"],
+                    "--probe-vectors", PROBES, "--probe-out", f["probe"]]
         t0 = time.time()
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         sampler.pid = proc.pid
@@ -234,8 +237,8 @@ def run_arm(arm, runkey, stratum, nhard, corpus, sampler):
         R.log(f"arm {arm} harness rc={rc} in {time.time() - t0:.0f}s (restart {restarts}) stderr_tail={err.strip()[:120]!r}")
         with open(os.path.join(OUT, "process_exits.log"), "a") as fh:
             fh.write(f"{R.now()} {arm} rc={rc} restart={restarts}\n")
-        if rc == 0:
-            break
+        if rc == 0 or rc == V2P_FAIL_RC:
+            break   # a V2' FAIL is a finding, not a crash: never restarted
         restarts += 1
         if restarts > MAX_RESTARTS:
             R.log(f"arm {arm}: giving up after {MAX_RESTARTS} restarts (row V3 will show it)")
@@ -261,17 +264,11 @@ def main():
     rcs, stopped = {}, None
     try:
         for arm, runkey, stratum, nhard, corpus in ARMS:
-            if corpus and not os.path.exists(os.path.join(OUT, "v2_gate.json")):
-                ok, det = ROWS.evaluate_v2(OUT)
-                json.dump({"utc": R.now(), "V2_pass": ok, **det}, open(os.path.join(OUT, "v2_gate.json"), "w"), indent=1)
-                R.log(f"V2 gate: pass={ok} {det}")
-                if not ok:
-                    stopped = "V2_FAIL"
-                    break
-            elif corpus and not json.load(open(os.path.join(OUT, "v2_gate.json")))["V2_pass"]:
-                stopped = "V2_FAIL"
-                break
             rcs[arm] = run_arm(arm, runkey, stratum, nhard, corpus, sampler)
+            if rcs[arm] == V2P_FAIL_RC:
+                stopped = f"V2P_FAIL_{arm}"
+                R.log(f"V2' FAIL in {arm}: the first probe missed its expectation; stopping the run")
+                break
     finally:
         sampler.stop.set()
         sampler.sample()

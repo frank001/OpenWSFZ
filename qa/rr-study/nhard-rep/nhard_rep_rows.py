@@ -11,7 +11,8 @@ fires and does not fire on synthetic inputs (HK-021 (k): a row that fires the sa
 Loaders, the ratio-estimator block bootstrap, the autocorrelation and the Wilson interval are REUSED unchanged from the closed
 onoff_replay_rows.py (same Test B file formats); only the constants, rows and verdict differ.
 
-Arms (each a fresh process): V2N40, V2N60 (noise positive control), N40, N60 (the sample), AA (second 40 over the first 200 sampled).
+Arms (each a fresh process): N40, N60 (the sample), AA (second 40 over the first 200 sampled). AMENDMENT 2 (Architect 15:18Z): the
+noise-based V2 FAILED validly (0 vs 0 decodes) and is RETIRED; row V2' probes the native OSD gate in each arm's own process instead.
 
 Definitions (spec sections 4, 6, Amendment 1):
   W_i         WSJT-X decodes of sampled cycle i                (the 'ws' row of the testb file)
@@ -45,8 +46,7 @@ B_RESAMPLES = 10_000         # section 4
 BLOCK_REGISTERED = 8         # Amendment 1: 8 sampled cycles
 BLOCKS_REPORTED = (4, 16)    # Amendment 1: reported, not used for the verdict
 ACF_LAGS = (1, 2, 8)         # Amendment 1
-V2_MIN_EXCESS = 3            # Amendment 1: n_false(60) >= n_false(40) + 3
-V2_NOISE_CYCLES = 200        # Amendment 1
+NOISE_CYCLES = 200           # the retired V2's noise set: descriptive only (Amendment 2)
 V5_MAX_ABANDON = 0.05        # section 5 V5 (of SAMPLED cycles under Amendment 1)
 V6_CYCLES = 200              # Amendment 1: the first 200 sampled cycles
 V6_HALF_WINDOW = BAR_N / 2   # section 5 V6: CI(NET_AA) strictly inside (-BAR_N/2, +BAR_N/2)
@@ -55,8 +55,9 @@ CLUSTER_SHARE_FLAG = 0.5     # "more than half"
 THREADS = "8"
 DLL_PIN = "2fa6d99302c6c602231c870c1e61755aeeddb7ad1b9ce392fb98a4bdbd94f365"   # shim 20260058 (libft8.version.txt, origin/main be3cc5ac)
 SELECTION_SHA256 = "3cf04abb6b653bac5df70ce587ad48bd5d3bef7205eee6c040f8e2951cb13872"   # LF-normalised bytes of selection.json
-ARMS = ("V2N40", "V2N60", "N40", "N60", "AA")
-ARM_NHARD = {"V2N40": 40, "V2N60": 60, "N40": 40, "N60": 60, "AA": 40}
+PROBE_SHA256 = "bc914e99513a57f09b93f146ad18423d9836333eba41958174468b29b31e27b8"   # LF bytes of probe_vectors.json (Amendment 2)
+ARMS = ("N40", "N60", "AA")
+ARM_NHARD = {"N40": 40, "N60": 60, "AA": 40}
 BANDS = O.BANDS
 STAMP = re.compile(r"^\d{6}_\d{6}$")
 
@@ -78,7 +79,19 @@ def load_matched(path):
 
 def arm_paths(out_dir, arm):
     return {k: os.path.join(out_dir, f"{k}_{arm}.{ext}") for k, ext in
-            (("run", "csv"), ("testb", "csv"), ("outcomes", "csv"), ("abandon", "csv"), ("matched", "csv"), ("log", "log"))}
+            (("run", "csv"), ("testb", "csv"), ("outcomes", "csv"), ("abandon", "csv"), ("matched", "csv"), ("probe", "csv"), ("log", "log"))}
+
+
+def load_probe(path):
+    """Rows of a harness probe file: when, vec, rc, path, crc_ok, payload_match (all numeric). Absent file => []."""
+    out = []
+    if not os.path.exists(path):
+        return out
+    for line in open(path, encoding="utf-8").read().splitlines()[1:]:
+        p = line.split(",")
+        if len(p) >= 6 and p[2].lstrip("-").isdigit():
+            out.append({"when": p[0], "vec": p[1], "rc": int(p[2]), "path": int(p[3]), "crc_ok": int(p[4]), "payload_match": p[5] == "1"})
+    return out
 
 
 # =====================================================================================================================
@@ -127,30 +140,40 @@ def row_v1(pins, arms=ARMS):
     return (not bad), {"checked": len(need), "failed_or_missing": bad}
 
 
-def row_v2(rows40, rows60):
-    """V2 (the setting is really applied; outcome-independent positive control): on V2_NOISE_CYCLES seeded pure-noise WAVs,
-    PASS iff n_false(60) >= n_false(40) + 3. Every decode on pure noise is false. A noise arm with the wrong row count or any
-    exception row is INVALID (FAIL): an arm that did not run must never read as 'zero false decodes'.
-    rows40/rows60: load_run_csv() rows of the two noise arms."""
-    def total(rows):
-        return sum(r["decodes"] for r in rows if r["decodes"] > 0)
-    det = {"rows40": len(rows40), "rows60": len(rows60), "n_false_40": total(rows40), "n_false_60": total(rows60),
-           "required_excess": V2_MIN_EXCESS}
-    if len(rows40) != V2_NOISE_CYCLES or len(rows60) != V2_NOISE_CYCLES:
-        return False, {**det, "invalid": "noise arm row count != 200"}
-    if any(r["exception"] or r["decodes"] < 0 for r in rows40 + rows60):
-        return False, {**det, "invalid": "exception or failed decode in a noise arm"}
-    ok = det["n_false_60"] >= det["n_false_40"] + V2_MIN_EXCESS
-    det["note"] = ("PASS" if ok else "FAIL: either the cap did not apply or this build is simply quiet on noise (both are named "
-                   "in the report; the Architect rules before anything else runs)")
-    return ok, det
+def row_v2p(probes_by_arm, arms=ARMS):
+    """V2' (Amendment 2; REPLACES the retired noise V2): the native OSD gate, probed through ft8_ldpc_decode_llrs INSIDE each corpus
+    arm's own process after SetDecodeParams + warm-up ('start') and again after the last cycle ('end').
+    PASS iff, at BOTH points, in EVERY arm: P_lo is accepted (rc 0, path 1, CRC 1, payload matches); and P_hi is accepted (same four
+    conditions) in N60 and rejected (rc 0, path -1) in N40 and AA. Every row present must satisfy it (a restarted arm adds rows), and
+    each (point, vector) must be present at least once: an arm that did not probe must never read as 'passed'.
+    HK-025(k): if the cap did not reach the native gate, P_hi reads the same in N40 and N60 and this FAILS; if OSD were broken, P_lo FAILS."""
+    bad, seen = [], {}
+    for arm in arms:
+        rows = probes_by_arm.get(arm, [])
+        for r in rows:
+            accepted = r["rc"] == 0 and r["path"] == 1 and r["crc_ok"] == 1 and r["payload_match"]
+            if r["vec"] == "P_lo":
+                ok = accepted
+            elif r["vec"] == "P_hi":
+                ok = accepted if ARM_NHARD[arm] == 60 else (r["rc"] == 0 and r["path"] == -1)
+            else:
+                ok = False
+            if not ok:
+                bad.append(f"{arm}:{r['when']}:{r['vec']} rc={r['rc']} path={r['path']} crc={r['crc_ok']} match={int(r['payload_match'])}")
+        have = {(r["when"], r["vec"]) for r in rows}
+        for w in ("start", "end"):
+            for v in ("P_lo", "P_hi"):
+                if (w, v) not in have:
+                    bad.append(f"{arm}:{w}:{v} missing")
+        seen[arm] = len(rows)
+    return (not bad), {"problems": bad, "probe_rows": seen}
 
 
 def row_v3(runrows, restarts, contained):
     return O.row_v3(runrows, restarts, contained)
 
 
-def row_v4(readbacks, selection_sha, arms=ARMS, threads=THREADS):
+def row_v4(readbacks, selection_sha, arms=ARMS, threads=THREADS, probe_sha=PROBE_SHA256):
     """V4: subtraction flag ON, thread count 8 and nhard (40/60 per arm) read back at START and END of every arm; selection.json
     SHA identical to the frozen value."""
     bad = []
@@ -167,6 +190,8 @@ def row_v4(readbacks, selection_sha, arms=ARMS, threads=THREADS):
                 bad.append(f"{arm}:{r['when']}: threads={r['threadsConfigured']} nhard={r['nhard']} (expected {ARM_NHARD[arm]})")
     if selection_sha != SELECTION_SHA256:
         bad.append("selection.json SHA differs from the frozen value")
+    if probe_sha != PROBE_SHA256:
+        bad.append("probe_vectors.json SHA differs from the frozen value")
     return (not bad), {"problems": bad}
 
 
@@ -179,6 +204,21 @@ def row_v5(abandon_by_arm, stamps):
         det[arm] = d
         ok = ok and a_ok
     return ok, det
+
+
+def multiset_differences(out40, outAA, aa_stamps, ab40, abAA):
+    """Amendment 2 (Architect, item 5): REPORTED, not gated. Per cycle, does the union (batch 1 + batch 2) numeric multiset of N40 differ
+    from AA's? EXPLAINED = the residual pass was abandoned in exactly one of the two runs; anything else is UNEXPLAINED and goes in the
+    report's FIRST paragraph."""
+    empty = collections.Counter()
+    expl, unexpl = [], []
+    for s in aa_stamps:
+        if out40.get(s, empty) == outAA.get(s, empty):
+            continue
+        a, b = ab40.get(s), abAA.get(s)
+        (expl if (a is not None and b is not None and a["abandoned"] != b["abandoned"]) else unexpl).append(s)
+    return {"n": len(aa_stamps), "differing": len(expl) + len(unexpl), "explained": len(expl), "unexplained": len(unexpl),
+            "unexplained_stamps": unexpl}
 
 
 def row_v6(W, M40, MAA, aa_stamps, ab40, abAA):
@@ -207,11 +247,15 @@ def row_v6(W, M40, MAA, aa_stamps, ab40, abAA):
 # =====================================================================================================================
 # assembly
 # =====================================================================================================================
-def evaluate_v2(out_dir):
-    """The orchestrator's gate: after the two noise arms, evaluate V2 alone. FAIL => nothing else runs."""
-    r40 = O.load_run_csv(arm_paths(out_dir, "V2N40")["run"])
-    r60 = O.load_run_csv(arm_paths(out_dir, "V2N60")["run"])
-    return row_v2(r40, r60)
+def noise_descriptive(out_dir):
+    """The RETIRED V2's result, kept as description (Amendment 2): decodes on the 200 white-noise cycles (RMS 0.20) at each cap, from the
+    files moved to <out>/v2_retired/. None if they are absent."""
+    res = {}
+    for cap in (40, 60):
+        rows = O.load_run_csv(os.path.join(out_dir, "v2_retired", f"run_V2N{cap}.csv"))
+        res[f"n_false_{cap}"] = sum(r["decodes"] for r in rows if r["decodes"] > 0) if rows else None
+        res[f"cycles_{cap}"] = len(rows)
+    return res
 
 
 def _sum_b(cy, kind, idx):
@@ -222,6 +266,8 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
     selection_path = selection_path or os.path.join(REPO, "qa", "rr-study", "results", "2026-10-06-nhard-rep", "selection.json")
     sel_bytes = open(selection_path, "rb").read().replace(b"\r\n", b"\n")
     sel_sha = hashlib.sha256(sel_bytes).hexdigest()
+    probe_path = os.path.join(HERE, "probe_vectors.json")
+    probe_sha = hashlib.sha256(open(probe_path, "rb").read().replace(b"\r\n", b"\n")).hexdigest()
     sel = json.loads(sel_bytes)
     run = sel["run"]
     stamps = sel["runs"][run]["SAMPLE"]
@@ -229,6 +275,8 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
     assert aa_stamps == stamps[:V6_CYCLES], "AA list is not the first 200 sampled cycles"
 
     P = {a: arm_paths(out_dir, a) for a in ARMS}
+    outcomes = {a: O.load_outcomes(P[a]["outcomes"]) for a in ARMS}
+    probes = {a: load_probe(P[a]["probe"]) for a in ARMS}
     abandon = {a: O.load_abandon(P[a]["abandon"]) for a in ARMS}
     testb = {a: O.load_testb(P[a]["testb"]) for a in ARMS}
     runrows = {a: O.load_run_csv(P[a]["run"]) for a in ARMS}
@@ -245,9 +293,9 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
 
     v = {}
     v["V1"] = row_v1(pins)
-    v["V2"] = row_v2(runrows["V2N40"], runrows["V2N60"])
+    v["V2P"] = row_v2p(probes)
     v["V3"] = row_v3({a: runrows[a] for a in ARMS}, restarts, {a: logs[a]["contained"] for a in ARMS})
-    v["V4"] = row_v4({a: logs[a]["readback"] for a in ARMS}, sel_sha)
+    v["V4"] = row_v4({a: logs[a]["readback"] for a in ARMS}, sel_sha, probe_sha=probe_sha)
     v["V5"] = row_v5(abandon, stamps)
 
     present = [s for s in stamps if s in testb["N40"] and s in testb["N60"]]
@@ -260,6 +308,8 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
     aa_present = [s for s in aa_stamps if s in testb["AA"] and s in c40]
     v["V6"] = row_v6([c40[s]["W"] for s in aa_present], [c40[s]["M"] for s in aa_present],
                      [testb["AA"][s]["M"] for s in aa_present], aa_present, abandon["N40"], abandon["AA"])
+    msd = multiset_differences(O.union(outcomes["N40"], aa_stamps), O.union(outcomes["AA"], aa_stamps), aa_stamps,
+                               abandon["N40"], abandon["AA"])
     if len(aa_present) != len(aa_stamps):   # a missing AA cycle must FAIL V6 whatever else holds
         v["V6"] = (False, {**v["V6"][1], "missing_aa_cycles": len(aa_stamps) - len(aa_present)})
 
@@ -281,14 +331,16 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
         "K_minus_G_equals_sum_d": (kg_ok and (K - G) == (sum(M60) - sum(M40)), {"K": K, "G": G}),
     }
 
-    rows = {k: v[k] for k in ("V1", "V2", "V3", "V4", "V5", "V6")}
+    rows = {k: v[k] for k in ("V1", "V2P", "V3", "V4", "V5", "V6")}
     all_valid = all(ok for ok, _ in rows.values()) and all(ok for ok, _ in consistency.values())
     failing = [k for k, (ok, _) in {**rows, **consistency}.items() if not ok]
     result = {"generated_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
               "numpy": np.__version__, "selection_sha256_lf": sel_sha, "n_sampled": len(stamps), "n_scored": len(present),
               "validity": {k: {"pass": ok, **d} for k, (ok, d) in rows.items()},
               "consistency": {k: {"pass": ok, **d} for k, (ok, d) in consistency.items()},
-              "failing_rows": failing, "BAR_N_pp": BAR_N}
+              "failing_rows": failing, "BAR_N_pp": BAR_N, "v6_multiset_differences_reported_not_gated": msd,
+              "first_paragraph_flags": ([f"{msd['unexplained']} UNEXPLAINED multiset difference(s) between N40 and AA"]
+                                        if msd["unexplained"] else [])}
 
     if present:
         d = [b - a for a, b in zip(M40, M60)]
@@ -297,6 +349,8 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
         result["estimand"] = {"NET_pp": net, "ci95": [lo, hi], "block": BLOCK_REGISTERED, "n_blocks": nb, "B": B_RESAMPLES, "seed": SEED,
                               "sum_W": int(sum(W)), "sum_M40": int(sum(M40)), "sum_M60": int(sum(M60))}
         result["cluster"] = cluster_report(d)
+        if result["cluster"]["flag_gt_half"]:
+            result["first_paragraph_flags"].append("top-5 blocks carry more than half of the positive sum d")
         result["reported_not_used"] = {"ci_by_block": {str(bk): list(ci(W, M40, M60, bk)[:2]) for bk in BLOCKS_REPORTED},
                                        "acf_of_d": O.acf(d, ACF_LAGS)}
         sW = float(sum(W))
@@ -323,7 +377,7 @@ def analyse(out_dir, results_dir=None, selection_path=None, ows_alltxt=None):
             "exchange_rate_extra_confirmed_per_extra_not_confirmed": ((sum(M60) - sum(M40)) / d_nc if d_nc > 0 else None),
             "NET_by_batch_pp": {kind: 100.0 * sum(c60[s][kind][b][1] - c40[s][kind][b][1] for s in present for b in BANDS) / sW
                                 for kind in ("b1", "b2")},
-            "v2_noise_only_counts": {"n_false_40": v["V2"][1].get("n_false_40"), "n_false_60": v["V2"][1].get("n_false_60")},
+            "retired_v2_noise_descriptive": noise_descriptive(out_dir),
             "replay_fidelity_N40_vs_live_ows": None}
         if ows_alltxt and os.path.exists(ows_alltxt):
             live = O.count_stamps_in_alltxt(ows_alltxt, present)

@@ -22,6 +22,7 @@
 
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -112,6 +113,9 @@ internal static class Program
             _testB = new StreamWriter(tb, append: true, new UTF8Encoding(false)) { AutoFlush = true };
             if (fresh) _testB.WriteLine("run,stamp,kind,band,n,corroborated");
         }
+        // NHARD-REP Amendment 2 (V2'): --probe-vectors <json> --probe-out <csv> probe the native OSD gate in THIS process.
+        if (a.TryGetValue("probe-vectors", out var probeJson))
+            LoadProbe(probeJson, Req(a, "probe-out"));
         // NHARD-REP: numeric indices (into the cycle's WSJT-X lines, in ALL.TXT order) of the WSJT-X decodes this arm matched.
         // An index is not message text and not text-derived (HK-037); it lets K and G be computed across two processes.
         if (a.TryGetValue("matched-out", out var matchedPath))
@@ -140,6 +144,12 @@ internal static class Program
         SetFlag(decoder, mode is "alt" or "two" or "on" or "two1");
         await decoder.DecodeAsync(warmPcm, StampToUtc(warm));
         log.Raw("# warm-up cycle decoded and discarded");
+        // V2' first probe point: after SetDecodeParams and the warm-up. A miss stops THIS arm before any cycle is decoded (exit 5).
+        if (_probe is not null && !RunProbe("start", log))
+        {
+            log.Raw("# V2-prime FAIL at the start probe: the native OSD gate does not hold the value this arm was given");
+            return 5;
+        }
 
         if (stratum == "R6")
         {
@@ -234,6 +244,9 @@ internal static class Program
 #if HAS_TWOSTAGE
         if (mode is "two0" or "two1") Readback(decoder, log, "end", threadsNote);
 #endif
+        // V2' second probe point: after the last cycle. Recorded; row V2' is judged afterwards by nhard_rep_rows.py.
+        if (_probe is not null && !RunProbe("end", log))
+            log.Raw("# V2-prime FAIL at the end probe");
         return 0;
     }
 
@@ -263,6 +276,81 @@ internal static class Program
         public static volatile bool Ran, Abandoned, Contained;
         public static void Reset() { Ran = false; Abandoned = false; Contained = false; }
         public static void Set(bool abandoned, bool contained) { Ran = true; Abandoned = abandoned; Contained = contained; }
+    }
+
+    // ---- V2' probe: ft8_ldpc_decode_llrs through the already-loaded libft8.dll (no product binding; qa/ code) -----------------
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int LdpcDecodeLlrsFn(float[] llr174, int maxIters, int osdDepth, byte[] outA91,
+                                          out int outLdpcErrors, out int outPath, out int outCrcOk);
+
+    private sealed record ProbeVector(string Name, float[] Llr, byte[] ExpectedA91);
+
+    private sealed class ProbeSet
+    {
+        public required LdpcDecodeLlrsFn Fn;
+        public required int MaxIters, OsdDepth, PayloadBits;
+        public required List<ProbeVector> Vectors;
+        public required StreamWriter Out;
+    }
+
+    private static ProbeSet? _probe;
+
+    private static void LoadProbe(string jsonPath, string outPath)
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllBytes(jsonPath));
+        var r = doc.RootElement;
+        var vecs = new List<ProbeVector>();
+        int payloadBits = 0;
+        foreach (var name in new[] { "P_lo", "P_hi" })
+        {
+            var v = r.GetProperty("vectors").GetProperty(name);
+            var llr = v.GetProperty("llr").EnumerateArray().Select(e => (float)e.GetDouble()).ToArray();
+            if (llr.Length != 174) throw new InvalidDataException("probe vector length");
+            payloadBits = v.GetProperty("payload_bits").GetInt32();
+            vecs.Add(new ProbeVector(name, llr, Convert.FromHexString(v.GetProperty("expected_a91_hex").GetString()!)));
+        }
+        // the same module the managed decoder loaded (same path => same handle): the process-global s_osd_nhard_max is shared
+        IntPtr lib = NativeLibrary.Load(Path.Combine(AppContext.BaseDirectory, "libft8.dll"));
+        var fn = Marshal.GetDelegateForFunctionPointer<LdpcDecodeLlrsFn>(NativeLibrary.GetExport(lib, "ft8_ldpc_decode_llrs"));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        bool fresh = !File.Exists(outPath);
+        var w = new StreamWriter(outPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+        if (fresh) w.WriteLine("when,vec,rc,path,crc_ok,payload_match,expected");
+        _probe = new ProbeSet { Fn = fn, MaxIters = r.GetProperty("max_iters").GetInt32(), OsdDepth = r.GetProperty("osd_depth").GetInt32(),
+                                PayloadBits = payloadBits, Vectors = vecs, Out = w };
+    }
+
+    /// <summary>One probe point. Expected (V2'): P_lo accepted (path 1, CRC 1, payload equal) in every arm; P_hi accepted iff
+    /// this arm's nhard is 60, otherwise rejected (path -1). Writes one numeric row per vector; returns whether every row met it.</summary>
+    private static bool RunProbe(string when, ReplayLog log)
+    {
+        var p = _probe!;
+        bool all = true;
+        foreach (var v in p.Vectors)
+        {
+            var a91 = new byte[12];
+            int rc = p.Fn(v.Llr, p.MaxIters, p.OsdDepth, a91, out _, out int path, out int crc);
+            bool accepted = rc == 0 && path == 1 && crc == 1;
+            // payload = the first PayloadBits bits of a91 (bits 77..90 are the zeroed CRC region, not compared)
+            bool match = accepted && PayloadEqual(a91, v.ExpectedA91, p.PayloadBits);
+            bool expectAccepted = v.Name == "P_lo" || OsdNhardMax == 60;
+            bool met = expectAccepted ? (accepted && match) : (rc == 0 && path == -1);
+            all &= met;
+            p.Out.WriteLine(string.Join(",", when, v.Name, rc.ToString(CultureInfo.InvariantCulture), path.ToString(CultureInfo.InvariantCulture),
+                crc.ToString(CultureInfo.InvariantCulture), match ? "1" : "0", expectAccepted ? "accept" : "reject"));
+        }
+        log.Raw($"# probe {when} nhard={OsdNhardMax} met={all}");
+        return all;
+    }
+
+    private static bool PayloadEqual(byte[] a, byte[] b, int bits)
+    {
+        for (int i = 0; i < bits; i++)
+        {
+            int m = 0x80 >> (i % 8);
+            if ((a[i / 8] & m) != (b[i / 8] & m)) return false;
+        }
+        return true;
     }
 
     private static StreamWriter? _matched;   // --matched-out: stamp,idx;idx;... (matched WSJT-X line indices, numeric)

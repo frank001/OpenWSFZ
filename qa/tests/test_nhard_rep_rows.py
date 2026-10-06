@@ -18,6 +18,7 @@ sys.path.insert(0, str(NH))
 import nhard_rep_rows as r  # noqa: E402
 import nhard_rep_select as sel  # noqa: E402
 
+PROBES = NH / "probe_vectors.json"
 SELECTION = Path(__file__).resolve().parent.parent / "rr-study" / "results" / "2026-10-06-nhard-rep" / "selection.json"
 
 
@@ -26,10 +27,9 @@ def test_frozen_spec_constants():
     assert r.BAR_N == 0.5                      # ratified by the Captain 2026-10-06 ~14:34Z, FROZEN
     assert r.SEED == 20261006 and r.B_RESAMPLES == 10_000
     assert r.BLOCK_REGISTERED == 8 and r.BLOCKS_REPORTED == (4, 16) and r.ACF_LAGS == (1, 2, 8)   # Amendment 1
-    assert r.V2_MIN_EXCESS == 3 and r.V2_NOISE_CYCLES == 200                                      # Amendment 1
     assert r.V6_CYCLES == 200 and r.V6_HALF_WINDOW == 0.25                                        # Amendment 1 / section 5
     assert r.V5_MAX_ABANDON == 0.05 and r.THREADS == "8"
-    assert r.ARM_NHARD == {"V2N40": 40, "V2N60": 60, "N40": 40, "N60": 60, "AA": 40}
+    assert r.ARM_NHARD == {"N40": 40, "N60": 60, "AA": 40} and r.ARMS == ("N40", "N60", "AA")     # Amendment 2: no V2 arms
     assert r.DLL_PIN == "2fa6d99302c6c602231c870c1e61755aeeddb7ad1b9ce392fb98a4bdbd94f365"       # shim 20260058
 
 
@@ -114,32 +114,91 @@ def test_v1_pass_and_fail_on_mismatch_and_on_a_missing_record():
     assert r.row_v1(_pins()[:-1])[0] is False      # an arm's end record missing
 
 
-# ---- V2 --------------------------------------------------------------------------------------------------------------
-def _noise_rows(total, n=200, exc=""):
-    rows = [{"decodes": 0, "exception": ""} for _ in range(n)]
-    for i in range(min(total, n)):
-        rows[i]["decodes"] = 1
-    if exc:
-        rows[0]["exception"] = exc
+# ---- V2' (Amendment 2): the native gate probe -------------------------------------------------------------------------------
+def _probe_rows(arm, lo_ok=True, hi_accepted=None, points=("start", "end")):
+    """Synthetic probe rows for one arm: P_hi accepted iff the arm is N60 unless hi_accepted overrides."""
+    hi = (r.ARM_NHARD[arm] == 60) if hi_accepted is None else hi_accepted
+    rows = []
+    for w in points:
+        rows.append({"when": w, "vec": "P_lo", "rc": 0, "path": 1 if lo_ok else -1, "crc_ok": 1 if lo_ok else 0, "payload_match": lo_ok})
+        rows.append({"when": w, "vec": "P_hi", "rc": 0, "path": 1 if hi else -1, "crc_ok": 1 if hi else 0, "payload_match": hi})
     return rows
 
 
-def test_v2_passes_at_plus_3_and_fails_at_plus_2():
-    assert r.row_v2(_noise_rows(1), _noise_rows(4))[0] is True      # 4 >= 1 + 3
-    ok, d = r.row_v2(_noise_rows(1), _noise_rows(3))
-    assert ok is False and d["n_false_60"] == 3 and d["n_false_40"] == 1
+def _probes(**over):
+    p = {a: _probe_rows(a) for a in r.ARMS}
+    p.update(over)
+    return p
 
 
-def test_v2_fails_when_an_arm_did_not_run_or_threw_never_reads_as_zero_false():
-    assert r.row_v2([], _noise_rows(10))[0] is False
-    assert r.row_v2(_noise_rows(0), _noise_rows(10, n=199))[0] is False
-    assert r.row_v2(_noise_rows(0), _noise_rows(10, exc="AccessViolationException"))[0] is False
-    assert r.row_v2([{"decodes": -1, "exception": ""}] * 200, _noise_rows(10))[0] is False
+def test_v2p_passes_when_the_gate_behaves_as_calibrated():
+    ok, d = r.row_v2p(_probes())
+    assert ok is True and d["problems"] == []
 
 
-def test_v2_is_not_decorative_a_quiet_build_fails_and_a_noisy_build_passes():
-    assert r.row_v2(_noise_rows(0), _noise_rows(0))[0] is False
-    assert r.row_v2(_noise_rows(1), _noise_rows(21))[0] is True
+def test_v2p_fails_if_the_cap_did_not_reach_the_native_gate():
+    # N60 behaving like 40 (P_hi rejected) and N40 behaving like 60 (P_hi accepted): the very failure V2' exists to catch
+    assert r.row_v2p(_probes(N60=_probe_rows("N60", hi_accepted=False)))[0] is False
+    assert r.row_v2p(_probes(N40=_probe_rows("N40", hi_accepted=True)))[0] is False
+    assert r.row_v2p(_probes(AA=_probe_rows("AA", hi_accepted=True)))[0] is False
+
+
+def test_v2p_fails_if_osd_itself_is_broken():
+    assert r.row_v2p(_probes(N40=_probe_rows("N40", lo_ok=False)))[0] is False
+
+
+def test_v2p_requires_both_probe_points_and_never_reads_an_unprobed_arm_as_passed():
+    assert r.row_v2p(_probes(N60=_probe_rows("N60", points=("start",))))[0] is False     # no END probe
+    assert r.row_v2p(_probes(AA=[]))[0] is False                                         # no probe at all
+    assert r.row_v2p({})[0] is False
+
+
+def test_v2p_judges_every_row_a_restart_adds():
+    rows = _probe_rows("N40") + _probe_rows("N40", hi_accepted=True)   # a restarted arm whose second start probe misses
+    assert r.row_v2p(_probes(N40=rows))[0] is False
+
+
+def test_v2p_a_payload_mismatch_is_not_an_acceptance():
+    rows = _probe_rows("N60")
+    rows[0]["payload_match"] = False                                    # P_lo accepted by the gate but the wrong payload
+    assert r.row_v2p(_probes(N60=rows))[0] is False
+
+
+def test_load_probe_parses_the_harness_file(tmp_path):
+    f = tmp_path / "probe_N60.csv"
+    f.write_text("when,vec,rc,path,crc_ok,payload_match,expected\nstart,P_lo,0,1,1,1,accept\nstart,P_hi,0,1,1,1,accept\n", encoding="utf-8")
+    rows = r.load_probe(str(f))
+    assert len(rows) == 2 and rows[1] == {"when": "start", "vec": "P_hi", "rc": 0, "path": 1, "crc_ok": 1, "payload_match": True}
+    assert r.load_probe(str(tmp_path / "absent.csv")) == []
+
+
+# ---- the committed probe vectors (Amendment 2): structure and calibration record ---------------------------------------------
+def test_probe_vectors_json_matches_its_pin_and_the_amendment_2_ranges():
+    data = PROBES.read_bytes().replace(b"\r\n", b"\n")
+    assert hashlib.sha256(data).hexdigest() == r.PROBE_SHA256
+    j = json.loads(data)
+    assert j["dll_sha256"] == r.DLL_PIN and j["shim"] == 20260058
+    assert 48 <= j["vectors"]["P_hi"]["nhard_true"] <= 56 and 20 <= j["vectors"]["P_lo"]["nhard_true"] <= 32
+    cw = np.array(j["codeword_bits"])
+    assert len(cw) == 174
+    for name, v in j["vectors"].items():
+        llr = np.array(v["llr"], dtype=np.float32)
+        assert len(llr) == 174 and np.all(llr != 0) and np.all(np.round(llr * 64) / 64 == llr)     # exactly representable
+        hd = np.where(llr > 0, 0, 1)                                                              # the gate's own arithmetic
+        assert int(np.sum(hd != cw)) == v["nhard_true"]
+        assert len(v["flipped_positions"]) == v["nhard_true"] and min(v["flipped_positions"]) >= 91
+    # the calibration table (Amendment 2): P_hi accepted iff N >= nhard_true; P_lo accepted for every N >= nhard_true; payload matched
+    for name, c in j["calibration"].items():
+        nh = j["vectors"][name]["nhard_true"]
+        assert c["scan_threshold"] == nh
+        for n, row in c["by_N"].items():
+            assert row["accepted"] == (int(n) >= nh)
+            assert row["payload_match"] == row["accepted"]
+            assert row["path"] == (1 if row["accepted"] else -1)
+    assert sorted(int(n) for n in j["calibration"]["P_hi"]["by_N"]) == [30, 40, 50, 60, 100]
+    # the probe's decisive property at the arms' caps: rejected at 40, accepted at 60; P_lo accepted at both
+    assert j["calibration"]["P_hi"]["by_N"]["40"]["accepted"] is False and j["calibration"]["P_hi"]["by_N"]["60"]["accepted"] is True
+    assert j["calibration"]["P_lo"]["by_N"]["40"]["accepted"] and j["calibration"]["P_lo"]["by_N"]["60"]["accepted"]
 
 
 # ---- V4 --------------------------------------------------------------------------------------------------------------
@@ -164,8 +223,9 @@ def test_v4_pass_and_each_failure_mode():
     assert r.row_v4(_readbacks(N40=_rb("N40", threadsConfigured="4")), r.SELECTION_SHA256)[0] is False
     assert r.row_v4(_readbacks(N40=_rb("N40")[:1]), r.SELECTION_SHA256)[0] is False      # no END read-back
     rb = _readbacks()
-    del rb["V2N60"]
+    del rb["AA"]
     assert r.row_v4(rb, r.SELECTION_SHA256)[0] is False
+    assert r.row_v4(_readbacks(), r.SELECTION_SHA256, probe_sha="0" * 64)[0] is False       # probe vectors changed
 
 
 # ---- V5 --------------------------------------------------------------------------------------------------------------
@@ -272,12 +332,22 @@ def _write_arm_files(d, arm, stamps, W, M, n_extra_unconf=0, abandoned=(), match
     (d / f"run_{arm}.csv").write_text("\n".join(rr) + "\n")
 
 
-def _write_noise(d, arm, total):
-    rr = ["run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"]
-    for i in range(200):
-        n = 1 if i < total else 0
-        rr.append(f"x,S,261006_{i:06d},{i},ON,10.0,{n},,5.0,{n},0")
-    (d / f"run_{arm}.csv").write_text("\n".join(rr) + "\n")
+def _write_retired_noise(d, n40=0, n60=0):
+    """The retired V2's files, moved to <out>/v2_retired/: kept as description only."""
+    (d / "v2_retired").mkdir(exist_ok=True)
+    for cap, total in ((40, n40), (60, n60)):
+        rr = ["run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"]
+        for i in range(200):
+            n = 1 if i < total else 0
+            rr.append(f"x,S,261006_{i:06d},{i},ON,10.0,{n},,5.0,{n},0")
+        (d / "v2_retired" / f"run_V2N{cap}.csv").write_text("\n".join(rr) + "\n")
+
+
+def _write_probe(d, arm, rows):
+    lines = ["when,vec,rc,path,crc_ok,payload_match,expected"]
+    for x in rows:
+        lines.append(f"{x['when']},{x['vec']},{x['rc']},{x['path']},{x['crc_ok']},{int(x['payload_match'])},-")
+    (d / f"probe_{arm}.csv").write_text("\n".join(lines) + "\n")
 
 
 def _write_logs_and_pins(d):
@@ -291,7 +361,7 @@ def _write_logs_and_pins(d):
     (d / "pins.jsonl").write_text("\n".join(pins) + "\n")
 
 
-def _synthetic(tmp_path, gain_every=0, noise60=21, aa_gain=0, gain_block_mod=0):
+def _synthetic(tmp_path, gain_every=0, probe_over=None, aa_gain=0, gain_block_mod=0):
     s = json.loads(SELECTION.read_bytes())
     stamps = s["runs"][s["run"]]["SAMPLE"]
     aa = s["runs"][s["run"]]["AA"]
@@ -304,8 +374,9 @@ def _synthetic(tmp_path, gain_every=0, noise60=21, aa_gain=0, gain_block_mod=0):
     _write_arm_files(tmp_path, "N60", stamps, W, M60, n_extra_unconf=2)
     MAA = [10 + (1 if aa_gain else 0) * (i % aa_gain == 0) if aa_gain else 10 for i in range(len(aa))]
     _write_arm_files(tmp_path, "AA", aa, W[:len(aa)], MAA)
-    _write_noise(tmp_path, "V2N40", 1)
-    _write_noise(tmp_path, "V2N60", noise60)
+    _write_retired_noise(tmp_path)
+    for arm, rows in _probes(**(probe_over or {})).items():
+        _write_probe(tmp_path, arm, rows)
     _write_logs_and_pins(tmp_path)
     return stamps
 
@@ -342,10 +413,18 @@ def test_end_to_end_a_diffuse_gain_below_the_bar_gives_n_closed(tmp_path):
     assert res["failing_rows"] == [] and res["verdict"] == "N-CLOSED"
 
 
-def test_end_to_end_v2_failure_withholds_the_verdict_and_names_the_row(tmp_path):
-    _synthetic(tmp_path, gain_every=2, noise60=1)       # the cap "did not apply": no excess false decodes
+def test_end_to_end_v2p_failure_withholds_the_verdict_and_names_the_row(tmp_path):
+    # the cap "did not apply" to N60's native gate: P_hi rejected there. A real-looking gain must NOT become N-LEVER.
+    _synthetic(tmp_path, gain_every=2, probe_over={"N60": _probe_rows("N60", hi_accepted=False)})
     res = r.analyse(str(tmp_path), selection_path=str(SELECTION))
-    assert res["verdict"] == "NO VERDICT" and "V2" in res["verdict_withheld_because"]
+    assert res["verdict"] == "NO VERDICT" and "V2P" in res["verdict_withheld_because"]
+
+
+def test_end_to_end_reports_the_retired_noise_result_as_description_only(tmp_path):
+    _synthetic(tmp_path)
+    res = r.analyse(str(tmp_path), selection_path=str(SELECTION))
+    assert res["descriptive"]["retired_v2_noise_descriptive"] == {"n_false_40": 0, "cycles_40": 200, "n_false_60": 0, "cycles_60": 200}
+    assert "V2" not in res["failing_rows"] and "V2P" not in res["failing_rows"] and res["verdict"] == "N-CLOSED"
 
 
 def test_end_to_end_v6_failure_withholds_the_verdict(tmp_path):
@@ -376,3 +455,42 @@ def test_orchestrator_arms_match_the_rows_module():
     import nhard_rep_run as run   # noqa: F401  (import asserts ARMS == ROWS.ARMS and each arm's nhard)
     assert [a[0] for a in run.ARMS] == list(r.ARMS)
     assert run.SELECTION_SHA256 == r.SELECTION_SHA256 and run.DLL == r.DLL_PIN
+
+
+# ---- Amendment 2 item 5: union-multiset differences are REPORTED, an unexplained one goes in the first paragraph --------------------
+def _ctr(*items):
+    import collections
+    return collections.Counter(items)
+
+
+def test_multiset_differences_classify_explained_and_unexplained():
+    st = ["261004_000000", "261004_000015", "261004_000030"]
+    out40 = {s: _ctr(("1500", "0.1", "-12")) for s in st}
+    outAA = {s: _ctr(("1500", "0.1", "-12")) for s in st}
+    outAA[st[1]] = _ctr(("1500", "0.1", "-12"), ("900", "0.2", "-20"))      # an extra decode, abandon in exactly one run: explained
+    outAA[st[2]] = _ctr()                                                    # a lost decode with no abandon: UNEXPLAINED
+    ab40 = _ab(st)
+    abAA = _ab(st, {st[1]})
+    d = r.multiset_differences(out40, outAA, st, ab40, abAA)
+    assert d == {"n": 3, "differing": 2, "explained": 1, "unexplained": 1, "unexplained_stamps": [st[2]]}
+    both = r.multiset_differences(out40, outAA, st, _ab(st, {st[1]}), _ab(st, {st[1]}))       # both runs abandoned: not explained
+    assert both["unexplained"] == 2
+    none = r.multiset_differences(out40, out40, st, ab40, abAA)
+    assert none["differing"] == 0
+
+
+def test_end_to_end_an_unexplained_multiset_difference_is_flagged_for_the_first_paragraph_but_does_not_gate(tmp_path):
+    stamps = _synthetic(tmp_path)
+    # identical M in N40 and AA (so V6 passes) but a numeric multiset difference nobody can explain
+    (tmp_path / "outcomes_N40.csv").write_text(f"{stamps[0]},b1,0,1500,0.1,-12\n")
+    (tmp_path / "outcomes_AA.csv").write_text(f"{stamps[0]},b1,0,1500,0.1,-14\n")
+    res = r.analyse(str(tmp_path), selection_path=str(SELECTION))
+    assert res["validity"]["V6"]["pass"] is True and res["verdict"] == "N-CLOSED"          # reported, not gated
+    assert res["v6_multiset_differences_reported_not_gated"]["unexplained"] == 1
+    assert any("UNEXPLAINED multiset" in f for f in res["first_paragraph_flags"])
+
+
+def test_end_to_end_no_flags_on_a_clean_run(tmp_path):
+    _synthetic(tmp_path)
+    res = r.analyse(str(tmp_path), selection_path=str(SELECTION))
+    assert res["first_paragraph_flags"] == []
