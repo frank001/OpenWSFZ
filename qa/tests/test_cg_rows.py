@@ -671,3 +671,104 @@ def test_a_first_sample_validity_failure_alone_withholds_the_pooled_verdict(tmp_
     res = R.analyse_extension(str(ext), str(main), stamp_of={}, stamp_of_ext={})
     assert res["extension"]["failing_rows"] == [] and res["first_sample"]["failing_rows"] == ["V1"]
     assert res["verdict_pooled"] == "NO VERDICT" and "first_sample:V1" in res["verdict_withheld_because"]
+
+
+# ---- Amendment 5: further fresh samples, pooled -----------------------------------------------------------------------------------------
+def test_every_fresh_row_list_is_pinned_disjoint_and_follows_the_rule():
+    lists = {5: json.loads((RESULTS / "rows_ext.json").read_bytes())}
+    for r in CG.FRESH_RESIDUES:
+        path = RESULTS / f"rows_r{r}.json"
+        assert CG.sha256_lf(str(path)) == CG.SAMPLE_PINS[r]
+        lists[r] = json.loads(path.read_bytes())
+    first = json.loads((RESULTS / "rows.json").read_bytes())
+    seen = {r[0] for r in first["rows"]} | {r[0] for r in first["pilot_rows"]}
+    for res, spec in lists.items():
+        idx = {r[0] for r in spec["rows"]}
+        assert all(i % 10 == res for i in idx) and spec["pilot_rows"] == []
+        assert idx.isdisjoint(seen), res                                  # disjoint from sample 1, the pilot and every earlier list
+        seen |= idx
+        assert not any(isinstance(x, str) and len(x.split()) > 1 for r in spec["rows"] for x in r)
+    assert set(CG.FRESH_RESIDUES) == {1, 2, 4, 6, 8, 9} and 0 not in CG.FRESH_RESIDUES and 3 not in CG.FRESH_RESIDUES and 7 not in CG.FRESH_RESIDUES
+
+
+def test_rows_path_and_sample_tags():
+    import cg_select
+    assert cg_select.rows_path(5).endswith("rows_ext.json") and cg_select.rows_path(9).endswith("rows_r9.json")
+    assert CG.sample_tag(5) == "ext" and CG.sample_tag(2) == "r2"
+
+
+def _multi_world(tmp_path, bad_res=(), gains=(True, True, True)):
+    main = tmp_path / "main"
+    main.mkdir()
+    rows = _big(n_cycles=320)
+    for i, r in enumerate(rows):
+        r["C3_ok"] = 1 if r["G_ok"] or i % 10 == 9 else 0
+        r["C3_crc"] = 1 if i % 10 == 9 else 0
+    _write_run(main, rows, pins=_pins())
+    samples = {}
+    for k, res in enumerate((5, 1, 2)):
+        d = tmp_path / f"s{res}"
+        d.mkdir()
+        rs = _big(n_cycles=320)
+        for i, r in enumerate(rs):
+            r["C3_ok"] = 1 if r["G_ok"] or (i % 10 == 9 and gains[k]) else 0
+            r["C3_crc"] = 1 if i % 10 == 9 else 0
+        _write_run(d, rs, pins=_pins(sha="0" * 64 if res in bad_res else None))
+        samples[res] = str(d)
+    return str(main), samples
+
+
+def test_multi_pools_every_valid_sample_and_u_uses_fresh_samples_only(tmp_path):
+    main, samples = _multi_world(tmp_path)
+    res = R.analyse_multi(main, samples, stamp_of={}, stamp_maps={5: {}, 1: {}, 2: {}})
+    assert res["excluded_samples"] == {} and res["n_fresh_pooled"] == 3
+    assert res["pooled_primary"]["NET_C3_pooled"]["n_rows"] == 4 * 3200 and res["verdict_pooled"] == "COH-GO"
+    assert res["secondary_U_fresh_samples_only"]["NET_U"]["n_rows"] == 3 * 3200 and res["secondary_U_fresh_samples_only"]["row"] == "U-GO"
+    assert res["secondary_U_fresh_samples_only"]["fallback_false_decodes"]["fallback_correct_recoveries"] == 3 * 320
+
+
+def test_multi_excludes_a_sample_that_fails_its_own_validity_and_names_it(tmp_path):
+    main, samples = _multi_world(tmp_path, bad_res=(1,))
+    res = R.analyse_multi(main, samples, stamp_of={}, stamp_maps={5: {}, 1: {}, 2: {}})
+    assert list(res["excluded_samples"]) == [1] and "V1" in res["excluded_samples"][1] and res["n_fresh_pooled"] == 2
+    assert res["pooled_primary"]["NET_C3_pooled"]["n_rows"] == 3 * 3200 and res["per_sample"][1]["valid"] is False
+
+
+def test_multi_a_sample_that_was_not_run_is_excluded_not_a_pass(tmp_path):
+    main, samples = _multi_world(tmp_path)
+    samples[9] = str(tmp_path / "never_ran")
+    res = R.analyse_multi(main, samples, stamp_of={}, stamp_maps={5: {}, 1: {}, 2: {}})
+    assert res["excluded_samples"][9] == ["no rows.csv (not run)"] and res["n_fresh_pooled"] == 3
+
+
+def test_multi_a_first_sample_failure_withholds_the_pooled_verdict(tmp_path):
+    main, samples = _multi_world(tmp_path)
+    (Path(main) / "pins.jsonl").write_text("")
+    res = R.analyse_multi(main, samples, stamp_of={}, stamp_maps={5: {}, 1: {}, 2: {}})
+    assert res["verdict_pooled"] == "NO VERDICT" and "first_sample:V1" in res["verdict_withheld_because"]
+
+
+def test_multi_with_no_gain_in_the_fresh_samples_dilutes_and_u_stops(tmp_path):
+    main, samples = _multi_world(tmp_path, gains=(False, False, False))
+    res = R.analyse_multi(main, samples, stamp_of={}, stamp_maps={5: {}, 1: {}, 2: {}})
+    assert res["secondary_U_fresh_samples_only"]["row"] == "U-STOP" and res["secondary_U_fresh_samples_only"]["NET_U"]["NET_U_pp"] == 0.0
+    assert res["pooled_primary"]["NET_C3_pooled"]["NET_pp"] == pytest.approx(res["first_sample"]["NET_C3"]["NET_pp"] / 4.0)
+
+
+def test_multi_never_writes_a_rows_named_file(tmp_path):
+    main, samples = _multi_world(tmp_path)
+    res_dir = tmp_path / "res"
+    res_dir.mkdir()
+    (res_dir / "rows.json").write_text("FROZEN")
+    R.analyse_multi(main, samples, str(res_dir), stamp_of={}, stamp_maps={5: {}, 1: {}, 2: {}})
+    assert (res_dir / "rows.json").read_text() == "FROZEN" and (res_dir / R.MULTI_ANALYSIS_NAME).exists()
+
+
+def test_overnight_deadline_guard_and_naming():
+    import datetime
+    import cg_overnight as ON
+    assert ON.DEADLINE == datetime.datetime(2026, 10, 7, 4, 45, tzinfo=datetime.timezone.utc)      # 06:45 local: a 15-minute margin before the Captain's 07:00
+    assert ON.DEADLINE < datetime.datetime(2026, 10, 7, 5, 0, tzinfo=datetime.timezone.utc)
+    assert ON.CG.FRESH_RESIDUES == (1, 2, 4, 6, 8, 9) and ON.BRANCH == "qa/coh-gain"
+    assert ON.EST_REPLAY_S >= 35 * 60 and ON.EST_EXTRACT_S >= 10 * 60
+    assert ON.marker("v4p_r1").endswith("v4p_r1.done")

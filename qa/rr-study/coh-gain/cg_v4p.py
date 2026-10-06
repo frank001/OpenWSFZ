@@ -85,7 +85,7 @@ def preflight():
     assert not comp, ("WSJT-X / jt9 / the daemon / another replay must not be running", comp)
     nh_sel = json.load(open(NR_SELECTION))
     cycles = sampled_cycles()
-    assert len(cycles) == EXPECTED_CYCLES, len(cycles)
+    assert len(cycles) == EXPECTED_CYCLES if EXPECTED_CYCLES is not None else len(cycles) > 300, len(cycles)
     sel = {"note": "COH-GAIN V4' replay list: the cycles of the frozen COH-GAIN row list", "run": RUN,
            "runs": {RUN: {"warmup": nh_sel["runs"][RUN]["warmup"], "V4P": cycles}}}
     sel_path = os.path.join(OUT, "v4p_selection.json")
@@ -136,10 +136,14 @@ def write_manifest(rc, secs, files, pre):
 
 def main():
     global OUT, MANIFEST, ROWS_PATH, ROWS_SHA, EXPECTED_CYCLES
-    if "--ext" in sys.argv:
-        OUT = os.path.join(ART, "rr_2026-10-06_coh_gain_ext", "v4p")
-        MANIFEST = os.path.join(RESULTS, "v4p_ext_replay_manifest.json")
-        ROWS_PATH, ROWS_SHA, EXPECTED_CYCLES = SEL.EXT_ROWS_JSON, CG.ROWS_EXT_JSON_SHA256, 310
+    residue = CG.EXT_RESIDUE if "--ext" in sys.argv else (int(sys.argv[sys.argv.index("--residue") + 1]) if "--residue" in sys.argv else None)
+    if residue is not None:
+        tag = CG.sample_tag(residue)
+        OUT = os.path.join(ART, f"rr_2026-10-06_coh_gain_{tag}", "v4p")
+        MANIFEST = os.path.join(RESULTS, f"v4p_{tag}_replay_manifest.json")
+        ROWS_PATH = SEL.rows_path(residue)
+        ROWS_SHA = CG.ROWS_EXT_JSON_SHA256 if residue == CG.EXT_RESIDUE else CG.SAMPLE_PINS[residue]
+        EXPECTED_CYCLES = None      # the count is whatever the frozen list holds (310 or 311); asserted > 0 below
     pre, sel_path = preflight()
     print("preflight OK: harness commit", pre["harness_commit"][:8], "DLL", pre["libft8_sha256"][:8], "cycles", pre["cycles"], flush=True)
     if "--preflight-only" in sys.argv:

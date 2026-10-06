@@ -577,6 +577,75 @@ def analyse_extension(ext_dir, main_dir, results_dir=None, stamp_of=None, stamp_
     return result
 
 
+MULTI_ANALYSIS_NAME = "analysis_multi.json"
+
+
+def _sample_validity(sdir, json_path, stamp_of=None):
+    """One fresh sample's own V1 / V3 / V4' / V5 (V2 is carried). Returns (rows_all, v, valid)."""
+    rows_all = load_rows(os.path.join(sdir, "rows.csv"))
+    v4p = os.path.join(sdir, "v4p")
+    mb = load_matched_batch(os.path.join(v4p, "matched_batch.csv"))
+    replay_ws = {c: int(d["W"]) for c, d in O.load_testb(os.path.join(v4p, "testb.csv")).items()}
+    v = {"V1": row_v1(load_pins(os.path.join(sdir, "pins.jsonl"))), "V3": row_v3(rows_all),
+         "V4P": row_v4p(rows_all, mb, stamp_of if stamp_of is not None else stamp_map(json_path), replay_ws),
+         "V5": row_v5(rows_all, load_rows(os.path.join(sdir, "v5.csv")))}
+    return rows_all, v, all(ok for ok, _ in v.values())
+
+
+def analyse_multi(main_dir, samples, results_dir=None, stamp_of=None, stamp_maps=None):
+    """AMENDMENT 5 (QA, under the Captain's overnight authorisation): the first sample plus any number of FRESH samples.
+    samples: {residue: run_dir}. Each fresh sample is judged by its OWN validity rows (outcome-independent); a sample that fails is EXCLUDED from pooling and NAMED, the others pool.
+    PRIMARY: NET_C3 pooled over the first sample and every valid fresh sample (blocks of 8 within each sample, then pooled; same B, seed, rows COH-GO / STOP / OPEN at BAR_G).
+    SECONDARY (U row): over the valid FRESH samples only (the first sample produced the idea), with the fallback's false decodes. No threshold changes anywhere.
+    Writes analysis_multi.json (never a rows*.json name)."""
+    first = analyse(main_dir, None, stamp_of=stamp_of)
+    first_rows = [r for r in load_rows(os.path.join(main_dir, "rows.csv")) if not r["fault"]]
+    per, excluded, fresh_rows = {}, {}, []
+    for res, sdir in sorted(samples.items()):
+        if not os.path.exists(os.path.join(sdir, "rows.csv")):
+            excluded[res] = ["no rows.csv (not run)"]
+            continue
+        rows_all, v, valid = _sample_validity(sdir, __import__("cg_select").rows_path(res), (stamp_maps or {}).get(res))
+        rows = [r for r in rows_all if not r["fault"]]
+        per[res] = {"n_rows": len(rows_all), "n_faulted": len(rows_all) - len(rows), "valid": valid,
+                    "validity": {k: {"pass": ok, **d} for k, (ok, d) in v.items()},
+                    "NET_C3": net_with_ci(rows, "C3") if rows else None, "NET_U": net_u_with_ci(rows) if rows else None}
+        if valid and rows:
+            fresh_rows.append(rows)
+        else:
+            excluded[res] = [k for k, (ok, _) in v.items() if not ok] or ["no rows"]
+    result = {"generated_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "BAR_G_pp": CG.BAR_G,
+              "first_sample": {"failing_rows": first["failing_rows"], "NET_C3": first.get("estimand", {}).get("NET_C3")},
+              "per_sample": per, "excluded_samples": excluded, "n_fresh_pooled": len(fresh_rows), "first_paragraph_flags": []}
+    if not first["failing_rows"] and first_rows:
+        pooled = pooled_net_with_ci([first_rows] + fresh_rows, "C3")
+        result["pooled_primary"] = {"NET_C3_pooled": pooled, "block_variants_not_used_for_verdict": {
+            str(b): list(pooled_net_with_ci([first_rows] + fresh_rows, "C3", block=b)["ci95"]) for b in CG.BLOCKS_REPORTED}}
+        d = [int(b - a) for s in [first_rows] + fresh_rows for ids, n, base, x in [per_cycle(s, "C3")] for a, b in zip(base, x)]
+        cl = NR.cluster_report(d, block=CG.BLOCK_CYCLES)
+        result["pooled_primary"]["cluster"] = cl
+        if cl["flag_gt_half"]:
+            result["first_paragraph_flags"].append("top-5 blocks carry more than half of the positive pooled net gain")
+        result["verdict_pooled"] = verdict_row(*pooled["ci95"])
+        if fresh_rows:
+            allfresh = [r for s in fresh_rows for r in s]
+            u = net_u_with_ci(allfresh)
+            result["secondary_U_fresh_samples_only"] = {"NET_U": u, "row": u_row(*u["ci95"]), "fallback_false_decodes": fallback_report(allfresh),
+                                                        "HK-038": "1.0 pp is BAR_G, ratified by the Captain as the gain that justifies a native build (a decision value)"}
+            result["fresh_pooled_descriptive"] = {"NET_C3_fresh_only": pooled_net_with_ci(fresh_rows, "C3"), "NET_C1": net_with_ci(allfresh, "C1"),
+                                                  "NET_C3S": net_with_ci(allfresh, "C3S"),
+                                                  "gains_losses": {arm: gains_losses(allfresh, arm) for arm in ("C1", "C3", "C3S")},
+                                                  "amendment2_sign_corrected_osd_descriptive": {"GO_vs_G": osd_arm_report(allfresh, "GO", "G"),
+                                                                                                "C3O_vs_C3": osd_arm_report(allfresh, "C3O", "C3")}}
+    else:
+        result["verdict_pooled"] = "NO VERDICT"
+        result["verdict_withheld_because"] = [f"first_sample:{k}" for k in first["failing_rows"]] or ["no first-sample rows"]
+    if results_dir:
+        os.makedirs(results_dir, exist_ok=True)
+        json.dump(result, open(os.path.join(results_dir, MULTI_ANALYSIS_NAME), "w"), indent=1, sort_keys=True, default=str)
+    return result
+
+
 def main(argv):
     import argparse
     art = os.environ.get("OPENWSFZ_ARTEFACTS", os.path.join(REPO, "artefacts"))
@@ -584,8 +653,14 @@ def main(argv):
     ap.add_argument("--out", default=os.path.join(art, "rr_2026-10-06_coh_gain"))
     ap.add_argument("--results", default=os.path.join(REPO, "qa", "rr-study", "results", "2026-10-06-coh-gain"))
     ap.add_argument("--extension", action="store_true", help="Amendment 4: score the i mod 10 == 5 extension, the pooled primary and the U row")
+    ap.add_argument("--multi", action="store_true", help="Amendment 5: pool the first sample, the extension and every fresh residue sample found in the artefacts")
     ap.add_argument("--ext-out", default=os.path.join(art, "rr_2026-10-06_coh_gain_ext"))
     a = ap.parse_args(argv)
+    if a.multi:
+        samples = {r: os.path.join(art, f"rr_2026-10-06_coh_gain_{CG.sample_tag(r)}") for r in (CG.EXT_RESIDUE,) + CG.FRESH_RESIDUES}
+        res = analyse_multi(a.out, samples, a.results)
+        print(json.dumps({k: res[k] for k in ("verdict_pooled", "excluded_samples", "n_fresh_pooled", "first_paragraph_flags", "verdict_withheld_because") if k in res}, indent=1, default=str))
+        return 0
     if a.extension:
         res = analyse_extension(a.ext_out, a.out, a.results)
         print(json.dumps({k: res[k] for k in ("verdict_pooled", "U_row", "verdict_withheld_because", "first_paragraph_flags") if k in res}, indent=1, default=str))

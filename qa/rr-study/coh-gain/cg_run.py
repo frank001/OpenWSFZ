@@ -206,14 +206,17 @@ def main():
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--force", action="store_true", help="v2 mode: re-run tiers already on disk")
     ap.add_argument("--ext", action="store_true", help="Amendment 4: run the i mod 10 == 5 extension row list (rows_ext.json, its own pin); modes main and v5 only")
+    ap.add_argument("--residue", type=int, default=None, help="Amendment 5: run the fresh sample at i mod 10 == RESIDUE (its own frozen list and pin); modes main and v5 only")
     ap.add_argument("--modulus", type=int, default=CG.SAMPLE_MODULUS_PRIMARY, choices=[10, 20])
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     global FROZEN_PATH, FROZEN_SHA
-    if a.ext:
-        assert a.mode in ("main", "v5"), "--ext applies to the main and v5 modes"
-        FROZEN_PATH, FROZEN_SHA = SEL.EXT_ROWS_JSON, CG.ROWS_EXT_JSON_SHA256
-    default_dll = os.path.join(SEL.ART, "rr_2026-10-06_coh_gain", "bin", "libft8_20260058.dll") if a.ext else os.path.join(a.out, "bin", "libft8_20260058.dll")
+    residue = CG.EXT_RESIDUE if a.ext else a.residue
+    if residue is not None:
+        assert a.mode in ("main", "v5"), "--ext / --residue apply to the main and v5 modes"
+        FROZEN_PATH = SEL.rows_path(residue)
+        FROZEN_SHA = CG.ROWS_EXT_JSON_SHA256 if residue == CG.EXT_RESIDUE else CG.SAMPLE_PINS[residue]
+    default_dll = os.path.join(SEL.ART, "rr_2026-10-06_coh_gain", "bin", "libft8_20260058.dll") if residue is not None else os.path.join(a.out, "bin", "libft8_20260058.dll")
     a.dll = a.dll or default_dll
     # frozen inputs: asserted BEFORE anything is extracted (a changed file refuses to run)
     if a.mode == "v2":

@@ -82,9 +82,18 @@ NEG_MAX_ITERS = 1                              # BP sees the complement of the n
 
 # ---- frozen files, pinned by LF-normalised SHA-256 and ASSERTED by cg_run.py before anything is extracted ----
 ROWS_JSON_SHA256 = "34b97c22fa61f0cb17a3ac57b8a9cad385375467fa93b96ba1d3803ea6e5c0b6"     # results/2026-10-06-coh-gain/rows.json (rows + pilot rows)
+# AMENDMENT 5 (QA, under the Captain's overnight authorisation 2026-10-06 ~20:40Z): further FRESH samples. The residues not yet touched by any outcome are 1, 2, 4, 6, 8, 9
+# (0 was NHARD-REP's sample, 3 the first sample, 5 the extension, 7 hosted the pilot rows). SAMPLE_PINS maps a residue to the LF SHA-256 of its frozen row list.
+FRESH_RESIDUES = (1, 2, 4, 6, 8, 9)
+SAMPLE_PINS = {1: "257714e02a6e840fe9307d952447d36e2b29b032f7199d98c9c0d608ce92cc07", 2: "338d13e2c53e0a2728cd7d41b94f1b7a19ef8eeb67f214d1b401f69897827e81", 4: "8491f8c308f1bc5db0ea3886d3c5814ac9b0b47881f95d315e1e9fa4643bed5d", 6: "4c892a6c291aac46492b3e819c2a78e16b474de4e0ea35e990b5683c07573346", 8: "7d75de195ac4a8406a0c3c3024fc9c449dbc02c3dfdf85416a690c3178c3d513", 9: "122d666f6a3fd2ee672da3c3cd8c05e81805e0297f4c3f996134777ad671e9e9"}   # LF SHA-256 of results/2026-10-06-coh-gain/rows_r<residue>.json, frozen BEFORE any extraction
 ROWS_EXT_JSON_SHA256 = "7267de64c3979fe7838a32cbcd2a46d63e10316cc2dea1cad67220c9c4ff8852"  # results/2026-10-06-coh-gain/rows_ext.json (Amendment 4, i mod 10 == 5)
 SYNTH_SHA256 = "ab787588b2a93a3817dc1f4781aee70199e7d6d87255a1ffcc11517c853f6a0e"        # synthetic_set.json (V2, -14 dB)
 SYNTH_T_SHA256 = "3b5422caafd504fea49b6bdfcbd0f72db6a76d000f42ed503efda6a58e5f89fb"      # synthetic_set_t.json (V2-T, -20 dB, descriptive)
+
+
+def sample_tag(residue: int) -> str:
+    """Folder / file tag of a sample: the extension (residue 5) keeps its Amendment-4 names; every other fresh residue is r<residue>."""
+    return "ext" if residue == EXT_RESIDUE else f"r{residue}"
 
 
 def sha256_lf(path: str) -> str:

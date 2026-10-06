@@ -127,7 +127,12 @@ def build(dll_path):
 EXT_ROWS_JSON = os.path.join(OUT_DIR, "rows_ext.json")
 
 
-def build_extension(dll_path):
+def rows_path(residue):
+    """The frozen row list of a fresh sample: rows_ext.json for residue 5 (Amendment 4), rows_r<residue>.json for the others (Amendment 5)."""
+    return EXT_ROWS_JSON if residue == CG.EXT_RESIDUE else os.path.join(OUT_DIR, f"rows_r{residue}.json")
+
+
+def build_extension(dll_path, residue=None):
     """AMENDMENT 4: the extension row list, positions i mod 10 == 5 of the SAME NHARD-REP frozen list (fresh cycles: neither the first sample's i mod 10 == 3 nor the pilot's == 7).
     Same fields, same exclusion rules, same live_hit rule. No pilot rows."""
     sel_bytes = open(NH_SELECTION, "rb").read().replace(b"\r\n", b"\n")
@@ -136,7 +141,8 @@ def build_extension(dll_path):
     ws, ows = read_alltxt(WS_ALLTXT), read_alltxt(OWS_ALLTXT)
     dec = CG.load_decoder(dll_path)
     rows, excluded, n_cycles = [], collections.Counter(), 0
-    for i, stamp in [(i, s) for i, s in enumerate(full) if i % 10 == CG.EXT_RESIDUE]:
+    residue = CG.EXT_RESIDUE if residue is None else residue
+    for i, stamp in [(i, s) for i, s in enumerate(full) if i % 10 == residue]:
         n_cycles += 1
         wl = ws.get(stamp, [])
         hits = test_b_matches(wl, ows.get(stamp, []))
@@ -147,6 +153,9 @@ def build_extension(dll_path):
             rows.append([i, stamp, widx, freq, dt, snr, len(wl), int(hits[widx]), 0])
     first = json.load(open(ROWS_JSON))
     assert {r[0] for r in rows}.isdisjoint({r[0] for r in first["rows"]}) and {r[0] for r in rows}.isdisjoint({r[0] for r in first["pilot_rows"]}), "extension cycles overlap"
+    for other in [EXT_ROWS_JSON] + [rows_path(x) for x in CG.FRESH_RESIDUES if x != residue]:
+        if other != rows_path(residue) and os.path.exists(other):
+            assert {r[0] for r in rows}.isdisjoint({r[0] for r in json.load(open(other))["rows"]}), "sample cycles overlap another fresh sample"
     return {
         "spec": "qa/rr-study/2026-10-06-1625-architect-to-qa-spec-coh-gain-step1.md (branch arch/coherent-limb2) section 14 (Amendment 4), the extension sample",
         "night": RUN, "nhard_selection_sha256_lf": NR.SELECTION_SHA256,
@@ -154,7 +163,7 @@ def build_extension(dll_path):
         "columns": ["cycle_index", "stamp", "widx", "ws_freq", "ws_dt", "ws_snr", "ws_load", "live_hit", "in_mod20"],
         "counts": {"full_list_cycles": len(full), "extension_cycles": len({r[0] for r in rows}), "rows": len(rows), "excluded_before_extraction": dict(excluded),
                    "live_hit_rows": sum(r[7] for r in rows)},
-        "rule": {"sample": "position i of the NHARD-REP FULL list with i mod 10 == 5 (fresh: first sample 3, pilot 7)"},
+        "rule": {"sample": f"position i of the NHARD-REP FULL list with i mod 10 == {residue} (fresh: first sample 3, pilot 7)"}, "residue": residue,
         "rows": rows, "pilot_rows": [],
     }
 
@@ -167,15 +176,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dll", required=True)
     ap.add_argument("--extension", action="store_true", help="Amendment 4: freeze the i mod 10 == 5 extension row list (rows_ext.json)")
+    ap.add_argument("--residue", type=int, default=None, help="Amendment 5: freeze the fresh sample at i mod 10 == RESIDUE (rows_r<RESIDUE>.json)")
     a = ap.parse_args()
-    if a.extension:
-        spec = build_extension(a.dll)
+    if a.extension or a.residue is not None:
+        residue = CG.EXT_RESIDUE if a.residue is None else a.residue
+        spec = build_extension(a.dll, residue)
         data = serialise(spec)
-        with open(EXT_ROWS_JSON, "wb") as fh:
+        with open(rows_path(residue), "wb") as fh:
             fh.write(data)
-        print("wrote", EXT_ROWS_JSON)
+        print("wrote", rows_path(residue))
         print(spec["counts"])
-        print("rows_ext.json sha256(LF)", hashlib.sha256(data).hexdigest())
+        print(f"residue {residue} row list sha256(LF)", hashlib.sha256(data).hexdigest())
         return 0
     spec = build(a.dll)
     data = serialise(spec)
