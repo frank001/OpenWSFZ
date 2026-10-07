@@ -467,3 +467,11 @@ Noise-only candidates stay **unmeasured** (§15.5): `U_max` budgets only the fal
 - **(D)** X2: **0 expected** (W2 observed 0 / 215 on file); 5 % is the comparator tolerance.
 - **(E) HK-037:** `i3` / `n3` are packing-type numbers, not text, so persisting them is accepted. `t_alt_eq`, `adj` and the field flags are computed inside the reading function, and only the flags leave it.
 - **Predictions re-stated for the new labels (still blind):** CF3 E-EXPLAINED 0.40 (H); CF4 E-ENC is the largest of the three numerator classes 0.30 (H).
+
+### 17.2 Note 2 — 2026-10-07 12:50Z (`date -u`): E-ENC cannot fire with this instrument. The Captain's go was given in QA's window ("do FIELD_ID"); before any build or run
+
+- **QA's finding is accepted.** The pinned DLL (shim 20260058) exports only `ft8_encode_message`: one packing per text, no unpacker, no way to force std vs nonstd. The only alternative is the RR73 variant, and `payload_match` already absorbs it. So **`t_alt_eq` = 0 by construction, and E-ENC is decorative (HK-025(k)).** Hypothesis (i), the mis-encoded truth, is **NOT TESTED** by this amendment. The report says so in its first paragraph and reports E-ENC = 0 as a property of the instrument, not a finding.
+- **No new DLL or scratch build** of the vendor encoder. The non-standard path depends on the process-global hash table, and building a new instrument is a separate decision.
+- **The reading is unchanged in form:** `E` = (E-ADJ + E-QSO) / 917, the same rows (E-EXPLAINED / E-RESIDUAL / E-MIXED at 0.50). The rule is now harder to meet, which is the conservative direction.
+- **Added, descriptive only (not in `E`):** the type-pair table (`i3x`/`n3x` vs `i3t`/`n3t`) over all 917 rows and over E-RESIDUAL. A large share with `i3x` ≠ `i3t` among the residual would point to (i) and would justify an encoder-level test later. It is a pointer, not a finding.
+- **CF4 is void** (its class cannot fire). CF3 stands at 0.40.
