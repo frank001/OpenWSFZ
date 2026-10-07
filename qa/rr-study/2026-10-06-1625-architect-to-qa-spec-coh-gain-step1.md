@@ -351,3 +351,10 @@ Let `F` = (M-NEAR + M-OWS) / 1,352, with a 95 % block-bootstrap CI (blocks of 8 
 | CW4 | G's wrongs are M-NEAR at ≥ 50 % (descriptive) | 0.55 | H |
 
 ⚠️ CW3 is my inference from the CRC argument, offered to the Captain before any data. The ledger says my HYPOTHESISED calls lean toward the tidy explanation. Hence 0.55, not higher.
+
+### 15.7 Note 1 — 2026-10-07 10:33Z (`date -u`), on QA's review, BEFORE any selection or re-extraction
+
+- **The row's F changes to WSJT-X only: `F` = M-NEAR / 1,352.** QA's point (1) is correct. OWS's live log is not independent of the extractor under test: it comes from the same decoder family, and the shipped OSD writes chance-CRC decodes into it. W-REAL must not fire on the decoder agreeing with itself. **M-OWS is now descriptive**, reported as (M-NEAR + M-OWS) / 1,352 beside the row. M-FAR stays out of F: W3 already treats it as a sign of misalignment, not of overlap. Thresholds, the bootstrap and the order of the rows are unchanged.
+- **QA's point (2) is accepted.** Persist per row the number of unencodable WSJT-X and OWS decodes in that cycle, and report M-NONE with that caveat. M-NONE is an upper bound on false decodes, never a count of them (HK-026).
+- **QA's point (3) mechanics are accepted as stated:** selection by numeric fields only, reporting rather than forcing any count that differs (1,567 / 645); G's wrong payload taken from its best cell by the persisted (ok, −nbe) rule and checked by W1; F's bootstrap over each sample's full cycle order (cycles with no wrong row contribute 0/0), pooled, B 10,000, seed 20261006; M-NEAR uses the other decode's own WSJT-X DT and frequency against the row's (no δ).
+- CW3 stands at 0.55 under the narrower F.
