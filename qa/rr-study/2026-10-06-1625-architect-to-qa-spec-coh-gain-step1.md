@@ -358,3 +358,72 @@ Let `F` = (M-NEAR + M-OWS) / 1,352, with a 95 % block-bootstrap CI (blocks of 8 
 - **QA's point (2) is accepted.** Persist per row the number of unencodable WSJT-X and OWS decodes in that cycle, and report M-NONE with that caveat. M-NONE is an upper bound on false decodes, never a count of them (HK-026).
 - **QA's point (3) mechanics are accepted as stated:** selection by numeric fields only, reporting rather than forcing any count that differs (1,567 / 645); G's wrong payload taken from its best cell by the persisted (ok, −nbe) rule and checked by W1; F's bootstrap over each sample's full cycle order (cycles with no wrong row contribute 0/0), pooled, B 10,000, seed 20261006; M-NEAR uses the other decode's own WSJT-X DT and frequency against the row's (no δ).
 - CW3 stands at 0.55 under the narrower F.
+
+---
+
+## 16. Amendment 7 — 2026-10-07 10:54Z (`date -u`): `Q-GATE`, can a gate the product could compute keep the fallback's gain and drop most of its unexplained outputs? To: QA
+
+**Licence:** the Captain chose the offline filter test, confirmed in the Architect's window 2026-10-07 ~10:5xZ (it was relayed from QA's window as "do 1. first"; the Architect's list had Park as 1, so it was re-asked). **`U_max` = 0.15 unexplained outputs per cycle, RATIFIED by the Captain in the same answer, before any feature has met any outcome. FROZEN.** The design is QA's proposal (2026-10-07 ~10:45Z) with its F1 → F1b correction (~10:5xZ, synthetic only), adopted with the tightenings marked ⚑. Ruling basis: `2026-10-07-1043-architect-coh-gain-wrongid-and-pooled-ruling.md` §2(b).
+
+### 16.1 Population and labels
+
+- **Rows:** the 27,571 G-fail rows of the fresh samples (ext = 5, r1, r2, r4, r6, r8, r9), re-extracted with the same harness and pin.
+- **The fallback's output on a row** = C3's decode through **BP only** (path 0, CRC-valid). ⚑ A path-1 (OSD) output counts as **no output**, because the fallback runs with OSD off.
+- **Labels** (from the persisted rows and `wrongid_rows.csv`, **never a gate input**): RIGHT (3,382), M-NEAR (435, a real neighbour, NOT counted as unexplained), **UNEXPLAINED = M-NONE + M-OWS** (912 + 5) ⚑ (M-OWS is counted against the gate, because OWS is not an independent witness, note 1), no output.
+
+### 16.2 Features (each computable in the product at fallback time; none takes text, truth, a label or a WSJT-X value; a test asserts this)
+
+- **F1b**, strength: the anchor's coherent Costas peak over the **median of the same peak at 24 reference frequencies** (±40 … ±150 Hz), in dB. It replaces F1 (own-surface median), which saturates above about 0 dB on QA's synthetic set (22.9 dB at 0 dB, 22.7 dB at +10 dB).
+- **F2**, tone match: for a BP CRC-valid output, the share of the 58 data symbols whose strongest tone at the C3 estimate equals the tone of the **decoded** message (rebuilt from its 77-bit payload: CRC-14, LDPC encode, Gray map).
+- **F3**, decoded-tone energy over Costas energy: **descriptive only** (no gate form uses it).
+
+### 16.3 Gate forms (fixed now, one threshold per feature)
+
+- **GA:** run the fallback only if F1b ≤ T1.
+- **GB:** accept the fallback's output only if F2 ≥ T2.
+- **GC:** both.
+
+### 16.4 Train / test (the point of the design)
+
+- **TRAIN = samples {5, 1, 2, 4}. TEST = samples {6, 8, 9}, held out**: never used to choose anything.
+- **Threshold rule (on TRAIN only):** for each form, choose the threshold or pair that **maximises kept RIGHT** subject to **UNEXPLAINED kept per cycle ≤ 0.15** (point value, TRAIN cycles). ⚑ Candidate thresholds are the observed feature values on TRAIN rows; for GC, the full grid of (T1, T2) pairs from those values. Ties go to fewer UNEXPLAINED, then to the looser threshold. If no threshold meets the constraint, the form is **GATE-FAIL** without a test.
+- ⚑ **Order, mechanical:** compute features on all rows → **commit the three chosen thresholds (with their TRAIN figures) BEFORE any TEST row's outcome is joined to a feature** → evaluate on TEST.
+
+### 16.5 Validity (any FAIL ⇒ no reading)
+
+| row | predicate | basis (HK-038) |
+|---|---|---|
+| **Q1** reproduction | re-extraction gives the persisted `C3_ok`, `C3_crc`, `C3_path`, `C3_nbe` on every row | exact; W1 just showed 2,212 / 2,212 |
+| **Q2** features on synthetic, before real data | F1b rises monotonically from −20 to +20 dB, with > 6 dB between 0 and +20; F2 ≥ 0.90 for the sent message and ≤ 0.30 for a different message on QA's synthetic set; committed before Q1 | QA's own synthetic results (~10:5xZ), today's harness; no carried number |
+| **Q3** no leakage | a test asserts no feature function receives text, truth, a label or a WSJT-X field | mechanical |
+
+### 16.6 Rows, on TEST, per gate form (exclusive, first match wins)
+
+Kept gain `KG` = 100 × kept RIGHT / Σ rows (WSJT-X decodes) on TEST, the same denominator as NET_U. Unexplained per cycle `UPC` = kept UNEXPLAINED / all TEST cycles (each sample's full cycle order). CIs: blocks of 8 cycles within each sample, pooled, B 10,000, seed 20261006.
+
+| row | predicate |
+|---|---|
+| **GATE-OK** | `CI_lo(KG)` ≥ 1.0 pp **AND** `CI_hi(UPC)` ≤ 0.15 |
+| **GATE-FAIL** | `CI_hi(KG)` < 1.0 pp **OR** `CI_lo(UPC)` > 0.15 |
+| **GATE-OPEN** | otherwise |
+
+- **HK-038:** 1.0 pp is `BAR_G` (the Captain, 2026-10-06, the build-worthy gain). 0.15 is `U_max` (the Captain, today): about +30 % on the **0.47** WSJT-X-unconfirmed decodes per cycle the shipped decoder makes on **this night, today's build** (`be3cc5ac`, N40, OSD-OFF ruling). Neither is carried from an older build.
+- **HK-025(k), both ways:** dropping everything fails `KG`; keeping everything fails `UPC` (ungated it is 0.42 per cycle).
+- ⚑ **Three forms are three tests.** All three are reported. If more than one reads GATE-OK, the step-3 spec takes the one with the **highest point KG**, and the report says so. If none reads GATE-OK, there is no build spec on this evidence.
+
+**Reported with it (descriptive):** the same table on TRAIN, so any over-fit is visible; UNEXPLAINED per kept RIGHT; the share of M-NEAR kept; each gate's effect at ≥ +5 dB WSJT-X SNR (descriptive use of the label only); how far GA reproduces the WSJT-X-SNR illustration (+3.3 pp at 0.14); F3's separation; the 215 OSD rows' F2 (expected low).
+
+### 16.7 Limits (state them in the report)
+
+Noise-only candidates stay **unmeasured** (§15.5): `U_max` budgets only the false outputs at real-signal positions, and the noise share comes on top in the step-3 replay. UNEXPLAINED is an upper bound (hashed-call decodes cannot be matched). One night, one band, WSJT-X's positions, offline Python.
+
+### 16.8 Predictions (blind; scored at ruling time)
+
+| # | prediction | P | class |
+|---|---|---:|:---:|
+| CQ1 | Q1 passes | 0.90 | C |
+| CQ2 | at least one form reads GATE-OK | 0.45 | H |
+| CQ3 | GB or GC keeps more RIGHT than GA on TEST (point) | 0.60 | H |
+| CQ4 | TEST KG is within 0.5 pp of TRAIN KG for the chosen form | 0.70 | H |
+
+⚠️ After CW3, my HYPOTHESISED calls get no benefit of the doubt: CQ2 sits below even.
