@@ -455,3 +455,15 @@ Noise-only candidates stay **unmeasured** (§15.5): `U_max` budgets only the fal
 **HK-038:** 0.50 is the "most of them" decision value, as for WRONG-ID; 5 % is the W2 comparator tolerance; neither is carried.
 
 **Predictions (blind):** CF1 X1 passes 0.90 (C); CF2 X2 passes 0.90 (C); CF3 E-INSTRUMENT **0.40** (H); CF4 E-ENC is the largest single class **0.30** (H).
+
+### 17.1 Note 1 — 2026-10-07 11:17Z (`date -u`), on QA's HK-025(k) review, still DRAFT, before any build or run. **Supersedes the class list, the X3 wording and the reading above where they differ.**
+
+- **(C) E-ENC and X3, made separable.** `t_alt_eq` counts only packings **other than** the one that produced T. **X3** separately checks that the identity packing round-trips T on every encodable row (0 failures allowed). Otherwise E-ENC would fire on every row.
+- **(B) New class E-G2**: G returned the **same** payload on the row (the 321 already on file). It is reported as its own class, **after E-QSO and before E-HASH**. 🔴 **It is NOT in the numerator of `E`.** Its count is known before the run, so counting it would decide part of the reading in advance (HK-021). It is evidence that the signal is real, not an explanation of what it is.
+- **(A) Labels.** Classes, first match: **E-ENC → E-ADJ → E-QSO → E-G2 → E-HASH → E-RESIDUAL.** `E` = (E-ENC + E-ADJ + E-QSO) / 917.
+  - **E-EXPLAINED** (was E-INSTRUMENT) iff `CI_lo(E)` ≥ 0.50: most of the unexplained outputs are a mis-encoded truth, another period's message, or the same QSO's other message, i.e. **not false decodes**. Consequence unchanged: step 3 counts false decodes with a matcher that handles these cases, and 0.178 is reported only as a loose bound.
+  - **E-RESIDUAL** (was E-FALSE) iff `CI_hi(E)` < 0.50: most stay **unexplained**. **No claim about false decodes** either way. A second real transmitter and a false decode cannot be told apart by these classes. The 0.178 stays an upper bound, and step 3's replay must measure false decodes directly.
+  - **E-MIXED** otherwise.
+- **(D)** X2: **0 expected** (W2 observed 0 / 215 on file); 5 % is the comparator tolerance.
+- **(E) HK-037:** `i3` / `n3` are packing-type numbers, not text, so persisting them is accepted. `t_alt_eq`, `adj` and the field flags are computed inside the reading function, and only the flags leave it.
+- **Predictions re-stated for the new labels (still blind):** CF3 E-EXPLAINED 0.40 (H); CF4 E-ENC is the largest of the three numerator classes 0.30 (H).
