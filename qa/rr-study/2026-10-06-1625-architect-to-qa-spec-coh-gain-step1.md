@@ -427,3 +427,31 @@ Noise-only candidates stay **unmeasured** (§15.5): `U_max` budgets only the fal
 | CQ4 | TEST KG is within 0.5 pp of TRAIN KG for the chosen form | 0.70 | H |
 
 ⚠️ After CW3, my HYPOTHESISED calls get no benefit of the doubt: CQ2 sits below even.
+
+---
+
+## 17. Amendment 8 — 2026-10-07 11:15Z (`date -u`): `FIELD-ID`, what ARE the unexplained outputs? To: QA. **DRAFT: needs the Captain's go (he chooses between park, this, and step 3; Q-GATE ruling §3)**
+
+**Why:** Q-GATE ruling §2. The 912 M-NONE outputs match the audio on 98 % of symbols, sit exactly at WSJT-X's position, and G decodes the same message on 321 of them. Three explanations: (i) truth mis-encoding, (ii) another period's message from the same station at that spot, (iii) a second transmitter. **This amendment re-scores no gate.** Q-GATE's GATE-OPEN is final.
+
+**Rows:** the 912 + 5 (M-NONE + M-OWS) C3 BP rows of `wrongid_rows.csv`; **negative control:** the 215 OSD rows. Re-extract (W1 must reproduce exactly). Everything below happens **inside the function that reads `ALL.TXT`** (HK-037). Persist numbers and flags only.
+
+**Per row, persisted:**
+1. `i3`, `n3` of the decoded message X and of the truth T (the re-encoded WSJT-X text).
+2. **Field equality, X vs T,** on the unpacked numeric fields: call 1, call 2 (the 28-bit or hashed fields as packed), report/grid. Flags `c1_eq`, `c2_eq`, `rpt_eq`.
+3. **Other periods:** X equals a WSJT-X decode (encodable, the same `payload_match`) in cycle `i ± 1` or `i ± 2` within |Δf| ≤ 12.5 Hz and |Δt| ≤ 0.32 s of the row's anchor: `adj` ∈ {−2, −1, +1, +2, none}.
+4. **Blind spot:** the number of unencodable WSJT-X decodes in cycle `i` within that window: `n_unenc_near`.
+5. **Re-encoding check:** WSJT-X's text for T re-packed through **every message type the encoder can produce for that text**; `t_alt_eq` = 1 if any alternative packing equals X.
+
+**Classes (first match wins):** **E-ENC** (`t_alt_eq` = 1: the truth was mis-encoded; X *is* WSJT-X's message) → **E-ADJ** (`adj` ≠ none: another period's message at that spot) → **E-QSO** (`c1_eq` AND `c2_eq`: the same two stations, a different message) → **E-HASH** (`n_unenc_near` ≥ 1: possibly the blind spot) → **E-OTHER**.
+
+**Validity:** **X1** reproduction exact (as W1). **X2** negative control: at most 5 % of the 215 OSD rows fall in E-ENC, E-ADJ or E-QSO (a chance codeword shares nothing with anything; the 5 % tolerance as W2). **X3** the alternative-packing step reproduces T itself for every encodable row (the encoder's own round trip; 0 failures allowed).
+
+**Reading (exclusive, first match):** let `E` = (E-ENC + E-ADJ + E-QSO) / 917, with a block bootstrap as before.
+- **E-INSTRUMENT** iff `CI_lo(E)` ≥ 0.50: most of the "unexplained" outputs are the matcher's error or the audio's placement, not false decodes. **Consequence:** the step-3 spec must count false decodes with a matcher that handles these cases, and the 0.178 is reported as a loose bound, never as a rate.
+- **E-FALSE** iff `CI_hi(E)` < 0.50: most stay unexplained; the 0.178 stands as the concern.
+- **E-MIXED** otherwise.
+
+**HK-038:** 0.50 is the "most of them" decision value, as for WRONG-ID; 5 % is the W2 comparator tolerance; neither is carried.
+
+**Predictions (blind):** CF1 X1 passes 0.90 (C); CF2 X2 passes 0.90 (C); CF3 E-INSTRUMENT **0.40** (H); CF4 E-ENC is the largest single class **0.30** (H).
