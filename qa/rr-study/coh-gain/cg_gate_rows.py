@@ -227,7 +227,12 @@ def gate_row(kg_lo, kg_hi, upc_lo, upc_hi, bar=BAR_KG, umax=U_MAX):
 
 # ------------------------------------------------------------------------------------------------------------------ order enforcement and the two commands
 def git_committed_unchanged(path):
-    rel = os.path.relpath(path, CG.REPO_ROOT).replace("\\", "/")
+    try:
+        rel = os.path.relpath(path, CG.REPO_ROOT).replace("\\", "/")
+    except ValueError:
+        return False                                        # another drive: cannot be this repo's tracked file
+    if rel.startswith(".."):
+        return False
     tracked = subprocess.run(["git", "ls-files", "--error-unmatch", "--", rel], cwd=CG.REPO_ROOT, capture_output=True, text=True).returncode == 0
     clean = subprocess.run(["git", "status", "--porcelain", "--", rel], cwd=CG.REPO_ROOT, capture_output=True, text=True).stdout.strip() == ""
     return tracked and clean
