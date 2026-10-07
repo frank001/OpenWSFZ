@@ -475,3 +475,32 @@ Noise-only candidates stay **unmeasured** (§15.5): `U_max` budgets only the fal
 - **The reading is unchanged in form:** `E` = (E-ADJ + E-QSO) / 917, the same rows (E-EXPLAINED / E-RESIDUAL / E-MIXED at 0.50). The rule is now harder to meet, which is the conservative direction.
 - **Added, descriptive only (not in `E`):** the type-pair table (`i3x`/`n3x` vs `i3t`/`n3t`) over all 917 rows and over E-RESIDUAL. A large share with `i3x` ≠ `i3t` among the residual would point to (i) and would justify an encoder-level test later. It is a pointer, not a finding.
 - **CF4 is void** (its class cannot fire). CF3 stands at 0.40.
+
+---
+
+## 18. Amendment 9 — 2026-10-07 12:54Z (`date -u`): `ENC-ID`, is the truth mis-packed on non-standard-call messages? To: QA. **DRAFT: needs the Captain's go**
+
+**Why:** the FIELD-ID ruling (`2026-10-07-1254-architect-field-id-ruling.md`): 795 of 917 unexplained outputs are `i3` = 4 against a truth of `i3` = 1; the chance rate is about 1/8.
+
+**Rows:** the 795 X rows with `i3x` = 4 (from `field_rows.csv`, by numeric fields, list committed with its SHA first). **Negative control:** the 19 OSD rows with `i3x` = 4.
+
+**Method, all inside the function that reads `ALL.TXT` (HK-037); no new DLL:**
+1. Re-extract the row (X1-style exact reproduction).
+2. Unpack X's type-4 fields in Python, ported from the vendored MIT `ftx_message_decode_nonstd`: `n12` (12-bit hash), `n58` (the full call, base-38, up to 11 characters), `iflip`, `nrpt`, `icq`.
+3. From WSJT-X's text T for that row, take its callsign tokens. For each token, compute the 12-bit hash with the vendored `save_callsign` formula (`47055833459` constant, ported).
+4. **`enc_match` = 1** iff X's full call (`n58`, decoded) **equals one of T's call tokens** (after stripping `<>`), **AND** X's `n12` **equals the 12-bit hash of T's other call token** (or `icq` = 1 and T is a CQ message with that call). `nrpt` is persisted, not required to match (the report field's display differs).
+5. Persist numbers and flags only: `enc_match`, `call_eq`, `hash_eq`, `icq`, `nrpt`.
+
+**Validity:**
+- **Y1** reproduction exact.
+- **Y2** negative control: `enc_match` = 0 on all 19 OSD `i3` = 4 rows (a chance codeword carries no real call; 0 expected, 0 allowed).
+- **Y3** the ported unpacker and hash, checked on synthetic messages: pack type-4 messages with the DLL's own `ft8_encode_message` from texts that force type 4 (a compound or > 6-character call), unpack them in Python, and recover the call and the hash on 100 % of them. Committed before Y1.
+
+**Reading (exclusive, first match):** `P` = Σ `enc_match` / 795, block bootstrap as before.
+- **ENC-CONFIRMED** iff `CI_lo(P)` ≥ 0.80: the truth is mis-packed on non-standard-call messages. These are **correct decodes scored wrong**. **Consequence:** the vendored-encoder truth is defective for type-4 messages, so every later offline arm scores type-4 rows with a call-and-hash comparison; the step-3 spec counts false decodes with it. Closed rulings are **not** re-read.
+- **ENC-REJECTED** iff `CI_hi(P)` < 0.50: the type-4 outputs are not WSJT-X's message; they stay unexplained.
+- **ENC-PARTIAL** otherwise.
+
+**HK-038:** 0.80 is set high on purpose. A truth defect should explain nearly all of them, and anything less leaves a residual large enough to matter for the false-decode budget. 0.50 is the "most of them" value. Neither is carried.
+
+**Predictions (blind):** CE-1 Y3 passes 0.85 (C); CE-2 ENC-CONFIRMED **0.55** (H); CE-3 Y2 passes 0.95 (C).
