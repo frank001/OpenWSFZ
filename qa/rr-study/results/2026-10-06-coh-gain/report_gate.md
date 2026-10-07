@@ -24,7 +24,8 @@ KG clears the 1.0 pp bar with room (CI_lo 3.81). UPC does not clear 0.15: the po
 
 - TRAIN samples 5, 1, 2, 4 (1,240 cycles): GA keeps 1,395 RIGHT, 185 unexplained, 110 M-NEAR (UPC 0.149).
 - TEST samples 6, 8, 9 (930 cycles, 27,495 rows): GA keeps 1,118 RIGHT, 166 unexplained, 71 M-NEAR. Unexplained per kept RIGHT = 0.148. M-NEAR is 5.2 % of kept outputs (not counted as unexplained).
-- Selection of F1b ≤ 17.55 dB means the gate keeps the STRONGER own-strength outputs; the unexplained residue that remains is mostly on strong rows (consistent with the Architect's join: 609 of 912 unexplained at WSJT-X SNR ≥ −5 dB).
+- TRAIN KG (GA, T1 = 17.552 dB): +3.77 pp [3.55, 3.99] (1,395 kept RIGHT over 36,960 rows), UPC 0.149 [0.121, 0.179]; TEST KG +4.07 pp (so the gain did not regress; only UPC did).
+- F1b ≤ 17.55 dB runs the fallback on the WEAKER own-strength rows and withholds it on the strongest (corrected 2026-10-07 on the Architect's review; the first draft said the opposite). The unexplained residue is concentrated on strong rows (Architect's join: 609 of 912 unexplained at WSJT-X SNR ≥ −5 dB), which is why a strength gate removes it.
 
 ## Limits (spec 16.7)
 
