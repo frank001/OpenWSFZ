@@ -504,3 +504,11 @@ Noise-only candidates stay **unmeasured** (§15.5): `U_max` budgets only the fal
 **HK-038:** 0.80 is set high on purpose. A truth defect should explain nearly all of them, and anything less leaves a residual large enough to matter for the false-decode budget. 0.50 is the "most of them" value. Neither is carried.
 
 **Predictions (blind):** CE-1 Y3 passes 0.85 (C); CE-2 ENC-CONFIRMED **0.55** (H); CE-3 Y2 passes 0.95 (C).
+
+### 18.1 Note 1 — 2026-10-07 12:56Z (`date -u`), on QA's HK-025(k) review; still DRAFT, before any build or run. Supersedes §18 where they differ
+
+1. **Placeholder texts.** Persist `t_has_placeholder` (T contains `<...>`, an unresolved hash). **`enc_match` = `call_eq` AND (`hash_eq` OR `t_has_placeholder`).** Report the placeholder rows as their own count, and show `P` without them as well. *Expected rare:* texts our encoder could not pack were excluded before extraction (§4), but the rule must not depend on that.
+2. **Tokenisation is code, with a mutation test.** Call tokens of T = its words after dropping `CQ`, `QRZ`, `DE`, `DX` and any CQ modifier word, reports (`[R][+-]NN`), 4-character grids, `RR73` / `RRR` / `73`; then stripping `<>`; `/R` and `/P` compounds kept whole. Two mutants (keep `RR73` as a token; drop `/P` suffixes) must each be shown to move rows; the report gives the counts.
+3. **Shuffled-truth control (Y4, added).** Match each of the 795 X payloads against the T of a different row, by a fixed seeded derangement (seed 20261007) that pairs only rows **at least 120 cycles (30 min) apart**. **PASS iff `enc_match` ≤ 2 % of the 795.** HK-038: 0 is expected for unrelated rows, but a station active for over 30 minutes can genuinely recur, so 2 % is a comparator tolerance, not a carried figure. The 19-row OSD control (Y2, 0 allowed) stays.
+4. **How far the defect reaches (descriptive, not in `P`):** the `i3` pair distribution (T vs X) over **all** CRC-valid C3 and G outputs, right and wrong, so that an ENC-CONFIRMED can say how many rows a type-4 truth defect touches, in either direction.
+5. **HK-037:** `n58`, the decoded call, the hashes and T's tokens never leave the reading function. Only `enc_match`, `call_eq`, `hash_eq`, `icq`, `nrpt` and `t_has_placeholder` are persisted.
