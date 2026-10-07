@@ -273,3 +273,81 @@ V2 is **re-evaluated on the same 200 synthetic signals** under (b′). No re-ren
 ---
 
 **On the ledger:** in the review I leaned *against* a build and the Captain overruled me. These probabilities are deliberately near even. Measurement geometry has cost limb 2 most of its time before, which is why V2 sits at 0.55.
+
+---
+
+## 15. Amendment 6 — 2026-10-07 10:30Z (`date -u`): `WRONG-ID`, what are the fallback's "wrong payloads"? To: QA
+
+**Licence:** the Captain, Architect's window, 2026-10-07 (*"yes, write it up for QA"*), after he leaned to parking COH-GAIN and asked whether the false-decode problem includes the OSD bug. **Running it needs his go in QA's window (HK-033).** No station, no PC exclusivity, a few minutes of CPU.
+
+### 15.0 Amendment 5 (QA-authored, overnight): accepted as executed
+
+QA wrote Amendment 5 (`04e79355`) under the Captain's overnight authorisation while this session was closed. **Checked:** it was committed before any extraction (22:41 local); each sample's V4′ manifest was committed before that sample's extraction (`07a100ad` … `8cbeaf12`); it changed no threshold, row, arm or bar. **The six fresh samples and their rows are accepted as data.** What the marginal pooled COH-GO **means** (`CI_lo` 1.06 against 1.0; dropping r9 gives 0.97) is ruled **after** this check, together with it, because this check decides whether the fallback (U), not C3 alone, is the design.
+
+### 15.1 Why this check (the facts it rests on, all from the persisted rows, fresh samples = ext + r1/r2/r4/r6/r8/r9, 64,455 rows)
+
+On the 27,571 rows where G fails, split by the decoder path C3 succeeded through:
+
+| C3 on G-fail rows | path 0 (BP) | path 1 (OSD, sign-inverted) |
+|---|---:|---:|
+| correct payload | **3,382** | **0** |
+| CRC-valid wrong payload | **1,352** | **215** |
+
+The same split for **G itself** (all rows): 533 CRC-valid wrong payloads on path 0 and 112 on path 1.
+
+- **The +5.25 pp needs no OSD.** Every correct recovery is BP. The 215 OSD wrongs are #215's chance-CRC false decodes. Turning OSD off removes them and leaves 1,352 (0.40 per correct recovery).
+- **A BP wrong is unlikely to be chance.** BP converging to a valid codeword that also passes a 14-bit CRC by luck needs on the order of 10⁴ convergences to wrong codewords per CRC pass. The more likely sources are: **(a) another real transmission at that position** (overlapping stations, crowded 40 m), or **(b) a truth-comparison artefact** (the row's truth is not what is at that position). **(c) a genuine false decode** is the remainder.
+- 🔴 **Correction to what I told the Captain (HK-022):** I said the wrong messages "differ from the expected one in 79 of 174 bits". **That is wrong.** `C3_nbe` is the number of C3's **raw hard decisions** that disagree with the **sent** codeword (mean 79 on these 1,352 rows), not the distance between the decoded and the sent message. It still says C3's bits there are nearly uncorrelated with the sent signal, which fits (a). It does not measure the message distance. That distance is unknown until this check.
+
+### 15.2 What QA does
+
+1. **Rows:** every fresh-sample row where **C3 returned CRC-valid and not the truth on a G-fail row** (expected 1,567: 1,352 path 0 + 215 path 1), plus, as a comparison set, **every row where G returned CRC-valid and not the truth** (expected 645). Selected from the persisted `rows.csv` files by those numeric fields alone, **before** any re-extraction; the row list is committed (SHA) first.
+2. **Re-extract** those rows with the same harness, pin and parameters (it is deterministic; V5 showed 0 differing fields).
+3. **Inside the function that reads `ALL.TXT`** (HK-037; the `leg_fk2.py` discipline), compare the recovered 77-bit payload against **every WSJT-X decode in the same cycle** (re-encoded, `payload_match` with `V_STAR`, the same equivalence as truth), and against **OpenWSFZ's own live decodes in that cycle** from the night's OWS log. Persist **numbers only**, per row:
+   - `cls`: **M-NEAR** = equals a WSJT-X decode in the same cycle with |Δf| ≤ 12.5 Hz (2 tone bins) and |Δt| ≤ 0.32 s (2 symbol steps) of the row's anchor; **M-FAR** = equals a WSJT-X decode in the same cycle outside that window; **M-OWS** = no WSJT-X match but equals an OWS live decode in that cycle; **M-NONE** = no match. First match wins, in that order.
+   - for M-NEAR / M-FAR: `widx` of the matched WSJT-X row, Δf (Hz), Δt (s), that row's SNR, and whether it is itself a row in the sample (`in_sample`).
+   - `dist`: Hamming distance between the recovered payload and the truth payload (77 bits). This is the figure I mis-stated above.
+4. **Never** persist text, bits or a text-derived hash.
+
+### 15.3 Validity (any FAIL ⇒ no reading; the report names the row and stops)
+
+| row | predicate | why, and where the number comes from (HK-038) |
+|---|---|---|
+| **W1** reproduction | on every selected row, re-extraction gives the same `C3_ok`, `C3_crc`, `C3_path`, `C3_nbe` (and `G_*` for the G set) as the persisted row | Exact: V5 showed this harness reproduces every field. No number is carried. |
+| **W2** negative control | of the 215 path-1 (OSD) wrongs, **M-NEAR + M-FAR ≤ 5 %** | A sign-inverted OSD output is a chance codeword; a chance 77-bit match against ≤ ~60 payloads in a cycle has probability ~10⁻²⁰. So the expected rate is 0, and 5 % (≈ 11 rows) is a tolerance for the comparator, not a carried figure. If it fails, the matcher is too loose and every M-count is withheld. |
+| **W3** geometry | among BP (path 0) wrongs that match a WSJT-X decode, **M-NEAR ≥ 80 %** of the matches | A different signal can only be decoded at the anchor if it sits within about one tone bin and one symbol step. Many M-FAR rows would mean the truth or the row indexing is misaligned (source (b)), not overlap. 80 % is a decision margin. |
+
+### 15.4 Reading (exclusive, first match wins; on the **1,352 path-0 wrongs**)
+
+Let `F` = (M-NEAR + M-OWS) / 1,352, with a 95 % block-bootstrap CI (blocks of 8 cycles within each sample, B 10,000, seed 20261006, as the primary).
+
+| row | predicate | reading |
+|---|---|---|
+| **W-REAL** | `CI_lo(F)` ≥ 0.50 | Most of the fallback's "wrong" outputs are **other real signals** at that position. In the product they are either duplicates of a decode we already show (text dedup removes them) or genuine extra decodes. The false-decode gate the step-3 spec needs is much smaller than 0.40 per recovery. |
+| **W-FALSE** | `CI_hi(F)` < 0.50 | Most are **not** explained by any decode in the cycle: they stay an upper bound on false decodes, and the step-3 spec must gate on them as before. |
+| **W-MIXED** | otherwise | Report the split; the Captain decides. |
+
+**HK-038:** 0.50 is the decision value the question implies ("most of them"). It is not carried from any measurement.
+
+**Reported with it (descriptive, mandatory):**
+- the same classification for the 645 **G** wrongs (is this a property of any extractor in a crowded band, or of C3?);
+- **M-NONE per correct recovery** after OSD off: the residual false-decode upper bound for the fallback (M-NONE / 3,382);
+- the `dist` distribution for each class;
+- for M-NEAR: the share with `in_sample` = 1 whose own row G **already** decodes (a duplicate in the product, so no harm and no gain) vs not (a genuine extra the product could show);
+- M-NONE split by WSJT-X SNR band of the row.
+
+### 15.5 What this check does NOT answer
+
+- **Noise-only positions.** All rows here are positions where WSJT-X found a signal. How many false decodes the fallback adds where the product's candidate search fires on noise is **unmeasured**. The right instrument is the step-3 offline flag OFF/ON replay through the real candidate search, not random positions here (random positions are easier than real candidates, so they would understate it).
+- Whether the product's own candidate search finds the 3,382 signals. Native cost. A second night.
+
+### 15.6 Predictions (blind; scored at ruling time)
+
+| # | prediction | P | class |
+|---|---|---:|:---:|
+| CW1 | W1 passes | 0.90 | C |
+| CW2 | W2 passes (OSD wrongs ≤ 5 % matched) | 0.90 | C |
+| CW3 | W-REAL | 0.55 | H |
+| CW4 | G's wrongs are M-NEAR at ≥ 50 % (descriptive) | 0.55 | H |
+
+⚠️ CW3 is my inference from the CRC argument, offered to the Captain before any data. The ledger says my HYPOTHESISED calls lean toward the tidy explanation. Hence 0.55, not higher.
