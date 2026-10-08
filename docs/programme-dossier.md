@@ -4,16 +4,16 @@
 
 | | |
 |---|---|
-| Compiled | 2026-08-27 21:00Z — **refreshed 2026-09-21** (new §3a; §6, §7, §8, §9, §10 updated) |
-| Native shim | `20260046` at compile; `main` is now `20260051` (`decoding_improvement` is `20260054`, not on `main`) |
+| Compiled | 2026-08-27 21:00Z — refreshed 2026-09-21 (§3a) — **refreshed 2026-10-08** (new §3b; §1, §6, §7, §8, §9 touched) |
+| Native shim | `20260046` at compile; `main` is now `20260058`; the OSD sign fix (§3b) is shim `20260060`, built, **not merged** |
 | Last full S1–S8 sweep in this document | `22b749c` (2026-08-27) — overall **PASS**; §3, §5 and §12 are **as of that sweep and were not re-measured** |
-| Open GitHub issues | 6 at compile → **8** at refresh: #3, #59, #60, #111, #122, #180, #181, #185 (#132 has since closed) |
+| Open GitHub issues | 6 at compile → 8 at the first refresh → **16** at this one (§7) |
 
 > **Scope and authority.** This is a navigational document. Where it and a dated report
 > disagree, **the report is authoritative for its own run** and this dossier is stale.
 > Figures in §3 and §5 were re-derived independently from the run's matched CSVs rather
-> than quoted from the report. **§3a is the bridge from that sweep to 2026-09-21**: read it
-> together with §3 and §5, not instead of them.
+> than quoted from the report. **§3a bridges that sweep to 2026-09-21 and §3b bridges 2026-09-21 to 2026-10-08**: read
+> them together with §3 and §5, not instead of them.
 
 ---
 
@@ -39,6 +39,10 @@ If you read nothing else, read this.
    passband change shipped, the live decode gap was re-measured on real audio, and a
    **near-neighbour remedy was built, measured and rejected — that line is parked by the
    Product Owner, not closed.** Points 3 and 4 above are as of 2026-08-27.
+
+7. **Since 2026-09-21 (see §3b):** the native OSD fallback was found to receive **sign-inverted input** (issue #215), so
+   every OSD accept since shim `20260025` was a chance CRC hit and **no OSD-based figure may be read as evidence about a
+   correct OSD**; the fix is built and under review. The decode-improvement programme is the Captain's priority.
 
 > **Before proposing any work, read §8 (closed routes) and §9 (prohibitions).**
 > This programme has repeatedly re-derived conclusions that were already on disk, and has
@@ -149,6 +153,24 @@ always with the qualifiers that travel with them.
 
 ---
 
+## 3b. Since 2026-09-21 (refreshed 2026-10-08)
+
+A **status table, not a measurement**; the named report is authoritative. Every figure carries its qualifiers: replay,
+one band and night unless stated, never pooled across the boundaries below.
+
+| Workstream | State | What to know |
+|---|---|---|
+| **OSD sign inversion (#215)** | Found 2026-10-06 (QA), verified from source; **fix built, under QA review, not merged** | `osd_decode` reads positive = bit 0; the extractor and BP produce positive = bit 1; the call sites passed the array un-negated, so **every OSD accept since shim `20260025` was a chance CRC-14 hit**. 🛑 **Never cite `NT`, `CC`, `E3`, `OSD-FA-A` or D-009 R5 as evidence about a *correct* OSD.** Removing the inverted OSD gained **+0.074 pp [+0.020, +0.146]** (OSD-OFF, ruled a gain; one 40 m night, replay). The fix (shim `20260060`: one array read by OSD and its acceptance gate, plus a replay-only switch) passed QA's sign and identity checks. A corrected OSD is expected to be **a correctness fix, not a decode-rate lever** (offline figures within about 0.05 pp of zero). `nhard` 40 and corr 0.10 were set on the inverted output and are being re-derived (TRAIN, then a held-out TEST). OpenSpec change `osd-sign-fix`; spec, rulings and QA reports on branches `arch/osd-fix` and `qa/osd-fix` |
+| **SUB-FEAS — residual-decode subtraction** | Merged (#196, v0.53); **ON by default since 2026-10-02 (v0.54)** | Offline, data-aided subtraction recovered a **NET +8.89 pp [8.01, 9.75]** on one 40 m corpus, one pass (cite the NET, never a raw gross). A later flag-OFF/ON replay read +11.73 pp [11.41, 12.03] on one night: 🛑 **never difference it against +8.89**, and never pool flag-ON with flag-OFF runs. Whether the extras are real is **not answered**; a band-D false-positive watch flag stands as an upper bound |
+| **Early decode (#122 step 4)** | Merged (#208, v0.56), on by default | A decode of the first 13 s of each window, shown on the decode panel only, marked *early* until the final decode confirms it (FR-083, shim `20260058`). Nothing early reaches ALL.TXT, UDP, the QSO automation or the archive |
+| **NHARD-REP — `nhard` 60 vs 40** | **Closed** (N-CLOSED), 2026-10-06 | NET (60 vs 40) **−0.58 pp [−0.79, −0.41]** of WSJT-X's decodes on a 1-in-10 sample (311 cycles) of one 40 m night; 40 stays. The reading is of an OSD that was sign-inverted, so it measures what `nhard` did to chance accepts |
+| **COH-GAIN — coherent bit formation as a fallback (D-001 limb 2)** | Offline study complete; a build spec is written, **nothing built** | Pooled over 8 samples the fallback recovers **+1.37 pp [+1.06, +1.67]** (marginal, offline), but returns CRC-valid **wrong** payloads (3,382 correct recoveries against 1,567 wrong). The wrongs are classified (WRONG-ID); a strength gate does not meet its bar; the field-level and encoder-level identification arms gave no reading. The step-3 build spec (flag-gated, default OFF) is stacked behind the OSD fix |
+| **Decode-improvement programme** | Captain's priority #1 (2026-10-05) | B (`nhard`) done; A (CQ-AP) demoted because WSJT-X's AP is OFF on this station; C (#122 latency) measured first; A′ is COH-GAIN above |
+
+**Boundaries that travel with everything above.** `nhard` = 40 on the station since 2026-09-12 11:52:18Z (also the code default): never pool with earlier `nhard` = 60 data. Subtraction flag-ON runs start 2026-10-02 10:23:45Z: never pool with flag-OFF. `FT8_SHIM_VERSION` identifies nothing; pin the DLL SHA-256. A raw C-ABI replay is not the live path (§3a).
+
+---
+
 ## 4. Architecture essentials
 
 Four facts about the decode path that took six weeks to become visible, because every early
@@ -255,6 +277,7 @@ except where a row says *updated 2026-09-21*; verify a row against its issue bef
 | **Cross-platform decoder** — decoder Windows-only per its own document (NFR-001) | High | `Ft8LibInterop.cs` | Document never formally closed; Linux/macOS binaries are built and CI-tested — **verify current status before citing** |
 | **Capture clock drift** — silent total decode loss after ~13 h | High | `CycleFramer` | Resolved (`be5960a`) |
 | **Native stack overflow** on PCM residual | High | `ft8_shim.c` | Moot — feature reverted |
+| **OSD fallback receives sign-inverted LLRs (#215)** *(added 2026-10-08)* | High, correctness; small in decode-rate terms | `native/.../decode.c` | **Fix built** (shim `20260060`), under QA review, not merged; see §3b |
 | **Modulator positive-DT clamp** — mislabelled synthetic truth for 2 of 10 parts | High, measurement integrity | `qa/.../modulator.py` | Fixed — see below |
 
 > **Outstanding consequence of the modulator defect.** Because synthetic truth was wrong for
@@ -272,6 +295,8 @@ except where a row says *updated 2026-09-21*; verify a row against its issue bef
 |---|---|---|
 | [#3](../../issues/3) | D-001 co-channel and weak-signal decode gap | The central issue. **Its stated fix path is now closed** — it proposes successive interference cancellation, which is prohibited. **The issue body's headline figures are stale (quotes ~46%; the 2026-08-27 sweep read 78.6%); its progress comments, the latest dated 2026-09-21, carry the current state — see §3a.** |
 | ~~[#132](../../issues/132)~~ | 12-bit hash collisions resolve to the wrong callsign | **Closed 2026-09-12** by PR #138 (unique-match suppression). The figures below are the **pre-fix** measurements, kept as the record of why it mattered: 16,320 distinct callsigns seen against a 4,096-entry table; 50.9% of resolved queries had ≥2 entries sharing a code; callsign-level disagreement 51.3% on the measurable subset, decode-level 37.9%. A wrong name is loggable — worse than an honest `<...>`. |
+| [#215](../../issues/215) *(added 2026-10-08)* | Native OSD fallback receives sign-inverted LLRs | See §3b. The fix is built and under QA review; merge is the Captain's |
+| #213, #212, #209, #195, #194, #192, #189 *(added 2026-10-08)* | PTT config vs running daemon (#213); GUI loses state on resize and on Settings (#212); config absent-key defaults (#209); external-reporting follower URL (#195); R&R captured-audio WAVs (#194); QSO caller RR73 parse (#192); TX endpoint stale-ID class (#189) | Not decode-rate issues; see each issue |
 | [#122](../../issues/122) | Decode panel latency consumes ~24% of the QSO window | A budget problem, not a stall. TX occupies 12.64 s of the 15 s slot leaving ~2.36 s; decodes land at p50 ~15.56 s. No work authorised. |
 | [#111](../../issues/111) | D-001 attribution rests on a single session | The "98.5% decoder-side" split — load-bearing for closing the whole capture thread — comes from *one* 21-minute session, one device, one band. Risk is asymmetric. |
 | [#60](../../issues/60) | F-001 ~2–4% genuine hash-resolution gap | Structural cold-start explains 92–95%; a genuine residual of 3.68% / 2.12% persists across two independent nights. Root cause undetermined. |
@@ -304,6 +329,8 @@ re-proposing one wastes it twice.
 | `LIVE-GAP-NOW`, `THRESH-A` *(2026-09-12/13)* | What is the live gap now, and does a candidate-stage threshold close it? | **Closed; no candidate-stage follow-up licensed** (§3a) |
 | `FP-REGRESSION` *(2026-09-05)* | Did the false-positive rate regress? | **Closed: no supported regression, and no baseline ever existed.** This is *not* a finding that no small regression exists — the study was nearly blind below about 2.25×. Read the ruling's guards before describing it |
 | `DENSITY-MECH` *(2026-09-18)* | Which mechanism causes the near-neighbour loss? | **Void** — the oracle it used is not the production path. Do not attribute the loss to extraction. Reports under `qa/rr-study/2026-09-18-14*` |
+| `NHARD-REP` *(2026-10-06)* | Is `nhard` 60 better than 40? | **Closed: no** (−0.58 pp, §3b). Read on an OSD that was sign-inverted |
+| `OSD-OFF` *(2026-10-06/07)* | Does removing the inverted OSD change anything? | Small gain, +0.074 pp [+0.020, +0.146]; led to the sign fix (#215), not to a default change |
 | `DENSITY-REMEDY` *(2026-09-19 → 21)* | Can a suppression-parameter change remove the near-neighbour cost? | **Tried and rejected on real audio; parameter family closed; line parked (§3a).** On real audio the bench effect does appear where a strong neighbour is visible, but it is small, and the variants' added decodes were far less often corroborated by the reference decoder than existing output |
 
 ### Void, retracted or abandoned — read before re-deriving
@@ -339,6 +366,8 @@ closure — which is why they are stated this bluntly.
 - **The `DENSITY-REMEDY` suppression-parameter family is CLOSED, and the density line is PARKED by the
   Product Owner (2026-09-21).** Do not arm a variant run, a new family or a diagnostic on it without the
   Product Owner reopening it.
+- **No OSD-based evidence is evidence about a correct OSD** (#215, §3b): do not cite `NT`, `CC`, `E3`, `OSD-FA-A` or D-009 R5 for one. A corrected OSD earns fresh measurements.
+- **Never pool across the `nhard` 60 → 40 boundary (2026-09-12 11:52:18Z) or the subtraction flag-ON boundary (2026-10-02 10:23:45Z).**
 - **Never re-read a closed gate with a better metric.** That earns a new pre-registration.
 - **Never treat a rendered-text difference across processes as a decode difference** (§3a) — compare outcome
   fields.
