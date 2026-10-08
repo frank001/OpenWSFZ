@@ -39,6 +39,11 @@ internal static class Program
     // NHARD-REP (spec 2026-10-06-1430, section 3): the OSD nhard cap is a REQUIRED --nhard argument, 40 or 60 only, and the
     // "# readback" lines log the value the decoder object was actually given. (Was a hard-coded const 40.)
     private static int OsdNhardMax;
+#if HAS_OSDSIGNFIX
+    private static int OsdSignFix;
+    private static int ParseSignFix(string v) =>
+        int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) && (n == 0 || n == 1) ? n : throw new ArgumentException("--osd-sign-fix must be 0 or 1");
+#endif
     // NHARD-REP Amendment 3 (OSD-OFF): 0 is admitted as the third setting. At nhard 0 the OSD gate rejects every codeword, so OSD is effectively off. The managed
     // SetDecodeParams path passes the value through with no range check (only the config layer enforces 30-100, and this harness bypasses it).
     // OSD-FIX (ruling 2026-10-08-1545, A4): the whitelist is gone so the calibration grid {0, 24, 30, 40, 50, 60} (and any later extension) needs no harness change;
@@ -77,6 +82,11 @@ internal static class Program
         var logger = new ReplayLogger<Ft8Decoder>(log);
         var decoder = new Ft8Decoder(new WallClock(), logger);
         decoder.SetDecodeParams(KMinScorePass2, OsdCorrThreshold, OsdNhardMax);
+#if HAS_OSDSIGNFIX
+        // OSD-FIX (ruling 2026-10-08-1545, A4): the sign switch is REQUIRED so an arm never inherits the library default by accident; read back at start and end (Readback).
+        OsdSignFix = ParseSignFix(Req(a, "osd-sign-fix"));
+        decoder.SetOsdSignFix(OsdSignFix);
+#endif
         // sub-feas-speed-redesign: the ONLY change to this harness for the speed acceptance is the new config key
         // decoder.subtractionMaxThreads (0 = auto). Absent --threads leaves the decoder at its default (auto).
         // Only the candidate build has the setter (-p:HasMaxThreads=true); the base build cannot be asked for it.
@@ -530,7 +540,11 @@ internal static class Program
         log.Raw($"# readback {tag} subtractionEnabled={d.SubtractionEnabled} threadsConfigured={threadsNote} " +
                 $"threadsResolved={resolved} cores={Environment.ProcessorCount} nhard={OsdNhardMax} " +
                 $"kMinScorePass2={KMinScorePass2} osdCorrThreshold={OsdCorrThreshold.ToString("F2", CultureInfo.InvariantCulture)} " +
-                $"shim={Ft8Decoder.LoadedShimVersion}");
+                $"shim={Ft8Decoder.LoadedShimVersion}"
+#if HAS_OSDSIGNFIX
+                + $" osdSignFixSet={OsdSignFix} osdSignFixRead={d.GetOsdSignFix()}"
+#endif
+                );
     }
 #endif
 
