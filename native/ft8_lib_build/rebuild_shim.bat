@@ -176,6 +176,8 @@ link /DLL ^
   /EXPORT:ft8_set_ap_bits ^
   /EXPORT:ft8_set_diagnostics_enabled ^
   /EXPORT:ft8_set_decode_params ^
+  /EXPORT:ft8_set_osd_sign_fix ^
+  /EXPORT:ft8_get_osd_sign_fix ^
   /EXPORT:ft8_get_hash_table_reject_count ^
   /EXPORT:ft8_refine_candidate ^
   /EXPORT:ft8_extract_llrs_at ^

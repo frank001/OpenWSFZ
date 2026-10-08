@@ -241,4 +241,10 @@ internal interface IFt8NativeInterop
     /// decode-early-batch-panel: puts an image written by <see cref="HashStateSave"/> back. Default: no-op.
     /// </summary>
     void HashStateRestore(byte[] buffer) { }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): sets the OSD sign switch. Default: no-op (a fake does not model it).</summary>
+    void SetOsdSignFix(int enabled) { }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch. Default: 1 (the corrected behaviour).</summary>
+    int GetOsdSignFix() => 1;
 }

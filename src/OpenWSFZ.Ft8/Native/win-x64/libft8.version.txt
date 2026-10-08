@@ -1,4 +1,27 @@
-=== CURRENT: decode-early-batch-panel, #122 step 4 phase 4a (FT8_SHIM_VERSION 20260058) ===
+=== CURRENT: osd-sign-fix, #215 (FT8_SHIM_VERSION 20260060) ===
+
+Built 2026-10-08 from branch feat/osd-sign-fix, off origin/main be3cc5ac (shim 20260058), via OpenSpec change
+osd-sign-fix (QA handoff dev-tasks/2026-10-08-osd-sign-fix.md; Architect spec 2026-10-07-1545 as amended by the ruling
+2026-10-08-1545; the Captain, 2026-10-07: "not switching it off but actually fixing it ... prio 1"). Developer session.
+Version literal: highest on any live ref was origin/feat/sub-feas-stage-b at 20260059 (B2, not merged), so 20260060.
+
+osd_decode reads positive = bit 0; the extractor and BP produce positive = bit 1; the three callers passed the array
+un-negated, so every OSD accept since 20260025 was a chance CRC-14 hit. A helper, osd_prepare_llr, now negates
+llr_for_osd IN PLACE before osd_decode, and the acceptance gate (nhard, corr/norm) reads that SAME array (decode.c, the
+three callers in ftx_decode_candidate, ftx_ldpc_decode_llrs and the AP path). New exports ft8_set_osd_sign_fix(int) /
+ft8_get_osd_sign_fix(void); default 1; 0 reproduces the previous shim (3000 random LLR vectors through
+ft8_ldpc_decode_llrs: results identical to the origin/main DLL at switch 0, 52 chance OSD accepts included). Not wired to
+config, UI or API. nhard 40 and corr 0.10 were calibrated on the inverted output and are unchanged here.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    60d5e70a2ae3944b96998028ad188893f72d1f026026a9575547453156259187
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    82042f650348be9bf76a57f1119e6e01287cfda7aee643624ce4a50c4a42c4b3
+    tools/check_native_version.py reports shim 20260060 for both files built here.
+  macOS ARM64: NOT rebuilt here -- no Mac available locally. CI owns it.
+
+=== Previous: decode-early-batch-panel, #122 step 4 phase 4a (FT8_SHIM_VERSION 20260058) ===
 
 Built 2026-10-03 from branch feat/122-step4-early-decode-panel, off origin/main e2fdd446 (shim 20260056), via OpenSpec
 change openspec/changes/decode-early-batch-panel/ (QA handoff dev-tasks/2026-10-03-122-step4-early-decode-panel-only.md;

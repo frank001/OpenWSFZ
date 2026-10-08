@@ -452,7 +452,12 @@ internal static class Ft8LibInterop
     /// (<c>Ft8Decoder.DecodeEarlyAsync</c>) so that it leaves nothing behind that could change the final decode of the
     /// same window. Changes NO decode output and no existing export.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260058;
+    /// <remarks>
+    /// osd-sign-fix (#215), shim 20260060: <c>osd_decode</c> read positive = bit 0 while the extractor and BP produce
+    /// positive = bit 1; the LLRs are now negated in place before OSD and its acceptance gate (which read the same array).
+    /// Adds <c>ft8_set_osd_sign_fix</c> / <c>ft8_get_osd_sign_fix</c> (bound as <see cref="SetOsdSignFix"/> / <see cref="GetOsdSignFix"/>).
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260060;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -620,6 +625,16 @@ internal static class Ft8LibInterop
         int   kMinScorePass2,
         float osdCorrThreshold,
         int   osdNhardMax);
+
+    /// <summary>osd-sign-fix (shim 20260060): set the OSD sign switch (1 = corrected, 0 = previous behaviour).</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_osd_sign_fix",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetOsdSignFix(int enabled);
+
+    /// <summary>osd-sign-fix (shim 20260060): read the OSD sign switch.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_osd_sign_fix",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetOsdSignFix();
 
     /// <summary>
     /// Return the compile-time <c>K_MAX_PASSES</c> constant from the native shim.
@@ -1001,6 +1016,20 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         NativeSetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
+    }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): sets the process-global OSD sign switch (1 = corrected, 0 = previous behaviour). Replay-harness use only; the daemon never calls it.</summary>
+    public static void SetOsdSignFix(int enabled)
+    {
+        EnsureInitialized();
+        NativeSetOsdSignFix(enabled);
+    }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch (1 or 0).</summary>
+    public static int GetOsdSignFix()
+    {
+        EnsureInitialized();
+        return NativeGetOsdSignFix();
     }
 
     /// <summary>

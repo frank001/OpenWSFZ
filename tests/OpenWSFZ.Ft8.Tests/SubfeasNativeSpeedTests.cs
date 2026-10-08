@@ -77,7 +77,7 @@ public sealed class SubfeasNativeSpeedTests
         // Every pass-0 signal of synth-qso-01, fitted through the same path SubtractionPass uses.
         float[] norm1 = Norm(Fixture("synth-qso-01.wav"));
         (float[] re1, float[] im1) = Ft8LibInterop.SubfeasComputeAnalytic(norm1);
-        var jobs = Pass0Jobs(norm1);
+        var jobs = Pass0JobsAsRecorded(norm1);
         var fixtureRows = golden.Where(r => r.Kind == "fit" && r.Label == "synth-qso-01.wav").OrderBy(r => r.Idx).ToList();
         if (exact) jobs.Count.Should().Be(fixtureRows.Count);
         else jobs.Count.Should().BeGreaterThan(0, "the fixture cycle has pass-0 signals to fit");
@@ -540,6 +540,21 @@ public sealed class SubfeasNativeSpeedTests
             jobs.Add((tones, nr.Dt, nr.FreqHz));
         }
         return jobs;
+    }
+
+    /// <summary>
+    /// The pass-0 job list as the golden was recorded. osd-sign-fix (#215, shim 20260060): the golden's 5 fixture rows were
+    /// recorded on shim 20260055, whose inverted OSD also accepted 2 chance-CRC "decodes" on synth-qso-01 beside the 3 real
+    /// messages (the answer key); the corrected OSD no longer produces them, so the list is 3 long. The golden is NOT
+    /// re-pinned (it measures the FIT against the base DLL, not the decoder): the OSD sign switch is set to 0 (the previous
+    /// behaviour, bit-for-bit) only while the job list is enumerated, then restored.
+    /// </summary>
+    private static List<(byte[] Tones, float Dt, float Freq)> Pass0JobsAsRecorded(float[] norm)
+    {
+        int saved = Ft8LibInterop.GetOsdSignFix();
+        Ft8LibInterop.SetOsdSignFix(0);
+        try { return Pass0Jobs(norm); }
+        finally { Ft8LibInterop.SetOsdSignFix(saved); }
     }
 
     /// <summary>One real signal from a fixture cycle plus the analytic buffer it is fitted against (a fit of about 1.2 s).</summary>

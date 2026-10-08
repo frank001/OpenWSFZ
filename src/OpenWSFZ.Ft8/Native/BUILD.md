@@ -228,6 +228,11 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
+osd-sign-fix (#215, shim 20260060) adds `ft8_set_osd_sign_fix` and `ft8_get_osd_sign_fix` (also in the `rebuild_shim.bat`
+`/EXPORT` list). The OSD fallback now gets LLRs in its own convention (positive = bit 0, negated in place from the BP
+convention) and its acceptance gate reads the same array; until shim 20260059 every OSD accept was a chance CRC-14 hit. The
+`nhard` 40 and corr 0.10 gate values were calibrated on that inverted output and carry over unchanged until re-derived.
+
 Verify exports (the symbols listed in the Windows link step above must appear, including the three
 `ft8_hash_state_*` exports added by decode-early-batch-panel, shim 20260058; the older note follows —
 all fifteen symbols must appear — r1-sync-refiner-instrument-validation adds

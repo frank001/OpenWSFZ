@@ -780,8 +780,15 @@ extern "C" {
  *              pair is called only by the early entry; the ordinary decode never calls it. The list of what is
  *              in the image, and why every thread-local is exempt, is the HSM-IMAGE / HSM-EXEMPT block in
  *              ft8_shim.c, checked mechanically by HashStateCompletenessTests.
+ *
+ *   20260060 — osd-sign-fix (#215). osd_decode reads positive = bit 0 but the extractor and BP produce positive = bit 1, and
+ *              all three callers passed the array un-negated, so every OSD accept since 20260025 was a chance CRC-14 hit.
+ *              A helper (osd_prepare_llr) now negates llr_for_osd IN PLACE before osd_decode, and the acceptance gate
+ *              (nhard, corr/norm) reads that same array. New exports ft8_set_osd_sign_fix(int) / ft8_get_osd_sign_fix(void)
+ *              (default 1; 0 restores the previous behaviour). Not wired to config, UI or API. 20260059 is held by
+ *              origin/feat/sub-feas-stage-b (B2), not merged.
  */
-#define FT8_SHIM_VERSION 20260058
+#define FT8_SHIM_VERSION 20260060
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1066,6 +1073,15 @@ int ft8_encode_message(const char* message, uint8_t* tones_out, int tones_capaci
  * Safe to call before the first ft8_decode_all invocation.
  */
 void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int osd_nhard_max);
+
+/*
+ * ft8_set_osd_sign_fix / ft8_get_osd_sign_fix — osd-sign-fix switch (#215, shim 20260060).
+ * 1 (default): LLRs are negated into osd_decode's convention before OSD and its gate.
+ * 0: previous behaviour (inverted OSD input), for A/B replay. Non-zero values are stored as 1.
+ * Process-global, like the OSD gate parameters; not wired to config, UI or API.
+ */
+void ft8_set_osd_sign_fix(int enabled);
+int  ft8_get_osd_sign_fix(void);
 
 /*
  * ft8_refine_candidate -- diagnostic-only per-candidate coherent sync
