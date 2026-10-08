@@ -1,1 +1,2 @@
 run,sampler_log,setup_changes_excl_unverified_start_diff,flagged_slots,flagged_slots_with_a_change_in_window,sampler_label,notes
+2026-10-08-0a1ff63,audio_setup.jsonl,23,37,2,OK,"first integrated run; coverage 100.0% of 6796 s; 0 crashes, 0 restarts; 2 Voicemeeter reads + 21 vlc.exe session events; build feat/osd-sign-fix 3276573b"
