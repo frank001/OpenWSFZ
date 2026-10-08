@@ -1,9 +1,11 @@
-# OSD-FIX Amendment: TRAIN runs interleaved (7 rounds × 7 arms), with a data-blind stop at round boundaries
+# OSD-FIX Amendment: TRAIN runs interleaved (7 rounds × 7 arms), with full statistics reported after every round
+
+> **Revised 2026-10-08 17:57Z (by `date -u`), before any TRAIN decode.** The Captain asked: *"why are you so anal about not looking at the data before all the arms are done? just report the statistics between each round. what is wrong with that?"* The Architect agrees. TRAIN only **calibrates** `n*`. The verdict comes from TEST, on cycles that played no part in choosing anything, and TEST stays blind. So looking at TRAIN between rounds cannot manufacture a false F-GO; at worst it gives a noisier `n*`, which TEST then reads as F-NEUTRAL. §5 is rewritten accordingly. The original data-blind version is in commit `e5569303`.
 
 - **From:** Architect. **To:** QA. cc Captain. **Date:** 2026-10-08 17:45Z (by `date -u`, HK-017).
 - **Asked for by:** the Captain, in the Architect's window. He asked *"can the arms be interleaved?"*, then answered *"yes"* to "Shall I write the amendment?".
 - **Status:** a **pre-decode** amendment to spec `2026-10-07-1545` §5.2 (the header allows these). **No TRAIN decode has run.** PEEK-100 (`2b346822`, QA `71f38534`) ran on 100 TRAIN cycles at REF and FIX(40). It is descriptive and changes nothing here (§6).
-- **What changes:** only **how TRAIN is scheduled** and **when it may stop**. The arms, the grid, the `n*` rule, the B1/B2 rulings, the estimands, the match rule, the validity rows, TEST and its verdict rows are all **unchanged**.
+- **What changes:** only **how TRAIN is scheduled**, **what is reported between rounds** and **when it may stop**. The arms, the grid, the `n*` rule, the B1/B2 rulings, the estimands, the match rule, the validity rows, TEST and its verdict rows are all **unchanged**.
 
 ## 1. Why
 
@@ -31,8 +33,15 @@ Run arm after arm, TRAIN gives no answer until all six deciding arms are done (a
 
 ## 5. Stopping, and what a stopped TRAIN means
 
-- **The Captain may stop TRAIN at any round boundary, for reasons of time only.** The decision is made **without seeing any result**: until TRAIN ends, QA reports per round **only** the validity rows (rc, pin, read-back, probe, abandoned count) and wall time per process. It reports no NET, no ΔU, no decode counts and no confirmed/not-confirmed split.
-- **TRAIN ends** when 7 rounds are complete or the Captain stops it. Only then does QA compute the §5.2 estimands, on **completed rounds only**, by concatenating each arm's per-cycle rows across rounds.
+- **After every completed round, QA reports the interim statistics, cumulative over all completed rounds:**
+  - validity and wall time per process;
+  - for each FIX arm against REF: NET and ΔU, each with a 95 % CI (the spec's bootstrap, blocks of 40 consecutive cycles, or the whole round if it is shorter);
+  - NET and ΔU by batch (1 vs 2);
+  - the `n*` the rule **would** pick on the rounds so far, labelled **INTERIM**.
+  Every interim figure is marked "interim, k of 7 rounds". 🛑 None is citable as a TRAIN result. The expected noise after one round is about ±0.35 pp (PEEK-100 on 100 cycles gave [−0.14, +0.21]), against expected effects of about 0.1 pp. Early rounds **will** wobble.
+- **The Captain may stop TRAIN at any round boundary, for any reason, including what the interim numbers show.** This is safe because TEST is the verdict and is untouched (header note).
+- **What stays fixed after looking:** the grid, the `n*` rule, the arms and the chunks. If anyone wants to change one of them after seeing interim data, that is a new amendment, marked **post-data**, and the report says so.
+- **TRAIN ends** when 7 rounds are complete or the Captain stops it. The final §5.2 estimands use **completed rounds only**, by concatenating each arm's per-cycle rows across rounds.
 - **Minimum for the `n*` rule: 4 completed rounds (about 356 cycles).**
   - Where the 4 comes from (HK-038): NHARD-REP scored 311 cycles of this same night with a NET CI half-width of about 0.19 pp (`[−0.79, −0.41]`), which resolved its effect. Four rounds is the smallest round count at or above that size.
   - With **fewer than 4** completed rounds, TRAIN is reported **descriptive only**: no `n*`, no TEST. The Captain then decides with that data whether to resume, which continues at the next round in the same order.
@@ -48,7 +57,7 @@ Run arm after arm, TRAIN gives no answer until all six deciding arms are done (a
 ## 7. QA's to-do before round 1
 
 1. Chunking script + test (§2), chunk files and SHAs committed.
-2. Round runner: rotation order (§3), one process at a time, per-process validity and one re-run (§4), a per-round validity-only status file (§5).
+2. Round runner: rotation order (§3), one process at a time, per-process validity and one re-run (§4), a per-round report with the interim statistics (§5).
 3. V2′ probe vectors recalibrated on DLL `2029b080…82bb` and committed **before any FIX decode** (ruling A3, unchanged).
 4. Report "ready" with the expected wall time per round (from PEEK-100: about 815 s per 100 cycles ⇒ about 12 min per process, about 1.4 h per round).
 
