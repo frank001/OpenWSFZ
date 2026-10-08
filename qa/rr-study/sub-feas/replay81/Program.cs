@@ -41,7 +41,10 @@ internal static class Program
     private static int OsdNhardMax;
     // NHARD-REP Amendment 3 (OSD-OFF): 0 is admitted as the third setting. At nhard 0 the OSD gate rejects every codeword, so OSD is effectively off. The managed
     // SetDecodeParams path passes the value through with no range check (only the config layer enforces 30-100, and this harness bypasses it).
-    private static readonly int[] AllowedNhard = [0, 40, 60];
+    // OSD-FIX (ruling 2026-10-08-1545, A4): the whitelist is gone so the calibration grid {0, 24, 30, 40, 50, 60} (and any later extension) needs no harness change;
+    // --nhard accepts any integer in [0, 174] (174 = the codeword length, the largest meaningful Hamming distance). The value is read back at the start and end of every arm.
+    private const int NhardMin = 0;
+    private const int NhardMax = 174;
     private const float R6PeakCeiling = 0.99f;
 
     private static int Main(string[] args)
@@ -384,8 +387,8 @@ internal static class Program
     /// </summary>
     private static int ParseNhard(string v)
     {
-        if (!int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || Array.IndexOf(AllowedNhard, n) < 0)
-            throw new ArgumentException("--nhard must be 0, 40 or 60");
+        if (!int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || n < NhardMin || n > NhardMax)
+            throw new ArgumentException($"--nhard must be an integer in [{NhardMin}, {NhardMax}]");
         return n;
     }
 
