@@ -588,6 +588,31 @@ static _Thread_local float tls_llr_mean_abs_sum[K_MAX_PASSES];
 static _Thread_local float tls_llr_prenorm_var_sum[K_MAX_PASSES]; /* Task B, shim 20260020 */
 static _Thread_local int   tls_llr_fail_count[K_MAX_PASSES];
 static _Thread_local int   tls_num_passes       = 0;
+
+/* osd-sign-fix R6 (shim 20260060): per-ft8_decode_all-call OSD gate diagnostics, numbers only (HK-037). */
+#define K_OSD_DIAG_MAX 256
+static _Thread_local int   tls_osd_acc_total = 0;                 /* gate accepts, including any beyond K_OSD_DIAG_MAX */
+static _Thread_local int   tls_osd_acc_nhard[K_OSD_DIAG_MAX];
+static _Thread_local float tls_osd_acc_corr_norm[K_OSD_DIAG_MAX];
+static _Thread_local int   tls_osd_acc_depth[K_OSD_DIAG_MAX];
+static _Thread_local int   tls_osd_acc_batch[K_OSD_DIAG_MAX];
+static _Thread_local int   tls_osd_rej_nhard[K_MAX_PASSES];       /* rejected by the nhard cap, per pass */
+static _Thread_local int   tls_osd_rej_corr[K_MAX_PASSES];        /* nhard ok, rejected by corr/norm, per pass */
+static _Thread_local int   tls_osd_cur_pass = 0;
+
+void ft8_osd_diag_accept(int nhard, float corr_norm, int depth)
+{
+    int k = tls_osd_acc_total++;
+    if (k >= K_OSD_DIAG_MAX) return;
+    tls_osd_acc_nhard[k] = nhard; tls_osd_acc_corr_norm[k] = corr_norm;
+    tls_osd_acc_depth[k] = depth; tls_osd_acc_batch[k] = tls_osd_cur_pass;
+}
+
+void ft8_osd_diag_reject(int reason)
+{
+    int p = (tls_osd_cur_pass >= 0 && tls_osd_cur_pass < K_MAX_PASSES) ? tls_osd_cur_pass : 0;
+    if (reason == 0) tls_osd_rej_nhard[p]++; else tls_osd_rej_corr[p]++;
+}
 static _Thread_local float tls_last_noise_floor_db = 0.0f;
 
 /* Amendment 2 (shim 20260045): per-decode SNR-formula terms, index-aligned
@@ -887,33 +912,41 @@ static ftx_callsign_hash_interface_t s_hash_if = { cb_lookup_hash, cb_save_hash 
  * Thread-local statics and other statics the decode path touches, each classified by FILE:LINE evidence.
  * HSM-RESET   = reset or assigned per call / per message (evidence: the line, inside a function on the pass-0 path);
  * HSM-NOWRITE = not written on the pass-0 path (the test proves no function reachable from ft8_decode_all assigns it).
- * HSM-RESET tls_pass_counts ft8_shim.c:1665  reset at the top of ft8_decode_all
- * HSM-RESET tls_candidate_counts ft8_shim.c:1666  reset at the top of ft8_decode_all
- * HSM-RESET tls_llr_mean_abs_sum ft8_shim.c:1667  reset at the top of ft8_decode_all
- * HSM-RESET tls_llr_prenorm_var_sum ft8_shim.c:1668  reset at the top of ft8_decode_all
- * HSM-RESET tls_llr_fail_count ft8_shim.c:1669  reset at the top of ft8_decode_all
- * HSM-RESET tls_num_passes ft8_shim.c:1671  reset at the top of ft8_decode_all
- * HSM-RESET tls_num_decoded_snr_terms ft8_shim.c:1670  reset at the top of ft8_decode_all, set to the count at the end
- * HSM-RESET tls_last_noise_floor_db ft8_shim.c:1658  assigned per call before any read
- * HSM-RESET tls_signal_db ft8_shim.c:1928  overwritten per decoded message, read only below tls_num_decoded_snr_terms (ft8_get_last_snr_terms)
- * HSM-RESET tls_local_noise_db ft8_shim.c:1929  overwritten per decoded message, read only below tls_num_decoded_snr_terms (ft8_get_last_snr_terms)
- * HSM-RESET tls_hash_table ft8_shim.c:1652  assigned per call, cleared at the end and in the __except handler
- * HSM-RESET tls_h12_lookup_performed ft8_shim.c:1826  reset per message before ftx_message_decode
- * HSM-RESET tls_h12_suppressed ft8_shim.c:1827  reset per message before ftx_message_decode
- * HSM-RESET tls_h12_resolved ft8_shim.c:1841  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed
- * HSM-RESET tls_h12_multiplicity ft8_shim.c:1843  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
- * HSM-RESET tls_h12_divergent ft8_shim.c:1844  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
- * HSM-RESET tls_h12_code ft8_shim.c:1853  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
- * HSM-RESET tls_ap_mycall_bits ft8_shim.c:1590  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
- * HSM-RESET tls_ap_num_mycall_bits ft8_shim.c:1583  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
- * HSM-RESET tls_ap_hiscall_bits ft8_shim.c:1591  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
- * HSM-RESET tls_ap_num_hiscall_bits ft8_shim.c:1584  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
- * HSM-NOWRITE tls_diagnostics_enabled ft8_shim.c:1570  written only by ft8_set_diagnostics_enabled, called only by SubtractionPass (residual pass); the pass-0 path only reads it
+ * HSM-RESET tls_pass_counts ft8_shim.c:1719  reset at the top of ft8_decode_all
+ * HSM-RESET tls_candidate_counts ft8_shim.c:1720  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_mean_abs_sum ft8_shim.c:1721  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_prenorm_var_sum ft8_shim.c:1722  reset at the top of ft8_decode_all
+ * HSM-RESET tls_llr_fail_count ft8_shim.c:1723  reset at the top of ft8_decode_all
+ * HSM-RESET tls_num_passes ft8_shim.c:1725  reset at the top of ft8_decode_all
+ * HSM-RESET tls_num_decoded_snr_terms ft8_shim.c:1724  reset at the top of ft8_decode_all, set to the count at the end
+ * HSM-RESET tls_last_noise_floor_db ft8_shim.c:1712  assigned per call before any read
+ * HSM-RESET tls_signal_db ft8_shim.c:1987  overwritten per decoded message, read only below tls_num_decoded_snr_terms (ft8_get_last_snr_terms)
+ * HSM-RESET tls_local_noise_db ft8_shim.c:1988  overwritten per decoded message, read only below tls_num_decoded_snr_terms (ft8_get_last_snr_terms)
+ * HSM-RESET tls_hash_table ft8_shim.c:1706  assigned per call, cleared at the end and in the __except handler
+ * HSM-RESET tls_h12_lookup_performed ft8_shim.c:1885  reset per message before ftx_message_decode
+ * HSM-RESET tls_h12_suppressed ft8_shim.c:1886  reset per message before ftx_message_decode
+ * HSM-RESET tls_h12_resolved ft8_shim.c:1900  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed
+ * HSM-RESET tls_h12_multiplicity ft8_shim.c:1902  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_h12_divergent ft8_shim.c:1903  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_h12_code ft8_shim.c:1912  written whenever a 12-bit lookup is performed; read only under tls_h12_lookup_performed (the guard is the enclosing if)
+ * HSM-RESET tls_ap_mycall_bits ft8_shim.c:1644  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_num_mycall_bits ft8_shim.c:1637  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_hiscall_bits ft8_shim.c:1645  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-RESET tls_ap_num_hiscall_bits ft8_shim.c:1638  set by ft8_set_ap_bits, which the managed caller calls before EVERY DecodeAll (the early lambda too)
+ * HSM-NOWRITE tls_diagnostics_enabled ft8_shim.c:1624  written only by ft8_set_diagnostics_enabled, called only by SubtractionPass (residual pass); the pass-0 path only reads it
  * HSM-NOWRITE s_k_min_score_pass2 ft8_shim.c:494  decoder config, written only by ft8_set_decode_params (the Settings page / config save); the pass-0 path only reads it
  * HSM-NOWRITE s_osd_corr_threshold ft8_shim.c:495  as s_k_min_score_pass2
  * HSM-NOWRITE s_osd_nhard_max ft8_shim.c:496  as s_k_min_score_pass2
  * HSM-NOWRITE s_osd_sign_fix ft8_shim.c:484  osd-sign-fix switch (#215), written only by ft8_set_osd_sign_fix (replay harness); the decode only reads it
- * HSM-NOWRITE s_hash_if ft8_shim.c:850  two function pointers set by the initialiser, never assigned afterwards
+ * HSM-RESET tls_osd_acc_total ft8_shim.c:1726  reset at the top of ft8_decode_all
+ * HSM-RESET tls_osd_cur_pass ft8_shim.c:1727  reset at the top of ft8_decode_all, set per pass
+ * HSM-RESET tls_osd_rej_nhard ft8_shim.c:1728  reset at the top of ft8_decode_all
+ * HSM-RESET tls_osd_rej_corr ft8_shim.c:1729  reset at the top of ft8_decode_all
+ * HSM-RESET tls_osd_acc_nhard ft8_shim.c:607  written per accept in ft8_osd_diag_accept; read only below tls_osd_acc_total (reset per call)
+ * HSM-RESET tls_osd_acc_corr_norm ft8_shim.c:607  as tls_osd_acc_nhard
+ * HSM-RESET tls_osd_acc_depth ft8_shim.c:608  as tls_osd_acc_nhard
+ * HSM-RESET tls_osd_acc_batch ft8_shim.c:608  as tls_osd_acc_nhard
+ * HSM-NOWRITE s_hash_if ft8_shim.c:875  two function pointers set by the initialiser, never assigned afterwards
  * HSM-NOWRITE g_pool_lock subfeas_fit.c:600  subfeas fit-workspace pool: written only by the pool functions of the residual pass
  * HSM-NOWRITE g_pool_idle subfeas_fit.c:605  as g_pool_lock
  * HSM-NOWRITE g_pool_idle_n subfeas_fit.c:606  as g_pool_lock
@@ -1484,6 +1517,27 @@ int ft8_get_last_pass_counts(int* out_counts, int capacity)
     return n;
 }
 
+/* ── OSD gate diagnostics query (osd-sign-fix R6, shim 20260060) ──────────── */
+int ft8_get_last_osd_diag(int capacity, int* out_nhard, float* out_corr_norm, int* out_depth, int* out_batch,
+                          int* out_total_accepts, int* out_reject_nhard, int* out_reject_corr, int pass_capacity)
+{
+    int stored = (tls_osd_acc_total < K_OSD_DIAG_MAX) ? tls_osd_acc_total : K_OSD_DIAG_MAX;
+    int n = (stored < capacity) ? stored : capacity;
+    for (int i = 0; i < n; i++) {
+        if (out_nhard)     out_nhard[i]     = tls_osd_acc_nhard[i];
+        if (out_corr_norm) out_corr_norm[i] = tls_osd_acc_corr_norm[i];
+        if (out_depth)     out_depth[i]     = tls_osd_acc_depth[i];
+        if (out_batch)     out_batch[i]     = tls_osd_acc_batch[i];
+    }
+    if (out_total_accepts) *out_total_accepts = tls_osd_acc_total;
+    int np = (pass_capacity < K_MAX_PASSES) ? pass_capacity : K_MAX_PASSES;
+    for (int i = 0; i < np; i++) {
+        if (out_reject_nhard) out_reject_nhard[i] = tls_osd_rej_nhard[i];
+        if (out_reject_corr)  out_reject_corr[i]  = tls_osd_rej_corr[i];
+    }
+    return n;
+}
+
 /* ── Per-pass candidate count query ─────────────────────────────────────── */
 int ft8_get_last_candidate_counts(int* out_counts, int capacity)
 {
@@ -1669,6 +1723,10 @@ int ft8_decode_all(
     for (int i = 0; i < K_MAX_PASSES; i++) tls_llr_fail_count[i]      = 0;
     tls_num_decoded_snr_terms = 0; /* Amendment 2, shim 20260045 */
     tls_num_passes = 0;
+    tls_osd_acc_total = 0;                                  /* osd-sign-fix R6 */
+    tls_osd_cur_pass  = 0;
+    for (int i = 0; i < K_MAX_PASSES; i++) tls_osd_rej_nhard[i] = 0;
+    for (int i = 0; i < K_MAX_PASSES; i++) tls_osd_rej_corr[i]  = 0;
 
     /* ── 4a. Cross-pass suppression accumulator ─────────────────────────── */
     /* Holds decoded candidates from pass 0 for spectrogram-domain tile
@@ -1752,6 +1810,7 @@ int ft8_decode_all(
             continue;
         }
 
+        tls_osd_cur_pass = pass; /* osd-sign-fix R6: the batch the gate diagnostics are tagged with */
         if (pass == 1)
             for (int i = 0; i < n_all_supp; i++)
                 suppress_candidate_tiles(&mon.wf, &all_supp_cands[i], &all_supp_msgs[i], noise_raw, all_supp_snrs[i]);

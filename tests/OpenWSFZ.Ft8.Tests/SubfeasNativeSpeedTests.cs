@@ -78,6 +78,18 @@ public sealed class SubfeasNativeSpeedTests
         float[] norm1 = Norm(Fixture("synth-qso-01.wav"));
         (float[] re1, float[] im1) = Ft8LibInterop.SubfeasComputeAnalytic(norm1);
         var jobs = Pass0JobsAsRecorded(norm1);
+
+        // osd-sign-fix (#215): what the fix CHANGED. At switch 1 the pass-0 list on synth-qso-01 is exactly the answer key
+        // (the three real messages); the 2 extra rows the recorded list carries were the inverted OSD's chance-CRC accepts.
+        int savedSwitch = Ft8LibInterop.GetOsdSignFix();
+        Ft8LibInterop.SetOsdSignFix(1);
+        try
+        {
+            string[] decodedAtSwitch1 = Ft8LibInterop.DecodeAll(norm1).Select(r => r.Message.TrimEnd()).OrderBy(m => m, StringComparer.Ordinal).ToArray();
+            decodedAtSwitch1.Should().Equal(new[] { "CQ Q1ABC FN42", "Q1ABC Q9XYZ -10", "Q9XYZ Q1ABC R-08" }.OrderBy(m => m, StringComparer.Ordinal),
+                "at switch 1 the pass-0 list is exactly the answer key; the recorded list's 2 extra rows were chance-CRC accepts of the inverted OSD");
+        }
+        finally { Ft8LibInterop.SetOsdSignFix(savedSwitch); }
         var fixtureRows = golden.Where(r => r.Kind == "fit" && r.Label == "synth-qso-01.wav").OrderBy(r => r.Idx).ToList();
         if (exact) jobs.Count.Should().Be(fixtureRows.Count);
         else jobs.Count.Should().BeGreaterThan(0, "the fixture cycle has pass-0 signals to fit");

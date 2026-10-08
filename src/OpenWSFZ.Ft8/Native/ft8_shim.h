@@ -786,7 +786,9 @@ extern "C" {
  *              A helper (osd_prepare_llr) now negates llr_for_osd IN PLACE before osd_decode, and the acceptance gate
  *              (nhard, corr/norm) reads that same array. New exports ft8_set_osd_sign_fix(int) / ft8_get_osd_sign_fix(void)
  *              (default 1; 0 restores the previous behaviour). Not wired to config, UI or API. 20260059 is held by
- *              origin/feat/sub-feas-stage-b (B2), not merged.
+ *              origin/feat/sub-feas-stage-b (B2), not merged. Same change adds ft8_get_last_osd_diag (R6): per accepted OSD
+ *              decode nhard, corr/norm, depth and batch, plus per-pass gate-reject counts by reason; numbers only, no
+ *              decode output changes.
  */
 #define FT8_SHIM_VERSION 20260060
 
@@ -1082,6 +1084,24 @@ void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int 
  */
 void ft8_set_osd_sign_fix(int enabled);
 int  ft8_get_osd_sign_fix(void);
+
+/*
+ * ft8_get_last_osd_diag — OSD gate diagnostics of the most recent ft8_decode_all call on this thread
+ * (osd-sign-fix R6, shim 20260060). Numbers only, no message text, no file I/O; recording never changes a decode.
+ * An "accept" is a candidate that passed the OSD gate (nhard cap and corr/norm); the CRC / plausibility checks after
+ * it are not part of the record. Candidates decoded by ft8_ldpc_decode_llrs are not recorded.
+ *   capacity            -- length of each out_nhard/out_corr_norm/out_depth/out_batch array (any may be NULL)
+ *   out_nhard           -- per accept: Hamming distance codeword vs channel hard decisions
+ *   out_corr_norm       -- per accept: corr/norm (0 if norm == 0)
+ *   out_depth           -- per accept: OSD ndeep used
+ *   out_batch           -- per accept: decode pass (0 or 1) within this call
+ *   out_total_accepts   -- total accepts this call (may exceed the 256 stored)
+ *   out_reject_nhard    -- per pass: rejected by the nhard cap       (pass_capacity entries, may be NULL)
+ *   out_reject_corr     -- per pass: nhard ok, rejected by corr/norm (pass_capacity entries, may be NULL)
+ * Returns the number of accepts written to the per-accept arrays. Same threading contract as ft8_get_last_pass_counts.
+ */
+int ft8_get_last_osd_diag(int capacity, int* out_nhard, float* out_corr_norm, int* out_depth, int* out_batch,
+                          int* out_total_accepts, int* out_reject_nhard, int* out_reject_corr, int pass_capacity);
 
 /*
  * ft8_refine_candidate -- diagnostic-only per-candidate coherent sync

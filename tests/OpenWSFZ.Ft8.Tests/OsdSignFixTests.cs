@@ -239,6 +239,35 @@ public sealed class OsdSignFixTests : IDisposable
         r.Path.Should().Be(-1);
     }
 
+    // ── R6 diagnostics ──────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-084: OSD gate diagnostics are numbers in range, reset per call, and fill with no message text")]
+    public void OsdDiagnostics_AreWellFormedAndResetPerCall()
+    {
+        _ = Ft8LibInterop.GetOsdSignFix();
+        var rng = new Random(99);
+        var noise = new float[180_000];
+        for (int i = 0; i < noise.Length; i++) noise[i] = (float)(rng.NextDouble() * 2 - 1);
+        float[] pcm = Ft8Decoder.NormalisePcm(noise, 0.20f);
+
+        Ft8LibInterop.SetOsdSignFix(1);
+        _ = Ft8LibInterop.DecodeAll(pcm);
+        var d = Ft8LibInterop.GetLastOsdDiag(2);
+        d.Nhard.Length.Should().Be(Math.Min(d.TotalAccepts, Ft8LibInterop.OsdDiagCapacity));
+        d.CorrNorm.Length.Should().Be(d.Nhard.Length);
+        d.Nhard.All(v => v >= 0 && v <= N).Should().BeTrue();
+        d.CorrNorm.All(v => v >= -1.0001f && v <= 1.0001f).Should().BeTrue();
+        d.Depth.All(v => v == OsdDepth).Should().BeTrue();
+        d.Batch.All(v => v == 0 || v == 1).Should().BeTrue();
+        d.RejectNhard.Concat(d.RejectCorr).All(v => v >= 0).Should().BeTrue();
+
+        // The next call starts from zero, whatever the previous one recorded.
+        _ = Ft8LibInterop.DecodeAll(new float[180_000]);
+        var e = Ft8LibInterop.GetLastOsdDiag(2);
+        e.TotalAccepts.Should().Be(0);
+        e.RejectNhard.Concat(e.RejectCorr).All(v => v == 0).Should().BeTrue();
+    }
+
     // ── 3.2 no bare callers ─────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-084: every osd_decode caller is preceded by osd_prepare_llr on the same array")]

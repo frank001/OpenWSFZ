@@ -247,4 +247,11 @@ internal interface IFt8NativeInterop
 
     /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch. Default: 1 (the corrected behaviour).</summary>
     int GetOsdSignFix() => 1;
+
+    /// <summary>
+    /// osd-sign-fix R6 (shim 20260060): the last decode's OSD gate diagnostics (numbers only). Default: none.
+    /// </summary>
+    (int[] Nhard, float[] CorrNorm, int[] Depth, int[] Batch, int TotalAccepts, int[] RejectNhard, int[] RejectCorr)
+        GetLastOsdDiag(int passCapacity)
+        => ([], [], [], [], 0, new int[passCapacity], new int[passCapacity]);
 }

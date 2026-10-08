@@ -51,6 +51,9 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public int GetOsdSignFix() => Ft8LibInterop.GetOsdSignFix();
 
+    public (int[] Nhard, float[] CorrNorm, int[] Depth, int[] Batch, int TotalAccepts, int[] RejectNhard, int[] RejectCorr)
+        GetLastOsdDiag(int passCapacity) => Ft8LibInterop.GetLastOsdDiag(passCapacity);
+
     public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(
         float[] pcm, int coarseFreqHz, float coarseTimeOffsetS)
         => Ft8LibInterop.RefineCandidate(pcm, coarseFreqHz, coarseTimeOffsetS);

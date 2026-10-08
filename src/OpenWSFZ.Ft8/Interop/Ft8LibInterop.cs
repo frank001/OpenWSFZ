@@ -631,6 +631,13 @@ internal static class Ft8LibInterop
                CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeSetOsdSignFix(int enabled);
 
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_osd_diag",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastOsdDiag(
+        int capacity,
+        [Out] int[] nhard, [Out] float[] corrNorm, [Out] int[] depth, [Out] int[] batch,
+        out int totalAccepts, [Out] int[] rejectNhard, [Out] int[] rejectCorr, int passCapacity);
+
     /// <summary>osd-sign-fix (shim 20260060): read the OSD sign switch.</summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_get_osd_sign_fix",
                CallingConvention = CallingConvention.Cdecl)]
@@ -1023,6 +1030,25 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         NativeSetOsdSignFix(enabled);
+    }
+
+    /// <summary>Capacity of the per-accept arrays <see cref="GetLastOsdDiag"/> reads (the native store holds 256).</summary>
+    public const int OsdDiagCapacity = 256;
+
+    /// <summary>
+    /// osd-sign-fix R6 (shim 20260060): OSD gate diagnostics of the last <c>DecodeAll</c> on this thread, numbers only.
+    /// An accept is a candidate that passed the OSD gate; <c>RejectNhard</c> / <c>RejectCorr</c> are per decode pass.
+    /// </summary>
+    public static (int[] Nhard, float[] CorrNorm, int[] Depth, int[] Batch, int TotalAccepts, int[] RejectNhard, int[] RejectCorr)
+        GetLastOsdDiag(int passCapacity)
+    {
+        EnsureInitialized();
+        var nhard = new int[OsdDiagCapacity]; var cn = new float[OsdDiagCapacity];
+        var depth = new int[OsdDiagCapacity]; var batch = new int[OsdDiagCapacity];
+        var rn = new int[passCapacity]; var rc = new int[passCapacity];
+        int n = NativeGetLastOsdDiag(OsdDiagCapacity, nhard, cn, depth, batch, out int total, rn, rc, passCapacity);
+        Array.Resize(ref nhard, n); Array.Resize(ref cn, n); Array.Resize(ref depth, n); Array.Resize(ref batch, n);
+        return (nhard, cn, depth, batch, total, rn, rc);
     }
 
     /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch (1 or 0).</summary>

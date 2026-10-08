@@ -12,12 +12,15 @@ three callers in ftx_decode_candidate, ftx_ldpc_decode_llrs and the AP path). Ne
 ft8_get_osd_sign_fix(void); default 1; 0 reproduces the previous shim (3000 random LLR vectors through
 ft8_ldpc_decode_llrs: results identical to the origin/main DLL at switch 0, 52 chance OSD accepts included). Not wired to
 config, UI or API. nhard 40 and corr 0.10 were calibrated on the inverted output and are unchanged here.
+Second commit (R6): export ft8_get_last_osd_diag returns, per ft8_decode_all call, nhard / corr-norm / depth / batch for each
+candidate that passed the OSD gate, and per-pass gate-reject counts by reason (nhard cap, corr). Numbers only, no file I/O;
+decode outputs identical to the first commit's DLL (306 cycle x switch decodes and 3000 LLR vectors diffed).
 
   Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
-    60d5e70a2ae3944b96998028ad188893f72d1f026026a9575547453156259187
+    2029b0804a9abcc378fa037893b28236e4e5dec4459ba443d31c2027a58d82bb
     (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
   Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
-    82042f650348be9bf76a57f1119e6e01287cfda7aee643624ce4a50c4a42c4b3
+    daf70200394508362ca24cfaf1c3d8a5d02ca94be86f004db2770baa539d080f
     tools/check_native_version.py reports shim 20260060 for both files built here.
   macOS ARM64: NOT rebuilt here -- no Mac available locally. CI owns it.
 

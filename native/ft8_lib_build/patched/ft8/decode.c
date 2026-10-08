@@ -64,6 +64,14 @@ extern float s_osd_corr_threshold;   /* runtime-configurable; default 0.10f (shi
 extern int   s_osd_sign_fix;         /* 1 = negate LLRs for OSD (shim 20260060, #215) */
 extern int   s_osd_nhard_max;        /* runtime-configurable; default 60   (shim 20260030) */
 
+/* osd-sign-fix R6 (shim 20260060): numbers-only OSD gate diagnostics, recorded into thread-local arrays owned by
+ * ft8_shim.c and read back by ft8_get_last_osd_diag. They only COUNT and RECORD; they never alter a decode. No file
+ * I/O, no message text. reason 0 = nhard cap, 1 = corr/norm threshold. Called from ftx_decode_candidate and
+ * ftx_decode_candidate_ap only (the ft8_ldpc_decode_llrs probe does not record). */
+extern void ft8_osd_diag_accept(int nhard, float corr_norm, int depth);
+extern void ft8_osd_diag_reject(int reason);
+#define OSD_DIAG_DEPTH 2   /* both recording callers hard-code ndeep = 2 */
+
 /* Compatibility aliases so the gate code below continues to compile unmodified. */
 #define OSD_CORR_THRESHOLD s_osd_corr_threshold
 #define OSD_NHARD_MAX      s_osd_nhard_max
@@ -716,10 +724,15 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
             _s1_corr  = osd_corr;
             _s1_norm  = osd_norm;
 #endif
-            if (nhard > OSD_NHARD_MAX)
+            if (nhard > OSD_NHARD_MAX) {
+                ft8_osd_diag_reject(0);          /* osd-sign-fix R6: count only, no effect on the decode */
                 return false;
-            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+            }
+            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD) {
+                ft8_osd_diag_reject(1);
                 return false;
+            }
+            ft8_osd_diag_accept(nhard, (osd_norm > 0.0f) ? (osd_corr / osd_norm) : 0.0f, OSD_DIAG_DEPTH);
         }
         status->ldpc_errors = 0;
     }
@@ -1134,10 +1147,15 @@ bool ftx_decode_candidate_ap(
             _s2_corr  = osd_corr;
             _s2_norm  = osd_norm;
 #endif
-            if (nhard > OSD_NHARD_MAX)
+            if (nhard > OSD_NHARD_MAX) {
+                ft8_osd_diag_reject(0);          /* osd-sign-fix R6: count only, no effect on the decode */
                 return false;
-            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+            }
+            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD) {
+                ft8_osd_diag_reject(1);
                 return false;
+            }
+            ft8_osd_diag_accept(nhard, (osd_norm > 0.0f) ? (osd_corr / osd_norm) : 0.0f, OSD_DIAG_DEPTH);
         }
         status->ldpc_errors = 0;
     }
