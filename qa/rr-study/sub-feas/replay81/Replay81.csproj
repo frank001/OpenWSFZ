@@ -21,6 +21,8 @@
     <DefineConstants Condition="'$(HasMaxThreads)' == 'true'">$(DefineConstants);HAS_MAXTHREADS</DefineConstants>
     <!-- sub-feas two-stage publish: only the two-stage build (247ac391) has DecodeTwoStageAsync. -->
     <DefineConstants Condition="'$(HasTwoStage)' == 'true'">$(DefineConstants);HAS_TWOSTAGE</DefineConstants>
+    <!-- osd-sign-fix (#215): only the build with Ft8Decoder.SetOsdSignFix / GetOsdSignFix (shim 20260060+). With it, the osd-sign-fix argument (0 or 1) is REQUIRED and read back. -->
+    <DefineConstants Condition="'$(HasOsdSignFix)' == 'true'">$(DefineConstants);HAS_OSDSIGNFIX</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

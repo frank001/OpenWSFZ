@@ -158,6 +158,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
         => _interop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
 
+    /// <summary>osd-sign-fix (#215, shim 20260060): sets the process-global OSD sign switch (1 = corrected, 0 = previous behaviour). For the replay harness; the daemon never calls it.</summary>
+    public void SetOsdSignFix(int enabled) => _interop.SetOsdSignFix(enabled);
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch.</summary>
+    public int GetOsdSignFix() => _interop.GetOsdSignFix();
+
     /// <summary>
     /// sub-feas-native-subtraction (design.md Decision 6): gates the additive residual-decode
     /// pass (<see cref="SubtractionPass"/>). Default <c>false</c> at construction — with the
@@ -296,7 +302,30 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         DateTime          cycleStart,
         string?           currentBand,
         CancellationToken ct = default)
-        => DecodeCoreAsync(pcm, cycleStart, currentBand, onFirstBatch: null, ct);
+        => DecodeCoreAsync(pcm, cycleStart, currentBand, onFirstBatch: null, early: false, ct);
+
+    /// <summary>
+    /// decode-early-batch-panel (#122 step 4, phase 4a, design.md D3/D4): the <b>early</b> decode of a zero-filled
+    /// partial window. It is <b>pass 0 only</b>: it never reads <c>_subtractionEnabled</c> and never runs
+    /// <see cref="SubtractionPass"/> (so it costs about what the full single-pass decode costs, not the residual
+    /// pass on top), and it writes no instance state. The native call is bracketed, inside the same
+    /// <see cref="Task.Run(Func{TResult})"/> lambda as <c>DecodeAll</c>, by a save and (in a <c>finally</c>) a restore
+    /// of the process-global decode state (<c>ft8_hash_state_*</c>), so a decode that adds callsigns or moves the
+    /// counters leaves nothing behind that could change the FINAL decode of the same window (R4). The caller must
+    /// hold the decode gate: no other decode may run between the save and the restore.
+    /// The per-cycle Information log lines of an ordinary decode are NOT written (they would duplicate the
+    /// <c>Cycle</c> lines that log parsers read); the early service writes its own line.
+    /// </summary>
+    /// <param name="pcm">15 s x 12 000 Hz mono PCM, the first part real, the tail zero.</param>
+    /// <param name="cycleStart">UTC instant the window began accumulating.</param>
+    /// <param name="currentBand">The session current band, or <c>null</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public Task<IReadOnlyList<DecodeResult>> DecodeEarlyAsync(
+        float[]           pcm,
+        DateTime          cycleStart,
+        string?           currentBand,
+        CancellationToken ct = default)
+        => DecodeCoreAsync(pcm, cycleStart, currentBand, onFirstBatch: null, early: true, ct);
 
     /// <summary>
     /// Whether the residual-decode pass (<c>decoder.subtractionEnabled</c>) is currently on. The daemon pump reads
@@ -349,7 +378,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             await publishFirstBatch(batch1).ConfigureAwait(false);
         }
 
-        var second = await DecodeCoreAsync(pcm, cycleStart, currentBand, MarkAndPublish, ct).ConfigureAwait(false);
+        var second = await DecodeCoreAsync(pcm, cycleStart, currentBand, MarkAndPublish, early: false, ct).ConfigureAwait(false);
 
         if (!published)
         {
@@ -371,11 +400,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         DateTime                                   cycleStart,
         string?                                    currentBand,
         Func<IReadOnlyList<DecodeResult>, Task>?   onFirstBatch,
+        bool                                       early,
         CancellationToken                          ct)
     {
         // The flag is read ONCE per cycle. Two-stage only when the caller asked for it AND the flag is on: with the
         // flag off this method is, statement for statement, the pre-change single-batch path (P-9).
-        bool subtractionOn = _subtractionEnabled;
+        // The EARLY entry (decode-early-batch-panel D3) never reads the flag: it is pass 0 only, whatever the flag says.
+        bool subtractionOn = !early && _subtractionEnabled;
         bool twoStage      = onFirstBatch is not null && subtractionOn;
 
         // ── R2: Pre-condition guard ──────────────────────────────────────────
@@ -394,9 +425,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         float rms = ComputeRms(pcm);
         if (rms < SilenceRmsThreshold)
         {
-            _logger?.LogInformation(
-                "Cycle skipped — RMS {Rms:E3} is below silence guard (threshold {Threshold:E3}).",
-                rms, SilenceRmsThreshold);
+            if (early)
+                _logger?.LogDebug("Early decode skipped — RMS {Rms:E3} is below silence guard.", rms);
+            else
+                _logger?.LogInformation(
+                    "Cycle skipped — RMS {Rms:E3} is below silence guard (threshold {Threshold:E3}).",
+                    rms, SilenceRmsThreshold);
             return [];
         }
 
@@ -450,20 +484,43 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         {
             (native, passCounts, candidateCounts, noiseFloorDb, llrStats) = await Task.Run(() =>
             {
-                // AP decode constraints (H6, D-001): must be set on the same thread as DecodeAll.
-                // Snapshot to avoid tearing — _apConstraints is volatile but is a reference type.
-                var ap = _apConstraints;
-                if (ap is not null)
-                    _interop.SetApBits(ap.MycallBits, ap.HiscallBits);
-                else
-                    _interop.SetApBits([], []);  // explicitly clear any TLS residue from a prior cycle
+                // decode-early-batch-panel R4 (design.md D4): the EARLY decode saves the process-global decode state
+                // before the native call and restores it in a finally, in THIS lambda (the native TLS is per-thread, and
+                // the bracket must cover exactly the native call). The ordinary decode does neither: its path is unchanged.
+                // The save is outside the try: if it throws there is no valid image, so nothing is restored.
+                byte[]? stateImage = null;
+                if (early)
+                {
+                    stateImage = RentStateImage();
+                    _interop.HashStateSave(stateImage);
+                }
+                try
+                {
+                    // AP decode constraints (H6, D-001): must be set on the same thread as DecodeAll.
+                    // Snapshot to avoid tearing — _apConstraints is volatile but is a reference type.
+                    // The early lambda sets them exactly as the final decode does (they are thread-local and
+                    // ft8_decode_all does not reset them; the early decode may run on a different pool thread).
+                    var ap = _apConstraints;
+                    if (ap is not null)
+                        _interop.SetApBits(ap.MycallBits, ap.HiscallBits);
+                    else
+                        _interop.SetApBits([], []);  // explicitly clear any TLS residue from a prior cycle
 
-                var r = _interop.DecodeAll(normalisedPcm);
-                var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
-                var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
-                var n = _interop.GetLastNoiseFloorDb();
-                var l = _interop.GetLastLlrStats(_interop.MaxDecodePasses);
-                return (r, p, c, n, l);
+                    var r = _interop.DecodeAll(normalisedPcm);
+                    var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
+                    var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
+                    var n = _interop.GetLastNoiseFloorDb();
+                    var l = _interop.GetLastLlrStats(_interop.MaxDecodePasses);
+                    return (r, p, c, n, l);
+                }
+                finally
+                {
+                    if (stateImage is not null)
+                    {
+                        _interop.HashStateRestore(stateImage);
+                        ReturnStateImage(stateImage);
+                    }
+                }
             }, ct);
         }
         catch (NativeAccessViolationException)
@@ -641,6 +698,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             }
         }
 
+        // The early decode returns here, BEFORE the per-cycle Information lines below: they would duplicate the
+        // "Cycle {Time}: ... decode(s) found" line that log parsers read, and the cumulative counters they print are
+        // the final decode to report. The early service writes its own one line (design.md D8).
+        if (early) return results;
+
         // ── Diagnostic log ───────────────────────────────────────────────────
         // Spec requirement: "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms"
         _logger?.LogInformation(
@@ -711,6 +773,24 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
         return results;
     }
+
+    // ── Early-decode state image (decode-early-batch-panel D4) ────────────────
+
+    /// <summary>
+    /// The reusable heap buffer for the native state image (about 150 KB: large-object heap, so reused, never a stack).
+    /// Rented with <see cref="Interlocked.Exchange{T}(ref T, T)"/>, so two overlapping early decodes (which the daemon
+    /// decode gate forbids) could not share one buffer.
+    /// </summary>
+    private byte[]? _stateImage;
+
+    private byte[] RentStateImage()
+    {
+        int size = _interop.HashStateSize();
+        var buf  = Interlocked.Exchange(ref _stateImage, null);
+        return buf is not null && buf.Length == size ? buf : new byte[size];
+    }
+
+    private void ReturnStateImage(byte[] buf) => Volatile.Write(ref _stateImage, buf);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

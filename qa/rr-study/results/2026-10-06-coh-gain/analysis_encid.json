@@ -1,0 +1,48 @@
+{
+ "P": 0.9911949685534591,
+ "P_ci95": [
+  0.9843184559710495,
+  0.9971305595408895
+ ],
+ "P_without_placeholder_rows": 0.9911949685534591,
+ "call_eq": 788,
+ "enc_match": 788,
+ "hash_eq_given_call_eq": 788,
+ "icq_rows": 793,
+ "mutants": {
+  "m1_keep_RR73": {
+   "enc_match": 788,
+   "rows_moved": 0
+  },
+  "m2_drop_slash_P": {
+   "enc_match": 788,
+   "rows_moved": 0
+  }
+ },
+ "n_x": 795,
+ "placeholder_enc_match": 0,
+ "placeholder_rows": 0,
+ "reading": "NO READING",
+ "valid": false,
+ "validity": {
+  "Y1": {
+   "not_reproduced": 0,
+   "pass": true
+  },
+  "Y2": {
+   "osd_enc_match": 0,
+   "osd_rows": 19,
+   "pass": true
+  },
+  "Y3": {
+   "note": "synthetic round trip is tests/test_cg_encid.py, committed before Y1; run it with this analysis"
+  },
+  "Y4": {
+   "of": 795,
+   "pass": false,
+   "share": 0.21006289308176102,
+   "shuffled_enc_match": 167,
+   "tolerance": 0.02
+  }
+ }
+}

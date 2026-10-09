@@ -122,7 +122,7 @@ internal interface IFt8NativeInterop
     /// </summary>
     /// <param name="kMinScorePass2">Pass-1 candidate score floor (default 10, valid [5, 30]).</param>
     /// <param name="osdCorrThreshold">OSD normalised correlation gate (default 0.10f, valid [0.05, 0.40]).</param>
-    /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (default 60, valid [30, 100]).</param>
+    /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (native default 60; the daemon passes its managed default 24 and enforces [24, 100] in the config API).</param>
     void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax);
 
     /// <summary>
@@ -250,4 +250,34 @@ internal interface IFt8NativeInterop
     /// not depend on it. Default: no-op.
     /// </summary>
     void SetDiagnosticsEnabled(bool enabled) { }
+
+    /// <summary>
+    /// decode-early-batch-panel (shim 20260058): the size in bytes of the native process-global decode-state image.
+    /// Default: 0 (a fake that does not model the state needs no implementation).
+    /// </summary>
+    int HashStateSize() => 0;
+
+    /// <summary>
+    /// decode-early-batch-panel: copies the process-global decode state (session hash table, reject count, announce
+    /// clock, h12 counters) into <paramref name="buffer"/> (at least <see cref="HashStateSize"/> bytes). Default: no-op.
+    /// </summary>
+    void HashStateSave(byte[] buffer) { }
+
+    /// <summary>
+    /// decode-early-batch-panel: puts an image written by <see cref="HashStateSave"/> back. Default: no-op.
+    /// </summary>
+    void HashStateRestore(byte[] buffer) { }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): sets the OSD sign switch. Default: no-op (a fake does not model it).</summary>
+    void SetOsdSignFix(int enabled) { }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch. Default: 1 (the corrected behaviour).</summary>
+    int GetOsdSignFix() => 1;
+
+    /// <summary>
+    /// osd-sign-fix R6 (shim 20260060): the last decode's OSD gate diagnostics (numbers only). Default: none.
+    /// </summary>
+    (int[] Nhard, float[] CorrNorm, int[] Depth, int[] Batch, int TotalAccepts, int[] RejectNhard, int[] RejectCorr)
+        GetLastOsdDiag(int passCapacity)
+        => ([], [], [], [], 0, new int[passCapacity], new int[passCapacity]);
 }

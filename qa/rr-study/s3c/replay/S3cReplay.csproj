@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    S3c separating replay harness (QA-owned, test-only, no src/ change). Architect ruling
+    qa/rr-study/2026-10-05-1540-architect-s3c-third-battery-ruling.md section 4.
+    It references the Ft8 library of WHATEVER checkout RepoRoot points at, so one source is built twice:
+
+      dotnet build S3cReplay.csproj -c Release -p:RepoRoot=<766f9cc2 checkout> -p:HasEarly=true -o <out_new>
+      dotnet build S3cReplay.csproj -c Release -p:RepoRoot=<cddd7e34 checkout>                  -o <out_old>
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RepoRoot Condition="'$(RepoRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\..</RepoRoot>
+    <DefineConstants Condition="'$(HasEarly)' == 'true'">$(DefineConstants);HAS_EARLY</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

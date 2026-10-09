@@ -190,6 +190,9 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_subfeas_pool_configure ^
    /EXPORT:ft8_subfeas_pool_shutdown ^
    /EXPORT:ft8_subfeas_pool_get_stats ^
+   /EXPORT:ft8_hash_state_size ^
+   /EXPORT:ft8_hash_state_save ^
+   /EXPORT:ft8_hash_state_restore ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
    monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj subfeas_fit.obj
 
@@ -232,7 +235,14 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
-Verify exports (all fifteen symbols must appear — r1-sync-refiner-instrument-validation adds
+osd-sign-fix (#215, shim 20260060) adds `ft8_set_osd_sign_fix` and `ft8_get_osd_sign_fix` (also in the `rebuild_shim.bat`
+`/EXPORT` list). The OSD fallback now gets LLRs in its own convention (positive = bit 0, negated in place from the BP
+convention) and its acceptance gate reads the same array; until shim 20260059 every OSD accept was a chance CRC-14 hit. The
+`nhard` 40 and corr 0.10 gate values were calibrated on that inverted output and carry over unchanged until re-derived.
+
+Verify exports (the symbols listed in the Windows link step above must appear, including the three
+`ft8_hash_state_*` exports added by decode-early-batch-panel, shim 20260058; the older note follows —
+all fifteen symbols must appear — r1-sync-refiner-instrument-validation adds
 ft8_refine_candidate, n1-extract-llrs-at-position adds ft8_extract_llrs_at,
 r2-coherent-llr-instrument Phase 1 adds ft8_coherent_llr_at, Phase B Amendment 1 adds
 ft8_ldpc_decode_llrs):

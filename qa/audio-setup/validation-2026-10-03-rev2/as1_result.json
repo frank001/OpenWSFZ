@@ -1,0 +1,20 @@
+{
+ "PASS": true,
+ "buses": 5,
+ "complete_vs_type_table": true,
+ "endpoints": 32,
+ "fields_read_as_null": [],
+ "row": "AS1",
+ "schema_valid": true,
+ "sessions": 4,
+ "strips": 5,
+ "vm_type": "Banana",
+ "vm_version": "2.1.1.9",
+ "wsjtx_keys": [
+  "AudioInputChannel",
+  "AudioOutputChannel",
+  "SoundInName",
+  "SoundOutName",
+  "ini_sha256"
+ ]
+}

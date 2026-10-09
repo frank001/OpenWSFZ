@@ -479,7 +479,26 @@ internal static class Ft8LibInterop
     /// exports (20260055/20260056, from <c>main</c>) are all present. No native behaviour changes
     /// beyond the union; the number is new so it is not ambiguous with either side's DLL.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260057;
+    /// <remarks>
+    /// decode-early-batch-panel (#122 step 4, phase 4a), shim 20260058: adds three exports,
+    /// <c>ft8_hash_state_size</c>, <c>ft8_hash_state_save</c> and <c>ft8_hash_state_restore</c>
+    /// (bound as <see cref="HashStateSize"/>, <see cref="HashStateSave"/>, <see cref="HashStateRestore"/>), which copy
+    /// the whole process-global decode state to and from a caller-supplied buffer. Used only by the early decode
+    /// (<c>Ft8Decoder.DecodeEarlyAsync</c>) so that it leaves nothing behind that could change the final decode of the
+    /// same window. Changes NO decode output and no existing export.
+    /// </remarks>
+    /// <remarks>
+    /// osd-sign-fix (#215), shim 20260060: <c>osd_decode</c> read positive = bit 0 while the extractor and BP produce
+    /// positive = bit 1; the LLRs are now negated in place before OSD and its acceptance gate (which read the same array).
+    /// Adds <c>ft8_set_osd_sign_fix</c> / <c>ft8_get_osd_sign_fix</c> (bound as <see cref="SetOsdSignFix"/> / <see cref="GetOsdSignFix"/>).
+    /// </remarks>
+    /// <remarks>
+    /// sync decoding_improvement with main (DI sync 5, 2026-10-09), shim 20260061: the UNION of both lines of native
+    /// work again, no native behaviour change. The probe and decoder-param-readout exports (20260053/20260054) and
+    /// main's early-decode hash-state exports (20260058) and osd-sign-fix exports (20260060) are all present; the one
+    /// source hunk both lines touched is decode.c's OSD call (osd_prepare_llr, then osd_decode with OSD_DEPTH == 2).
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260061;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -661,6 +680,23 @@ internal static class Ft8LibInterop
         float osdCorrThreshold,
         int   osdNhardMax);
 
+    /// <summary>osd-sign-fix (shim 20260060): set the OSD sign switch (1 = corrected, 0 = previous behaviour).</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_osd_sign_fix",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetOsdSignFix(int enabled);
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_osd_diag",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastOsdDiag(
+        int capacity,
+        [Out] int[] nhard, [Out] float[] corrNorm, [Out] int[] depth, [Out] int[] batch,
+        out int totalAccepts, [Out] int[] rejectNhard, [Out] int[] rejectCorr, int passCapacity);
+
+    /// <summary>osd-sign-fix (shim 20260060): read the OSD sign switch.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_osd_sign_fix",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetOsdSignFix();
+
     /// <summary>
     /// Return the compile-time <c>K_MAX_PASSES</c> constant from the native shim.
     /// Used at initialisation time to detect drift between the C and C# pass-count
@@ -815,6 +851,18 @@ internal static class Ft8LibInterop
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_set_diagnostics_enabled", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeSetDiagnosticsEnabled(int enabled);
+
+    /// <summary>decode-early-batch-panel (shim 20260058): bytes the caller must supply to <see cref="NativeHashStateSave"/>.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_hash_state_size", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeHashStateSize();
+
+    /// <summary>decode-early-batch-panel (shim 20260058): copy the process-global decode state into <paramref name="buf"/>.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_hash_state_save", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeHashStateSave([Out] byte[] buf, int cap);
+
+    /// <summary>decode-early-batch-panel (shim 20260058): put a saved image back.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_hash_state_restore", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeHashStateRestore([In] byte[] buf, int len);
 
     // ── Public API ───────────────────────────────────────────────────────
 
@@ -1113,11 +1161,44 @@ internal static class Ft8LibInterop
     /// </summary>
     /// <param name="kMinScorePass2">Pass-1 candidate score floor (default 10, valid [5, 30]).</param>
     /// <param name="osdCorrThreshold">OSD normalised correlation gate (default 0.10f, valid [0.05, 0.40]).</param>
-    /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (default 60, valid [30, 100]).</param>
+    /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (native default 60; the daemon passes its managed default 24 and enforces [24, 100] in the config API).</param>
     public static void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
     {
         EnsureInitialized();
         NativeSetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
+    }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): sets the process-global OSD sign switch (1 = corrected, 0 = previous behaviour). Replay-harness use only; the daemon never calls it.</summary>
+    public static void SetOsdSignFix(int enabled)
+    {
+        EnsureInitialized();
+        NativeSetOsdSignFix(enabled);
+    }
+
+    /// <summary>Capacity of the per-accept arrays <see cref="GetLastOsdDiag"/> reads (the native store holds 256).</summary>
+    public const int OsdDiagCapacity = 256;
+
+    /// <summary>
+    /// osd-sign-fix R6 (shim 20260060): OSD gate diagnostics of the last <c>DecodeAll</c> on this thread, numbers only.
+    /// An accept is a candidate that passed the OSD gate; <c>RejectNhard</c> / <c>RejectCorr</c> are per decode pass.
+    /// </summary>
+    public static (int[] Nhard, float[] CorrNorm, int[] Depth, int[] Batch, int TotalAccepts, int[] RejectNhard, int[] RejectCorr)
+        GetLastOsdDiag(int passCapacity)
+    {
+        EnsureInitialized();
+        var nhard = new int[OsdDiagCapacity]; var cn = new float[OsdDiagCapacity];
+        var depth = new int[OsdDiagCapacity]; var batch = new int[OsdDiagCapacity];
+        var rn = new int[passCapacity]; var rc = new int[passCapacity];
+        int n = NativeGetLastOsdDiag(OsdDiagCapacity, nhard, cn, depth, batch, out int total, rn, rc, passCapacity);
+        Array.Resize(ref nhard, n); Array.Resize(ref cn, n); Array.Resize(ref depth, n); Array.Resize(ref batch, n);
+        return (nhard, cn, depth, batch, total, rn, rc);
+    }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch (1 or 0).</summary>
+    public static int GetOsdSignFix()
+    {
+        EnsureInitialized();
+        return NativeGetOsdSignFix();
     }
 
     /// <summary>
@@ -1474,6 +1555,44 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         NativeSetDiagnosticsEnabled(enabled ? 1 : 0);
+    }
+
+    /// <summary>
+    /// decode-early-batch-panel: the size in bytes of the native process-global decode-state image
+    /// (about 150 KB). Allocate the buffer on the heap, once, and reuse it.
+    /// </summary>
+    public static int HashStateSize()
+    {
+        EnsureInitialized();
+        return NativeHashStateSize();
+    }
+
+    /// <summary>
+    /// decode-early-batch-panel: copies the whole process-global decode state (session hash table, reject count,
+    /// announce clock, <c>g_h12_*</c> counters) into <paramref name="buffer"/>, which must be at least
+    /// <see cref="HashStateSize"/> bytes. Two saves of an identical state are byte-identical.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The native call rejected the buffer (too small).</exception>
+    public static void HashStateSave(byte[] buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        EnsureInitialized();
+        if (NativeHashStateSave(buffer, buffer.Length) < 0)
+            throw new InvalidOperationException(
+                $"ft8_hash_state_save rejected a {buffer.Length}-byte buffer (needs {NativeHashStateSize()}).");
+    }
+
+    /// <summary>
+    /// decode-early-batch-panel: puts an image written by <see cref="HashStateSave"/> back.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The native call rejected the image (wrong length).</exception>
+    public static void HashStateRestore(byte[] buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        EnsureInitialized();
+        if (NativeHashStateRestore(buffer, buffer.Length) != 0)
+            throw new InvalidOperationException(
+                $"ft8_hash_state_restore rejected a {buffer.Length}-byte image (needs exactly {NativeHashStateSize()}).");
     }
 
     // ── Lazy initialisation ──────────────────────────────────────────────

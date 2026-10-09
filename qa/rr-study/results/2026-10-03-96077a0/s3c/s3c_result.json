@@ -1,0 +1,120 @@
+{
+ "decoders": {
+  "OpenWSFZ": {
+   "alltxt_lines": 1011,
+   "alltxt_other_lines": 850,
+   "parts": {
+    "S3c-E50": {
+     "L": -2.0,
+     "X": 16,
+     "descriptive": false,
+     "k_star": 4,
+     "n": 32,
+     "pass": true,
+     "r_ref": 0.28165331009809136,
+     "rate": 0.5
+    },
+    "S3c-E90": {
+     "L": -1.75,
+     "X": 32,
+     "descriptive": false,
+     "k_star": 24,
+     "n": 32,
+     "pass": true,
+     "r_ref": 0.8928208002353198,
+     "rate": 1.0
+    },
+    "S3c-L50": {
+     "L": 3.0,
+     "X": 0,
+     "descriptive": true,
+     "k_star": 0,
+     "n": 32,
+     "pass": true,
+     "r_ref": 0.0,
+     "rate": 0.0
+    },
+    "S3c-L90": {
+     "L": 2.75,
+     "X": 32,
+     "descriptive": false,
+     "k_star": 24,
+     "n": 32,
+     "pass": true,
+     "r_ref": 0.8928208002353198,
+     "rate": 1.0
+    }
+   },
+   "planted_slots_with_decode_pass": 8,
+   "wrong_cycle_decodes": 0
+  },
+  "WSJT-X": {
+   "alltxt_lines": 1119,
+   "alltxt_other_lines": 927,
+   "parts": {
+    "S3c-E50": {
+     "L": -2.0,
+     "X": 32,
+     "descriptive": false,
+     "k_star": 22,
+     "n": 32,
+     "pass": true,
+     "r_ref": 0.8425573603233156,
+     "rate": 1.0
+    },
+    "S3c-E90": {
+     "L": -1.75,
+     "X": 32,
+     "descriptive": false,
+     "k_star": 24,
+     "n": 32,
+     "pass": true,
+     "r_ref": 0.8928208002353198,
+     "rate": 1.0
+    },
+    "S3c-L50": {
+     "L": 3.0,
+     "X": 0,
+     "descriptive": true,
+     "k_star": 0,
+     "n": 32,
+     "pass": true,
+     "r_ref": 0.0,
+     "rate": 0.0
+    },
+    "S3c-L90": {
+     "L": 2.75,
+     "X": 32,
+     "descriptive": false,
+     "k_star": 24,
+     "n": 32,
+     "pass": true,
+     "r_ref": 0.8928208002353198,
+     "rate": 1.0
+    }
+   },
+   "planted_slots_with_decode_pass": 8,
+   "wrong_cycle_decodes": 0
+  }
+ },
+ "guard_pass": true,
+ "meta": {
+  "build_sha": "cddd7e340d922abddefbbe1dc9ff35e76ec93e7d",
+  "dll_sha256_prefix": "ee00d118523ee216",
+  "scenario_sha256": "dc3a3fe87de0f227bf51e952cd085888ef3c873cc2a912f345c909a0af9604aa",
+  "subtraction_enabled": "true"
+ },
+ "points": {
+  "S3c-E50": -2.0,
+  "S3c-E90": -1.75,
+  "S3c-L50": 3.0,
+  "S3c-L90": 2.75
+ },
+ "rows": {
+  "S3c-OWSFZ (guard)": "PASS",
+  "S3c-WSJT-X (validity)": "PASS"
+ },
+ "scenario": "S3c",
+ "state": "VALID",
+ "validity_pass": true
+}

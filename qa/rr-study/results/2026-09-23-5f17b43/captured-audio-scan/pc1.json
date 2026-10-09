@@ -1,0 +1,2054 @@
+{
+ "seed": 20261002,
+ "levels": [
+  0.5,
+  1.0,
+  2.0
+ ],
+ "thresholds_sha256_lf": "a3b19753d66fa0d603dc2b6f5388a093d2b0d402da702320aadbbd5aac84cad9",
+ "summary": {
+  "PASS": 71,
+  "FAIL": 5,
+  "NOT-INJECTABLE": 8,
+  "DESCRIPTIVE": 14,
+  "BLIND": 8,
+  "UNTESTED": 10
+ },
+ "results": [
+  {
+   "cell": "owsfz:single:step_db_max",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:single:g_db",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:single:zero_run_ms",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:single:tile_excess_db",
+   "status": "NOT-INJECTABLE",
+   "T": 31.341527529441226,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 3,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 0,
+     "of": 0
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "tone amplitude 3.54 FS needed (> full scale): not injectable",
+    "tone amplitude 6.35 FS needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "owsfz:single:drift_ppm",
+   "status": "PASS",
+   "T": 20.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 3,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:single:tau_ms",
+   "status": "PASS",
+   "T": 50.14068179531015,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 9,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:single:click_max",
+   "status": "PASS",
+   "T": 6.559263920513629,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 5,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:single:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:single:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:single:tail_zero_ms",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:single:hiccup",
+   "status": "FAIL",
+   "T": 20.0,
+   "expected_any_of": [
+    "drift_ppm"
+   ],
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 9,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 9,
+     "of": 10
+    }
+   },
+   "n_slots": 10
+  },
+  {
+   "cell": "owsfz:single:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "owsfz:multi:step_db_max",
+   "status": "PASS",
+   "T": 1.4169580919162272,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 9,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:multi:g_db",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 3,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:multi:zero_run_ms",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:multi:tile_excess_db",
+   "status": "NOT-INJECTABLE",
+   "T": 27.456580013260144,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 8,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 0,
+     "of": 0
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "tone amplitude 2.31 FS needed (> full scale): not injectable",
+    "tone amplitude 2.38 FS needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "owsfz:multi:drift_ppm",
+   "status": "PASS",
+   "T": 20.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:multi:tau_ms",
+   "status": "PASS",
+   "T": 41.7966976690911,
+   "rates": {
+    "0.5": {
+     "flagged": 1,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 5,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:multi:click_max",
+   "status": "PASS",
+   "T": 6.841173993183342,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 7,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:multi:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:multi:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:multi:tail_zero_ms",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:multi:hiccup",
+   "status": "PASS",
+   "T": 20.0,
+   "expected_any_of": [
+    "drift_ppm",
+    "step_db_max"
+   ],
+   "rates": {
+    "0.5": {
+     "flagged": 5,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10
+  },
+  {
+   "cell": "owsfz:multi:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "owsfz:noise:step_db_max",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:noise:g_db",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 4,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:noise:zero_run_ms",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:noise:tile_excess_db",
+   "status": "PASS",
+   "T": 10.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:noise:drift_ppm",
+   "status": "PASS",
+   "T": 20.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 4,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:noise:tau_ms",
+   "status": "PASS",
+   "T": 32.02269739752121,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 7,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:noise:click_max",
+   "status": "PASS",
+   "T": 6.6893633858633645,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 4,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:noise:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:noise:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:noise:tail_zero_ms",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:noise:hiccup",
+   "status": "PASS",
+   "T": 20.0,
+   "expected_any_of": [
+    "drift_ppm",
+    "step_db_max"
+   ],
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10
+  },
+  {
+   "cell": "owsfz:noise:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "owsfz:tone2:step_db_max",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone2:g_db",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 2,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone2:zero_run_ms",
+   "status": "PASS",
+   "T": 5.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone2:tile_excess_db",
+   "status": "NOT-INJECTABLE",
+   "T": 178.9365980440651,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 0,
+     "of": 0
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "tone amplitude 10565788.16 FS needed (> full scale): not injectable",
+    "tone amplitude 11624028.83 FS needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "owsfz:tone2:drift_ppm",
+   "status": "BLIND",
+   "why": "no valid values in this group (A3)"
+  },
+  {
+   "cell": "owsfz:tone2:tau_ms",
+   "status": "BLIND",
+   "why": "no valid values in this group (A3)"
+  },
+  {
+   "cell": "owsfz:tone2:click_max",
+   "status": "PASS",
+   "T": 1.323378794179146,
+   "rates": {
+    "0.5": {
+     "flagged": 5,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 7,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone2:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone2:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone2:tail_zero_ms",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:tone2:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "owsfz:tone3:step_db_max",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:tone3:g_db",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 6,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone3:zero_run_ms",
+   "status": "PASS",
+   "T": 5.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone3:tile_excess_db",
+   "status": "NOT-INJECTABLE",
+   "T": 97.97561368168442,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 0,
+     "of": 0
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "tone amplitude 10746.48 FS needed (> full scale): not injectable",
+    "tone amplitude 10746.49 FS needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "owsfz:tone3:drift_ppm",
+   "status": "BLIND",
+   "why": "no valid values in this group (A3)"
+  },
+  {
+   "cell": "owsfz:tone3:tau_ms",
+   "status": "BLIND",
+   "why": "no valid values in this group (A3)"
+  },
+  {
+   "cell": "owsfz:tone3:click_max",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:tone3:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone3:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "owsfz:tone3:tail_zero_ms",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "owsfz:tone3:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "wsjtx:single:step_db_max",
+   "status": "PASS",
+   "T": 1.2998100394005125,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 1,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:single:g_db",
+   "status": "PASS",
+   "T": 1.121660706168298,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 5,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:single:zero_run_ms",
+   "status": "PASS",
+   "T": 5.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:single:tile_excess_db",
+   "status": "NOT-INJECTABLE",
+   "T": 50.12324415977263,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 5,
+     "of": 7
+    },
+    "2.0": {
+     "flagged": 0,
+     "of": 0
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "tone amplitude 1.11 FS needed (> full scale): not injectable",
+    "tone amplitude 1.12 FS needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "wsjtx:single:drift_ppm",
+   "status": "FAIL",
+   "T": 20.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 5,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 9,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:single:tau_ms",
+   "status": "PASS",
+   "T": 81.39106519288045,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 7,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:single:click_max",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "wsjtx:single:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:single:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:single:tail_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:single:hiccup",
+   "status": "PASS",
+   "T": 20.0,
+   "expected_any_of": [
+    "drift_ppm",
+    "step_db_max"
+   ],
+   "rates": {
+    "0.5": {
+     "flagged": 8,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10
+  },
+  {
+   "cell": "wsjtx:single:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "wsjtx:multi:step_db_max",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:multi:g_db",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 6,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:multi:zero_run_ms",
+   "status": "PASS",
+   "T": 5.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:multi:tile_excess_db",
+   "status": "FAIL",
+   "T": 26.700429152562105,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 4,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 4,
+     "of": 4
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "tone amplitude 1.24 FS needed (> full scale): not injectable",
+    "tone amplitude 1.29 FS needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "wsjtx:multi:drift_ppm",
+   "status": "FAIL",
+   "T": 20.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 4,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 9,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:multi:tau_ms",
+   "status": "PASS",
+   "T": 57.81540969198767,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 7,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:multi:click_max",
+   "status": "NOT-INJECTABLE",
+   "T": 188.45441715329463,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 4
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 1
+    },
+    "2.0": {
+     "flagged": 0,
+     "of": 0
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "spike 131483 LSB needed (> full scale): not injectable",
+    "spike 137862 LSB needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "wsjtx:multi:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:multi:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:multi:tail_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:multi:hiccup",
+   "status": "PASS",
+   "T": 20.0,
+   "expected_any_of": [
+    "drift_ppm",
+    "step_db_max"
+   ],
+   "rates": {
+    "0.5": {
+     "flagged": 5,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10
+  },
+  {
+   "cell": "wsjtx:multi:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "wsjtx:noise:step_db_max",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:g_db",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 5,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:zero_run_ms",
+   "status": "PASS",
+   "T": 5.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:tile_excess_db",
+   "status": "PASS",
+   "T": 10.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:drift_ppm",
+   "status": "PASS",
+   "T": 20.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 6,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:tau_ms",
+   "status": "PASS",
+   "T": 17.04985749604816,
+   "rates": {
+    "0.5": {
+     "flagged": 2,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 7,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:click_max",
+   "status": "FAIL",
+   "T": 22.2691635404799,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 5,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 4,
+     "of": 4
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "spike 32018 LSB needed (> full scale): not injectable",
+    "spike 33197 LSB needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "wsjtx:noise:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:tail_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:noise:hiccup",
+   "status": "PASS",
+   "T": 20.0,
+   "expected_any_of": [
+    "drift_ppm",
+    "step_db_max"
+   ],
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10
+  },
+  {
+   "cell": "wsjtx:noise:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "wsjtx:tone2:step_db_max",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone2:g_db",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 5,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone2:zero_run_ms",
+   "status": "PASS",
+   "T": 5.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone2:tile_excess_db",
+   "status": "DESCRIPTIVE"
+  },
+  {
+   "cell": "wsjtx:tone2:drift_ppm",
+   "status": "BLIND",
+   "why": "no valid values in this group (A3)"
+  },
+  {
+   "cell": "wsjtx:tone2:tau_ms",
+   "status": "BLIND",
+   "why": "no valid values in this group (A3)"
+  },
+  {
+   "cell": "wsjtx:tone2:click_max",
+   "status": "PASS",
+   "T": 13.963260235840034,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone2:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone2:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone2:tail_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone2:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  },
+  {
+   "cell": "wsjtx:tone3:step_db_max",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone3:g_db",
+   "status": "PASS",
+   "T": 0.5,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 6,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone3:zero_run_ms",
+   "status": "PASS",
+   "T": 5.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone3:tile_excess_db",
+   "status": "NOT-INJECTABLE",
+   "T": 79.94724748264677,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 0,
+     "of": 0
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "tone amplitude 343.57 FS needed (> full scale): not injectable",
+    "tone amplitude 345.15 FS needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "wsjtx:tone3:drift_ppm",
+   "status": "BLIND",
+   "why": "no valid values in this group (A3)"
+  },
+  {
+   "cell": "wsjtx:tone3:tau_ms",
+   "status": "BLIND",
+   "why": "no valid values in this group (A3)"
+  },
+  {
+   "cell": "wsjtx:tone3:click_max",
+   "status": "NOT-INJECTABLE",
+   "T": 497.3265457691672,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 0
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 0
+    },
+    "2.0": {
+     "flagged": 0,
+     "of": 0
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": [
+    "spike 116936 LSB needed (> full scale): not injectable",
+    "spike 119395 LSB needed (> full scale): not injectable"
+   ]
+  },
+  {
+   "cell": "wsjtx:tone3:clip_n",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 10,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 10,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone3:head_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone3:tail_zero_ms",
+   "status": "PASS",
+   "T": 1.0,
+   "rates": {
+    "0.5": {
+     "flagged": 0,
+     "of": 10
+    },
+    "1.0": {
+     "flagged": 0,
+     "of": 10
+    },
+    "2.0": {
+     "flagged": 10,
+     "of": 10
+    }
+   },
+   "n_slots": 10,
+   "unmodified_flagged": 0,
+   "note": []
+  },
+  {
+   "cell": "wsjtx:tone3:resid_db",
+   "status": "UNTESTED",
+   "why": "no injection defined"
+  }
+ ]
+}

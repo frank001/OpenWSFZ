@@ -580,6 +580,8 @@ public static class WebApp
                         // No stored decoder section: no persisted 60 can ever have existed, so
                         // no migration is pending and the new section's marker is true (#199).
                         Nhard40MigrationApplied = store.Current.Decoder?.Nhard40MigrationApplied ?? true,
+                        // OSD-FIX R4 (2026-10-09): same rule for the 40 -> 24 marker; server-owned.
+                        Nhard24MigrationApplied = store.Current.Decoder?.Nhard24MigrationApplied ?? true,
                         // Same rule for the subtraction default-ON marker (v0.54): server-owned.
                         SubtractionOnMigrationApplied = store.Current.Decoder?.SubtractionOnMigrationApplied ?? true,
                     },
@@ -611,12 +613,12 @@ public static class WebApp
                     sanitisedDecoder = sanitisedDecoder with { OsdCorrThreshold = clamped };
                 }
 
-                // Clamp osdNhardMax to [30, 100].
-                if (decoderIn.OsdNhardMax < 30 || decoderIn.OsdNhardMax > 100)
+                // Clamp osdNhardMax to [24, 100] (OSD-FIX R4: 24 is the lowest value TEST measured).
+                if (decoderIn.OsdNhardMax < 24 || decoderIn.OsdNhardMax > 100)
                 {
-                    var clamped = Math.Clamp(decoderIn.OsdNhardMax, 30, 100);
+                    var clamped = Math.Clamp(decoderIn.OsdNhardMax, 24, 100);
                     configApiLogger.LogWarning(
-                        "Decoder: osdNhardMax {Original} out of range [30, 100] — clamped to {Clamped}.",
+                        "Decoder: osdNhardMax {Original} out of range [24, 100] — clamped to {Clamped}.",
                         decoderIn.OsdNhardMax, clamped);
                     sanitisedDecoder = sanitisedDecoder with { OsdNhardMax = clamped };
                 }
@@ -633,6 +635,23 @@ public static class WebApp
                             decoderIn.SubtractionMaxThreads, Math.Max(1, Environment.ProcessorCount), effective);
                         sanitisedDecoder = sanitisedDecoder with { SubtractionMaxThreads = effective };
                     }
+                }
+
+                // decode-early-batch-panel (FR-083): earlyDecodeCutSeconds is clamped to [0.5, 3.0] like the other
+                // decoder values (a non-finite value becomes the default).
+                if (double.IsNaN(decoderIn.EarlyDecodeCutSeconds) || double.IsInfinity(decoderIn.EarlyDecodeCutSeconds)
+                    || decoderIn.EarlyDecodeCutSeconds < DecoderConfig.MinEarlyDecodeCutSeconds
+                    || decoderIn.EarlyDecodeCutSeconds > DecoderConfig.MaxEarlyDecodeCutSeconds)
+                {
+                    double clamped = double.IsFinite(decoderIn.EarlyDecodeCutSeconds)
+                        ? Math.Clamp(decoderIn.EarlyDecodeCutSeconds,
+                            DecoderConfig.MinEarlyDecodeCutSeconds, DecoderConfig.MaxEarlyDecodeCutSeconds)
+                        : DecoderConfig.DefaultEarlyDecodeCutSeconds;
+                    configApiLogger.LogWarning(
+                        "Decoder: earlyDecodeCutSeconds {Original} out of range [{Min}, {Max}] — clamped to {Clamped}.",
+                        decoderIn.EarlyDecodeCutSeconds, DecoderConfig.MinEarlyDecodeCutSeconds,
+                        DecoderConfig.MaxEarlyDecodeCutSeconds, clamped);
+                    sanitisedDecoder = sanitisedDecoder with { EarlyDecodeCutSeconds = clamped };
                 }
 
                 if (!ReferenceEquals(sanitisedDecoder, decoderIn))

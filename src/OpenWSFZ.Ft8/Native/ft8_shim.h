@@ -851,8 +851,38 @@ extern "C" {
  *              suppression ramp defaults are as each side had them. The number is new so a
  *              merged DLL cannot be mistaken for either parent's (it identifies nothing;
  *              pin the DLL SHA-256).
+ *
+ *   20260058 — decode-early-batch-panel (#122 step 4, phase 4a). Three new exports, ft8_hash_state_size,
+ *              ft8_hash_state_save and ft8_hash_state_restore, which copy the WHOLE process-global decode state
+ *              (the session callsign hash table and its initialised flag, the reject count, the announce clock,
+ *              the g_h12_* counters and per-code arrays, g_h12_code_out_of_range) to and from a CALLER-SUPPLIED
+ *              buffer. The managed early decode (a zero-filled copy of the first 13.0 s, panel only) brackets
+ *              itself with save / restore so it leaves nothing behind that could change the final decode of the
+ *              same window. NO change to ft8_decode_all, to any existing export or to any decode output: the
+ *              pair is called only by the early entry; the ordinary decode never calls it. The list of what is
+ *              in the image, and why every thread-local is exempt, is the HSM-IMAGE / HSM-EXEMPT block in
+ *              ft8_shim.c, checked mechanically by HashStateCompletenessTests.
+ *
+ *   20260060 — osd-sign-fix (#215). osd_decode reads positive = bit 0 but the extractor and BP produce positive = bit 1, and
+ *              all three callers passed the array un-negated, so every OSD accept since 20260025 was a chance CRC-14 hit.
+ *              A helper (osd_prepare_llr) now negates llr_for_osd IN PLACE before osd_decode, and the acceptance gate
+ *              (nhard, corr/norm) reads that same array. New exports ft8_set_osd_sign_fix(int) / ft8_get_osd_sign_fix(void)
+ *              (default 1; 0 restores the previous behaviour). Not wired to config, UI or API. 20260059 is held by
+ *              origin/feat/sub-feas-stage-b (B2), not merged. Same change adds ft8_get_last_osd_diag (R6): per accepted OSD
+ *              decode nhard, corr/norm, depth and batch, plus per-pass gate-reject counts by reason; numbers only, no
+ *              decode output changes.
+ *
+ *   20260061 — decoding_improvement sync 5 (2026-10-09): the UNION of both lines of native work, NO new native
+ *              behaviour. decoding_improvement's exports (20260053 pass-1 probe: ft8_set_probe, ft8_clear_probe,
+ *              ft8_get_probe_llrs, ft8_get_last_suppression; 20260054 decoder-param-readout: ft8_get_decoder_params,
+ *              ft8_set_supp_params, ft8_get_supp_params) and main's (20260055/20260056 SUB-FEAS exports; 20260058
+ *              ft8_hash_state_size/_save/_restore; 20260060 osd-sign-fix: ft8_set_osd_sign_fix, ft8_get_osd_sign_fix,
+ *              ft8_get_last_osd_diag, osd_prepare_llr) are all present. The one source hunk that touched both lines is
+ *              decode.c's OSD call: osd_prepare_llr() then osd_decode(llr, OSD_DEPTH, ...) with OSD_DEPTH == 2 (the
+ *              literal main had). Flag-OFF decode output is as each side had it. The number is new so a merged DLL
+ *              cannot be mistaken for either parent's (it identifies nothing; pin the DLL SHA-256).
  */
-#define FT8_SHIM_VERSION 20260057
+#define FT8_SHIM_VERSION 20260061
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1137,6 +1167,33 @@ int ft8_encode_message(const char* message, uint8_t* tones_out, int tones_capaci
  * Safe to call before the first ft8_decode_all invocation.
  */
 void ft8_set_decode_params(int k_min_score_pass2, float osd_corr_threshold, int osd_nhard_max);
+
+/*
+ * ft8_set_osd_sign_fix / ft8_get_osd_sign_fix — osd-sign-fix switch (#215, shim 20260060).
+ * 1 (default): LLRs are negated into osd_decode's convention before OSD and its gate.
+ * 0: previous behaviour (inverted OSD input), for A/B replay. Non-zero values are stored as 1.
+ * Process-global, like the OSD gate parameters; not wired to config, UI or API.
+ */
+void ft8_set_osd_sign_fix(int enabled);
+int  ft8_get_osd_sign_fix(void);
+
+/*
+ * ft8_get_last_osd_diag — OSD gate diagnostics of the most recent ft8_decode_all call on this thread
+ * (osd-sign-fix R6, shim 20260060). Numbers only, no message text, no file I/O; recording never changes a decode.
+ * An "accept" is a candidate that passed the OSD gate (nhard cap and corr/norm); the CRC / plausibility checks after
+ * it are not part of the record. Candidates decoded by ft8_ldpc_decode_llrs are not recorded.
+ *   capacity            -- length of each out_nhard/out_corr_norm/out_depth/out_batch array (any may be NULL)
+ *   out_nhard           -- per accept: Hamming distance codeword vs channel hard decisions
+ *   out_corr_norm       -- per accept: corr/norm (0 if norm == 0)
+ *   out_depth           -- per accept: OSD ndeep used
+ *   out_batch           -- per accept: decode pass (0 or 1) within this call
+ *   out_total_accepts   -- total accepts this call (may exceed the 256 stored)
+ *   out_reject_nhard    -- per pass: rejected by the nhard cap       (pass_capacity entries, may be NULL)
+ *   out_reject_corr     -- per pass: nhard ok, rejected by corr/norm (pass_capacity entries, may be NULL)
+ * Returns the number of accepts written to the per-accept arrays. Same threading contract as ft8_get_last_pass_counts.
+ */
+int ft8_get_last_osd_diag(int capacity, int* out_nhard, float* out_corr_norm, int* out_depth, int* out_batch,
+                          int* out_total_accepts, int* out_reject_nhard, int* out_reject_corr, int pass_capacity);
 
 /*
  * ft8_refine_candidate -- diagnostic-only per-candidate coherent sync
@@ -1617,6 +1674,21 @@ int ft8_subfeas_fit_signal(
 void ft8_subfeas_pool_configure(int bound);
 void ft8_subfeas_pool_shutdown(void);
 void ft8_subfeas_pool_get_stats(int* out);
+
+/*
+ * ft8_hash_state_size / _save / _restore -- decode-early-batch-panel (shim 20260058). See ft8_shim.c's
+ * "snapshot / restore of the process-global decode state" block for the full contract and the completeness manifest.
+ *
+ * ft8_hash_state_size()          -- bytes the caller must supply (about 150 KB: heap, never a stack).
+ * ft8_hash_state_save(buf, cap)  -- copy the process-global decode state into buf; returns bytes written, or -1
+ *                                   (NULL buf, or cap < size). Padding bytes are zeroed, so two saves of an
+ *                                   identical state are byte-identical.
+ * ft8_hash_state_restore(buf, len) -- put a saved image back; returns 0, or -1 (NULL buf, or len != size).
+ * Not thread-safe by itself: the managed caller makes the save / decode / restore bracket exclusive (the decode gate).
+ */
+int ft8_hash_state_size(void);
+int ft8_hash_state_save(void* buf, int cap);
+int ft8_hash_state_restore(const void* buf, int len);
 
 #ifdef __cplusplus
 }

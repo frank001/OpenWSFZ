@@ -1,0 +1,27 @@
+{
+ "AS3_PASS_amended": true,
+ "AS4_PASS": true,
+ "changes_logged": 0,
+ "cold_sample_ms": 627.2,
+ "cpu_fraction_of_one_core": 0.00385,
+ "duration_s": 605,
+ "heartbeats": 11,
+ "max_heartbeat_gap_s": 60.5,
+ "orphans": [],
+ "records_schema_valid": 14,
+ "row": "AS3+AS4",
+ "teardown": {
+  "force_killed": false,
+  "pidfile_removed": true,
+  "returncode": 0,
+  "stderr_bytes": 0,
+  "stderr_head": ""
+ },
+ "unverified_start_diffs": 0,
+ "vm_dirty_calls": 122,
+ "vm_dirty_loop_max": 2,
+ "vm_dirty_nonzero": 1,
+ "warm_sample_ms_max": 80.5,
+ "worker_crashes": 0,
+ "worker_pids_measured": 2
+}

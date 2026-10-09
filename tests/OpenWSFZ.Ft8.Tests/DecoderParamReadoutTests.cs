@@ -322,17 +322,60 @@ public sealed class DecoderParamReadoutTests
         e.DefaultValue.Should().Be(60, "the compiled-in default is unchanged by a set: that split is the point of the feature");
     }
 
+    /// <summary>
+    /// The ONLY <c>#define K_*</c> names in ft8_shim.c that are deliberately not rows of the parameter table. EXACT names, never a
+    /// pattern. <c>K_OSD_DIAG_MAX</c>: the capacity of the OSD-diagnostics buffers added by main's osd-sign-fix R6 (shim 20260060); it is not a
+    /// tuning constant the decode path reads, and tabling it would show it to the operator as a decoder parameter and change
+    /// ft8_get_decoder_params (QA ruling, DI sync 5, 2026-10-09). <see cref="KDefineTableProblems"/> fails if an entry here stops being a
+    /// #define or becomes a table row.
+    /// </summary>
+    private static readonly string[] UntabledKDefines = ["K_OSD_DIAG_MAX"];
+
+    private static List<string> KDefineNames(string shimSource)
+        => Regex.Matches(shimSource, @"^[ \t]*#define[ \t]+(K_[A-Z0-9_]+)\b", RegexOptions.Multiline)
+                .Select(m => m.Groups[1].Value).Distinct().ToList();
+
+    /// <summary>Pure check: every <c>#define K_*</c> is a table row or an allowlisted name; every allowlisted name IS such a #define and is NOT a table row.</summary>
+    internal static List<string> KDefineTableProblems(string shimSource, IReadOnlyCollection<string> tableNames, IReadOnlyCollection<string> allowlist)
+    {
+        var problems = new List<string>();
+        var defines = KDefineNames(shimSource);
+        foreach (string d in defines)
+            if (!tableNames.Contains(d) && !allowlist.Contains(d))
+                problems.Add($"#define {d} is not a table row and not allowlisted");
+        foreach (string a in allowlist)
+        {
+            if (!defines.Contains(a)) problems.Add($"allowlisted {a} is not a #define K_* in the shim (stale exemption)");
+            if (tableNames.Contains(a)) problems.Add($"allowlisted {a} IS a table row (contradictory exemption)");
+        }
+        return problems;
+    }
+
+    [Fact(DisplayName = "FR-078: the K_ define check can fail (a K_ define missing from the table, a stale or contradictory exemption)")]
+    public void KDefineTableCheck_CanFail()
+    {
+        const string src = "#define K_REAL 5\n#define K_FAKE_NEW 9\n#define K_EXEMPT 3\n";
+        string[] table = ["K_REAL"];
+
+        KDefineTableProblems(src, table, ["K_EXEMPT"]).Should().ContainSingle().Which.Should().Contain("K_FAKE_NEW");
+        KDefineTableProblems(src, ["K_REAL", "K_FAKE_NEW"], ["K_EXEMPT"]).Should().BeEmpty("a complete table plus a valid exemption passes");
+        KDefineTableProblems(src, ["K_REAL", "K_FAKE_NEW"], ["K_GONE"]).Should().Contain(p => p.Contains("K_GONE") && p.Contains("stale"));
+        KDefineTableProblems(src, ["K_REAL", "K_FAKE_NEW", "K_EXEMPT"], ["K_EXEMPT"]).Should().Contain(p => p.Contains("K_EXEMPT") && p.Contains("contradictory"));
+    }
+
     [Fact(DisplayName = "FR-078: every compile-time value in the table equals the #define the decode path reads (ft8_shim.c and patched decode.c)")]
     public void CompileTimeEntries_EqualTheirDefines()
     {
         var t = ReadTable();
         string shim = RepoFile(ShimC), decode = RepoFile(DecodeC);
 
-        // Every #define K_* in the shim must be tabled (S1-f(i)). Literal-valued ones are compared to
-        // their #define; the two derived ones are checked by their relation.
-        var kNames = Regex.Matches(shim, @"^[ \t]*#define[ \t]+(K_[A-Z0-9_]+)\b", RegexOptions.Multiline)
-                          .Select(m => m.Groups[1].Value).Distinct().ToList();
+        // Every #define K_* in the shim must be tabled (S1-f(i)), except the exact names in UntabledKDefines.
+        // Literal-valued ones are compared to their #define; the two derived ones are checked by their relation.
+        var kNames = KDefineNames(shim);
         kNames.Should().NotBeEmpty();
+        KDefineTableProblems(shim, t.Select(e => e.Name).ToList(), UntabledKDefines)
+            .Should().BeEmpty("every #define K_* is a row in the table, or an exact-name exemption that is itself still valid");
+        kNames = kNames.Where(n => !UntabledKDefines.Contains(n)).ToList();
         var derived = new[] { "K_MAX_DECODED", "K_MAX_CANDIDATES_ANY_PASS" };
 
         foreach (string name in kNames)
