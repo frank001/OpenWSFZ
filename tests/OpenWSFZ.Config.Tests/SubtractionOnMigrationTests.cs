@@ -170,10 +170,10 @@ public sealed class SubtractionOnMigrationTests
 
         var store = new JsonConfigStore(path);
 
-        store.Current.Decoder!.OsdNhardMax.Should().Be(40);
+        store.Current.Decoder!.OsdNhardMax.Should().Be(24);
         store.Current.Decoder.SubtractionEnabled.Should().BeTrue();
         var disk = OnDisk(path).Decoder!;
-        disk.OsdNhardMax.Should().Be(40);
+        disk.OsdNhardMax.Should().Be(24);
         disk.SubtractionEnabled.Should().BeTrue();
         disk.Nhard40MigrationApplied.Should().BeTrue();
         disk.SubtractionOnMigrationApplied.Should().BeTrue("both markers are on disk after the one load");
