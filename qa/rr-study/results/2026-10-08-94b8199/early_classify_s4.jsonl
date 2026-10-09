@@ -1,0 +1,44 @@
+{"utc": "2026-10-08T21:56:19.903696Z", "kind": "start", "url": "ws://127.0.0.1:8080/api/v1/ws"}
+{"kind": "cycle", "final": 0, "confirmed": 0, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:56:30.114969Z"}
+{"kind": "cycle", "final": 0, "confirmed": 0, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:56:45.017921Z"}
+{"kind": "cycle", "final": 0, "confirmed": 0, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:57:00.038187Z"}
+{"kind": "early", "early": 1, "utc": "2026-10-08T21:57:13.091262Z"}
+{"kind": "cycle", "final": 1, "confirmed": 1, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:57:15.077332Z"}
+{"utc": "2026-10-08T21:57:22.829420Z", "kind": "disconnect", "err": "ConnectionClosedError"}
+{"kind": "cycle", "final": 0, "confirmed": 0, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:57:30.102339Z"}
+{"kind": "cycle", "final": 0, "confirmed": 0, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:57:45.019748Z"}
+{"kind": "cycle", "final": 0, "confirmed": 0, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:58:00.025237Z"}
+{"kind": "early", "early": 1, "utc": "2026-10-08T21:58:13.131092Z"}
+{"kind": "cycle", "final": 1, "confirmed": 1, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:58:15.130228Z"}
+{"kind": "early", "early": 1, "utc": "2026-10-08T21:58:28.123358Z"}
+{"kind": "cycle", "final": 1, "confirmed": 1, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:58:30.131476Z"}
+{"kind": "early", "early": 1, "utc": "2026-10-08T21:58:43.083375Z"}
+{"kind": "cycle", "final": 1, "confirmed": 1, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:58:45.080345Z"}
+{"kind": "early", "early": 5, "utc": "2026-10-08T21:58:58.189297Z"}
+{"kind": "cycle", "final": 5, "confirmed": 5, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:59:00.198096Z"}
+{"kind": "early", "early": 5, "utc": "2026-10-08T21:59:13.216149Z"}
+{"kind": "cycle", "final": 5, "confirmed": 5, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:59:15.223007Z"}
+{"kind": "early", "early": 5, "utc": "2026-10-08T21:59:28.219571Z"}
+{"kind": "cycle", "final": 5, "confirmed": 5, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:59:30.220367Z"}
+{"kind": "early", "early": 10, "utc": "2026-10-08T21:59:43.327213Z"}
+{"kind": "cycle", "final": 10, "confirmed": 10, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T21:59:45.343971Z"}
+{"kind": "early", "early": 10, "utc": "2026-10-08T21:59:58.356652Z"}
+{"kind": "cycle", "final": 10, "confirmed": 10, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T22:00:00.365414Z"}
+{"kind": "early", "early": 10, "utc": "2026-10-08T22:00:13.303771Z"}
+{"kind": "cycle", "final": 10, "confirmed": 10, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T22:00:15.309648Z"}
+{"kind": "early", "early": 8, "utc": "2026-10-08T22:00:28.499770Z"}
+{"kind": "cycle", "final": 8, "confirmed": 6, "unconfirmed": 2, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 2, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [1262, 1263], "df_prev_hz": [841, 1262], "utc": "2026-10-08T22:00:30.521976Z"}
+{"kind": "early", "early": 8, "utc": "2026-10-08T22:00:43.506792Z"}
+{"kind": "cycle", "final": 8, "confirmed": 7, "unconfirmed": 1, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 1, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [1262], "df_prev_hz": [1262], "utc": "2026-10-08T22:00:45.470765Z"}
+{"kind": "early", "early": 8, "utc": "2026-10-08T22:00:58.469338Z"}
+{"kind": "cycle", "final": 8, "confirmed": 8, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T22:01:00.477118Z"}
+{"kind": "early", "early": 8, "utc": "2026-10-08T22:01:13.543991Z"}
+{"kind": "cycle", "final": 8, "confirmed": 8, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T22:01:15.582252Z"}
+{"kind": "early", "early": 8, "utc": "2026-10-08T22:01:28.537634Z"}
+{"kind": "cycle", "final": 8, "confirmed": 8, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T22:01:30.557012Z"}
+{"kind": "early", "early": 8, "utc": "2026-10-08T22:01:43.560257Z"}
+{"kind": "cycle", "final": 8, "confirmed": 8, "unconfirmed": 0, "lookup_miss": 0, "labels": {"ECHO_PREV": 0, "FREQ_MISS": 0, "TEXT_PREV_OTHER_FREQ": 0, "NO_MATCH": 0}, "echo_with_same_text_also_far_in_this_cycle": 0, "df_this_hz": [], "df_prev_hz": [], "utc": "2026-10-08T22:01:45.570860Z"}
+{"utc": "2026-10-08T22:01:55.800602Z", "kind": "disconnect", "err": "ConnectionClosedError"}
+{"utc": "2026-10-08T22:02:00.853750Z", "kind": "disconnect", "err": "ConnectionRefusedError"}
+{"utc": "2026-10-08T22:02:05.906565Z", "kind": "disconnect", "err": "ConnectionRefusedError"}
+{"utc": "2026-10-08T22:02:10.952647Z", "kind": "disconnect", "err": "ConnectionRefusedError"}

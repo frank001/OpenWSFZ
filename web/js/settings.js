@@ -906,7 +906,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dec = config.decoder ?? {};
     decoderK.value     = String(dec.kMinScorePass2   ?? 10);
     decoderCorr.value  = String(dec.osdCorrThreshold ?? 0.10);
-    decoderNhard.value = String(dec.osdNhardMax      ?? 40);
+    decoderNhard.value = String(dec.osdNhardMax      ?? 24);
     decoderEarlyEnabled.checked = dec.earlyDecodeEnabled ?? true;   // ON by default: no stored key shows checked (FR-083)
     decoderEarlyCut.value       = String(dec.earlyDecodeCutSeconds ?? 2.0);
 
@@ -1150,7 +1150,7 @@ remoteAccessEnabled.addEventListener('change', updateRemoteAccessVisibility);
 decoderReset.addEventListener('click', () => {
   decoderK.value     = '10';
   decoderCorr.value  = '0.10';
-  decoderNhard.value = '40';
+  decoderNhard.value = '24';
   decoderEarlyEnabled.checked = true;
   decoderEarlyCut.value       = '2';
   syncDirtyUI();
@@ -1390,7 +1390,7 @@ saveBtn.addEventListener('click', async () => {
     const decoder = {
       kMinScorePass2:   Number.isFinite(decoderKRaw)     ? decoderKRaw     : 10,
       osdCorrThreshold: Number.isFinite(decoderCorrRaw)  ? decoderCorrRaw  : 0.10,
-      osdNhardMax:      Number.isFinite(decoderNhardRaw) ? decoderNhardRaw : 40,
+      osdNhardMax:      Number.isFinite(decoderNhardRaw) ? decoderNhardRaw : 24,
       earlyDecodeEnabled:    decoderEarlyEnabled.checked,
       earlyDecodeCutSeconds: Number.isFinite(decoderEarlyCutRaw) ? decoderEarlyCutRaw : 2.0,
     };

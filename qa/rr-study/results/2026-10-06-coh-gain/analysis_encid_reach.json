@@ -1,0 +1,43 @@
+{
+ "pairs": {
+  "C3 right: X i3=1 vs T i3=1": 37432,
+  "C3 right: X i3=2 vs T i3=2": 336,
+  "C3 wrong: X i3=0 vs T i3=1": 21,
+  "C3 wrong: X i3=1 vs T i3=1": 549,
+  "C3 wrong: X i3=1 vs T i3=2": 1,
+  "C3 wrong: X i3=2 vs T i3=1": 40,
+  "C3 wrong: X i3=2 vs T i3=2": 23,
+  "C3 wrong: X i3=3 vs T i3=1": 23,
+  "C3 wrong: X i3=4 vs T i3=1": 815,
+  "C3 wrong: X i3=5 vs T i3=1": 19,
+  "C3 wrong: X i3=5 vs T i3=2": 2,
+  "C3 wrong: X i3=6 vs T i3=1": 74,
+  "C3 wrong: X i3=7 vs T i3=1": 22,
+  "G right: X i3=1 vs T i3=1": 36559,
+  "G right: X i3=2 vs T i3=2": 325,
+  "G wrong: X i3=0 vs T i3=1": 11,
+  "G wrong: X i3=1 vs T i3=1": 252,
+  "G wrong: X i3=2 vs T i3=1": 18,
+  "G wrong: X i3=2 vs T i3=2": 21,
+  "G wrong: X i3=3 vs T i3=1": 6,
+  "G wrong: X i3=4 vs T i3=1": 283,
+  "G wrong: X i3=5 vs T i3=1": 17,
+  "G wrong: X i3=5 vs T i3=2": 1,
+  "G wrong: X i3=6 vs T i3=1": 23,
+  "G wrong: X i3=7 vs T i3=1": 13
+ },
+ "rows": 76886,
+ "summary": {
+  "C3": {
+   "rows": 39357,
+   "t_i3_1_x_i3_4": 815,
+   "x_i3_4": 815
+  },
+  "G": {
+   "rows": 37529,
+   "t_i3_1_x_i3_4": 283,
+   "x_i3_4": 283
+  }
+ },
+ "w1_not_reproduced": 0
+}

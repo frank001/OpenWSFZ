@@ -360,15 +360,15 @@
               <input
                 type="number"
                 id="decoder-nhard"
-                min="30"
+                min="24"
                 max="100"
                 step="1"
               />
               <p class="field-hint">
-                Maximum Hamming distance for OSD candidates [30–100].
-                Default: 40 (NHARD40-DEFAULT, 2026-09-12) — 95–98% fewer false decodes than 60,
-                with no genuine loss measured on AWGN near-threshold/co-channel; not tested under
-                fading/drift/Doppler. To restore 60, set it explicitly here and save.
+                Maximum Hamming distance for OSD candidates [24–100].
+                Default: 24 (OSD-FIX, 2026-10-09), which assumes the corrected OSD. Validated on
+                replay of one 40 m night (860 cycles); not measured live, other bands or
+                fading/drift untested. To use another value, set it here and save.
               </p>
             </div>
 
