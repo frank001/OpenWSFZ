@@ -28,7 +28,11 @@ class JoinTests(unittest.TestCase):
                 {"scenario_id": "S1", "appraiser": "WSJT-X", "matched": "True", "reported_snr_db": "-12.0", "cycle_utc": "2026-10-08T19:41:00Z"},
                 {"scenario_id": "S2", "appraiser": "OpenWSFZ", "matched": "True", "reported_snr_db": "-5.0", "cycle_utc": "2026-10-08T19:50:00Z"},
                 {"scenario_id": "S1", "appraiser": "OpenWSFZ", "matched": "False", "reported_snr_db": "", "cycle_utc": "2026-10-08T19:41:30Z"}]
-        self.assertEqual(S.live_rows(rows), {"261008_194100": {"decoded": True, "snr": -11}, "261008_194130": {"decoded": False, "snr": None}})
+        self.assertEqual(S.live_rows(rows, ["261008_194100", "261008_194130"]), {"261008_194100": {"decoded": True, "snr": -11}, "261008_194130": {"decoded": False, "snr": None}})
+
+    def test_live_rows_ignore_decodes_from_other_scenarios_cycles(self):
+        rows = [{"scenario_id": "S1", "appraiser": "OpenWSFZ", "matched": "False", "reported_snr_db": "-9.0", "cycle_utc": "2026-10-08T21:16:30Z"}]
+        self.assertEqual(S.live_rows(rows, ["261008_194100"]), {})
 
     def test_same_rows_is_exact(self):
         a = {"s1": {"decoded": True, "snr": -11}, "s2": {"decoded": False, "snr": None}}

@@ -110,11 +110,14 @@ def match_rows(outcomes, truth):
     return res
 
 
-def live_rows(matched_rows):
-    """S1_matched.csv dict rows -> {stamp: {'decoded': bool, 'snr': int|None}} for appraiser OpenWSFZ, scenario S1."""
+def live_rows(matched_rows, stamps):
+    """S1_matched.csv dict rows -> {stamp: {'decoded': bool, 'snr': int|None}} for appraiser OpenWSFZ, scenario S1, restricted to the S1 cycle stamps.
+    (S1_matched.csv also holds OpenWSFZ decodes from cycles of every other scenario under scenario_id S1; they are not S1 rows. Fixed after the first run: the
+    unrestricted loader reported 'differing stamps' from S7/S8 cycles and withheld the verdict.)"""
+    keep = set(stamps)
     out = {}
     for r in matched_rows:
-        if r["scenario_id"] == "S1" and r["appraiser"] == "OpenWSFZ":
+        if r["scenario_id"] == "S1" and r["appraiser"] == "OpenWSFZ" and stamp_of(r["cycle_utc"]) in keep:
             ok = r["matched"] == "True"
             out[stamp_of(r["cycle_utc"])] = {"decoded": ok, "snr": int(round(float(r["reported_snr_db"]))) if ok and r["reported_snr_db"] != "" else None}
     return out
@@ -261,7 +264,7 @@ def rows():
     v = res["validity"]
     v["SV1"] = {"ok": all(procs[c]["rc"] == 0 and procs[c]["pins_ok"] and all(nh == CELLS[c][2] for _w, nh in procs[c]["readbacks"]) and len(procs[c]["readbacks"]) >= 2 for c in CELLS)}
     for name, cell, audio in (("SV2", "A04.M", "A04"), ("SV3", "A08.F", "A08")):
-        live = live_rows(csv.DictReader(open(os.path.join(RES_ROOT, AUDIO[audio][1], "S1_matched.csv"), encoding="utf-8")))
+        live = live_rows(csv.DictReader(open(os.path.join(RES_ROOT, AUDIO[audio][1], "S1_matched.csv"), encoding="utf-8")), [x[0] for x in truth[audio]])
         eq, diff = same_rows(cells[cell], live)
         v[name] = {"ok": eq, "differing_stamps": diff, "live_decoded": sum(1 for x in live.values() if x["decoded"]), "replay_decoded": sum(1 for x in cells[cell].values() if x["decoded"])}
     eq4, d4 = same_rows(cells["A04.M"], cells["A04.M.rep"])
