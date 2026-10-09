@@ -197,6 +197,11 @@ def test_v1_evaluated_on_unhashed_cycles_only_and_reports_hashed_limit():
     assert not r.row_v1(STAMPS, got, pc, "off", None, None, hashed)["pass"]
 
 
-def test_robust_verdict_agrees_or_gives_no_verdict():
+def test_robust_verdict_refined_rule_all_branches():
     assert r.robust_verdict("DS-PERSISTS", "DS-PERSISTS") == "DS-PERSISTS"
-    assert r.robust_verdict("DS-OPEN", "DS-PERSISTS").startswith("NO VERDICT")
+    assert r.robust_verdict("DS-PERSISTS", "DS-REMEDIED").startswith("NO VERDICT")      # determinate and opposite
+    assert r.robust_verdict("DS-REMEDIED", "DS-PERSISTS").startswith("NO VERDICT")
+    assert r.robust_verdict("DS-PERSISTS", "DS-OPEN") == "DS-PERSISTS"                  # inconclusive subset: all-cycles stands
+    assert r.robust_verdict("DS-REMEDIED", "INVALID") == "DS-REMEDIED"
+    assert r.robust_verdict("DS-OPEN", "DS-PERSISTS") == "DS-OPEN"                      # all-cycles OPEN governs
+    assert r.robust_verdict("INVALID (x)", "DS-PERSISTS").startswith("INVALID")

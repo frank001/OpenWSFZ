@@ -293,10 +293,14 @@ def analyse_arms(cycles, stamps, m_off, m_on, n_w_total):
 
 
 def robust_verdict(v_all, v_clean):
-    """Amendment 2 (iii): the verdict row computed on all cycles and on the no-hashed cycles only; if they disagree, NO verdict."""
-    if v_all == v_clean:
+    """Amendment 2 (iii), as refined by the Architect before any ON number: the all-cycles verdict governs. NO VERDICT only when the
+    two are determinate and OPPOSITE (one DS-REMEDIED, the other DS-PERSISTS). A DS-OPEN or invalid subset leaves the all-cycles
+    verdict standing (reported as inconclusive); an invalid or DS-OPEN all-cycles row governs whatever the subset says."""
+    if v_all.startswith("INVALID"):
         return v_all
-    return f"NO VERDICT (all cycles: {v_all}; no-hashed cycles: {v_clean})"
+    if {v_all, v_clean} == {"DS-REMEDIED", "DS-PERSISTS"}:
+        return f"NO VERDICT (all cycles: {v_all}; no-hashed cycles: {v_clean})"
+    return v_all
 
 
 def main(argv):
@@ -357,8 +361,8 @@ def main(argv):
 
     v_all, v_clean = vrow(res["all"], "all"), vrow(res["no_hashed"], "no_hashed")
     res["verdict_ON"] = {"all": v_all, "no_hashed": v_clean,
-                         "final": robust_verdict(v_all, v_clean) if "INVALID" not in (v_all, v_clean)
-                         else f"INVALID (all: {v_all}; no-hashed: {v_clean})"}
+                         "final": robust_verdict(v_all, v_clean),
+                         "subset_note": "inconclusive (DS-OPEN or invalid); all-cycles verdict stands" if v_clean in ("DS-OPEN", "INVALID") else "determinate"}
     out = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-09-density-sub", "rows.json")
     json.dump(res, open(out, "w"), indent=1, default=float)
     print(json.dumps(res, indent=1, default=float))
