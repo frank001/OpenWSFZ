@@ -48,6 +48,7 @@ PROBE_FIX_SHA = "e92b91c1156920099a23853ed00e40d81a45cf66fd3e090d859d668e365c2e7
 N_ROUNDS = 7
 ARMS = [("REF", 0, 40), ("FIX40", 1, 40), ("FIX30", 1, 30), ("FIX24", 1, 24), ("FIX50", 1, 50), ("FIX60", 1, 60), ("FIX0", 1, 0)]   # (name, osd_sign_fix, nhard)
 MAX_ATTEMPTS = 2           # one run plus ONE re-run (amendment section 4)
+LABEL_STAGE = "train"     # osd_fix_test.py sets "test" so the harness log label names the stage it belongs to
 V6_MAX_ABANDON = 0.05
 STOP_FILE = os.path.join(OUT, "STOP_AFTER_ROUND")
 SUBFEAS_RE = re.compile(r"Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(\w+) containedException=(\w+)")
@@ -158,7 +159,7 @@ def run_process(r, k, arm_i, attempt, manifest):
     start = R.sha256(dll)
     cmd = ["dotnet", os.path.join(HARNESS, "Replay81.dll"), "--selection", chunk, "--run", N0.RUN, "--stratum", "A", "--wav-root", N0.ART, "--wav-dir", N0.WAV_DIR,
            "--out", files["run"], "--log", files["log"], "--mode", "two1", "--threads", N0.THREADS, "--nhard", str(nhard), "--osd-sign-fix", str(sign),
-           "--label", f"osdfix_3276573b:train_r{r}_{name}", "--outcomes", files["outcomes"], "--abandon-out", files["abandon"], "--wsjtx-alltxt", N0.WS_ALLTXT,
+           "--label", f"osdfix_3276573b:{LABEL_STAGE}_r{r}_{name}", "--outcomes", files["outcomes"], "--abandon-out", files["abandon"], "--wsjtx-alltxt", N0.WS_ALLTXT,
            "--testb-out", files["testb"], "--matched-out", files["matched"],
            "--probe-vectors", PROBE_FIX if sign == 1 else PROBE_OLD, "--probe-out", files["probe"]]
     cpu = CpuSampler()
