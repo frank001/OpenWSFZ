@@ -11,7 +11,7 @@
 |---|---|
 | Rounds complete | 7 of 7; 49 processes, every one `ok` on attempt 1 (0 re-runs), 0 failed rows (`status.json`) |
 | V6 (abandoned residual work ≤ 5 % per arm) | PASS for every arm. Abandons only in **round 2**: FIX30 4/621 (0.64 %), FIX40 5/621 (0.81 %); every other arm 0. 5 distinct cycles in all |
-| Load | Round 2 had the longest walls of the night (REF 721 s, FIX30 847 s, FIX40 905 s against a 464–661 s range in other rounds). Recorded, not a validity row (Captain's 2026-10-03 scope) |
+| Load | Round 2 had the longest walls of the night (REF 721 s, FIX30 847 s, FIX40 905 s against a 464–667 s range in other rounds; corrected from "661 s" after QA's report, 2026-10-09 06:3xZ). Recorded, not a validity row (Captain's 2026-10-03 scope) |
 
 TRAIN is valid.
 
@@ -58,6 +58,15 @@ FIX30 and FIX24 have identical batch-1 NET (+0.061) and identical ΔU by batch; 
 2. **TEST preparation, before any TEST decode:** (a) list **every** `artefacts/` folder with full cycle audio + a WSJT-X `ALL.TXT` (feedback rule 2026-10-03) and pick a 40 m night other than `20261004_1634`; if none, the fallback in §5.3 (residues {1, 2, 4, 6, 8, 9}) and say so in the limits; (b) ≥ 300 cycles, systematic, frozen `selection.json` + SHA committed; (c) arms REF and FIX(24), fresh process each, read-back of switch and `nhard` 24; (d) **V5 noise leg** at FIX(24) (200 NHARD-REP V2 noise WAVs, located and pinned); (e) V2′ probe at the new cap. Interleaving TEST is QA's choice; TEST stays **blind** until both arms are complete (it is the verdict: feedback rule 2026-10-08, "blind only where it protects a verdict").
 3. Report "TEST ready" with the corpus choice and wall-time estimate. **TEST runs on the Captain's go in QA's window.**
 4. R4: the code-default change to 24 (Developer, small second commit) and the station-config migration (QA, HK-035) come **after** TEST's verdict, not now.
+
+## 5a. Addendum 2026-10-09 06:3xZ (by `date -u`): QA's TRAIN report and TEST preparation, checked before any TEST decode
+
+- **TRAIN report** `report_train.md` (QA `32e2605f`): every §2/§3 figure reproduced exactly. One correction to §1 of this ruling: the longest wall outside round 2 is 667 s, not 661 s (now fixed above). **R6, descriptive:** corrected OSD 612 accepts on the first decode call vs 567 inverted; 35 corrected accepts at `nhard` 6–19, where the inverted OSD had none below 28 (chance-CRC words sit near the cap, as expected; real codewords can sit far below it).
+- **TEST corpus ACCEPTED:** `20260930_1930`, 40 m, the same Voicemeeter B1 chain as TRAIN, WSJT-X FT-991A `ALL.TXT`; inventory of every `artefacts/` WAV folder done; direct-CODEC nights and other bands/eras rejected for stated reasons. The alternative B1 40 m night `20260922_2056` (2,882 cycles) is not preferred: fewer cycles, and nothing argues for it. The corpus's live build and `nhard` do not matter (the replay sets the decoder itself; feedback rule 2026-10-03).
+- **Selection** `6dd0785c`, SHA-256(LF) `84b3d884…78b0`: TEST = 860 cycles (residues 0 and 5 of the frozen SUB-FEAS included list); every stamp has a WAV and ≥ 1 WSJT-X line; median 31 decodes per cycle (TRAIN's density). **Size: the full 860 (≈ 2.9 h) is the Architect's recommendation; the 430-cycle SAMPLE (≈ 1.5 h) meets the spec's ≥ 300 and is the Captain's alternative for time. Either is chosen before any TEST decode.** QA's power estimate: NET SE ≈ 0.026 pp at 860, 0.037 at 430; at half TRAIN's estimate (+0.079) CI_lo ≈ +0.027 vs +0.006.
+- **Verdict code** `b5cee17d`: F-FAIL / F-GO / F-NEUTRAL match §5.3 exactly (read from source); blind-instrument guard tested; refuses before both arms are complete.
+- **V5 noise leg at FIX(24): 0 false decodes on the 200 pinned noise WAVs** (pins re-hashed, DLL pin start = end, read-back 24 / switch 1) ⇒ PASS. ⚠️ HK-026: this leg read 0 at every setting ever tried (inverted 40 and 60, corrected 24), so it bounds gross failure only and cannot rank settings. OF7 (P 0.75): **HIT**, scored with that caveat.
+- **TEST is ready.** It runs on the Captain's go in QA's window.
 
 ## 6. Predictions scored (ledger, at ruling time)
 
