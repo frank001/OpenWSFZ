@@ -53,7 +53,9 @@ CHECKOUT = r"D:\Projects\claude\_qa-scratch\w-density-sub-build"
 BUILD_COMMIT = "247ac391"
 HOUT = r"D:\Projects\claude\_qa-scratch\w-density-sub-out"
 DLL = "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c"
-WAV_DIR = os.path.join(ART, f"{RUN}_endurance_run", "cycle-audio")
+# The 10-01 run read <run>_endurance_run/cycle-audio; the gatherer has since MOVED those files to -gathered/owsfz/wav (4299 of 4300 present,
+# the 4300th, 261001_132530, is outside every sampled stamp). Identity of the audio is checked by row V1 (M_off/M_on per cycle == per_cycle.csv).
+WAV_DIR = os.path.join(ART, f"{RUN}_endurance_run-gathered", "owsfz", "wav")
 WS_ALLTXT = os.path.join(ART, f"{RUN}_endurance_run-gathered", "wsjt-x", "ALL.TXT")
 THREADS = "8"
 MAX_RESTARTS = 3
@@ -126,6 +128,8 @@ def preflight():
     assert sel_sha == SELECTION_SHA256, ("selection.json SHA mismatch", sel_sha)
     assert sh("git", "status", "--porcelain", "--", *GUARDED).stdout.strip() == "", "harness/scripts/selection not committed"
     assert os.path.isfile(WS_ALLTXT) and os.path.isdir(WAV_DIR)
+    missing = [st for st in json.load(open(SELECTION))["runs"][RUN]["S10"] if not os.path.isfile(os.path.join(WAV_DIR, st + ".wav"))]
+    assert not missing, ("sampled WAVs missing", len(missing))
     head = sh("git", "rev-parse", "HEAD", cwd=CHECKOUT).stdout.strip()
     assert head.startswith(BUILD_COMMIT), head
     assert sh("git", "status", "--porcelain", cwd=CHECKOUT).stdout.strip() == "", "build checkout not clean"
