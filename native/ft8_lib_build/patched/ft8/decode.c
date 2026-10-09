@@ -53,9 +53,24 @@
  * compile-time #define constants to runtime-configurable extern globals owned by ft8_shim.c.
  * Set via ft8_set_decode_params(); default values (0.10f, 60) are calibration-identical to
  * the former defines.
+ *
+ * shim 20260060 (osd-sign-fix, #215): in this block LLR[i] means the array AFTER osd_prepare_llr, i.e. in
+ * osd_decode's convention (positive = bit 0, hence hd[i] = LLR > 0 ? 0 : 1 and hard_pm1 = +1 for bit 0).
+ * Until 20260059 the array was the extractor/BP one (positive = bit 1) and osd_decode read it inverted, so
+ * every OSD accept was a chance CRC-14 hit. The threshold 0.10 and nhard 60 (40 since 2026-09-12) were set
+ * on that inverted output and are being re-derived on the corrected one.
  */
 extern float s_osd_corr_threshold;   /* runtime-configurable; default 0.10f (shim 20260030) */
+extern int   s_osd_sign_fix;         /* 1 = negate LLRs for OSD (shim 20260060, #215) */
 extern int   s_osd_nhard_max;        /* runtime-configurable; default 60   (shim 20260030) */
+
+/* osd-sign-fix R6 (shim 20260060): numbers-only OSD gate diagnostics, recorded into thread-local arrays owned by
+ * ft8_shim.c and read back by ft8_get_last_osd_diag. They only COUNT and RECORD; they never alter a decode. No file
+ * I/O, no message text. reason 0 = nhard cap, 1 = corr/norm threshold. Called from ftx_decode_candidate and
+ * ftx_decode_candidate_ap only (the ft8_ldpc_decode_llrs probe does not record). */
+extern void ft8_osd_diag_accept(int nhard, float corr_norm, int depth);
+extern void ft8_osd_diag_reject(int reason);
+#define OSD_DIAG_DEPTH 2   /* both recording callers hard-code ndeep = 2 */
 
 /* Compatibility aliases so the gate code below continues to compile unmodified. */
 #define OSD_CORR_THRESHOLD s_osd_corr_threshold
@@ -496,9 +511,26 @@ static int osd_try_codeword(
 }
 
 /*
+ * osd_prepare_llr — convert BP/extractor-convention LLRs (positive = bit 1) in place to
+ * the convention osd_decode and its acceptance gate read (positive = bit 0).  (#215, shim 20260060)
+ *
+ * The SAME array must then be passed to osd_decode AND read by the gate loop; negating a
+ * private copy for osd_decode alone would make the gate measure agreement with inverted
+ * decisions and reject every correct OSD decode.  With s_osd_sign_fix == 0 the array is
+ * left untouched (previous behaviour).  Every osd_decode caller must call this first.
+ */
+static void osd_prepare_llr(float llr[])
+{
+    if (!s_osd_sign_fix) return;
+    for (int i = 0; i < FTX_LDPC_N; ++i) llr[i] = -llr[i];
+}
+
+/*
  * osd_decode — Ordered Statistics Decoding fallback for LDPC(174,91).
  *
  * llr[]   — 174 channel LLRs (normalised, pre-BP); positive = bit 0, negative = bit 1.
+ *           NOTE: this is the OPPOSITE of the extractor/BP convention (positive = bit 1).
+ *           Callers MUST pass the array prepared by osd_prepare_llr() (#215).
  * ndeep   — maximum flip order: 1 = single flips, 2 = double flips (WSJT-X default).
  * plain[] — output: 174 bits (0/1) if a CRC-valid codeword is found.
  *
@@ -663,6 +695,7 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
     {
         /* BP failed to converge; try OSD fallback (shim 20260025).
          * ndeep=2 matches WSJT-X's default maxosd=2 at ndepth=3. */
+        osd_prepare_llr(llr_for_osd); /* #215: OSD and its gate read this same array */
         if (!osd_decode(llr_for_osd, 2, plain174))
             return false;
 
@@ -691,10 +724,15 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
             _s1_corr  = osd_corr;
             _s1_norm  = osd_norm;
 #endif
-            if (nhard > OSD_NHARD_MAX)
+            if (nhard > OSD_NHARD_MAX) {
+                ft8_osd_diag_reject(0);          /* osd-sign-fix R6: count only, no effect on the decode */
                 return false;
-            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+            }
+            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD) {
+                ft8_osd_diag_reject(1);
                 return false;
+            }
+            ft8_osd_diag_accept(nhard, (osd_norm > 0.0f) ? (osd_corr / osd_norm) : 0.0f, OSD_DIAG_DEPTH);
         }
         status->ldpc_errors = 0;
     }
@@ -975,6 +1013,7 @@ int ftx_ldpc_decode_llrs(
         if (osd_depth < 0)
             return 0; /* out_path stays -1, out_crc_ok stays 0 */
 
+        osd_prepare_llr(llr_for_osd); /* #215: OSD and its gate read this same array */
         if (!osd_decode(llr_for_osd, osd_depth, plain174))
             return 0; /* OSD found no CRC-valid codeword; out_path stays -1 */
 
@@ -1086,6 +1125,7 @@ bool ftx_decode_candidate_ap(
     if (status->ldpc_errors > 0)
     {
         /* BP failed; try OSD fallback with pre-BP normalised LLRs. */
+        osd_prepare_llr(llr_for_osd); /* #215: OSD and its gate read this same array */
         if (!osd_decode(llr_for_osd, 2, plain174))
             return false;
 
@@ -1107,10 +1147,15 @@ bool ftx_decode_candidate_ap(
             _s2_corr  = osd_corr;
             _s2_norm  = osd_norm;
 #endif
-            if (nhard > OSD_NHARD_MAX)
+            if (nhard > OSD_NHARD_MAX) {
+                ft8_osd_diag_reject(0);          /* osd-sign-fix R6: count only, no effect on the decode */
                 return false;
-            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD)
+            }
+            if (osd_norm > 0.0f && (osd_corr / osd_norm) < OSD_CORR_THRESHOLD) {
+                ft8_osd_diag_reject(1);
                 return false;
+            }
+            ft8_osd_diag_accept(nhard, (osd_norm > 0.0f) ? (osd_corr / osd_norm) : 0.0f, OSD_DIAG_DEPTH);
         }
         status->ldpc_errors = 0;
     }

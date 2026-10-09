@@ -452,7 +452,12 @@ internal static class Ft8LibInterop
     /// (<c>Ft8Decoder.DecodeEarlyAsync</c>) so that it leaves nothing behind that could change the final decode of the
     /// same window. Changes NO decode output and no existing export.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260058;
+    /// <remarks>
+    /// osd-sign-fix (#215), shim 20260060: <c>osd_decode</c> read positive = bit 0 while the extractor and BP produce
+    /// positive = bit 1; the LLRs are now negated in place before OSD and its acceptance gate (which read the same array).
+    /// Adds <c>ft8_set_osd_sign_fix</c> / <c>ft8_get_osd_sign_fix</c> (bound as <see cref="SetOsdSignFix"/> / <see cref="GetOsdSignFix"/>).
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260060;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -620,6 +625,23 @@ internal static class Ft8LibInterop
         int   kMinScorePass2,
         float osdCorrThreshold,
         int   osdNhardMax);
+
+    /// <summary>osd-sign-fix (shim 20260060): set the OSD sign switch (1 = corrected, 0 = previous behaviour).</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_osd_sign_fix",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetOsdSignFix(int enabled);
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_osd_diag",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastOsdDiag(
+        int capacity,
+        [Out] int[] nhard, [Out] float[] corrNorm, [Out] int[] depth, [Out] int[] batch,
+        out int totalAccepts, [Out] int[] rejectNhard, [Out] int[] rejectCorr, int passCapacity);
+
+    /// <summary>osd-sign-fix (shim 20260060): read the OSD sign switch.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_osd_sign_fix",
+               CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetOsdSignFix();
 
     /// <summary>
     /// Return the compile-time <c>K_MAX_PASSES</c> constant from the native shim.
@@ -1001,6 +1023,39 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         NativeSetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
+    }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): sets the process-global OSD sign switch (1 = corrected, 0 = previous behaviour). Replay-harness use only; the daemon never calls it.</summary>
+    public static void SetOsdSignFix(int enabled)
+    {
+        EnsureInitialized();
+        NativeSetOsdSignFix(enabled);
+    }
+
+    /// <summary>Capacity of the per-accept arrays <see cref="GetLastOsdDiag"/> reads (the native store holds 256).</summary>
+    public const int OsdDiagCapacity = 256;
+
+    /// <summary>
+    /// osd-sign-fix R6 (shim 20260060): OSD gate diagnostics of the last <c>DecodeAll</c> on this thread, numbers only.
+    /// An accept is a candidate that passed the OSD gate; <c>RejectNhard</c> / <c>RejectCorr</c> are per decode pass.
+    /// </summary>
+    public static (int[] Nhard, float[] CorrNorm, int[] Depth, int[] Batch, int TotalAccepts, int[] RejectNhard, int[] RejectCorr)
+        GetLastOsdDiag(int passCapacity)
+    {
+        EnsureInitialized();
+        var nhard = new int[OsdDiagCapacity]; var cn = new float[OsdDiagCapacity];
+        var depth = new int[OsdDiagCapacity]; var batch = new int[OsdDiagCapacity];
+        var rn = new int[passCapacity]; var rc = new int[passCapacity];
+        int n = NativeGetLastOsdDiag(OsdDiagCapacity, nhard, cn, depth, batch, out int total, rn, rc, passCapacity);
+        Array.Resize(ref nhard, n); Array.Resize(ref cn, n); Array.Resize(ref depth, n); Array.Resize(ref batch, n);
+        return (nhard, cn, depth, batch, total, rn, rc);
+    }
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch (1 or 0).</summary>
+    public static int GetOsdSignFix()
+    {
+        EnsureInitialized();
+        return NativeGetOsdSignFix();
     }
 
     /// <summary>

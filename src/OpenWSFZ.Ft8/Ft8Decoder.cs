@@ -158,6 +158,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
         => _interop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
 
+    /// <summary>osd-sign-fix (#215, shim 20260060): sets the process-global OSD sign switch (1 = corrected, 0 = previous behaviour). For the replay harness; the daemon never calls it.</summary>
+    public void SetOsdSignFix(int enabled) => _interop.SetOsdSignFix(enabled);
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch.</summary>
+    public int GetOsdSignFix() => _interop.GetOsdSignFix();
+
     /// <summary>
     /// sub-feas-native-subtraction (design.md Decision 6): gates the additive residual-decode
     /// pass (<see cref="SubtractionPass"/>). Default <c>false</c> at construction — with the
