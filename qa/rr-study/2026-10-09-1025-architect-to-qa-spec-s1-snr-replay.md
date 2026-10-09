@@ -81,6 +81,16 @@ Per cell: per S1 row (matched to truth by text and ±4 Hz, the harness's own rul
 
 ⚠️ SR2 is not 0.90 because the scan's level metrics do **not** move with the bias (§0), which weakens the plain "the audio was different" story; something in the audio that the scan does not measure, or a live-path effect the replay does not reproduce (SV2/SV3 would then fail), are both open.
 
+## 5a. Amendment 1 (2026-10-09 10:2xZ by `date -u`, before any build or run): QA's review accepted
+
+QA (`qa-ee`) accepted the spec; the Architect accepts all of its points.
+
+1. **The cross is audio × BUILD, not audio × DLL.** The fix commit also changes managed code (the P/Invoke for the switch), so one harness cannot swap DLLs. The M cells run the **NHARD-REP harness** (DLL `2fa6d993…`; QA checked with `git diff` that `src/OpenWSFZ.Ft8` is unchanged between `766f9cc2` and `be3cc5ac`), the F cells run the **osd-fix harness** (DLL `2029b080…82bb`). **SV1 pins both harness binaries and both DLLs.** This is the merge question anyway (the whole build, not the DLL alone). §1's "DLL" column reads "build".
+2. **SV4 (added): same-build repeat.** A04·M runs **twice**, in fresh processes; the decoded rows and SNRs must be identical. If not, the tolerance-free "0 rows differ" predicate is **withheld** (it could fire on replay nondeterminism, HK-026) and the Architect rules.
+3. **SR-NEITHER is unreachable when SV2 and SV3 pass:** A04·M then reads +0.88 and A08·F +1.48 exactly, so with 0 differing rows the gap is +0.60 under both builds. The 0.40 clause is kept (it guards a partial-validity reading) but the verdict is effectively SR-BUILD vs SR-AUDIO. Noted, not changed.
+4. **Join:** the harness's `outcomes.csv` has no text, so S1 rows join to the live `S1_matched.csv` by cycle stamp and frequency within 4 Hz (S1 is one signal per cycle at 1500 Hz). A wrong-text decode at the right frequency would count as decoded; QA reports any decode at another frequency separately. Accepted.
+5. **Data on disk:** 30 of 30 S1 WAVs for 10-04, 10-08, 09-29 OFF, and 10-02 and 10-03 separately (stamps from `261002_231600` and `261003_011645`, no overlap). Cost about 11 cells, about 35 min CPU, no station.
+
 ## 6. Limits
 
 S1 is 30 synthetic rows per run. Integer SNR. Replay, not live: SV2/SV3 are the guard. The 09-29 and 10-02/03 audio sets have no validity row (their own DLLs are not part of the design), so they are descriptive only.
