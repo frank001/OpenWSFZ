@@ -199,7 +199,7 @@ def run_arm(arm, mode, stratum, sampler):
         repair_partial(arm)
         cmd = ["dotnet", os.path.join(HOUT, "Replay81.dll"), "--selection", SELECTION, "--run", RUN, "--stratum", stratum,
                "--wav-root", ART, "--wav-dir", WAV_DIR, "--out", f["run"], "--log", f["log"], "--mode", mode,
-               "--threads", THREADS, "--label", f"{BUILD_COMMIT}:dsub_{arm}", "--wsjtx-alltxt", WS_ALLTXT,
+               "--threads", THREADS, "--nhard", "40", "--label", f"{BUILD_COMMIT}:dsub_{arm}", "--wsjtx-alltxt", WS_ALLTXT,
                "--testb-out", f["testb"], "--outcomes", f["outcomes"], "--abandon-out", f["abandon"], "--matched-out", f["matched"]]
         t0 = time.time()
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
