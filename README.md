@@ -44,7 +44,7 @@ of the obvious avenues are already closed by measurement, and the dossier says w
 > [#3](https://github.com/frank001/OpenWSFZ/issues/3), whose progress comments are kept current)
 > and the dated reports under `qa/`.
 
-All development phases to date are merged and archived (the one exception, `osd-sign-fix`, is under review).
+All development phases to date are merged and archived (the latest, `osd-sign-fix`, merged 2026-10-09).
 FT8 decoding **and transmitting** are fully functional against live audio and recorded fixtures, and a complete
 automated six-message FT8 QSO exchange has been validated via VoiceMeeter software loopback.
 
@@ -133,6 +133,12 @@ the correction in issue [#215](https://github.com/frank001/OpenWSFZ/issues/215).
   (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) are configurable
   at runtime from the Decoder settings page, so the false-positive/sensitivity
   trade-off can be adjusted without a native rebuild.
+- **Corrected OSD fallback (#215)** — since shim `20260060` (merged 2026-10-09) the ordered-statistics fallback
+  receives its input in its own sign convention; before, every OSD accept was a chance CRC hit. With it,
+  `decoder.osdNhardMax` defaults to **24** (valid range [24, 100]); an existing install that stored 40 is
+  migrated to 24 once the first time this version starts (one line is logged). To use another value, set it
+  in the Decoder settings and save; the choice then persists. Validated on replay of one 40 m night (a small
+  gain, about one extra decode per 16 cycles, and unchanged SNR reporting); not measured live.
 - **Residual-decode subtraction (SUB-FEAS)** — an additional pass that subtracts decoded signals and
   decodes what they were hiding; **on by default since v0.54**, and an existing install that had it
   off is switched on once the first time v0.54 starts (one line is logged). To turn it off, set
