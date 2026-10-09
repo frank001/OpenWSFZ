@@ -41,9 +41,15 @@ CLASSES = ("EXPOSED", "GAP", "PL", "PL_TRANS_STRONG", "TRANSITION", "PF", "CLEAR
 
 # ---------------------------------------------------------------- loading (numeric only)
 def load_w(alltxt_path, stamps):
-    """{stamp: [(snr, freq_hz), ...]} in ALL.TXT order: the SAME line convention and index as the harness's LoadWsjtx
-    (fields: stamp, mhz, Rx, FT8, snr, dt, freq, message...). The message text is discarded here."""
+    return load_w_hashed(alltxt_path, stamps)[0]
+
+
+def load_w_hashed(alltxt_path, stamps):
+    """({stamp: [(snr, freq_hz), ...]}, {stamps whose W has a hashed '<...>' line}) in ALL.TXT order: the SAME line convention and
+    index as the harness's LoadWsjtx (fields: stamp, mhz, Rx, FT8, snr, dt, freq, message...). Amendment 2: the hashed-cycle test is
+    made HERE, inside the one function that reads the text; only a boolean per stamp leaves it. The message text is discarded."""
     want = set(stamps)
+    hashed = set()
     out = {s: [] for s in stamps}
     with open(alltxt_path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
@@ -55,7 +61,9 @@ def load_w(alltxt_path, stamps):
             except ValueError:
                 continue
             out[f[0]].append((snr, freq))
-    return out
+            if any("<" in t for t in f[7:]):
+                hashed.add(f[0])
+    return out, hashed
 
 
 def load_matched(path):
@@ -194,12 +202,17 @@ def ci95(x):
 
 
 # ---------------------------------------------------------------- validity rows (pure functions, exercised both ways in tests)
-def row_v1(stamps, matched, per_cycle, arm, ab_new, ab_old):
+def row_v1(stamps, matched, per_cycle, arm, ab_new, ab_old, hashed=frozenset()):
     """Re-run matched count per cycle equals the 10-01 per_cycle.csv value (M_off for OFF, M_on for ON).
     An exception is allowed only when the ON arm's abandonment flag differs between the two runs (explained in exactly one);
     exceptions <= 5% of sampled cycles, unexplained = 0. Returns dict with 'pass'."""
     col = 0 if arm == "off" else 1
     unexplained, explained = [], []
+    # Amendment 2: V1 is evaluated on cycles with NO hashed W line; the hashed cycles' differences are reported as a limit.
+    hdiffs = [len(matched.get(s, ())) - per_cycle[s][col] for s in stamps if s in hashed]
+    hdiffs_nz = [x for x in hdiffs if x != 0]
+    stamps_all = stamps
+    stamps = [s for s in stamps if s not in hashed]
     for s in stamps:
         got = len(matched.get(s, ()))
         if got == per_cycle[s][col]:
@@ -209,7 +222,9 @@ def row_v1(stamps, matched, per_cycle, arm, ab_new, ab_old):
         else:
             unexplained.append(s)
     frac = len(explained) / len(stamps)
-    return {"explained": len(explained), "unexplained": len(unexplained), "explained_frac": frac,
+    return {"n_evaluated": len(stamps), "n_hashed_excluded": len(stamps_all) - len(stamps),
+            "hashed_limit": {"cycles_differing": len(hdiffs_nz), "sum": sum(hdiffs), "min": min(hdiffs, default=0), "max": max(hdiffs, default=0)},
+            "explained": len(explained), "unexplained": len(unexplained), "explained_frac": frac,
             "pass": (not unexplained) and frac <= MAX_EXCEPT_FRAC, "unexplained_stamps": unexplained[:10]}
 
 
@@ -249,6 +264,41 @@ def verdict(lo, hi, bar=BAR_PRIMARY):
 
 
 # ---------------------------------------------------------------- driver
+def arm_block(cycles, stamps, matched):
+    S = stack([cycle_counts(c, matched.get(s, set())) for c, s in zip(cycles, stamps)])
+    return S, block_sums(S, len(stamps))
+
+
+def analyse_arms(cycles, stamps, m_off, m_on, n_w_total):
+    """Everything computed on ONE set of sampled cycles (all 430, or the no-hashed subset). Blocks of 4 are formed within that set."""
+    S_off, B_off = arm_block(cycles, stamps, m_off)
+    S_on, B_on = arm_block(cycles, stamps, m_on)
+    pairs = [("off", "PL", "PF"), ("on", "PL", "PF"), ("off", "EXPOSED", "PL"), ("on", "EXPOSED", "PL")]
+    draws, dd = bootstrap(B_off, B_on, pairs)
+    res = {"n_cycles": len(stamps), "n_W_total": n_w_total}
+    for arm, S in (("off", S_off), ("on", S_on)):
+        D0, d0a, n0a, _, _ = D_pair(S, "PL", "PF")
+        lo0, hi0 = ci95(draws[(arm, "PL", "PF")])
+        De, dea, nea, dpl, npl = D_pair(S, "EXPOSED", "PL")
+        lo, hi = ci95(draws[(arm, "EXPOSED", "PL")])
+        n_exp = int(S["EXPOSED"][0].sum())
+        res[arm] = {"row0a": dict(row_0a(lo0, hi0), D=D0), "row0b": row_0b(dea, nea, d0a, n0a),
+                    "D": De, "ci95": [lo, hi], "n_exposed": n_exp, "C_pp": De * n_exp / n_w_total * 100.0,
+                    "matched_rate_pct": {k: (100.0 * S[k][1].sum() / S[k][0].sum() if S[k][0].sum() else None) for k in CLASSES},
+                    "n": {k: int(S[k][0].sum()) for k in CLASSES}}
+    res["net_pp_per_stratum"] = {k: (100.0 * (S_on[k][1].sum() - S_off[k][1].sum()) / S_on[k][0].sum()
+                                     if S_on[k][0].sum() else None) for k in CLASSES}
+    res["delta_D"] = {"point": res["on"]["D"] - res["off"]["D"], "ci95": list(ci95(dd))}
+    return res
+
+
+def robust_verdict(v_all, v_clean):
+    """Amendment 2 (iii): the verdict row computed on all cycles and on the no-hashed cycles only; if they disagree, NO verdict."""
+    if v_all == v_clean:
+        return v_all
+    return f"NO VERDICT (all cycles: {v_all}; no-hashed cycles: {v_clean})"
+
+
 def main(argv):
     stage = argv[1] if len(argv) > 1 else "offpoint"
     assert stage in ("offpoint", "full"), stage
@@ -259,53 +309,56 @@ def main(argv):
     stamps = sel["runs"][RUN]["S10"]
     assert len(stamps) == 430
     alltxt = os.path.join(art, f"{RUN}_endurance_run-gathered", "wsjt-x", "ALL.TXT")
-    w = load_w(alltxt, stamps)
+    w, hashed = load_w_hashed(alltxt, stamps)
     cycles = build_cycles(w, stamps)
     per_cycle = load_per_cycle(os.path.join(old, "per_cycle.csv"))
-    res = {"stage": stage, "n_cycles": len(stamps), "n_W_total": sum(len(w[s]) for s in stamps)}
+    clean_idx = [i for i, s in enumerate(stamps) if s not in hashed]
+    res = {"stage": stage,
+           "amendment_2": "V1 as pre-registered FAILED (75/430 OFF), amended after the OFF arm's validity data and before any ON-arm number",
+           "n_cycles": len(stamps), "n_cycles_no_hashed": len(clean_idx), "n_W_total": sum(len(w[s]) for s in stamps)}
+    # (iv) the DLL pin of THIS run equals the 10-01 run's
+    pins_new = [json.loads(x) for x in open(os.path.join(d, "pins.jsonl"))]
+    pins_old = [json.loads(x) for x in open(os.path.join(old, "pins.jsonl"))]
+    dlls = {p["libft8_sha256"] for p in pins_new} | {p["pinned"] for p in pins_new}
+    dlls_old = {p["libft8_sha256"] for p in pins_old} | {p["pinned"] for p in pins_old}
+    res["iv_dll_pin"] = {"this_run": sorted(dlls), "run_10_01": sorted(dlls_old), "equal": dlls == dlls_old and len(dlls) == 1}
 
     m_off = load_matched(os.path.join(d, "matched_OFF.csv"))
     ab_old_on = load_abandon(os.path.join(old, "abandon_ON.csv"))
     res["V2"] = row_v2(cycles)
     res["V3"] = row_v3(cycles)
-    res["V1_OFF"] = row_v1(stamps, m_off, per_cycle, "off", None, None)
-    S_off = stack([cycle_counts(c, m_off.get(s, set())) for c, s in zip(cycles, stamps)])
-    B_off = block_sums(S_off, len(stamps))
+    res["V1_OFF"] = row_v1(stamps, m_off, per_cycle, "off", None, None, hashed)
+    S_off, _ = arm_block(cycles, stamps, m_off)
     D_off, da, na, db, nb = D_pair(S_off, "EXPOSED", "PL")
     res["D_off_point"] = D_off
-    res["D_off_below_bar"] = bool(D_off < BAR_PRIMARY)   # to be flagged to the Architect BEFORE the verdict is read
+    res["D_off_below_bar"] = bool(D_off < BAR_PRIMARY)
     res["EXPOSED_drop_OFF"] = [da, na]
-
     if stage == "offpoint":
         print(json.dumps(res, indent=1, default=float))
         return 0
 
     m_on = load_matched(os.path.join(d, "matched_ON.csv"))
     ab_new_on = load_abandon(os.path.join(d, "abandon_ON.csv"))
-    res["V1_ON"] = row_v1(stamps, m_on, per_cycle, "on", ab_new_on, ab_old_on)
-    S_on = stack([cycle_counts(c, m_on.get(s, set())) for c, s in zip(cycles, stamps)])
-    B_on = block_sums(S_on, len(stamps))
-    pairs = [("off", "PL", "PF"), ("on", "PL", "PF"), ("off", "EXPOSED", "PL"), ("on", "EXPOSED", "PL")]
-    draws, dd = bootstrap(B_off, B_on, pairs)
-    for arm, S in (("off", S_off), ("on", S_on)):
-        D0, d0a, n0a, _, _ = D_pair(S, "PL", "PF")
-        lo0, hi0 = ci95(draws[(arm, "PL", "PF")])
-        De, dea, nea, dpl, npl = D_pair(S, "EXPOSED", "PL")
-        lo, hi = ci95(draws[(arm, "EXPOSED", "PL")])
-        n_exp = int(S["EXPOSED"][0].sum())
-        res[arm] = {"row0a": dict(row_0a(lo0, hi0), D=D0), "row0b": row_0b(dea, nea, d0a, n0a),
-                    "D": De, "ci95": [lo, hi], "n_exposed": n_exp,
-                    "C_pp": De * n_exp / res["n_W_total"] * 100.0,
-                    "matched_rate_pct": {k: (100.0 * S[k][1].sum() / S[k][0].sum() if S[k][0].sum() else None) for k in CLASSES},
-                    "n": {k: int(S[k][0].sum()) for k in CLASSES}}
-    res["net_pp_per_stratum"] = {k: (100.0 * (S_on[k][1].sum() - S_off[k][1].sum()) / S_on[k][0].sum()
-                                     if S_on[k][0].sum() else None) for k in CLASSES}
-    res["delta_D"] = {"point": res["on"]["D"] - res["off"]["D"], "ci95": list(ci95(dd))}
-    res["arm_valid_ON"] = bool(res["V1_ON"]["pass"] and res["V2"]["pass"] and res["V3"]["pass"]
-                                and res["on"]["row0a"]["pass"] and res["on"]["row0b"]["pass"])
-    res["arm_valid_OFF"] = bool(res["V1_OFF"]["pass"] and res["V2"]["pass"] and res["V3"]["pass"]
-                                 and res["off"]["row0a"]["pass"] and res["off"]["row0b"]["pass"])
-    res["verdict_ON"] = verdict(*res["on"]["ci95"]) if res["arm_valid_ON"] else "INVALID (a validity row failed; no verdict row is read)"
+    res["V1_ON"] = row_v1(stamps, m_on, per_cycle, "on", ab_new_on, ab_old_on, hashed)
+    res["all"] = analyse_arms(cycles, stamps, m_off, m_on, res["n_W_total"])
+    c_cycles = [cycles[i] for i in clean_idx]
+    c_stamps = [stamps[i] for i in clean_idx]
+    res["no_hashed"] = analyse_arms(c_cycles, c_stamps, m_off, m_on, sum(len(w[s]) for s in c_stamps))
+    ok_common = bool(res["V2"]["pass"] and res["V3"]["pass"])
+
+    def valid(sub, arm, v1):
+        return bool(v1["pass"] and ok_common and sub[arm]["row0a"]["pass"] and sub[arm]["row0b"]["pass"])
+
+    res["arm_valid_ON"] = {"all": valid(res["all"], "on", res["V1_ON"]), "no_hashed": valid(res["no_hashed"], "on", res["V1_ON"])}
+    res["arm_valid_OFF"] = {"all": valid(res["all"], "off", res["V1_OFF"]), "no_hashed": valid(res["no_hashed"], "off", res["V1_OFF"])}
+
+    def vrow(sub, key):
+        return verdict(*sub["on"]["ci95"]) if res["arm_valid_ON"][key] else "INVALID"
+
+    v_all, v_clean = vrow(res["all"], "all"), vrow(res["no_hashed"], "no_hashed")
+    res["verdict_ON"] = {"all": v_all, "no_hashed": v_clean,
+                         "final": robust_verdict(v_all, v_clean) if "INVALID" not in (v_all, v_clean)
+                         else f"INVALID (all: {v_all}; no-hashed: {v_clean})"}
     out = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-09-density-sub", "rows.json")
     json.dump(res, open(out, "w"), indent=1, default=float)
     print(json.dumps(res, indent=1, default=float))

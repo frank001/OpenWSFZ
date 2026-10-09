@@ -174,3 +174,29 @@ def test_block_sums_partitions_cycles():
                     for _ in range(10)])
     b = r.block_sums(full, 10)
     assert b["PL"][0].sum() == 10 * r.dl.N_CELLS
+
+
+# ---- Amendment 2 ------------------------------------------------------------------------------------------------
+def test_load_w_hashed_flags_cycles_without_leaking_text(tmp_path):
+    p = tmp_path / "ALL.TXT"
+    p.write_text("S1     7.074 Rx FT8      9  0.0 1753 AAAA <BBBB> RR73\n"
+                 "S2     7.074 Rx FT8      0  0.1 1000 EEEE FFFF\n", encoding="utf-8")
+    w, h = r.load_w_hashed(str(p), ["S1", "S2"])
+    assert h == {"S1"} and w["S1"] == [(9, 1753)] and "BBBB" not in repr((w, h))
+
+
+def test_v1_evaluated_on_unhashed_cycles_only_and_reports_hashed_limit():
+    pc = {s: (3, 5) for s in STAMPS}
+    got = {s: {0, 1, 2} for s in STAMPS}
+    got["S3"] = {0, 1}                       # a hashed cycle differs by -1
+    hashed = {"S3"}
+    out = r.row_v1(STAMPS, got, pc, "off", None, None, hashed)
+    assert out["pass"] and out["n_evaluated"] == 39 and out["n_hashed_excluded"] == 1
+    assert out["hashed_limit"] == {"cycles_differing": 1, "sum": -1, "min": -1, "max": -1}
+    got["S9"] = {0, 1}                       # an UNhashed cycle differs: must fail (both answers)
+    assert not r.row_v1(STAMPS, got, pc, "off", None, None, hashed)["pass"]
+
+
+def test_robust_verdict_agrees_or_gives_no_verdict():
+    assert r.robust_verdict("DS-PERSISTS", "DS-PERSISTS") == "DS-PERSISTS"
+    assert r.robust_verdict("DS-OPEN", "DS-PERSISTS").startswith("NO VERDICT")
