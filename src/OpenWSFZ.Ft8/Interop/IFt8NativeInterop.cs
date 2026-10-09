@@ -120,7 +120,7 @@ internal interface IFt8NativeInterop
     /// </summary>
     /// <param name="kMinScorePass2">Pass-1 candidate score floor (default 10, valid [5, 30]).</param>
     /// <param name="osdCorrThreshold">OSD normalised correlation gate (default 0.10f, valid [0.05, 0.40]).</param>
-    /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (default 60, valid [30, 100]).</param>
+    /// <param name="osdNhardMax">OSD maximum Hamming-distance gate (native default 60; the daemon passes its managed default 24 and enforces [24, 100] in the config API).</param>
     void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax);
 
     /// <summary>

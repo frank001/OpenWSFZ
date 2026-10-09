@@ -40,7 +40,7 @@ public sealed class DecoderConfigTests
 
     // ── 7.1b — Missing-field defaults via [JsonConstructor] path ────────────
 
-    [Fact(DisplayName = "7.1b: Deserialising '{}' produces calibrated defaults (kMinScorePass2=10, osdCorrThreshold=0.10, osdNhardMax=40)")]
+    [Fact(DisplayName = "7.1b: Deserialising '{}' produces calibrated defaults (kMinScorePass2=10, osdCorrThreshold=0.10, osdNhardMax=24)")]
     public void DecoderConfig_EmptyJson_YieldsCalibRatedDefaults()
     {
         // STJ source-gen ignores C# init-property defaults for absent JSON fields.
@@ -52,7 +52,7 @@ public sealed class DecoderConfigTests
 
         dec.KMinScorePass2  .Should().Be(10,   "empty decoder object must default kMinScorePass2 to 10 (D-009)");
         dec.OsdCorrThreshold.Should().BeApproximately(0.10f, 1e-6f, "empty decoder object must default osdCorrThreshold to 0.10 (D-009)");
-        dec.OsdNhardMax     .Should().Be(40,   "empty decoder object must default osdNhardMax to 40 (NHARD40-DEFAULT, 2026-09-12)");
+        dec.OsdNhardMax     .Should().Be(24,   "empty decoder object must default osdNhardMax to 24 (OSD-FIX R4, 2026-10-09)");
     }
 
     // ── 7.1c — AppConfig backward-compat: missing decoder key ───────────────
@@ -68,7 +68,7 @@ public sealed class DecoderConfigTests
         var effective = config.Decoder ?? new DecoderConfig();
         effective.KMinScorePass2  .Should().Be(10,   "absent decoder key → effective kMinScorePass2 = 10");
         effective.OsdCorrThreshold.Should().BeApproximately(0.10f, 1e-6f, "absent decoder key → effective osdCorrThreshold = 0.10");
-        effective.OsdNhardMax     .Should().Be(40,   "absent decoder key → effective osdNhardMax = 40 (NHARD40-DEFAULT, 2026-09-12)");
+        effective.OsdNhardMax     .Should().Be(24,   "absent decoder key → effective osdNhardMax = 24 (OSD-FIX R4, 2026-10-09)");
     }
 
     // ── 7.1d — JsonConfigStore default-config file includes decoder section ──
@@ -94,7 +94,7 @@ public sealed class DecoderConfigTests
         var dec    = loaded.Decoder ?? new DecoderConfig();
         dec.KMinScorePass2  .Should().Be(10,   "default decoder.kMinScorePass2 must be 10");
         dec.OsdCorrThreshold.Should().BeApproximately(0.10f, 1e-6f, "default decoder.osdCorrThreshold must be 0.10");
-        dec.OsdNhardMax     .Should().Be(40,   "default decoder.osdNhardMax must be 40 (NHARD40-DEFAULT, 2026-09-12)");
+        dec.OsdNhardMax     .Should().Be(24,   "default decoder.osdNhardMax must be 24 (OSD-FIX R4, 2026-10-09)");
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
