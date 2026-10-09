@@ -1,0 +1,246 @@
+{
+ "BAR_G_pp": 1.0,
+ "U_row": "U-GO",
+ "extension": {
+  "V2": "carried: synthetic, sample-independent, passed",
+  "failing_rows": [],
+  "n_cycles": 310,
+  "n_faulted": 1,
+  "n_rows": 9576,
+  "validity": {
+   "V1": {
+    "failed_or_missing": [],
+    "pass": true
+   },
+   "V3": {
+    "edge": 204,
+    "faulted_rows": 1,
+    "n": 9575,
+    "pass": true,
+    "share": 0.021305483028720627
+   },
+   "V4P": {
+    "G_success_on_P1": 0.9652299891343716,
+    "G_success_on_batch2_only": 0.006980802792321117,
+    "G_success_on_replay_unmatched": 0.0041279669762641896,
+    "P1_n": 5522,
+    "bar": 0.9,
+    "batch2_rows_n": 1146,
+    "pass": true,
+    "replay_batch2_share_of_matches": 0.1718656268746251,
+    "replay_unmatched_rows_n": 2907,
+    "ws_count_mismatch_cycles": 0,
+    "ws_count_mismatch_examples": []
+   },
+   "V5": {
+    "differing_fields": 0,
+    "first_differences": [],
+    "n": 300,
+    "pass": true
+   }
+  }
+ },
+ "extension_descriptive": {
+  "NET_C1": {
+   "NET_pp": -7.968668407310705,
+   "block": 8,
+   "ci95": [
+    -8.918958584175087,
+    -7.1023003185304585
+   ],
+   "n_blocks": 39,
+   "n_cycles": 310,
+   "n_rows": 9575
+  },
+  "NET_C3S": {
+   "NET_pp": 1.9634464751958225,
+   "block": 8,
+   "ci95": [
+    1.2442920790079646,
+    2.6491422394204704
+   ],
+   "n_blocks": 39,
+   "n_cycles": 310,
+   "n_rows": 9575
+  },
+  "amendment2_sign_corrected_osd_descriptive": {
+   "C3O_vs_C3": {
+    "NET_vs_base": {
+     "NET_pp": 0.20887728459530025,
+     "block": 8,
+     "ci95": [
+      0.12033423070621184,
+      0.3098315432296676
+     ],
+     "n_blocks": 39,
+     "n_cycles": 310,
+     "n_rows": 9575
+    },
+    "bp_fail_rows": 4082,
+    "bp_fail_rows_recovered_true_payload_by_corrected_osd": 20,
+    "bp_only_success": 5493,
+    "n_rows": 9575,
+    "rows_corrected_osd_returned_crc_valid_wrong_payload": 34,
+    "rows_negated_call_returned_path0": 0,
+    "wrong_pct_of_bp_fail_rows": 0.8329250367466928,
+    "wrong_pct_of_rows": 0.35509138381201044
+   },
+   "GO_vs_G": {
+    "NET_vs_base": {
+     "NET_pp": 0.0731070496083551,
+     "block": 8,
+     "ci95": [
+      0.02101281781886951,
+      0.1372198222177272
+     ],
+     "n_blocks": 39,
+     "n_cycles": 310,
+     "n_rows": 9575
+    },
+    "bp_fail_rows": 4225,
+    "bp_fail_rows_recovered_true_payload_by_corrected_osd": 7,
+    "bp_only_success": 5350,
+    "n_rows": 9575,
+    "rows_corrected_osd_returned_crc_valid_wrong_payload": 256,
+    "rows_negated_call_returned_path0": 0,
+    "wrong_pct_of_bp_fail_rows": 6.059171597633136,
+    "wrong_pct_of_rows": 2.6736292428198434
+   }
+  },
+  "gains_losses": {
+   "C1": {
+    "gains": 157,
+    "gains_ci95_pct": [
+     1.386303403094121,
+     1.893856146128736
+    ],
+    "gains_pct_of_rows": 1.639686684073107,
+    "losses": 920,
+    "losses_ci95_pct": [
+     8.802273596738415,
+     10.488002161775805
+    ],
+    "losses_pct_of_rows": 9.608355091383812,
+    "n": 9575
+   },
+   "C3": {
+    "gains": 510,
+    "gains_ci95_pct": [
+     4.809335279879676,
+     5.808188702139044
+    ],
+    "gains_pct_of_rows": 5.326370757180157,
+    "losses": 367,
+    "losses_ci95_pct": [
+     3.3510605890384912,
+     4.351470211322987
+    ],
+    "losses_pct_of_rows": 3.83289817232376,
+    "n": 9575
+   },
+   "C3S": {
+    "gains": 526,
+    "gains_ci95_pct": [
+     4.98087553984914,
+     5.969529473555625
+    ],
+    "gains_pct_of_rows": 5.493472584856397,
+    "losses": 338,
+    "losses_ci95_pct": [
+     3.0666220614398836,
+     4.0330240855845245
+    ],
+    "losses_pct_of_rows": 3.5300261096605743,
+    "n": 9575
+   }
+  },
+  "path_G_counts": {
+   "-1": 4138,
+   "0": 5422,
+   "1": 15
+  }
+ },
+ "first_paragraph_flags": [],
+ "first_sample": {
+  "NET_C3": {
+   "NET_pp": 1.3337534131484983,
+   "block": 8,
+   "ci95": [
+    0.5708993014919661,
+    2.0257659101310312
+   ],
+   "n_blocks": 39,
+   "n_cycles": 309,
+   "n_rows": 9522
+  },
+  "failing_rows": [],
+  "n_rows": 9524
+ },
+ "generated_utc": "2026-10-06T20:30:24Z",
+ "pooled_primary": {
+  "NET_C3_pooled": {
+   "NET_pp": 1.4138346337121013,
+   "block": 8,
+   "ci95": [
+    0.8731023892710704,
+    1.944266650080814
+   ],
+   "n_blocks": 78,
+   "n_cycles": 619,
+   "n_rows": 19097
+  },
+  "block_variants_not_used_for_verdict": {
+   "16": [
+    0.8098018072588558,
+    1.9920518701875618
+   ],
+   "4": [
+    0.933954298732791,
+    1.8875045899412781
+   ]
+  },
+  "cluster": {
+   "distinct_cycles_nonzero": 466,
+   "flag_gt_half": false,
+   "largest_abs_block_sum": 18,
+   "n_blocks": 78,
+   "sum_d": 270,
+   "top5_share_of_positive_sum": 0.29259259259259257
+  },
+  "extension_only_NET_C3": {
+   "NET_pp": 1.4934725848563968,
+   "block": 8,
+   "ci95": [
+    0.6900012663032448,
+    2.2472111948957254
+   ],
+   "n_blocks": 39,
+   "n_cycles": 310,
+   "n_rows": 9575
+  }
+ },
+ "secondary_U_extension_rows_only": {
+  "HK-038": "1.0 pp is BAR_G, ratified by the Captain as the gain that justifies a native build (a decision value)",
+  "NET_U": {
+   "NET_U_pp": 5.326370757180157,
+   "block": 8,
+   "ci95": [
+    4.809335279879676,
+    5.808188702139044
+   ],
+   "n_blocks": 39,
+   "n_cycles": 310,
+   "n_rows": 9575
+  },
+  "fallback_false_decodes": {
+   "fallback_correct_recoveries": 510,
+   "fallback_crc_valid_wrong_payloads": 215,
+   "g_fail_rows": 4225,
+   "wrong_per_correct_recovery": 0.4215686274509804,
+   "wrong_per_g_fail_row_pct": 5.088757396449704,
+   "wrong_per_row_pct": 2.245430809399478
+  },
+  "row_if_valid": "U-GO"
+ },
+ "verdict_pooled": "COH-OPEN"
+}

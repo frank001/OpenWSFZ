@@ -1,4 +1,5 @@
-run_date,build_sha,subtraction_enabled,dll_sha256_prefix,x_owsfz_l90,x_owsfz_l50,x_owsfz_e90,x_owsfz_e50,x_wsjtx_l90,x_wsjtx_l50,x_wsjtx_e90,x_wsjtx_e50,wsjtx_validity,owsfz_guard,wrong_cycle_decodes,report_state
-2026-10-02,cddd7e340d922abddefbbe1dc9ff35e76ec93e7d,true,ee00d118523ee216,32,0,32,17,32,0,32,32,PASS,PASS,0,VALID
-2026-10-03,cddd7e340d922abddefbbe1dc9ff35e76ec93e7d,true,ee00d118523ee216,32,0,32,16,32,0,32,32,PASS,PASS,0,VALID
-2026-10-04,766f9cc2bbe97c93ff0137d01c3b77e504f80701,true,2fa6d99302c6c602,32,0,32,32,32,0,32,32,PASS,PASS,0,VALID
+run_date,build_sha,subtraction_enabled,dll_sha256_prefix,x_owsfz_l90,x_owsfz_l50,x_owsfz_e90,x_owsfz_e50,x_wsjtx_l90,x_wsjtx_l50,x_wsjtx_e90,x_wsjtx_e50,wsjtx_validity,owsfz_guard,wrong_cycle_decodes,report_state,cycles_owsfz_l90,cycles_owsfz_l50,cycles_owsfz_e90,cycles_owsfz_e50
+2026-10-02,cddd7e340d922abddefbbe1dc9ff35e76ec93e7d,true,ee00d118523ee216,32,0,32,17,32,0,32,32,PASS,PASS,0,VALID,,,,
+2026-10-03,cddd7e340d922abddefbbe1dc9ff35e76ec93e7d,true,ee00d118523ee216,32,0,32,16,32,0,32,32,PASS,PASS,0,VALID,,,,
+2026-10-04,766f9cc2bbe97c93ff0137d01c3b77e504f80701,true,2fa6d99302c6c602,32,0,32,32,32,0,32,32,PASS,PASS,0,VALID,,,,
+2026-10-08,3276573bc25c0c4fb4028d751f0cd62d46e2e31d,true,2029b0804a9abcc3,32,0,32,23,32,0,32,32,PASS,PASS,0,VALID,4,0,4,3
