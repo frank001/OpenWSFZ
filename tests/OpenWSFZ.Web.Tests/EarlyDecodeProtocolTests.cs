@@ -219,6 +219,12 @@ public sealed class EarlyDecodeWebSocketTests : IClassFixture<RealServerFixture>
         using var ws = new ClientWebSocket();
         await ws.ConnectAsync(WsUri(), CancellationToken.None);
 
+        // ConnectAsync returns when the upgrade completes, but the hub registers the socket
+        // BEFORE it sends its initial 'status' frame. A publish in that window reaches no
+        // registered socket and is dropped. Reading the first 'status' frame is the positive
+        // signal that the socket is registered (TESTING_STRATEGY.md section 11: no fixed delay).
+        (await ReadFrameOfTypeAsync(ws, "status")).Should().NotBeNull("the hub's first frame proves the socket is registered");
+
         var bus = new DecodeEventBus(_fixture.AppScope);
         var row = new DecodeResult("15:30:00", -12, 0.3, 1234, "Q1AW Q1TTT EN43");
 
