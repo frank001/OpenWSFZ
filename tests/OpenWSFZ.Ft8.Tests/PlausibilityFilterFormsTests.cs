@@ -23,11 +23,14 @@ public sealed class PlausibilityFilterFormsTests
     [InlineData("Q1ABC Q2XYZ R FN42")]
     [InlineData("<...> Q2XYZ R FN42")]
     [InlineData("Q1ABC <...> R FN42")]
+    [InlineData("CQ DX 73")]                  // unchanged positive: existing terminal rule
     public void NewForms_ArePlausible(string text) =>
         Ft8Decoder.IsPlausibleMessage(text).Should().BeTrue();
 
     [Theory(DisplayName = "#226/#227/#228: near-miss forms stay rejected")]
     [InlineData("Q1ABC Q2XYZ R SS42")]
+    [InlineData("CQ POTA 73")]                // spec amendment 2: token 2 must parse as a callsign
+    [InlineData("DE Q1ABC R FN42")]           // spec amendment 2: token 0 must parse as a callsign or hash
     [InlineData("Q1ABC Q2XYZ X FN42")]
     [InlineData("Q1ABC Q2XYZ R FN4")]
     [InlineData("CQ DXDXD Q1ABC")]
