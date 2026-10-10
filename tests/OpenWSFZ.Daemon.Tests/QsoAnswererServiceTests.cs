@@ -982,6 +982,26 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         grid.Should().Be(expGrid);
     }
 
+    [Theory(DisplayName = "TryParseCq: a CQ modifier is skipped when the next token is a callsign")]
+    [InlineData("CQ DX Q1ABC",          "Q1ABC",       null)]
+    [InlineData("CQ DX Q1ABC FN42",     "Q1ABC",       "FN42")]
+    [InlineData("CQ POTA Q1ABC",        "Q1ABC",       null)]
+    [InlineData("CQ POTA Q1ABC FN42",   "Q1ABC",       "FN42")]
+    [InlineData("CQ 123 Q1ABC",         "Q1ABC",       null)]
+    [InlineData("CQ 123 Q1ABC FN42",    "Q1ABC",       "FN42")]
+    [InlineData("CQ Q1ABC FN42",        "Q1ABC",       "FN42")]
+    [InlineData("CQ QA4/Q1ABC",         "QA4/Q1ABC",   null)]
+    [InlineData("CQ POTA 73",           "POTA",        "73")]   // today's behaviour; the validator rejects it
+    [InlineData("CQ DX Q1ABC SS42",     "Q1ABC",       null)]   // not a [A-R]{2}[0-9]{2} grid
+    public void TryParseCq_CqModifier_SkipsModifier(string msg, string expCall, string? expGrid)
+    {
+        bool result = QsoAnswererService.TryParseCq(msg, out var callsign, out var grid);
+
+        result.Should().BeTrue();
+        callsign.Should().Be(expCall);
+        grid.Should().Be(expGrid);
+    }
+
     [Theory(DisplayName = "TryParseCq: rejects non-CQ messages")]
     [InlineData("Q1OFZ Q1TST +05")]
     [InlineData("Q1OFZ Q1TST RR73")]
