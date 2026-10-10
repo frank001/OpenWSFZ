@@ -222,15 +222,24 @@ public sealed class D009FpFilterTests
 
     // ── Unit tests: D9-R3 R3 — 4-token non-CQ reject ────────────────────────
 
+    // The four "CALL CALL R GRID" rows that used to be here are SUPERSEDED by #228 and now
+    // live in IsPlausibleMessage_CallCallRGrid_ReturnsTrue below (spec amendment 2 (§4c):
+    // the D-009 Category A evidence predates the OSD sign fix #215, and ft8_lib renders the
+    // form, message.c:952-953).  The remaining row is not "R GRID" and stays rejected.
     [Theory(DisplayName = "D009 R3: IsPlausibleMessage rejects 4-token messages where token0 is not CQ")]
-    [InlineData("Q1AAA Q2BBB/R R OH76",     "CALLSIGN CALLSIGN R GRID — not a valid Type 1 message")]
-    [InlineData("Q3CCC/P Q4DDD R EQ48",     "portable sender; still not a valid 4-token form")]
-    [InlineData("Q5EEE/R Q6FFF/R R CH00",   "two portable callsigns; R GRID is not a Type 1 closing")]
-    [InlineData("Q7GGG/P Q8HHH R EO10",     "same CALLSIGN CALLSIGN R GRID pattern")]
     [InlineData("Q9III/P Q1JJJ O/P QG94",   "O/P as third token is not a valid FT8 field")]
     public void IsPlausibleMessage_FourTokenNonCq_ReturnsFalse(string text, string reason)
         => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeFalse(
                $"'{text}' is a non-CQ 4-token message and must be rejected by the R3 4-token rule ({reason})");
+
+    [Theory(DisplayName = "#228: IsPlausibleMessage accepts CALL CALL R GRID (supersedes the D009 R3 rejection)")]
+    [InlineData("Q1AAA Q2BBB/R R OH76",     "CALLSIGN CALLSIGN R GRID — spec amendment 2 (§4c)")]
+    [InlineData("Q3CCC/P Q4DDD R EQ48",     "portable sender — spec amendment 2 (§4c)")]
+    [InlineData("Q5EEE/R Q6FFF/R R CH00",   "two portable callsigns — spec amendment 2 (§4c)")]
+    [InlineData("Q7GGG/P Q8HHH R EO10",     "same CALLSIGN CALLSIGN R GRID pattern — spec amendment 2 (§4c)")]
+    public void IsPlausibleMessage_CallCallRGrid_ReturnsTrue(string text, string reason)
+        => Ft8Decoder.IsPlausibleMessage(text, FixedCallsignGrammarStore.Default).Should().BeTrue(
+               $"'{text}' is a CALL CALL R GRID message and is accepted by #228 ({reason})");
 
     [Theory(DisplayName = "D009 R3: IsPlausibleMessage accepts valid CQ 4-token messages")]
     [InlineData("CQ DX Q1ABC FN42", "standard CQ DX with grid")]
@@ -295,8 +304,9 @@ public sealed class D009FpFilterTests
             new Ft8NativeResult { FreqHz = 1900, Dt = 0.1f, Snr = -26, Message = "CQ 3QQF EXLJSR"  },
             new Ft8NativeResult { FreqHz = 1950, Dt = 0.2f, Snr = -27, Message = "CQ /UX 6PY23BM"  },
 
-            // ── D009 R3: 4-token non-CQ patterns (must be filtered) ──────────
+            // ── #228 (spec amendment 2 (§4c)): CALL CALL R GRID now SURVIVES ─
             new Ft8NativeResult { FreqHz = 2000, Dt = 0.1f, Snr = -27, Message = "Q1AAA Q2BBB/R R OH76"   },
+            // ── D009 R3: 4-token non-CQ pattern that is not R GRID (must be filtered) ─
             new Ft8NativeResult { FreqHz = 2050, Dt = 0.2f, Snr = -27, Message = "Q9III/P Q1JJJ O/P QG94" },
 
             // ── R5 Rule A: single-token (must be filtered) ────────────────────
@@ -313,14 +323,17 @@ public sealed class D009FpFilterTests
         var decoder = BuildDecoder(interop);
         var results = await decoder.DecodeAsync(BuildLoudPcm(), CancellationToken.None);
 
-        results.Should().HaveCount(3,
-            "only the three valid messages must survive the D-009 filter; " +
+        results.Should().HaveCount(4,
+            "only the three valid messages and the #228 CALL CALL R GRID row must survive the D-009 filter; " +
             "blanks, hex dumps, oversized-callsign garbage, Gap A 2-token patterns, Gap C CQ garbage, " +
-            "R3 4-token non-CQ patterns, R5 Rule A single-token, R5 Rule B 5+-token, and R5 Rule C CQ-hash " +
+            "R3 4-token non-CQ patterns other than CALL CALL R GRID, R5 Rule A single-token, R5 Rule B 5+-token, and R5 Rule C CQ-hash " +
             "patterns must all be rejected");
 
         results.Select(r => r.Message).Should().BeEquivalentTo(
-            ["Q1ABC Q9XYZ -10", "CQ Q1AW EN37", "<...> Q9XYZ RR73"],
-            "the surviving messages must be exactly the three valid inputs, in original order");
+            ["Q1ABC Q9XYZ -10", "CQ Q1AW EN37", "<...> Q9XYZ RR73", "Q1AAA Q2BBB/R R OH76"],
+            "the surviving messages must be exactly the three valid inputs plus the #228 row, in original order");
+
+        results.Should().ContainSingle(r => r.Message == "Q1AAA Q2BBB/R R OH76",
+            "the CALL CALL R GRID row is accepted by #228 (spec amendment 2 (§4c))");
     }
 }

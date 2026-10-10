@@ -930,7 +930,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // reject a callsign in the last position.
                 if (token0.Equals("CQ", StringComparison.Ordinal) &&
                     IsCqModifier(token1) &&
-                    !IsCallsignShapeInvalid(text[(secondSpace + 1)..], grammarStore))
+                    IsParsedCallsign(text[(secondSpace + 1)..], grammarStore))
                     return true;
 
                 if (IsCallsignShapeInvalid(token0, grammarStore) || IsCallsignShapeInvalid(token1, grammarStore))
@@ -954,8 +954,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     string token3 = text[(thirdSpace + 1)..];
                     if (!(token2.Equals("R", StringComparison.Ordinal) &&
                           IsAcknowledgedGrid(token3) &&
-                          !IsCallsignShapeInvalid(token0, grammarStore) &&
-                          !IsCallsignShapeInvalid(token1, grammarStore)))
+                          IsHashOrParsedCallsign(token0, grammarStore) &&
+                          IsHashOrParsedCallsign(token1, grammarStore)))
                         return false;
                 }
             }
@@ -1149,6 +1149,33 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             return true;
 
         return false;
+    }
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="token"/> is a hash reference (<c>&lt;…&gt;</c>) or a
+    /// token that genuinely PARSES as a callsign (see <see cref="IsParsedCallsign"/>).
+    /// </summary>
+    private static bool IsHashOrParsedCallsign(string token, ICallsignGrammarStore? grammarStore) =>
+        token.StartsWith('<') || IsParsedCallsign(token, grammarStore);
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="token"/> is shape-valid AND its base callsign actually
+    /// parses with <see cref="TryParseCallsignShape"/> — stricter than "not invalid", which
+    /// also exempts hash references, tokens of 3 characters or fewer, and <c>RR73</c>
+    /// (#227/#228, spec amendment 2). The base is the part before the first '/', or — for a
+    /// single-slash token — the right half (#226).
+    /// </summary>
+    private static bool IsParsedCallsign(string token, ICallsignGrammarStore? grammarStore)
+    {
+        if (token.StartsWith('<') || IsCallsignShapeInvalid(token, grammarStore)) return false;
+
+        var config = grammarStore?.Current ?? CallsignGrammarConfig.BuiltInDefault;
+        int slashPos = token.IndexOf('/');
+        if (slashPos < 0) return TryParseCallsignShape(token, config, out _);
+
+        if (TryParseCallsignShape(token[..slashPos], config, out _)) return true;
+        return token.IndexOf('/', slashPos + 1) < 0 &&
+               TryParseCallsignShape(token[(slashPos + 1)..], config, out _);
     }
 
     private static bool IsExcluded(CallsignGrammarConfig config, string prefix)
