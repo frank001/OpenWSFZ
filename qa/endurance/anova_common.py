@@ -826,11 +826,13 @@ def render_historical_section(entries: list[dict], section_number: int = 4) -> s
               "file(s) every other field in that row was read from, repo-relative. Footnote "
               "numbering runs in table order, first-needed.")
     L.append("")
-    L.append("| Date | Band | Hours | DLL SHA (short) | Build branch | Build commit (short) | "
-              "Shim | nhard | Ref. | Radio chain | G | Matched pairs | Matched % of ref | "
-              "OWS-only % | SNR gap (dB) | DT gap (s) | Source |")
-    L.append("|---|---|---:|---|---|---|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---|")
+    # Two narrower tables instead of one 17-column table (2026-10-10, Captain: "barely
+    # readable"): A = the measurements, B = build / chain / source provenance, whose long
+    # text cells were what squeezed every numeric column. Rows join on Date + Band + order.
+    def _num(v, spec):
+        return _fmt(v, spec) if isinstance(v, (int, float)) else _fmt(v)
     footnotes = []
+    rows_a, rows_b = [], []
     for e in entries:
         ref = e.get("reference")
         ref_label = {"live_wsjtx": "live WSJT-X", "offline_jt9": "offline `jt9 -d 3`",
@@ -850,16 +852,25 @@ def render_historical_section(entries: list[dict], section_number: int = 4) -> s
         commit = e.get("build_commit")
         commit_short = (commit[:8] + "…") if commit and commit != NOT_RECORDED else _fmt(commit)
         src = ", ".join(f"`{s}`" for s in e.get("source_files", [])) or NOT_RECORDED
-        L.append(f"| {_fmt(e.get('date'))} | {_fmt(e.get('band'))} | {_fmt(e.get('hours'), '.1f')} | "
-                  f"{dll_short} | {_fmt(e.get('build_branch'))} | {commit_short} | "
-                  f"{_fmt(e.get('shim'))} | {_fmt(e.get('nhard'))} | "
-                  f"{ref_label}{flags} | {_fmt(e.get('radio_chain'))} | "
-                  f"{_fmt(e.get('grid_gate_g'), '.4f')} | {_fmt(e.get('n_pairs'))} | "
-                  f"{_fmt(e.get('matched_pct_of_ref'), '.1f') if isinstance(e.get('matched_pct_of_ref'), (int, float)) else _fmt(e.get('matched_pct_of_ref'))} | "
-                  f"{_fmt(e.get('ows_only_pct'), '.1f') if isinstance(e.get('ows_only_pct'), (int, float)) else _fmt(e.get('ows_only_pct'))} | "
-                  f"{_fmt(e.get('snr_gap_db'), '+.3f') if isinstance(e.get('snr_gap_db'), (int, float)) else _fmt(e.get('snr_gap_db'))} | "
-                  f"{_fmt(e.get('dt_gap_s'), '+.4f') if isinstance(e.get('dt_gap_s'), (int, float)) else _fmt(e.get('dt_gap_s'))} | "
-                  f"{src} |")
+        rows_a.append(f"| {_fmt(e.get('date'))} | {_fmt(e.get('band'))} | {_fmt(e.get('hours'), '.1f')} | "
+                      f"{_fmt(e.get('shim'))} | {_fmt(e.get('nhard'))} | {ref_label}{flags} | "
+                      f"{_fmt(e.get('grid_gate_g'), '.4f')} | {_fmt(e.get('n_pairs'))} | "
+                      f"{_num(e.get('matched_pct_of_ref'), '.1f')} | {_num(e.get('ows_only_pct'), '.1f')} | "
+                      f"{_num(e.get('snr_gap_db'), '+.3f')} | {_num(e.get('dt_gap_s'), '+.4f')} |")
+        rows_b.append(f"| {_fmt(e.get('date'))} | {_fmt(e.get('band'))} | {dll_short} | "
+                      f"{_fmt(e.get('build_branch'))} | {commit_short} | {_fmt(e.get('radio_chain'))} | {src} |")
+    L.append("**Table A -- measurements**")
+    L.append("")
+    L.append("| Date | Band | Hours | Shim | nhard | Ref. | G | Matched pairs | "
+              "Matched % of ref | OWS-only % | SNR gap (dB) | DT gap (s) |")
+    L.append("|---|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|")
+    L.extend(rows_a)
+    L.append("")
+    L.append("**Table B -- build, radio chain and source (same row order as Table A)**")
+    L.append("")
+    L.append("| Date | Band | DLL SHA (short) | Build branch | Build commit (short) | Radio chain | Source |")
+    L.append("|---|---|---|---|---|---|---|")
+    L.extend(rows_b)
     L.append("")
     for i, note in enumerate(footnotes, 1):
         L.append(f"{i}. {note}")
