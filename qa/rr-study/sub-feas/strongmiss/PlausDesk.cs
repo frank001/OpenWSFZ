@@ -58,9 +58,23 @@ internal static partial class Program
             t2[i] = SubstituteCall;
             if (_plausible!(string.Join(" ", t2))) fix.Add(i);
         }
+        // compound tokens ('/'): which half, kept alone, makes the row plausible (aggregate class only; no token leaves)
+        foreach (int i in fix)
+        {
+            if (!toks[i].Contains('/')) continue;
+            int sl = toks[i].IndexOf('/');
+            string left = toks[i][..sl], right = toks[i][(sl + 1)..];
+            var tl = (string[])toks.Clone(); tl[i] = left;
+            var tr = (string[])toks.Clone(); tr[i] = right;
+            bool okL = _plausible!(string.Join(" ", tl)), okR = _plausible!(string.Join(" ", tr));
+            string leftLen = left.Length <= 3 ? "left part <= 3 chars" : left.Length <= 6 ? "left part 4-6 chars" : "left part 7+ chars";
+            CompoundNotes.Add($"compound token: part before '/' alone plausible={okL}, part after '/' alone plausible={okR}; {leftLen}");
+        }
         string pat = fix.Count == 0 ? "no single-token substitution fixes it" : "token index " + string.Join("+", fix);
         return $"{toks.Length}-token form: {pat}";
     }
+
+    private static readonly List<string> CompoundNotes = new();
 
     private static void Bump(Dictionary<string, int> d, string k) { d.TryGetValue(k, out int n); d[k] = n + 1; }
 
@@ -88,7 +102,7 @@ internal static partial class Program
         var counts = new SortedDictionary<string, Dictionary<string, int>>();
         Dictionary<string, int> C(string k) { if (!counts.TryGetValue(k, out var v)) counts[k] = v = new(); return v; }
 
-        int tRejected = 0, tRejectedCapture = 0, tNonSemi = 0;
+        int tRejected = 0, tNonSemi = 0;
         foreach (var (label, rows) in new[] { ("matched", matched), ("wsjt_only", only) })
         {
             var c = C(label);
@@ -122,7 +136,9 @@ internal static partial class Program
                     Bump(c, "rejected | shape rules (product rejects, token_rule passes)");
                     Bump(c, "rejected | shape rules | form " + form);
                     Bump(c, "rejected | shape rules | SNR " + bin);
+                    CompoundNotes.Clear();
                     Bump(c, "rejected | shape rules | " + ShapePosition(r.Text));
+                    foreach (var note in CompoundNotes.Distinct()) Bump(c, "rejected | shape rules | " + note);
                 }
             }
         }
