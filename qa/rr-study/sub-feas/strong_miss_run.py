@@ -30,16 +30,18 @@ REPO = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
 ART = os.environ.get("OPENWSFZ_ARTEFACTS", r"D:\Projects\claude\OpenWSFZ\worktrees\qa\artefacts")
 RUN = "20261009_1752"
 GATHERED = os.path.join(ART, f"{RUN}_endurance_run-gathered")
-OUT = os.path.join(ART, "rr_2026-10-10_strong_miss")
+PROBE = "--probe" in sys.argv        # step 2 (amendments 2 and 3): the same process also runs the probe on the SM-DECODER set
+OUT = os.path.join(ART, "rr_2026-10-10_strong_miss_probe" if PROBE else "rr_2026-10-10_strong_miss")
 CHECKOUT = r"D:\Projects\claude\_qa-scratch\endur-sync5\tree"
 BUILD_COMMIT = "421e3ce2af84dff57db9e26250f371e6f9cc029b"
-HARNESS_OUT = r"D:\Projects\claude\_qa-scratch\strong-miss\out"
+HARNESS_OUT = r"D:\Projects\claude\_qa-scratch\strong-miss\out2" if "--probe" in sys.argv else r"D:\Projects\claude\_qa-scratch\strong-miss\out"
 DLL_PIN = "a14fe354b88dbc30c4c13fb2610a8d16769684afec70b826bc30756591fd7610"
 NHARD, SIGN_FIX, THREADS = "24", "1", "8"       # arm_readback.json of the live run: osdNhardMax 24, subtractionMaxThreads 8
 GUARDED = [
     "qa/rr-study/sub-feas/strongmiss",
     "qa/rr-study/sub-feas/strong_miss_run.py",
     "qa/rr-study/2026-10-10-1130-qa-strong-miss-run-protocol.md",
+    "qa/rr-study/2026-10-10-1330-qa-strong-miss-step2-protocol.md",
 ]
 COMPETITORS_PS = ("Get-Process | Where-Object { $_.ProcessName -match '^(wsjtx|jt9|OpenWSFZ|testhost|MSBuild|dotnet|VBCSCompiler)' } | "
                   "ForEach-Object { '{0},{1}' -f $_.ProcessName, $_.Id }")
@@ -91,6 +93,9 @@ def preflight():
     exe = os.path.join(HARNESS_OUT, "StrongMiss.dll")
     t = subprocess.run(["dotnet", exe, "--selftest", "true"], capture_output=True, text=True)
     assert t.returncode == 0 and "SELFTEST PASS" in t.stdout, "harness self-test failed"
+    if PROBE:
+        t2 = subprocess.run(["dotnet", exe, "--probe-selftest", "true"], capture_output=True, text=True)
+        assert t2.returncode == 0 and "PROBE-SELFTEST" in t2.stdout, "probe self-test failed"
     with open(os.path.join(OUT, "preflight.json"), "w") as fh:
         json.dump({"utc": now(), "repo_head": head, "build_commit": co, "libft8_sha256": DLL_PIN, "harness_dll_sha256": sha256(exe),
                    "nhard": NHARD, "osd_sign_fix": SIGN_FIX, "threads": THREADS, "gathered": GATHERED,
@@ -108,7 +113,9 @@ def main():
            "--ows-alltxt", os.path.join(GATHERED, "owsfz", "ALL.TXT"), "--wsjt-alltxt", os.path.join(GATHERED, "wsjt-x", "ALL.TXT"),
            "--ows-wav-dir", os.path.join(GATHERED, "owsfz", "wav"), "--wsjt-wav-dir", os.path.join(GATHERED, "wsjt-x", "wav"),
            "--out-json", res, "--log", os.path.join(OUT, "harness.log"), "--status", os.path.join(OUT, "status.json"),
-           "--nhard", NHARD, "--osd-sign-fix", SIGN_FIX, "--threads", THREADS, "--label", "STRONG-MISS-20261009_1752"]
+           "--nhard", NHARD, "--osd-sign-fix", SIGN_FIX, "--threads", THREADS, "--label", "STRONG-MISS-20261009_1752" + ("-PROBE" if PROBE else "")]
+    if PROBE:
+        cmd += ["--probe", "true"]
     with open(os.path.join(OUT, "harness.stdout"), "w") as so, open(os.path.join(OUT, "harness.stderr"), "w") as se:
         rc = subprocess.run(cmd, stdout=so, stderr=se).returncode
     ok_end = pin("end")
