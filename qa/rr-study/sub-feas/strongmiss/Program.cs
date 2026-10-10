@@ -251,6 +251,7 @@ internal static partial class Program
             Console.WriteLine("PROBE-SELFTEST " + JsonSerializer.Serialize(sc));
             return (bool)sc["gray_inversion_roundtrip"] && (bool)sc["implausible_10_all_false"] && (bool)sc["plausible_synthetic_reads_true"] ? 0 : 1;
         }
+        if (a.ContainsKey("plaus-desk")) return PlausDesk(a);
         string owsTxt = Req(a, "ows-alltxt"), wsjTxt = Req(a, "wsjt-alltxt");
         var d = Derive(owsTxt, wsjTxt);
         var report = new SortedDictionary<string, object>
