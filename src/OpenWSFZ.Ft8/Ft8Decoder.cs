@@ -855,6 +855,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// messages: grid letters must be in [A–R]; dB reports must match known-valid forms.
     /// All other message forms are accepted unconditionally.
     /// </para>
+    /// <para>
+    /// #226/#227/#228 (acceptance-only): a <c>PREFIX/CALL</c> token is shape-valid when its right
+    /// half is the base callsign; <c>CQ &lt;modifier&gt; &lt;call&gt;</c> (1–4 letters or 3 digits,
+    /// no grid) is plausible; <c>CALL CALL R GRID</c> is plausible.
+    /// </para>
     /// </remarks>
     /// <param name="text">The candidate decode text.</param>
     /// <param name="grammarStore">
@@ -918,6 +923,16 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // Exactly 3-token message: "TOKEN0 TOKEN1 TOKEN2"
                 string token0 = text[..firstSpace];
                 string token1 = text[(firstSpace + 1)..secondSpace];
+
+                // #227 — "CQ <modifier> <call>" (no grid) is a valid FT8 form.  Token 1 is a CQ
+                // modifier (e.g. DX, POTA, 123), exempt from the callsign-shape check in this case
+                // only.  The accept happens here, BEFORE the last-field rule below, which would
+                // reject a callsign in the last position.
+                if (token0.Equals("CQ", StringComparison.Ordinal) &&
+                    IsCqModifier(token1) &&
+                    !IsCallsignShapeInvalid(text[(secondSpace + 1)..], grammarStore))
+                    return true;
+
                 if (IsCallsignShapeInvalid(token0, grammarStore) || IsCallsignShapeInvalid(token1, grammarStore))
                     return false;
             }
@@ -925,13 +940,24 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                      && text.IndexOf(' ', thirdSpace + 1) < 0)
             {
                 // Exactly 4-token message: "TOKEN0 TOKEN1 TOKEN2 TOKEN3"
-                // The only valid 4-token FT8 forms are "CQ <modifier> <callsign> <grid>"
-                // (e.g. "CQ DX Q1ABC FN42", "CQ NA Q9XYZ EN37").
-                // Patterns like "CALLSIGN CALLSIGN R GRID" are OSD CRC-14 false alarms
-                // (D-009 R2 verification, Category A) — they are not Type 1 FT8 messages.
+                // Valid 4-token FT8 forms are "CQ <modifier> <callsign> <grid>"
+                // (e.g. "CQ DX Q1ABC FN42", "CQ NA Q9XYZ EN37") and, since #228,
+                // "CALL CALL R GRID" (e.g. "Q1ABC Q2XYZ R FN42").  ft8_lib renders the latter
+                // form (message.c:952-953); the earlier rule that rejected it rested on D-009
+                // false-alarm evidence (Category A) that predates the OSD sign fix (#215).
+                // Every other non-CQ 4-token message stays rejected.
                 string token0 = text[..firstSpace];
                 if (!token0.Equals("CQ", StringComparison.Ordinal))
-                    return false;
+                {
+                    string token1 = text[(firstSpace + 1)..secondSpace];
+                    string token2 = text[(secondSpace + 1)..thirdSpace];
+                    string token3 = text[(thirdSpace + 1)..];
+                    if (!(token2.Equals("R", StringComparison.Ordinal) &&
+                          IsAcknowledgedGrid(token3) &&
+                          !IsCallsignShapeInvalid(token0, grammarStore) &&
+                          !IsCallsignShapeInvalid(token1, grammarStore)))
+                        return false;
+                }
             }
             // 5+ token messages: not validated here.
         }
@@ -984,6 +1010,43 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // 3-token message with an unrecognisable last field — likely a false positive.
         return false;
     }
+
+    /// <summary>Maximum letters in a CQ modifier (<c>CQ DX</c>, <c>CQ POTA</c>).</summary>
+    private const int CqModifierLetterMax = 4;
+
+    /// <summary>Digits in a numeric CQ modifier (<c>CQ 123</c>).</summary>
+    private const int CqModifierDigitCount = 3;
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="token"/> is a CQ modifier: 1 to
+    /// <see cref="CqModifierLetterMax"/> letters A–Z, or exactly
+    /// <see cref="CqModifierDigitCount"/> digits (#227).
+    /// </summary>
+    private static bool IsCqModifier(string token)
+    {
+        if (token.Length == CqModifierDigitCount)
+        {
+            bool allDigits = true;
+            foreach (char c in token) if (!char.IsAsciiDigit(c)) { allDigits = false; break; }
+            if (allDigits) return true;
+        }
+
+        if (token.Length is < 1 or > CqModifierLetterMax) return false;
+        foreach (char c in token)
+            if (c < 'A' || c > 'Z') return false;
+        return true;
+    }
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="token"/> matches <c>[A-R]{2}[0-9]{2}</c> — a
+    /// Maidenhead 4-character grid (#228).
+    /// </summary>
+    private static bool IsAcknowledgedGrid(string token) =>
+        token.Length == 4 &&
+        token[0] >= 'A' && token[0] <= 'R' &&
+        token[1] >= 'A' && token[1] <= 'R' &&
+        char.IsAsciiDigit(token[2]) &&
+        char.IsAsciiDigit(token[3]);
 
     private static bool IsDbReport(string token)
     {
@@ -1041,6 +1104,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <c>011</c> — 3 digits, within cap; prefix <c>Q0D</c>; suffix <c>ABCDE</c>).
     /// </para>
     /// <para>
+    /// #226: a token with exactly one <c>/</c> is also shape-valid as <c>PREFIX/CALL</c> — the
+    /// right half parses as a callsign shape and the left half is a prefix shape (1–4
+    /// alphanumerics, at least one letter). The reserved-prefix exclusion applies to the base
+    /// and, in that case, to the left half. Anything the left-base rule accepts stays accepted.
+    /// </para>
+    /// <para>
     /// A parsed prefix matching a reserved/never-allocated entry in
     /// <see cref="CallsignGrammarConfig.ReservedPrefixExclusions"/> with no synthetic
     /// carve-out is also rejected (Decision 2) — this is an exclusion signal, not a
@@ -1054,6 +1123,63 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <see cref="CallsignGrammarConfig.BuiltInDefault"/> when <c>null</c>.
     /// </param>
     internal static bool IsCallsignShapeInvalid(string token, ICallsignGrammarStore? grammarStore = null)
+    {
+        // Today's rule first: anything it accepts stays accepted (acceptance-only, #226).
+        if (!IsCallsignShapeInvalidLeftBase(token, grammarStore)) return false;
+
+        // #226 — a token with exactly one '/' may also be PREFIX/CALL: the RIGHT half is the
+        // base callsign and the left half a prefix shape.  Two or more '/' keep today's result.
+        int slashPos = token.IndexOf('/');
+        if (slashPos < 0 || token.IndexOf('/', slashPos + 1) >= 0) return true;
+
+        var config = grammarStore?.Current ?? CallsignGrammarConfig.BuiltInDefault;
+        string left  = token[..slashPos];
+        string right = token[(slashPos + 1)..];
+
+        if (token.Length > config.TotalLengthMax || right.Length > config.TotalLengthMax) return true;
+        if (!IsPrefixShape(left)) return true;
+        if (!TryParseCallsignShape(right, config, out string rightPrefix)) return true;
+
+        // The reserved-prefix exclusion applies to the base (right half) and, under this
+        // branch, also to the left half — both as written and with trailing digits dropped
+        // (the prefix a callsign built on it would carry).
+        if (IsExcluded(config, rightPrefix) ||
+            IsExcluded(config, left) ||
+            IsExcluded(config, left.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')))
+            return true;
+
+        return false;
+    }
+
+    private static bool IsExcluded(CallsignGrammarConfig config, string prefix)
+    {
+        if (prefix.Length == 0) return false;
+        var exclusion = FindExclusion(config, prefix);
+        return exclusion is not null && !exclusion.SyntheticCarveOut;
+    }
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="s"/> is a prefix shape: 1 to 4 alphanumeric
+    /// characters containing at least one letter (the grammar
+    /// <see cref="TryParseCallsignShape"/> applies to a callsign's leading prefix).
+    /// </summary>
+    private static bool IsPrefixShape(string s)
+    {
+        const int PrefixLengthMax = 4;
+        if (s.Length == 0 || s.Length > PrefixLengthMax) return false;
+        bool hasLetter = false;
+        foreach (char c in s)
+        {
+            if (char.IsAsciiLetter(c)) hasLetter = true;
+            else if (!char.IsAsciiDigit(c)) return false;
+        }
+        return hasLetter;
+    }
+
+    /// <summary>
+    /// The pre-#226 shape check: the base callsign is the part before any '/'.
+    /// </summary>
+    private static bool IsCallsignShapeInvalidLeftBase(string token, ICallsignGrammarStore? grammarStore)
     {
         if (token.StartsWith('<')) return false;   // hash reference — always shape-valid
         if (token.Length <= 3)    return false;    // CQ / DE / QRZ / very short call — exempt
