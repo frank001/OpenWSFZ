@@ -24,7 +24,7 @@ using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 using OpenWSFZ.Ft8;
 
-internal static class Program
+internal static partial class Program
 {
     private const int PcmSamples = 180_000;
     private const int SampleRateHz = 12_000;
@@ -244,6 +244,13 @@ internal static class Program
     {
         var a = ParseArgs(args);
         if (a.ContainsKey("selftest")) return SelfTest();
+        if (a.ContainsKey("probe-selftest"))
+        {
+            BindProduct();
+            var sc = ProbeSelfChecks(null);
+            Console.WriteLine("PROBE-SELFTEST " + JsonSerializer.Serialize(sc));
+            return (bool)sc["gray_inversion_roundtrip"] && (bool)sc["implausible_10_all_false"] && (bool)sc["plausible_synthetic_reads_true"] ? 0 : 1;
+        }
         string owsTxt = Req(a, "ows-alltxt"), wsjTxt = Req(a, "wsjt-alltxt");
         var d = Derive(owsTxt, wsjTxt);
         var report = new SortedDictionary<string, object>
@@ -253,6 +260,15 @@ internal static class Program
         };
         Console.WriteLine("DERIVED " + JsonSerializer.Serialize(report));
         if (a.ContainsKey("derive-only")) return 0;
+        if (a.ContainsKey("probe-smoke"))
+        {
+            SortedDictionary<string, object>? sm = null; Exception? se = null;
+            var ts = new Thread(() => { try { sm = ProbeSmoke(d, Req(a, "ows-wav-dir")); } catch (Exception ex) { se = ex; } }, 64 * 1024 * 1024);
+            ts.Start(); ts.Join();
+            if (se != null) { Console.Error.WriteLine("SMOKE FAIL " + se.GetType().Name + " " + se.Message); return 1; }
+            Console.WriteLine("PROBE-SMOKE " + JsonSerializer.Serialize(sm));
+            return 0;
+        }
 
         string owsWav = Req(a, "ows-wav-dir"), wsjWav = Req(a, "wsjt-wav-dir"), outJson = Req(a, "out-json"), logPath = Req(a, "log");
         string statusPath = Req(a, "status");
@@ -367,6 +383,15 @@ internal static class Program
                 ["abandoned_OWN"] = Abandoned["OWN"], ["abandoned_WSJ"] = Abandoned["WSJ"], ["contained_OWN"] = Contained["OWN"], ["contained_WSJ"] = Contained["WSJ"] },
             ["elapsed_s"] = sw.Elapsed.TotalSeconds,
         };
+        if (a.ContainsKey("probe"))
+        {
+            var inp = new ProbeInput { D = d, OwsWavDir = owsWav, Nhard = nhard, Targets = classOf.Where(x => x.C == Cls.Decoder).Select(x => x.Row).ToList() };
+            SortedDictionary<string, object>? pres = null; Exception? perr = null;
+            var th = new Thread(() => { try { pres = RunProbe(inp, log); } catch (Exception ex) { perr = ex; } }, 64 * 1024 * 1024);
+            th.Start(); th.Join();
+            if (perr != null) throw new InvalidOperationException("probe phase failed: " + perr.GetType().Name + " " + perr.Message);
+            result["probe"] = pres!;
+        }
         File.WriteAllText(outJson, JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         Console.WriteLine("RESULT written " + outJson);
         return 0;
