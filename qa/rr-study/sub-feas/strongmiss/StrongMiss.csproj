@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    STRONG-MISS replay harness (QA-owned; no src/ change). Spec: qa/rr-study/2026-10-10-1015-architect-to-qa-spec-strong-miss-replay.md
+    (+ amendment 1). References the Ft8 library of whatever checkout RepoRoot points at; the run is built against the
+    on-air checkout 421e3ce2 (DI sync 5, shim 20260061, DLL a14fe354...). Every optional setter exists in that build.
+
+      dotnet build StrongMiss.csproj -c Release -p:RepoRoot=<checkout> -o <out>
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RepoRoot Condition="'$(RepoRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\..</RepoRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
