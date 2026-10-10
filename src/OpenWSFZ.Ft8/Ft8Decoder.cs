@@ -1022,7 +1022,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <see cref="CqModifierLetterMax"/> letters A–Z, or exactly
     /// <see cref="CqModifierDigitCount"/> digits (#227).
     /// </summary>
-    private static bool IsCqModifier(string token)
+    public static bool IsCqModifier(string token)
     {
         if (token.Length == CqModifierDigitCount)
         {
@@ -1041,7 +1041,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <c>true</c> when <paramref name="token"/> matches <c>[A-R]{2}[0-9]{2}</c> — a
     /// Maidenhead 4-character grid (#228).
     /// </summary>
-    private static bool IsAcknowledgedGrid(string token) =>
+    public static bool IsAcknowledgedGrid(string token) =>
         token.Length == 4 &&
         token[0] >= 'A' && token[0] <= 'R' &&
         token[1] >= 'A' && token[1] <= 'R' &&
@@ -1165,7 +1165,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// (#227/#228, spec amendment 2). The base is the part before the first '/', or — for a
     /// single-slash token — the right half (#226).
     /// </summary>
-    private static bool IsParsedCallsign(string token, ICallsignGrammarStore? grammarStore)
+    public static bool IsParsedCallsign(string token, ICallsignGrammarStore? grammarStore = null)
     {
         if (token.StartsWith('<') || IsCallsignShapeInvalid(token, grammarStore)) return false;
 

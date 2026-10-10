@@ -5,6 +5,7 @@
 - [ ] 1.3 #227: 3-token branch accepts `CQ <modifier> <call>` per §1.2; short-circuit before the last-field rule.
 - [ ] 1.4 #228: 4-token branch accepts `CALL CALL R GRID` per §1.3; correct the `:930-931` comment (ft8_lib renders this form; the D-009 evidence predates #215).
 - [ ] 1.5 Update the doc comments of `IsPlausibleMessage` and `IsCallsignShapeInvalid` to describe the new rules.
+- [ ] 1.6 Addendum: `QsoAnswererService.TryParseCq` skips a CQ modifier when the next token parses as a callsign (spec `qso-answerer`; reuses the filter's parser). Separate commit.
 
 ## 2. Tests (Developer; Q-prefix calls only, NFR-021)
 
