@@ -14,7 +14,7 @@ using System.Text.RegularExpressions;
 
 internal static partial class Program
 {
-    private const string SubstituteCall = "W1AW";
+    private const string SubstituteCall = "Q1ABC";
     private static readonly string[] SnrBins = { "1: <= -20", "2: (-20,-15]", "3: (-15,-10]", "4: (-10,-5]", "5: (-5,0]", "6: > 0" };
 
     private static string SnrBin(double s) => s <= -20 ? SnrBins[0] : s <= -15 ? SnrBins[1] : s <= -10 ? SnrBins[2] : s <= -5 ? SnrBins[3] : s <= 0 ? SnrBins[4] : SnrBins[5];
