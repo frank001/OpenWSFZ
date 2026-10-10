@@ -1,0 +1,363 @@
+{
+  "C": 1671,
+  "classes": {
+    "SM-CAPTURE": {
+      "k": 33,
+      "n": 504,
+      "pct": 6.5476190476190474,
+      "ci95_lo_pct": 4.699943455162317,
+      "ci95_hi_pct": 9.05266725825738
+    },
+    "SM-DECODER": {
+      "k": 471,
+      "n": 504,
+      "pct": 93.45238095238095,
+      "ci95_lo_pct": 90.94733274174263,
+      "ci95_hi_pct": 95.30005654483769
+    },
+    "SM-LIVE": {
+      "k": 0,
+      "n": 504,
+      "pct": 0,
+      "ci95_lo_pct": 0,
+      "ci95_hi_pct": 0.7564287661267749
+    }
+  },
+  "classes_by_form": {
+    "compound \u0027/\u0027": {
+      "n": 48,
+      "SM-CAPTURE": {
+        "k": 4,
+        "n": 48,
+        "pct": 8.333333333333334,
+        "ci95_lo_pct": 3.2883756589523014,
+        "ci95_hi_pct": 19.553301903421062
+      },
+      "SM-DECODER": {
+        "k": 44,
+        "n": 48,
+        "pct": 91.66666666666667,
+        "ci95_lo_pct": 80.44669809657894,
+        "ci95_hi_pct": 96.7116243410477
+      },
+      "SM-LIVE": {
+        "k": 0,
+        "n": 48,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 7.410013074848034
+      }
+    },
+    "CQ": {
+      "n": 72,
+      "SM-CAPTURE": {
+        "k": 6,
+        "n": 72,
+        "pct": 8.333333333333334,
+        "ci95_lo_pct": 3.8752424730373827,
+        "ci95_hi_pct": 17.012355306549654
+      },
+      "SM-DECODER": {
+        "k": 66,
+        "n": 72,
+        "pct": 91.66666666666667,
+        "ci95_lo_pct": 82.98764469345035,
+        "ci95_hi_pct": 96.12475752696261
+      },
+      "SM-LIVE": {
+        "k": 0,
+        "n": 72,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 5.065117335504446
+      }
+    },
+    "hashed": {
+      "n": 66,
+      "SM-CAPTURE": {
+        "k": 3,
+        "n": 66,
+        "pct": 4.545454545454546,
+        "ci95_lo_pct": 1.5578274213192516,
+        "ci95_hi_pct": 12.533314199909979
+      },
+      "SM-DECODER": {
+        "k": 63,
+        "n": 66,
+        "pct": 95.45454545454545,
+        "ci95_lo_pct": 87.46668580009003,
+        "ci95_hi_pct": 98.44217257868075
+      },
+      "SM-LIVE": {
+        "k": 0,
+        "n": 66,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 5.500255783352154
+      }
+    },
+    "two-call": {
+      "n": 318,
+      "SM-CAPTURE": {
+        "k": 20,
+        "n": 318,
+        "pct": 6.289308176100629,
+        "ci95_lo_pct": 4.107904228822664,
+        "ci95_hi_pct": 9.514162683776664
+      },
+      "SM-DECODER": {
+        "k": 298,
+        "n": 318,
+        "pct": 93.71069182389937,
+        "ci95_lo_pct": 90.48583731622334,
+        "ci95_hi_pct": 95.89209577117734
+      },
+      "SM-LIVE": {
+        "k": 0,
+        "n": 318,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 1.19358733167837
+      }
+    }
+  },
+  "cycles_where_R-OWN_and_R-WSJ_outputs_differ": 262,
+  "elapsed_s": 4581.2258744,
+  "generated_utc": "2026-10-10T13:34:23.0640994Z",
+  "label": "STRONG-MISS-20261009_1752-PROBE",
+  "probe": {
+    "classes": {
+      "P-CLEAN": {
+        "k": 2,
+        "n": 471,
+        "pct": 0.42462845010615713,
+        "ci95_lo_pct": 0.1165257775176922,
+        "ci95_hi_pct": 1.5348588551068698
+      },
+      "P-FILTER": {
+        "k": 73,
+        "n": 471,
+        "pct": 15.498938428874734,
+        "ci95_lo_pct": 12.511070305399375,
+        "ci95_hi_pct": 19.04503249032436
+      },
+      "P-INVALID": {
+        "k": 0,
+        "n": 471,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 0.8089982054950078
+      },
+      "P-WEAK": {
+        "k": 396,
+        "n": 471,
+        "pct": 84.07643312101911,
+        "ci95_lo_pct": 80.49820492917084,
+        "ci95_hi_pct": 87.10330584797588
+      }
+    },
+    "classes_by_form": {
+      "CQ": {
+        "n": 66,
+        "P-CLEAN": 2,
+        "P-FILTER": 7,
+        "P-INVALID": 0,
+        "P-WEAK": 57
+      },
+      "compound \u0027/\u0027": {
+        "n": 44,
+        "P-CLEAN": 0,
+        "P-FILTER": 29,
+        "P-INVALID": 0,
+        "P-WEAK": 15
+      },
+      "hashed": {
+        "n": 63,
+        "P-CLEAN": 0,
+        "P-FILTER": 37,
+        "P-INVALID": 0,
+        "P-WEAK": 26
+      },
+      "two-call": {
+        "n": 298,
+        "P-CLEAN": 0,
+        "P-FILTER": 0,
+        "P-INVALID": 0,
+        "P-WEAK": 298
+      }
+    },
+    "decoder_params_in_process": {
+      "K_MIN_SCORE": 10,
+      "k_min_score_pass2": 10,
+      "K_SOFT_SUPP_SNR_MAX_DB": 15,
+      "K_SOFT_SUPP_SNR_MIN_DB": -5,
+      "K_SUPP_FOOTPRINT_HALF_BINS": 1,
+      "osd_corr_threshold": 0.10000000149011612,
+      "OSD_DEPTH": 2,
+      "osd_nhard_max": 24,
+      "OSD_SEARCH_K_MAX": 32,
+      "supp_side_weight": 1,
+      "supp_snr_max_db": 15,
+      "supp_snr_min_db": -5
+    },
+    "limit": "P-FILTER reads the native first-stage call on the original normalised audio only; a target only the managed residual pass could produce is outside every class. The payload check uses the product\u0027s own encoder.",
+    "mapping_frozen": {
+      "offset_freq_hz": 0,
+      "offset_time_s": 0.6000000000000001,
+      "sample": 500,
+      "seed": 20261010
+    },
+    "osd_rejects_summed_over_armed_calls": {
+      "corr_pass0": 0,
+      "corr_pass1": 0,
+      "nhard_pass0": 1456,
+      "nhard_pass1": 2202
+    },
+    "P-CLEAN_detail": {
+      "accepted_only_via_grid_RR73_alternative": 0,
+      "crc_only": 0,
+      "pass1_llrs_also_decode_bp_only": 2,
+      "pass1_suppression_record_within_1_bin": 0,
+      "payload_verified": 2
+    },
+    "P-FILTER_detail": {
+      "dropped_as_implausible": 73,
+      "plausible_but_absent_from_product_output": 0
+    },
+    "P-WEAK_detail": {
+      "by_wsjt_snr": {
+        "1: (0,5] dB": 282,
+        "2: (5,10] dB": 86,
+        "3: \u003E10 dB": 28
+      },
+      "controls_sync_P5": 12.474722862243652,
+      "controls_sync_P95": 331.8292236328125,
+      "refine_ok": 396,
+      "refined_position_outside_window": 0,
+      "refined_sync_within_controls_P5_P95": 347
+    },
+    "raw_membership_on_10_controls": {
+      "k": 10,
+      "n": 10,
+      "pct": 100,
+      "ci95_lo_pct": 72.24671969739421,
+      "ci95_hi_pct": 99.99999999999999
+    },
+    "self_checks": {
+      "dbg_a91_diff_bits": 0,
+      "dbg_bp_errs": 0,
+      "dbg_crc_ok": 1,
+      "dbg_diff_idx": "",
+      "dbg_ldpc_rc": 0,
+      "dbg_path": 0,
+      "dbg_tones": "3140652000000001006224166105134321003140652402771070357341573066263657323140652",
+      "gray_inversion_roundtrip": true,
+      "implausible_10_all_false": true,
+      "implausible_candidates_reading_false": 11,
+      "plausible_synthetic_reads_true": true
+    },
+    "SM-P1": {
+      "bar_min_pct": 95,
+      "controls_found_in_window": {
+        "k": 480,
+        "n": 500,
+        "pct": 96,
+        "ci95_lo_pct": 93.90264039680075,
+        "ci95_hi_pct": 97.39592026975508
+      },
+      "controls_found_only_via_grid_RR73_alternative": 37,
+      "crc_only_any_hit": {
+        "k": 484,
+        "n": 500,
+        "pct": 96.8,
+        "ci95_lo_pct": 94.86551307688838,
+        "ci95_hi_pct": 98.020848644738
+      },
+      "pass": true,
+      "winning_point_histogram": {
+        "df\u002B1,dt0": 1,
+        "df-1,dt0": 1,
+        "df0,dt\u002B1": 121,
+        "df0,dt0": 357
+      }
+    },
+    "SM-P2": {
+      "bar_max_pct": 1,
+      "note": "SM-P2 FIRED: P-CLEAN is not interpretable until the Architect rules; the targets are probed anyway and reported with this flag",
+      "null_points_with_bp_only_crc_hit": {
+        "k": 6,
+        "n": 500,
+        "pct": 1.2,
+        "ci95_lo_pct": 0.5510995141744252,
+        "ci95_hi_pct": 2.593036126522864
+      },
+      "pass": false
+    },
+    "targets": 471
+  },
+  "residual_pass": {
+    "abandoned_OWN": 0,
+    "abandoned_WSJ": 0,
+    "contained_OWN": 0,
+    "contained_WSJ": 0,
+    "ran_OWN": 433,
+    "ran_WSJ": 433
+  },
+  "settings": {
+    "nhard": 24,
+    "osd_sign_fix": 1,
+    "shim": 20260061,
+    "subtraction": "ON",
+    "threads": 8
+  },
+  "SM-DECODER_by_wsjt_dt": {
+    "1: \u003C=0 s": 86,
+    "2: (0,0.5] s": 345,
+    "3: (0.5,1] s": 26,
+    "4: \u003E1 s": 14
+  },
+  "SM-DECODER_by_wsjt_snr": {
+    "1: (0,5] dB": 340,
+    "2: (5,10] dB": 101,
+    "3: \u003E10 dB": 30
+  },
+  "SM-V2": {
+    "cycles": 433,
+    "cycles_equal_row_count": 423,
+    "live_rows_in_T_cycles": 8064,
+    "live_rows_reproduced": {
+      "k": 8057,
+      "n": 8064,
+      "pct": 99.91319444444444,
+      "ci95_lo_pct": 99.8209126422236,
+      "ci95_hi_pct": 99.9579444539126
+    },
+    "net_row_count_diff": -2,
+    "pass_as_frozen_99_1": true,
+    "R-OWN_rows": 8062,
+    "R-OWN_rows_not_in_live": {
+      "k": 5,
+      "n": 8064,
+      "pct": 0.062003968253968256,
+      "ci95_lo_pct": 0.026487205144051947,
+      "ci95_hi_pct": 0.14507614239866595
+    },
+    "sum_abs_diff_pct_of_live_rows": 0.1488095238095238,
+    "sum_abs_row_count_diff": 12
+  },
+  "SM-V3_controls_recovered_in_R-OWN": {
+    "k": 1671,
+    "n": 1671,
+    "pct": 100,
+    "ci95_lo_pct": 99.7706374617773,
+    "ci95_hi_pct": 99.99999999999997
+  },
+  "T": 504,
+  "T_by_form": {
+    "compound \u0027/\u0027": 48,
+    "CQ": 72,
+    "hashed": 66,
+    "two-call": 318
+  },
+  "T_cycles": 433
+}
