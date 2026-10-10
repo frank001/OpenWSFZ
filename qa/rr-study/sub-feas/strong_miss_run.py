@@ -30,11 +30,12 @@ REPO = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
 ART = os.environ.get("OPENWSFZ_ARTEFACTS", r"D:\Projects\claude\OpenWSFZ\worktrees\qa\artefacts")
 RUN = "20261009_1752"
 GATHERED = os.path.join(ART, f"{RUN}_endurance_run-gathered")
-PROBE = "--probe" in sys.argv        # step 2 (amendments 2 and 3): the same process also runs the probe on the SM-DECODER set
-OUT = os.path.join(ART, "rr_2026-10-10_strong_miss_probe" if PROBE else "rr_2026-10-10_strong_miss")
+BPROF = "--bprofile" in sys.argv       # follow-up B (spec 0625c6fd section B): the probe run plus the bit-error profile of the P-WEAK targets
+PROBE = "--probe" in sys.argv or BPROF        # step 2 (amendments 2 and 3): the same process also runs the probe on the SM-DECODER set
+OUT = os.path.join(ART, "rr_2026-10-10_strong_miss_bprofile" if BPROF else "rr_2026-10-10_strong_miss_probe" if PROBE else "rr_2026-10-10_strong_miss")
 CHECKOUT = r"D:\Projects\claude\_qa-scratch\endur-sync5\tree"
 BUILD_COMMIT = "421e3ce2af84dff57db9e26250f371e6f9cc029b"
-HARNESS_OUT = r"D:\Projects\claude\_qa-scratch\strong-miss\out2" if "--probe" in sys.argv else r"D:\Projects\claude\_qa-scratch\strong-miss\out"
+HARNESS_OUT = (r"D:\Projects\claude\_qa-scratch\strong-miss\out4" if BPROF else r"D:\Projects\claude\_qa-scratch\strong-miss\out2" if PROBE else r"D:\Projects\claude\_qa-scratch\strong-miss\out")
 DLL_PIN = "a14fe354b88dbc30c4c13fb2610a8d16769684afec70b826bc30756591fd7610"
 NHARD, SIGN_FIX, THREADS = "24", "1", "8"       # arm_readback.json of the live run: osdNhardMax 24, subtractionMaxThreads 8
 GUARDED = [
@@ -42,6 +43,7 @@ GUARDED = [
     "qa/rr-study/sub-feas/strong_miss_run.py",
     "qa/rr-study/2026-10-10-1130-qa-strong-miss-run-protocol.md",
     "qa/rr-study/2026-10-10-1330-qa-strong-miss-step2-protocol.md",
+    "qa/rr-study/2026-10-10-1540-qa-strong-miss-followup-b-protocol.md",
 ]
 COMPETITORS_PS = ("Get-Process | Where-Object { $_.ProcessName -match '^(wsjtx|jt9|OpenWSFZ|testhost|MSBuild|dotnet|VBCSCompiler)' } | "
                   "ForEach-Object { '{0},{1}' -f $_.ProcessName, $_.Id }")
@@ -116,6 +118,8 @@ def main():
            "--nhard", NHARD, "--osd-sign-fix", SIGN_FIX, "--threads", THREADS, "--label", "STRONG-MISS-20261009_1752" + ("-PROBE" if PROBE else "")]
     if PROBE:
         cmd += ["--probe", "true"]
+    if BPROF:
+        cmd += ["--bprofile", "true"]
     with open(os.path.join(OUT, "harness.stdout"), "w") as so, open(os.path.join(OUT, "harness.stderr"), "w") as se:
         rc = subprocess.run(cmd, stdout=so, stderr=se).returncode
     ok_end = pin("end")

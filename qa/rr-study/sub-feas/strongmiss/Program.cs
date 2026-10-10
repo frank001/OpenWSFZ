@@ -261,6 +261,16 @@ internal static partial class Program
         };
         Console.WriteLine("DERIVED " + JsonSerializer.Serialize(report));
         if (a.ContainsKey("derive-only")) return 0;
+        if (a.ContainsKey("b-smoke"))
+        {
+            var d0 = Derive(Req(a, "ows-alltxt"), Req(a, "wsjt-alltxt"));
+            SortedDictionary<string, object>? sm = null; Exception? se = null;
+            var ts = new Thread(() => { try { sm = BSmoke(d0, Req(a, "ows-wav-dir")); } catch (Exception ex) { se = ex; } }, 64 * 1024 * 1024);
+            ts.Start(); ts.Join();
+            if (se != null) throw new InvalidOperationException("b-smoke failed: " + se.GetType().Name + " " + se.Message);
+            Console.WriteLine("B-SMOKE " + JsonSerializer.Serialize(sm));
+            return 0;
+        }
         if (a.ContainsKey("probe-smoke"))
         {
             SortedDictionary<string, object>? sm = null; Exception? se = null;
@@ -386,7 +396,7 @@ internal static partial class Program
         };
         if (a.ContainsKey("probe"))
         {
-            var inp = new ProbeInput { D = d, OwsWavDir = owsWav, Nhard = nhard, Targets = classOf.Where(x => x.C == Cls.Decoder).Select(x => x.Row).ToList() };
+            var inp = new ProbeInput { D = d, OwsWavDir = owsWav, Nhard = nhard, Profile = a.ContainsKey("bprofile"), Targets = classOf.Where(x => x.C == Cls.Decoder).Select(x => x.Row).ToList() };
             SortedDictionary<string, object>? pres = null; Exception? perr = null;
             var th = new Thread(() => { try { pres = RunProbe(inp, log); } catch (Exception ex) { perr = ex; } }, 64 * 1024 * 1024);
             th.Start(); th.Join();

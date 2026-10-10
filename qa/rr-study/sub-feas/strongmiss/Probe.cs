@@ -287,6 +287,7 @@ internal static partial class Program
         public List<Row> Targets = new();             // SM-DECODER set, in T order
         public string OwsWavDir = "";
         public int Nhard;
+        public bool Profile;                          // follow-up B: bit-error profile of the P-WEAK targets (BitProfile.cs)
     }
 
     private static SortedDictionary<string, object> RunProbe(ProbeInput inp, ReplayLog log)
@@ -338,14 +339,40 @@ internal static partial class Program
         double offF = Median(dF), offT = Median(dT);
         res["mapping_frozen"] = new SortedDictionary<string, object> { ["offset_freq_hz"] = offF, ["offset_time_s"] = offT, ["sample"] = sample.Count, ["seed"] = PilotSeed };
 
+        // follow-up B bookkeeping
+        var bcw = new List<BitProf>(); var bnw = new List<BitProf>(); var btw = new List<BitProf>();
+        var bc = new SortedDictionary<string, object>();
+        int cwDecoded = 0, cwHash = 0, cwUnpack = 0, cwNoPt = 0, portMismatch = 0, rtFail = 0, cwAltWins = 0, nwAltWins = 0, twAltWins = 0;
+        int twHash = 0, twUnpack = 0, twNoPt = 0, nwNoPt = 0;
+        var sampleCws = new List<int[]>?[sample.Count];
+        List<int[]>? Ecw(string text, out bool hash)
+        {
+            var l = ExpectedCodewords(text, out hash);
+            if (l != null && !CodewordFromPayload(l[0].Take(PayloadBits).ToArray()).SequenceEqual(l[0])) portMismatch++;
+            return l;
+        }
         var winHist = new SortedDictionary<string, int>(StringComparer.Ordinal);
         int p1Hit = 0, p1Crc = 0, p1AltOnly = 0; var ctlSync = new List<double>();
+        for (int si = 0; si < sample.Count; si++) if (inp.Profile) sampleCws[si] = Ecw(sample[si].Text, out _);
+        var sampleIdx = new Dictionary<Row, int>(); for (int si = 0; si < sample.Count; si++) sampleIdx[sample[si]] = si;
         foreach (var g in sample.GroupBy(c => c.Ts).OrderBy(g => g.Key, StringComparer.Ordinal))
         {
             var pcm = Pcm(g.Key);
             foreach (var c in g)
             {
                 var w = ScanWindow(pcm, c.F + offF, c.Dt + offT, ExpectedA91(c.Text));
+                if (inp.Profile && w.VerifiedHits > 0)
+                {
+                    cwDecoded++;
+                    var cws = sampleCws[sampleIdx[c]];
+                    if (cws == null) { if (c.Text.Contains("<...>")) cwHash++; else cwUnpack++; }
+                    else
+                    {
+                        if (cws.Any(x => !SaturatedRoundTrip(x))) rtFail++;
+                        var bp = ProfileWindow(pcm, c.F + offF, c.Dt + offT, cws);
+                        if (!bp.Scored) cwNoPt++; else { if (bp.Alt == 1) cwAltWins++; bcw.Add(bp); }
+                    }
+                }
                 if (w.CrcHits > 0) p1Crc++;
                 if (w.VerifiedHits > 0 && w.VerifiedPrimary == 0) p1AltOnly++;
                 if (w.VerifiedHits > 0) { p1Hit++; var p = w.FirstHit!.Value; string k = $"df{p.Df:+0;-0;0},dt{p.Dt:+0;-0;0}"; winHist[k] = winHist.GetValueOrDefault(k) + 1; }
@@ -375,6 +402,22 @@ internal static partial class Program
         {
             var pcm = Pcm(g.Key);
             foreach (var n in g) { nulls++; if (ScanWindow(pcm, n.F, n.T, null).CrcHits > 0) nullHits++; }
+        }
+        if (inp.Profile)
+        {
+            var packList = Enumerable.Range(0, sample.Count).Where(i => sampleCws[i] != null).ToList();
+            var rng3 = new Random(NullCodewordSeed);
+            var assigned = nullPts.Select(_ => sampleCws[packList[rng3.Next(packList.Count)]]!).ToList();
+            var idxOf = Enumerable.Range(0, nullPts.Count).GroupBy(i => nullPts[i].Ts).OrderBy(g => g.Key, StringComparer.Ordinal);
+            foreach (var g in idxOf)
+            {
+                var pcm = Pcm(g.Key);
+                foreach (int i in g)
+                {
+                    var bp = ProfileWindow(pcm, nullPts[i].F, nullPts[i].T, assigned[i]);
+                    if (!bp.Scored) nwNoPt++; else { if (bp.Alt == 1) nwAltWins++; bnw.Add(bp); }
+                }
+            }
         }
         bool p2Pass = (double)nullHits / nulls <= P2Max;
         res["SM-P2"] = new SortedDictionary<string, object> { ["null_points_with_bp_only_crc_hit"] = Share(nullHits, nulls), ["bar_max_pct"] = 100 * P2Max, ["pass"] = p2Pass,
@@ -430,6 +473,24 @@ internal static partial class Program
                         break;
                     case 3:
                         nWeak++;
+                        if (inp.Profile)
+                        {
+                            var cws = Ecw(t.Text, out bool hh);
+                            if (cws == null) { if (hh) twHash++; else twUnpack++; }
+                            else
+                            {
+                                var bp = ProfileWindow(pcm, f0, t0, cws);
+                                if (!bp.Scored) twNoPt++;
+                                else
+                                {
+                                    if (bp.Alt == 1) twAltWins++;
+                                    bp.Form = FormGroup(t.Text); bp.SnrBin = t.Snr <= 5 ? "1: (0,5] dB" : t.Snr <= 10 ? "2: (5,10] dB" : "3: >10 dB"; bp.DtBin = WsjDtBin(t.Dt);
+                                    bool rok = Native.ft8_refine_candidate(pcm, pcm.Length, (int)Math.Round(f0), (float)t0, out _, out _, out float syn, out _, out _) == 0;
+                                    bp.SyncCls = !rok ? "refine failed" : (syn >= sy5 && syn <= sy95) ? "sync inside controls P5-P95" : "sync outside controls P5-P95";
+                                    btw.Add(bp);
+                                }
+                            }
+                        }
                         string sb = t.Snr <= 5 ? "1: (0,5] dB" : t.Snr <= 10 ? "2: (5,10] dB" : "3: >10 dB"; weakBySnr[sb] = weakBySnr.GetValueOrDefault(sb) + 1;
                         if (Native.ft8_refine_candidate(pcm, pcm.Length, (int)Math.Round(f0), (float)t0, out float df, out float dt, out float sync, out _, out _) == 0)
                         {
@@ -454,6 +515,15 @@ internal static partial class Program
         res["P-WEAK_detail"] = new SortedDictionary<string, object> { ["refine_ok"] = weakRefineOk, ["refined_position_outside_window"] = weakOutside,
             ["refined_sync_within_controls_P5_P95"] = weakSyncInRange, ["controls_sync_P5"] = sy5, ["controls_sync_P95"] = sy95, ["by_wsjt_snr"] = weakBySnr };
         res["osd_rejects_summed_over_armed_calls"] = new SortedDictionary<string, object> { ["nhard_pass0"] = rej0n, ["nhard_pass1"] = rej1n, ["corr_pass0"] = rej0c, ["corr_pass1"] = rej1c };
+        if (inp.Profile)
+        {
+            bc["cw_decoded_controls"] = cwDecoded; bc["cw_scored"] = bcw.Count; bc["cw_excluded_unresolved_hash"] = cwHash; bc["cw_excluded_unpackable"] = cwUnpack; bc["cw_no_extractable_point"] = cwNoPt;
+            bc["nw_scored"] = bnw.Count; bc["nw_no_extractable_point"] = nwNoPt;
+            bc["tw_p_weak_targets"] = nWeak; bc["tw_scored"] = btw.Count; bc["tw_excluded_unresolved_hash"] = twHash; bc["tw_excluded_unpackable"] = twUnpack; bc["tw_no_extractable_point"] = twNoPt;
+            bc["grid_RR73_alternative_wins_CW"] = cwAltWins; bc["grid_RR73_alternative_wins_NW"] = nwAltWins; bc["grid_RR73_alternative_wins_TW"] = twAltWins;
+            bc["bv2_roundtrip_fail"] = rtFail; bc["bv2_port_mismatch"] = portMismatch;
+            res["B"] = BReport(bcw, bnw, btw, bc);
+        }
         res["limit"] = "P-FILTER reads the native first-stage call on the original normalised audio only; a target only the managed residual pass could produce is outside every class. The payload check uses the product's own encoder.";
         return res;
     }
