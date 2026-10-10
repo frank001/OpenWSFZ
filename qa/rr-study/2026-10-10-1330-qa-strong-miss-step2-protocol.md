@@ -31,6 +31,10 @@ SM-P1 at least 95 % of 500 seeded controls decode (BP-only) in the window; SM-P2
 
 1. P-FILTER and every class refer to the native first-stage call; a target only the managed residual pass could produce is outside every class. 2. The product's own encoder builds the expected payload; encoding is not the stage under test. 3. The replay inside this process is again the two-stage call, not the daemon's early/final path; its SM-V2-style figures are reported again. 4. The plausibility filter is called with no grammar store (as the replay harness did and as (a) showed to be equivalent: SM-V2 99.91 %).
 
+## Addendum (before any pilot number was read)
+
+The first launch (12:16:00Z) was stopped by QA at about 12:19Z, about 3 minutes into the replay and before any probe code ran, to add one aggregate counter the Architect asked for: how many pilot controls and how many P-CLEAN targets were accepted ONLY through the grid-RR73 alternative payload. Nothing else changed. The aborted artefact folder is kept as `artefacts/rr_2026-10-10_strong_miss_probe_ABORTED_12-19Z_counter-added` (its `pins.jsonl` records the aborted start). The run is restarted from scratch with the committed harness.
+
 ## Run
 
 `python qa/rr-study/sub-feas/strong_miss_run.py --probe` (detached). Artefacts `artefacts/rr_2026-10-10_strong_miss_probe/`. Estimate: the replay about 80 minutes (11.2 s per cycle measured in (a)) plus the probe (minutes to under an hour; the extractor rebuilds a waterfall per call, to be measured).

@@ -125,7 +125,7 @@ internal static partial class Program
 
     private sealed class WinResult
     {
-        public int Valid, CrcHits, VerifiedHits;      // points with rc 0; BP-only crc_ok points; of those payload-equal (or counted as verified when not packable)
+        public int Valid, CrcHits, VerifiedHits, VerifiedPrimary;      // points with rc 0; BP-only crc_ok points; of those payload-equal (or counted as verified when not packable)
         public Pt? FirstHit; public int MinPayloadDiff = 999; public string DiffPositions = ""; public string FieldDbg = "";                           // the hit nearest the centre (verified where packable, else CRC)
         public bool Packable;
     }
@@ -145,7 +145,7 @@ internal static partial class Program
             res.CrcHits++;
             if (expected != null) { foreach (var e in expected) { int dd = 0; for (int i = 0; i < PayloadBits; i++) if (((a91[i / 8] >> (7 - i % 8)) & 1) != ((e[i / 8] >> (7 - i % 8)) & 1)) dd++; if (dd < res.MinPayloadDiff) { res.FieldDbg = FieldClass(a91) + " vs expected " + FieldClass(e); res.MinPayloadDiff = dd; res.DiffPositions = string.Join(",", Enumerable.Range(0, PayloadBits).Where(i => ((a91[i / 8] >> (7 - i % 8)) & 1) != ((e[i / 8] >> (7 - i % 8)) & 1))); } } }
             bool ok = expected == null || SameA91(a91, expected);
-            if (ok) { res.VerifiedHits++; res.FirstHit ??= p; }
+            if (ok) { res.VerifiedHits++; res.FirstHit ??= p; if (expected == null || SameA91(a91, expected[0])) res.VerifiedPrimary++; }
         }
         return res;
     }
@@ -339,7 +339,7 @@ internal static partial class Program
         res["mapping_frozen"] = new SortedDictionary<string, object> { ["offset_freq_hz"] = offF, ["offset_time_s"] = offT, ["sample"] = sample.Count, ["seed"] = PilotSeed };
 
         var winHist = new SortedDictionary<string, int>(StringComparer.Ordinal);
-        int p1Hit = 0, p1Crc = 0; var ctlSync = new List<double>();
+        int p1Hit = 0, p1Crc = 0, p1AltOnly = 0; var ctlSync = new List<double>();
         foreach (var g in sample.GroupBy(c => c.Ts).OrderBy(g => g.Key, StringComparer.Ordinal))
         {
             var pcm = Pcm(g.Key);
@@ -347,11 +347,12 @@ internal static partial class Program
             {
                 var w = ScanWindow(pcm, c.F + offF, c.Dt + offT, ExpectedA91(c.Text));
                 if (w.CrcHits > 0) p1Crc++;
+                if (w.VerifiedHits > 0 && w.VerifiedPrimary == 0) p1AltOnly++;
                 if (w.VerifiedHits > 0) { p1Hit++; var p = w.FirstHit!.Value; string k = $"df{p.Df:+0;-0;0},dt{p.Dt:+0;-0;0}"; winHist[k] = winHist.GetValueOrDefault(k) + 1; }
                 if (Native.ft8_refine_candidate(pcm, pcm.Length, (int)Math.Round(c.F + offF), (float)(c.Dt + offT), out _, out _, out float sync, out _, out _) == 0) ctlSync.Add(sync);
             }
         }
-        res["SM-P1"] = new SortedDictionary<string, object> { ["controls_found_in_window"] = Share(p1Hit, sample.Count), ["crc_only_any_hit"] = Share(p1Crc, sample.Count),
+        res["SM-P1"] = new SortedDictionary<string, object> { ["controls_found_in_window"] = Share(p1Hit, sample.Count), ["crc_only_any_hit"] = Share(p1Crc, sample.Count), ["controls_found_only_via_grid_RR73_alternative"] = p1AltOnly,
             ["bar_min_pct"] = 100 * P1Min, ["pass"] = (double)p1Hit / sample.Count >= P1Min, ["winning_point_histogram"] = winHist };
         if ((double)p1Hit / sample.Count < P1Min) { res["STOPPED"] = "SM-P1 failed: the targets are not probed (HK-026)"; return res; }
         ctlSync.Sort();
@@ -391,7 +392,7 @@ internal static partial class Program
 
         // ---- targets ----
         int nInv = 0, nFilt = 0, nClean = 0, nCleanVer = 0, nCleanCrcOnly = 0, nWeak = 0, nFiltImplausible = 0, nFiltPlausible = 0;
-        int cleanP1 = 0, cleanSupp = 0, weakOutside = 0, weakSyncInRange = 0, weakRefineOk = 0;
+        int cleanAltOnly = 0, cleanP1 = 0, cleanSupp = 0, weakOutside = 0, weakSyncInRange = 0, weakRefineOk = 0;
         int rej0n = 0, rej1n = 0, rej0c = 0, rej1c = 0;
         var byForm = new SortedDictionary<string, int[]>(StringComparer.Ordinal);   // [INV, FILTER, CLEAN, WEAK]
         var weakBySnr = new SortedDictionary<string, int>(StringComparer.Ordinal);
@@ -423,6 +424,7 @@ internal static partial class Program
                         break;
                     case 2:
                         nClean++; if (exp != null) nCleanVer++; else nCleanCrcOnly++;
+                        if (w.VerifiedPrimary == 0) cleanAltOnly++;
                         if (a.Pass1Decodes) cleanP1++;
                         if (a.SuppNearPoint > 0) cleanSupp++;
                         break;
@@ -447,7 +449,7 @@ internal static partial class Program
         res["classes_by_form"] = byForm.ToDictionary(kv => kv.Key, kv => (object)new SortedDictionary<string, object> {
             ["n"] = kv.Value.Sum(), ["P-INVALID"] = kv.Value[0], ["P-FILTER"] = kv.Value[1], ["P-CLEAN"] = kv.Value[2], ["P-WEAK"] = kv.Value[3] });
         res["P-FILTER_detail"] = new SortedDictionary<string, object> { ["dropped_as_implausible"] = nFiltImplausible, ["plausible_but_absent_from_product_output"] = nFiltPlausible };
-        res["P-CLEAN_detail"] = new SortedDictionary<string, object> { ["payload_verified"] = nCleanVer, ["crc_only"] = nCleanCrcOnly,
+        res["P-CLEAN_detail"] = new SortedDictionary<string, object> { ["payload_verified"] = nCleanVer, ["crc_only"] = nCleanCrcOnly, ["accepted_only_via_grid_RR73_alternative"] = cleanAltOnly,
             ["pass1_llrs_also_decode_bp_only"] = cleanP1, ["pass1_suppression_record_within_1_bin"] = cleanSupp };
         res["P-WEAK_detail"] = new SortedDictionary<string, object> { ["refine_ok"] = weakRefineOk, ["refined_position_outside_window"] = weakOutside,
             ["refined_sync_within_controls_P5_P95"] = weakSyncInRange, ["controls_sync_P5"] = sy5, ["controls_sync_P95"] = sy95, ["by_wsjt_snr"] = weakBySnr };
