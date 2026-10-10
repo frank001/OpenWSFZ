@@ -1,0 +1,23 @@
+{
+ "chunks": {
+  "1": {
+   "cycles": 215,
+   "file": "chunk_1.json",
+   "sha256_lf": "03457cb794d07d21cf28e09702dc5836d0ef0ef41c38b777ea20d24ee4aec3af",
+   "warmup": "260930_193045"
+  },
+  "2": {
+   "cycles": 215,
+   "file": "chunk_2.json",
+   "sha256_lf": "18643730933b1735140fcc0fbe0bcb5adaf8f4ac279849b94f39a77c31a22c07",
+   "warmup": "261001_042600"
+  }
+ },
+ "list": "SAMPLE",
+ "run": "20260930_1930",
+ "selection_sha256_lf": "84b3d8849ea9da0ee989892a1b7de6ef2a2b3f8e68b0d47c4e477e6dc96f78b0",
+ "sizes": [
+  215,
+  215
+ ]
+}

@@ -231,6 +231,18 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
     private const string AdvancedBlockSha256BeforeThisChange =
         "d564ed25a3739b5410183558a54417202fbcde9e00dd57e5b4c9f67a938255fc";
 
+    /// <summary>
+    /// SHA-256 of the same block as it stands on <c>origin/main</c> at <c>9fe32e8d</c> (<c>git show 9fe32e8d:web/settings.html</c>,
+    /// same extraction and LF normalisation), recorded at DI sync 5 (2026-10-09). The pin above could not survive the sync: the block
+    /// was legitimately edited on <c>main</c> after decoder-param-readout was written (FR-083 added the two early-decode controls;
+    /// FR-085 moved the osdNhardMax range to [24, 100] and rewrote its hint), which is the "later change that legitimately edits the
+    /// block" the comment above provides for. The requirement still holds relative to <c>main</c>: this branch adds NOTHING to the
+    /// block beyond what <c>main</c> has, so the block's hash equals <c>main</c>'s. The original pre-readout hash is kept above as the
+    /// record of the base; it is no longer asserted.
+    /// </summary>
+    private const string AdvancedBlockSha256OnMain9fe32e8d =
+        "e846d3aeb42dfc7adac5a3d43a62c2c5c2dc7eb92f9d8d49659e1f687633950f";
+
     [Fact(DisplayName = "FR-081: settings.html links to the page, and its #advanced-decoder-settings block is byte-for-byte unchanged")]
     public async Task SettingsPage_HasOneLink_AndTheEditableBlockIsUnchanged()
     {
@@ -243,8 +255,8 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
         Regex.Matches(html, "id=\"advanced-decoder-settings\"").Should().HaveCount(1);
 
         string sha = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(block.Value))).ToLowerInvariant();
-        sha.Should().Be(AdvancedBlockSha256BeforeThisChange,
-            "the read-only page sits BESIDE the editable section; it must not change it");
+        sha.Should().Be(AdvancedBlockSha256OnMain9fe32e8d,
+            "the read-only page sits BESIDE the editable section; it must not change it (the block equals main's: nothing added here)");
 
         block.Value.Should().NotContain("decoder-params.html", "the link belongs outside the editable block");
     }

@@ -1,0 +1,32 @@
+{"utc": "2026-10-08T21:48:55.412642Z", "kind": "start", "url": "ws://127.0.0.1:8080/api/v1/ws"}
+{"kind": "early", "early": 1, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:48:58.132989Z"}
+{"kind": "final", "early": 0, "confirmed": 1, "unconfirmed": 0, "final": 1, "utc": "2026-10-08T21:49:00.138231Z"}
+{"kind": "early", "early": 1, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:49:13.112256Z"}
+{"kind": "final", "early": 0, "confirmed": 1, "unconfirmed": 0, "final": 1, "utc": "2026-10-08T21:49:15.097969Z"}
+{"kind": "early", "early": 5, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:49:28.209354Z"}
+{"kind": "final", "early": 0, "confirmed": 5, "unconfirmed": 0, "final": 5, "utc": "2026-10-08T21:49:30.208978Z"}
+{"kind": "early", "early": 5, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:49:43.208050Z"}
+{"kind": "final", "early": 0, "confirmed": 5, "unconfirmed": 0, "final": 5, "utc": "2026-10-08T21:49:45.197135Z"}
+{"kind": "early", "early": 5, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:49:58.198496Z"}
+{"kind": "final", "early": 0, "confirmed": 5, "unconfirmed": 0, "final": 5, "utc": "2026-10-08T21:50:00.210084Z"}
+{"kind": "early", "early": 10, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:50:13.401919Z"}
+{"kind": "final", "early": 0, "confirmed": 10, "unconfirmed": 0, "final": 10, "utc": "2026-10-08T21:50:15.416196Z"}
+{"kind": "early", "early": 10, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:50:28.357710Z"}
+{"kind": "final", "early": 0, "confirmed": 10, "unconfirmed": 0, "final": 10, "utc": "2026-10-08T21:50:30.354232Z"}
+{"kind": "early", "early": 10, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:50:43.305834Z"}
+{"kind": "final", "early": 0, "confirmed": 10, "unconfirmed": 0, "final": 10, "utc": "2026-10-08T21:50:45.306282Z"}
+{"kind": "early", "early": 8, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:50:58.424252Z"}
+{"kind": "final", "early": 0, "confirmed": 7, "unconfirmed": 1, "final": 8, "utc": "2026-10-08T21:51:00.426659Z"}
+{"kind": "early", "early": 8, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:51:13.393548Z"}
+{"kind": "final", "early": 0, "confirmed": 8, "unconfirmed": 0, "final": 8, "utc": "2026-10-08T21:51:15.403971Z"}
+{"kind": "early", "early": 8, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:51:28.404984Z"}
+{"kind": "final", "early": 0, "confirmed": 6, "unconfirmed": 2, "final": 8, "utc": "2026-10-08T21:51:30.412324Z"}
+{"kind": "early", "early": 8, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:51:43.489619Z"}
+{"kind": "final", "early": 0, "confirmed": 6, "unconfirmed": 2, "final": 8, "utc": "2026-10-08T21:51:45.483115Z"}
+{"kind": "early", "early": 8, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:51:58.494808Z"}
+{"kind": "final", "early": 0, "confirmed": 6, "unconfirmed": 2, "final": 8, "utc": "2026-10-08T21:52:00.483453Z"}
+{"kind": "early", "early": 8, "confirmed": 0, "unconfirmed": 0, "final": 0, "utc": "2026-10-08T21:52:13.469373Z"}
+{"kind": "final", "early": 0, "confirmed": 7, "unconfirmed": 1, "final": 8, "utc": "2026-10-08T21:52:15.458297Z"}
+{"utc": "2026-10-08T21:52:25.605416Z", "kind": "disconnect", "err": "ConnectionClosedError"}
+{"utc": "2026-10-08T21:52:30.659033Z", "kind": "disconnect", "err": "ConnectionRefusedError"}
+{"utc": "2026-10-08T21:52:35.711477Z", "kind": "disconnect", "err": "ConnectionRefusedError"}

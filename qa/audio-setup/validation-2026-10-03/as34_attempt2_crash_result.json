@@ -1,0 +1,20 @@
+{
+ "AS3_PASS": false,
+ "AS4_PASS": false,
+ "changes_logged": 1,
+ "cpu_fraction_of_one_core": 0.00464,
+ "duration_s": 600,
+ "heartbeats": 7,
+ "max_heartbeat_gap_s": 61.3,
+ "orphans": [],
+ "records_schema_valid": 9,
+ "row": "AS3+AS4",
+ "sample_ms_max_over_run": 1044.6,
+ "teardown": {
+  "force_killed": false,
+  "pidfile_removed": false,
+  "returncode": 3221225477,
+  "stderr_bytes": 4245529,
+  "stderr_head": "Windows fatal exception: access violation\n\nCurrent thread 0x00008ec4 (most recent call first):\n  Garbage-collecting\n  File \"C:\\Users\\Frank\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\comtypes\\_post_coinit\\unknwn.py\", line 420 in Release\n  File \"C:\\Users\\Frank\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\comtypes\\_post_coinit\\unknwn.py\", line 288 in __del__\n  File \"C:\\Users\\Frank\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\comtypes\\_post_coinit\\unknwn.py\", line 406 in QueryInterface\n  File \"C:\\Users\\Frank\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\pycaw\\utils.py\", line 259 in GetAllSessions\n  File \"D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\audio-setup\\sampler.py\", line 183 in read_windows\n  File \"D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\audio-setup\\sampler.py\", line 245 in _sample\n  File \"D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\audio-setup\\sampler.py\", line 269 in _tick\n  File \"D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\audio-setup\\sampler.py\", line 260 in run\n  File \"D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\audio-setup\\sampler.py\", line 303 in main\n  File \"D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\audio-setup\\sampler.py\", line 315 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  <cannot get C stack on this system>\nException ignored while calling deallocator <function _compointer_base.__del__ at 0x000001D188FEC720>:\nTraceback (most recent call last):\n  File \"C:\\Users\\Frank\\AppData\\Loc"
+ }
+}

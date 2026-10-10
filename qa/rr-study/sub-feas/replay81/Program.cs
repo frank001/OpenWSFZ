@@ -22,6 +22,7 @@
 
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -35,7 +36,20 @@ internal static class Program
     private const int SampleRateHz = 12_000;
     private const int KMinScorePass2 = 10;
     private const float OsdCorrThreshold = 0.10f;
-    private const int OsdNhardMax = 40;
+    // NHARD-REP (spec 2026-10-06-1430, section 3): the OSD nhard cap is a REQUIRED --nhard argument, 40 or 60 only, and the
+    // "# readback" lines log the value the decoder object was actually given. (Was a hard-coded const 40.)
+    private static int OsdNhardMax;
+#if HAS_OSDSIGNFIX
+    private static int OsdSignFix;
+    private static int ParseSignFix(string v) =>
+        int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) && (n == 0 || n == 1) ? n : throw new ArgumentException("--osd-sign-fix must be 0 or 1");
+#endif
+    // NHARD-REP Amendment 3 (OSD-OFF): 0 is admitted as the third setting. At nhard 0 the OSD gate rejects every codeword, so OSD is effectively off. The managed
+    // SetDecodeParams path passes the value through with no range check (only the config layer enforces 30-100, and this harness bypasses it).
+    // OSD-FIX (ruling 2026-10-08-1545, A4): the whitelist is gone so the calibration grid {0, 24, 30, 40, 50, 60} (and any later extension) needs no harness change;
+    // --nhard accepts any integer in [0, 174] (174 = the codeword length, the largest meaningful Hamming distance). The value is read back at the start and end of every arm.
+    private const int NhardMin = 0;
+    private const int NhardMax = 174;
     private const float R6PeakCeiling = 0.99f;
 
     private static int Main(string[] args)
@@ -53,6 +67,7 @@ internal static class Program
         var a = ParseArgs(args);
         string selectionPath = Req(a, "selection"), run = Req(a, "run"), stratum = Req(a, "stratum");
         string wavRoot = Req(a, "wav-root"), outCsv = Req(a, "out"), logPath = Req(a, "log");
+        OsdNhardMax = ParseNhard(Req(a, "nhard"));
         string mode = a.TryGetValue("mode", out var m) ? m : "off";
         string label = a.TryGetValue("label", out var l) ? l : "unlabelled";
 
@@ -67,6 +82,11 @@ internal static class Program
         var logger = new ReplayLogger<Ft8Decoder>(log);
         var decoder = new Ft8Decoder(new WallClock(), logger);
         decoder.SetDecodeParams(KMinScorePass2, OsdCorrThreshold, OsdNhardMax);
+#if HAS_OSDSIGNFIX
+        // OSD-FIX (ruling 2026-10-08-1545, A4): the sign switch is REQUIRED so an arm never inherits the library default by accident; read back at start and end (Readback).
+        OsdSignFix = ParseSignFix(Req(a, "osd-sign-fix"));
+        decoder.SetOsdSignFix(OsdSignFix);
+#endif
         // sub-feas-speed-redesign: the ONLY change to this harness for the speed acceptance is the new config key
         // decoder.subtractionMaxThreads (0 = auto). Absent --threads leaves the decoder at its default (auto).
         // Only the candidate build has the setter (-p:HasMaxThreads=true); the base build cannot be asked for it.
@@ -108,6 +128,26 @@ internal static class Program
             _testB = new StreamWriter(tb, append: true, new UTF8Encoding(false)) { AutoFlush = true };
             if (fresh) _testB.WriteLine("run,stamp,kind,band,n,corroborated");
         }
+        // NHARD-REP Amendment 2 (V2'): --probe-vectors <json> --probe-out <csv> probe the native OSD gate in THIS process.
+        if (a.TryGetValue("probe-vectors", out var probeJson))
+            LoadProbe(probeJson, Req(a, "probe-out"));
+        // COH-GAIN Amendment 3 (V4'): for every WSJT-X line the replay matched, WHICH batch matched it (1 = pass-0, 2 = the residual pass). Numeric only.
+        if (a.TryGetValue("matched-batch-out", out var matchedBatchPath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(matchedBatchPath))!);
+            bool freshMb = !File.Exists(matchedBatchPath);
+            _matchedBatch = new StreamWriter(matchedBatchPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (freshMb) _matchedBatch.WriteLine("stamp,wsjtx_idx_batch");
+        }
+        // NHARD-REP: numeric indices (into the cycle's WSJT-X lines, in ALL.TXT order) of the WSJT-X decodes this arm matched.
+        // An index is not message text and not text-derived (HK-037); it lets K and G be computed across two processes.
+        if (a.TryGetValue("matched-out", out var matchedPath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(matchedPath))!);
+            bool freshM = !File.Exists(matchedPath);
+            _matched = new StreamWriter(matchedPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (freshM) _matched.WriteLine("stamp,wsjtx_idx");
+        }
         if (a.TryGetValue("abandon-out", out var abandonPath))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(abandonPath))!);
@@ -127,6 +167,12 @@ internal static class Program
         SetFlag(decoder, mode is "alt" or "two" or "on" or "two1");
         await decoder.DecodeAsync(warmPcm, StampToUtc(warm));
         log.Raw("# warm-up cycle decoded and discarded");
+        // V2' first probe point: after SetDecodeParams and the warm-up. A miss stops THIS arm before any cycle is decoded (exit 5).
+        if (_probe is not null && !RunProbe("start", log))
+        {
+            log.Raw("# V2-prime FAIL at the start probe: the native OSD gate does not hold the value this arm was given");
+            return 5;
+        }
 
         if (stratum == "R6")
         {
@@ -221,6 +267,9 @@ internal static class Program
 #if HAS_TWOSTAGE
         if (mode is "two0" or "two1") Readback(decoder, log, "end", threadsNote);
 #endif
+        // V2' second probe point: after the last cycle. Recorded; row V2' is judged afterwards by nhard_rep_rows.py.
+        if (_probe is not null && !RunProbe("end", log))
+            log.Raw("# V2-prime FAIL at the end probe");
         return 0;
     }
 
@@ -252,6 +301,85 @@ internal static class Program
         public static void Set(bool abandoned, bool contained) { Ran = true; Abandoned = abandoned; Contained = contained; }
     }
 
+    // ---- V2' probe: ft8_ldpc_decode_llrs through the already-loaded libft8.dll (no product binding; qa/ code) -----------------
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int LdpcDecodeLlrsFn(float[] llr174, int maxIters, int osdDepth, byte[] outA91,
+                                          out int outLdpcErrors, out int outPath, out int outCrcOk);
+
+    private sealed record ProbeVector(string Name, float[] Llr, byte[] ExpectedA91, int NhardTrue);
+
+    private sealed class ProbeSet
+    {
+        public required LdpcDecodeLlrsFn Fn;
+        public required int MaxIters, OsdDepth, PayloadBits;
+        public required List<ProbeVector> Vectors;
+        public required StreamWriter Out;
+    }
+
+    private static ProbeSet? _probe;
+
+    private static void LoadProbe(string jsonPath, string outPath)
+    {
+        using var doc = JsonDocument.Parse(File.ReadAllBytes(jsonPath));
+        var r = doc.RootElement;
+        var vecs = new List<ProbeVector>();
+        int payloadBits = 0;
+        foreach (var name in new[] { "P_lo", "P_hi" })
+        {
+            var v = r.GetProperty("vectors").GetProperty(name);
+            var llr = v.GetProperty("llr").EnumerateArray().Select(e => (float)e.GetDouble()).ToArray();
+            if (llr.Length != 174) throw new InvalidDataException("probe vector length");
+            payloadBits = v.GetProperty("payload_bits").GetInt32();
+            vecs.Add(new ProbeVector(name, llr, Convert.FromHexString(v.GetProperty("expected_a91_hex").GetString()!), v.GetProperty("nhard_true").GetInt32()));
+        }
+        // the same module the managed decoder loaded (same path => same handle): the process-global s_osd_nhard_max is shared
+        IntPtr lib = NativeLibrary.Load(Path.Combine(AppContext.BaseDirectory, "libft8.dll"));
+        var fn = Marshal.GetDelegateForFunctionPointer<LdpcDecodeLlrsFn>(NativeLibrary.GetExport(lib, "ft8_ldpc_decode_llrs"));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        bool fresh = !File.Exists(outPath);
+        var w = new StreamWriter(outPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+        if (fresh) w.WriteLine("when,vec,rc,path,crc_ok,payload_match,expected");
+        _probe = new ProbeSet { Fn = fn, MaxIters = r.GetProperty("max_iters").GetInt32(), OsdDepth = r.GetProperty("osd_depth").GetInt32(),
+                                PayloadBits = payloadBits, Vectors = vecs, Out = w };
+    }
+
+    /// <summary>One probe point. Expected (V2'): P_lo accepted (path 1, CRC 1, payload equal) in every arm; P_hi accepted iff
+    /// this arm's nhard is 60, otherwise rejected (path -1). Writes one numeric row per vector; returns whether every row met it.</summary>
+    private static bool RunProbe(string when, ReplayLog log)
+    {
+        var p = _probe!;
+        bool all = true;
+        foreach (var v in p.Vectors)
+        {
+            var a91 = new byte[12];
+            int rc = p.Fn(v.Llr, p.MaxIters, p.OsdDepth, a91, out _, out int path, out int crc);
+            bool accepted = rc == 0 && path == 1 && crc == 1;
+            // payload = the first PayloadBits bits of a91 (bits 77..90 are the zeroed CRC region, not compared)
+            bool match = accepted && PayloadEqual(a91, v.ExpectedA91, p.PayloadBits);
+            // The gate accepts iff nhard_true <= the cap (calibrated by full scan: P_lo 26, P_hi 52). Cap 40: P_lo accepted, P_hi rejected; cap 60: both accepted;
+            // cap 0 (OSD-OFF): both REJECTED, which is V2'' (the setting reached the gate).
+            bool expectAccepted = v.NhardTrue <= OsdNhardMax;
+            bool met = expectAccepted ? (accepted && match) : (rc == 0 && path == -1);
+            all &= met;
+            p.Out.WriteLine(string.Join(",", when, v.Name, rc.ToString(CultureInfo.InvariantCulture), path.ToString(CultureInfo.InvariantCulture),
+                crc.ToString(CultureInfo.InvariantCulture), match ? "1" : "0", expectAccepted ? "accept" : "reject"));
+        }
+        log.Raw($"# probe {when} nhard={OsdNhardMax} met={all}");
+        return all;
+    }
+
+    private static bool PayloadEqual(byte[] a, byte[] b, int bits)
+    {
+        for (int i = 0; i < bits; i++)
+        {
+            int m = 0x80 >> (i % 8);
+            if ((a[i / 8] & m) != (b[i / 8] & m)) return false;
+        }
+        return true;
+    }
+
+    private static StreamWriter? _matchedBatch;   // --matched-batch-out: stamp,idx:batch;idx:batch (matched WSJT-X line index and the batch of its match)
+    private static StreamWriter? _matched;   // --matched-out: stamp,idx;idx;... (matched WSJT-X line indices, numeric)
     private static StreamWriter? _abandon;   // --abandon-out: stamp,ran,abandoned,contained (numeric flags, 0/1)
 
     private static bool _wide;
@@ -267,6 +395,13 @@ internal static class Program
     /// Pre-registered SNR bands of the OpenWSFZ decode, for the per-band report (a pooled rate would hide whether
     /// uncorroborated decodes cluster at the weak end, where false positives live): A >= 0, B -10..-1, C -15..-11, D <= -16 dB.
     /// </summary>
+    private static int ParseNhard(string v)
+    {
+        if (!int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || n < NhardMin || n > NhardMax)
+            throw new ArgumentException($"--nhard must be an integer in [{NhardMin}, {NhardMax}]");
+        return n;
+    }
+
     private static string BandOf(int snr) => snr >= 0 ? "A" : snr >= -10 ? "B" : snr >= -15 ? "C" : "D";
 
     private static void LoadWsjtx(string path)
@@ -306,11 +441,13 @@ internal static class Program
         cands.Sort((x, y) => x.Df != y.Df ? x.Df.CompareTo(y.Df) : x.Oi != y.Oi ? x.Oi.CompareTo(y.Oi) : x.Wi.CompareTo(y.Wi));
         var usedO = new bool[ows.Count];
         var usedW = new bool[w.Count];
+        var matchBatch = new int[w.Count];     // the Kind (1 or 2) of the OpenWSFZ decode that matched each WSJT-X line; 0 = unmatched
         foreach (var (_, oi, wi) in cands)
         {
             if (usedO[oi] || usedW[wi]) continue;
             usedO[oi] = true;
             usedW[wi] = true;
+            matchBatch[wi] = ows[oi].Kind;
         }
         foreach (int kind in new[] { 1, 2 })
             foreach (var band in new[] { "A", "B", "C", "D" })
@@ -321,6 +458,8 @@ internal static class Program
                 _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : "b2", band,
                     n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
             }
+        _matched?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j])));
+        _matchedBatch?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j]).Select(j => j.ToString(CultureInfo.InvariantCulture) + ":" + matchBatch[j].ToString(CultureInfo.InvariantCulture))));
         _testB.WriteLine(string.Join(",", run, stamp, "ws", "ALL", w.Count.ToString(CultureInfo.InvariantCulture),
             usedW.Count(x => x).ToString(CultureInfo.InvariantCulture)));
     }
@@ -401,7 +540,11 @@ internal static class Program
         log.Raw($"# readback {tag} subtractionEnabled={d.SubtractionEnabled} threadsConfigured={threadsNote} " +
                 $"threadsResolved={resolved} cores={Environment.ProcessorCount} nhard={OsdNhardMax} " +
                 $"kMinScorePass2={KMinScorePass2} osdCorrThreshold={OsdCorrThreshold.ToString("F2", CultureInfo.InvariantCulture)} " +
-                $"shim={Ft8Decoder.LoadedShimVersion}");
+                $"shim={Ft8Decoder.LoadedShimVersion}"
+#if HAS_OSDSIGNFIX
+                + $" osdSignFixSet={OsdSignFix} osdSignFixRead={d.GetOsdSignFix()}"
+#endif
+                );
     }
 #endif
 

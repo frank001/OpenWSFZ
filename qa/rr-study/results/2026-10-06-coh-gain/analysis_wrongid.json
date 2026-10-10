@@ -1,0 +1,136 @@
+{
+ "F_bar": 0.5,
+ "F_wsjtx_only": {
+  "F": 0.3217455621301775,
+  "M_NEAR": 435,
+  "ci95": [
+   0.28610522347400913,
+   0.3575907551878807
+  ],
+  "n": 1352,
+  "n_blocks": 273
+ },
+ "descriptive": {
+  "C3_bp_classes": {
+   "M-FAR": 0,
+   "M-NEAR": 435,
+   "M-NONE": 912,
+   "M-OWS": 5,
+   "NO-PAYLOAD": 0,
+   "n": 1352
+  },
+  "C3_osd_classes": {
+   "M-FAR": 0,
+   "M-NEAR": 0,
+   "M-NONE": 215,
+   "M-OWS": 0,
+   "NO-PAYLOAD": 0,
+   "n": 215
+  },
+  "F_M_NEAR_plus_M_FAR": {
+   "F": 0.3217455621301775,
+   "ci95": [
+    0.28610522347400913,
+    0.3575907551878807
+   ]
+  },
+  "F_with_M_OWS": {
+   "F": 0.3254437869822485,
+   "ci95": [
+    0.29016132857138305,
+    0.361578007013781
+   ]
+  },
+  "G_set_classes_by_path": {
+   "0": {
+    "M-FAR": 0,
+    "M-NEAR": 193,
+    "M-NONE": 335,
+    "M-OWS": 5,
+    "NO-PAYLOAD": 0,
+    "n": 533
+   },
+   "1": {
+    "M-FAR": 0,
+    "M-NEAR": 0,
+    "M-NONE": 102,
+    "M-OWS": 10,
+    "NO-PAYLOAD": 0,
+    "n": 112
+   }
+  },
+  "G_set_near_share": 0.2992248062015504,
+  "M_NEAR_in_sample": {
+   "matched_row_G_already_decodes": 386,
+   "n": 435,
+   "not_already": 49,
+   "of_M_NEAR": 435
+  },
+  "M_NONE_bp": 912,
+  "M_NONE_bp_by_ws_snr_band": {
+   "-15..-6": 263,
+   "-5..+4": 302,
+   "<=-16": 40,
+   ">=+5": 307
+  },
+  "M_NONE_per_correct_recovery_after_osd_off": 0.2696629213483146,
+  "correct_recoveries_fresh": 3382,
+  "dist_quantiles_10_50_90_by_class_bp": {
+   "M-FAR": null,
+   "M-NEAR": [
+    21.0,
+    32.0,
+    39.0
+   ],
+   "M-NONE": [
+    26.0,
+    36.0,
+    42.0
+   ],
+   "M-OWS": [
+    5.0,
+    5.0,
+    5.6
+   ]
+  },
+  "unencodable_decodes_in_cycle_blind_spot": {
+   "mean_ows_unenc_per_row": 0.9955621301775148,
+   "mean_ws_unenc_per_row": 1.6597633136094674,
+   "note": "M-NONE is an UPPER bound: a wrong payload equal to an unencodable (hashed-call) decode cannot be matched"
+  }
+ },
+ "failing_rows": [],
+ "generated_utc": "2026-10-07T10:41:55Z",
+ "reading": "W-FALSE",
+ "selection": {
+  "C3_bp": 1352,
+  "C3_osd": 215,
+  "G_bp": 533,
+  "G_osd": 112,
+  "G_set": 645
+ },
+ "validity": {
+  "W1": {
+   "examples": [],
+   "n": 2212,
+   "not_reproduced": 0,
+   "pass": true
+  },
+  "W2": {
+   "bar": 0.05,
+   "matched_near_or_far": 0,
+   "n_osd_wrongs": 215,
+   "pass": true,
+   "share": 0.0
+  },
+  "W3": {
+   "M_FAR": 0,
+   "M_NEAR": 435,
+   "bar": 0.8,
+   "bp_wrongs_matching_wsjtx": 435,
+   "near_share": 1.0,
+   "pass": true,
+   "vacuous": false
+  }
+ }
+}

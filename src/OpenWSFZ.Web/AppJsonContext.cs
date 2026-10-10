@@ -16,6 +16,11 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(WsHeartbeatMessage))]
 [JsonSerializable(typeof(HeartbeatPayload))]
 [JsonSerializable(typeof(WsDecodeMessage))]
+[JsonSerializable(typeof(WsEarlyDecodeMessage))]
+[JsonSerializable(typeof(EarlyRow))]
+[JsonSerializable(typeof(List<EarlyRow>))]
+[JsonSerializable(typeof(EarlyResolution))]
+[JsonSerializable(typeof(List<EarlyResolution>))]
 [JsonSerializable(typeof(AudioDeviceInfo))]
 [JsonSerializable(typeof(List<AudioDeviceInfo>))]
 [JsonSerializable(typeof(AppConfig))]
@@ -87,8 +92,15 @@ internal sealed record WsHeartbeatMessage(string Type, HeartbeatPayload Payload)
 /// <summary>Payload for <c>heartbeat</c> WebSocket text frames (FR-020).</summary>
 internal sealed record HeartbeatPayload(bool AudioActive, bool CaptureActive);
 
-/// <summary>Envelope for <c>decode</c> WebSocket text frames.</summary>
-internal sealed record WsDecodeMessage(string Type, List<DecodeResult> Payload);
+/// <summary>
+/// Envelope for <c>decode</c> WebSocket text frames. <paramref name="Resolves"/> (decode-early-batch-panel D5) is written
+/// ONLY when non-null, so a frame with no early rows involved is byte-identical to what it was before the early decode
+/// existed.
+/// </summary>
+internal sealed record WsDecodeMessage(
+    string Type,
+    List<DecodeResult> Payload,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<EarlyResolution>? Resolves = null);
 
 /// <summary>Envelope for <c>spectrum</c> WebSocket text frames.</summary>
 internal sealed record WsSpectrumMessage(string Type, int[] Payload);

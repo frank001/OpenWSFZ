@@ -56,7 +56,9 @@
     "decoder": [
       "kMinScorePass2",
       "osdCorrThreshold",
-      "osdNhardMax"
+      "osdNhardMax",
+      "earlyDecodeEnabled",
+      "earlyDecodeCutSeconds"
     ],
     "decodeNoiseSuppression": [
       "suppressUnknownRegion",

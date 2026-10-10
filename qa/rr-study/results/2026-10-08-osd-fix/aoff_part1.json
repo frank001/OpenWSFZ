@@ -1,0 +1,17 @@
+{
+ "A_OFF_part1_pass": true,
+ "cycles": 100,
+ "cycles_differ_new0_vs_new1": 48,
+ "cycles_differ_old_vs_new0": 0,
+ "decodes_new_switch0": 2225,
+ "decodes_new_switch1": 2229,
+ "decodes_old": 2225,
+ "new_dll_sha256": "2029b0804a9abcc378fa037893b28236e4e5dec4459ba443d31c2027a58d82bb",
+ "old_dll_sha256": "2fa6d99302c6c602231c870c1e61755aeeddb7ad1b9ce392fb98a4bdbd94f365",
+ "params": {
+  "k_min_score_pass2": 10,
+  "nhard": 40,
+  "osd_corr": 0.1
+ },
+ "selection_sha256_lf": "27bb840f45c77da6e65f18f855ade547e9a002a253c2946bf723a6eaa53db11e"
+}

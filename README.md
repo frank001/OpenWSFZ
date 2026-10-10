@@ -18,7 +18,7 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.55**. v0.x scope: FT8 receive and transmit,
+> The current release is **v0.56**. v0.x scope: FT8 receive and transmit,
 > CAT rig control, a web UI (loopback or passphrase-protected LAN),
 > single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
@@ -36,66 +36,24 @@ closed*, standing prohibitions, open decisions and the ranked improvement set. I
 this project up, resuming after a break, or about to propose decoder work, read it first: several
 of the obvious avenues are already closed by measurement, and the dossier says which.
 
-> **Currency.** The dossier was compiled **2026-08-27** and **refreshed 2026-09-21**: its
-> section 3a bridges the two dates, while its sweep figures (§3, §5 and §12) remain **as of
+> **Currency.** The dossier was compiled **2026-08-27** and **refreshed 2026-10-08**: its
+> sections 3a and 3b bridge the dates, while its sweep figures (§3, §5 and §12) remain **as of
 > 2026-08-27** and were not re-measured. It is a navigational document: where a dated report
 > under [`qa/`](qa/) disagrees with it, the report is authoritative for its own run. For anything
 > newer, follow the open GitHub issues (in particular
 > [#3](https://github.com/frank001/OpenWSFZ/issues/3), whose progress comments are kept current)
 > and the dated reports under `qa/`.
 
-All development phases to date are merged and archived. FT8 decoding
-**and transmitting** are fully functional against live audio and recorded fixtures.
-A complete automated six-message FT8 QSO exchange has been validated via
-VoiceMeeter software loopback.
+All development phases to date are merged and archived (the one exception, `osd-sign-fix`, is under review).
+FT8 decoding **and transmitting** are fully functional against live audio and recorded fixtures, and a complete
+automated six-message FT8 QSO exchange has been validated via VoiceMeeter software loopback.
 
-| Phase | Deliverable | State |
-|---|---|---|
-| p0 — Foundation | Build pipeline, CI quality gates, tooling | ✅ merged |
-| p1 — Walking skeleton | Daemon, embedded web server, WebSocket | ✅ merged |
-| p2 — Audio config | Device enumeration, JSON config, Settings REST round-trip | ✅ merged |
-| p3 — Web frontend | Dark-theme UI, Settings page, real-time waterfall | ✅ merged |
-| p4 — Audio pipeline | PCM capture (WASAPI / arecord / sox), STA threading fix | ✅ merged |
-| p5 — FT8 decoder | Cycle framer, spectrum analyser, initial decode pipeline | ✅ merged |
-| p6 — File logging | Per-session log files, retention, log-level config | ✅ merged |
-| p7 — Device display name | Friendly device names; legacy config migration | ✅ merged |
-| p8 — FT8 decode performance | kgoba/ft8_lib (a submodule at the time; since vendored), P/Invoke shim, SNR calibration | ✅ merged |
-| p9 — Decode logging | all.txt-style per-cycle decode log | ✅ merged |
-| p10 — Ground truth | Replay harness; G6 gate; WSJT-X corpus recovery-rate test | ✅ merged |
-| p12 — ft8_lib port | Production P/Invoke decoder; full UAT-01 sign-off | ✅ merged |
-| p13 — Cross-platform decoder | libft8.so (Linux x64) + libft8.dylib (macOS ARM64) | ✅ merged |
-| p14 — Decode start/stop | FR-017: controlled decode lifecycle; CancellationToken wiring | ✅ merged |
-| p15 — Iterative subtraction | Spectrogram-domain second-pass decoder; 69.1% recovery rate | ✅ merged |
-| p16 — CAT control | `IRadioConnection` abstraction; `SerialCatConnection`; `RigctldConnection`; `CatPollingService`; CAT config section; Settings CAT UI and status-bar indicator | ✅ merged |
-| p17 — Settings UX & freq persistence | Tabbed Settings page; serial port enumeration; three-tier effective-frequency resolution; dial frequency persisted across restarts (FR-035–FR-039) | ✅ merged |
-| p18 — Settings dirty state | "Unsaved changes" badge and breadcrumb/browser navigation guard (FR-040, FR-041) | ✅ merged |
-| p19 — Frequency management | Configurable FT8 frequency list; `FrequencyStore`; REST tune endpoint; dial-frequency selector on main page (FR-042–FR-045) | ✅ merged |
-| p20 — FA digit width | Self-calibrating digit-width computation in `SerialCatConnection` FA tune command | ✅ merged |
-| ft8-qso-answerer-v1 — FT8 TX & QSO answerer | FT8 TX pipeline (native encode, GFSK synthesis, WASAPI playback); `IPttController` abstraction; QSO answerer state machine (auto-answer CQ, 6-message exchange, retry, watchdog, operator abort); ADIF 3.x log writer; `tx` config section; Settings TX fields | ✅ merged |
-| tx-ux-improvements — TX UX & config hardening | D-TX-002: config bounds enforced at four layers (HTML, JS, API, config-load) with `Math.Clamp` backstop; `RetryCount = 0` means unlimited retries; FR-UX-002: abort reasons surfaced in scrolling TX history panel; UI-001: obsolete "Enable auto-answer" toggle removed; `ITxEventBus` interface extracted for daemon-level unit testing | ✅ merged |
-| gui-tx-panel — main-page TX control | TX enable/disable and live state moved onto the primary page; no longer activated by a Settings toggle or confirmed only via logs | ✅ merged |
-| qso-caller — Call CQ origination | `QsoCallerService`: the station can now originate CQ calls, not only answer them — completing both FT8 TX roles | ✅ merged |
-| qso-log-dialog — pre-log confirmation | WSJT-X-style confirmation dialog at final transmission; enrich (name, TX power, comments) or discard before the ADIF record is written | ✅ merged |
-| decoder-settings-page — live OSD tuning | The three D-009 OSD gate parameters (`K_MIN_SCORE_PASS2`, `OSD_CORR_THRESHOLD`, `OSD_NHARD_MAX`) exposed as live-configurable settings — false-positive/sensitivity trade-off tunable without a native rebuild | ✅ merged |
-| lan-remote-access — LAN + passphrase auth | Kestrel bind-address selectable via config; `LanBindPolicy` + `PassphraseAuthPolicy` (`X-Api-Key` / `?key=`); login page; Remote Access settings section. Loopback always trusted; internet exposure out of scope | ✅ merged |
-| f-002 — callsign-structure region lookup | Shape-aware callsign parsing and region/entity lookup surfaced to the operator | ✅ merged |
-| f-001 — hashed-callsign resolution | Session-scoped 22-bit hash table resolves nonstandard/compound callsigns (`PJ4/Q1ABC`, special-event calls) announced once via a Type 4 message and later referenced by hash | ✅ merged |
-| f-003 — AP-assist for nonstandard callsigns | AP-assisted decode of nonstandard callsigns (Gap B) building on the f-001 hash table | ✅ merged |
-| f-004 — operator visibility | Native shim ABI version exposed in the UI; TX/Call-CQ button visual states (armed vs transmitting); log viewer (Settings Logs tab + standalone full-log page); waterfall display modifiers | ✅ merged |
-| gridtracker-udp-reporting — external reporting | Speaks the WSJT-X UDP network protocol so GridTracker2, JTAlert and similar tools can plot spots and log QSOs; inbound Reply is opt-in, while Halt Tx is always honoured as a safety path; multiple simultaneous targets; off by default. Later: a leader/follower role lets two running instances present as a single connection | ✅ merged |
-| remote-daemon-restart — restart from the UI | `POST /api/v1/system/restart` restarts the daemon in place, so settings that only apply after a restart (PTT method, LAN bind) can be applied from a remote browser | ✅ merged |
-| daemon-background-mode — detached daemon | `--background` starts the daemon detached from its console so the terminal can be closed | ✅ merged |
-| cat-tx-ptt — transmitter keying | Operator-selectable PTT method (`AudioVox` default, `CatCommand`, `SerialRtsDtr`) with a hard watchdog ceiling and guaranteed release on exception, dispose and shutdown paths | ✅ merged |
-| engage-window — late-click engage | A manual engage fires whenever the cycle phase is right and stops at the window boundary if the click was late, instead of deferring a whole cycle | ✅ merged |
-| engagement-target-validation — TX target gate | A decoded token that is not a plausible callsign is refused as a TX target (checked against the region prefix table when real region data is loaded) | ✅ merged |
-| qso-transcript-panel — QSO transcript | The TX panel shows the actual messages of the live QSO, so the thread is not lost when a decode-panel filter hides the rows | ✅ merged |
-| cycle-audio-archive — per-cycle recordings | Optional `.wav` capture of each 15-second receive window (`Off` default, `All`, `Decoded`, `NoDecodes`), in WSJT-X-compatible 12 kHz mono 16-bit PCM | ✅ merged |
+The phase-by-phase delivery table, with merge dates, is in [`docs/development-history.md`](docs/development-history.md).
 
 ## Decoder Measurement System Analysis (Gage R&R)
 
-> **Note.** The "latest validated results" table below is a historical snapshot and is not
-> refreshed every sweep. For the current standing of the study — and of the decode gap it
-> measures — see the [Programme Dossier](docs/programme-dossier.md).
+> **Note.** Results are not tabulated here: they change every sweep. For the current standing of
+> the study — and of the decode gap it measures — see the [Programme Dossier](docs/programme-dossier.md).
 
 OpenWSFZ runs a continuous **Gage R&R / Measurement System Analysis** against WSJT-X to
 quantify decoder quality across four dimensions:
@@ -115,60 +73,21 @@ log files. Signals are synthesised by an independent clean-room FT8 encoder (tex
 → PCM) so that truth is exactly known for every trial. Each trial draws a fresh seeded
 noise realisation, giving non-zero repeatability variance.
 
-### Latest validated results — S1–S8: [`815b652`](qa/rr-study/results/2026-06-14-815b652/report.md) (2026-06-14, shim 20260016)
-
-| Scenario | Metric | Value | Verdict |
-|---|---|---|---|
-| S1 SNR | %GR&R | 0.3% | ✅ PASS |
-| S1 SNR | ndc | 27 | ✅ PASS |
-| S1 SNR | OpenWSFZ bias | +1.42 dB | ✅ PASS |
-| S1b Low-SNR threshold | Decode rate (both apps) | 0% @ −21 dB | ℹ️ Informational |
-| S2 Frequency | %GR&R | 0.0% | ✅ PASS |
-| S2 Frequency | ndc | 1 536 | ✅ PASS |
-| S3 DT | %GR&R | 3.0% | ✅ PASS |
-| S3 DT | ndc | 7 | ✅ PASS |
-| S4/S5 Detection | κ (OpenWSFZ vs truth) | 1.000 | ✅ PASS |
-| S5 False positives | FP rate (OpenWSFZ) | 0.042/slot (shim 20260029) | ℹ️ Informational — D-009 fix (−94% vs 0.675/slot baseline; 95% CI [0.020, 0.078]) |
-| S7 Co-channel | Overall recovery | 80.22% vs WSJT-X 96.67% (shim 20260025) | ℹ️ Informational — D-001 open; co_channel_sweep 86.67% ≈ WSJT-X |
-
-**Overall: PASS.**  Full S1–S8 regression gate run at `815b652` (2026-06-14, shim 20260016):
-all metric gates pass.  S7 and S5 figures above reflect subsequent shim improvements
-(H6 AP decode + OSD fallback for D-001; K_MIN_SCORE_PASS2 = 10 for D-009).
-S7 co-channel gap and D-001 remain open; next step is on-air QSO testing.
+The full batteries are under
+[`qa/rr-study/results/`](qa/rr-study/results/); the most recent is
+[`2026-09-23-5f17b43`](qa/rr-study/results/2026-09-23-5f17b43/report.md) (a `decoding_improvement` build, not `main`: its report header says so). Read that report and the
+[Programme Dossier](docs/programme-dossier.md) for the current standing.
 
 See [`qa/rr-study/STUDY-SPEC.md`](qa/rr-study/STUDY-SPEC.md) for the full study design
 and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedure.
 
 ---
 
-## WSJT-X decode parity
+## Decode rate versus WSJT-X
 
-> **Key metric:** how well OpenWSFZ recovers the same signals as WSJT-X on
-> identical recordings. Measured against a fixed 42-cycle corpus (887 total
-> WSJT-X decodes, 40 m band, real off-air recordings). Higher is better;
-> false-positive rate must stay ≤ 6%.
->
-> **Note.** The table and figures in this section are a **historical snapshot** (v0.10–v0.21)
-> and are not refreshed. They are not the current decode rate: later work changed the decoder
-> defaults and was measured on different corpora and metrics. For the current standing see
-> issue [#3](https://github.com/frank001/OpenWSFZ/issues/3) and the
-> [Programme Dossier](docs/programme-dossier.md) (mind its compile date, above).
-
-| Version | Phase / run | Recovery rate | Raw | False-positive rate | Approach |
-|---|---|---|---|---|---|
-| v0.10 | p10 baseline | 66.6% | 591 / 887 | 3.9% (24 / 615) | Single-pass ft8_lib decode |
-| v0.15 | p15 | 69.1% | 613 / 887 | 3.8% (24 / 637) | + spectrogram-domain second-pass (±1-bin suppression) |
-| v0.21 | S6 corpus replay (2026-06-11, `d331d20`) | **69.7%** | — | — | K=3; OSD not yet tuned (pre-D-009) |
-
-The spectrogram-domain approach plateaus at ~69%: the FFT waterfall stores
-carrier frequency at ±3.125 Hz resolution, which prevents coherent
-PCM-domain waveform cancellation. The S6 corpus replay (June 2026) confirmed
-this ceiling on real off-air recordings. The OSD false-positive fix (D-009,
-K_MIN_SCORE_PASS2 = 10, shim 20260029) significantly reduces false positives at
-a small cost to marginal co-channel decodes; a post-D-009 corpus re-run against
-the off-air fixtures is pending (corpus is git-ignored per NFR-021 — real
-callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
-(shim 20260025) with an OSD-lifted co_channel_sweep of **86.67%** ≈ WSJT-X.
+The old v0.10–v0.21 comparison table was removed: it was a June snapshot, and its OSD-attributed figures predate
+the correction in issue [#215](https://github.com/frank001/OpenWSFZ/issues/215). The current standing is in issue
+[#3](https://github.com/frank001/OpenWSFZ/issues/3) and the [Programme Dossier](docs/programme-dossier.md) (mind its compile date).
 
 ## What works today
 
@@ -219,6 +138,13 @@ callsigns). The synthetic R&R S7 scenario shows **80.22%** co-channel recovery
   off is switched on once the first time v0.54 starts (one line is logged). To turn it off, set
   `decoder.subtractionEnabled` to `false` in `config.json`; the choice then persists. Worker count:
   `decoder.subtractionMaxThreads` (`0` = automatic).
+  The normal decode is published first and the pass's extra decodes follow as a second batch.
+- **Self-healing audio capture** — capture health is watched by the daemon itself (no browser needed);
+  a device whose Windows endpoint ID changed after a replug is re-resolved by its friendly name, and
+  automatic restarts back off but never stop. `GET /api/v1/status` reports `dataFlowing`,
+  `captureState` and the restart counters, so an unattended run can be checked from outside.
+- **Settings saves never reset a setting** — a save changes only the keys it sends; each save logs
+  the paths it changed.
 - **External reporting** — optional and **off by default**: the daemon speaks the WSJT-X UDP
   network protocol (heartbeat, status, decodes, logged QSOs) to GridTracker2 and similar tools,
   to one or more configured targets. An inbound *Halt Tx* is always honoured as a safety path;

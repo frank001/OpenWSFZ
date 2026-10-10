@@ -75,8 +75,9 @@ public sealed record AppConfig(
     /// key deserialise without error.  A <c>null</c> value is treated by all consumers
     /// as equivalent to <c>new DecoderConfig()</c> — <c>kMinScorePass2=10</c> and
     /// <c>osdCorrThreshold=0.10</c> are D-009 calibrated defaults, and
-    /// <c>osdNhardMax=40</c> is the <c>NHARD40-DEFAULT</c> arm's calibrated value
-    /// (2026-09-12; see <see cref="DecoderConfig.OsdNhardMax"/>'s own doc comment).
+    /// <c>osdNhardMax=24</c> is the OSD-FIX R4 default
+    /// (2026-10-09: validated on replay of one 40 m night, 860 cycles; not measured live, never "safe";
+    /// see <see cref="DecoderConfig.OsdNhardMax"/>'s own doc comment).
     /// </summary>
     public DecoderConfig?      Decoder      { get; init; } = null;
 

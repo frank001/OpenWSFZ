@@ -1,4 +1,83 @@
-=== CURRENT: sync decoding_improvement with main -- UNION of both native lines (FT8_SHIM_VERSION 20260057) ===
+=== CURRENT: DI sync 5 -- decoding_improvement merged with main (FT8_SHIM_VERSION 20260061) ===
+
+Merge of origin/main (9fe32e8d, shim 20260060) into origin/decoding_improvement (87dcc387, shim 20260057), per QA's
+Developer handoff dev-tasks/2026-10-09-di-sync-5.md (Captain's go, 2026-10-09). Branch sync/di-with-main-5.
+
+NO new native behaviour: the source is the UNION of the two lines, and every export from both is present.
+  decoding_improvement line: 20260053 pass-1 probe (ft8_set_probe, ft8_clear_probe, ft8_get_probe_llrs,
+    ft8_get_last_suppression); 20260054 decoder-param-readout (ft8_get_decoder_params, ft8_set_supp_params,
+    ft8_get_supp_params); 20260057 was the previous union with main.
+  main line: 20260055/20260056 SUB-FEAS (ft8_subfeas_compute_analytic, ft8_subfeas_fit_signal, ft8_subfeas_pool_*,
+    ft8_set_diagnostics_enabled); 20260058 early decode (ft8_hash_state_size / _save / _restore); 20260060
+    osd-sign-fix #215 (ft8_set_osd_sign_fix, ft8_get_osd_sign_fix, ft8_get_last_osd_diag, osd_prepare_llr).
+Source conflicts resolved by hand: decode.c's two OSD call sites are now `osd_prepare_llr(llr_for_osd);` followed by
+`osd_decode(llr_for_osd, OSD_DEPTH, plain174)` (OSD_DEPTH == 2, the literal main had; arithmetic identical to both
+parents); ft8_shim.c keeps the DEFAULT_* names AND s_osd_sign_fix, and both the supp-params functions and the
+hash-state functions; ft8_shim.h keeps both changelogs. The HSM manifest in ft8_shim.c gained entries for the
+DI-only mutable variables (s_supp_*, tls_probe_*) and every FILE:LINE citation was re-pointed to the merged file.
+FT8_SHIM_VERSION 20260061 is above both parents' (20260057, 20260060), so a merged DLL cannot be mistaken for either.
+FT8_SHIM_VERSION identifies nothing on its own -- the SHA256 below is the pin.
+
+  Windows x64 (rebuild_shim.bat): SHA256 a14fe354b88dbc30c4c13fb2610a8d16769684afec70b826bc30756591fd7610 (260096 bytes)
+    (Not bit-reproducible run to run: the PE carries link timestamps; the pin identifies THIS file only.)
+  Linux x64   (build_linux.sh, WSL Debian): SHA256 c8183593f42e804080ac1b3ac99d1079eb1c02d1381399f2aedd3e6db9a6d548 (92368 bytes)
+  macOS ARM64: NOT rebuilt here -- no Mac available locally; CI's `commit-native-binaries` job owns it.
+
+=== Previous (main line): osd-sign-fix, #215 (FT8_SHIM_VERSION 20260060) ===
+
+Built 2026-10-08 from branch feat/osd-sign-fix, off origin/main be3cc5ac (shim 20260058), via OpenSpec change
+osd-sign-fix (QA handoff dev-tasks/2026-10-08-osd-sign-fix.md; Architect spec 2026-10-07-1545 as amended by the ruling
+2026-10-08-1545; the Captain, 2026-10-07: "not switching it off but actually fixing it ... prio 1"). Developer session.
+Version literal: highest on any live ref was origin/feat/sub-feas-stage-b at 20260059 (B2, not merged), so 20260060.
+
+osd_decode reads positive = bit 0; the extractor and BP produce positive = bit 1; the three callers passed the array
+un-negated, so every OSD accept since 20260025 was a chance CRC-14 hit. A helper, osd_prepare_llr, now negates
+llr_for_osd IN PLACE before osd_decode, and the acceptance gate (nhard, corr/norm) reads that SAME array (decode.c, the
+three callers in ftx_decode_candidate, ftx_ldpc_decode_llrs and the AP path). New exports ft8_set_osd_sign_fix(int) /
+ft8_get_osd_sign_fix(void); default 1; 0 reproduces the previous shim (3000 random LLR vectors through
+ft8_ldpc_decode_llrs: results identical to the origin/main DLL at switch 0, 52 chance OSD accepts included). Not wired to
+config, UI or API. nhard 40 and corr 0.10 were calibrated on the inverted output and are unchanged here.
+Second commit (R6): export ft8_get_last_osd_diag returns, per ft8_decode_all call, nhard / corr-norm / depth / batch for each
+candidate that passed the OSD gate, and per-pass gate-reject counts by reason (nhard cap, corr). Numbers only, no file I/O;
+decode outputs identical to the first commit's DLL (306 cycle x switch decodes and 3000 LLR vectors diffed).
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    2029b0804a9abcc378fa037893b28236e4e5dec4459ba443d31c2027a58d82bb
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    daf70200394508362ca24cfaf1c3d8a5d02ca94be86f004db2770baa539d080f
+    tools/check_native_version.py reports shim 20260060 for both files built here.
+  macOS ARM64: NOT rebuilt here -- no Mac available locally. CI owns it.
+
+=== Previous: decode-early-batch-panel, #122 step 4 phase 4a (FT8_SHIM_VERSION 20260058) ===
+
+Built 2026-10-03 from branch feat/122-step4-early-decode-panel, off origin/main e2fdd446 (shim 20260056), via OpenSpec
+change openspec/changes/decode-early-batch-panel/ (QA handoff dev-tasks/2026-10-03-122-step4-early-decode-panel-only.md;
+Architect spec 2026-10-03-1440 with Amendment 1; the Captain's go "1. agreed" 2026-10-03). Developer session. Version
+literal chosen by checking every local and remote branch on 2026-10-03: main 20260056, decoding_improvement 20260057,
+nothing at 20260058 or above (git grep over every ref).
+
+ADDITIVE: three new exports, ft8_hash_state_size / ft8_hash_state_save / ft8_hash_state_restore, which copy the whole
+process-global decode state (session callsign hash table + its initialised flag, reject count, announce clock, the
+g_h12_* counters and per-code arrays, g_h12_code_out_of_range) to and from a CALLER-SUPPLIED buffer (147 492 bytes).
+ft8_decode_all and every existing export are untouched; no decode output changes; the ordinary decode never calls the
+new pair. Only the managed early decode (Ft8Decoder.DecodeEarlyAsync) brackets itself with save / restore (restore in a
+finally) so an early decode of a zero-filled partial window leaves nothing behind that could change the final decode.
+The list of what is in the image, and why every thread-local is exempt, is the HSM-IMAGE / HSM-EXEMPT block in
+ft8_shim.c, checked mechanically by HashStateCompletenessTests.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    2fa6d99302c6c602231c870c1e61755aeeddb7ad1b9ce392fb98a4bdbd94f365
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only. A mutated
+     rebuild used for QA-style checks during development was discarded and this exact file restored; the SHA above was
+     re-computed after the restore.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): built, exports checked with nm, committed. SHA256
+    211e9414f640574da4bc1c003be8c22b4d945f0a7d0163cc14bac097d1313777
+    tools/check_native_version.py reports shim 20260058 for both files built here.
+  macOS ARM64: NOT rebuilt here -- no Mac available locally (the same limitation every prior native change recorded).
+    CI owns it.
+
+=== Previous (decoding_improvement line): DI sync 4, union of both native lines (FT8_SHIM_VERSION 20260057) ===
 
 Built 2026-10-01 on branch sync/di-with-main-3 (origin/decoding_improvement 51e40b55 merged with
 origin/main 9bade2bc, VERSION 0.53), per QA's Developer handoff
@@ -18,7 +97,7 @@ mistaken for either. FT8_SHIM_VERSION identifies nothing on its own -- the SHA25
     173d14eac47ea6f01111850f76a6812c57e6c3499ec0d6af5e7d7ea6305f05fb (91,600 bytes); all 13 union exports
     present in nm -D.
   macOS ARM64: NOT rebuilt here -- no Mac available locally; CI's `commit-native-binaries` job owns it.
-    The committed osx-arm64/libft8.dylib is pre-20260057 until that lands.
+    The committed osx-arm64/libft8.dylib was pre-20260057 until that landed.
 
 === Previous (decoding_improvement line): decoder-param-readout (FT8_SHIM_VERSION 20260054) ===
 
@@ -131,7 +210,7 @@ Provenance note: this file has NO entry for 20260051 (passband-140-ship) -- a pr
 this change did not introduce and does not repair; the 20260051 binary's SHA256 is recorded above
 as this build's predecessor.
 
-=== Previous (main line): sub-feas-speed-redesign, Stage A (FT8_SHIM_VERSION 20260056) ===
+=== Previous: sub-feas-speed-redesign, Stage A (FT8_SHIM_VERSION 20260056) ===
 
 Built 2026-09-30 from branch feat/sub-feas-speed-redesign, on top of feat/sub-feas-native-subtraction
 (ab95bea1, code 2b39cf18, shim 20260055), via OpenSpec change openspec/changes/sub-feas-speed-redesign/

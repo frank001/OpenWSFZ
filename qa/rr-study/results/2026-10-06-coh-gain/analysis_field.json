@@ -1,0 +1,73 @@
+{
+ "E": 0.03598691384950927,
+ "E_ci95": [
+  0.0239831336546665,
+  0.04957703338763028
+ ],
+ "descriptive": {
+  "adj_counts_x": {
+   "-1": 0,
+   "-2": 0,
+   "1": 0,
+   "2": 0,
+   "none": 917
+  },
+  "c1_eq_x": 34,
+  "c2_eq_x": 33,
+  "e_enc_is_zero_by_construction": true,
+  "g2_osd": 0,
+  "g2_x": 324,
+  "layout_x": {
+   "other": 799,
+   "std": 118
+  },
+  "rpt_eq_x": 0,
+  "t_alt_eq_x": 0,
+  "type_pairs_residual": {
+   "X i3=0 vs T i3=1": 2,
+   "X i3=1 vs T i3=1": 33,
+   "X i3=4 vs T i3=1": 527
+  },
+  "type_pairs_x": {
+   "X i3=0 vs T i3=1": 4,
+   "X i3=1 vs T i3=1": 96,
+   "X i3=2 vs T i3=2": 22,
+   "X i3=4 vs T i3=1": 795
+  }
+ },
+ "n_blocks": 273,
+ "n_x": 917,
+ "reading": "E-RESIDUAL",
+ "valid": true,
+ "validity": {
+  "X1": {
+   "not_reproduced": 0,
+   "pass": true
+  },
+  "X2": {
+   "osd_class_counts": {
+    "E-ADJ": 0,
+    "E-ENC": 0,
+    "E-G2": 0,
+    "E-HASH": 3,
+    "E-QSO": 0,
+    "E-RESIDUAL": 212
+   },
+   "osd_in_numerator_classes": 0,
+   "osd_rows": 215,
+   "pass": true
+  },
+  "X3": {
+   "failures": 0,
+   "pass": true
+  }
+ },
+ "x_class_counts": {
+  "E-ADJ": 0,
+  "E-ENC": 0,
+  "E-G2": 294,
+  "E-HASH": 28,
+  "E-QSO": 33,
+  "E-RESIDUAL": 562
+ }
+}

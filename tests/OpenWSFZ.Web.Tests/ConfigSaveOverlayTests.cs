@@ -103,7 +103,13 @@ internal static class NonDefaultConfig
         if (t == typeof(bool))   return !((current as bool?) ?? false);
         if (t == typeof(int))    return ((current as int?) ?? 0) + 1;
         if (t == typeof(float))  return ((current as float?) ?? 0f) + 0.01f;
-        if (t == typeof(double)) return ((current as double?) ?? 0d) + 7.074;
+        if (t == typeof(double))
+        {
+            // decoder.earlyDecodeCutSeconds is clamped to [0.5, 3.0] by the handler (FR-083): default + 7.074 would
+            // fall outside it, so use an in-range value that differs from the 2.0 default.
+            if (name == "EarlyDecodeCutSeconds") return 2.5;
+            return ((current as double?) ?? 0d) + 7.074;
+        }
         if (t == typeof(string))
         {
             // Values that other code parses must stay parseable.

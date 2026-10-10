@@ -336,3 +336,37 @@ def test_failed_cross_volume_move_never_loses_the_source(tmp_path, monkeypatch):
         gla.transfer_wav(src, dst, "move")
     assert src.read_bytes() == b"payload", "the source must survive a copy whose size does not verify"
     assert not dst.exists(), "the bad partial copy must be removed"
+
+
+# --- #194 section 11: the build comes from the run's own record, never the gatherer's checkout ---------
+
+def test_build_info_uses_the_daemons_arm_config_not_the_checkout(tmp_path):
+    arm = tmp_path / "arm_config.json"
+    arm.write_text(
+        '{"recorded_utc": "2026-09-23T10:33:00Z", "daemon": {"daemon_version": "0.52", "shim_version": 20260054, '
+        '"dll_sha256": "38a21f84", "exe": "D:/w/OpenWSFZ.Daemon.exe", "commit": "84cac119"}}',
+        encoding="utf-8",
+    )
+    text = gla.build_info(arm)
+    assert "84cac119" in text and "38a21f84" in text and "20260054" in text and "0.52" in text
+    assert "deliberately NOT used" in text
+    assert gla.git_build_info() not in text
+
+
+def test_build_info_without_a_record_says_not_recorded_and_labels_the_checkout():
+    text = gla.build_info(None)
+    assert text.startswith("**NOT RECORDED**") and "not necessarily the daemon build" in text
+    unreadable = gla.build_info(Path("does-not-exist.json"))
+    assert unreadable.startswith("**NOT RECORDED**")
+
+
+def test_synthetic_run_contents_has_no_real_callsign_claim_and_no_todo_headline(tmp_path):
+    s = _build_scenario(tmp_path, ["WSJT-X - A"])
+    arm = tmp_path / "arm_config.json"
+    arm.write_text('{"daemon": {"daemon_version": "0.54", "dll_sha256": "abc"}}', encoding="utf-8")
+    argv = _base_argv(s, "WSJT-X - A", ["--synthetic-run", "--arm-config", str(arm)])
+    assert gla.main(argv) == 0
+    body = (s["out_root"] / "test_run" / "contents.md").read_text(encoding="utf-8")
+    assert "SYNTHETIC R&R run" in body and "real third-party" not in body
+    assert "Headline result\n\nSee the R&R report" in body
+    assert "daemon version `0.54`" in body

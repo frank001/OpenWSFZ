@@ -623,6 +623,11 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await Poll.WaitForCallCountAsync(() => _ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 2,
             timeout: TimeSpan.FromSeconds(3));
 
+        // KeyUp is released inside the retry's TransmitAsync, BEFORE the service moves the state on from
+        // TxAnswer back to WaitReport (issue #218: the read raced that transition and saw TxAnswer). Wait for the
+        // state itself, the positive condition, then assert.
+        await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
         // TxAnswer (1) + retry TX (1) = 2 total.
         await _ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>());
         _sut!.State.Should().Be(QsoState.WaitReport, "one retry should not exhaust the retry budget");
@@ -668,6 +673,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await Poll.WaitForCallCountAsync(() => _ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
             timeout: TimeSpan.FromSeconds(3));
 
+        // Same race as WaitReport_SecondEmptyCycle_FiresRetry (issue #218): KeyUp precedes the state moving back.
+        await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+
         // TxAnswer (1) + TxReport (1) + retry TX (1) = 3 total.
         await _ptt.Received(3).KeyDownAsync(Arg.Any<CancellationToken>());
         _sut!.State.Should().Be(QsoState.WaitRr73, "one retry should not exhaust the retry budget");
@@ -698,6 +706,10 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         Send(Make("CQ Q2NOISE IO91"));
         await Poll.WaitForCallCountAsync(() => _ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 2,
             timeout: TimeSpan.FromSeconds(3));
+
+        // KeyUp precedes the state moving back to WaitReport (issue #218): wait for it before cycle 3 is sent,
+        // so cycle 3 is judged in WaitReport and the later state read cannot see TxAnswer.
+        await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
 
         // Cycle 3: our retry TX window — must be SKIPPED, not another retry. No new TX expected;
         // channel-drain is the best available proxy again (see cycle 1's note).
@@ -739,6 +751,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         Send(Make("CQ Q2NOISE IO91"));
         await Poll.WaitForCallCountAsync(() => _ptt.ReceivedCalls(), nameof(IPttController.KeyUpAsync), 3,
             timeout: TimeSpan.FromSeconds(3));
+
+        // KeyUp precedes the state moving back to WaitRr73 (issue #218), same as WaitReport_SilenceAfterRetry_IsSkipped.
+        await Poll.WaitForEqualAsync(() => _sut!.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
 
         // Cycle 3: our retry TX window — must be SKIPPED. Channel-drain only, same as cycle 1.
         Send(Make("CQ Q2NOISE IO91"));

@@ -1403,3 +1403,35 @@ select#dial-freq {
 
 .btn-secondary { /* uses .btn defaults */ }
 
+/* ── Decode table — early rows (decode-early-batch-panel, FR-083) ────────── */
+/* An early row is a decode of the first part of a window, shown ~2 s before the cycle's final decode.      */
+/* The mark is TEXT (the .early-badge span says "early" or "unconfirmed"), never colour alone: the italics, */
+/* the left rule and the muted tone are reinforcement, not the signal.                                       */
+#decodes-table tr.decode-early td,
+#decodes-table tr.decode-early-unconfirmed td {
+  font-style: italic;
+  opacity: 0.8;
+}
+#decodes-table tr.decode-early td:first-child,
+#decodes-table tr.decode-early-unconfirmed td:first-child {
+  border-left: 3px dashed #8a8f98;
+}
+#decodes-table tr.decode-early-unconfirmed td {
+  text-decoration: line-through;
+  text-decoration-color: #8a8f98;
+}
+#decodes-table tr.decode-early-unconfirmed td .early-badge {
+  text-decoration: none;
+  display: inline-block;
+}
+.early-badge {
+  margin-left: 0.5em;
+  padding: 0 0.4em;
+  border: 1px solid #8a8f98;
+  border-radius: 3px;
+  font-size: 0.75em;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}

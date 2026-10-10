@@ -360,15 +360,45 @@
               <input
                 type="number"
                 id="decoder-nhard"
-                min="30"
+                min="24"
                 max="100"
                 step="1"
               />
               <p class="field-hint">
-                Maximum Hamming distance for OSD candidates [30–100].
-                Default: 40 (NHARD40-DEFAULT, 2026-09-12) — 95–98% fewer false decodes than 60,
-                with no genuine loss measured on AWGN near-threshold/co-channel; not tested under
-                fading/drift/Doppler. To restore 60, set it explicitly here and save.
+                Maximum Hamming distance for OSD candidates [24–100].
+                Default: 24 (OSD-FIX, 2026-10-09), which assumes the corrected OSD. Validated on
+                replay of one 40 m night (860 cycles); not measured live, other bands or
+                fading/drift untested. To use another value, set it here and save.
+              </p>
+            </div>
+
+            <!-- decode-early-batch-panel (FR-083) -->
+            <div class="field-group">
+              <label for="decoder-early-enabled">
+                <input type="checkbox" id="decoder-early-enabled" />
+                Show early decodes
+              </label>
+              <p class="field-hint">
+                When on, a decode of the first part of each 15 s window runs about 2 s before the window ends and its rows
+                appear on the decode panel marked <em>early</em>. When the full decode agrees, the early row is replaced
+                by the final row; when it does not, the row stays and is marked <em>unconfirmed</em>. Panel only: early
+                rows are never written to ALL.TXT, sent over UDP, used by the QSO automation or archived.
+                Takes effect on the next window. Default: <strong>on</strong>; untick this box and save to turn it off.
+              </p>
+            </div>
+
+            <div class="field-group">
+              <label for="decoder-early-cut">Early decode lead (seconds)</label>
+              <input
+                type="number"
+                id="decoder-early-cut"
+                min="0.5"
+                max="3"
+                step="0.1"
+              />
+              <p class="field-hint">
+                How many seconds before the end of the window the early decode runs [0.5–3.0]. A larger lead shows rows
+                sooner but from less of the signal. Default: 2.0.
               </p>
             </div>
 

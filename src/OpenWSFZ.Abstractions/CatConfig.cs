@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
@@ -6,6 +8,43 @@ namespace OpenWSFZ.Abstractions;
 /// </summary>
 public sealed record CatConfig
 {
+
+    // Deserialization note (Lesson 6 / D-WFC-001 pattern, see LoggingConfig.cs and #209):
+    // without an explicit [JsonConstructor] the STJ source generator reads default(T) for a key
+    // that is absent from a PRESENT section, bypassing the initialisers below. Every property is
+    // therefore a constructor parameter carrying the same default as its initialiser.
+
+    /// <summary>
+    /// Deserialization constructor (parameter defaults mirror the initialisers). A <c>null</c>
+    /// <paramref name="serialPort"/> (its platform default cannot be a compile-time constant)
+    /// resolves to the platform default.
+    /// </summary>
+    [JsonConstructor]
+    public CatConfig(
+        bool    enabled                = false,
+        string  rigModel               = "SerialCat",
+        string? serialPort             = null,
+        int     baudRate               = 9600,
+        string  rigctldHost            = "127.0.0.1",
+        int     rigctldPort            = 4532,
+        int     pollIntervalSeconds    = 1,
+        double? lastPolledFrequencyMHz = null)
+    {
+        Enabled                = enabled;
+        RigModel               = rigModel;
+        SerialPort             = serialPort ?? DefaultSerialPort;
+        BaudRate               = baudRate;
+        RigctldHost            = rigctldHost;
+        RigctldPort            = rigctldPort;
+        PollIntervalSeconds    = pollIntervalSeconds;
+        LastPolledFrequencyMHz = lastPolledFrequencyMHz;
+    }
+
+    private static string DefaultSerialPort =>
+        OperatingSystem.IsWindows() ? "COM6" :
+        OperatingSystem.IsMacOS()   ? "/dev/cu.usbserial" :
+                                      "/dev/ttyUSB0";
+
     /// <summary>
     /// Whether CAT polling is active. Default: <c>false</c>.
     /// When <c>false</c> no serial port or TCP connection is opened and

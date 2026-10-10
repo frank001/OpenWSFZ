@@ -44,12 +44,12 @@ DERIVED = os.path.join(ART, "sub_feas_stage_a_e3_baseline", "e1_derived_selectio
 RUNS = R.RUNS
 
 BUILDS = {
-    "base": {"commit": "2b39cf18", "checkout": r"C:\Users\Frank\w-replay81-2b39cf18", "out": r"C:\Users\Frank\w-ts-out-base",
+    "base": {"commit": "2b39cf18", "checkout": r"D:\Projects\claude\_qa-scratch\w-replay81-2b39cf18", "out": r"D:\Projects\claude\_qa-scratch\w-ts-out-base",
              "props": ["-p:HasSubfeas=true"], "dll": "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5"},
-    "ref": {"commit": "ca0bcd9b", "checkout": r"C:\Users\Frank\w-speed-review", "out": r"C:\Users\Frank\w-ts-out-ref",
+    "ref": {"commit": "ca0bcd9b", "checkout": r"D:\Projects\claude\_qa-scratch\w-speed-review", "out": r"D:\Projects\claude\_qa-scratch\w-ts-out-ref",
             "props": ["-p:HasSubfeas=true", "-p:HasMaxThreads=true"],
             "dll": "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c"},
-    "two": {"commit": "247ac391", "checkout": r"C:\Users\Frank\w-twostage-review", "out": r"C:\Users\Frank\w-ts-out-two",
+    "two": {"commit": "247ac391", "checkout": r"D:\Projects\claude\_qa-scratch\w-twostage-review", "out": r"D:\Projects\claude\_qa-scratch\w-ts-out-two",
             "props": ["-p:HasSubfeas=true", "-p:HasMaxThreads=true", "-p:HasTwoStage=true"],
             "dll": "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c"},
 }

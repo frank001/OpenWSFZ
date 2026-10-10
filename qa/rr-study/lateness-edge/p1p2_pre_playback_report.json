@@ -1,0 +1,15 @@
+{
+ "P1": {
+  "PASS": true,
+  "checked": 2432,
+  "fail": [],
+  "max_err_ms": 5.62042790587855e-16,
+  "tolerance_ms": 2.0
+ },
+ "P2": {
+  "PASS": true,
+  "fail": []
+ },
+ "sigma": 2.0101724620706807,
+ "sigma_identical_all_cycles": true
+}
