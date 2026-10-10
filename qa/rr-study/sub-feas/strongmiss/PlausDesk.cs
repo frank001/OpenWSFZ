@@ -139,6 +139,7 @@ internal static partial class Program
                     CompoundNotes.Clear();
                     Bump(c, "rejected | shape rules | " + ShapePosition(r.Text));
                     foreach (var note in CompoundNotes.Distinct()) Bump(c, "rejected | shape rules | " + note);
+                    if (CompoundNotes.Any(n => n.Contains("left part <= 3 chars"))) { Bump(c, "rejected | shape rules | compound short prefix (<= 3 chars before '/')"); Bump(c, "rejected | shape rules | compound short prefix | SNR " + bin); }
                 }
             }
         }
