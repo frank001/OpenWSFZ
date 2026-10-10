@@ -1,0 +1,14 @@
+{
+ "matched": 62340,
+ "ows_only": 277,
+ "ows_only_cycles": 214,
+ "ows_only_in_wsjt_empty_cycles": 38,
+ "ows_only_near_cycle_text_in_wsjt": 0,
+ "ows_total": 62617,
+ "wsjt_in_ows_busy_cycles": 93611,
+ "wsjt_in_ows_empty_cycles": 0,
+ "wsjt_only": 31271,
+ "wsjt_only_in_ows_busy_cycles": 31271,
+ "wsjt_only_in_ows_empty_cycles": 0,
+ "wsjt_total": 93611
+}

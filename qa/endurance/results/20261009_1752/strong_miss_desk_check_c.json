@@ -1,0 +1,12 @@
+{
+ "check2_matched_pairs_openwsfz_placeholder": 361,
+ "check2_matched_pairs_wsjtx_placeholder": 332,
+ "check2_of_those_wsjtx_raw_text_differs_matched_only_by_collapse": 233,
+ "check2_openwsfz_rows_with_placeholder_total": 361,
+ "check2_wsjtx_rows_with_placeholder_total": 657,
+ "check3_of_those_also_wsjtx_neighbour_within_25hz": 12,
+ "check3_strong_hashed_wsjtx_only_rows": 107,
+ "check3_with_ows_row_within_10hz_different_collapsed_text": 12,
+ "check3_with_ows_row_within_10hz_same_collapsed_text": 0,
+ "matched_pairs": 62340
+}
