@@ -6,7 +6,7 @@
 //
 // Attribution (mechanical): the token-count rules are a port of the Architect's pf_01 token_rule(); a row rejected by the product
 // but passing token_rule() is a "shape rule" row. For shape rows the failing POSITION is found by substituting one token at a
-// time with a known-valid call (W1AW) and asking the product again: positions whose substitution alone makes the row plausible.
+// time with a known-valid call (Q1ABC) and asking the product again: positions whose substitution alone makes the row plausible.
 // Only positions are reported, never tokens.
 
 using System.Text.Json;
