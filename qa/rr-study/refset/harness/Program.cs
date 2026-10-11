@@ -33,6 +33,10 @@ internal static class Program
     private const int ExpectedScoredCycles = 32;     // corpus constant L (manifest.scored_cycles)
 
     private static int _ran, _abandoned, _contained;
+    // residual-pass wall time of the most recent call, and the budget field of its log line (spec 2m: recorded per cycle)
+    private static long _lastResidualMs = -1;
+    private static string _lastBudget = "";
+    private const string BudgetEnvVar = "OPENWSFZ_SUBTRACTION_BUDGET";   // the QA-proposed name; the Developer may rename (dev-task 2026-10-11): record whatever the build reads
 
     private static int Main(string[] args)
     {
@@ -142,6 +146,7 @@ internal static class Program
                 string s = cycles[i];
                 bool scored = i >= w;
                 int r1 = _ran, a1 = _abandoned, c1 = _contained;
+                _lastResidualMs = -1;
                 var sw = Stopwatch.StartNew();
                 var rows = await DecodeAsync(s);
                 double ms = sw.Elapsed.TotalMilliseconds;
@@ -149,6 +154,7 @@ internal static class Program
                 {
                     ["stamp"] = s, ["scored"] = scored, ["rows"] = rows.Count, ["ms"] = Math.Round(ms, 1),
                     ["ran"] = _ran - r1, ["abandoned"] = _abandoned - a1, ["contained"] = _contained - c1,
+                    ["residual_ms"] = _lastResidualMs, ["budget"] = _lastBudget,
                 });
                 if (!scored) continue;                                          // warm-up: output discarded
                 foreach (var r in rows.OrderBy(x => x.FreqHz).ThenBy(x => x.Message, StringComparer.Ordinal))
@@ -166,6 +172,7 @@ internal static class Program
         {
             ["pass"] = pass, ["leg"] = leg, ["label"] = label, ["block"] = blockId, ["run"] = run, ["generated_utc"] = DateTime.UtcNow.ToString("O"),
             ["os"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription, ["os_arch"] = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture.ToString(),
+            ["budget_override_env"] = Environment.GetEnvironmentVariable(BudgetEnvVar) ?? "(unset: 13 s default)",
             ["native_lib"] = nativeName, ["native_sha256_start"] = nativeSha, ["native_sha256_end"] = nativeShaEnd,
             ["readback_start"] = readbackStart, ["readback_end"] = readbackEnd,
             ["warmup_cycles"] = w, ["scored_cycles"] = l,
@@ -243,6 +250,10 @@ internal static class Program
                 foreach (var p in kv) if (p.Key == "{OriginalFormat}") template = p.Value?.ToString() ?? "";
             if (!template.StartsWith(SubfeasPrefix, StringComparison.Ordinal)) return;
             string t = formatter(state, exception);
+            var em = System.Text.RegularExpressions.Regex.Match(t, @"elapsedMs=(\d+)");
+            if (em.Success) Interlocked.Exchange(ref _lastResidualMs, long.Parse(em.Groups[1].Value, CultureInfo.InvariantCulture));
+            var bm = System.Text.RegularExpressions.Regex.Match(t, @"budgetMs=(\S+)");
+            _lastBudget = bm.Success ? bm.Groups[1].Value : "";          // empty on a build without the override field
             Interlocked.Increment(ref _ran);
             if (t.Contains("deadlineAbandoned=True", StringComparison.OrdinalIgnoreCase)) Interlocked.Increment(ref _abandoned);
             if (t.Contains("containedException=True", StringComparison.OrdinalIgnoreCase)) Interlocked.Increment(ref _contained);

@@ -193,12 +193,15 @@ def main() -> int:
         blocks = blocks[:args.max_blocks]
     with open(pins_path, "a") as pf:
         pf.write(json.dumps({"utc": now(), "event": "start", "native": got, "corpus_manifest_sha256": sha256(os.path.join(args.corpus, "MANIFEST.sha256")),
-                             "verify_skipped": args.skip_verify, "blocks": len(blocks), "legs": legs, "label": args.label,
+                             "verify_skipped": args.skip_verify, "blocks": len(blocks), "legs": legs, "label": args.label, "budget_override_env": os.environ.get("OPENWSFZ_SUBTRACTION_BUDGET", ""),
                              "settings": {"nhard": NHARD, "osd_sign_fix": SIGN_FIX, "threads": THREADS}}) + "\n")
-    print(f"{now()} start pass {args.pass_name}: {len(blocks)} blocks, legs {legs}, native {got[:12]}", flush=True)
+    override = os.environ.get("OPENWSFZ_SUBTRACTION_BUDGET", "")
+    banner = f"budget override = {override} (replay only)" if override else "budget override = none (13 s default)"
+    print(f"{now()} start pass {args.pass_name}: {len(blocks)} blocks, legs {legs}, native {got[:12]}; {banner}", flush=True)
 
     a_scores, d_scores, timing = [], [], {"A": [], "D": []}
     ab_total = {"A": 0, "D": 0}
+    resid_ms = {"A": [], "D": []}
     for i, blk in enumerate(blocks, 1):
         sa = run_block(args, blk, "A", args.pass_name, pass_dir, pins_path)
         a_work = os.path.join(pass_dir, "A", blk["id"] + ".decodes.tsv")
@@ -206,6 +209,7 @@ def main() -> int:
         a_scores.append(sc)
         timing["A"].append((sa["wall_s"], sa["cpu_s"]))
         ab_total["A"] += sa["residual_pass"]["abandoned"]
+        resid_ms["A"] += [c["residual_ms"] for c in sa["cycles"] if c["scored"] and c["residual_ms"] >= 0]
         line = f"{now()} [{i}/{len(blocks)}] block {blk['id']} {blk['band']} {blk['sun']}: A wall {sa['wall_s']}s cpu {sa['cpu_s']}s repro_nonhashed {sc['rsv2']['repro_nonhashed_share']:.4f} extra {sc['rsv2']['extra_nonhashed_share']:.4f}"
         if "D" in legs and (args.d_scope == "all" or blk["round"] <= QUICK_ROUNDS):
             sd = run_block(args, blk, "D", args.pass_name, pass_dir, pins_path)
@@ -214,17 +218,19 @@ def main() -> int:
             d_scores.append(dsc)
             timing["D"].append((sd["wall_s"], sd["cpu_s"]))
             ab_total["D"] += sd["residual_pass"]["abandoned"]
+            resid_ms["D"] += [c["residual_ms"] for c in sd["cycles"] if c["scored"] and c["residual_ms"] >= 0]
             line += f" | D wall {sd['wall_s']}s lost {1 - dsc['rsv2']['repro_nonhashed_share']:.4f} extra {dsc['rsv2']['extra_nonhashed_share']:.4f}"
         print(line, flush=True)
         rs.dump_json(os.path.join(pass_dir, "status.json"), {"utc": now(), "done": i, "of": len(blocks), "abandonments": ab_total})
 
     # --- aggregate
-    out = {"pass": args.pass_name, "label": args.label, "utc": now(), "native_sha256": got, "blocks": len(blocks), "legs": legs,
+    out = {"banner": banner, "pass": args.pass_name, "label": args.label, "utc": now(), "native_sha256": got, "blocks": len(blocks), "legs": legs,
            "abandonments_first": ab_total, "timing_seconds_per_block": {}}
     for leg in ("A", "D"):
         if timing[leg]:
             w = sorted(t[0] for t in timing[leg]); c = sorted(t[1] for t in timing[leg])
             out["timing_seconds_per_block"][leg] = {"n": len(w), "median_wall": w[len(w) // 2], "max_wall": w[-1], "median_cpu": c[len(c) // 2]}
+    out["residual_pass_ms_scored_cycles"] = {leg: ({"n": len(v), "median": sorted(v)[len(v) // 2], "max": max(v)} if v else None) for leg, v in resid_ms.items()}
     if a_scores:
         out["leg_A_vs_live_ows"] = pool(a_scores)
         sh = out["leg_A_vs_live_ows"]["shares"]
