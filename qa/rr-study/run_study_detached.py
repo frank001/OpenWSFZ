@@ -136,6 +136,7 @@ def main():
                      "or PRECHECK refuses")
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--wsjtx-ini", required=True, help="path to the WSJT-X .ini this battery should read")
+    ap.add_argument("--wsjtx-version", required=True, help="the WSJT-X appraiser build, e.g. \"2.7.0\" (recorded in arm_config.json; a Q-prefix battery is REFUSED at >= 3.0, see wsjtx_version.py)")
     ap.add_argument("--resume", action="store_true",
                      help="launch resume_study.py instead of run_study.py; PRECHECK will attach "
                           "to an already-running daemon if exactly one is found, instead of "
@@ -221,7 +222,7 @@ def main():
             return 3
 
         run, arm = rr_precheck.precheck(sup_dir, a.daemon_exe, a.config, a.port, a.wsjtx_ini,
-                                         allow_existing=a.resume)
+                                         allow_existing=a.resume, wsjtx_version=a.wsjtx_version)
         if not arm["checks"].get("all_pass"):
             status.update(phase="ABORTED", ended_utc=ES.iso(ES.utcnow()),
                           note="PRECHECK failed, see arm_config.json in this directory")
@@ -293,7 +294,7 @@ def main():
 
     cmd = [sys.executable, os.path.abspath(__file__), "--poll", "--supervisor-dir", sup_dir,
            "--daemon-exe", a.daemon_exe, "--config", a.config, "--port", str(a.port),
-           "--wsjtx-ini", a.wsjtx_ini]
+           "--wsjtx-ini", a.wsjtx_ini, "--wsjtx-version", a.wsjtx_version]
     if a.resume:
         cmd.append("--resume")
     cmd += forwarded

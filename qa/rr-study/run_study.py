@@ -148,7 +148,8 @@ def _load_arm_config(run_dir: Path) -> dict:
     flag = ((d.get("daemon") or {}).get("decoder_readback") or {}).get("subtractionEnabled")
     return {"commit": (d.get("build") or {}).get("commit"),
             "dll_sha256": (d.get("daemon") or {}).get("dll_sha256"),
-            "subtraction_enabled": {True: "true", False: "false"}.get(flag, "unknown")}
+            "subtraction_enabled": {True: "true", False: "false"}.get(flag, "unknown"),
+            "wsjtx_version": (d.get("wsjtx") or {}).get("version")}
 
 
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -364,7 +365,8 @@ def main() -> None:
 
     # Record WSJT-X version
     ver_path = run_dir / "wsjt-version.txt"
-    ver_path.write_text("WSJT-X 2.7.0 (inferred from binary date 2025-02-04)", encoding="utf-8")
+    # The version recorded by PRECHECK (arm_config.json wsjtx.version); a legacy run without one keeps the old inferred string.
+    ver_path.write_text(arm.get("wsjtx_version") or "WSJT-X 2.7.0 (inferred from binary date 2025-02-04; NOT recorded for this run)", encoding="utf-8")
 
     # ── Step 4: Run matcher for each scenario ──────────────────────────────
     print("\nRunning matcher ...")

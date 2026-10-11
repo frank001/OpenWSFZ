@@ -22,8 +22,10 @@ ES = linux_compat.install()  # patched endurance_supervisor (same module object 
 
 import urllib.request  # noqa: E402
 
+import wsjtx_version as _WV  # noqa: E402  (same folder; the Linux entry point puts it on sys.path)
 
-def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=False):
+
+def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=False, wsjtx_version=None):
     """Starts the daemon with the GIVEN exe/config/port (never constructed), then RECORDS
     everything about what came up and REFUSES on a detected mismatch. Writes
     <run_dir>/arm_config.json. Returns (run, arm) -- `run` is the ES.Run instance (so the
@@ -95,6 +97,16 @@ def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=F
                      "captured_utc": provenance.get("captured_utc")}
     res["checks"]["build_tree_clean"] = not provenance.get("build_dirty")
     if provenance.get("build_dirty"):
+        res["checks"]["all_pass"] = False
+        _write(run_dir, res)
+        return run, res
+
+    # WSJT-X appraiser version: recorded on every sweep; a Q-prefix battery is refused on >= 3.0 (wsjtx_version.py).
+    # Checked BEFORE anything is started, like the cycleAudioArchive gate below.
+    wv = _WV.check(wsjtx_version)
+    res["wsjtx_version"] = {"recorded": wv["recorded"], "parsed": wv["parsed"]}
+    res["checks"].update(wv["checks"])
+    if not all(wv["checks"].values()):
         res["checks"]["all_pass"] = False
         _write(run_dir, res)
         return run, res
@@ -193,6 +205,7 @@ def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=F
         "ap_enabled": ES.ini_value(wsjtx_ini, "aprioriEnabled"),  # recorded, not gated
         "dial_freq_hz": ES.ini_value(wsjtx_ini, "DialFreq"),
         "mode": ES.ini_value(wsjtx_ini, "Mode"),
+        "version": wsjtx_version,                              # operator-stated, gated above
         "sound_in_name": wname,
         "sound_in_chan": ES.ini_value(wsjtx_ini, "SoundInChan") or "ABSENT (WSJT-X default applies)",
     }
