@@ -5,7 +5,8 @@
 **Audience:** Developer (to execute); Captain (sign-off required before merge, HK-010)
 **Authorised by:** the Captain, in QA's window, 2026-10-11: "option 2 is confirmed" (the REFERENCE-SET replay legs run on `sol` with the budget lifted), recorded as spec 2m (amendment 8, `arch/reference-set`). OpenSpec change: `openspec/changes/subtraction-budget-replay-override/` (proposal, design, tasks, spec delta; `openspec validate` clean).
 **Status:** Proposed. Per HK-011 this is a `src/` change for a separate Developer session. The Developer does not push or merge, and does not run `pre_merge_check.py` on its own initiative (QA verifies, the Captain signs off the merge).
-**Branch:** cut a new branch from the current `main` (`76aa48cd`, v0.57, shim 20260060). **Do not touch `native/` or the shipped binaries.**
+**Branch:** `feat/subtraction-budget-replay-override`, cut from the current `main` (`76aa48cd`, v0.57, shim 20260060); never commit to `main`. **Do not touch `native/` or the shipped binaries.**
+**References:** OpenSpec change `subtraction-budget-replay-override` (spec delta on `iterative-subtraction`); spec `arch/reference-set` sections 2l item 2 and 2m; the 2026-10-11 RS-V2P stop (40 of 40 abandoned on `sol`); the old-CPU issue draft (not filed). The Developer's own checklist is sections 1 and 2; section 3 is QA's validation, listed so the acceptance criteria are known in advance.
 
 ---
 
@@ -34,7 +35,7 @@ QA's gate RS-V2P on `sol` (AMD FX-8350, 8 cores) abandoned the residual pass in 
 4. **Log line:** `budgetMs=13000` by default, `budgetMs=30000` with `30`, `budgetMs=unlimited` with `unlimited`; all existing fields still parse (extend `SubtractionLogLineTests`).
 5. **Construction warning** once when active, never when unset.
 
-## 3. What QA validates afterwards (the Developer needs none of this)
+## 3. Acceptance criteria (what QA validates afterwards; the Developer needs none of this)
 
 1. **Byte identity on a real block (PC):** the replay harness on the base build and on the new build with the override unset, same block, same settings: identical per-cycle decodes and identical residual-pass counts.
 2. **Smoke on `sol`:** one anchor block with `unlimited` (and one with `30`): the log line carries `budgetMs`, abandonments 0, the residual-pass time per cycle recorded.
