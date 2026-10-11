@@ -149,7 +149,8 @@ def _load_arm_config(run_dir: Path) -> dict:
     return {"commit": (d.get("build") or {}).get("commit"),
             "dll_sha256": (d.get("daemon") or {}).get("dll_sha256"),
             "subtraction_enabled": {True: "true", False: "false"}.get(flag, "unknown"),
-            "wsjtx_version": (d.get("wsjtx") or {}).get("version")}
+            "wsjtx_version": (d.get("wsjtx") or {}).get("version"),
+            "wsjtx_exe_sha256": (d.get("wsjtx") or {}).get("exe_sha256")}
 
 
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -366,7 +367,8 @@ def main() -> None:
     # Record WSJT-X version
     ver_path = run_dir / "wsjt-version.txt"
     # The version recorded by PRECHECK (arm_config.json wsjtx.version); a legacy run without one keeps the old inferred string.
-    ver_path.write_text(arm.get("wsjtx_version") or "WSJT-X 2.7.0 (inferred from binary date 2025-02-04; NOT recorded for this run)", encoding="utf-8")
+    ver_path.write_text(arm.get("wsjtx_version") or (("WSJT-X build not stated; measured: executable SHA-256 " + arm["wsjtx_exe_sha256"] + ", decodes the Q-prefix canary")
+                        if arm.get("wsjtx_exe_sha256") else "WSJT-X 2.7.0 (inferred from binary date 2025-02-04; NOT recorded for this run)"), encoding="utf-8")
 
     # ── Step 4: Run matcher for each scenario ──────────────────────────────
     print("\nRunning matcher ...")

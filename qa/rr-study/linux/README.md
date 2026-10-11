@@ -13,6 +13,10 @@ nohup python run_study_linux.py --poll --supervisor-dir <dir> --daemon-exe <publ
       -- --scenarios S1,S1b,S2,S3,S4,S5,S7,S8,S3c --skip-warmup --device RR-ALSA > <dir>/supervisor.log 2>&1 &
 ```
 
+## The appraiser gate (PRECHECK, `wsjtx_version.py`): measured, not typed
+
+PRECHECK finds the **running** WSJT-X process, takes its executable and its own environment, runs the `jt9` beside it on a freshly rendered +20 dB `CQ Q1ABC FN42` cycle, and refuses the battery unless that `jt9` decodes it (WSJT-X 3.x rejects every callsign starting with Q and the synthetic truth set is Q-prefix only). The executable's SHA-256 is recorded in `arm_config.json` (`wsjtx.exe_sha256`) and `wsjt-version.txt`. `--wsjtx-version` is an optional LABEL: if given it must agree with the measurement (`< 3.0` exactly when the canary decodes), so "2.7.0" typed on a 3.x install is refused. A WSJT-X that is not running, has no `jt9` beside it, or cannot be measured is refused (the default rule), before any daemon is started. Tested on `sol` (2.7.0 passes; the 3.0.2 AppImage, with or without a typed version, is refused). **The Windows branch (process lookup through `Get-Process -Name wsjtx`) has NOT been run: the first Windows battery after this change is its test, and WSJT-X must be running (Monitor ON) when the launcher starts.**
+
 ## Files
 
 | file | role |

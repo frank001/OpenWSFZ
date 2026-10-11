@@ -136,7 +136,7 @@ def main():
                      "or PRECHECK refuses")
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--wsjtx-ini", required=True, help="path to the WSJT-X .ini this battery should read")
-    ap.add_argument("--wsjtx-version", required=True, help="the WSJT-X appraiser build, e.g. \"2.7.0\" (recorded in arm_config.json; a Q-prefix battery is REFUSED at >= 3.0, see wsjtx_version.py)")
+    ap.add_argument("--wsjtx-version", default=None, help="optional LABEL for the WSJT-X appraiser build, e.g. \"2.7.0\" (recorded; it must agree with the measurement: PRECHECK runs a Q-prefix canary through the running WSJT-X's jt9 and refuses a battery whose appraiser cannot decode it, see wsjtx_version.py)")
     ap.add_argument("--resume", action="store_true",
                      help="launch resume_study.py instead of run_study.py; PRECHECK will attach "
                           "to an already-running daemon if exactly one is found, instead of "

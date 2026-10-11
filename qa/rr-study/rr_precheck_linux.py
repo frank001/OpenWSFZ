@@ -101,10 +101,12 @@ def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=F
         _write(run_dir, res)
         return run, res
 
-    # WSJT-X appraiser version: recorded on every sweep; a Q-prefix battery is refused on >= 3.0 (wsjtx_version.py).
-    # Checked BEFORE anything is started, like the cycleAudioArchive gate below.
-    wv = _WV.check(wsjtx_version)
-    res["wsjtx_version"] = {"recorded": wv["recorded"], "parsed": wv["parsed"]}
+    # WSJT-X appraiser: MEASURED, not asserted (wsjtx_version.py). The jt9 of the RUNNING WSJT-X must decode a Q-prefix canary
+    # (3.x rejects every Q-prefix callsign); a stated --wsjtx-version is only a label and must agree. Checked BEFORE anything is
+    # started, like the cycleAudioArchive gate below.
+    wv = _WV.check(wsjtx_version, _WV.probe())
+    res["wsjtx_version"] = {"stated": wv["stated"], "stated_parsed": wv["stated_parsed"]}
+    res["wsjtx_measured"] = wv["measured"]
     res["checks"].update(wv["checks"])
     if not all(wv["checks"].values()):
         res["checks"]["all_pass"] = False
@@ -205,7 +207,8 @@ def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=F
         "ap_enabled": ES.ini_value(wsjtx_ini, "aprioriEnabled"),  # recorded, not gated
         "dial_freq_hz": ES.ini_value(wsjtx_ini, "DialFreq"),
         "mode": ES.ini_value(wsjtx_ini, "Mode"),
-        "version": wsjtx_version,                              # operator-stated, gated above
+        "version": wsjtx_version,                              # operator-stated LABEL (optional), cross-checked above
+        "exe_sha256": res["wsjtx_measured"].get("exe_sha256"),  # the executable that was measured
         "sound_in_name": wname,
         "sound_in_chan": ES.ini_value(wsjtx_ini, "SoundInChan") or "ABSENT (WSJT-X default applies)",
     }
