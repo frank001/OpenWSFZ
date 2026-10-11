@@ -149,6 +149,7 @@ internal static partial class Program
     {
         var a = ParseArgs(args);
         if (a.ContainsKey("selftest")) return SelfTest();
+        if (a.ContainsKey("snr-dump")) return await SnrDumpAsync(a);
         string owsTxt = Req(a, "ows-alltxt"), wavDir = Req(a, "wav-dir"), firstStamp = Req(a, "first-stamp"), jit = Req(a, "jit-wav");
         string outJson = Req(a, "out-json"), logPath = Req(a, "log");
         int w = int.Parse(Req(a, "w"), CultureInfo.InvariantCulture), l = int.Parse(Req(a, "l"), CultureInfo.InvariantCulture);
@@ -221,6 +222,37 @@ internal static partial class Program
         };
         File.WriteAllText(outJson, JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true }));
         Console.WriteLine("RESULT written " + outJson);
+        return 0;
+    }
+
+
+    // ------------------------------------------------------------ --snr-dump: decode a list of WAVs, write (stamp, snr, dt, freq) ONLY.
+    // Used to compare the reported SNR of two platforms on IDENTICAL audio (synthetic Q-call audio; no message text is written).
+    private static async Task<int> SnrDumpAsync(Dictionary<string, string> a)
+    {
+        string list = Req(a, "wav-list"), outCsv = Req(a, "out-csv"), jit = Req(a, "jit-wav"), logPath = Req(a, "log");
+        int nhard = int.Parse(Req(a, "nhard"), CultureInfo.InvariantCulture), signFix = int.Parse(Req(a, "osd-sign-fix"), CultureInfo.InvariantCulture);
+        int threads = int.Parse(Req(a, "threads"), CultureInfo.InvariantCulture);
+        using var log = new ReplayLog(logPath);
+        var decoder = new Ft8Decoder(new WallClock(), new ReplayLogger<Ft8Decoder>(log));
+        decoder.SetDecodeParams(KMinScorePass2, OsdCorrThreshold, nhard);
+        decoder.SetOsdSignFix(signFix);
+        decoder.SetSubtractionMaxThreads(threads);
+        decoder.SetSubtractionEnabled(true);
+        Console.WriteLine("shim " + Ft8Decoder.LoadedShimVersion);
+        var paths = File.ReadAllLines(list).Where(l => l.Trim().Length > 0).ToList();
+        await decoder.DecodeTwoStageAsync(ReadWav(jit), StampToUtc("261011_000000"), null, _ => Task.CompletedTask);
+        using var w = new StreamWriter(outCsv, false, new UTF8Encoding(false));
+        w.WriteLine("stamp,snr,dt,freq_hz");
+        foreach (var p in paths)
+        {
+            string stamp = Path.GetFileNameWithoutExtension(p);
+            var all = new List<DecodeResult>();
+            var b2 = await decoder.DecodeTwoStageAsync(ReadWav(p), StampToUtc(stamp), null, batch => { all.AddRange(batch); return Task.CompletedTask; });
+            all.AddRange(b2);
+            foreach (var r in all.OrderBy(r => r.FreqHz))
+                w.WriteLine(string.Join(",", stamp, r.Snr.ToString(CultureInfo.InvariantCulture), r.Dt.ToString("F2", CultureInfo.InvariantCulture), r.FreqHz.ToString("F0", CultureInfo.InvariantCulture)));
+        }
         return 0;
     }
 
