@@ -104,6 +104,11 @@ KNOWN_SHAPE_FALSE_POSITIVES = {
     # project pass counts ("OpenWSFZ.E2E.Tests 7/7"). Confirmed non-callsign
     # by masked-context inspection (fingerprint CS-2a3646 -- DO NOT REDACT).
     "E2E",
+    # "V2P" -- the tail of the REFERENCE-SET gate name "RS-V2P" (the replay-platform validity row,
+    # spec arch/reference-set 2l item 2); the scanner's regex reads the letter-digit-letter tail as a
+    # callsign shape. Confirmed non-callsign by masked-context inspection of all three hits
+    # (dev-task, OpenSpec proposal, driver comment), 2026-10-11 (fingerprint CS-a860f1 -- DO NOT REDACT).
+    "V2P",
 }
 
 # Common false positives in reports/logs: mode/band labels, protocol names.
