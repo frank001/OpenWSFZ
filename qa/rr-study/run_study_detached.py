@@ -243,7 +243,11 @@ def main():
         wsjtx_all_txt = os.path.join(os.path.dirname(a.wsjtx_ini), "ALL.TXT")
         owsfz_all_txt = d.get("config_decode_log_path")
         extra = []
-        if "--wsjt-all-txt" not in forwarded and os.path.isfile(wsjtx_all_txt):
+        # Forward the WSJT-X ALL.TXT path whether or not the file exists YET: on a clean WSJT-X profile it is only
+        # created by the first decode, i.e. after this point. The old isfile() guard dropped the argument, so
+        # run_study.py fell back to its hard-coded Windows default and stopped after the last scenario (found on the
+        # first Linux battery, 2026-10-11). run_study.py still checks the file exists when it collects the logs.
+        if "--wsjt-all-txt" not in forwarded:
             extra += ["--wsjt-all-txt", wsjtx_all_txt]
         if "--owsfz-all-txt" not in forwarded and owsfz_all_txt:
             extra += ["--owsfz-all-txt", owsfz_all_txt]
