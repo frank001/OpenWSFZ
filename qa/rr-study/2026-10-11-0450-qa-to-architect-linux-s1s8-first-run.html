@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>First full S1-S8 battery on Linux (sol): result and one open FAIL row (QA)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="first-full-s1-s8-battery-on-linux-sol-result-and-one-open-fail-row-qa">First full S1-S8 battery on Linux (<code>sol</code>): result and one open FAIL row (QA)</h1>
+<ul>
+<li><strong>To:</strong> Architect, cc Captain. <strong>From:</strong> QA. <strong>Date:</strong> 2026-10-11 04:50Z (<code>date -u</code>). <strong>Go:</strong> the Captain, in the QA window: "try to get the full S1-S8 running on sol. you are in control of both applications and their data".</li>
+<li><strong>A NEW SERIES, not comparable with the Windows sweeps</strong> (different platform, CPU and audio chain; WSJT-X built by QA from source). Run folder on this PC: <code>qa/rr-study/results/2026-10-11-64246e4-LINUX-sol/</code> (run on <code>sol</code> as <code>2026-10-11-64246e4</code>; analysis commit <code>64246e40</code>; harness <code>qa/refset</code>, local, not pushed).</li>
+</ul>
+<h2 id="what-ran">What ran</h2>
+<table>
+<thead>
+<tr>
+<th>item</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Battery</td>
+<td>S1, S1b, S2, S3, S4, S5, S7, S8, S3c; played 02:31:11Z to 04:25:34Z (1 h 54 min), detached supervisor, every PRECHECK check passed</td>
+</tr>
+<tr>
+<td>OpenWSFZ</td>
+<td><code>main</code> <code>76aa48cd</code>, v0.57, shim 20260060, <code>libft8.so</code> SHA-256 <code>e8132650310e0fbb427540351d7d01b1ca258741e87771ec9cc24e3840c64ed0</code>, <code>nhard</code> 24, subtraction ON, 8 threads (read back)</td>
+</tr>
+<tr>
+<td>WSJT-X</td>
+<td><strong>2.7.0, built from the verified source tarball on <code>sol</code></strong> (SHA-256 <code>3788f5df636af792514609ec2b4abe58477aa5f0ad32cb826424866fc21cec93</code>; conda-forge Qt 5.15, gfortran 13.4, hamlib 4.6.1); profile <code>rr</code>: NDepth 3, no AP, decode keys whitelisted from the station ini</td>
+</tr>
+<tr>
+<td>Audio</td>
+<td>synthesiser -&gt; <code>aplay</code> -&gt; onboard codec output -&gt; codec <code>Stereo Mix</code> digital loopback -&gt; ALSA <code>dsnoop</code> -&gt; both programs read the same stream (<code>rr_in</code>); Master 40 % (-37.5 dB)</td>
+</tr>
+<tr>
+<td>Clock</td>
+<td>chrony, system 0.5 ms from NTP</td>
+</tr>
+<tr>
+<td>Why not WSJT-X 3.x</td>
+<td>its new <code>callok</code> rejects every callsign starting with Q; the synthetic truth set is Q-prefix only (jt9 3.0.2: <code>K1ABC</code>/<code>DL1ABC</code> decode, <code>Q1ABC</code> never, even at +20 dB)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="result-reportmd-analyser-verdict-fail-on-exactly-one-row">Result (report.md, analyser verdict <strong>FAIL</strong> on exactly one row)</h2>
+<table>
+<thead>
+<tr>
+<th>row</th>
+<th>Linux run</th>
+<th>Windows sweeps (trend.csv, 2026-10-02..10-08)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1 OpenWSFZ SNR bias</td>
+<td><strong>-3.75 dB, FAIL (bar +-2)</strong></td>
+<td>+0.85, +0.88, +1.48 dB</td>
+</tr>
+<tr>
+<td>S1 WSJT-X SNR bias</td>
+<td>+0.82 dB, PASS</td>
+<td>not in the trend file</td>
+</tr>
+<tr>
+<td>S1 %GR&amp;R / ndc</td>
+<td>11.2 % MARGINAL / 3</td>
+<td>0.14 to 0.41 % / 22 to 37</td>
+</tr>
+<tr>
+<td>S2 %GR&amp;R, ndc</td>
+<td>0.0 %, 1,576 PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>S3 %GR&amp;R, ndc</td>
+<td>1.0 %, 14 PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>Kappa vs truth (OWS / WSJT-X / between)</td>
+<td>0.909 / 0.955 / 0.954 PASS</td>
+<td>OWS 0.909 in every Windows row</td>
+</tr>
+<tr>
+<td>S5 false positives (OWS, WSJT-X)</td>
+<td>0/120, 0/120; Gate A-W 0/480 UB 0.62 % PASS; Check B 0/60 each PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>S4 recovery OWS / WSJT-X</td>
+<td>88.9 % / 94.4 % (specificity 100 % both)</td>
+<td></td>
+</tr>
+<tr>
+<td>S1b (-24..-15 dB) decode rate OWS / WSJT-X</td>
+<td>8.3 % / 66.7 %</td>
+<td>not read</td>
+</tr>
+<tr>
+<td>S7 recovery</td>
+<td>OWS 83.3 %, WSJT-X 94.4 %</td>
+<td>not read</td>
+</tr>
+<tr>
+<td>S8</td>
+<td>91.7 % both</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The S1 %GR&amp;R is dominated by reproducibility (11.1 % of the variance), which is consistent with the 4.6 dB gap between the two appraisers' SNR readings: the same effect, not a separate finding.</p>
+<h2 id="the-fail-row-diagnosed-in-three-steps-all-on-s1-30-trials-10-min-each">The FAIL row, diagnosed in three steps (all on S1, 30 trials, ~10 min each)</h2>
+<ol>
+<li><strong>Repeat at the same level:</strong> OWS -3.92 dB, WSJT-X +0.85 dB. The reading is stable to about 0.2 dB.</li>
+<li><strong>Playback level raised by 19.5 dB</strong> (captured rms 0.0104 -&gt; 0.187, no clipping): OWS <strong>-3.85 dB</strong>, WSJT-X +0.78. <strong>Not a level effect.</strong></li>
+<li><strong>Same audio, two decoders:</strong> the 30 S1 cycles OpenWSFZ recorded on <code>sol</code> were decoded on this PC by the <strong>Windows</strong> decoder (<code>libft8.dll</code> <code>2029b080...</code>, shim 20260060) through the same managed path: reported SNR minus true SNR <strong>-3.75 dB; the difference to the Linux daemon is 0.00 dB, maximum 0 dB, on all 30 cycles</strong> (files in <code>diag-same-audio-two-decoders/</code>). <strong>The decoder is platform-identical; the -3.75 dB is a property of the audio the chain delivers.</strong></li>
+<li>The capture spectrum of S1's wideband noise is flat to 5 kHz and rolls off to -15 dB at 5-5.5 kHz and -36 dB at 5.8-6 kHz, so the chain does not alias noise down; <strong>cause not found</strong>. Candidates left (untested): the shape of the noise spectrum towards 6 kHz (OWS estimates its noise floor over the whole band; WSJT-X does not read it the same way), the codec's response, the ALSA <code>plug</code> rate converter (linear; the better <code>samplerate</code> plugin is not installed on <code>sol</code>).</li>
+</ol>
+<h2 id="process-findings-for-the-standing-procedure">Process findings (for the standing procedure)</h2>
+<ol>
+<li><code>run_study_detached</code> forwards <code>--wsjt-all-txt</code> only if that file exists when the battery STARTS. On a clean WSJT-X profile it does not, and <code>run_study.py</code> then looks for the Windows default path and stops after the last scenario (the playback was complete; recovered with <code>qa/rr-study/linux/post_run_linux.py</code>, same functions, same arguments). Fix: pre-create an empty <code>ALL.TXT</code>, or forward the path unconditionally.</li>
+<li><code>run_study.py</code> hard-codes <code>wsjt-version.txt</code> as "WSJT-X 2.7.0 (inferred from binary date 2025-02-04)" for EVERY run. For this run QA overwrote it with the real build string. Your endorsed PRECHECK row (record the WSJT-X version, refuse a Q-prefix battery at &gt;= 3.0) will replace it.</li>
+<li>A fresh headless WSJT-X profile decodes nothing at 1500 Hz unless <code>[WideGraph]</code> <code>PlotWidth</code>/<code>BinsPerPixel</code>/<code>StartFreq</code> are set (decode window derived from the waterfall width). Documented in <code>qa/rr-study/linux/README.md</code>.</li>
+</ol>
+<h2 id="limits">Limits</h2>
+<p>One run, one night of synthetic audio, a different audio chain than the Windows series; the Linux series needs its own baseline (repeat runs) before any trend is read. QA's own reading: the Linux layer works and is reproducible; the SNR-bias row is a chain issue to be understood (or accepted as that chain's offset) before this series is used as a gate.</p>
+<p>🤖 Generated with <a href="https://claude.com/claude-code">Claude Code</a></p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

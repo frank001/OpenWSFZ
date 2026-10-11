@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>REFERENCE-SET W pilot: result (QA)</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="reference-set-w-pilot-result-qa">REFERENCE-SET W pilot: result (QA)</h1>
+<ul>
+<li><strong>To:</strong> Architect, cc Captain. <strong>From:</strong> QA. <strong>Date:</strong> 2026-10-11 03:22Z (<code>date -u</code>). <strong>Run:</strong> 2026-10-11 00:45:30Z to 03:21:38Z (9,367 s), 60 cells (12 blocks x W 0/4/8/16/40), two cells at a time.</li>
+<li><strong>Protocol:</strong> <code>qa/rr-study/refset/wpilot/PROTOCOL.md</code>, frozen in <code>b69701bb</code> before the first real decode. <strong>One disclosure:</strong> <code>analyze_wpilot.py</code> was written after the run started but before any cell file was read; it implements §4 and §5 of the protocol as code and nothing else.</li>
+<li><strong>Pins:</strong> harness DLL <code>a14fe354b88dbc30c4c13fb2610a8d16769684afec70b826bc30756591fd7610</code> at start and end (P-V0 pass), live <code>ALL.TXT</code> SHA-256 <code>382b23b2…3653</code> unchanged, 864 WAV hashes matched the inventory, self-test passed. Aggregates only (HK-037); <code>wpilot_result.json</code> is committed beside this note.</li>
+</ul>
+<h2 id="validity-rows">Validity rows</h2>
+<table>
+<thead>
+<tr>
+<th>row</th>
+<th>result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P-V0 pins</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>P-V1 same live reference in all five W cells</td>
+<td>PASS (6,755 live rows, 418 hashed, in every W)</td>
+</tr>
+<tr>
+<td>P-V2 no deadline abandonment</td>
+<td><strong>FAIL in 7 cells, 2 blocks</strong>: block 0 (W 16, 40) and block 9 (all five W); 12 abandoned residual passes in total, 0 contained exceptions. Two cells ran at once (8 threads each). Read both ways below.</td>
+</tr>
+<tr>
+<td>P-V3 self-test</td>
+<td>PASS</td>
+</tr>
+</tbody>
+</table>
+<h2 id="result-pooled-over-the-12-blocks-ratio-of-sums-block-bootstrap-10000-seed-1">Result (pooled over the 12 blocks; ratio of sums; block bootstrap 10,000, seed 1)</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">W</th>
+<th style="text-align: right;">live hashed rows</th>
+<th style="text-align: right;"><strong>A_hashed_exact</strong></th>
+<th style="text-align: right;">A_hashed_key</th>
+<th style="text-align: right;">A_nonhashed</th>
+<th style="text-align: right;">A_all</th>
+<th style="text-align: right;">extra non-hashed</th>
+<th style="text-align: right;">extra hashed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">418</td>
+<td style="text-align: right;">0.6770</td>
+<td style="text-align: right;">1.0000</td>
+<td style="text-align: right;">0.9983</td>
+<td style="text-align: right;">0.9984</td>
+<td style="text-align: right;">0.0013</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">418</td>
+<td style="text-align: right;">0.7679</td>
+<td style="text-align: right;">1.0000</td>
+<td style="text-align: right;">0.9983</td>
+<td style="text-align: right;">0.9984</td>
+<td style="text-align: right;">0.0013</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">418</td>
+<td style="text-align: right;">0.8014</td>
+<td style="text-align: right;">1.0000</td>
+<td style="text-align: right;">0.9986</td>
+<td style="text-align: right;">0.9987</td>
+<td style="text-align: right;">0.0013</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">418</td>
+<td style="text-align: right;">0.8373</td>
+<td style="text-align: right;">1.0000</td>
+<td style="text-align: right;">0.9983</td>
+<td style="text-align: right;">0.9984</td>
+<td style="text-align: right;">0.0013</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">40</td>
+<td style="text-align: right;">418</td>
+<td style="text-align: right;"><strong>0.8971</strong></td>
+<td style="text-align: right;">1.0000</td>
+<td style="text-align: right;">0.9986</td>
+<td style="text-align: right;">0.9987</td>
+<td style="text-align: right;">0.0013</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<p>Difference from W = 40 on <code>A_hashed_exact</code> (95 % block bootstrap): W 0 <strong>-22.0 pp</strong> [-32.5, -12.9]; W 4 -12.9 pp [-22.8, -6.1]; W 8 -9.6 pp [-19.5, -2.9]; W 16 -6.0 pp [-16.4, 0.0].</p>
+<h2 id="the-rule-as-frozen">The rule, as frozen</h2>
+<ol>
+<li><strong>W* = 40</strong> (no W below 40 is within 1 pp of W = 40's hashed-row agreement); "none within 1 pp ⇒ W = 40 and the Architect rules". The §5.4 resolution note does not apply (W* = 40).</li>
+<li><strong>Non-hashed dependence flag: not raised.</strong> <code>A_nonhashed</code> moves by at most 0.03 pp across W (CI [-0.10, 0.00] pp). RS-V2's non-hashed basis is safe on this evidence.</li>
+<li><strong>RS-V2 reading at W = 40 (not gating):</strong> 99.86 % of live non-hashed rows reproduced, 0.13 % extra, against the frozen bar of at least 99 % / at most 1 %: <strong>the bar is met with a wide margin on blocks with a fresh hash table.</strong></li>
+</ol>
+<h2 id="sensitivity-the-same-rule-same-outcome">Sensitivity (the same rule, same outcome)</h2>
+<table>
+<thead>
+<tr>
+<th>reading</th>
+<th style="text-align: right;">blocks</th>
+<th style="text-align: right;">W*</th>
+<th>within 1 pp of W 40</th>
+<th>non-hashed flag</th>
+<th><code>A_hashed_exact</code> W 0 .. 40</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>all</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">40</td>
+<td>{40}</td>
+<td>no</td>
+<td>0.677, 0.768, 0.801, 0.837, 0.897</td>
+</tr>
+<tr>
+<td>first scored cycle ≥ 6 h after the live start</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">40</td>
+<td>{40}</td>
+<td>no</td>
+<td>0.666, 0.765, 0.788, 0.833, 0.897</td>
+</tr>
+<tr>
+<td>no abandonment in any cell of the block</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">40</td>
+<td>{40}</td>
+<td>no</td>
+<td>0.646, 0.762, 0.798, 0.818, 0.893</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-the-data-say-and-what-they-do-not-for-your-ruling">What the data say, and what they do not (for your ruling)</h2>
+<ol>
+<li><strong>History changes how a hashed call is RENDERED, never whether the row is decoded.</strong> <code>A_hashed_key</code> is 1.0000 for every W, including W = 0: every live hashed row is reproduced by key; only the text (<code>&lt;CALL&gt;</code> resolved or <code>&lt;...&gt;</code>) differs. The comparison key collapses <code>&lt;...&gt;</code>, so <strong>every key-matched metric in the reference set (legs A to D) is independent of W</strong> on this evidence. W only matters if the rendered text of hashed rows is itself scored.</li>
+<li><strong><code>A_hashed_exact</code> is still rising at W = 40</strong> (+6.0 pp from 16 to 40, +3.6 pp from 8 to 16, +3.4 pp from 4 to 8, +9.1 pp from 0 to 4) and sits at 89.7 %, not near 100 %. The live process had hours of history. So W = 40 is <strong>not converged</strong>: a W of a few hundred cycles would be needed to approach the live rendering. The rule's reference point (W = 40) is therefore itself an unconverged one: the 1 pp comparison is "within 1 pp of an unconverged value", which only W = 40 can satisfy. I state this plainly because it makes the rule's outcome (W* = 40) nearly forced, whatever the data.</li>
+<li><strong>Limits (stated in the protocol, repeated):</strong> 418 hashed rows, 12 blocks, one night, one band; two-stage call, not the live early/final path; the 2 h eligibility is a judgement; abandonment in 2 blocks (excluding them changes nothing).</li>
+</ol>
+<h2 id="what-the-architect-needs-to-rule">What the Architect needs to rule</h2>
+<ul>
+<li><strong>(a)</strong> W for the corpus: <strong>W = 40 by the rule</strong>. Given point 1, a smaller W would cost nothing for any key-matched metric and shrink the corpus cost (a block of 40 cycles instead of 72 at L = 32: the 11,520-cycle cap then holds 288 blocks instead of 160, and replay time per block drops by 44 %). Your call; I take the rule's W = 40 unless you rule otherwise.</li>
+<li><strong>(b)</strong> Whether any REFERENCE-SET report scores rendered hashed text. If not, the h12/hash-history behaviour is outside what the set measures, and W can be small.</li>
+<li><strong>(c)</strong> The abandonment: for the full runs, run with one cell at a time (or fewer threads) so P-V2 holds. I will do so unless told otherwise.</li>
+</ul>
+<p>QA's own reading: none of this changes the quota numbers' form; they are recomputed for the W you rule (<code>n = W + L</code>).</p>
+<p>🤖 Generated with <a href="https://claude.com/claude-code">Claude Code</a></p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>
