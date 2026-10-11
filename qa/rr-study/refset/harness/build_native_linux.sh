@@ -28,6 +28,16 @@ bash "$SRC/native/ft8_lib_build/build_linux.sh" > "$OUT.native-build.log" 2>&1 |
 BUILT="$SRC/native/ft8_lib_build/libft8.so"
 SO_SHA=$(sha256sum "$BUILT" | cut -d' ' -f1)
 
+# Optional: a source patch applied to the managed code before the harness build (the replay-only budget override, spec 2m).
+# The patch SHA-256 is recorded; an already-applied patch is accepted (reverse check), anything else that does not apply stops the build.
+PATCH_SHA="none"
+if [ -n "${APPLY_PATCH:-}" ]; then
+  PATCH_SHA=$(sha256sum "$APPLY_PATCH" | cut -d' ' -f1)
+  if git -C "$SRC" apply --check "$APPLY_PATCH" 2>/dev/null; then git -C "$SRC" apply "$APPLY_PATCH";
+  elif git -C "$SRC" apply --check -R "$APPLY_PATCH" 2>/dev/null; then echo "patch already applied";
+  else echo "STOP: the patch does not apply to $HEAD_SHA"; exit 6; fi
+fi
+
 mkdir -p "$OUT"
 dotnet build "$HARNESS_DIR/RefSet.csproj" -c Release -p:RepoRoot="$SRC" -o "$OUT" > "$OUT.harness-build.log" 2>&1 || { tail -20 "$OUT.harness-build.log"; exit 4; }
 cp "$BUILT" "$OUT/libft8.so"
@@ -42,6 +52,7 @@ linux_so_sha256_committed_at_commit=$COMMITTED_SO_SHA
 gcc=$(gcc --version | head -1)
 host=$(uname -srm)
 recipe=native/ft8_lib_build/build_linux.sh at the source commit (-O2, no -march)
+managed_patch_sha256=$PATCH_SHA
 built_utc=$(date -u +%FT%TZ)
 EOF
 cat "$OUT/NATIVE-BUILD.txt"

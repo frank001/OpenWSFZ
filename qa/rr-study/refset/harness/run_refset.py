@@ -199,9 +199,9 @@ def main() -> int:
     banner = f"budget override = {override} (replay only)" if override else "budget override = none (13 s default)"
     print(f"{now()} start pass {args.pass_name}: {len(blocks)} blocks, legs {legs}, native {got[:12]}; {banner}", flush=True)
 
-    a_scores, d_scores, timing = [], [], {"A": [], "D": []}
-    ab_total = {"A": 0, "D": 0}
-    resid_ms = {"A": [], "D": []}
+    a_scores, d_scores, timing = [], [], {"A": [], "D": [], "B": []}
+    ab_total = {"A": 0, "D": 0, "B": 0}
+    resid_ms = {"A": [], "D": [], "B": []}
     for i, blk in enumerate(blocks, 1):
         sa = run_block(args, blk, "A", args.pass_name, pass_dir, pins_path)
         a_work = os.path.join(pass_dir, "A", blk["id"] + ".decodes.tsv")
@@ -220,13 +220,21 @@ def main() -> int:
             ab_total["D"] += sd["residual_pass"]["abandoned"]
             resid_ms["D"] += [c["residual_ms"] for c in sd["cycles"] if c["scored"] and c["residual_ms"] >= 0]
             line += f" | D wall {sd['wall_s']}s lost {1 - dsc['rsv2']['repro_nonhashed_share']:.4f} extra {dsc['rsv2']['extra_nonhashed_share']:.4f}"
+        if "B" in legs:
+            # leg B: the SAME decoder on WSJT-X's recording of the same cycles. Decode only here (working file + summary, abandonment rule);
+            # scoring against WSJT-X's ALL.TXT is a separate step on the working files (not built yet), so the decode can run unattended now.
+            sb = run_block(args, blk, "B", args.pass_name, pass_dir, pins_path)
+            timing["B"].append((sb["wall_s"], sb["cpu_s"]))
+            ab_total["B"] += sb["residual_pass"]["abandoned"]
+            resid_ms["B"] += [c["residual_ms"] for c in sb["cycles"] if c["scored"] and c["residual_ms"] >= 0]
+            line += f" | B wall {sb['wall_s']}s (decoded only)"
         print(line, flush=True)
         rs.dump_json(os.path.join(pass_dir, "status.json"), {"utc": now(), "done": i, "of": len(blocks), "abandonments": ab_total})
 
     # --- aggregate
     out = {"banner": banner, "pass": args.pass_name, "label": args.label, "utc": now(), "native_sha256": got, "blocks": len(blocks), "legs": legs,
            "abandonments_first": ab_total, "timing_seconds_per_block": {}}
-    for leg in ("A", "D"):
+    for leg in ("A", "D", "B"):
         if timing[leg]:
             w = sorted(t[0] for t in timing[leg]); c = sorted(t[1] for t in timing[leg])
             out["timing_seconds_per_block"][leg] = {"n": len(w), "median_wall": w[len(w) // 2], "max_wall": w[-1], "median_cpu": c[len(c) // 2]}
@@ -234,8 +242,11 @@ def main() -> int:
     if a_scores:
         out["leg_A_vs_live_ows"] = pool(a_scores)
         sh = out["leg_A_vs_live_ows"]["shares"]
-        out["rsv2_pass"] = bool(sh["repro_nonhashed_share"] >= RSV2_REPRO_BAR and sh["extra_nonhashed_share"] <= RSV2_EXTRA_BAR)
-        out["rsv2p_pass"] = bool(out["rsv2_pass"] and ab_total["A"] == 0 and ab_total["D"] == 0)
+        if args.run:                                   # gate mode on the anchor night: the frozen RS-V2 / RS-V2P bars apply
+            out["rsv2_pass"] = bool(sh["repro_nonhashed_share"] >= RSV2_REPRO_BAR and sh["extra_nonhashed_share"] <= RSV2_EXTRA_BAR)
+            out["rsv2p_pass"] = bool(out["rsv2_pass"] and ab_total["A"] == 0 and ab_total["D"] == 0 and ab_total["B"] == 0)
+        else:                                          # tier mode: the other nights' live rows came from other builds and settings
+            out["live_ows_agreement_note"] = "DESCRIPTIVE ONLY: not the anchor night; the live OpenWSFZ rows of other nights came from other builds/settings (RS-V2 applies to the anchor night only)"
     if d_scores:
         out["leg_D_vs_A"] = pool(d_scores)
     with open(pins_path, "a") as pf:
