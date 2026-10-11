@@ -12,7 +12,7 @@
 | WSJT-X | **2.7.0, built from the verified source tarball on `sol`** (SHA-256 `3788f5df636af792514609ec2b4abe58477aa5f0ad32cb826424866fc21cec93`; conda-forge Qt 5.15, gfortran 13.4, hamlib 4.6.1); profile `rr`: NDepth 3, no AP, decode keys whitelisted from the station ini |
 | Audio | synthesiser -> `aplay` -> onboard codec output -> codec `Stereo Mix` digital loopback -> ALSA `dsnoop` -> both programs read the same stream (`rr_in`); Master 40 % (-37.5 dB) |
 | Clock | chrony, system 0.5 ms from NTP |
-| Why not WSJT-X 3.x | its new `callok` rejects every callsign starting with Q; the synthetic truth set is Q-prefix only (jt9 3.0.2: `K1ABC`/`DL1ABC` decode, `Q1ABC` never, even at +20 dB) |
+| Why not WSJT-X 3.x | its new `callok` rejects every callsign starting with Q; the synthetic truth set is Q-prefix only (jt9 3.0.2: calls with a non-Q prefix decode, `Q1ABC` never, even at +20 dB) |
 
 ## Result (report.md, analyser verdict **FAIL** on exactly one row)
 

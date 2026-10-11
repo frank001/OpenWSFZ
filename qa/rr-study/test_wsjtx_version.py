@@ -12,7 +12,7 @@ PARSE = [
 
 JT9_OUT_DECODED = "000000  20 -0.5 1500 ~  CQ Q1ABC FN42\n<DecodeFinished>   0   1        0\n"
 JT9_OUT_NONE = "<DecodeFinished>   0   0        0\n"
-JT9_OUT_OTHER = "000000  20 -0.5 1500 ~  CQ K1ABC FN42\n<DecodeFinished>   0   1        0\n"
+JT9_OUT_OTHER = "000000  20 -0.5 1500 ~  CQ Q1XYZ FN42\n<DecodeFinished>   0   1        0\n"
 
 
 def measured(found=True, jt9=True, decoded=True):
