@@ -12,6 +12,8 @@ nohup python run_study_linux.py --poll --supervisor-dir <dir> --daemon-exe <publ
       -- --scenarios S1,S1b,S2,S3,S4,S5,S7,S8,S3c --skip-warmup --device RR-ALSA > <dir>/supervisor.log 2>&1 &
 ```
 
+S6 (off-air WAV replay, spec 2026-10-13) is part of the default battery when `~/rr-s6-refset-corpus` exists: add `S6` to `--scenarios` (or omit `--scenarios`), and choose its size with `--s6-tier quick|standard|extended` (default standard; about 18 min / 45 min / 2 h 15 min). The launcher forwards the daemon's stdout log (per-play abandonment) and the native library it loaded (the S6-V5 pin). `--scenarios S6 --s6-tier quick` alone is the dry run. S6 plays real recordings: its log lines are moved into `~/qa-scratch/s6-<run>/` (outside git, delete at job close).
+
 ## Files
 
 | file | role |

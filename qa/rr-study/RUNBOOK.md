@@ -387,7 +387,14 @@ A start or restart snapshot is `unverified` until two ticks agree; its differenc
 
 ## 4. Running the S6 corpus replay study
 
-S6 plays the local off-air WAV corpus through VB-CABLE K=3 times in randomised order and
+> **2026-10-13: S6 is now a routine scenario of the battery (`STUDY-SPEC.md` §6.1a).** It runs after S3c in the default battery wherever the
+> frozen corpus exists (`artefacts/rr-s6-refset-corpus`, or `~/rr-s6-refset-corpus` on `sol`), or alone with
+> `python run_study.py --scenarios S6 --s6-tier quick|standard|extended` (through the detached launcher on a real run). `--skip-s6` leaves it out;
+> a default battery without the corpus says so and names the scenarios that ran. There is no interactive prompt: the warm-up is mechanical.
+> Its log lines (real callsigns) are split into `~/qa-scratch/s6-<run>/` (or `D:\Projects\claude\_qa-scratch\s6-<run>\`) outside git: delete
+> that folder at job close. The sections below describe the **one-off** harness (`harness/corpus_replay.py`), kept for reference.
+
+S6 (one-off harness) plays the local off-air WAV corpus through VB-CABLE K=3 times in randomised order and
 measures within-appraiser consistency, between-appraiser agreement, SNR delta, and order effects.
 See `STUDY-SPEC.md` §6.1 for full specification.
 

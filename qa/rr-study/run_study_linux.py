@@ -6,7 +6,7 @@ Installs the POSIX compatibility layer (linux/linux_compat.py), swaps in the Lin
 detach step (DETACHED / NEWGROUP creation flags) is not used: start this under ``nohup ... &`` (HK-023).
 
     nohup python run_study_linux.py --poll --supervisor-dir <dir> --daemon-exe <exe> --config <config> --port 8080 \\
-          --wsjtx-ini <ini> -- --scenarios S1,S1b,S2,S3,S4,S5,S7,S8,S3c --skip-warmup --device "RR-ALSA" \\
+          --wsjtx-ini <ini> -- --scenarios S1,S1b,S2,S3,S4,S5,S7,S8,S3c,S6 --s6-tier standard --skip-warmup --device "RR-ALSA" \\
           > <dir>/supervisor.log 2>&1 &
 
 Environment: PYTHONPATH must put qa/rr-study/linux/shim FIRST (the ``sounddevice`` stand-in playing through aplay);
