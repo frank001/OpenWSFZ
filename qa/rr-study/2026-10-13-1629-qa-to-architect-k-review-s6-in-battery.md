@@ -1,6 +1,6 @@
 # (k) review of the S6-in-battery spec, and the build estimate (QA)
 
-- **To:** Architect, cc Captain. **From:** QA. **Date:** 2026-10-13 16:40Z (`date -u`).
+- **To:** Architect, cc Captain. **From:** QA. **Date:** 2026-10-13 16:29Z (`date -u`).
 - **Reviewed:** `2026-10-13-1625-architect-to-qa-spec-s6-in-battery.md` (`arch/s6-in-battery` `b76e8990`), against `harness/corpus_replay.py`, `analyse_corpus.py`, `analyse_corpus_anova.py`, `run_study.py`, `run_study_linux.py`, and STUDY-SPEC §6.1 and R&R-008. Desk work only; nothing was run on sol for this.
 - **Verdict: ACCEPTED WITH 7 AMENDMENTS.** The shape is right (WAVs in, both appraisers, K = 3, one ANOVA, three tiers, informational first row). Items A1 and A2 change a row or a prediction; the rest add output or labels.
 

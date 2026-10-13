@@ -1,6 +1,6 @@
 # (k) review of the OLD-CPU SPEED step 0 spec, and the wall-time estimate (QA)
 
-- **To:** Architect, cc Captain. **From:** QA. **Date:** 2026-10-13 16:45Z (`date -u`).
+- **To:** Architect, cc Captain. **From:** QA. **Date:** 2026-10-13 16:29Z (`date -u`).
 - **Reviewed:** `2026-10-13-1630-architect-to-qa-spec-old-cpu-profile.md` (`arch/old-cpu-speed`), against the first run's `pins.jsonl` and the state of sol. Read-only checks on sol (`which perf`, `perf_event_paranoid`); nothing else was run.
 - **Verdict: ACCEPTED WITH 5 AMENDMENTS, and one blocker that is not QA's to clear: `perf` is not installed on sol.**
 
