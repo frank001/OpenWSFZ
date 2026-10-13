@@ -68,3 +68,13 @@ def test_play_timeline_places_each_wav_at_its_boundary():
     tl = X.build_timeline([{"wav_id": "w", "boundary_utc": "2026-10-13T18:09:15.000000Z"}], X.parse_utc("2026-10-13T18:09:00"), 40, lambda _id: wav)
     i0 = 15 * X.FS
     assert np.array_equal(tl[i0:i0 + 10], wav) and not tl[:i0].any() and not tl[i0 + 10:].any()
+
+
+def test_correlation_values_stay_in_range_and_silence_reads_zero():
+    tl = timeline()
+    tl[int(40 * X.FS):int(70 * X.FS)] = 0
+    k, peak = X.best_lag(cut(tl, 100, X.CHUNK), tl[int(36 * X.FS):int(75 * X.FS)])      # the chunk (from elsewhere) against a mostly silent segment
+    assert peak <= 1.0 + 1e-6
+    seg = np.zeros(10 * X.FS, dtype=np.float32)
+    k2, peak2 = X.best_lag(cut(tl, 100, X.CHUNK), seg)
+    assert peak2 == 0.0

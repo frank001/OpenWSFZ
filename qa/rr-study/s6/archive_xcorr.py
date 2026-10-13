@@ -71,8 +71,11 @@ def best_lag(chunk: np.ndarray, seg: np.ndarray) -> tuple:
     win_sum = cs[n:] - cs[:-n]
     win_sq = cs2[n:] - cs2[:-n]
     var = win_sq - win_sum ** 2 / n
-    den = np.sqrt(np.maximum(var, 1e-9)) * cn
+    # a stretch of the timeline with (almost) no energy (idle slots are zeros) has no defined correlation: it must read 0, never a huge ratio of two tiny numbers
+    floor = 1.0e-4 * n * float(max(cn * cn / n, 1.0))
+    den = np.sqrt(np.maximum(var, floor)) * cn
     r = num / den
+    r[var < floor] = 0.0
     k = int(np.argmax(r))
     return k, float(r[k])
 
