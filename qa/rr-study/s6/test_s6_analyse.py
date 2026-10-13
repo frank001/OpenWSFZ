@@ -148,3 +148,22 @@ def test_a_half_hour_zone_cannot_be_cross_checked_so_it_is_unknown(tmp_path):
     (run / "s6" / "s6_tz.json").write_text(json.dumps({"gmtoff_s": 5 * 3600 + 1800, "zone": "IST"}), encoding="utf8")
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
     assert not r["abandonment"]["daemon_log_attributed"]
+
+
+def test_a_player_that_did_not_finish_voids_the_block_instead_of_crashing(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    os.remove(run / "s6" / "s6_validity.json")                         # the player was killed: it never writes this file
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert r["status"].startswith("VOID") and r["validity"]["S6-V4"]["result"] == "FAIL" and "did not finish" in r["validity"]["S6-V4"]["note"]
+    assert "WITHHELD" in open(run / "s6" / "s6_section5.md", encoding="utf8").read()
+
+
+def test_the_s6_only_report_header_names_the_build_from_the_arm_config(tmp_path):
+    from pathlib import Path
+    import s6_report_header as H
+    arm = {"build": {"commit": "a" * 40}, "daemon": {"dll_sha256": "b" * 64, "shim_version": 20260060, "daemon_version": "0.57", "decoder_readback": {"osdNhardMax": 24}}, "wsjtx": {"NDepth": 3, "mode": "FT8"}}
+
+    class Args:
+        s6_tier = "quick"
+    h = H.header(Path("results/2026-10-13-abc1234"), arm, Args())
+    assert ("a" * 40) in h and ("b" * 64) in h and "`osdNhardMax` = 24" in h and "S6 only, tier `quick`" in h and "no S1-S8 verdict" in h

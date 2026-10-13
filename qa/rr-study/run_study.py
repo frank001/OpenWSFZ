@@ -487,9 +487,15 @@ def main() -> None:
                   flush=True)
 
     # ── Step 5: Analyse ────────────────────────────────────────────────────
-    print("\nRunning analyser ...")
-    _py("harness/analyse.py", "--run-dir", str(run_dir),
-        *(["--legacy-no-arm-config"] if args.legacy_no_arm_config else []))
+    s6_only = scenario_ids == [_S6_ID]
+    if s6_only:
+        # An S6-only run has no truth.csv and no *_matched.csv: the S1-S8 analyser would crash (found on the first dry run, 2026-10-13). The S6
+        # analysis below writes this run's whole report.
+        print("\nS6-only run: the S1-S8 matcher/analyser is skipped.", flush=True)
+    else:
+        print("\nRunning analyser ...")
+        _py("harness/analyse.py", "--run-dir", str(run_dir),
+            *(["--legacy-no-arm-config"] if args.legacy_no_arm_config else []))
 
     # ── Step 5b: S6 analysis (aggregates only; a failure never blocks the report) ───────────────────────────
     if _S6_ID in scenario_ids and (run_dir / "s6" / "s6_playlog.jsonl").is_file():
@@ -497,7 +503,11 @@ def main() -> None:
                   *(["--daemon-log", args.daemon_log] if args.daemon_log else []),
                   "--series-label", f"{args.s6_series_label} (tier {args.s6_tier})", check=False)
         blk = run_dir / "s6" / "s6_section5.md"
-        if r6a.returncode == 0 and blk.is_file():
+        if r6a.returncode == 0 and blk.is_file() and s6_only:
+            from s6 import s6_report_header
+            (run_dir / "report.md").write_text(s6_report_header.header(run_dir, arm, args) + "\n" + blk.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"  S6-only report written: {run_dir / 'report.md'}", flush=True)
+        elif r6a.returncode == 0 and blk.is_file():
             with open(run_dir / "report.md", "a", encoding="utf-8") as _fh:
                 _fh.write("\n\n" + blk.read_text(encoding="utf-8"))
         else:

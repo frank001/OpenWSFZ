@@ -255,7 +255,9 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     rows = [json.loads(x) for x in open(os.path.join(s6, "s6_playlog.jsonl"), encoding="utf8")]
     plays = [r for r in rows if r["kind"] == "play"]
     warm_slots = [r["slot_stamp"] for r in rows if r["kind"] == "warmup"]
-    validity = json.load(open(os.path.join(s6, "s6_validity.json"), encoding="utf8"))
+    vp = os.path.join(s6, "s6_validity.json")
+    # the player writes s6_validity.json on every exit it controls; a killed or crashed player leaves none: the block is VOID, not a crash
+    validity = json.load(open(vp, encoding="utf8")) if os.path.isfile(vp) else {"tier": "unknown", "plays_planned": 0, "player_did_not_finish": True}
     window = json.load(open(os.path.join(s6, "s6_window.json"), encoding="utf8")) if os.path.isfile(os.path.join(s6, "s6_window.json")) else {}
     wsjt, owsfz = parse_log(os.path.join(scratch, "wsjt-s6.txt")), parse_log(os.path.join(scratch, "owsfz-s6.txt"))
     pins_file = os.path.join(s6, "s6_pins.json")
@@ -264,7 +266,8 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     expected = validity["plays_planned"]
     v = {"S6-V1": validity.get("S6-V1", {"result": "MISSING"}), "S6-V3": validity.get("S6-V3", {"result": "MISSING"}), "S6-V5": validity.get("S6-V5", {"result": "MISSING"})}
     v["S6-V2"] = v2_rows(plays, warm_slots, wsjt, owsfz)
-    v["S6-V4"] = {"result": "PASS" if len(plays) == expected else "FAIL", "plays": len(plays), "expected": expected}
+    v["S6-V4"] = {"result": "PASS" if (len(plays) == expected and not validity.get("player_did_not_finish")) else "FAIL", "plays": len(plays), "expected": expected,
+                  **({"note": "the player did not finish (no s6_validity.json)"} if validity.get("player_did_not_finish") else {})}
     ok = all(v[k]["result"] == "PASS" for k in v)
     status = "VALID" if ok else "VOID: " + ", ".join("%s %s" % (k, v[k]["result"]) for k in v if v[k]["result"] != "PASS")
     res = {"tier": tier, "status": status, "validity": v, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
