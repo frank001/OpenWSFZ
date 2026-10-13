@@ -177,6 +177,34 @@ def figures(S: dict, trend: list, img: str) -> dict:
     return out
 
 
+def keepup_figure(K: dict, img: str) -> tuple:
+    """F8: the 70 min WSJT-X run (13 Oct): rows per cycle by block, and WSJT-X's late share by live row count."""
+    plt = fig_style()
+    import numpy as np
+    cmp_, summ = K["compare"], K["summary"]
+    fig, axs = plt.subplots(1, 2, figsize=(13, 4.8), gridspec_kw={"width_ratios": [1.7, 1]})
+    ids = sorted(cmp_["blocks"], key=lambda b: (cmp_["blocks"][b]["run"] != "20260803_live_run_1713", b))
+    x = np.arange(len(ids))
+    for i, (key, lab, col) in enumerate((("live", "LIVE WSJT-X (station log)", "#8b949e"), ("E", "WSJT-X 2.7.0 replay on sol", "#e3b341"), ("B", "OpenWSFZ leg B", "#58a6ff"))):
+        axs[0].bar(x + (i - 1) * 0.27, [cmp_["blocks"][b]["rows_per_cycle"][key] for b in ids], 0.27, color=col, label=lab)
+    axs[0].set_xticks(x)
+    axs[0].set_xticklabels([("%s\n%s%s" % (b[:6], cmp_["blocks"][b]["band"], "\n0803" if cmp_["blocks"][b]["run"] == "20260803_live_run_1713" else "")) for b in ids], fontsize=7)
+    axs[0].set(ylabel="non-hashed rows per cycle", title="Rows per cycle: the 4 blocks of the 0803 night (left) and the 3 busiest blocks")
+    axs[0].legend(fontsize=7)
+    bins = ["<=10", "11-20", "21-30", ">30"]
+    b = summ["by_density_bin"]
+    vals = [100 * b[k]["late_share"] for k in bins]
+    axs[1].bar(range(4), vals, color="#e3b341")
+    for i, k in enumerate(bins):
+        axs[1].text(i, vals[i] + 0.8, "n=%d" % b[k]["cycles"], ha="center", fontsize=8)
+    axs[1].axhline(100 * summ["late_gt_17s"]["share"], color="#f85149", ls="--", lw=1)
+    axs[1].text(3.4, 100 * summ["late_gt_17s"]["share"] + 0.8, "all cycles %.1f %%" % (100 * summ["late_gt_17s"]["share"]), color="#f85149", ha="right", fontsize=8)
+    axs[1].set_xticks(range(4)); axs[1].set_xticklabels(["<= 10", "11-20", "21-30", "> 30"])
+    axs[1].set(xlabel="live WSJT-X rows in the cycle", ylabel="% of cycles with the last decode > 17 s after the boundary", title="WSJT-X keep-up on the FX-8350 (WSJT-X alone)")
+    fig.tight_layout(); fig.savefig(os.path.join(img, "F8_keepup.png"), dpi=110); plt.close(fig)
+    return ("F8_keepup.png", "The 70 min WSJT-X run (13 Oct, one replicate). Left: on the 0803 night a WSJT-X 2.7.0 replay of the same recordings finds about twice the rows the live WSJT-X logged, and OpenWSFZ sits close to the replay; on the busy blocks of other nights the replay and the live log agree. Right: WSJT-X's own late share on this CPU, by the live row count of the cycle (WSJT-X alone on the CPU).")
+
+
 def md_table(head: list, rows: list) -> str:
     return "\n".join(["| " + " | ".join(head) + " |", "|" + "---|" * len(head)] + ["| " + " | ".join(str(c) for c in r) + " |" for r in rows])
 
@@ -186,6 +214,9 @@ def build(results: str, out: str, trend_path: str) -> None:
     S = {s[0]: C.one(results, *s) for s in C.SWEEPS}
     trend = list(csv.DictReader(open(trend_path, encoding="utf8")))
     F = figures(S, trend, os.path.join(out, "img"))
+    kdir = os.path.join(results, "2026-10-13-wsjtx-keepup-run-sol")
+    K = {"compare": json.load(open(os.path.join(kdir, "compare-rep1.json"), encoding="utf8")), "summary": json.load(open(os.path.join(kdir, "SUMMARY-rep1.json"), encoding="utf8"))}
+    F["F8"] = keepup_figure(K, os.path.join(out, "img"))
     r1, r2, reps = S["run1"], S["run2"], [S["rep1"], S["rep2"], S["rep3"]]
     corrected = [S[k] for k in KEYS[1:]]
     bias = [s["s1"]["bias_owsfz"] for s in corrected]
@@ -196,7 +227,8 @@ def build(results: str, out: str, trend_path: str) -> None:
     A("")
     A("> **LINUX series, five sweeps (11-12 October 2026): run 1 on the DEFAULT ALSA chain, run 2 and repeats 1-3 on the CORRECTED chain (`samplerate_best`).** "
       "**Repeats 1-3 contain NO WSJT-X data** (WSJT-X was not decoding during them): they are OpenWSFZ-only readings. "
-      "**Not comparable with the Windows series** (other platform, CPU and audio chain; WSJT-X 2.7.0 built from source by QA). Informational: no merge or build decision rests on this report.")
+      "**Not comparable with the Windows series** (other platform, CPU and audio chain; WSJT-X 2.7.0 built from source by QA). Informational: no merge or build decision rests on this report. "
+      "**Section 7 (added 2026-10-13) reports the related 70 min WSJT-X run on the same host.**")
     A("")
     A(md_table(["Field", "Value"], [
         ["Report date", "2026-10-13 (QA; analysis of the five run folders, no new run)"],
@@ -272,6 +304,7 @@ def build(results: str, out: str, trend_path: str) -> None:
     A("6. **Repeats 1-3 are one-sided.** Their S1 bias, S4, S5, S7, S8 and S1b figures concern OpenWSFZ alone; there is no WSJT-X reading in them, no between-appraiser κ, no appraiser R&R, and S3c fails only on WSJT-X's parts. They cannot show that WSJT-X is stable over the same period, and they do not repeat the paired comparison of run 2.")
     A("7. **Timing is stable.** Each sweep took about 1 h 53 to 1 h 55 min (cycle stamps first to last: %s)." % "; ".join("%s %d min" % (k, round((__import__("datetime").datetime.fromisoformat(dur(S[k])[1].replace("Z", "")) - __import__("datetime").datetime.fromisoformat(dur(S[k])[0].replace("Z", ""))).total_seconds() / 60)) for k in KEYS))
     A("8. **Instrument notes.** The audio-setup sampler is a Windows tool and fails on Linux by design (each sweep's summary logs 21 worker crashes and 0 setup changes; the battery continues); the captured-audio scan was not run; WSJT-X's `ALL.TXT` is the live file, so a battery that follows a WSJT-X run must trim to its own window (done by the runner).")
+    A("9. **WSJT-X's own decode on this CPU is sometimes late, and a live WSJT-X log can be thin for reasons that are not the audio** (Section 7, a separate 70 min run on the same host). Neither changes any figure above: runs 1 and 2 are paired readings with both decoders on the one CPU, which the keep-up measurement (WSJT-X alone) does not cover.")
     A("")
     A("## Section 5: conclusions and recommendations")
     A("")
@@ -281,6 +314,7 @@ def build(results: str, out: str, trend_path: str) -> None:
     A("2. Run-to-run noise of OpenWSFZ on the corrected chain is now measured (Figure 6): S1 bias %.2f dB wide, S7 %.2f points, S8 %.2f points, S4 and S1b not at all. A later change smaller than that is not distinguishable from noise on this instrument." % (
         max(bias) - min(bias), max(s["s7"]["all"]["owsfz"] for s in corrected) - min(s["s7"]["all"]["owsfz"] for s in corrected), max(s["s8"]["OpenWSFZ"]["rate"] for s in corrected) - min(s["s8"]["OpenWSFZ"]["rate"] for s in corrected)))
     A("3. The decoder gap to WSJT-X that this battery shows (S4 6 messages of 108, S1b, S7) is independent of the chain for S4 and rests on only two paired sweeps for S1b and S7. This report adds no evidence about it.")
+    A("4a. Section 7 adds that the WSJT-X reference is not a fixed yardstick on this host either: it is late in 11.2 % of the real-recording cycles of that run (25.5 % of the busiest), and the live WSJT-X log of the 0803 night is thin for a reason that is not the audio. The battery's own synthetic scenes were not part of that measurement, so whether S4, S7 or S8 are affected is not measured.")
     A("4. The repeats did not do what they were run for. About 5 h 40 min of `sol` produced an OpenWSFZ-only stability reading, which is useful (conclusion 2), but no second paired sweep.")
     A("")
     A("**Recommendations** (QA proposes; none is built or run without the Captain's go).")
@@ -315,9 +349,51 @@ def build(results: str, out: str, trend_path: str) -> None:
     A("")
     A("*Figure 7. %s*" % F["F7"][1])
     A("")
+    A("## Section 7: the 70 min WSJT-X run on the same host (13 October; one replicate)")
+    A("")
+    A("**Why it is here.** The first reference-set run found 972 OpenWSFZ-only rows against the live WSJT-X log, 927 of them on one night (`20260803_live_run_1713`), and a thin live log on that night. WSJT-X 2.7.0 (QA's build, NDepth 3, the same one the paired sweeps use) was replayed in real time on `sol` over 7 blocks: the 4 blocks of that night and the 3 busiest blocks of other nights, one replicate, descriptive. Files: `../2026-10-13-wsjtx-keepup-run-sol/` (`SUMMARY-rep1.json`, `compare-rep1.json`); note `qa/rr-study/2026-10-13-1745-qa-to-architect-wsjtx-keepup-run-result.md`; ruled by the Architect (addendum 2 to the ruling of 2026-10-13 16:10Z).")
+    A("")
+    cb = K["compare"]["blocks"]
+    night = [b for b in cb if cb[b]["run"] == "20260803_live_run_1713"]
+    busy = [b for b in cb if b not in night]
+    tot = lambda ids, k: sum(cb[b]["rows_nonhashed"][k] for b in ids)
+    A("**Rows per block** (non-hashed rows of the scored cycles; LIVE = the station's WSJT-X log, E = the WSJT-X replay, B = OpenWSFZ leg B of the first run; shares are shares of the LIVE (or E) rows reproduced, sm_01 key):")
+    A("")
+    A(md_table(["Block", "Run", "Band", "Rows per cycle LIVE / E / B", "LIVE reproduced by E", "LIVE reproduced by B", "E reproduced by B", "B-only against E"],
+               [[b[:6] + "…", "0803" if cb[b]["run"] == "20260803_live_run_1713" else cb[b]["run"][:8], cb[b]["band"] + " " + cb[b]["sun"],
+                 "%.1f / %.1f / %.1f" % (cb[b]["rows_per_cycle"]["live"], cb[b]["rows_per_cycle"]["E"], cb[b]["rows_per_cycle"]["B"]),
+                 "%.1f %%" % (100 * cb[b]["live_vs_E"]["a_reproduced_share"]), "%.1f %%" % (100 * cb[b]["live_vs_B"]["a_reproduced_share"]),
+                 "%.1f %%" % (100 * cb[b]["E_vs_B"]["a_reproduced_share"]), cb[b]["E_vs_B"]["b_only_rows"]] for b in sorted(cb, key=lambda b: (b not in night, b))]))
+    A("")
+    A("The four 0803 blocks together: LIVE %d rows, E %d rows (%.1f times), B %d rows; OpenWSFZ has %d rows the replay lacks (%.1f %% of its %d) and %d rows the live log lacks. The three busy blocks: LIVE %d, E %d, B %d; %d rows B-only against E." % (
+        tot(night, "live"), tot(night, "E"), tot(night, "E") / tot(night, "live"), tot(night, "B"), sum(cb[b]["E_vs_B"]["b_only_rows"] for b in night),
+        100.0 * sum(cb[b]["E_vs_B"]["b_only_rows"] for b in night) / tot(night, "B"), tot(night, "B"), sum(cb[b]["live_vs_B"]["b_only_rows"] for b in night),
+        tot(busy, "live"), tot(busy, "E"), tot(busy, "B"), sum(cb[b]["E_vs_B"]["b_only_rows"] for b in busy)))
+    A("")
+    A("**Ruled flag text (the Architect, word for word; use this and nothing stronger):** *Live WSJT-X decoded thinly on that night, and the audio was not the cause. A WSJT-X 2.7.0 replay of the same recording (QA's build, NDepth 3, one replicate, 4 of the night's 5 blocks) finds 1,966 rows against the live 879 (2.2 times). Only 52 of OpenWSFZ's 1,605 rows on those blocks (3.2 %) are absent from that replay. Why the live run was thin (its WSJT-X version, settings, depth or load) is not recorded.*")
+    A("")
+    t = K["compare"]["total"]["EB"]
+    A("**New descriptive figure (ruled):** OpenWSFZ reproduces **%.1f %% (%d / %d)** of the replay's rows on the 7 selected blocks, with %d rows absent from the replay. It is never differenced against the 74.0 %% of the first run (other blocks, other reference). The 74.0 %% and the OWS-only counts (972, and 44 without the 0803 night) are unchanged." % (100 * t["a_reproduced_share"], t["matched"], t["a_rows"], t["b_only_rows"]))
+    A("")
+    A("![%s](img/%s)" % ("The 70 min WSJT-X run", F["F8"][0]))
+    A("")
+    A("*Figure 8. %s*" % F["F8"][1])
+    A("")
+    sm = K["summary"]
+    bn = sm["by_density_bin"]
+    A("**Keep-up of WSJT-X alone on the FX-8350** (one decode process; descriptive; **not comparable with the paired sweeps, where both decoders share the CPU**): over %d scored cycles WSJT-X's decode busy span has a median of %.1f s (P90 %.1f, max %.1f); the cycle's last decode arrives a median of %.1f s after the boundary (P90 %.1f, max %.1f); **%.1f %% of cycles (95 %% CI %.1f to %.1f, block-clustered) have the last decode more than 17 s after the boundary**, by live row count (<= 10 / 11-20 / 21-30 / > 30): %.1f %% (%d cycles) / %.1f %% (%d) / %.1f %% (%d) / **%.1f %%** (%d). OpenWSFZ's leg-B whole-decode compute on the same cycles (a file replay with no deadline, a different quantity) has a median of %.1f s and exceeds 15 s in %.0f %% of them." % (
+        sm["scored_cycles"], sm["T_wsjtx_span"]["median"], sm["T_wsjtx_span"]["p90"], sm["T_wsjtx_span"]["max"], sm["T_wsjtx_last"]["median"], sm["T_wsjtx_last"]["p90"], sm["T_wsjtx_last"]["max"],
+        100 * sm["late_gt_17s"]["share"], 100 * sm["late_gt_17s"]["ci95"][0], 100 * sm["late_gt_17s"]["ci95"][1],
+        100 * bn["<=10"]["late_share"], bn["<=10"]["cycles"], 100 * bn["11-20"]["late_share"], bn["11-20"]["cycles"], 100 * bn["21-30"]["late_share"], bn["21-30"]["cycles"], 100 * bn[">30"]["late_share"], bn[">30"]["cycles"],
+        sm["T_ows"]["median"], 100 * sm["T_ows_gt_15s"]["share"]))
+    A("")
+    A("**What this does not show.** Why the live run of 0803 was thin (the station's WSJT-X version, settings, depth and load that night are not recorded; a version or depth difference is still a candidate); one replicate; a replay of WSJT-X's own recording, not a second live run; QA's build of WSJT-X 2.7.0 at NDepth 3, not the station's installation; seven blocks of two bands (17 m and 80 m absent), the three busy ones chosen as the busiest; nothing about the battery's synthetic scenes or about OpenWSFZ's live path (its deadline stops the residual pass).")
+    A("")
+    A("**Standing row.** The Architect has ruled that these keep-up figures become a standing descriptive row of S6 (S6 amendment 3, written after the S6 dry run), labelled 'both decoders on one CPU'; nothing is added to the battery before then.")
+    A("")
     A("---")
     A("")
-    A("*Generated by `qa/rr-study/linux/build_consolidated_report.py` from the five run folders (aggregates only; no message text). The numbers in the text are computed from the data, not typed.*")
+    A("*Generated by `qa/rr-study/linux/build_consolidated_report.py` from the five run folders and the 70 min run's two aggregate files (no message text). The numbers in the text are computed from the data, not typed.*")
     md = "\n".join(L) + "\n"
     with open(os.path.join(out, "report.md"), "w", encoding="utf8", newline="\n") as fh:
         fh.write(md)
