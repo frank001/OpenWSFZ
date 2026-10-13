@@ -98,14 +98,31 @@ def s3c_section(run: Path) -> str:
     return "## S3c start-time edge guard (#194 part B step 2)\n\n" + body + "\n"
 
 
-def section6(prior: Path, new_row: str, footnotes: str, hk031: str) -> str:
+S6_SERIES_HEAD = ("### S6 series (off-air WAV replay; informational; never pooled across series or tiers)\n\n"
+                  "| S6 | status | tier | series label | headline |\n|---|---|---|---|---|")
+S6_BLOCK = re.compile(r"### S6 series[^\n]*\n\n\|[^\n]*\n\|[-| ]*\n((?:\|[^\n]*\n?)*)")
+
+
+def s6_series(s6_text: str, s6_row: str | None) -> tuple[str, str]:
+    """-> (Section 6 text with any S6-series table taken OUT, the S6-series table WITH the new row, or "" when there never was one).
+    The S6 rows are carried from the prior report's table (HK-034: same format as the last instance) and the new one is appended."""
+    m = S6_BLOCK.search(s6_text)
+    rows = [r for r in (m.group(1).splitlines() if m else []) if r.strip()]
+    rest = s6_text[:m.start()] + s6_text[m.end():] if m else s6_text
+    if s6_row:
+        rows.append(s6_row.strip())
+    return rest, (S6_SERIES_HEAD + "\n" + "\n".join(rows) + "\n") if rows else ""
+
+
+def section6(prior: Path, new_row: str, footnotes: str, hk031: str, s6_row: str | None = None) -> str:
     p = (prior / "report.md").read_text(encoding="utf-8")
     s6 = p[p.index("## Section 6"):]
+    s6, s6_table = s6_series(s6, s6_row)
     s6 = re.sub(r"\*\*HK-031:.*?verbatim\.\*\*", hk031, s6, count=1, flags=re.S)
     lines = s6.split("\n")
-    last = max(i for i, l in enumerate(lines) if re.match(r"\| \*{0,2}2026-10-0\d", l))
+    last = max(i for i, l in enumerate(lines) if re.match(r"\| \*{0,2}2026-10-\d\d", l))
     lines[last + 1:last + 1] = [new_row]
-    return "\n".join(lines).rstrip() + "\n\n" + footnotes.strip() + "\n"
+    return "\n".join(lines).rstrip() + "\n\n" + (s6_table + "\n" if s6_table else "") + footnotes.strip() + "\n"
 
 
 def main() -> None:
@@ -120,6 +137,7 @@ def main() -> None:
     ap.add_argument("--row", required=True, help="the new Section 6 row, complete")
     ap.add_argument("--footnotes", required=True, help="file with the new footnotes")
     ap.add_argument("--hk031", required=True, help="file with the replacement HK-031 sentence")
+    ap.add_argument("--s6-row", default=None, help="optional: the S6 series row (default: <run>/s6/s6_section6_row.md when it exists)")
     a = ap.parse_args()
     assert len(a.build_sha) == SHA_LEN and len(a.dll_sha) == DLL_LEN
     run = RESULTS / Path(a.run).name
@@ -132,7 +150,9 @@ def main() -> None:
     head_end = base.index("## S1 ")
     header = base[:head_end].rstrip() + "\n\n"
     body = base[head_end:]
-    s6 = section6(prior, a.row, Path(a.footnotes).read_text(encoding="utf-8"), Path(a.hk031).read_text(encoding="utf-8").strip())
+    s6_row_file = Path(a.s6_row) if a.s6_row else run / "s6" / "s6_section6_row.md"
+    s6_row = s6_row_file.read_text(encoding="utf-8") if s6_row_file.is_file() else None
+    s6 = section6(prior, a.row, Path(a.footnotes).read_text(encoding="utf-8"), Path(a.hk031).read_text(encoding="utf-8").strip(), s6_row)
     out = (header + Path(a.section1).read_text(encoding="utf-8") + "\n" + body + "\n"
            + scan_section(run, a.build_sha) + "\n" + s3c_section(run) + "\n"
            + Path(a.section5).read_text(encoding="utf-8") + "\n" + s6)

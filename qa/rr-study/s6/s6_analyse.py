@@ -219,6 +219,10 @@ def fmt_block(res: dict, label: str) -> str:
         for band, r in res["per_band"].items():
             A("| %s | %d | %s | %s | %s | %.2f | %.2f |" % (band, r["wavs"], pct(r["consistency_own_wsjtx"]), pct(r["consistency_own_owsfz"]), pct(r["positive_agreement"]), r["decodes_per_wav_wsjtx"], r["decodes_per_wav_owsfz"]))
     A("")
+    if res.get("figure"):
+        A("")
+        A("![S6 six-panel figure](s6/%s)" % res["figure"])
+        A("")
     A("Counts by sun state of the WAVs played: %s. Per-WAV gain applied before playback is in `s6-wavlist.json`." % res["sun_counts"])
     return "\n".join(L) + "\n"
 
@@ -271,6 +275,12 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
             res["no_abandon_note"] = res["abandonment"]["summary"]
         res["hashed_per_play"] = {"wsjtx": sum(t["hw"] for o in obs.values() for t in o["trials"].values()) / max(1, len(plays)),
                                   "owsfz": sum(t["ho"] for o in obs.values() for t in o["trials"].values()) / max(1, len(plays))}
+        try:
+            import s6_figure
+            res["figure"] = s6_figure.make_figure(os.path.join(s6, "s6_figure.png"), obs, tall, res["full"]["headline"], res["bootstrap_full"])
+        except Exception as exc:                                            # a figure problem never costs the numbers
+            res["figure"] = None
+            res["figure_error"] = type(exc).__name__
         res["order_effect"], res["trial_effect"] = S.order_effect(obs), S.trial_effect(obs, n_boot)
         res["sun_counts"] = dict(Counter(o["sun"] for o in obs.values()))
         if tier in ("standard", "extended"):
