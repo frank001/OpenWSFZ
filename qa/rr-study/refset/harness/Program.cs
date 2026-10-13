@@ -35,6 +35,7 @@ internal static class Program
     private static int _ran, _abandoned, _contained;
     // residual-pass wall time of the most recent call, and the budget field of its log line (spec 2m: recorded per cycle)
     private static long _lastResidualMs = -1;
+    private static long _lastFitted = -1;                // fittedSignals of the most recent residual pass (old-CPU profile, 2026-10-13: signals fitted per cycle)
     private static string _lastBudget = "";
     private const string BudgetEnvVar = "OPENWSFZ_SUBTRACTION_BUDGET";   // the QA-proposed name; the Developer may rename (dev-task 2026-10-11): record whatever the build reads
 
@@ -78,6 +79,15 @@ internal static class Program
         string label = a.TryGetValue("label", out var lb) ? lb : "unlabelled";
         int nhard = int.Parse(Req(a, "nhard"), CultureInfo.InvariantCulture), signFix = int.Parse(Req(a, "osd-sign-fix"), CultureInfo.InvariantCulture);
         int threads = int.Parse(Req(a, "threads"), CultureInfo.InvariantCulture);
+        // optional "start:count" (old-CPU profile 4b): decode only those cycle indices of the block, all of them scored, with no warm-up cycles
+        int rangeStart = 0, rangeCount = -1;
+        if (a.TryGetValue("cycle-range", out var cr))
+        {
+            var parts = cr.Split(':');
+            if (parts.Length != 2) throw new ArgumentException("--cycle-range is start:count");
+            rangeStart = int.Parse(parts[0], CultureInfo.InvariantCulture);
+            rangeCount = int.Parse(parts[1], CultureInfo.InvariantCulture);
+        }
         if (leg != "A" && leg != "B") throw new ArgumentException("--leg must be A (OpenWSFZ recording) or B (WSJT-X recording)");
         string audioSide = leg == "A" ? "owsfz" : "wsjt-x";
 
@@ -143,10 +153,12 @@ internal static class Program
             work.WriteLine("stamp\tsnr\tdt\tfreq_hz\ttext");
             for (int i = 0; i < cycles.Count; i++)
             {
+                if (rangeCount >= 0 && (i < rangeStart || i >= rangeStart + rangeCount)) continue;
                 string s = cycles[i];
-                bool scored = i >= w;
+                bool scored = rangeCount >= 0 || i >= w;
                 int r1 = _ran, a1 = _abandoned, c1 = _contained;
                 _lastResidualMs = -1;
+                _lastFitted = -1;
                 var sw = Stopwatch.StartNew();
                 var rows = await DecodeAsync(s);
                 double ms = sw.Elapsed.TotalMilliseconds;
@@ -154,7 +166,7 @@ internal static class Program
                 {
                     ["stamp"] = s, ["scored"] = scored, ["rows"] = rows.Count, ["ms"] = Math.Round(ms, 1),
                     ["ran"] = _ran - r1, ["abandoned"] = _abandoned - a1, ["contained"] = _contained - c1,
-                    ["residual_ms"] = _lastResidualMs, ["budget"] = _lastBudget,
+                    ["residual_ms"] = _lastResidualMs, ["budget"] = _lastBudget, ["fitted"] = _lastFitted,
                 });
                 if (!scored) continue;                                          // warm-up: output discarded
                 foreach (var r in rows.OrderBy(x => x.FreqHz).ThenBy(x => x.Message, StringComparer.Ordinal))
@@ -175,7 +187,7 @@ internal static class Program
             ["budget_override_env"] = Environment.GetEnvironmentVariable(BudgetEnvVar) ?? "(unset: 13 s default)",
             ["native_lib"] = nativeName, ["native_sha256_start"] = nativeSha, ["native_sha256_end"] = nativeShaEnd,
             ["readback_start"] = readbackStart, ["readback_end"] = readbackEnd,
-            ["warmup_cycles"] = w, ["scored_cycles"] = l,
+            ["warmup_cycles"] = w, ["scored_cycles"] = l, ["cycle_range"] = rangeCount >= 0 ? $"{rangeStart}:{rangeCount}" : "all",
             ["residual_pass"] = new SortedDictionary<string, object> { ["ran"] = _ran - ran0, ["abandoned"] = _abandoned - ab0, ["contained"] = _contained - co0 },
             ["wall_s"] = Math.Round(wall, 2), ["cpu_s"] = Math.Round(cpu, 2), ["cycles"] = cycleInfo,
         };
@@ -252,6 +264,8 @@ internal static class Program
             string t = formatter(state, exception);
             var em = System.Text.RegularExpressions.Regex.Match(t, @"elapsedMs=(\d+)");
             if (em.Success) Interlocked.Exchange(ref _lastResidualMs, long.Parse(em.Groups[1].Value, CultureInfo.InvariantCulture));
+            var fm = System.Text.RegularExpressions.Regex.Match(t, @"fittedSignals=(\d+)");
+            if (fm.Success) Interlocked.Exchange(ref _lastFitted, long.Parse(fm.Groups[1].Value, CultureInfo.InvariantCulture));
             var bm = System.Text.RegularExpressions.Regex.Match(t, @"budgetMs=(\S+)");
             _lastBudget = bm.Success ? bm.Groups[1].Value : "";          // empty on a build without the override field
             Interlocked.Increment(ref _ran);
