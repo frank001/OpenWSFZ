@@ -21,7 +21,7 @@ Non-hashed rows, scored cycles, sm_01 key (LIVE = the station's WSJT-X; E = WSJT
 | set of blocks | LIVE rows | E rows | B rows | live rows E reproduces | live rows B reproduces | B-only against LIVE | B-only against E |
 |---|---|---|---|---|---|---|---|
 | **the 4 blocks of `20260803_live_run_1713`** | 879 | **1,966** | 1,605 | 91–96 % per block | 73–78 % per block | **927** | **52** |
-| the 3 busiest blocks (other nights) | 3,588 | 3,370 | 2,373 | 89–94 % per block | 68–70 % per block | 7 | 99 |
+| the 3 busiest blocks (other nights) | 3,588 | 3,370 | 2,373 | 89–94 % per block | 59–70 % per block | 7 | 99 |
 
 Per block (rows per cycle, LIVE / E / B): `83f94f…` 13.5 / 28.3 / 22.8; `9ebd39…` 8.5 / 20.5 / 17.2; `b7ae2a…` 3.0 / 5.8 / 4.6; `e66c2a…` 2.5 / 6.8 / 5.6; `9dbe42…` 39.2 / 35.4 / 27.6; `c6eab9…` 38.3 / 36.4 / 26.2; `9a4810…` 34.6 / 33.6 / 20.3.
 
