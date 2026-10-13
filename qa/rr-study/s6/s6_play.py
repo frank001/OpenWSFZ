@@ -96,9 +96,21 @@ def sha_or_none(path):
     return D.sha256_file(path) if path and os.path.isfile(path) else None
 
 
+def loadavg():
+    try:
+        return [round(x, 2) for x in os.getloadavg()]
+    except (AttributeError, OSError):
+        return None
+
+
 def pins(a) -> dict:
     return {"ows_lib": a.ows_lib, "ows_lib_sha256": sha_or_none(a.ows_lib),
-            "wsjtx_exe": a.wsjtx_exe, "wsjtx_exe_sha256": sha_or_none(a.wsjtx_exe)}
+            "wsjtx_exe": a.wsjtx_exe, "wsjtx_exe_sha256": sha_or_none(a.wsjtx_exe), "loadavg_1_5_15": loadavg()}
+
+
+def pin_identity(p: dict) -> dict:
+    """The part of the pins that must be equal at start and end (the load average is descriptive, not a pin)."""
+    return {k: v for k, v in p.items() if k != "loadavg_1_5_15"}
 
 
 def main() -> None:
@@ -236,9 +248,9 @@ def main() -> None:
     sleep_until(last_b + SLOT_S + FINAL_WAIT_S)
 
     pins_end = pins(a)
-    equal = pins_start == pins_end and (pins_start["ows_lib_sha256"] is not None)
+    equal = pin_identity(pins_start) == pin_identity(pins_end) and (pins_start["ows_lib_sha256"] is not None)
     validity["S6-V5"] = {"result": "PASS" if equal else ("FAIL" if pins_start["ows_lib_sha256"] is not None else "NOT PINNED"),
-                         "start": pins_start, "end": pins_end}
+                         "wsjtx_exe_pinned": pins_start["wsjtx_exe_sha256"] is not None, "start": pins_start, "end": pins_end}
     with open(os.path.join(out, "s6_pins.json"), "w", encoding="utf8", newline="\n") as f2:
         json.dump({"start": pins_start, "end": pins_end}, f2, indent=1)
     with open(os.path.join(out, "s6_window.json"), "w", encoding="utf8", newline="\n") as f3:

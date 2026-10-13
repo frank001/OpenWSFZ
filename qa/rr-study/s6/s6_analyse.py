@@ -160,7 +160,11 @@ def fmt_block(res: dict, label: str) -> str:
         A("**S6 block WITHHELD: %s.** The rows above say which check failed; the figures below are not to be read." % res["status"])
         return "\n".join(L) + "\n"
     full = res["full"]
-    A("**CPU and chain label:** %s. OpenWSFZ ran the product path with the subtraction deadline ON (per-play abandonment: %s)." % (res["cpu_chain_label"], res["abandonment"]["summary"]))
+    A("**CPU and chain label:** %s. OpenWSFZ ran the product path with the subtraction deadline ON (per-play abandonment: %s). Load average (1 / 5 / 15 min) at the start of the plays %s and at the end %s." % (
+        res["cpu_chain_label"], res["abandonment"]["summary"], res["pins"].get("start", {}).get("loadavg_1_5_15"), res["pins"].get("end", {}).get("loadavg_1_5_15")))
+    if not v["S6-V5"].get("wsjtx_exe_pinned", False):
+        A("")
+        A("*The WSJT-X executable was not pinned by hash on this row (no path given): only the OpenWSFZ library is pinned.*")
     A("")
     for name, blk, boot in (("All plays", full, res["bootstrap_full"]), ("Sensitivity: WAVs with no abandoned play", res.get("no_abandon"), res.get("bootstrap_no_abandon"))):
         if not blk or not blk.get("headline"):
@@ -229,6 +233,8 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     validity = json.load(open(os.path.join(s6, "s6_validity.json"), encoding="utf8"))
     window = json.load(open(os.path.join(s6, "s6_window.json"), encoding="utf8")) if os.path.isfile(os.path.join(s6, "s6_window.json")) else {}
     wsjt, owsfz = parse_log(os.path.join(scratch, "wsjt-s6.txt")), parse_log(os.path.join(scratch, "owsfz-s6.txt"))
+    pins_file = os.path.join(s6, "s6_pins.json")
+    pins = json.load(open(pins_file, encoding="utf8")) if os.path.isfile(pins_file) else {}
     tier = validity["tier"]
     expected = validity["plays_planned"]
     v = {"S6-V1": validity.get("S6-V1", {"result": "MISSING"}), "S6-V3": validity.get("S6-V3", {"result": "MISSING"}), "S6-V5": validity.get("S6-V5", {"result": "MISSING"})}
@@ -237,7 +243,7 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     ok = all(v[k]["result"] == "PASS" for k in v)
     status = "VALID" if ok else "VOID: " + ", ".join("%s %s" % (k, v[k]["result"]) for k in v if v[k]["result"] != "PASS")
     res = {"tier": tier, "status": status, "validity": v, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
-           "cpu_chain_label": cpu_chain_label, "window": window}
+           "cpu_chain_label": cpu_chain_label, "window": window, "pins": pins}
     if ok:
         pl = attribute_pass_lines(read_pass_lines(daemon_log), [p["slot_stamp"] for p in plays]) if daemon_log else {"trusted": False, "by_slot": {}, "attributed_plays": 0, "offset_h": None}
         ab = {s: ln["abandoned"] for s, ln in pl["by_slot"].items()} if pl["trusted"] else {}

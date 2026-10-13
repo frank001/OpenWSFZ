@@ -84,11 +84,17 @@ _SCENARIO_REGISTRY: dict[str, Path] = {
     # the other scenarios (same daemon session) and scored by s3c/s3c_score.py after the logs are
     # collected. Additive: S1-S8's own rows, truth.csv and the analyser are untouched.
     "S3c": _SCENARIOS / "s3c-edge-guard.json",
+    # S6 (off-air WAV replay, spec 2026-10-13-1625 + amendment 1): not a harness/run_scenario.py scenario and not in truth.csv. The frozen tier list
+    # is the "scenario file"; s6/s6_play.py plays it after S3c (the last playback), s6/s6_split.py moves its log lines out of the run folder, and
+    # s6/s6_analyse.py writes the report block. Additive: a failure here voids the S6 block only, never S1-S8.
+    "S6": _HERE / "s6" / "s6-wavlist.json",
 }
 _S3C_ID = "S3c"
+_S6_ID = "S6"
+_S6_CORPUS_WINDOWS = Path(r"D:\Projects\claude\OpenWSFZ\artefacts\rr-s6-refset-corpus")
 
 # Controlled scenarios run by default (S8 handled separately via prompt / --skip-s8)
-_CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7", _S3C_ID]
+_CONTROLLED_SCENARIO_IDS = ["S1", "S1b", "S2", "S3", "S4", "S5", "S7", _S3C_ID, _S6_ID]
 
 # R&R-009 (2026-08-23) restricted S5's routine battery to parts 0,1, reasoning
 # that parts 2 (steady carrier @1500Hz) and 3 (multi-carrier "birdies") had
@@ -162,6 +168,26 @@ def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return result
 
 
+def _s6_corpus(args) -> Path:
+    if args.s6_corpus:
+        return Path(args.s6_corpus)
+    return Path.home() / "rr-s6-refset-corpus" if sys.platform != "win32" else _S6_CORPUS_WINDOWS
+
+
+def _s6_scratch(args, run_dir: Path) -> Path:
+    if args.s6_scratch:
+        return Path(args.s6_scratch)
+    if sys.platform == "win32":
+        return Path(r"D:\Projects\claude\_qa-scratch") / f"s6-{run_dir.name}"
+    return Path.home() / "qa-scratch" / f"s6-{run_dir.name}"
+
+
+def _battery_label(scenario_ids: list) -> str:
+    """The report may call the battery "S1-S8" only when S6 actually ran (spec 2.1); otherwise it says which scenarios ran."""
+    full = {"S1", "S1b", "S2", "S3", "S4", "S5", "S6", "S7"}
+    return "S1-S8" if full <= set(scenario_ids) else "scenarios run: " + ", ".join(scenario_ids)
+
+
 def main() -> None:
     global WSJT_ALL_TXT, OWSFZ_ALL_TXT
     parser = argparse.ArgumentParser(description=__doc__)
@@ -193,6 +219,19 @@ def main() -> None:
                         help="the daemon build's commit SHA; 'auto' reads arm_config.json")
     parser.add_argument("--s3c-dll-sha256-prefix", default="auto",
                         help="libft8.dll SHA-256 prefix of the daemon under test (HK-022); 'auto' reads arm_config.json")
+    parser.add_argument("--s6-tier", default="standard", choices=["quick", "standard", "extended"],
+                        help="S6 size: 24 / 60 / 180 WAVs x 3 trials (prefixes of one frozen list). Default standard.")
+    parser.add_argument("--skip-s6", action="store_true", help="leave S6 out of the default battery")
+    parser.add_argument("--s6-corpus", default=None, metavar="DIR",
+                        help="the frozen rr-s6-refset-corpus (default: ~/rr-s6-refset-corpus on Linux, artefacts\\rr-s6-refset-corpus on Windows). "
+                             "The default battery includes S6 only if this exists; --scenarios S6 without it is an error.")
+    parser.add_argument("--s6-scratch", default=None, metavar="DIR",
+                        help="where the S6 log slices (real callsigns) go, OUTSIDE git (default ~/qa-scratch/s6-<run> or D:\\Projects\\claude\\_qa-scratch\\s6-<run>)")
+    parser.add_argument("--s6-ows-lib", default=None, help="the native library the daemon loaded (S6-V5 pin; the detached launcher passes it)")
+    parser.add_argument("--s6-wsjtx-exe", default=None, help="the WSJT-X executable (S6-V5 pin; default ~/wsjtx-2.7.0/bin/wsjtx on Linux when present)")
+    parser.add_argument("--daemon-log", default=None, help="the daemon's stdout log (per-play deadlineAbandoned for S6; the detached launcher passes it)")
+    parser.add_argument("--s6-series-label", default="First S6 row of the LINUX series",
+                        help="label of the S6 block (the tier is added); never pool across series or tiers")
     parser.add_argument("--legacy-no-arm-config", action="store_true",
                         help="allow a run with no arm_config.json in the run dir (a hand-run battery). Without it "
                              "the run is REFUSED at the start, not after hours: the report header would name the "
@@ -221,6 +260,11 @@ def main() -> None:
         print(f"  Targeted run: {', '.join(scenario_ids)}\n")
     else:
         scenario_ids   = list(_CONTROLLED_SCENARIO_IDS)
+        if args.skip_s6 or not _s6_corpus(args).is_dir():
+            if not args.skip_s6:
+                print(f"  WARNING: S6 left out of the default battery: its corpus {_s6_corpus(args)} does not exist "
+                      "(pass --s6-corpus, or --skip-s6 to silence this). The report names the scenarios that ran.\n", flush=True)
+            scenario_ids.remove(_S6_ID)
         scenario_files = [_SCENARIO_REGISTRY[s] for s in scenario_ids]
         scenario_part_overrides = dict(_DEFAULT_BATTERY_PART_OVERRIDES)
 
@@ -232,6 +276,11 @@ def main() -> None:
                 print("  S8 included.\n")
             else:
                 print("  S8 skipped.\n")
+
+    if _S6_ID in scenario_ids and not _s6_corpus(args).is_dir():
+        sys.exit(f"ERROR: S6 requested but its corpus {_s6_corpus(args)} does not exist (--s6-corpus).")
+    battery = _battery_label(scenario_ids)
+    print(f"  Battery         : {battery}\n", flush=True)
 
     # Warn when --parts is combined with multiple scenarios — it is applied to
     # all of them, which is rarely the intent.
@@ -330,6 +379,15 @@ def main() -> None:
                      "--device", args.device, check=False)
             if r3.returncode != 0:
                 print(f"  [WARN] S3c playback exited {r3.returncode}; S1-S8 continue", flush=True)
+        elif sid == _S6_ID:
+            # S6 is additive and LAST: its failure (any exit code) voids the S6 block only; S1-S8's logs, matcher and analyser stand.
+            wsjtx_exe = args.s6_wsjtx_exe or (str(Path.home() / "wsjtx-2.7.0" / "bin" / "wsjtx") if sys.platform != "win32" else None)
+            r6 = _py("s6/s6_play.py", "--run-dir", str(run_dir), "--tier", args.s6_tier, "--corpus", str(_s6_corpus(args)),
+                     "--device", args.device, "--wsjt-all-txt", str(WSJT_ALL_TXT), "--owsfz-all-txt", str(OWSFZ_ALL_TXT),
+                     *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
+                     *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else []), check=False)
+            if r6.returncode != 0:
+                print(f"  [WARN] S6 playback exited {r6.returncode} (2 = corpus verification, 4 = warm-up, 5 = pins, 6 = other); S1-S8 continue", flush=True)
         else:
             _py(*run_args)
         print(f"  [OK] {sf.name} complete\n", flush=True)
@@ -362,6 +420,13 @@ def main() -> None:
         kept, dropped = _trim_log_to_window(dest, battery_start_utc)
         print(f"  Trimmed {dest.name} to this battery's window: kept {kept} lines, dropped {dropped} earlier ones")
 
+    # S6 plays REAL off-air audio: its log lines carry real callsigns and would be unexplained decodes to the S1-S8 matcher. Move them out of the
+    # run folder's copies into a scratch dir outside git before anything reads the copies (NFR-021, HK-037).
+    s6_scratch = _s6_scratch(args, run_dir)
+    if _S6_ID in scenario_ids and (run_dir / "s6" / "s6_playlog.jsonl").is_file():
+        _py("s6/s6_split.py", "--run-dir", str(run_dir), "--wsjt-copy", str(wsjt_dest), "--owsfz-copy", str(owsfz_dest),
+            "--scratch", str(s6_scratch), check=False)
+
     # Record WSJT-X version
     ver_path = run_dir / "wsjt-version.txt"
     ver_path.write_text("WSJT-X 2.7.0 (inferred from binary date 2025-02-04)", encoding="utf-8")
@@ -369,8 +434,8 @@ def main() -> None:
     # ── Step 4: Run matcher for each scenario ──────────────────────────────
     print("\nRunning matcher ...")
     for scen_id in scenario_ids:
-        if scen_id == _S3C_ID:
-            continue                      # not in truth.csv; scored by s3c_score.py below
+        if scen_id in (_S3C_ID, _S6_ID):
+            continue                      # not in truth.csv; S3c is scored by s3c_score.py below, S6 by s6_analyse.py after the analyser
         _py(
             "harness/matcher.py",
             "--run-dir", str(run_dir),
@@ -397,6 +462,18 @@ def main() -> None:
     print("\nRunning analyser ...")
     _py("harness/analyse.py", "--run-dir", str(run_dir),
         *(["--legacy-no-arm-config"] if args.legacy_no_arm_config else []))
+
+    # ── Step 5b: S6 analysis (aggregates only; a failure never blocks the report) ───────────────────────────
+    if _S6_ID in scenario_ids and (run_dir / "s6" / "s6_playlog.jsonl").is_file():
+        r6a = _py("s6/s6_analyse.py", "--run-dir", str(run_dir), "--scratch", str(s6_scratch),
+                  *(["--daemon-log", args.daemon_log] if args.daemon_log else []),
+                  "--series-label", f"{args.s6_series_label} (tier {args.s6_tier})", check=False)
+        blk = run_dir / "s6" / "s6_section5.md"
+        if r6a.returncode == 0 and blk.is_file():
+            with open(run_dir / "report.md", "a", encoding="utf-8") as _fh:
+                _fh.write("\n\n" + blk.read_text(encoding="utf-8"))
+        else:
+            print(f"  [WARN] S6 analysis exited {r6a.returncode}; the report carries no S6 block", flush=True)
 
     # ── Step 6: audio-setup summary (#194): crashes, restarts, coverage, changes; into the report ──
     if run_hook is not None:
