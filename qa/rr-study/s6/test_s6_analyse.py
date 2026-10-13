@@ -81,7 +81,7 @@ def test_valid_run_numbers_and_sensitivity(tmp_path):
     assert r["figure"] == "s6_figure.png" and (run / "s6" / "s6_figure.png").stat().st_size > 10_000
     md = open(run / "s6" / "s6_section5.md", encoding="utf8").read()
     assert "First S6 row of the LINUX series" in md and "Positive agreement" in md and "Sensitivity: WAVs with no abandoned play" in md
-    assert "Daemon-log attribution: 36 of 36 plays matched" in md and "DESIGN number" in md and "Observed play-start offsets" in md
+    assert "Daemon-log attribution: 36 of 36 residual-pass lines in the window map to a play slot" in md and "a design number" in md and "player call time" in md
     assert "QWARM" not in md and "Q1" not in md                                          # no message text in the report block
 
 
@@ -211,3 +211,25 @@ def test_the_block_says_when_the_onset_row_is_not_computed(tmp_path):
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)            # no corpus given
     assert r["onset"] is None
     assert "Sound onset, from WSJT-X's own DT:** not computed" in open(run / "s6" / "s6_section5.md", encoding="utf8").read()
+
+
+def test_the_attribution_floor_is_read_on_pass_lines_and_a_missing_line_means_no_pass_ran(tmp_path):
+    run, scratch, dl = make_run(tmp_path, abandon_wav="b03:s03")
+    kept = []
+    for i, ln in enumerate(dl.read_text(encoding="utf8").splitlines()):
+        if i % 3 == 0 or "deadlineAbandoned=True" in ln:                  # only some plays have a pass line, and every abandoned pass keeps its line
+            kept.append(ln)
+    dl.write_text("\n".join(kept) + "\n", encoding="utf8")
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    ab = r["abandonment"]
+    assert ab["daemon_log_attributed"] and ab["plays_with_pass_line"] < 36 and ab["pass_line_share"] == 1.0 and ab["pass_lines_mapped"] == ab["pass_lines_in_window"]
+    assert ab["plays_abandoned"] == 3                                      # the abandoned WAV's three plays; plays without a line are not abandoned
+    assert "residual-pass lines in the window map to a play slot" in open(run / "s6" / "s6_section5.md", encoding="utf8").read()
+
+
+def test_lines_that_map_to_no_play_slot_push_the_share_below_the_floor(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    extra = ["[%02d:%02d:%02d INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=5000 deadlineAbandoned=False containedException=False fittedSignals=4" % (18, 1 + i // 15, (10 + i * 4) % 60) for i in range(60)]
+    dl.write_text(dl.read_text(encoding="utf8") + "\n".join(extra) + "\n", encoding="utf8")   # many lines that fall in no play slot but inside the window
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert not r["abandonment"]["daemon_log_attributed"] and r["abandonment"]["pass_line_share"] < A.MIN_ATTRIBUTED_SHARE

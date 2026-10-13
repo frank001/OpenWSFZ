@@ -36,7 +36,7 @@ import s6_stats as S  # noqa: E402
 
 PASS_LINE = re.compile(r"^\[(\d\d):(\d\d):(\d\d) \w+\] Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(True|False) "
                        r"containedException=(True|False) fittedSignals=(\d+)")
-MIN_ATTRIBUTED_SHARE = 0.9       # the daemon-log attribution is trusted only if this share of the plays found a pass line
+MIN_ATTRIBUTED_SHARE = 0.9       # a DESIGN number (Architect 2026-10-13: stays 90 %): the daemon-log attribution is trusted only if this share of the residual-pass LINES in the window maps to a play slot
 
 
 # ------------------------------------------------------------------ reading the logs (text stays in these functions)
@@ -123,12 +123,20 @@ def attribute_pass_lines(lines: list, play_slots: list, tz_offset_s: int | None 
                 "reason": "no system time zone recorded at S6 start (s6_tz.json missing)"}
     got = attribute(tz_offset_s)
     n = len(got)
-    enough = bool(play_slots) and n >= MIN_ATTRIBUTED_SHARE * len(play_slots)
+    # Architect, 2026-10-13 (ruling on the S6 dry run, 1b): the floor is read on the residual-pass LINES inside the S6 window, not on plays: a pass runs on only
+    # some cycles, so most plays have no line, and "no line" means "no pass ran" (the play is not abandoned). Share = lines mapped to a play slot / lines whose
+    # pass started inside the window of the plays. Source of the floor: the dry run (26 of 27 = 96.3 %), HK-038.
+    first, last = min(slot_sod.values()), max(slot_sod.values())
+    in_window = [ln for ln in lines if first <= ((ln["sod"] - tz_offset_s) % 86400) - ln["elapsed_ms"] / 1000.0 - P.SLOT_S <= last + 2 * P.SLOT_S]
+    mapped_ids = {id(v) for v in got.values()}
+    mapped_lines = sum(1 for ln in in_window if id(ln) in mapped_ids)
+    share = mapped_lines / len(in_window) if in_window else None
+    enough = share is not None and share >= MIN_ATTRIBUTED_SHARE
     agrees = tz_offset_s % 3600 == 0 and tz_offset_s // 3600 == inferred
-    reason = "" if (enough and agrees) else ("the system offset attributes only %d of %d plays" % (n, len(play_slots)) if not enough else
+    reason = "" if (enough and agrees) else ("%d of %d pass lines in the window map to a play slot" % (mapped_lines, len(in_window)) if not enough else
                                               "the system offset (%+d s) and the inferred offset (%+d h) disagree" % (tz_offset_s, inferred))
     return {"offset_h": tz_offset_s / 3600.0, "tz_offset_s": tz_offset_s, "inferred_offset_h": inferred, "attributed_plays": n, "by_slot": got,
-            "trusted": enough and agrees, "reason": reason}
+            "lines_in_window": len(in_window), "lines_mapped": mapped_lines, "line_share": share, "trusted": enough and agrees, "reason": reason}
 
 
 # ------------------------------------------------------------------ validity rows
@@ -180,9 +188,9 @@ def fmt_block(res: dict, label: str) -> str:
         res["cpu_chain_label"], res["abandonment"]["summary"], res["pins"].get("start", {}).get("loadavg_1_5_15"), res["pins"].get("end", {}).get("loadavg_1_5_15")))
     ab = res["abandonment"]
     A("")
-    A("*Daemon-log attribution: %s of %s plays matched to a pass line = %s (the %.0f %% floor is a DESIGN number, like the ±%.2f s offset tolerance; both are re-set from this dry-run's observed values before any real row). Observed play-start offsets: min %s s, max %s s.*" % (
-        ab["plays_with_pass_line"], res["plays"], pct(ab["plays_with_pass_line"] / res["plays"] if res["plays"] else None), 100 * MIN_ATTRIBUTED_SHARE,
-        P.OFFSET_TOLERANCE_S, v["S6-V2"]["offset_min_s"], v["S6-V2"]["offset_max_s"]))
+    A("*Daemon-log attribution: %s of %s residual-pass lines in the window map to a play slot = %s (floor %.0f %%, read on lines, ruled 2026-10-13; a pass runs on only some cycles, here %s of %s plays have a line, and no line means no pass ran). Play-start offset, player call time (S6-V2 a; it cannot see the sound's onset, see the onset row): min %s s, max %s s, tolerance ±%.2f s (a design number).*" % (
+        ab.get("pass_lines_mapped"), ab.get("pass_lines_in_window"), pct(ab.get("pass_line_share")), 100 * MIN_ATTRIBUTED_SHARE,
+        ab["plays_with_pass_line"], res["plays"], v["S6-V2"]["offset_min_s"], v["S6-V2"]["offset_max_s"], P.OFFSET_TOLERANCE_S))
     if not v["S6-V5"].get("wsjtx_exe_pinned", False):
         A("")
         A("*The WSJT-X executable was not pinned by hash on this row (no path given): only the OpenWSFZ library is pinned.*")
@@ -323,7 +331,8 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
               else {"trusted": False, "by_slot": {}, "attributed_plays": 0, "offset_h": None, "inferred_offset_h": None, "reason": "no daemon log"})
         ab = {s: ln["abandoned"] for s, ln in pl["by_slot"].items()} if pl["trusted"] else {}
         n_ab = sum(1 for x in ab.values() if x)
-        res["abandonment"] = {"daemon_log_attributed": pl["trusted"], "plays_with_pass_line": pl["attributed_plays"], "plays_abandoned": n_ab if pl["trusted"] else None,
+        res["abandonment"] = {"daemon_log_attributed": pl["trusted"], "plays_with_pass_line": pl["attributed_plays"], "pass_lines_in_window": pl.get("lines_in_window"), "pass_lines_mapped": pl.get("lines_mapped"),
+                              "pass_line_share": pl.get("line_share"), "plays_abandoned": n_ab if pl["trusted"] else None,
                               "tz_offset_h_system": pl["offset_h"], "tz_offset_h_inferred": pl.get("inferred_offset_h"), "not_trusted_because": pl.get("reason", ""),
                               "elapsed_ms_median": float(np.median([ln["elapsed_ms"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None,
                               "fitted_signals_median": float(np.median([ln["fitted"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None}
