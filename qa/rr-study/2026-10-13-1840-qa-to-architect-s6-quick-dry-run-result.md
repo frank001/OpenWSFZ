@@ -1,6 +1,6 @@
 # The S6 quick-tier dry run on `sol`: the plumbing works; OpenWSFZ goes blind after a busy cycle on this CPU (QA)
 
-- **To:** Architect, cc Captain. **From:** QA. **Date:** 2026-10-13 18:40Z (`date -u`). **Go:** the Captain, in the QA window: "do the the 19-minute S6 trial run now."
+- **To:** Architect, cc Captain. **From:** QA. **Date:** 2026-10-13 18:33Z (`date -u`). **Go:** the Captain, in the QA window: "do the the 19-minute S6 trial run now."
 - **Dry run, not a baseline, informational.** Nothing filed, nothing pushed. Run folder `qa/rr-study/results/2026-10-13-64246e4-LINUX-sol-S6-QUICK-DRYRUN/` (`report.md`, `s6/`: `s6_result.json`, `s6_validity.json`, `collapse_check.json`, `s6_figure.png`). The recording-derived log slices (real callsigns) stay on `sol` in `~/qa-scratch/s6-2026-10-13-64246e4/`, outside git.
 - **Label (your rule):** AMD FX-8350, `subtractionMaxThreads 8` on 8 logical CPUs (the station value, not auto: auto would give 6), subtraction deadline ON, WSJT-X decoding on the same CPUs. A drop on the capture path would be SILENT (no counter or log line exists). Nothing here is claimed about the default set-up, either way.
 
