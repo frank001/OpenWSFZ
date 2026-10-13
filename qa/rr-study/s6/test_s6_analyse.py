@@ -81,6 +81,7 @@ def test_valid_run_numbers_and_sensitivity(tmp_path):
     assert r["figure"] == "s6_figure.png" and (run / "s6" / "s6_figure.png").stat().st_size > 10_000
     md = open(run / "s6" / "s6_section5.md", encoding="utf8").read()
     assert "First S6 row of the LINUX series" in md and "Positive agreement" in md and "Sensitivity: WAVs with no abandoned play" in md
+    assert "Daemon-log attribution: 36 of 36 plays matched" in md and "DESIGN number" in md and "Observed play-start offsets" in md
     assert "QWARM" not in md and "Q1" not in md                                          # no message text in the report block
 
 

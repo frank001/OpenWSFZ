@@ -178,6 +178,11 @@ def fmt_block(res: dict, label: str) -> str:
     full = res["full"]
     A("**CPU and chain label:** %s. OpenWSFZ ran the product path with the subtraction deadline ON (per-play abandonment: %s). Load average (1 / 5 / 15 min) at the start of the plays %s and at the end %s." % (
         res["cpu_chain_label"], res["abandonment"]["summary"], res["pins"].get("start", {}).get("loadavg_1_5_15"), res["pins"].get("end", {}).get("loadavg_1_5_15")))
+    ab = res["abandonment"]
+    A("")
+    A("*Daemon-log attribution: %s of %s plays matched to a pass line = %s (the %.0f %% floor is a DESIGN number, like the ±%.2f s offset tolerance; both are re-set from this dry-run's observed values before any real row). Observed play-start offsets: min %s s, max %s s.*" % (
+        ab["plays_with_pass_line"], res["plays"], pct(ab["plays_with_pass_line"] / res["plays"] if res["plays"] else None), 100 * MIN_ATTRIBUTED_SHARE,
+        P.OFFSET_TOLERANCE_S, v["S6-V2"]["offset_min_s"], v["S6-V2"]["offset_max_s"]))
     if not v["S6-V5"].get("wsjtx_exe_pinned", False):
         A("")
         A("*The WSJT-X executable was not pinned by hash on this row (no path given): only the OpenWSFZ library is pinned.*")
