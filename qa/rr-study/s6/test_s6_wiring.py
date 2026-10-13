@@ -41,4 +41,4 @@ def test_s6_series_table_is_carried_and_extended():
     rest2, tbl2 = AR.s6_series("## Section 6\n\n| run | x |\n", None)           # no S6 ever: nothing is invented
     assert tbl2 == "" and "S6" not in rest2
     _, tbl3 = AR.s6_series("## Section 6\n\n| run | x |\n", "| S6 | VALID | tier quick | first | n/a |")
-    assert tbl3.startswith("### S6 series") and tbl3.count("\n| S6 |") == 1
+    assert tbl3.startswith("### S6 series") and tbl3.count("\n| S6 | VALID") == 1
