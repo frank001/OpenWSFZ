@@ -501,7 +501,7 @@ def main() -> None:
     if _S6_ID in scenario_ids and (run_dir / "s6" / "s6_playlog.jsonl").is_file():
         r6a = _py("s6/s6_analyse.py", "--run-dir", str(run_dir), "--scratch", str(s6_scratch),
                   *(["--daemon-log", args.daemon_log] if args.daemon_log else []),
-                  "--series-label", f"{args.s6_series_label} (tier {args.s6_tier})", check=False)
+                  "--series-label", f"{args.s6_series_label} (tier {args.s6_tier})", "--corpus", str(_s6_corpus(args)), check=False)
         blk = run_dir / "s6" / "s6_section5.md"
         if r6a.returncode == 0 and blk.is_file() and s6_only:
             from s6 import s6_report_header

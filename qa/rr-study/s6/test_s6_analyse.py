@@ -204,3 +204,10 @@ def test_missing_or_empty_log_slices_void_the_block_instead_of_reading_valid(tmp
     (scratch / "owsfz-s6.txt").write_text("", encoding="utf8")
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
     assert r["status"].startswith("VOID") and r["validity"]["S6-V2"]["logs"] == "both S6 log slices are empty"
+
+
+def test_the_block_says_when_the_onset_row_is_not_computed(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)            # no corpus given
+    assert r["onset"] is None
+    assert "Sound onset, from WSJT-X's own DT:** not computed" in open(run / "s6" / "s6_section5.md", encoding="utf8").read()

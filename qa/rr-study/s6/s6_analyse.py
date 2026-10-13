@@ -223,6 +223,15 @@ def fmt_block(res: dict, label: str) -> str:
             A("")
             A("ndc %.1f%s; appraiser means %.2f / %.2f dB (WSJT-X / OpenWSFZ)." % (g["ndc"], (" [%.1f, %.1f]" % tuple(bb["ndc"])) if bb.get("ndc") else "", g["appraiser_means_db"][0], g["appraiser_means_db"][1]))
         A("")
+    on = res.get("onset")
+    A("")
+    if on and "error" not in on and on.get("plays_with_median"):
+        pm = on["per_play_median_shift_s"]
+        A("**Sound onset, from WSJT-X's own DT** (DT of the replay minus DT of the live decode of the same recording, per play; the delay the replay chain added; positive = later): median of the per-play medians **%+.2f s** (P10 %+.2f, P90 %+.2f, min %+.2f, max %+.2f) over %d plays with at least %d matched rows (%d rows in all). Descriptive, no bar yet; the keep-up run read +0.1 s." % (
+            pm["median"], pm["p10"], pm["p90"], pm["min"], pm["max"], on["plays_with_median"], on["min_rows_per_play"], on["rows_matched"]))
+    else:
+        A("**Sound onset, from WSJT-X's own DT:** not computed (%s)." % (("error " + on["error"]) if on and "error" in on else "no corpus or too few matched rows"))
+    A("")
     A("**Hashed rows** (excluded from every figure above): WSJT-X %.2f and OpenWSFZ %.2f per play." % (res["hashed_per_play"]["wsjtx"], res["hashed_per_play"]["owsfz"]))
     oe, te = res["order_effect"], res["trial_effect"]
     A("")
@@ -278,7 +287,8 @@ def describe_chain(run_dir: str) -> str:
     return "%s, subtraction deadline ON, %s, WSJT-X decoding on the same CPUs; a drop on the capture path would be SILENT (no counter or log line exists)" % (model or "host CPU unknown", t)
 
 
-def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, cpu_chain_label: str | None = None, n_boot: int = S.BOOT_N) -> dict:
+def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, cpu_chain_label: str | None = None, n_boot: int = S.BOOT_N,
+        corpus: str | None = None, wavlist_path: str | None = None) -> dict:
     s6 = os.path.join(run_dir, "s6")
     rows = [json.loads(x) for x in open(os.path.join(s6, "s6_playlog.jsonl"), encoding="utf8")]
     plays = [r for r in rows if r["kind"] == "play"]
@@ -342,6 +352,13 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
         except Exception as exc:                                            # a figure problem never costs the numbers
             res["figure"] = None
             res["figure_error"] = type(exc).__name__
+        res["onset"] = None
+        if corpus and wavlist_path and os.path.isfile(wavlist_path) and slices_present:
+            try:                                                    # the onset row (Architect 2026-10-13, 1a): WSJT-X's DT replay minus live, per play; descriptive
+                import s6_onset
+                res["onset"] = s6_onset.onset_row(plays, os.path.join(scratch, "wsjt-s6.txt"), corpus, json.load(open(wavlist_path, encoding="utf8")))
+            except Exception as exc:                                # never costs the other numbers
+                res["onset"] = {"error": type(exc).__name__}
         res["order_effect"], res["trial_effect"] = S.order_effect(obs), S.trial_effect(obs, n_boot)
         res["sun_counts"] = dict(Counter(o["sun"] for o in obs.values()))
         if tier in ("standard", "extended"):
@@ -369,9 +386,11 @@ def main() -> None:
     ap.add_argument("--scratch", required=True)
     ap.add_argument("--daemon-log", default=None)
     ap.add_argument("--series-label", default="First S6 row of the LINUX series")
+    ap.add_argument("--corpus", default=None, help="the frozen corpus (live WSJT-X ALL.TXT of the source runs) for the onset row")
+    ap.add_argument("--wavlist", default=os.path.join(HERE, "s6-wavlist.json"))
     ap.add_argument("--cpu-chain-label", default=None, help="default: built from the run's own arm_config.json and /proc/cpuinfo (describe_chain)")
     a = ap.parse_args()
-    r = run(a.run_dir, a.scratch, a.daemon_log, a.series_label, a.cpu_chain_label)
+    r = run(a.run_dir, a.scratch, a.daemon_log, a.series_label, a.cpu_chain_label, corpus=a.corpus, wavlist_path=a.wavlist)
     print("S6 analysis:", r["status"], "tier", r["tier"], "plays", r["plays"])
     sys.exit(0)
 
