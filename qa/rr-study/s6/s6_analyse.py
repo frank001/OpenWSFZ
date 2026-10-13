@@ -287,6 +287,7 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     # the player writes s6_validity.json on every exit it controls; a killed or crashed player leaves none: the block is VOID, not a crash
     validity = json.load(open(vp, encoding="utf8")) if os.path.isfile(vp) else {"tier": "unknown", "plays_planned": 0, "player_did_not_finish": True}
     window = json.load(open(os.path.join(s6, "s6_window.json"), encoding="utf8")) if os.path.isfile(os.path.join(s6, "s6_window.json")) else {}
+    slices_present = os.path.isfile(os.path.join(scratch, "wsjt-s6.txt")) and os.path.isfile(os.path.join(scratch, "owsfz-s6.txt"))
     wsjt, owsfz = parse_log(os.path.join(scratch, "wsjt-s6.txt")), parse_log(os.path.join(scratch, "owsfz-s6.txt"))
     pins_file = os.path.join(s6, "s6_pins.json")
     pins = json.load(open(pins_file, encoding="utf8")) if os.path.isfile(pins_file) else {}
@@ -295,6 +296,10 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     expected = validity["plays_planned"]
     v = {"S6-V1": validity.get("S6-V1", {"result": "MISSING"}), "S6-V3": validity.get("S6-V3", {"result": "MISSING"}), "S6-V5": validity.get("S6-V5", {"result": "MISSING"})}
     v["S6-V2"] = v2_rows(plays, warm_slots, wsjt, owsfz)
+    # a block built on NO log lines is not a result: the split step may have failed (the first dry run's KeyError left the slices missing and the block read VALID)
+    if not slices_present or sum(len(r) for r in wsjt.values()) + sum(len(r) for r in owsfz.values()) == 0:
+        v["S6-V2"]["result"] = "FAIL"
+        v["S6-V2"]["logs"] = "S6 log slices missing" if not slices_present else "both S6 log slices are empty"
     v["S6-V4"] = {"result": "PASS" if (len(plays) == expected and not validity.get("player_did_not_finish")) else "FAIL", "plays": len(plays), "expected": expected,
                   **({"note": "the player did not finish (no s6_validity.json)"} if validity.get("player_did_not_finish") else {})}
     ok = all(v[k]["result"] == "PASS" for k in v)

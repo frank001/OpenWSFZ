@@ -22,7 +22,16 @@ def first_s6_slot(run_dir: str):
     p = os.path.join(run_dir, "s6", "s6_playlog.jsonl")
     if not os.path.isfile(p):
         return None
-    slots = [json.loads(x)["slot_stamp"] for x in open(p, encoding="utf8") if x.strip()]
+    # only the warm-up and play rows carry a slot_stamp (a batch_plan row has first_slot): the first S6 slot is the earliest of either
+    slots = []
+    for x in open(p, encoding="utf8"):
+        if not x.strip():
+            continue
+        r = json.loads(x)
+        if "slot_stamp" in r:
+            slots.append(r["slot_stamp"])
+        elif "first_slot" in r:
+            slots.append(r["first_slot"])
     return min(slots) if slots else None
 
 

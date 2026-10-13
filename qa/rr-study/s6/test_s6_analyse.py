@@ -180,3 +180,27 @@ def test_the_chain_label_comes_from_the_runs_own_readback_and_never_claims_the_d
     assert "NOT READ BACK" in A.describe_chain(str(run))
     r = A.run(str(run), str(scratch), str(dl), "x", None, n_boot=50)          # no explicit label: built from the run
     assert "SILENT" in r["cpu_chain_label"]
+
+
+def test_the_split_survives_batch_plan_rows_in_the_play_log(tmp_path):
+    run, scratch, _ = make_run(tmp_path)
+    p = run / "s6" / "s6_playlog.jsonl"
+    rows = p.read_text(encoding="utf8").splitlines()
+    plan = json.dumps({"kind": "batch_plan", "batch": 0, "first_slot": "261013_160045", "slots": 20, "first_play_index": 0})
+    p.write_text("\n".join([rows[0], plan] + rows[1:]) + "\n", encoding="utf8")           # the real log has these between the warm-up and the plays
+    w, o = tmp_path / "wsjt-all.txt", tmp_path / "owsfz-all.txt"
+    w.write_text(line("261013_155000", -9, 1200, "CQ QOLD FN42") + (scratch / "wsjt-s6.txt").read_text(encoding="utf8"), encoding="utf8")
+    o.write_text(line("261013_155000", -9, 1200, "CQ QOLD FN42") + (scratch / "owsfz-s6.txt").read_text(encoding="utf8"), encoding="utf8")
+    r = SP.split_logs(str(run), str(w), str(o), str(tmp_path / "scratch3"))
+    assert r["first_s6_slot"] == "261013_160000" and r["wsjtx"]["kept"] == 1 and r["wsjtx"]["moved"] > 100
+
+
+def test_missing_or_empty_log_slices_void_the_block_instead_of_reading_valid(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    os.remove(scratch / "wsjt-s6.txt")
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert r["status"].startswith("VOID") and r["validity"]["S6-V2"]["logs"] == "S6 log slices missing"
+    (scratch / "wsjt-s6.txt").write_text("", encoding="utf8")
+    (scratch / "owsfz-s6.txt").write_text("", encoding="utf8")
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert r["status"].startswith("VOID") and r["validity"]["S6-V2"]["logs"] == "both S6 log slices are empty"
