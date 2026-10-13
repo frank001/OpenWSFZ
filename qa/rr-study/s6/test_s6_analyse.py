@@ -167,3 +167,16 @@ def test_the_s6_only_report_header_names_the_build_from_the_arm_config(tmp_path)
         s6_tier = "quick"
     h = H.header(Path("results/2026-10-13-abc1234"), arm, Args())
     assert ("a" * 40) in h and ("b" * 64) in h and "`osdNhardMax` = 24" in h and "S6 only, tier `quick`" in h and "no S1-S8 verdict" in h
+
+
+def test_the_chain_label_comes_from_the_runs_own_readback_and_never_claims_the_default(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    (run / "arm_config.json").write_text(json.dumps({"daemon": {"decoder_readback": {"subtractionMaxThreads": 8}}}), encoding="utf8")
+    label = A.describe_chain(str(run))
+    cpus = os.cpu_count()
+    assert "subtractionMaxThreads 8 on %d CPUs" % cpus in label and "SILENT" in label and "deadline ON" in label
+    assert ("(station value, not auto)" in label) == (8 != max(1, cpus - 2))
+    (run / "arm_config.json").write_text("{}", encoding="utf8")
+    assert "NOT READ BACK" in A.describe_chain(str(run))
+    r = A.run(str(run), str(scratch), str(dl), "x", None, n_boot=50)          # no explicit label: built from the run
+    assert "SILENT" in r["cpu_chain_label"]

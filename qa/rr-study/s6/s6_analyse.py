@@ -250,7 +250,35 @@ def fmt_block(res: dict, label: str) -> str:
 
 # ------------------------------------------------------------------ main
 
-def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, cpu_chain_label: str, n_boot: int = S.BOOT_N) -> dict:
+def describe_chain(run_dir: str) -> str:
+    """The CPU / thread label of the block, from the RUN'S OWN arm_config.json and /proc/cpuinfo (never typed): the Architect's rule (2026-10-13) is that the
+    dry run says 'subtractionMaxThreads N (station value, not auto)' and claims nothing about the default set-up."""
+    cpus = os.cpu_count() or 0
+    model = ""
+    try:
+        with open("/proc/cpuinfo", encoding="utf8", errors="replace") as fh:
+            for line in fh:
+                if line.startswith("model name"):
+                    model = line.split(":", 1)[1].strip()
+                    break
+    except OSError:
+        pass
+    threads = None
+    try:
+        threads = json.load(open(os.path.join(run_dir, "arm_config.json"), encoding="utf8"))["daemon"]["decoder_readback"].get("subtractionMaxThreads")
+    except (OSError, KeyError, ValueError, TypeError):
+        pass
+    auto = max(1, cpus - 2) if cpus else None
+    if threads is None:
+        t = "subtractionMaxThreads NOT READ BACK"
+    elif threads == 0:
+        t = "subtractionMaxThreads 0 (auto = %s on %s CPUs)" % (auto, cpus)
+    else:
+        t = "subtractionMaxThreads %s on %s CPUs (as configured; auto would give %s)%s" % (threads, cpus, auto, " (station value, not auto)" if threads != auto else " (= auto)")
+    return "%s, subtraction deadline ON, %s, WSJT-X decoding on the same CPUs; a drop on the capture path would be SILENT (no counter or log line exists)" % (model or "host CPU unknown", t)
+
+
+def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, cpu_chain_label: str | None = None, n_boot: int = S.BOOT_N) -> dict:
     s6 = os.path.join(run_dir, "s6")
     rows = [json.loads(x) for x in open(os.path.join(s6, "s6_playlog.jsonl"), encoding="utf8")]
     plays = [r for r in rows if r["kind"] == "play"]
@@ -262,6 +290,7 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     wsjt, owsfz = parse_log(os.path.join(scratch, "wsjt-s6.txt")), parse_log(os.path.join(scratch, "owsfz-s6.txt"))
     pins_file = os.path.join(s6, "s6_pins.json")
     pins = json.load(open(pins_file, encoding="utf8")) if os.path.isfile(pins_file) else {}
+    cpu_chain_label = cpu_chain_label or describe_chain(run_dir)
     tier = validity["tier"]
     expected = validity["plays_planned"]
     v = {"S6-V1": validity.get("S6-V1", {"result": "MISSING"}), "S6-V3": validity.get("S6-V3", {"result": "MISSING"}), "S6-V5": validity.get("S6-V5", {"result": "MISSING"})}
@@ -335,7 +364,7 @@ def main() -> None:
     ap.add_argument("--scratch", required=True)
     ap.add_argument("--daemon-log", default=None)
     ap.add_argument("--series-label", default="First S6 row of the LINUX series")
-    ap.add_argument("--cpu-chain-label", default="sol, AMD FX-8350, subtraction deadline ON, non-default ALSA chain (samplerate_best)")
+    ap.add_argument("--cpu-chain-label", default=None, help="default: built from the run's own arm_config.json and /proc/cpuinfo (describe_chain)")
     a = ap.parse_args()
     r = run(a.run_dir, a.scratch, a.daemon_log, a.series_label, a.cpu_chain_label)
     print("S6 analysis:", r["status"], "tier", r["tier"], "plays", r["plays"])
