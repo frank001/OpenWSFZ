@@ -268,8 +268,7 @@ def main() -> None:
             slips += max(0, gap - 1)                      # anything beyond it is a slip
         sleep_until(b - PREWARM_S)
         sleep_until(b - START_LEAD_S)
-        fh.write(json.dumps({"kind": "batch_plan", "batch": bi, "first_slot": slot_stamp(b), "slots": len(batch), "first_play_index": batch[0][0]}) + "
-")
+        fh.write(json.dumps({"kind": "batch_plan", "batch": bi, "first_slot": slot_stamp(b), "slots": len(batch), "first_play_index": batch[0][0]}) + "\n")
         fh.flush()                                          # a killed player still leaves the slots it was playing (forensics)
         started = play(buf)
         nxt = render_batch(batches[bi + 1]) if bi + 1 < len(batches) else None      # render the next batch while this one plays
