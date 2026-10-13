@@ -1,0 +1,303 @@
+"""S6 analysis (QA tooling; spec 2026-10-13-1625 + amendment 1): one parse of both ALL.TXT slices after the last play.
+
+    python s6_analyse.py --run-dir <dir> --scratch <dir holding wsjt-s6.txt / owsfz-s6.txt> [--daemon-log <daemon.stdout.log>]
+                         [--series-label "..."]
+
+Reads <run-dir>/s6/{s6_playlog.jsonl, s6_validity.json, s6_window.json, s6_pins.json} and the two S6 log slices (message text: they live in
+the scratch dir OUTSIDE git, HK-037) and writes, into <run-dir>/s6/, aggregates only: s6_result.json, s6_section5.md, s6_section6_row.md.
+Attribution is by the line's slot stamp. Validity rows (a FAIL voids the S6 block only; S1-S8 stand):
+  S6-V1 corpus verified (from the player)         S6-V2 (1) every play starts within OFFSET_TOLERANCE_S of its nominal offset,
+  S6-V3 warm-up decoded by both (player)                  (2) 0 decode lines stamped in a slot with no play, 0 slots with two plays
+  S6-V4 plays completed = tier x 3                S6-V5 pins equal at start and end (player)
+Mandatory field (Architect, amendment 1): the per-play OpenWSFZ abandonment (deadlineAbandoned) from the daemon log; the report gives S6 in
+full AND over the WAVs with no abandoned play.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import re
+import sys
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+RR = os.path.dirname(HERE)
+for p in (HERE, RR):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+import numpy as np  # noqa: E402
+
+import s6_play as P  # noqa: E402
+import s6_stats as S  # noqa: E402
+
+PASS_LINE = re.compile(r"^\[(\d\d):(\d\d):(\d\d) \w+\] Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(True|False) "
+                       r"containedException=(True|False) fittedSignals=(\d+)")
+MIN_ATTRIBUTED_SHARE = 0.9       # the daemon-log attribution is trusted only if this share of the plays found a pass line
+
+
+# ------------------------------------------------------------------ reading the logs (text stays in these functions)
+
+def parse_log(path: str) -> dict:
+    """{slot stamp: [(freq_hz, snr_db, text)]} for the FT8 rows of an ALL.TXT slice."""
+    from harness.common import parse_all_txt
+    out = defaultdict(list)
+    if not os.path.isfile(path):
+        return out
+    recs, _ = parse_all_txt(__import__("pathlib").Path(path))
+    for r in recs:
+        out[r.utc.strftime("%y%m%d_%H%M%S")].append((float(r.freq_hz), float(r.snr_db), " ".join(r.message.split()).upper()))
+    return out
+
+
+def key_rows(rows: list) -> tuple:
+    """-> ({key: snr} for the non-hashed rows, n_hashed). key = (text, rank among same-text rows by frequency)."""
+    hashed = sum(1 for _, _, t in rows if "<" in t)
+    seen, out = Counter(), {}
+    for f, snr, t in sorted((r for r in rows if "<" not in r[2]), key=lambda r: (r[2], r[0])):
+        out[(t, seen[t])] = snr
+        seen[t] += 1
+    return out, hashed
+
+
+def build_obs(plays: list, wsjt: dict, owsfz: dict, abandoned: dict) -> dict:
+    obs = {}
+    for p in plays:
+        w, hw = key_rows(wsjt.get(p["slot_stamp"], []))
+        o, ho = key_rows(owsfz.get(p["slot_stamp"], []))
+        d = obs.setdefault(p["wav_id"], {"band": p["band"], "sun": p["sun"], "trials": {}})
+        d["trials"][p["trial"]] = {"w": w, "o": o, "hw": hw, "ho": ho, "order": p["order"], "abandoned": bool(abandoned.get(p["slot_stamp"]))}
+    return obs
+
+
+# ------------------------------------------------------------------ the daemon log: per-play abandonment
+
+def read_pass_lines(path: str) -> list:
+    out = []
+    if path and os.path.isfile(path):
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = PASS_LINE.match(line)
+                if m:
+                    h, mi, s, rd, ms, ab, ce, fs = m.groups()
+                    out.append({"sod": int(h) * 3600 + int(mi) * 60 + int(s), "elapsed_ms": int(ms), "abandoned": ab == "True",
+                                "exception": ce == "True", "fitted": int(fs), "residual_decodes": int(rd)})
+    return out
+
+
+def attribute_pass_lines(lines: list, play_slots: list) -> dict:
+    """Pass-log lines carry a local time of day only. A residual pass starts after the slot it decodes has ended, so a line stamped T that took
+    `elapsed` ms belongs to the slot  floor((T - offset - elapsed) / 15) * 15 - 15 (a pass-0 time before it is a few seconds and never a slot).
+    The local-to-UTC offset (whole hours) is the one that attributes the most lines to the plays' slots; trusted only above MIN_ATTRIBUTED_SHARE.
+    -> {"offset_h", "attributed_plays", "by_slot": {slot_stamp: line}}"""
+    slot_sod = {}
+    for st in play_slots:
+        d = datetime.strptime(st, "%y%m%d_%H%M%S")
+        slot_sod[st] = d.hour * 3600 + d.minute * 60 + d.second
+    sod_to_slot = defaultdict(list)
+    for st, sod in slot_sod.items():
+        sod_to_slot[sod].append(st)
+    best = (-1, None, {})
+    for off in range(-14, 15):
+        got = {}
+        for ln in lines:
+            utc_sod = (ln["sod"] - 3600 * off) % 86400
+            start = utc_sod - ln["elapsed_ms"] / 1000.0
+            slot_sod_c = int(math.floor(start / 15.0) * 15 - 15) % 86400
+            for st in sod_to_slot.get(slot_sod_c, []):
+                got.setdefault(st, ln)
+        if len(got) > best[0]:
+            best = (len(got), off, got)
+    n, off, got = best
+    return {"offset_h": off, "attributed_plays": n, "by_slot": got, "trusted": bool(play_slots) and n >= MIN_ATTRIBUTED_SHARE * len(play_slots)}
+
+
+# ------------------------------------------------------------------ validity rows
+
+def v2_rows(plays: list, warm_slots: list, wsjt: dict, owsfz: dict) -> dict:
+    offs = [p["offset_s"] for p in plays]
+    bad_off = [o for o in offs if abs(o - P.OFFSET_NOMINAL_S) > P.OFFSET_TOLERANCE_S]
+    play_slots = [p["slot_stamp"] for p in plays]
+    dup = [s for s, c in Counter(play_slots).items() if c > 1]
+    ok_slots = set(play_slots) | set(warm_slots)
+    stray = {a: sum(len(rows) for s, rows in log.items() if s not in ok_slots) for a, log in (("wsjtx", wsjt), ("owsfz", owsfz))}
+    passed = not bad_off and not dup and stray["wsjtx"] == 0 and stray["owsfz"] == 0
+    return {"result": "PASS" if passed else "FAIL",
+            "offset_tolerance_s": P.OFFSET_TOLERANCE_S, "offset_nominal_s": P.OFFSET_NOMINAL_S,
+            "offset_min_s": min(offs) if offs else None, "offset_max_s": max(offs) if offs else None, "plays_outside_tolerance": len(bad_off),
+            "slots_with_two_plays": len(dup), "stray_lines": stray}
+
+
+def decode_summary(tallies_all: list) -> dict:
+    return S.pool(tallies_all)
+
+
+# ------------------------------------------------------------------ report text
+
+def pct(x, d=1):
+    return "n/a" if x is None else ("%.*f %%" % (d, 100 * x))
+
+
+def ci_txt(c, scale=100.0, d=1, unit=" %"):
+    return "" if not c else " [%.*f, %.*f]" % (d, c[0] * scale, d, c[1] * scale) if unit == " %" else " [%.*f, %.*f]" % (d, c[0], d, c[1])
+
+
+def fmt_block(res: dict, label: str) -> str:
+    L = []
+    A = L.append
+    v = res["validity"]
+    A("### S6 — Off-air WAV replay (K = 3, WSJT-X and OpenWSFZ listening to each playback at once)")
+    A("")
+    A("**%s.** Tier **%s**: %d WAVs x %d trials = %d plays on the 15 s grid; source = the WSJT-X-side WAV of the frozen reference-set corpus; peak-normalised to 0.9 as every scenario. "
+      "No truth is assumed: the figures measure repeatability and reproducibility, not recall. Informational on its first battery." % (label, res["tier"], res["wavs"], S.K, res["plays"]))
+    A("")
+    A("**Validity** (a FAIL withholds this block only, the rest of the battery stands): " + "; ".join("%s %s" % (k, v[k]["result"]) for k in ("S6-V1", "S6-V2", "S6-V3", "S6-V4", "S6-V5")))
+    A("")
+    if res["status"] != "VALID":
+        A("**S6 block WITHHELD: %s.** The rows above say which check failed; the figures below are not to be read." % res["status"])
+        return "\n".join(L) + "\n"
+    full = res["full"]
+    A("**CPU and chain label:** %s. OpenWSFZ ran the product path with the subtraction deadline ON (per-play abandonment: %s)." % (res["cpu_chain_label"], res["abandonment"]["summary"]))
+    A("")
+    for name, blk, boot in (("All plays", full, res["bootstrap_full"]), ("Sensitivity: WAVs with no abandoned play", res.get("no_abandon"), res.get("bootstrap_no_abandon"))):
+        if not blk or not blk.get("headline"):
+            A("**%s:** not available (%s)." % (name, res.get("no_abandon_note", "no data")))
+            A("")
+            continue
+        h, b = blk["headline"], boot["headline"] if boot else {}
+        A("**%s** (%d WAVs, %d signals in the non-hashed universe; WAV-clustered 95 %% CIs)" % (name, h["wavs"], h["signals_in_universe"]))
+        A("")
+        A("| figure | WSJT-X | OpenWSFZ |")
+        A("|---|---|---|")
+        A("| within-appraiser consistency, own universe (decoded in all 3 of the trials it decoded in at least once) | %s%s | %s%s |" % (
+            pct(h["consistency_own_wsjtx"]), ci_txt(b.get("consistency_own_wsjtx")), pct(h["consistency_own_owsfz"]), ci_txt(b.get("consistency_own_owsfz"))))
+        A("| within-appraiser consistency, legacy (union universe; comparable with the 2026-06/07 rows) | %s%s | %s%s |" % (
+            pct(h["consistency_legacy_wsjtx"]), ci_txt(b.get("consistency_legacy_wsjtx")), pct(h["consistency_legacy_owsfz"]), ci_txt(b.get("consistency_legacy_owsfz"))))
+        A("| decodes per WAV (non-hashed, mean of 3 trials) | %.2f%s | %.2f%s |" % (
+            h["decodes_per_wav_wsjtx"], ci_txt(b.get("decodes_per_wav_wsjtx"), 1, 2, ""), h["decodes_per_wav_owsfz"], ci_txt(b.get("decodes_per_wav_owsfz"), 1, 2, "")))
+        A("")
+        A("- **Positive agreement between the appraisers** (rows both decoded / rows either decoded, per trial): **%s%s**." % (pct(h["positive_agreement"]), ci_txt(b.get("positive_agreement"))))
+        A("- Decodes per WAV, OpenWSFZ minus WSJT-X: %+.2f%s." % (h["decodes_per_wav_diff_owsfz_minus_wsjtx"], ci_txt(b.get("decodes_per_wav_diff_owsfz_minus_wsjtx"), 1, 2, "")))
+        if h.get("snr_delta_mean") is not None:
+            A("- SNR delta (OpenWSFZ − WSJT-X) over %d matched pairs: mean %+.2f dB%s, SD %.2f dB." % (h["snr_delta_n"], h["snr_delta_mean"], ci_txt(b.get("snr_delta_mean"), 1, 2, ""), h.get("snr_delta_sd", float("nan"))))
+        k = blk["kappa"]
+        A("- Cohen's κ (union universe over trials): %s %s (rows %s). *The both-negative cell exists only through trial-to-trial flicker, so κ mostly measures that; read it with the positive-agreement share.*" % (k.get("kappa"), k.get("ci95_asymptotic"), k.get("rows")))
+        g = h.get("anova")
+        if g and "error" not in g:
+            sv, bb = g["pct_study_var"], boot["anova"] if boot else {}
+            A("")
+            A("**Gage R&R ANOVA on SNR** (AIAG crossed, with interaction): %d parts of %d candidate signals (those both appraisers decoded in every trial; *conditional on detection, so repeatability is understated and ndc overstated*)." % (h["anova_parts"], h["signals_in_universe"]))
+            A("")
+            A("| component | %StudyVar | 95 % CI |")
+            A("|---|---|---|")
+            for key, nm in (("EV", "repeatability (EV)"), ("AV", "appraiser (AV)"), ("INT", "part × appraiser (INT)"), ("RR", "total R&R"), ("PV", "part-to-part (PV)")):
+                A("| %s | %.1f %% | %s |" % (nm, sv[key], ("[%.1f, %.1f]" % tuple(bb["pct_study_var/" + key])) if bb.get("pct_study_var/" + key) else "n/a"))
+            A("")
+            A("ndc %.1f%s; appraiser means %.2f / %.2f dB (WSJT-X / OpenWSFZ)." % (g["ndc"], (" [%.1f, %.1f]" % tuple(bb["ndc"])) if bb.get("ndc") else "", g["appraiser_means_db"][0], g["appraiser_means_db"][1]))
+        A("")
+    A("**Hashed rows** (excluded from every figure above): WSJT-X %.2f and OpenWSFZ %.2f per play." % (res["hashed_per_play"]["wsjtx"], res["hashed_per_play"]["owsfz"]))
+    oe, te = res["order_effect"], res["trial_effect"]
+    A("")
+    A("**Order effect** (Spearman, position in trial vs decodes per play): WSJT-X ρ %s (p %s), OpenWSFZ ρ %s (p %s)." % (oe["wsjtx"]["rho"], oe["wsjtx"]["p"], oe["owsfz"]["rho"], oe["owsfz"]["p"]))
+    A("")
+    A("**Trial-index effect** (mean non-hashed decodes per play, trial 1 / 2 / 3): WSJT-X %s; OpenWSFZ %s. Paired difference trial 3 − trial 1: WSJT-X %+.2f %s, OpenWSFZ %+.2f %s." % (
+        te["wsjtx"]["mean_by_trial"], te["owsfz"]["mean_by_trial"], te["wsjtx"]["diff_trial2_minus_trial0"]["mean"], te["wsjtx"]["diff_trial2_minus_trial0"]["ci95"],
+        te["owsfz"]["diff_trial2_minus_trial0"]["mean"], te["owsfz"]["diff_trial2_minus_trial0"]["ci95"]))
+    if res.get("per_band"):
+        A("")
+        A("**Per band** (descriptive; %s):" % res["per_band_note"])
+        A("")
+        A("| band | WAVs | consistency WSJT-X | consistency OpenWSFZ | positive agreement | decodes/WAV WSJT-X | decodes/WAV OpenWSFZ |")
+        A("|---|---|---|---|---|---|---|")
+        for band, r in res["per_band"].items():
+            A("| %s | %d | %s | %s | %s | %.2f | %.2f |" % (band, r["wavs"], pct(r["consistency_own_wsjtx"]), pct(r["consistency_own_owsfz"]), pct(r["positive_agreement"]), r["decodes_per_wav_wsjtx"], r["decodes_per_wav_owsfz"]))
+    A("")
+    A("Counts by sun state of the WAVs played: %s. Per-WAV gain applied before playback is in `s6-wavlist.json`." % res["sun_counts"])
+    return "\n".join(L) + "\n"
+
+
+# ------------------------------------------------------------------ main
+
+def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, cpu_chain_label: str, n_boot: int = S.BOOT_N) -> dict:
+    s6 = os.path.join(run_dir, "s6")
+    rows = [json.loads(x) for x in open(os.path.join(s6, "s6_playlog.jsonl"), encoding="utf8")]
+    plays = [r for r in rows if r["kind"] == "play"]
+    warm_slots = [r["slot_stamp"] for r in rows if r["kind"] == "warmup"]
+    validity = json.load(open(os.path.join(s6, "s6_validity.json"), encoding="utf8"))
+    window = json.load(open(os.path.join(s6, "s6_window.json"), encoding="utf8")) if os.path.isfile(os.path.join(s6, "s6_window.json")) else {}
+    wsjt, owsfz = parse_log(os.path.join(scratch, "wsjt-s6.txt")), parse_log(os.path.join(scratch, "owsfz-s6.txt"))
+    tier = validity["tier"]
+    expected = validity["plays_planned"]
+    v = {"S6-V1": validity.get("S6-V1", {"result": "MISSING"}), "S6-V3": validity.get("S6-V3", {"result": "MISSING"}), "S6-V5": validity.get("S6-V5", {"result": "MISSING"})}
+    v["S6-V2"] = v2_rows(plays, warm_slots, wsjt, owsfz)
+    v["S6-V4"] = {"result": "PASS" if len(plays) == expected else "FAIL", "plays": len(plays), "expected": expected}
+    ok = all(v[k]["result"] == "PASS" for k in v)
+    status = "VALID" if ok else "VOID: " + ", ".join("%s %s" % (k, v[k]["result"]) for k in v if v[k]["result"] != "PASS")
+    res = {"tier": tier, "status": status, "validity": v, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
+           "cpu_chain_label": cpu_chain_label, "window": window}
+    if ok:
+        pl = attribute_pass_lines(read_pass_lines(daemon_log), [p["slot_stamp"] for p in plays]) if daemon_log else {"trusted": False, "by_slot": {}, "attributed_plays": 0, "offset_h": None}
+        ab = {s: ln["abandoned"] for s, ln in pl["by_slot"].items()} if pl["trusted"] else {}
+        n_ab = sum(1 for x in ab.values() if x)
+        res["abandonment"] = {"daemon_log_attributed": pl["trusted"], "plays_with_pass_line": pl["attributed_plays"], "plays_abandoned": n_ab if pl["trusted"] else None,
+                              "tz_offset_h_inferred": pl["offset_h"],
+                              "elapsed_ms_median": float(np.median([ln["elapsed_ms"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None,
+                              "fitted_signals_median": float(np.median([ln["fitted"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None}
+        res["abandonment"]["summary"] = ("%d of %d plays abandoned" % (n_ab, len(plays))) if pl["trusted"] else "NOT ATTRIBUTABLE (no daemon log, or the log could not be matched to the plays): the abandonment field is UNKNOWN and no sensitivity is given"
+        obs = build_obs(plays, wsjt, owsfz, ab)
+        tallies_by_wav = {w: S.wav_tally(o["trials"]) for w, o in obs.items()}
+        tall = [tallies_by_wav[w] for w in sorted(tallies_by_wav)]
+        res["full"] = {"headline": S.pool(tall), "kappa": S.kappa_legacy(tall)}
+        res["bootstrap_full"] = S.bootstrap(tall, n_boot)
+        if pl["trusted"]:
+            keep = [w for w in sorted(obs) if not any(t["abandoned"] for t in obs[w]["trials"].values())]
+            res["no_abandon_wavs"] = {"kept": len(keep), "of": len(obs)}
+            if len(keep) >= 8:
+                tk = [tallies_by_wav[w] for w in keep]
+                res["no_abandon"] = {"headline": S.pool(tk), "kappa": S.kappa_legacy(tk)}
+                res["bootstrap_no_abandon"] = S.bootstrap(tk, n_boot)
+            else:
+                res["no_abandon_note"] = "only %d WAVs have no abandoned play" % len(keep)
+        else:
+            res["no_abandon_note"] = res["abandonment"]["summary"]
+        res["hashed_per_play"] = {"wsjtx": sum(t["hw"] for o in obs.values() for t in o["trials"].values()) / max(1, len(plays)),
+                                  "owsfz": sum(t["ho"] for o in obs.values() for t in o["trials"].values()) / max(1, len(plays))}
+        res["order_effect"], res["trial_effect"] = S.order_effect(obs), S.trial_effect(obs, n_boot)
+        res["sun_counts"] = dict(Counter(o["sun"] for o in obs.values()))
+        if tier in ("standard", "extended"):
+            res["per_band_note"] = "%d WAVs per band at the %s tier: wide intervals, no comparison between bands" % (len(obs) // 4, tier)
+            res["per_band"] = {}
+            for band in ("17m", "20m", "40m", "80m"):
+                tb = [tallies_by_wav[w] for w in sorted(obs) if obs[w]["band"] == band]
+                if tb:
+                    res["per_band"][band] = S.pool(tb)
+        else:
+            res["per_band_note"] = "not given at the quick tier: too small"
+    with open(os.path.join(s6, "s6_result.json"), "w", encoding="utf8", newline="\n") as fh:
+        json.dump(res, fh, indent=1, default=lambda o: None if (isinstance(o, float) and not math.isfinite(o)) else (o.tolist() if hasattr(o, "tolist") else str(o)))
+    with open(os.path.join(s6, "s6_section5.md"), "w", encoding="utf8", newline="\n") as fh:
+        fh.write(fmt_block(res, series_label))
+    row = "| S6 | %s | tier %s | %s | %s |" % (status, tier, series_label, (pct(res["full"]["headline"].get("positive_agreement")) + " positive agreement") if ok else "withheld")
+    with open(os.path.join(s6, "s6_section6_row.md"), "w", encoding="utf8", newline="\n") as fh:
+        fh.write(row + "\n")
+    return res
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--run-dir", required=True)
+    ap.add_argument("--scratch", required=True)
+    ap.add_argument("--daemon-log", default=None)
+    ap.add_argument("--series-label", default="First S6 row of the LINUX series")
+    ap.add_argument("--cpu-chain-label", default="sol, AMD FX-8350, subtraction deadline ON, non-default ALSA chain (samplerate_best)")
+    a = ap.parse_args()
+    r = run(a.run_dir, a.scratch, a.daemon_log, a.series_label, a.cpu_chain_label)
+    print("S6 analysis:", r["status"], "tier", r["tier"], "plays", r["plays"])
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
