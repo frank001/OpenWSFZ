@@ -36,7 +36,12 @@ PLAYBACK_PEAK_LEVEL = 0.9        # = harness.run_scenario._PLAYBACK_PEAK_LEVEL (
 CORPUS_FS = 12_000
 PLAY_FS = 48_000
 CYCLE_SAMPLES = 180_000
+SLOT_SAMPLES_48K = CYCLE_SAMPLES * (PLAY_FS // CORPUS_FS)      # 720,000: inside a continuous buffer EVERY slot must be exactly this long
 WAVLIST_VERSION = 1
+
+
+class SlotLengthError(ValueError):
+    """A WAV whose slot is not exactly CYCLE_SAMPLES long: S6 stops under S6-V1 (amendment 2 (a)), with no padding."""
 
 
 def sha256_file(path: str) -> str:
@@ -64,8 +69,13 @@ def render_48k(samples_int16):
     (run_scenario's peak normalisation). Returns (samples float32, gain applied, peak before normalisation)."""
     import numpy as np
     from scipy.signal import resample_poly
+    if samples_int16.size != CYCLE_SAMPLES:
+        # amendment 2 (a): a slot of any other length would shift every later play of its batch. Stop, never pad or cut.
+        raise SlotLengthError("slot is %d samples at %d Hz, not %d" % (samples_int16.size, CORPUS_FS, CYCLE_SAMPLES))
     x = samples_int16.astype(np.float64) / 32768.0
     x = resample_poly(x, PLAY_FS // CORPUS_FS, 1).astype(np.float32)
+    if x.size != SLOT_SAMPLES_48K:
+        raise SlotLengthError("rendered slot is %d samples at %d Hz, not %d" % (x.size, PLAY_FS, SLOT_SAMPLES_48K))
     peak = float(np.max(np.abs(x))) if x.size else 0.0
     if peak <= 0.0:
         return x, 0.0, 0.0
@@ -163,6 +173,19 @@ def build(corpus: str, out_path: str) -> dict:
     with open(out_path, "w", encoding="utf8", newline="\n") as fh:
         json.dump(doc, fh, indent=1)
     return doc
+
+
+def check_lengths(corpus: str, items: list) -> list:
+    """Header-only check, before any sound: every WAV of the tier is 12 kHz mono 16-bit and exactly CYCLE_SAMPLES long. -> problems."""
+    problems = []
+    for it in items:
+        try:
+            with wave.open(wav_path(corpus, it["run"], it["stamp"]), "rb") as wf:
+                if (wf.getframerate(), wf.getnchannels(), wf.getsampwidth(), wf.getnframes()) != (CORPUS_FS, 1, 2, CYCLE_SAMPLES):
+                    problems.append("format or length of " + it["id"])
+        except (OSError, wave.Error):
+            problems.append("unreadable " + it["id"])
+    return problems
 
 
 def tier_items(wavlist: dict, tier: str) -> list:

@@ -77,5 +77,26 @@ def test_render_is_48k_float32_peak_normalised():
 
 
 def test_silent_wav_gets_no_gain_not_a_division_by_zero():
-    x, gain, peak = d.render_48k(np.zeros(1000, dtype=np.int16))
+    x, gain, peak = d.render_48k(np.zeros(d.CYCLE_SAMPLES, dtype=np.int16))
     assert gain == 0.0 and peak == 0.0 and not np.any(x)
+
+
+def test_a_slot_of_any_other_length_stops_and_is_never_padded():
+    import pytest
+    for n in (d.CYCLE_SAMPLES - 1, d.CYCLE_SAMPLES + 1, 0, d.CYCLE_SAMPLES // 2):
+        with pytest.raises(d.SlotLengthError):
+            d.render_48k(np.zeros(n, dtype=np.int16))
+    x, _, _ = d.render_48k(np.ones(d.CYCLE_SAMPLES, dtype=np.int16))
+    assert x.size == d.SLOT_SAMPLES_48K == 720_000
+
+
+def test_check_lengths_finds_a_short_or_wrong_format_wav(tmp_path):
+    import wave
+    def make(name, n, fs=12000):
+        (tmp_path / "wsjt-x" / "r").mkdir(parents=True, exist_ok=True)
+        with wave.open(str(tmp_path / "wsjt-x" / "r" / (name + ".wav")), "wb") as wf:
+            wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(fs); wf.writeframes(np.zeros(n, dtype=np.int16).tobytes())
+    make("a", d.CYCLE_SAMPLES); make("b", d.CYCLE_SAMPLES - 5); make("c", d.CYCLE_SAMPLES, fs=11025)
+    items = [{"id": k, "run": "r", "stamp": k} for k in "abcz"]
+    probs = d.check_lengths(str(tmp_path), items)
+    assert sorted(p.split()[-1] for p in probs) == ["b", "c", "z"] and len(probs) == 3

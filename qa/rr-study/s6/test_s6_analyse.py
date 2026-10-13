@@ -58,6 +58,7 @@ def make_run(tmp, n_wavs=12, stray=False, drop_play=False, abandon_wav=None, see
     (scratch / "wsjt-s6.txt").write_text("".join(wsjt), encoding="utf8")
     (scratch / "owsfz-s6.txt").write_text("".join(ows), encoding="utf8")
     (tmp / "daemon.log").write_text("".join(dlog), encoding="utf8")
+    (run / "s6" / "s6_tz.json").write_text(json.dumps({"gmtoff_s": TZ_H * 3600, "zone": "CEST", "isdst": 1}), encoding="utf8")
     return run, scratch, tmp / "daemon.log"
 
 
@@ -74,7 +75,7 @@ def test_valid_run_numbers_and_sensitivity(tmp_path):
     assert abs(r["hashed_per_play"]["wsjtx"] - 1.0) < 1e-9 and r["hashed_per_play"]["owsfz"] == 0
     # the daemon log was attributed (offset recovered) and exactly the abandoned WAV's 3 plays are flagged
     ab = r["abandonment"]
-    assert ab["daemon_log_attributed"] and ab["tz_offset_h_inferred"] == TZ_H and ab["plays_abandoned"] == 3
+    assert ab["daemon_log_attributed"] and ab["tz_offset_h_system"] == TZ_H and ab["tz_offset_h_inferred"] == TZ_H and ab["plays_abandoned"] == 3
     assert r["no_abandon_wavs"] == {"kept": 11, "of": 12} and r["no_abandon"]["headline"]["wavs"] == 11
     assert r["order_effect"]["wsjtx"]["n"] == 36 and len(r["trial_effect"]["owsfz"]["mean_by_trial"]) == 3
     assert r["figure"] == "s6_figure.png" and (run / "s6" / "s6_figure.png").stat().st_size > 10_000
@@ -123,3 +124,26 @@ def test_split_moves_s6_lines_out_of_the_copies(tmp_path):
     r = SP.split_logs(str(run), str(w), str(o), str(out))
     assert r["wsjtx"]["kept"] == 1 and r["owsfz"]["kept"] == 1 and r["wsjtx"]["moved"] > 100
     assert w.read_text(encoding="utf8") == pre and "QOLD" not in (out / "wsjt-s6.txt").read_text(encoding="utf8")
+
+
+def test_a_system_zone_that_disagrees_with_the_inference_gives_unknown(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    (run / "s6" / "s6_tz.json").write_text(json.dumps({"gmtoff_s": 3 * 3600, "zone": "X"}), encoding="utf8")     # the log was written at +2 h
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    ab = r["abandonment"]
+    assert not ab["daemon_log_attributed"] and ab["plays_abandoned"] is None and "no_abandon" not in r
+    assert "UNKNOWN" in ab["summary"] and ab["tz_offset_h_system"] == 3 and ab["tz_offset_h_inferred"] == TZ_H
+
+
+def test_no_recorded_zone_gives_unknown_even_if_the_log_is_clean(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    os.remove(run / "s6" / "s6_tz.json")
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert not r["abandonment"]["daemon_log_attributed"] and "UNKNOWN" in r["abandonment"]["summary"]
+
+
+def test_a_half_hour_zone_cannot_be_cross_checked_so_it_is_unknown(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    (run / "s6" / "s6_tz.json").write_text(json.dumps({"gmtoff_s": 5 * 3600 + 1800, "zone": "IST"}), encoding="utf8")
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert not r["abandonment"]["daemon_log_attributed"]

@@ -150,6 +150,9 @@ def main() -> None:
         validity["S6-V1"] = {"result": "SKIPPED", "problems": ["--skip-verify"]}
     else:
         ok, problems = D.verify(a.corpus, a.wavlist, a.tier)
+        if ok:
+            len_problems = D.check_lengths(a.corpus, items)          # amendment 2 (a): every slot exactly 180,000 samples at 12 kHz
+            ok, problems = (not len_problems), len_problems
         validity["S6-V1"] = {"result": "PASS" if ok else "FAIL", "problems": problems[:10]}
         if not ok:
             print("S6-V1 FAIL: %d problems; S6 stops (S1-S8 stand)" % len(problems), flush=True)
@@ -158,6 +161,10 @@ def main() -> None:
     print("S6-V1 %s; tier %s: %d WAVs x %d trials = %d plays" % (validity["S6-V1"]["result"], a.tier, len(items), D.K_TRIALS, len(items) * D.K_TRIALS), flush=True)
 
     pins_start = pins(a)
+    # amendment 2 (b): the daemon log is stamped in the system's LOCAL time; the zone is taken from the system here, at S6 start, not inferred
+    lt = time.localtime()
+    with open(os.path.join(out, "s6_tz.json"), "w", encoding="utf8", newline="\n") as f0:
+        json.dump({"gmtoff_s": lt.tm_gmtoff, "zone": lt.tm_zone, "isdst": lt.tm_isdst, "recorded_utc": iso(time.time())}, f0)
 
     sd = dev = None
     if not a.dry_run:
@@ -236,7 +243,13 @@ def main() -> None:
         if a.dry_run:
             return None
         import numpy as np
-        return np.concatenate([D.render_48k(D.read_wav_int16(D.wav_path(a.corpus, it["run"], it["stamp"])))[0] for (_n, _t, _o, it) in batch])
+        try:
+            return np.concatenate([D.render_48k(D.read_wav_int16(D.wav_path(a.corpus, it["run"], it["stamp"])))[0] for (_n, _t, _o, it) in batch])
+        except D.SlotLengthError as e:                                # cannot happen after check_lengths; a backstop, never padded
+            validity["S6-V1"] = {"result": "FAIL", "problems": [str(e)]}
+            save_validity(EXIT_V1, "slot length")
+            print("S6-V1 FAIL at render: %s; S6 stops (S1-S8 stand)" % e, flush=True)
+            sys.exit(EXIT_V1)
 
     batches = [sched[i:i + BATCH_PLAYS] for i in range(0, len(sched), BATCH_PLAYS)]
     first_b = next_boundary(now() + 20)

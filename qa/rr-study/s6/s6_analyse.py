@@ -88,11 +88,13 @@ def read_pass_lines(path: str) -> list:
     return out
 
 
-def attribute_pass_lines(lines: list, play_slots: list) -> dict:
+def attribute_pass_lines(lines: list, play_slots: list, tz_offset_s: int | None = None) -> dict:
     """Pass-log lines carry a local time of day only. A residual pass starts after the slot it decodes has ended, so a line stamped T that took
     `elapsed` ms belongs to the slot  floor((T - offset - elapsed) / 15) * 15 - 15 (a pass-0 time before it is a few seconds and never a slot).
-    The local-to-UTC offset (whole hours) is the one that attributes the most lines to the plays' slots; trusted only above MIN_ATTRIBUTED_SHARE.
-    -> {"offset_h", "attributed_plays", "by_slot": {slot_stamp: line}}"""
+    The local-to-UTC offset is the one the SYSTEM reported at S6 start (`tz_offset_s`, from s6_tz.json); the offset that attributes the most lines
+    (whole hours) is computed only as a CROSS-CHECK. Trusted only if (1) the system offset attributes at least MIN_ATTRIBUTED_SHARE of the plays and
+    (2) the inferred whole-hour offset equals it; otherwise the abandonment field reads UNKNOWN (amendment 2 (b)).
+    -> {"offset_h", "tz_offset_s", "inferred_offset_h", "attributed_plays", "by_slot": {slot_stamp: line}, "trusted", "reason"}"""
     slot_sod = {}
     for st in play_slots:
         d = datetime.strptime(st, "%y%m%d_%H%M%S")
@@ -100,19 +102,33 @@ def attribute_pass_lines(lines: list, play_slots: list) -> dict:
     sod_to_slot = defaultdict(list)
     for st, sod in slot_sod.items():
         sod_to_slot[sod].append(st)
-    best = (-1, None, {})
-    for off in range(-14, 15):
+    def attribute(off_s: int) -> dict:
         got = {}
         for ln in lines:
-            utc_sod = (ln["sod"] - 3600 * off) % 86400
+            utc_sod = (ln["sod"] - off_s) % 86400
             start = utc_sod - ln["elapsed_ms"] / 1000.0
             slot_sod_c = int(math.floor(start / 15.0) * 15 - 15) % 86400
             for st in sod_to_slot.get(slot_sod_c, []):
                 got.setdefault(st, ln)
+        return got
+
+    best = (-1, None, {})
+    for off in range(-14, 15):                                     # the cross-check
+        got = attribute(3600 * off)
         if len(got) > best[0]:
             best = (len(got), off, got)
-    n, off, got = best
-    return {"offset_h": off, "attributed_plays": n, "by_slot": got, "trusted": bool(play_slots) and n >= MIN_ATTRIBUTED_SHARE * len(play_slots)}
+    inferred = best[1]
+    if tz_offset_s is None:
+        return {"offset_h": None, "tz_offset_s": None, "inferred_offset_h": inferred, "attributed_plays": 0, "by_slot": {}, "trusted": False,
+                "reason": "no system time zone recorded at S6 start (s6_tz.json missing)"}
+    got = attribute(tz_offset_s)
+    n = len(got)
+    enough = bool(play_slots) and n >= MIN_ATTRIBUTED_SHARE * len(play_slots)
+    agrees = tz_offset_s % 3600 == 0 and tz_offset_s // 3600 == inferred
+    reason = "" if (enough and agrees) else ("the system offset attributes only %d of %d plays" % (n, len(play_slots)) if not enough else
+                                              "the system offset (%+d s) and the inferred offset (%+d h) disagree" % (tz_offset_s, inferred))
+    return {"offset_h": tz_offset_s / 3600.0, "tz_offset_s": tz_offset_s, "inferred_offset_h": inferred, "attributed_plays": n, "by_slot": got,
+            "trusted": enough and agrees, "reason": reason}
 
 
 # ------------------------------------------------------------------ validity rows
@@ -249,14 +265,17 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     res = {"tier": tier, "status": status, "validity": v, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
            "cpu_chain_label": cpu_chain_label, "window": window, "pins": pins}
     if ok:
-        pl = attribute_pass_lines(read_pass_lines(daemon_log), [p["slot_stamp"] for p in plays]) if daemon_log else {"trusted": False, "by_slot": {}, "attributed_plays": 0, "offset_h": None}
+        tzp = os.path.join(s6, "s6_tz.json")
+        tz_s = json.load(open(tzp, encoding="utf8"))["gmtoff_s"] if os.path.isfile(tzp) else None
+        pl = (attribute_pass_lines(read_pass_lines(daemon_log), [p["slot_stamp"] for p in plays], tz_s) if daemon_log
+              else {"trusted": False, "by_slot": {}, "attributed_plays": 0, "offset_h": None, "inferred_offset_h": None, "reason": "no daemon log"})
         ab = {s: ln["abandoned"] for s, ln in pl["by_slot"].items()} if pl["trusted"] else {}
         n_ab = sum(1 for x in ab.values() if x)
         res["abandonment"] = {"daemon_log_attributed": pl["trusted"], "plays_with_pass_line": pl["attributed_plays"], "plays_abandoned": n_ab if pl["trusted"] else None,
-                              "tz_offset_h_inferred": pl["offset_h"],
+                              "tz_offset_h_system": pl["offset_h"], "tz_offset_h_inferred": pl.get("inferred_offset_h"), "not_trusted_because": pl.get("reason", ""),
                               "elapsed_ms_median": float(np.median([ln["elapsed_ms"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None,
                               "fitted_signals_median": float(np.median([ln["fitted"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None}
-        res["abandonment"]["summary"] = ("%d of %d plays abandoned" % (n_ab, len(plays))) if pl["trusted"] else "NOT ATTRIBUTABLE (no daemon log, or the log could not be matched to the plays): the abandonment field is UNKNOWN and no sensitivity is given"
+        res["abandonment"]["summary"] = ("%d of %d plays abandoned" % (n_ab, len(plays))) if pl["trusted"] else "UNKNOWN (%s): no sensitivity is given" % (pl.get("reason") or "the log could not be matched to the plays")
         obs = build_obs(plays, wsjt, owsfz, ab)
         tallies_by_wav = {w: S.wav_tally(o["trials"]) for w, o in obs.items()}
         tall = [tallies_by_wav[w] for w in sorted(tallies_by_wav)]
