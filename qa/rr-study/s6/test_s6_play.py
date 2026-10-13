@@ -64,6 +64,8 @@ def test_dry_run_writes_a_consistent_play_log(tmp_path):
     rows = [json.loads(x) for x in open(run / "s6" / "s6_playlog.jsonl", encoding="utf8")]
     plays = [x for x in rows if x["kind"] == "play"]
     assert len(plays) == 72 and sum(1 for x in rows if x["kind"] == "warmup") == 1
+    plans = [x for x in rows if x["kind"] == "batch_plan"]
+    assert [p["slots"] for p in plans] == [20, 20, 20, 12] and plans[0]["first_slot"] == plays[0]["slot_stamp"]
     stamps = [x["slot_stamp"] for x in plays]
     assert len(set(stamps)) == 72                                   # one play per slot
     from datetime import datetime
