@@ -57,7 +57,7 @@ def test_dry_run_writes_a_consistent_play_log(tmp_path):
     run = tmp_path / "run"
     cmd = [sys.executable, os.path.join(HERE, "s6_play.py"), "--run-dir", str(run), "--tier", "quick", "--corpus", str(tmp_path),
            "--wsjt-all-txt", str(tmp_path / "w.txt"), "--owsfz-all-txt", str(tmp_path / "o.txt"), "--dry-run", "--skip-verify"]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)   # no inherited stdin: a closed one raises WinError 6
     assert r.returncode == P.EXIT_V5, r.stdout + r.stderr          # no --ows-lib => "NOT PINNED" => the V5 exit, everything else done
     rows = [json.loads(x) for x in open(run / "s6" / "s6_playlog.jsonl", encoding="utf8")]
     plays = [x for x in rows if x["kind"] == "play"]
