@@ -111,8 +111,8 @@ def find_steps(windows: list) -> list:
                 if abs(d) > STEP_MIN_S:
                     at_boundary = (c["j"] == 0 and prev["slot"] != w["slot"])
                     kind = "window_boundary_realign" if (at_boundary and abs(d + WINDOW_BOUNDARY_REALIGN_S) < 0.06) else ("window_boundary" if at_boundary else "inside_window")
-                    steps.append({"slot": w["slot"], "chunk": c["j"], "step_s": d, "kind": kind, "e_before_s": prev["e_s"], "e_after_s": c["e_s"]})
-            prev = {"e_s": c["e_s"], "slot": w["slot"]}
+                    steps.append({"slot": w["slot"], "chunk": c["j"], "step_s": d, "kind": kind, "e_before_s": prev["e_s"], "e_after_s": c["e_s"], "peak_before": prev["peak"], "peak_after": c["peak"]})
+            prev = {"e_s": c["e_s"], "slot": w["slot"], "peak": c["peak"]}
     return steps
 
 
@@ -161,7 +161,8 @@ def main() -> None:
            "steps": steps,
            "per_window": [{"slot": w["slot"], "closed_lag_s": w["closed_lag_s"], "decodes": w["decode_count"], "matched_chunks": w["matched_chunks"],
                            "e_first_s": next((c["e_s"] for c in w["chunks"] if c["e_s"] is not None), None), "e_last_s": next((c["e_s"] for c in reversed(w["chunks"]) if c["e_s"] is not None), None),
-                           "median_peak": float(np.median([c["peak"] for c in w["chunks"]]))} for w in windows]}
+                           "median_peak": float(np.median([c["peak"] for c in w["chunks"]])),
+                           "chunks_e_s": [c["e_s"] for c in w["chunks"]], "chunks_peak": [c["peak"] for c in w["chunks"]]} for w in windows]}
     json.dump(res, open(a.out, "w"), indent=1)
     print("windows", len(windows), "steps", len(steps), "healthy e", res["healthy_reference"])
     for s in steps:
