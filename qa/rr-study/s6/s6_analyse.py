@@ -36,6 +36,9 @@ import s6_stats as S  # noqa: E402
 
 PASS_LINE = re.compile(r"^\[(\d\d):(\d\d):(\d\d) \w+\] Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(True|False) "
                        r"containedException=(True|False) fittedSignals=(\d+)")
+ONSET_BAR_S = (0.0, 0.2)          # S6-V2(d) (Architect 2026-10-13): every read play's median DT shift (replay - live) lies in [0.0, +0.2] s. Source (HK-038): the S6 dry run
+                                  # (66 plays, min +0.1, max +0.2) + the 70 min keep-up run (+0.1), same chain on sol, DT resolution 0.1 s; re-check against the first standard run
+ONSET_EPS = 1e-9
 MIN_ATTRIBUTED_SHARE = 0.9       # a DESIGN number (Architect 2026-10-13: stays 90 %): the daemon-log attribution is trusted only if this share of the residual-pass LINES in the window maps to a play slot
 
 
@@ -155,6 +158,20 @@ def v2_rows(plays: list, warm_slots: list, wsjt: dict, owsfz: dict) -> dict:
             "slots_with_two_plays": len(dup), "stray_lines": stray}
 
 
+def onset_check(onset: dict | None, checkable: bool) -> dict:
+    """S6-V2(d): for every play with >= MIN_ROWS matched rows the per-play median DT shift lies in ONSET_BAR_S. Plays with fewer rows are counted, not read.
+    FAIL if any read play is outside, or if the check can be made but NO play could be read. 'NOT CHECKED' only when no corpus was given (tests, desk runs)."""
+    if not checkable:
+        return {"result": "NOT CHECKED", "reason": "no corpus given: the live ALL.TXT of the source runs was not available", "bar_s": list(ONSET_BAR_S)}
+    if not onset or "error" in onset or not onset.get("plays_with_median"):
+        return {"result": "FAIL", "reason": "no play could be read (%s)" % (onset.get("error") if onset and "error" in onset else "fewer than %d matched rows in every play" % (onset or {}).get("min_rows_per_play", 3)),
+                "bar_s": list(ONSET_BAR_S)}
+    pm = onset["per_play_median_shift_s"]
+    ok = pm["min"] >= ONSET_BAR_S[0] - ONSET_EPS and pm["max"] <= ONSET_BAR_S[1] + ONSET_EPS
+    return {"result": "PASS" if ok else "FAIL", "plays_read": onset["plays_with_median"], "plays_not_read": onset["plays_without_enough_rows"], "min_s": pm["min"], "max_s": pm["max"],
+            "bar_s": list(ONSET_BAR_S), "min_rows_per_play": onset["min_rows_per_play"]}
+
+
 def decode_summary(tallies_all: list) -> dict:
     return S.pool(tallies_all)
 
@@ -178,7 +195,11 @@ def fmt_block(res: dict, label: str) -> str:
     A("**%s.** Tier **%s**: %d WAVs x %d trials = %d plays on the 15 s grid; source = the WSJT-X-side WAV of the frozen reference-set corpus; peak-normalised to 0.9 as every scenario. "
       "No truth is assumed: the figures measure repeatability and reproducibility, not recall. Informational on its first battery." % (label, res["tier"], res["wavs"], S.K, res["plays"]))
     A("")
-    A("**Validity** (a FAIL withholds this block only, the rest of the battery stands): " + "; ".join("%s %s" % (k, v[k]["result"]) for k in ("S6-V1", "S6-V2", "S6-V3", "S6-V4", "S6-V5")))
+    od = v["S6-V2"].get("onset", {})
+    A("**Validity** (a FAIL withholds this block only, the rest of the battery stands): " + "; ".join("%s %s" % (k, v[k]["result"]) for k in ("S6-V1", "S6-V2", "S6-V3", "S6-V4", "S6-V5"))
+      + ". **S6-V2(d) onset: %s**%s" % (od.get("result", "?"), (" (per-play median DT shift of %s plays read, min %+.1f, max %+.1f s, bar [%+.1f, %+.1f] s; %s plays not read)" % (
+          od.get("plays_read"), od.get("min_s"), od.get("max_s"), od["bar_s"][0], od["bar_s"][1], od.get("plays_not_read")) if od.get("result") in ("PASS", "FAIL") and "plays_read" in od else
+          (" (%s)" % od.get("reason") if od.get("reason") else ""))))
     A("")
     if res["status"] != "VALID":
         A("**S6 block WITHHELD: %s.** The rows above say which check failed; the figures below are not to be read." % res["status"])
@@ -314,6 +335,17 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     expected = validity["plays_planned"]
     v = {"S6-V1": validity.get("S6-V1", {"result": "MISSING"}), "S6-V3": validity.get("S6-V3", {"result": "MISSING"}), "S6-V5": validity.get("S6-V5", {"result": "MISSING"})}
     v["S6-V2"] = v2_rows(plays, warm_slots, wsjt, owsfz)
+    onset = None
+    can_check_onset = bool(corpus and wavlist_path and os.path.isfile(wavlist_path) and slices_present)
+    if can_check_onset:
+        try:
+            import s6_onset
+            onset = s6_onset.onset_row(plays, os.path.join(scratch, "wsjt-s6.txt"), corpus, json.load(open(wavlist_path, encoding="utf8")))
+        except Exception as exc:                                    # never costs the other numbers, but the check then FAILS (it could not be made)
+            onset = {"error": type(exc).__name__}
+    v["S6-V2"]["onset"] = onset_check(onset, can_check_onset)
+    if v["S6-V2"]["onset"]["result"] == "FAIL":
+        v["S6-V2"]["result"] = "FAIL"
     # a block built on NO log lines is not a result: the split step may have failed (the first dry run's KeyError left the slices missing and the block read VALID)
     if not slices_present or sum(len(r) for r in wsjt.values()) + sum(len(r) for r in owsfz.values()) == 0:
         v["S6-V2"]["result"] = "FAIL"
@@ -322,7 +354,7 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
                   **({"note": "the player did not finish (no s6_validity.json)"} if validity.get("player_did_not_finish") else {})}
     ok = all(v[k]["result"] == "PASS" for k in v)
     status = "VALID" if ok else "VOID: " + ", ".join("%s %s" % (k, v[k]["result"]) for k in v if v[k]["result"] != "PASS")
-    res = {"tier": tier, "status": status, "validity": v, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
+    res = {"tier": tier, "status": status, "validity": v, "onset": onset, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
            "cpu_chain_label": cpu_chain_label, "window": window, "pins": pins}
     if ok:
         tzp = os.path.join(s6, "s6_tz.json")
@@ -361,13 +393,7 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
         except Exception as exc:                                            # a figure problem never costs the numbers
             res["figure"] = None
             res["figure_error"] = type(exc).__name__
-        res["onset"] = None
-        if corpus and wavlist_path and os.path.isfile(wavlist_path) and slices_present:
-            try:                                                    # the onset row (Architect 2026-10-13, 1a): WSJT-X's DT replay minus live, per play; descriptive
-                import s6_onset
-                res["onset"] = s6_onset.onset_row(plays, os.path.join(scratch, "wsjt-s6.txt"), corpus, json.load(open(wavlist_path, encoding="utf8")))
-            except Exception as exc:                                # never costs the other numbers
-                res["onset"] = {"error": type(exc).__name__}
+        res["onset"] = onset
         res["order_effect"], res["trial_effect"] = S.order_effect(obs), S.trial_effect(obs, n_boot)
         res["sun_counts"] = dict(Counter(o["sun"] for o in obs.values()))
         if tier in ("standard", "extended"):

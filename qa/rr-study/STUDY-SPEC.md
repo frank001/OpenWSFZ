@@ -276,10 +276,16 @@ signal whose two reported frequencies differ by a few Hz). **Hashed rows** (`<..
 **Mandatory field:** the per-play OpenWSFZ abandonment (`deadlineAbandoned`) from the daemon log, with the report given in full AND over the
 WAVs with no abandoned play. The battery runs the product as it is, subtraction deadline ON, no budget override.
 
-**Validity rows** (a FAIL withholds the S6 block only; S1–S8 stand): S6-V1 corpus and list verified; S6-V2 every play starts within 0.25 s of
-its nominal offset (0.0 s, the boundary; a design number, to be re-set by the Architect from the dry run before any real row), 0 decode lines stamped in a
-slot with no play, 0 slots with two plays; S6-V3 warm-up decoded by both; S6-V4 plays completed = tier × 3; S6-V5 the OpenWSFZ library (and the
-WSJT-X executable, when its path is known) hash equal at start and end.
+**Validity rows** (a FAIL withholds the S6 block only; S1–S8 stand): S6-V1 corpus and list verified; S6-V2 (a) "player call time": every play starts
+within 0.25 s of its nominal offset (0.0 s, the boundary; it catches scheduler slips and cannot see the sound's onset, HK-026; the 0.25 s is a design number),
+(b) 0 decode lines stamped in a slot with no play, (c) 0 slots with two plays, and **(d) onset (Architect, 2026-10-13): for every play with at least 3
+matched rows, the per-play median DT shift (WSJT-X's DT in the replay minus its DT in the live log, rows matched by text) lies in [0.0, +0.2] s; plays
+with fewer rows are counted and not read; FAIL if any read play is outside, or if no play can be read when the check can be made (it guards S6's rows
+only, HK-021 (ab)). Source of the bar (HK-038): the S6 dry run on `sol` (66 plays, min +0.1, max +0.2) and the 70 min keep-up run (+0.1), at a DT
+resolution of 0.1 s; to be re-checked against the first standard run before it is frozen; a series on another PC re-derives it.** S6-V3 warm-up decoded
+by both; S6-V4 plays completed = tier × 3; S6-V5 the OpenWSFZ library (and the WSJT-X executable, when its path is known) hash equal at start and end.
+Abandonment is attributed from the daemon's residual-pass lines (a design floor of 90 % of the lines in the S6 window mapping to a play slot; no line
+means no pass ran; dry run: 26 of 26).
 
 **Series and chain.** Linux test PC (`sol`) first: WSJT-X 2.7.0 (Xvfb, profile `rr`), the `rr_in` dsnoop device, the corrected ALSA chain
 (`samplerate_best`), label "non-default chain". The Windows station PC is a separate series later. The block is labelled "sol, FX-8350,

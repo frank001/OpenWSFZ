@@ -233,3 +233,69 @@ def test_lines_that_map_to_no_play_slot_push_the_share_below_the_floor(tmp_path)
     dl.write_text(dl.read_text(encoding="utf8") + "\n".join(extra) + "\n", encoding="utf8")   # many lines that fall in no play slot but inside the window
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
     assert not r["abandonment"]["daemon_log_attributed"] and r["abandonment"]["pass_line_share"] < A.MIN_ATTRIBUTED_SHARE
+
+
+def line_dt(stamp, snr, dt, freq, text):
+    return "%s     14.074 Rx FT8 %5d %4.1f %4d %s\n" % (stamp, snr, dt, freq, text)
+
+
+def with_corpus(tmp_path, run, shift, missing_live=False):
+    """A synthetic corpus whose live ALL.TXT has the same rows as the replay slice, DT lower by `shift` (so DT(replay) - DT(live) = shift)."""
+    from collections import defaultdict
+    wl_items, live = [], defaultdict(list)
+    rows = [json.loads(x) for x in (run / "s6" / "s6_playlog.jsonl").read_text(encoding="utf8").splitlines()]
+    plays = [r for r in rows if r["kind"] == "play"]
+    texts = {}
+    for ln in (tmp_path / "scratch" / "wsjt-s6.txt").read_text(encoding="utf8").splitlines():
+        p = ln.split(None, 7)
+        texts.setdefault(p[0], []).append((p[4], p[6], " ".join(p[7:])))
+    seen = set()
+    for p in plays:
+        if p["wav_id"] in seen:
+            continue
+        seen.add(p["wav_id"])
+        stamp = "261001_10%02d%02d" % ((len(seen) * 15) // 60, (len(seen) * 15) % 60)        # on a 15 s slot boundary (the reader snaps off-grid stamps)
+        wl_items.append({"id": p["wav_id"], "run": "runA", "stamp": stamp})
+        for snr, freq, text in texts[p["slot_stamp"]]:
+            if "<" not in text:
+                live[stamp].append(line_dt(stamp, int(snr), round(0.1 - shift, 1), int(freq), text))
+    d = tmp_path / "corpus" / "wsjt-x" / "runA"
+    d.mkdir(parents=True, exist_ok=True)
+    if not missing_live:
+        (d / "ALL.TXT").write_text("".join("".join(v) for v in live.values()), encoding="utf8")
+    wl = tmp_path / "wl.json"
+    wl.write_text(json.dumps({"items": wl_items}), encoding="utf8")
+    return str(tmp_path / "corpus"), str(wl)
+
+
+def test_v2d_passes_when_every_read_play_shift_is_inside_the_bar(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    corpus, wl = with_corpus(tmp_path, run, shift=0.1)
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50, corpus=corpus, wavlist_path=wl)
+    od = r["validity"]["S6-V2"]["onset"]
+    assert od["result"] == "PASS" and od["plays_read"] == 36 and od["min_s"] == od["max_s"] == 0.1 and od["bar_s"] == [0.0, 0.2]
+    assert r["status"] == "VALID" and "S6-V2(d) onset: PASS" in open(run / "s6" / "s6_section5.md", encoding="utf8").read()
+
+
+def test_v2d_fails_and_voids_the_block_when_a_read_play_is_outside_the_bar(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    corpus, wl = with_corpus(tmp_path, run, shift=0.4)                       # the replay chain added 0.4 s: outside [0.0, +0.2]
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50, corpus=corpus, wavlist_path=wl)
+    assert r["validity"]["S6-V2"]["onset"]["result"] == "FAIL" and r["validity"]["S6-V2"]["result"] == "FAIL" and r["status"].startswith("VOID")
+    corpus2, wl2 = with_corpus(tmp_path, run, shift=-0.1)                     # overwrites the same synthetic corpus
+    r2 = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50, corpus=corpus2, wavlist_path=wl2)
+    assert r2["validity"]["S6-V2"]["onset"]["result"] == "FAIL" and r2["validity"]["S6-V2"]["onset"]["min_s"] == -0.1     # early is outside as well
+
+
+def test_v2d_fails_when_the_check_can_be_made_but_no_play_can_be_read(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    corpus, wl = with_corpus(tmp_path, run, shift=0.1, missing_live=True)
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50, corpus=corpus, wavlist_path=wl)
+    assert r["validity"]["S6-V2"]["onset"]["result"] == "FAIL" and "no play could be read" in r["validity"]["S6-V2"]["onset"]["reason"]
+
+
+def test_v2d_is_not_checked_without_a_corpus_and_says_so(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert r["validity"]["S6-V2"]["onset"]["result"] == "NOT CHECKED" and r["status"] == "VALID"
+    assert "S6-V2(d) onset: NOT CHECKED" in open(run / "s6" / "s6_section5.md", encoding="utf8").read()
