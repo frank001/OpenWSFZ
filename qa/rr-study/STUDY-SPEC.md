@@ -233,6 +233,60 @@ See RUNBOOK §8. A stratified-sub-sample variant of the corpus can be drawn from
 (e.g. an endurance-run capture folder, not only the original p10 bench corpus) via
 `select_endurance_sample.py` — see R&R-008 (§16) for a worked example.
 
+### 6.1a S6 as a routine scenario of the battery (2026-10-13; spec `2026-10-13-1625-architect-to-qa-spec-s6-in-battery.md` + amendment 1)
+
+**Status.** S6 is now part of the default battery (run after S3c, the last playback) wherever the frozen corpus exists, and runs alone
+with `--scenarios S6`. The battery is called "S1–S8" in a report only when S6 ran; otherwise the report lists the scenarios that ran.
+Informational on its first battery (HK-038: no S6 figure exists yet for this corpus, chain and build, so no bar is stated; the Architect
+proposes bars from the first standard-tier row and the Captain approves them before they bind). The 2026-06 and 2026-07 figures above
+come from other corpora, another platform and older builds and are not a baseline for it.
+
+**Source.** The WSJT-X-side WAV of each cycle of the frozen reference-set corpus (`artefacts/rr-s6-refset-corpus`, SHA-256 manifest,
+verified at the start of every S6 run). Cycles with a disqualifying scan class (clipping, error, format, hot, silent) are never drawn.
+
+**Tiers** (`--s6-tier`, default standard; K = 3 in all): quick 24 WAVs (72 plays, about 18 min), standard 60 (180 plays, about 45 min),
+extended 180 (540 plays, about 2 h 15 min). One frozen list, `s6/s6-wavlist.json` (seed 20261013, built once, never regenerated), band-
+stratified 17/20/40/80 m interleaved, a block giving a second cycle only after every block of its band gave one; each tier is a PREFIX of it
+(quick within standard within extended). It holds ids, SHA-256 and the playback gain, never message text. Never pool across tiers or series.
+
+**Playback.** One WAV per 15 s slot on consecutive slots, 12 kHz → 48 kHz, peak-normalised to 0.9 as every scenario; the next WAV is
+rendered while the current one plays. Both appraisers hear each playback at the same time. There is no per-cycle snapshot and no settle
+sleep: a play log (slot, WAV, trial, start offset) is written, and both `ALL.TXT` are parsed ONCE after the last play, every line attributed
+by its slot stamp. The warm-up is mechanical (a synthetic Q-prefix cycle that both `ALL.TXT` must show, 3 attempts).
+
+**Identity of a signal** is (message text, rank among same-text rows by frequency), not the 50 Hz bin of the 2026 runs (a bin edge splits a
+signal whose two reported frequencies differ by a few Hz). **Hashed rows** (`<...>`) are excluded from every figure and counted separately.
+
+**Outputs** (aggregates; every interval is a WAV-clustered bootstrap, 2,000 resamples, seed 20261013):
+
+1. Gage R&R ANOVA on SNR (AIAG crossed, with interaction; parts = signals BOTH appraisers decoded in all 3 trials, so the figures are
+   conditional on detection: repeatability is understated and ndc overstated; the candidate count is reported beside the part count), with
+   CIs for the %StudyVar of EV, AV, INT, RR and PV, and a six-panel figure.
+2. Within-appraiser consistency in two universes (own universe, and the legacy union universe for comparison with the 2026 rows);
+   the **positive-agreement share** (rows both decoded / rows either decoded, per trial) as the readable agreement figure; Cohen's κ on
+   the union universe over trials, reported with the caveat that its both-negative cell exists only through trial-to-trial flicker.
+3. Decodes per WAV per appraiser and their difference.  4. SNR delta over matched pairs.  5. Order effect (Spearman) and trial-index effect.
+6. Per band (standard and extended only; about 15 and 45 WAVs per band).
+
+**Mandatory field:** the per-play OpenWSFZ abandonment (`deadlineAbandoned`) from the daemon log, with the report given in full AND over the
+WAVs with no abandoned play. The battery runs the product as it is, subtraction deadline ON, no budget override.
+
+**Validity rows** (a FAIL withholds the S6 block only; S1–S8 stand): S6-V1 corpus and list verified; S6-V2 every play starts within 0.25 s of
+its nominal offset (−0.5 s; a design number, to be re-set by the Architect from the dry run before any real row), 0 decode lines stamped in a
+slot with no play, 0 slots with two plays; S6-V3 warm-up decoded by both; S6-V4 plays completed = tier × 3; S6-V5 the OpenWSFZ library (and the
+WSJT-X executable, when its path is known) hash equal at start and end.
+
+**Series and chain.** Linux test PC (`sol`) first: WSJT-X 2.7.0 (Xvfb, profile `rr`), the `rr_in` dsnoop device, the corrected ALSA chain
+(`samplerate_best`), label "non-default chain". The Windows station PC is a separate series later. The block is labelled "sol, FX-8350,
+deadline ON": OpenWSFZ's counts depend on this CPU and on WSJT-X decoding in real time on the same cores.
+
+**NFR-021 / HK-037.** S6 plays real off-air audio, so its log lines carry real callsigns. `s6/s6_split.py` moves every line stamped at or after
+the first S6 slot out of the run folder's `ALL.TXT` copies into `~/qa-scratch/s6-<run>/` (or `_qa-scratch\s6-<run>\`), outside git, deleted at
+job close; the S1–S8 matcher never sees them. Only aggregates are written into the run folder.
+
+**Files.** `qa/rr-study/s6/`: `s6_design.py` (list, verification, rendering), `s6_play.py`, `s6_split.py`, `s6_analyse.py`, `s6_stats.py`,
+`s6_figure.py`, `s6-wavlist.json`, tests `test_s6_*.py`. The one-off `harness/corpus_replay.py` is retained for reference and is no longer the route.
+
 ### 6.2 S7 rationale — compounding / co-channel overlap
 
 S4 stresses *band loading*: N signals spread evenly across 300–2700 Hz, so even at N=30 the
