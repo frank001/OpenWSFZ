@@ -20,6 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from harness.analyse import (
     _attribute_agreement,
     _collect_verdicts,
+    _derived_metrics,
+    _verdict_ndc,
     S4_DECODABLE_SNR_FLOOR_DB,
 )
 
@@ -138,3 +140,38 @@ def test_empty_s4_yields_nan_kappa_not_a_crash():
     # Restricted variant must also degrade gracefully, not crash
     assert "restricted" in result
     assert "snr_floor_db" in result["restricted"]
+
+
+# ---- ndc: "not computable", never FAIL, when there is no second appraiser or no GRR variance (2026-10-13, the Linux repeats) -------------
+
+def _anova(n_appraisers, var_grr, var_part=25.0):
+    return {"n_appraisers": n_appraisers, "var_total": var_grr + var_part, "var_grr": var_grr, "var_repeatability": var_grr,
+            "var_reproducibility": 0.0, "var_part": var_part}
+
+
+def test_ndc_is_a_number_with_two_appraisers_and_some_variance():
+    m = _derived_metrics(_anova(2, 1.0), 10.0)
+    assert m["ndc"] == 7 and m["ndc_reason"] == "" and m["n_appraisers"] == 2          # floor(1.41 * 5 / 1)
+    assert _verdict_ndc(m["ndc"]) == "PASS"
+
+
+def test_ndc_is_not_computable_with_one_appraiser():
+    m = _derived_metrics(_anova(1, 0.0), 10.0)
+    assert m["ndc"] is None and "one appraiser" in m["ndc_reason"] and m["n_appraisers"] == 1
+    assert _verdict_ndc(m["ndc"]) == "N/A"                                              # it used to print 1 and FAIL
+
+
+def test_ndc_is_not_computable_when_sigma_grr_is_exactly_zero_and_is_not_a_pass():
+    m = _derived_metrics(_anova(2, 0.0), 10.0)
+    assert m["ndc"] is None and "sigma_GRR = 0" in m["ndc_reason"]
+    assert _verdict_ndc(m["ndc"]) == "N/A" and _verdict_ndc(1) == "FAIL" and _verdict_ndc(3) == "MARGINAL"
+
+
+def test_collect_verdicts_reports_a_missing_ndc_as_na_with_a_note_and_does_not_fail_the_run():
+    res = {"S2": {"metrics": _derived_metrics(_anova(1, 0.0), 10.0)}}
+    rows, overall, fails, notes = _collect_verdicts(res, {}, {}, {})
+    ndc_row = [r for r in rows if r[0] == "ndc"][0]
+    assert ndc_row == ("ndc", "S2", "not computable", "N/A")
+    grr_row = [r for r in rows if r[0] == "%GR&R"][0]
+    assert "one appraiser" in grr_row[2] and grr_row[3] == "PASS"                      # the figure is labelled, not hidden
+    assert any("ndc (S2) is not computable" in n for n in notes) and not fails

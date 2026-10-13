@@ -272,7 +272,10 @@ def _verdict_grr(pct: float) -> str:
     return "FAIL"
 
 
-def _verdict_ndc(ndc: int) -> str:
+def _verdict_ndc(ndc: "int | None") -> str:
+    """ndc is None when it is NOT COMPUTABLE (one appraiser, or sigma_GRR = 0): 'N/A', never FAIL (2026-10-13, the Linux repeats)."""
+    if ndc is None:
+        return "N/A"
     if ndc >= NDC_PASS:
         return "PASS"
     if ndc >= NDC_FAIL:
@@ -676,7 +679,16 @@ def _derived_metrics(anova: dict, tol_half: float) -> dict:
         return 100.0 * math.sqrt(v) / sigma_total if sigma_total > 0 else 0.0
 
     pct_tol = (6.0 * sigma_grr / (2.0 * tol_half) * 100.0) if tol_half > 0 else float("nan")
-    ndc = max(1, math.floor(1.41 * sigma_part / sigma_grr)) if sigma_grr > 0 else 1
+    # ndc = 1.41 * sigma_part / sigma_grr is only defined with a second appraiser and a non-zero sigma_GRR. It used to print 1 (= FAIL) in both
+    # other cases: the three Linux repeats of 2026-10-11 had no WSJT-X data, reproducibility was 0, and the report said "ndc 1 FAIL" for
+    # a missing appraiser. Now it is None ("not computable") with the reason stated.
+    n_appr = int(anova.get("n_appraisers", 2))
+    if n_appr < 2:
+        ndc, ndc_reason = None, "only one appraiser has matched data, so reproducibility is undefined and ndc is not an appraiser R&R figure (%GR&R is repeatability only)"
+    elif sigma_grr <= 0:
+        ndc, ndc_reason = None, "sigma_GRR = 0 (no measurable repeatability or reproducibility variance), so ndc is unbounded, not 1; an exactly zero GRR is not read as a PASS (HK-026)"
+    else:
+        ndc, ndc_reason = max(1, math.floor(1.41 * sigma_part / sigma_grr)), ""
 
     return {
         "pct_contribution_repeat": pct_contribution(vrep),
@@ -689,6 +701,8 @@ def _derived_metrics(anova: dict, tol_half: float) -> dict:
         "pct_study_var_grr": pct_study_var(vgrr),
         "pct_tolerance": pct_tol,
         "ndc": ndc,
+        "ndc_reason": ndc_reason,
+        "n_appraisers": n_appr,
         "sigma_grr": sigma_grr,
         "sigma_part": sigma_part,
         "sigma_total": sigma_total,
@@ -2305,8 +2319,11 @@ def _collect_verdicts(
         ndc = res["metrics"]["ndc"]
         v_grr = _verdict_grr(pct_grr)
         v_ndc = _verdict_ndc(ndc)
-        verdict_rows.append(("%GR&R", scen_id, f"{pct_grr:.1f}%", v_grr))
-        verdict_rows.append(("ndc", scen_id, str(ndc), v_ndc))
+        one_appraiser = res["metrics"].get("n_appraisers", 2) < 2
+        verdict_rows.append(("%GR&R", scen_id, f"{pct_grr:.1f}%" + (" (repeatability only, one appraiser)" if one_appraiser else ""), v_grr))
+        verdict_rows.append(("ndc", scen_id, "not computable" if ndc is None else str(ndc), v_ndc))
+        if ndc is None:
+            notes.append(f"ndc ({scen_id}) is not computable: {res['metrics'].get('ndc_reason', '')}")
         if v_grr == "FAIL":
             fails.append(f"%GR&R ({scen_id}) = {pct_grr:.1f}% (threshold: < {THRESH_GRR_PASS}% Acceptable)")
         elif v_grr == "MARGINAL":
@@ -2602,7 +2619,7 @@ def _write_report(
             f"| %Contribution (GR&R) | {_fmt_num(metrics['pct_contribution_grr'])}% | {_verdict_grr(metrics['pct_contribution_grr'])} |",
             f"| %Tolerance (GR&R) | {_fmt_num(metrics['pct_tolerance'])}% | — |",
             f"| %Study Var (GR&R) | {_fmt_num(metrics['pct_study_var_grr'])}% | — |",
-            f"| ndc | {metrics['ndc']} | {_verdict_ndc(metrics['ndc'])} |",
+            f"| ndc | {'not computable' if metrics['ndc'] is None else metrics['ndc']} | {_verdict_ndc(metrics['ndc'])} |",
             "",
         ]
         # Embedded PNG
@@ -2951,7 +2968,8 @@ def main() -> None:
             "tol_half": tol_half,
             "s3_correction_applied": s3_correction_applied,
         }
-        print(f"  {scen_id}: %GR&R={metrics['pct_contribution_grr']:.1f}%  ndc={metrics['ndc']}")
+        print(f"  {scen_id}: %GR&R={metrics['pct_contribution_grr']:.1f}%  ndc={'not computable' if metrics['ndc'] is None else metrics['ndc']}"
+              + ("  [ONE APPRAISER: repeatability only]" if metrics.get("n_appraisers", 2) < 2 else ""))
         # Six-panel chart
         png = _plot_grr_panel(df, response, anova, metrics, scen_id, run_dir)
         print(f"    -> {png.name}")
