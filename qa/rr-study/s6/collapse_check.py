@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 LATE_S = 3.0
 SLOT_S = 15
 CYCLE = re.compile(r"^\[(\d\d):(\d\d):(\d\d) INF\] Cycle (\d\d):(\d\d):(\d\d): (\d+) decode\(s\) found, elapsed=(\d+) ms\.")
-CLAMP = re.compile(r"^\[(\d\d):(\d\d):(\d\d) WRN\] Cycle-grid realignment clamped: wanted (\d+) samples \(([\d.]+) s\), applied (\d+) \(")
+CLAMP = re.compile(r"^\[(\d\d):(\d\d):(\d\d) WRN\] Cycle-grid realignment clamped: wanted (-?\d+) samples \((-?[\d.]+) s\), applied (-?\d+) \(")
 PASS = re.compile(r"^\[(\d\d):(\d\d):(\d\d) INF\] Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(True|False) containedException=\w+ fittedSignals=(\d+)")
 DROPISH = re.compile(r"overflow|dropp|xrun|overrun|backlog|discard|underrun|DropOldest|stall", re.I)
 
@@ -103,7 +103,8 @@ def main() -> None:
     clamps = [c for c in d["clamps"] if c["t_sod"] >= lo]
     res = {"cycles_logged": len(cyc), "late_cycles": sum(1 for c in cyc if c["lag_s"] > LATE_S), "late_threshold_s": LATE_S,
            "lag_s_median_all": statistics.median(c["lag_s"] for c in cyc) if cyc else None,
-           "clamp_warnings": len(clamps), "wanted_s_series": [c["wanted_s"] for c in clamps],
+           "clamp_warnings": len(clamps), "clamp_warnings_positive": sum(1 for c in clamps if c["wanted_s"] > 0), "clamp_warnings_negative": sum(1 for c in clamps if c["wanted_s"] < 0),
+           "wanted_s_series": [c["wanted_s"] for c in clamps],
            "wanted_step_per_warning_s": [round(clamps[i + 1]["wanted_s"] - clamps[i]["wanted_s"], 3) for i in range(len(clamps) - 1)],
            "clamp_applied_samples_distinct": sorted({c["applied"] for c in clamps}),
            "residual_passes": len(d["passes"]), "residual_abandoned": sum(1 for p in d["passes"] if p["abandoned"]),
