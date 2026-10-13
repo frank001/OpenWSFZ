@@ -27,7 +27,7 @@ def make_run(tmp, n_wavs=12, stray=False, drop_play=False, abandon_wav=None, see
     scratch.mkdir()
     t0 = datetime(2026, 10, 13, 16, 0, 0)
     rows, wsjt, ows, dlog = [], [], [], []
-    rows.append({"kind": "warmup", "attempt": 1, "boundary_utc": "x", "slot_stamp": t0.strftime("%y%m%d_%H%M%S"), "offset_s": -0.5, "wsjtx_lines": 1, "owsfz_lines": 1})
+    rows.append({"kind": "warmup", "attempt": 1, "boundary_utc": "x", "slot_stamp": t0.strftime("%y%m%d_%H%M%S"), "offset_s": 0.0, "wsjtx_lines": 1, "owsfz_lines": 1})
     wsjt.append(line(t0.strftime("%y%m%d_%H%M%S"), 6, 1500, "CQ QWARM FN42"))
     ows.append(line(t0.strftime("%y%m%d_%H%M%S"), 6, 1500, "CQ QWARM FN42"))
     wavs = [{"id": "b%02d:s%02d" % (i, i), "band": ["17m", "20m", "40m", "80m"][i % 4], "sun": "day", "gain": 2.0} for i in range(n_wavs)]
@@ -38,7 +38,7 @@ def make_run(tmp, n_wavs=12, stray=False, drop_play=False, abandon_wav=None, see
         st = slot.strftime("%y%m%d_%H%M%S")
         if not (drop_play and n == 7):
             rows.append({"kind": "play", "play_index": n, "trial": trial, "order": order, "wav_id": item["id"], "band": item["band"], "sun": "day",
-                         "gain": 2.0, "boundary_utc": "x", "slot_stamp": st, "offset_s": -0.5, "slips_so_far": 0})
+                         "gain": 2.0, "boundary_utc": "x", "slot_stamp": st, "offset_s": 0.0, "slips_so_far": 0})
         for j, (text, snr, f) in enumerate(truth[item["id"]]):
             wsjt.append(line(st, round(snr), f, text))                                 # WSJT-X decodes all 5, steadily
             if rng.random() < 0.7:

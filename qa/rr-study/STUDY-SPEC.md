@@ -249,8 +249,13 @@ extended 180 (540 plays, about 2 h 15 min). One frozen list, `s6/s6-wavlist.json
 stratified 17/20/40/80 m interleaved, a block giving a second cycle only after every block of its band gave one; each tier is a PREFIX of it
 (quick within standard within extended). It holds ids, SHA-256 and the playback gain, never message text. Never pool across tiers or series.
 
-**Playback.** One WAV per 15 s slot on consecutive slots, 12 kHz → 48 kHz, peak-normalised to 0.9 as every scenario; the next WAV is
-rendered while the current one plays. Both appraisers hear each playback at the same time. There is no per-cycle snapshot and no settle
+**Playback.** One WAV per 15 s slot, 12 kHz → 48 kHz, peak-normalised to 0.9 as every scenario, in BATCHES of up to 20 consecutive slots,
+each batch one continuous buffer (the battery's own mechanism, `_MAX_BATCH_TRIALS` = 20; back-to-back single plays cannot hold the grid
+because the wait returns just after the next wake-up point and every play would slip a slot, and a much longer buffer once made both appraisers
+hallucinate, 2026-08-30). One idle slot separates two batches (about 5 % of the wall time); a decode line stamped in an idle slot is a stray
+(S6-V2). The next batch is rendered while the current one plays. The sound starts AT the slot boundary (not the synthetic scenes' 0.5 s early): the WAVs are what
+WSJT-X recorded from its slot start, and an early start would shift every DT by about −0.5 s into the negative-DT region where OpenWSFZ is
+known to be weak (basis: leg E step (i) on sol, lead 0.0 read DT 0.0 against the live log). Both appraisers hear each playback at the same time. There is no per-cycle snapshot and no settle
 sleep: a play log (slot, WAV, trial, start offset) is written, and both `ALL.TXT` are parsed ONCE after the last play, every line attributed
 by its slot stamp. The warm-up is mechanical (a synthetic Q-prefix cycle that both `ALL.TXT` must show, 3 attempts).
 
@@ -272,7 +277,7 @@ signal whose two reported frequencies differ by a few Hz). **Hashed rows** (`<..
 WAVs with no abandoned play. The battery runs the product as it is, subtraction deadline ON, no budget override.
 
 **Validity rows** (a FAIL withholds the S6 block only; S1–S8 stand): S6-V1 corpus and list verified; S6-V2 every play starts within 0.25 s of
-its nominal offset (−0.5 s; a design number, to be re-set by the Architect from the dry run before any real row), 0 decode lines stamped in a
+its nominal offset (0.0 s, the boundary; a design number, to be re-set by the Architect from the dry run before any real row), 0 decode lines stamped in a
 slot with no play, 0 slots with two plays; S6-V3 warm-up decoded by both; S6-V4 plays completed = tier × 3; S6-V5 the OpenWSFZ library (and the
 WSJT-X executable, when its path is known) hash equal at start and end.
 

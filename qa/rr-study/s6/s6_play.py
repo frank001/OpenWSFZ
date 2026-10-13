@@ -8,7 +8,8 @@ What it does, in order (any failure stops S6 ONLY; the exit code says which row 
   S6-V5  (start) SHA-256 of the OpenWSFZ native library and of the WSJT-X executable
   S6-V3  mechanical warm-up: one synthetic Q-prefix cycle; both ALL.TXT must gain >= 1 line stamped with that slot (3 attempts)
   plays  K = 3 trials; each trial is a seeded shuffle of the tier's WAVs (seed = sha256("S6,<trial>") mod 2^31, the corpus_replay
-         rule); one WAV per 15 s slot, consecutive slots; the next WAV is rendered while the current one plays
+         rule); one WAV per 15 s slot, consecutive slots, sound started AT the slot boundary (the WAVs were recorded from the slot start);
+         the next WAV is rendered while the current one plays
   S6-V5  (end) the same hashes again
 Writes <run-dir>/s6/s6_playlog.jsonl (one row per play, flushed as it goes), s6_pins.json, s6_window.json, s6_validity.json.
 There is NO per-cycle snapshot of either ALL.TXT and no settle sleep: the analysis parses both logs once, after the last play,
@@ -35,14 +36,19 @@ for p in (HERE, RR):
 import s6_design as D  # noqa: E402
 
 SLOT_S = 15
-PREWARM_S = 0.5                 # = harness.run_scenario._CYCLE_PREWARM_S (asserted by the unit test)
-OFFSET_NOMINAL_S = -PREWARM_S   # a play starts PREWARM_S before its slot boundary
-OFFSET_TOLERANCE_S = 0.25       # S6-V2 (1): |start - boundary - nominal| <= this. A DESIGN number (half the prewarm), not measured;
-                                # the dry run reports the observed distribution and the Architect re-sets the bar before any real row.
+PREWARM_S = 0.5                 # = harness.run_scenario._CYCLE_PREWARM_S (asserted by the unit test): the player WAKES this long before the boundary
+START_LEAD_S = 0.0              # ... and starts the sound AT the boundary. The WAVs are what WSJT-X recorded from its slot start, so playing
+                                # them 0.5 s early (the synthetic scenes' lead) would shift every DT by about -0.5 s into the negative-DT region
+                                # where OpenWSFZ is known to be weak. Basis: leg E step (i) on sol, 2026-10-12: lead 0.0 read DT 0.0 against the
+                                # live log, lead 0.2 read 0.2 s low.
+OFFSET_NOMINAL_S = -START_LEAD_S  # a play starts START_LEAD_S before its slot boundary
+OFFSET_TOLERANCE_S = 0.25       # S6-V2 (1): |start - boundary - nominal| <= this. A DESIGN number, not measured; the dry run reports the observed
+                                # distribution and the Architect re-sets the bar before any real row.
 LEAD_S = 45                     # first boundary at least this far ahead (the first render is done by then)
 WARMUP_SETTLE_S = 22.0          # after the warm-up slot's end: both decoders have written their lines
 WARMUP_ATTEMPTS = 3
 FINAL_WAIT_S = 30.0             # after the last slot's end: the last decodes land
+BATCH_PLAYS = 20                # = harness.run_scenario._MAX_BATCH_TRIALS (asserted at start and by the unit test)
 EXIT_V1, EXIT_V3, EXIT_V5, EXIT_OTHER = 2, 4, 5, 6
 
 
@@ -156,7 +162,7 @@ def main() -> None:
     sd = dev = None
     if not a.dry_run:
         from harness import run_scenario as rs
-        assert rs._CYCLE_PREWARM_S == PREWARM_S
+        assert rs._CYCLE_PREWARM_S == PREWARM_S and rs._MAX_BATCH_TRIALS >= BATCH_PLAYS
         import sounddevice as sd  # noqa: F811
         dev = rs._select_device(a.device)
 
@@ -180,8 +186,10 @@ def main() -> None:
             sd.play(buf, samplerate=D.PLAY_FS, device=dev, blocking=False)
         return started
 
-    def wait_end() -> None:
-        if not a.dry_run:
+    def wait_end(end_ts: float = 0.0) -> None:
+        if a.dry_run:
+            clock["t"] = max(clock["t"], end_ts + 0.05)     # the real wait returns just after the audio's last sample
+        else:
             sd.wait()
 
     # --- S6-V3 mechanical warm-up
@@ -193,8 +201,9 @@ def main() -> None:
         wpos, opos = file_size(a.wsjt_all_txt), file_size(a.owsfz_all_txt)
         b = next_b
         sleep_until(b - PREWARM_S)
+        sleep_until(b - START_LEAD_S)
         started = play(warm)
-        wait_end()
+        wait_end(b + SLOT_S)
         stamp = slot_stamp(b)
         sleep_until(b + SLOT_S + WARMUP_SETTLE_S)
         cw, co = (1, 1) if a.dry_run else (lines_for_slot(a.wsjt_all_txt, wpos, stamp), lines_for_slot(a.owsfz_all_txt, opos, stamp))
@@ -211,7 +220,11 @@ def main() -> None:
         print("S6-V3 FAIL: warm-up not decoded by both; S6 stops (S1-S8 stand)", flush=True)
         sys.exit(EXIT_V3)
 
-    # --- the plays
+    # --- the plays: BATCHES of up to BATCH_PLAYS consecutive slots, each ONE continuous buffer
+    # (the battery's own mechanism, harness.run_scenario._MAX_BATCH_TRIALS = 20: back-to-back single plays cannot hold a 15 s grid, because
+    # sd.wait() returns just after the next wake-up point and every play would slip a slot; and a buffer much longer than 20 slots once made
+    # both appraisers hallucinate, 2026-08-30). Between two batches there is ONE idle slot (the next batch starts at the first boundary the
+    # previous wait leaves room for): about 5 % of the wall time. An idle slot has no audio, so any decode line stamped in it is a STRAY (S6-V2).
     sched = make_schedule(items)
     logp = os.path.join(out, "s6_playlog.jsonl")
     fh = open(logp, "w", encoding="utf8", newline="\n")
@@ -219,32 +232,45 @@ def main() -> None:
         fh.write(json.dumps(w) + "\n")
     fh.flush()
 
-    def render(item):
-        s16 = D.read_wav_int16(D.wav_path(a.corpus, item["run"], item["stamp"])) if not a.dry_run else None
-        return D.render_48k(s16)[0] if s16 is not None else None
+    def render_batch(batch):
+        if a.dry_run:
+            return None
+        import numpy as np
+        return np.concatenate([D.render_48k(D.read_wav_int16(D.wav_path(a.corpus, it["run"], it["stamp"])))[0] for (_n, _t, _o, it) in batch])
 
+    batches = [sched[i:i + BATCH_PLAYS] for i in range(0, len(sched), BATCH_PLAYS)]
     first_b = next_boundary(now() + 20)
-    buf = render(sched[0][3])
-    b, slips = first_b, 0
-    for (n, trial, order, item) in sched:
-        # a boundary already too close or past (a slow render, a stalled system): move to the next free slot, and say so
+    buf = render_batch(batches[0])
+    b, slips, idle_slots, last_b = first_b, 0, 0, first_b
+    for bi, batch in enumerate(batches):
+        want = b
+        # a boundary already too close or past (a slow render, a stalled system): move to the next free slot
         while b - PREWARM_S <= now():
             b += SLOT_S
-            slips += 1
+        gap = int(round((b - want) / SLOT_S))
+        if bi == 0:
+            slips += gap                                  # nothing should delay the first batch
+        else:
+            idle_slots += 1                               # the expected idle slot between batches
+            slips += max(0, gap - 1)                      # anything beyond it is a slip
         sleep_until(b - PREWARM_S)
+        sleep_until(b - START_LEAD_S)
         started = play(buf)
-        nxt = sched[n + 1][3] if n + 1 < len(sched) else None
-        buf = render(nxt) if nxt else None          # render the next WAV while this one plays
-        wait_end()
-        row = {"kind": "play", "play_index": n, "trial": trial, "order": order, "wav_id": item["id"], "band": item["band"], "sun": item["sun"],
-               "gain": item["gain"], "boundary_utc": iso(b), "slot_stamp": slot_stamp(b), "offset_s": round(started - b, 3), "slips_so_far": slips}
-        fh.write(json.dumps(row) + "\n")
+        nxt = render_batch(batches[bi + 1]) if bi + 1 < len(batches) else None      # render the next batch while this one plays
+        end_ts = b + len(batch) * SLOT_S
+        wait_end(end_ts)
+        for j, (n, trial, order, item) in enumerate(batch):
+            bj = b + j * SLOT_S
+            row = {"kind": "play", "play_index": n, "batch": bi, "trial": trial, "order": order, "wav_id": item["id"], "band": item["band"],
+                   "sun": item["sun"], "gain": item["gain"], "boundary_utc": iso(bj), "slot_stamp": slot_stamp(bj),
+                   "offset_s": round(started - b, 3), "slips_so_far": slips}
+            fh.write(json.dumps(row) + "\n")
         fh.flush()
-        if (n + 1) % 20 == 0 or n + 1 == len(sched):
-            print("S6 play %d/%d slot %s" % (n + 1, len(sched), row["slot_stamp"]), flush=True)
-        b += SLOT_S
+        print("S6 batch %d/%d done: plays %d-%d, first slot %s, start offset %+.3f s" % (bi + 1, len(batches), batch[0][0] + 1, batch[-1][0] + 1,
+                                                                                    slot_stamp(b), started - b), flush=True)
+        last_b = b + (len(batch) - 1) * SLOT_S
+        b, buf = end_ts, nxt
     fh.close()
-    last_b = b - SLOT_S
     sleep_until(last_b + SLOT_S + FINAL_WAIT_S)
 
     pins_end = pins(a)
@@ -256,7 +282,7 @@ def main() -> None:
     with open(os.path.join(out, "s6_window.json"), "w", encoding="utf8", newline="\n") as f3:
         json.dump({"tier": a.tier, "wavlist_sha256": D.sha256_file(a.wavlist), "wavlist_seed": wl["seed"], "k_trials": D.K_TRIALS,
                    "first_warmup_slot": warm_rows[0]["slot_stamp"], "first_play_slot": slot_stamp(first_b), "last_play_slot": slot_stamp(last_b),
-                   "plays": len(sched), "slips": slips, "end_utc": iso(now())}, f3, indent=1)
+                   "plays": len(sched), "batches": len(batches), "idle_slots_between_batches": idle_slots, "slips": slips, "end_utc": iso(now())}, f3, indent=1)
     validity["S6-V4-plays_completed"] = len(sched)
     save_validity(0 if validity["S6-V5"]["result"] == "PASS" else EXIT_V5)
     print("S6 playback done: %d plays, %d slip(s); V5 %s" % (len(sched), slips, validity["S6-V5"]["result"]), flush=True)

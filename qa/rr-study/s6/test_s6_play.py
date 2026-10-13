@@ -17,6 +17,8 @@ WL = json.load(open(os.path.join(HERE, "s6-wavlist.json"), encoding="utf8"))
 def test_prewarm_equals_the_batterys():
     from harness import run_scenario
     assert P.PREWARM_S == run_scenario._CYCLE_PREWARM_S == 0.5 and P.SLOT_S == 15
+    assert P.BATCH_PLAYS == run_scenario._MAX_BATCH_TRIALS == 20
+    assert P.START_LEAD_S == 0.0 and P.OFFSET_NOMINAL_S == 0.0          # real recordings start AT the boundary (not the synthetic scenes' -0.5 s)
 
 
 def test_trial_seed_is_the_corpus_replay_rule():
@@ -64,8 +66,21 @@ def test_dry_run_writes_a_consistent_play_log(tmp_path):
     assert len(plays) == 72 and sum(1 for x in rows if x["kind"] == "warmup") == 1
     stamps = [x["slot_stamp"] for x in plays]
     assert len(set(stamps)) == 72                                   # one play per slot
-    assert all(abs(x["offset_s"] + 0.5) <= P.OFFSET_TOLERANCE_S for x in plays)
+    from datetime import datetime
+    def t_of(st): return datetime.strptime(st, "%y%m%d_%H%M%S").timestamp()
+    by_batch = {}
+    for x in plays:
+        by_batch.setdefault(x["batch"], []).append(x)
+    assert sorted(by_batch) == [0, 1, 2, 3] and [len(by_batch[i]) for i in range(4)] == [20, 20, 20, 12]
+    for i, xs in by_batch.items():                                  # consecutive slots inside a batch
+        assert [t_of(x["slot_stamp"]) - t_of(xs[0]["slot_stamp"]) for x in xs] == [15.0 * j for j in range(len(xs))]
+    for i in range(3):                                              # exactly ONE idle slot between batches, none unexplained
+        gap = t_of(by_batch[i + 1][0]["slot_stamp"]) - t_of(by_batch[i][-1]["slot_stamp"])
+        assert gap == 30.0, gap
+    w = json.load(open(run / "s6" / "s6_window.json"))
+    assert w["batches"] == 4 and w["idle_slots_between_batches"] == 3 and w["slips"] == 0
+    assert all(abs(x["offset_s"] - P.OFFSET_NOMINAL_S) <= P.OFFSET_TOLERANCE_S for x in plays)
     v = json.load(open(run / "s6" / "s6_validity.json"))
     assert v["S6-V1"]["result"] == "SKIPPED" and v["S6-V3"]["result"] == "PASS" and v["S6-V5"]["result"] == "NOT PINNED"
     assert v["S6-V4-plays_completed"] == 72
-    assert "S6 play 72/72" in r.stdout
+    assert "S6 batch 4/4 done: plays 61-72" in r.stdout and "S6 playback done: 72 plays, 0 slip(s)" in r.stdout
