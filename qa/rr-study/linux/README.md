@@ -49,3 +49,9 @@ PRECHECK measures the installed WSJT-X instead of trusting a typed version (`../
 The off-air replay harness (`../refset/harness`) reads files and does not use the audio chain, so #232, #233 and #234 do not touch it. It is platform-neutral and builds, tests and runs on `sol` first. `../refset/harness/build_native_linux.sh` builds the Linux `libft8.so` of a given commit and the harness against it.
 
 Known non-blocking noise: the audio-setup sampler hook tries PowerShell and reports `STOP FAILED`; the battery continues (by design).
+
+## B2 build, WSJT-X monitoring and the capped retry (2026-10-14)
+
+`battery-b2.sh <name> <scenarios> [extra run_study.py args]` runs ONE supervised battery on `sol` with the B2-merged daemon (`~/OpenWSFZ-b2src`, publish folder, `libft8.so` pin from the merged tree) and the tooling checkout `~/rr-work-b2`: it (re)starts WSJT-X 2.7.0 with `ulimit -c unlimited`, starts the M1 monitor (`wsjtx_monitor.py`) beside the battery, passes `--liveness-save-dir` / `--coverage-owsfz-dir` to `run_study.py` (M2 gate: stop and flag when no new save WAV for 45 s or no `wsjtx` process; M3: coverage slots for the analyser's validity row), and tears everything down. Needs `tools/capture_build_provenance.py --rid linux-x64` run once after publishing the daemon, and the `.venv/Scripts/python.exe` wrapper in the tooling checkout (copy it from `~/rr-work`).
+
+**Capped retry, opt-in:** `MAX_STALL_RETRIES=1 sh battery-b2.sh ...` (default 0 = stop and flag). Only a liveness stop (`STALLED.json`) is retried, and only as a COMPLETE sweep: the failed sweep's folders are kept as `*-INVALID-stall-attemptK` with an `INVALID.md`, WSJT-X is restarted, the new sweep carries `REPLACEMENT.json`. A second stall, or any other failure, halts for good. `inject-stall-test.sh <name>` (TEST ONLY) freezes `wsjtx` once with SIGSTOP to prove the chain; tested 2026-10-14: stall detected after 53 s, snapshot shows `wchan=do_signal_stop`, attempt 2 complete and PASS.
