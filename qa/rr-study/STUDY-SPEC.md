@@ -539,7 +539,10 @@ Evaluated every run; a regression past these bands raises a defect for the Devel
 > "n/a" where the variance components are not on file. Footnote for any table that carries both: *gate changed to %StudyVar 2026-10-14 (Captain);
 > rows before this date were graded on %Contribution.* Implemented in `harness/analyse.py` (`GATE_GRR_METRIC`, `_verdict_grr`, the verdict row and the
 > report table); pinned by `tests/test_analyse.py` (`test_verdict_is_pinned_to_study_var_…`: 11.2 % contribution → 33.5 % study var → FAIL).
-> `harness/analyse_xplat.py` (the Windows/WSL2 cross-platform analyser) is **not** changed by this amendment.
+> `harness/analyse_xplat.py` (the Windows/WSL2 cross-platform analyser) follows the same rule (Architect's follow-up, 2026-10-14; `trend_xplat.csv`
+> gains the same column). Every future S3 report carries the sentence: *S3 reproducibility is dominated by a fixed OpenWSFZ − WSJT-X DT offset
+> (+0.12 s, Section 3.3 of the 2026-10-14 full-ANOVA report), not by run-to-run noise.* S3 reading MARGINAL on %StudyVar on the corrected Linux chain
+> is the intended outcome of the AIAG reading; neither the S3 tolerance nor the gate is adjusted for it.
 
 > **False-positive gate definition (ratified 2026-07-04, R&R-004 / GitHub #32).**
 > The FP gate is the **per-slot event rate** — P(a signal-free S5 slot emits ≥ 1
