@@ -1,0 +1,18 @@
+{
+ "PASS": true,
+ "row": "AS5",
+ "snapshots": [
+  "start",
+  "end"
+ ],
+ "teardown": {
+  "force_killed": false,
+  "pidfile_removed": true,
+  "returncode": 0,
+  "stderr_bytes": 0,
+  "stderr_head": ""
+ },
+ "unavailable_records": 1,
+ "vm_state": "unavailable",
+ "windows_endpoints": 32
+}

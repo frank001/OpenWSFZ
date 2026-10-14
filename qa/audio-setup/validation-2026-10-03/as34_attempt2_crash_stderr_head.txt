@@ -1,0 +1,78 @@
+Windows fatal exception: access violation
+
+Current thread 0x00008ec4 (most recent call first):
+  Garbage-collecting
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 420 in Release
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 288 in __del__
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 406 in QueryInterface
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py", line 259 in GetAllSessions
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 183 in read_windows
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 245 in _sample
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 269 in _tick
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 260 in run
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 303 in main
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 315 in <module>
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Exception ignored while calling deallocator <function _compointer_base.__del__ at 0x000001D188FEC720>:
+Traceback (most recent call last):
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 288, in __del__
+    self.Release()  # type: ignore
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 420, in Release
+    return self.__com_Release()  # type: ignore
+OSError: exception: access violation writing 0x00007FFD0F842D78
+Windows fatal exception: access violation
+
+Current thread 0x00008ec4 (most recent call first):
+  Garbage-collecting
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 420 in Release
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 288 in __del__
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 406 in QueryInterface
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py", line 259 in GetAllSessions
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 183 in read_windows
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 245 in _sample
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 269 in _tick
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 260 in run
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 303 in main
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 315 in <module>
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Exception ignored while calling deallocator <function _compointer_base.__del__ at 0x000001D188FEC720>:
+Traceback (most recent call last):
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 288, in __del__
+    self.Release()  # type: ignore
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 420, in Release
+    return self.__com_Release()  # type: ignore
+OSError: exception: access violation writing 0xFFFFFFFF0000000F
+Windows fatal exception: access violation
+
+Current thread 0x00008ec4 (most recent call first):
+  Garbage-collecting
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 420 in Release
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 288 in __del__
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 406 in QueryInterface
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pycaw\utils.py", line 259 in GetAllSessions
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 183 in read_windows
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 245 in _sample
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 269 in _tick
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 260 in run
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 303 in main
+  File "D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\audio-setup\sampler.py", line 315 in <module>
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Exception ignored while calling deallocator <function _compointer_base.__del__ at 0x000001D188FEC720>:
+Traceback (most recent call last):
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 288, in __del__
+    self.Release()  # type: ignore
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 420, in Release
+    return self.__com_Release()  # type: ignore
+OSError: exception: access violation writing 0x00007FFD0F842D78
+Windows fatal exception: access violation
+
+Current thread 0x00008ec4 (most recent call first):
+  Garbage-collecting
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\comtypes\_post_coinit\unknwn.py", line 420 in Release
+  File "C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\Lib\site-p

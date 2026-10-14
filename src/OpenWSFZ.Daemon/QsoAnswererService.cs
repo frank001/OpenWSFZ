@@ -1596,8 +1596,10 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     /// <summary>
     /// Returns <c>true</c> if <paramref name="msg"/> matches the CQ pattern
     /// (<c>CQ callsign [grid]</c>) and extracts the caller callsign.
-    /// Ignores <c>CQ DX callsign</c> directional CQs — grid is the DX direction,
-    /// not a Maidenhead locator.
+    /// A CQ modifier (<c>DX</c>, <c>POTA</c>, <c>123</c>) is skipped when the next token
+    /// parses as a callsign: <c>CQ DX Q1ABC FN42</c> yields callsign <c>Q1ABC</c>, grid
+    /// <c>FN42</c>. Otherwise a <c>CQ DX callsign</c> directional CQ keeps today's
+    /// behaviour — grid is the DX direction, not a Maidenhead locator.
     /// </summary>
     internal static bool TryParseCq(string msg, out string callsign, out string? grid)
     {
@@ -1606,6 +1608,18 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
         if (parts.Length >= 2 &&
             parts[0].Equals("CQ", StringComparison.OrdinalIgnoreCase))
         {
+            // A CQ modifier (1-4 letters, or 3 digits: DX, POTA, 123) followed by a token that
+            // PARSES as a callsign (the decoder filter's own parser): the caller is parts[2],
+            // never the modifier, and parts[3] is the grid when it is a Maidenhead 4-char grid.
+            if (parts.Length >= 3 &&
+                Ft8Decoder.IsCqModifier(parts[1]) &&
+                Ft8Decoder.IsParsedCallsign(parts[2]))
+            {
+                callsign = parts[2];
+                grid     = parts.Length >= 4 && Ft8Decoder.IsAcknowledgedGrid(parts[3]) ? parts[3] : null;
+                return true;
+            }
+
             // Skip "CQ DX callsign" — parts[1] = "DX" is a directional hint, not a grid.
             if (parts[1].Equals("DX", StringComparison.OrdinalIgnoreCase) && parts.Length >= 3)
             {

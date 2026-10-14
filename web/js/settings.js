@@ -137,6 +137,9 @@ const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('
 const decoderCorr  = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-corr'));
 const decoderNhard = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-nhard'));
 const decoderReset = /** @type {HTMLButtonElement} */ (document.getElementById('decoder-reset'));
+// decode-early-batch-panel (FR-083): the early decode checkbox and its lead.
+const decoderEarlyEnabled = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-early-enabled'));
+const decoderEarlyCut     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-early-cut'));
 
 // Remote access controls (lan-remote-access)
 const remoteAccessEnabled         = /** @type {HTMLInputElement}  */ (document.getElementById('remote-access-enabled'));
@@ -401,6 +404,8 @@ function snapshotForm() {
       kMinScorePass2:   decoderK.value,
       osdCorrThreshold: decoderCorr.value,
       osdNhardMax:      decoderNhard.value,
+      earlyDecodeEnabled:    decoderEarlyEnabled.checked,
+      earlyDecodeCutSeconds: decoderEarlyCut.value,
     },
     // decode-noise-suppression: include both suppression controls in dirty-state snapshot.
     // suppressUnknownRegion uses the tri-state _suppressUnknownRegionRaw (not the checkbox's
@@ -901,7 +906,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dec = config.decoder ?? {};
     decoderK.value     = String(dec.kMinScorePass2   ?? 10);
     decoderCorr.value  = String(dec.osdCorrThreshold ?? 0.10);
-    decoderNhard.value = String(dec.osdNhardMax      ?? 40);
+    decoderNhard.value = String(dec.osdNhardMax      ?? 24);
+    decoderEarlyEnabled.checked = dec.earlyDecodeEnabled ?? true;   // ON by default: no stored key shows checked (FR-083)
+    decoderEarlyCut.value       = String(dec.earlyDecodeCutSeconds ?? 2.0);
 
     // Pre-fill decode-noise-suppression controls (task 4.2). suppressSynthetic is a plain
     // persisted boolean (task 4.3 — no live-recompute step). suppressUnknownRegion's checkbox
@@ -1143,7 +1150,9 @@ remoteAccessEnabled.addEventListener('change', updateRemoteAccessVisibility);
 decoderReset.addEventListener('click', () => {
   decoderK.value     = '10';
   decoderCorr.value  = '0.10';
-  decoderNhard.value = '40';
+  decoderNhard.value = '24';
+  decoderEarlyEnabled.checked = true;
+  decoderEarlyCut.value       = '2';
   syncDirtyUI();
 });
 
@@ -1377,10 +1386,13 @@ saveBtn.addEventListener('click', async () => {
     const decoderKRaw     = parseInt(decoderK.value,     10);
     const decoderCorrRaw  = parseFloat(decoderCorr.value);
     const decoderNhardRaw = parseInt(decoderNhard.value, 10);
+    const decoderEarlyCutRaw = parseFloat(decoderEarlyCut.value);
     const decoder = {
       kMinScorePass2:   Number.isFinite(decoderKRaw)     ? decoderKRaw     : 10,
       osdCorrThreshold: Number.isFinite(decoderCorrRaw)  ? decoderCorrRaw  : 0.10,
-      osdNhardMax:      Number.isFinite(decoderNhardRaw) ? decoderNhardRaw : 40,
+      osdNhardMax:      Number.isFinite(decoderNhardRaw) ? decoderNhardRaw : 24,
+      earlyDecodeEnabled:    decoderEarlyEnabled.checked,
+      earlyDecodeCutSeconds: Number.isFinite(decoderEarlyCutRaw) ? decoderEarlyCutRaw : 2.0,
     };
 
     // Collect decode-noise-suppression config (decode-noise-suppression, design.md Decision 3).

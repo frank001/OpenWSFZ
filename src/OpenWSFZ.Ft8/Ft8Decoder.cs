@@ -158,6 +158,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax)
         => _interop.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
 
+    /// <summary>osd-sign-fix (#215, shim 20260060): sets the process-global OSD sign switch (1 = corrected, 0 = previous behaviour). For the replay harness; the daemon never calls it.</summary>
+    public void SetOsdSignFix(int enabled) => _interop.SetOsdSignFix(enabled);
+
+    /// <summary>osd-sign-fix (#215, shim 20260060): reads the OSD sign switch.</summary>
+    public int GetOsdSignFix() => _interop.GetOsdSignFix();
+
     /// <summary>
     /// sub-feas-native-subtraction (design.md Decision 6): gates the additive residual-decode
     /// pass (<see cref="SubtractionPass"/>). Default <c>false</c> at construction — with the
@@ -288,7 +294,30 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         DateTime          cycleStart,
         string?           currentBand,
         CancellationToken ct = default)
-        => DecodeCoreAsync(pcm, cycleStart, currentBand, onFirstBatch: null, ct);
+        => DecodeCoreAsync(pcm, cycleStart, currentBand, onFirstBatch: null, early: false, ct);
+
+    /// <summary>
+    /// decode-early-batch-panel (#122 step 4, phase 4a, design.md D3/D4): the <b>early</b> decode of a zero-filled
+    /// partial window. It is <b>pass 0 only</b>: it never reads <c>_subtractionEnabled</c> and never runs
+    /// <see cref="SubtractionPass"/> (so it costs about what the full single-pass decode costs, not the residual
+    /// pass on top), and it writes no instance state. The native call is bracketed, inside the same
+    /// <see cref="Task.Run(Func{TResult})"/> lambda as <c>DecodeAll</c>, by a save and (in a <c>finally</c>) a restore
+    /// of the process-global decode state (<c>ft8_hash_state_*</c>), so a decode that adds callsigns or moves the
+    /// counters leaves nothing behind that could change the FINAL decode of the same window (R4). The caller must
+    /// hold the decode gate: no other decode may run between the save and the restore.
+    /// The per-cycle Information log lines of an ordinary decode are NOT written (they would duplicate the
+    /// <c>Cycle</c> lines that log parsers read); the early service writes its own line.
+    /// </summary>
+    /// <param name="pcm">15 s x 12 000 Hz mono PCM, the first part real, the tail zero.</param>
+    /// <param name="cycleStart">UTC instant the window began accumulating.</param>
+    /// <param name="currentBand">The session current band, or <c>null</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public Task<IReadOnlyList<DecodeResult>> DecodeEarlyAsync(
+        float[]           pcm,
+        DateTime          cycleStart,
+        string?           currentBand,
+        CancellationToken ct = default)
+        => DecodeCoreAsync(pcm, cycleStart, currentBand, onFirstBatch: null, early: true, ct);
 
     /// <summary>
     /// Whether the residual-decode pass (<c>decoder.subtractionEnabled</c>) is currently on. The daemon pump reads
@@ -341,7 +370,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             await publishFirstBatch(batch1).ConfigureAwait(false);
         }
 
-        var second = await DecodeCoreAsync(pcm, cycleStart, currentBand, MarkAndPublish, ct).ConfigureAwait(false);
+        var second = await DecodeCoreAsync(pcm, cycleStart, currentBand, MarkAndPublish, early: false, ct).ConfigureAwait(false);
 
         if (!published)
         {
@@ -363,11 +392,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         DateTime                                   cycleStart,
         string?                                    currentBand,
         Func<IReadOnlyList<DecodeResult>, Task>?   onFirstBatch,
+        bool                                       early,
         CancellationToken                          ct)
     {
         // The flag is read ONCE per cycle. Two-stage only when the caller asked for it AND the flag is on: with the
         // flag off this method is, statement for statement, the pre-change single-batch path (P-9).
-        bool subtractionOn = _subtractionEnabled;
+        // The EARLY entry (decode-early-batch-panel D3) never reads the flag: it is pass 0 only, whatever the flag says.
+        bool subtractionOn = !early && _subtractionEnabled;
         bool twoStage      = onFirstBatch is not null && subtractionOn;
 
         // ── R2: Pre-condition guard ──────────────────────────────────────────
@@ -386,9 +417,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         float rms = ComputeRms(pcm);
         if (rms < SilenceRmsThreshold)
         {
-            _logger?.LogInformation(
-                "Cycle skipped — RMS {Rms:E3} is below silence guard (threshold {Threshold:E3}).",
-                rms, SilenceRmsThreshold);
+            if (early)
+                _logger?.LogDebug("Early decode skipped — RMS {Rms:E3} is below silence guard.", rms);
+            else
+                _logger?.LogInformation(
+                    "Cycle skipped — RMS {Rms:E3} is below silence guard (threshold {Threshold:E3}).",
+                    rms, SilenceRmsThreshold);
             return [];
         }
 
@@ -442,20 +476,43 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         {
             (native, passCounts, candidateCounts, noiseFloorDb, llrStats) = await Task.Run(() =>
             {
-                // AP decode constraints (H6, D-001): must be set on the same thread as DecodeAll.
-                // Snapshot to avoid tearing — _apConstraints is volatile but is a reference type.
-                var ap = _apConstraints;
-                if (ap is not null)
-                    _interop.SetApBits(ap.MycallBits, ap.HiscallBits);
-                else
-                    _interop.SetApBits([], []);  // explicitly clear any TLS residue from a prior cycle
+                // decode-early-batch-panel R4 (design.md D4): the EARLY decode saves the process-global decode state
+                // before the native call and restores it in a finally, in THIS lambda (the native TLS is per-thread, and
+                // the bracket must cover exactly the native call). The ordinary decode does neither: its path is unchanged.
+                // The save is outside the try: if it throws there is no valid image, so nothing is restored.
+                byte[]? stateImage = null;
+                if (early)
+                {
+                    stateImage = RentStateImage();
+                    _interop.HashStateSave(stateImage);
+                }
+                try
+                {
+                    // AP decode constraints (H6, D-001): must be set on the same thread as DecodeAll.
+                    // Snapshot to avoid tearing — _apConstraints is volatile but is a reference type.
+                    // The early lambda sets them exactly as the final decode does (they are thread-local and
+                    // ft8_decode_all does not reset them; the early decode may run on a different pool thread).
+                    var ap = _apConstraints;
+                    if (ap is not null)
+                        _interop.SetApBits(ap.MycallBits, ap.HiscallBits);
+                    else
+                        _interop.SetApBits([], []);  // explicitly clear any TLS residue from a prior cycle
 
-                var r = _interop.DecodeAll(normalisedPcm);
-                var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
-                var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
-                var n = _interop.GetLastNoiseFloorDb();
-                var l = _interop.GetLastLlrStats(_interop.MaxDecodePasses);
-                return (r, p, c, n, l);
+                    var r = _interop.DecodeAll(normalisedPcm);
+                    var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
+                    var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
+                    var n = _interop.GetLastNoiseFloorDb();
+                    var l = _interop.GetLastLlrStats(_interop.MaxDecodePasses);
+                    return (r, p, c, n, l);
+                }
+                finally
+                {
+                    if (stateImage is not null)
+                    {
+                        _interop.HashStateRestore(stateImage);
+                        ReturnStateImage(stateImage);
+                    }
+                }
             }, ct);
         }
         catch (NativeAccessViolationException)
@@ -633,6 +690,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             }
         }
 
+        // The early decode returns here, BEFORE the per-cycle Information lines below: they would duplicate the
+        // "Cycle {Time}: ... decode(s) found" line that log parsers read, and the cumulative counters they print are
+        // the final decode to report. The early service writes its own one line (design.md D8).
+        if (early) return results;
+
         // ── Diagnostic log ───────────────────────────────────────────────────
         // Spec requirement: "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms"
         _logger?.LogInformation(
@@ -703,6 +765,24 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
         return results;
     }
+
+    // ── Early-decode state image (decode-early-batch-panel D4) ────────────────
+
+    /// <summary>
+    /// The reusable heap buffer for the native state image (about 150 KB: large-object heap, so reused, never a stack).
+    /// Rented with <see cref="Interlocked.Exchange{T}(ref T, T)"/>, so two overlapping early decodes (which the daemon
+    /// decode gate forbids) could not share one buffer.
+    /// </summary>
+    private byte[]? _stateImage;
+
+    private byte[] RentStateImage()
+    {
+        int size = _interop.HashStateSize();
+        var buf  = Interlocked.Exchange(ref _stateImage, null);
+        return buf is not null && buf.Length == size ? buf : new byte[size];
+    }
+
+    private void ReturnStateImage(byte[] buf) => Volatile.Write(ref _stateImage, buf);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -775,6 +855,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// messages: grid letters must be in [A–R]; dB reports must match known-valid forms.
     /// All other message forms are accepted unconditionally.
     /// </para>
+    /// <para>
+    /// #226/#227/#228 (acceptance-only): a <c>PREFIX/CALL</c> token is shape-valid when its right
+    /// half is the base callsign; <c>CQ &lt;modifier&gt; &lt;call&gt;</c> (1–4 letters or 3 digits,
+    /// no grid) is plausible; <c>CALL CALL R GRID</c> is plausible.
+    /// </para>
     /// </remarks>
     /// <param name="text">The candidate decode text.</param>
     /// <param name="grammarStore">
@@ -838,6 +923,16 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // Exactly 3-token message: "TOKEN0 TOKEN1 TOKEN2"
                 string token0 = text[..firstSpace];
                 string token1 = text[(firstSpace + 1)..secondSpace];
+
+                // #227 — "CQ <modifier> <call>" (no grid) is a valid FT8 form.  Token 1 is a CQ
+                // modifier (e.g. DX, POTA, 123), exempt from the callsign-shape check in this case
+                // only.  The accept happens here, BEFORE the last-field rule below, which would
+                // reject a callsign in the last position.
+                if (token0.Equals("CQ", StringComparison.Ordinal) &&
+                    IsCqModifier(token1) &&
+                    IsParsedCallsign(text[(secondSpace + 1)..], grammarStore))
+                    return true;
+
                 if (IsCallsignShapeInvalid(token0, grammarStore) || IsCallsignShapeInvalid(token1, grammarStore))
                     return false;
             }
@@ -845,13 +940,24 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                      && text.IndexOf(' ', thirdSpace + 1) < 0)
             {
                 // Exactly 4-token message: "TOKEN0 TOKEN1 TOKEN2 TOKEN3"
-                // The only valid 4-token FT8 forms are "CQ <modifier> <callsign> <grid>"
-                // (e.g. "CQ DX Q1ABC FN42", "CQ NA Q9XYZ EN37").
-                // Patterns like "CALLSIGN CALLSIGN R GRID" are OSD CRC-14 false alarms
-                // (D-009 R2 verification, Category A) — they are not Type 1 FT8 messages.
+                // Valid 4-token FT8 forms are "CQ <modifier> <callsign> <grid>"
+                // (e.g. "CQ DX Q1ABC FN42", "CQ NA Q9XYZ EN37") and, since #228,
+                // "CALL CALL R GRID" (e.g. "Q1ABC Q2XYZ R FN42").  ft8_lib renders the latter
+                // form (message.c:952-953); the earlier rule that rejected it rested on D-009
+                // false-alarm evidence (Category A) that predates the OSD sign fix (#215).
+                // Every other non-CQ 4-token message stays rejected.
                 string token0 = text[..firstSpace];
                 if (!token0.Equals("CQ", StringComparison.Ordinal))
-                    return false;
+                {
+                    string token1 = text[(firstSpace + 1)..secondSpace];
+                    string token2 = text[(secondSpace + 1)..thirdSpace];
+                    string token3 = text[(thirdSpace + 1)..];
+                    if (!(token2.Equals("R", StringComparison.Ordinal) &&
+                          IsAcknowledgedGrid(token3) &&
+                          IsHashOrParsedCallsign(token0, grammarStore) &&
+                          IsHashOrParsedCallsign(token1, grammarStore)))
+                        return false;
+                }
             }
             // 5+ token messages: not validated here.
         }
@@ -904,6 +1010,43 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // 3-token message with an unrecognisable last field — likely a false positive.
         return false;
     }
+
+    /// <summary>Maximum letters in a CQ modifier (<c>CQ DX</c>, <c>CQ POTA</c>).</summary>
+    private const int CqModifierLetterMax = 4;
+
+    /// <summary>Digits in a numeric CQ modifier (<c>CQ 123</c>).</summary>
+    private const int CqModifierDigitCount = 3;
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="token"/> is a CQ modifier: 1 to
+    /// <see cref="CqModifierLetterMax"/> letters A–Z, or exactly
+    /// <see cref="CqModifierDigitCount"/> digits (#227).
+    /// </summary>
+    public static bool IsCqModifier(string token)
+    {
+        if (token.Length == CqModifierDigitCount)
+        {
+            bool allDigits = true;
+            foreach (char c in token) if (!char.IsAsciiDigit(c)) { allDigits = false; break; }
+            if (allDigits) return true;
+        }
+
+        if (token.Length is < 1 or > CqModifierLetterMax) return false;
+        foreach (char c in token)
+            if (c < 'A' || c > 'Z') return false;
+        return true;
+    }
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="token"/> matches <c>[A-R]{2}[0-9]{2}</c> — a
+    /// Maidenhead 4-character grid (#228).
+    /// </summary>
+    public static bool IsAcknowledgedGrid(string token) =>
+        token.Length == 4 &&
+        token[0] >= 'A' && token[0] <= 'R' &&
+        token[1] >= 'A' && token[1] <= 'R' &&
+        char.IsAsciiDigit(token[2]) &&
+        char.IsAsciiDigit(token[3]);
 
     private static bool IsDbReport(string token)
     {
@@ -961,6 +1104,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <c>011</c> — 3 digits, within cap; prefix <c>Q0D</c>; suffix <c>ABCDE</c>).
     /// </para>
     /// <para>
+    /// #226: a token with exactly one <c>/</c> is also shape-valid as <c>PREFIX/CALL</c> — the
+    /// right half parses as a callsign shape and the left half is a prefix shape (1–4
+    /// alphanumerics, at least one letter). The reserved-prefix exclusion applies to the base
+    /// and, in that case, to the left half. Anything the left-base rule accepts stays accepted.
+    /// </para>
+    /// <para>
     /// A parsed prefix matching a reserved/never-allocated entry in
     /// <see cref="CallsignGrammarConfig.ReservedPrefixExclusions"/> with no synthetic
     /// carve-out is also rejected (Decision 2) — this is an exclusion signal, not a
@@ -974,6 +1123,90 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <see cref="CallsignGrammarConfig.BuiltInDefault"/> when <c>null</c>.
     /// </param>
     internal static bool IsCallsignShapeInvalid(string token, ICallsignGrammarStore? grammarStore = null)
+    {
+        // Today's rule first: anything it accepts stays accepted (acceptance-only, #226).
+        if (!IsCallsignShapeInvalidLeftBase(token, grammarStore)) return false;
+
+        // #226 — a token with exactly one '/' may also be PREFIX/CALL: the RIGHT half is the
+        // base callsign and the left half a prefix shape.  Two or more '/' keep today's result.
+        int slashPos = token.IndexOf('/');
+        if (slashPos < 0 || token.IndexOf('/', slashPos + 1) >= 0) return true;
+
+        var config = grammarStore?.Current ?? CallsignGrammarConfig.BuiltInDefault;
+        string left  = token[..slashPos];
+        string right = token[(slashPos + 1)..];
+
+        if (token.Length > config.TotalLengthMax || right.Length > config.TotalLengthMax) return true;
+        if (!IsPrefixShape(left)) return true;
+        if (!TryParseCallsignShape(right, config, out string rightPrefix)) return true;
+
+        // The reserved-prefix exclusion applies to the base (right half) and, under this
+        // branch, also to the left half — both as written and with trailing digits dropped
+        // (the prefix a callsign built on it would carry).
+        if (IsExcluded(config, rightPrefix) ||
+            IsExcluded(config, left) ||
+            IsExcluded(config, left.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="token"/> is a hash reference (<c>&lt;…&gt;</c>) or a
+    /// token that genuinely PARSES as a callsign (see <see cref="IsParsedCallsign"/>).
+    /// </summary>
+    private static bool IsHashOrParsedCallsign(string token, ICallsignGrammarStore? grammarStore) =>
+        token.StartsWith('<') || IsParsedCallsign(token, grammarStore);
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="token"/> is shape-valid AND its base callsign actually
+    /// parses with <see cref="TryParseCallsignShape"/> — stricter than "not invalid", which
+    /// also exempts hash references, tokens of 3 characters or fewer, and <c>RR73</c>
+    /// (#227/#228, spec amendment 2). The base is the part before the first '/', or — for a
+    /// single-slash token — the right half (#226).
+    /// </summary>
+    public static bool IsParsedCallsign(string token, ICallsignGrammarStore? grammarStore = null)
+    {
+        if (token.StartsWith('<') || IsCallsignShapeInvalid(token, grammarStore)) return false;
+
+        var config = grammarStore?.Current ?? CallsignGrammarConfig.BuiltInDefault;
+        int slashPos = token.IndexOf('/');
+        if (slashPos < 0) return TryParseCallsignShape(token, config, out _);
+
+        if (TryParseCallsignShape(token[..slashPos], config, out _)) return true;
+        return token.IndexOf('/', slashPos + 1) < 0 &&
+               TryParseCallsignShape(token[(slashPos + 1)..], config, out _);
+    }
+
+    private static bool IsExcluded(CallsignGrammarConfig config, string prefix)
+    {
+        if (prefix.Length == 0) return false;
+        var exclusion = FindExclusion(config, prefix);
+        return exclusion is not null && !exclusion.SyntheticCarveOut;
+    }
+
+    /// <summary>
+    /// <c>true</c> when <paramref name="s"/> is a prefix shape: 1 to 4 alphanumeric
+    /// characters containing at least one letter (the grammar
+    /// <see cref="TryParseCallsignShape"/> applies to a callsign's leading prefix).
+    /// </summary>
+    private static bool IsPrefixShape(string s)
+    {
+        const int PrefixLengthMax = 4;
+        if (s.Length == 0 || s.Length > PrefixLengthMax) return false;
+        bool hasLetter = false;
+        foreach (char c in s)
+        {
+            if (char.IsAsciiLetter(c)) hasLetter = true;
+            else if (!char.IsAsciiDigit(c)) return false;
+        }
+        return hasLetter;
+    }
+
+    /// <summary>
+    /// The pre-#226 shape check: the base callsign is the part before any '/'.
+    /// </summary>
+    private static bool IsCallsignShapeInvalidLeftBase(string token, ICallsignGrammarStore? grammarStore)
     {
         if (token.StartsWith('<')) return false;   // hash reference — always shape-valid
         if (token.Length <= 3)    return false;    // CQ / DE / QRZ / very short call — exempt

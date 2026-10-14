@@ -108,6 +108,9 @@ def main() -> None:
     ap.add_argument("--audio", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--calibration", action="store_true")
+    ap.add_argument("--audio-setup", default=None,
+                    help="#194 audio_setup.jsonl: adds a setup_changes column (detected_utc in [S-30 s, S+40 s], "
+                         "unverified_start_diff excluded)")
     ap.add_argument("--registered", choices=("a11", "freeze3"), default="a11",
                     help="which centring rule is the registered result of this report (09-29 stays freeze3; the other is shown beside it)")
     a = ap.parse_args()
@@ -134,13 +137,21 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "flagged_slots.csv", "w", newline="", encoding="utf-8") as fh:
         wr = csv.writer(fh, lineterminator="\n")
-        wr.writerow(["slot", "cycle_utc", "scenario", "group", "class", "family", "owsfz_metrics", "wsjtx_metrics"])
+        setup_recs = None
+        if a.audio_setup:
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "audio-setup"))
+            import summarize as _as
+            setup_recs = _as.load(a.audio_setup)
+        wr.writerow(["slot", "cycle_utc", "scenario", "group", "class", "family", "owsfz_metrics", "wsjtx_metrics"]
+                    + ([f"setup_changes[{_as.JOIN_WINDOW_TEXT}]"] if setup_recs is not None else []))
         for k in sorted(classes):
             rr = (by_slot["owsfz"].get(k) or by_slot["wsjtx"].get(k))
             for c, f in classes[k]:
                 wr.writerow([k, rr["cycle_utc"], rr["scenario"], rr["group"], c, f,
                              "+".join(m for m, v in flags["owsfz"].get(k, {}).items() if v and sc.FAMILIES[m] == f),
-                             "+".join(m for m, v in flags["wsjtx"].get(k, {}).items() if v and sc.FAMILIES[m] == f)])
+                             "+".join(m for m, v in flags["wsjtx"].get(k, {}).items() if v and sc.FAMILIES[m] == f)]
+                            + ([";".join(r["field"] for r in _as.join_slot(setup_recs, rr["cycle_utc"]))]
+                               if setup_recs is not None else []))
 
     # ---- V1 / V2 / V3
     per_side_cls = {s: Counter() for s in ("owsfz", "wsjt-x")}

@@ -118,13 +118,13 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
             "osdCorrThreshold = 0.40 (upper bound) must be accepted without clamping");
     }
 
-    [Fact(DisplayName = "7.2e: POST with osdNhardMax=30 (lower bound) accepted unchanged")]
+    [Fact(DisplayName = "7.2e: POST with osdNhardMax=24 (lower bound, OSD-FIX R4; was 30) accepted unchanged")]
     public async Task PostConfig_OsdNhardMaxAtLowerBound_AcceptedUnchanged()
     {
         var client  = _factory.CreateClient();
         var payload = new AppConfig() with
         {
-            Decoder = new DecoderConfig(kMinScorePass2: 10, osdCorrThreshold: 0.10f, osdNhardMax: 30)
+            Decoder = new DecoderConfig(kMinScorePass2: 10, osdCorrThreshold: 0.10f, osdNhardMax: 24)
         };
 
         var postResp = await client.PostAsJsonAsync("/api/v1/config", payload,
@@ -133,8 +133,8 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
         postResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var loaded = await postResp.Content.ReadFromJsonAsync(AppJsonContext.Default.AppConfig);
-        loaded!.Decoder!.OsdNhardMax.Should().Be(30,
-            "osdNhardMax = 30 (lower bound) must be accepted without clamping");
+        loaded!.Decoder!.OsdNhardMax.Should().Be(24,
+            "osdNhardMax = 24 (lower bound since OSD-FIX R4) must be accepted without clamping");
     }
 
     [Fact(DisplayName = "7.2f: POST with osdNhardMax=100 (upper bound) accepted unchanged")]
@@ -196,7 +196,7 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
             "osdCorrThreshold = 0.01 is below minimum 0.05 — must be clamped to 0.05");
     }
 
-    [Fact(DisplayName = "7.2i: POST with osdNhardMax=10 (below minimum) clamped to 30")]
+    [Fact(DisplayName = "7.2i: POST with osdNhardMax=10 (below minimum) clamped to 24")]
     public async Task PostConfig_OsdNhardMaxTooLow_ClampedToMinimum()
     {
         var client  = _factory.CreateClient();
@@ -211,8 +211,8 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
         postResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var loaded = await postResp.Content.ReadFromJsonAsync(AppJsonContext.Default.AppConfig);
-        loaded!.Decoder!.OsdNhardMax.Should().Be(30,
-            "osdNhardMax = 10 is below minimum 30 — must be clamped to 30");
+        loaded!.Decoder!.OsdNhardMax.Should().Be(24,
+            "osdNhardMax = 10 is below minimum 24 — must be clamped to 24");
     }
 
     // ── Clamping: above-maximum values ───────────────────────────────────────

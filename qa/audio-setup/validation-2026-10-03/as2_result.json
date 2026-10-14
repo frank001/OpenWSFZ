@@ -1,0 +1,53 @@
+{
+ "PASS": true,
+ "endpoint": "Voicemeeter In 5",
+ "endpoint_tail": "5dadfc8f806}",
+ "gain_after": -33.0,
+ "gain_before": -33.0,
+ "gain_change": {
+  "field": "voicemeeter.strips[3].gain",
+  "new": -32.0,
+  "old": -33.0,
+  "schema": 1,
+  "type": "change",
+  "utc": "2026-10-03T09:52:45.748851Z"
+ },
+ "gain_change_latency_s": 8.78,
+ "gain_restore": {
+  "field": "voicemeeter.strips[3].gain",
+  "new": -33.0,
+  "old": -32.0,
+  "schema": 1,
+  "type": "change",
+  "utc": "2026-10-03T09:52:50.798722Z"
+ },
+ "gain_restore_latency_s": 4.81,
+ "restored_by_readback": true,
+ "row": "AS2",
+ "teardown": {
+  "force_killed": false,
+  "pidfile_removed": true,
+  "returncode": 0,
+  "stderr_bytes": 0
+ },
+ "vol_change": {
+  "field": "windows.endpoints[20].volume",
+  "new": 0.9,
+  "old": 1.0,
+  "schema": 1,
+  "type": "change",
+  "utc": "2026-10-03T09:52:55.847332Z"
+ },
+ "vol_change_latency_s": 4.84,
+ "vol_restore": {
+  "field": "windows.endpoints[20].volume",
+  "new": 1.0,
+  "old": 0.9,
+  "schema": 1,
+  "type": "change",
+  "utc": "2026-10-03T09:53:00.904083Z"
+ },
+ "vol_restore_latency_s": 4.88,
+ "volume_after": 1.0,
+ "volume_before": 1.0
+}

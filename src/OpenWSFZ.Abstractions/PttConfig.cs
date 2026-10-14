@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
@@ -8,6 +10,39 @@ namespace OpenWSFZ.Abstractions;
 /// </summary>
 public sealed record PttConfig
 {
+
+    // Deserialization note (Lesson 6 / D-WFC-001 pattern, see LoggingConfig.cs and #209):
+    // without an explicit [JsonConstructor] the STJ source generator reads default(T) for a key
+    // that is absent from a PRESENT section, bypassing the initialisers below. Every property is
+    // therefore a constructor parameter carrying the same default as its initialiser.
+
+    /// <summary>
+    /// Deserialization constructor (parameter defaults mirror the initialisers). A <c>null</c>
+    /// <paramref name="serialPort"/> (its platform default cannot be a compile-time constant)
+    /// resolves to the platform default.
+    /// </summary>
+    [JsonConstructor]
+    public PttConfig(
+        string  method            = "AudioVox",
+        string? serialPort        = null,
+        string  serialLine        = "Rts",
+        int     leadTimeMs        = 50,
+        int     tailTimeMs        = 50,
+        int     watchdogTimeoutMs = 20000)
+    {
+        Method            = method;
+        SerialPort        = serialPort ?? DefaultSerialPort;
+        SerialLine        = serialLine;
+        LeadTimeMs        = leadTimeMs;
+        TailTimeMs        = tailTimeMs;
+        WatchdogTimeoutMs = watchdogTimeoutMs;
+    }
+
+    private static string DefaultSerialPort =>
+        OperatingSystem.IsWindows() ? "COM7" :
+        OperatingSystem.IsMacOS()   ? "/dev/cu.usbserial-ptt" :
+                                      "/dev/ttyUSB1";
+
     /// <summary>
     /// Selects which <c>IPttController</c> implementation is registered at daemon startup.
     /// Recognised values: <c>"AudioVox"</c> (default — existing VOX-only behaviour,

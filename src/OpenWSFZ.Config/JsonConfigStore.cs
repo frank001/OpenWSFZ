@@ -83,6 +83,7 @@ public sealed class JsonConfigStore : IConfigStore
                 Decoder = createdDecoder with
                 {
                     Nhard40MigrationApplied       = true,
+                    Nhard24MigrationApplied       = true,
                     SubtractionOnMigrationApplied = true,
                 },
             };
@@ -297,6 +298,35 @@ public sealed class JsonConfigStore : IConfigStore
                 migrationDirty = true;
             }
 
+            // OSD-FIX R4 migration (2026-10-09): a persisted exactly-40 osdNhardMax becomes 24 once. Evaluated on the
+            // result of the M2 step above, so a legacy 60 with no markers chains 60 -> 40 -> 24 in one Load. The marker
+            // (Nhard24MigrationApplied) means "no 40 -> 24 migration is pending" (the #199 rule): it is also set, with the
+            // value untouched, for any decoder section whose value is not 40, so a later deliberate 40 is never re-migrated.
+            // Validated on replay of one 40 m night (860 cycles); not measured live - see DecoderConfig.OsdNhardMax.
+            if (config.Decoder is { OsdNhardMax: 40, Nhard24MigrationApplied: false })
+            {
+                config = config with
+                {
+                    Decoder = config.Decoder with
+                    {
+                        OsdNhardMax             = 24,
+                        Nhard24MigrationApplied = true,
+                    },
+                };
+                Console.Error.WriteLine(
+                    "[OpenWSFZ] osdNhardMax: migrated persisted default 40 -> 24 " +
+                    "(OSD-FIX TEST F-GO, 2026-10-09). Set decoder.osdNhardMax to override.");
+                migrationDirty = true;
+            }
+            else if (config.Decoder is { Nhard24MigrationApplied: false })
+            {
+                config = config with
+                {
+                    Decoder = config.Decoder with { Nhard24MigrationApplied = true },
+                };
+                migrationDirty = true;
+            }
+
             // Subtraction default-ON migration (SUB-FEAS, v0.54): a persisted
             // subtractionEnabled false becomes true once. The marker is set whenever a decoder
             // section is loaded with it false, migrated or not (the #199 rule), so an operator's
@@ -399,7 +429,7 @@ public sealed class JsonConfigStore : IConfigStore
                 Tx                = new TxConfig(),
                 RemoteAccess      = new RemoteAccessConfig(),
                 // Marker true: a fresh install has no legacy 60 to migrate (#199).
-                Decoder           = new DecoderConfig() with { Nhard40MigrationApplied = true, SubtractionOnMigrationApplied = true },
+                Decoder           = new DecoderConfig() with { Nhard40MigrationApplied = true, Nhard24MigrationApplied = true, SubtractionOnMigrationApplied = true },
                 ExternalReporting = new ExternalReportingConfig(),
             },
             ConfigJsonContext.Default.AppConfig);

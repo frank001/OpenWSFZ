@@ -643,8 +643,8 @@ public sealed class JsonConfigStoreTests
         var store = new JsonConfigStore(configPath);
 
         store.Current.Decoder.Should().NotBeNull();
-        store.Current.Decoder!.OsdNhardMax.Should().Be(40,
-            "a persisted exactly-60 osdNhardMax with no marker must be migrated to the new code default (40)");
+        store.Current.Decoder!.OsdNhardMax.Should().Be(24,
+            "a persisted exactly-60 osdNhardMax with no marker is migrated 60 -> 40 (M2) and on 40 -> 24 (OSD-FIX R4) in the same Load");
         store.Current.Decoder!.Nhard40MigrationApplied.Should().BeTrue(
             "the migration must set the marker on the in-memory Current");
 
@@ -654,7 +654,7 @@ public sealed class JsonConfigStoreTests
         var onDisk = JsonSerializer.Deserialize(
             File.ReadAllText(configPath), ConfigJsonContext.Default.AppConfig)!;
         onDisk.Decoder.Should().NotBeNull();
-        onDisk.Decoder!.OsdNhardMax.Should().Be(40,
+        onDisk.Decoder!.OsdNhardMax.Should().Be(24,
             "the migrated value must be persisted to disk, not just held in memory");
         onDisk.Decoder!.Nhard40MigrationApplied.Should().BeTrue(
             "the migration marker must be persisted to disk so a restart does not re-migrate");
@@ -694,7 +694,7 @@ public sealed class JsonConfigStoreTests
             "the marker means no migration is pending (#199): a non-60 value has nothing to migrate, so the marker is set");
     }
 
-    [Fact(DisplayName = "NHARD40-DEFAULT M2: a config file with no decoder key at all yields the new code default (40) and writes no migration marker")]
+    [Fact(DisplayName = "NHARD40-DEFAULT M2: a config file with no decoder key at all yields the code default (24) and writes no migration marker")]
     public void Load_NoDecoderKey_YieldsNewCodeDefault_NoMigrationMarkerWritten()
     {
         using var dir = new TempDirectory();
@@ -709,8 +709,8 @@ public sealed class JsonConfigStoreTests
         // Decoder itself must stay null and no write-back must have occurred.
         store.Current.Decoder.Should().BeNull(
             "an absent decoder key must stay null — the migration guard must not fire when config.Decoder is null");
-        (store.Current.Decoder ?? new DecoderConfig()).OsdNhardMax.Should().Be(40,
-            "the effective value for an absent decoder key is the new code default (40)");
+        (store.Current.Decoder ?? new DecoderConfig()).OsdNhardMax.Should().Be(24,
+            "the effective value for an absent decoder key is the code default (24, OSD-FIX R4)");
 
         var onDiskText = File.ReadAllText(configPath);
         onDiskText.Should().NotContain("nhard40MigrationApplied",

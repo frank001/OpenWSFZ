@@ -466,18 +466,19 @@ Both enums SHALL be defined in `OpenWSFZ.Abstractions`.
 
 ### Requirement: Decoder configuration schema
 
-The `AppConfig` schema SHALL include an optional `decoder` object that controls the OSD gate parameters. If the `decoder` key is absent from the config file, the daemon SHALL behave as if `decoder` were `new DecoderConfig()` — `kMinScorePass2: 10` and `osdCorrThreshold: 0.10` take their D-009 calibrated defaults, and `osdNhardMax: 40` takes the `NHARD40-DEFAULT` arm's calibrated value (2026-09-12; native binary default is unchanged at 60 — see `DecoderConfig.OsdNhardMax`'s own doc comment for the deliberate C#/native divergence). All fields within the `decoder` object SHALL have defaults matching the calibrated values, so that a partial `decoder` object (e.g., only `kMinScorePass2` present) loads without error.
+The `AppConfig` schema SHALL include an optional `decoder` object that controls the OSD gate parameters. If the `decoder` key is absent from the config file, the daemon SHALL behave as if `decoder` were `new DecoderConfig()` — `kMinScorePass2: 10` and `osdCorrThreshold: 0.10` take their D-009 calibrated defaults, and `osdNhardMax: 24` takes the OSD-FIX R4 default (2026-10-09: validated on replay of one 40 m night, 860 cycles; not measured live, other bands or fading/drift untested; it assumes the corrected OSD, shim 20260060; native binary default is unchanged at 60 — see `DecoderConfig.OsdNhardMax`'s own doc comment for the deliberate C#/native divergence). All fields within the `decoder` object SHALL have defaults matching the calibrated values, so that a partial `decoder` object (e.g., only `kMinScorePass2` present) loads without error.
 
 The `decoder` object SHALL contain:
 
 - `kMinScorePass2` (int, default `10`, valid range [5, 30]) — pass-1 candidate score floor.
 - `osdCorrThreshold` (float, default `0.10`, valid range [0.05, 0.40]) — OSD normalised correlation gate.
-- `osdNhardMax` (int, default `40`, valid range [30, 100]) — OSD maximum Hamming-distance gate.
+- `osdNhardMax` (int, default `24`, valid range [24, 100]) — OSD maximum Hamming-distance gate. 24 is the lowest value the OSD-FIX TEST measured, so it is the lowest allowed.
+- `nhard24MigrationApplied` (bool, default `false`, **server-owned**) — means *no 40 -> 24 migration is pending for this install*. At load, a persisted `osdNhardMax` of exactly `40` with the marker `false` SHALL be set to `24` once and written back at once (one stderr line); a persisted legacy `60` without `nhard40MigrationApplied` SHALL chain 60 -> 40 -> 24 in one load. Any other persisted value is left untouched and the marker is set `true`. The marker is `true` on a fresh install and on a decoder section created from nothing; no request body can set or clear it.
 
 #### Scenario: Missing decoder key uses calibrated defaults
 
 - **WHEN** the config file has no `decoder` key
-- **THEN** the effective decoder parameters SHALL be `kMinScorePass2 = 10`, `osdCorrThreshold = 0.10`, and `osdNhardMax = 40`
+- **THEN** the effective decoder parameters SHALL be `kMinScorePass2 = 10`, `osdCorrThreshold = 0.10`, and `osdNhardMax = 24`
 
 #### Scenario: decoder object round-trips correctly
 
@@ -487,7 +488,7 @@ The `decoder` object SHALL contain:
 #### Scenario: Partial decoder object uses defaults for missing fields
 
 - **WHEN** a config file contains `{ "decoder": { "kMinScorePass2": 8 } }` with no `osdCorrThreshold` or `osdNhardMax`
-- **THEN** `AppConfig.Decoder.OsdCorrThreshold` SHALL be `0.10f` and `AppConfig.Decoder.OsdNhardMax` SHALL be `40`
+- **THEN** `AppConfig.Decoder.OsdCorrThreshold` SHALL be `0.10f` and `AppConfig.Decoder.OsdNhardMax` SHALL be `24`
 
 ---
 
@@ -501,7 +502,7 @@ Validation rules:
 |---|---|---|---|
 | `kMinScorePass2` | 5 | 30 | Clamp to range; log Warning with original and clamped values |
 | `osdCorrThreshold` | 0.05 | 0.40 | Clamp to range; log Warning with original and clamped values |
-| `osdNhardMax` | 30 | 100 | Clamp to range; log Warning with original and clamped values |
+| `osdNhardMax` | 24 | 100 | Clamp to range; log Warning with original and clamped values |
 
 #### Scenario: kMinScorePass2 below minimum is clamped to 5
 
@@ -523,10 +524,10 @@ Validation rules:
 - **WHEN** `POST /api/v1/config` is called with `{ "decoder": { "osdCorrThreshold": 0.90 } }`
 - **THEN** the server SHALL clamp `osdCorrThreshold` to `0.40`, log a Warning, and persist `0.40`
 
-#### Scenario: osdNhardMax below minimum is clamped to 30
+#### Scenario: osdNhardMax below minimum is clamped to 24
 
 - **WHEN** `POST /api/v1/config` is called with `{ "decoder": { "osdNhardMax": 10 } }`
-- **THEN** the server SHALL clamp `osdNhardMax` to `30`, log a Warning, and persist `30`
+- **THEN** the server SHALL clamp `osdNhardMax` to `24`, log a Warning, and persist `24`
 
 #### Scenario: osdNhardMax above maximum is clamped to 100
 

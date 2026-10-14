@@ -1,0 +1,57 @@
+{
+ "chunks": {
+  "1": {
+   "cycles": 89,
+   "file": "chunk_1.json",
+   "sha256_lf": "fc4b5af7edfc8d95d102b305b514c35ec2aecd1e7b5167e3b60ea450095aca7d",
+   "warmup": "261004_163400"
+  },
+  "2": {
+   "cycles": 89,
+   "file": "chunk_2.json",
+   "sha256_lf": "db0a49fe55b4954b7bb2e9902d5a652accaa8633b1b4c2858837da95d3b4a53c",
+   "warmup": "261004_182415"
+  },
+  "3": {
+   "cycles": 89,
+   "file": "chunk_3.json",
+   "sha256_lf": "17a90595cf5a213ca6ad39c2e5102cc5e7f644480d02abb77e464f4623563b58",
+   "warmup": "261004_201530"
+  },
+  "4": {
+   "cycles": 89,
+   "file": "chunk_4.json",
+   "sha256_lf": "baa7ce92f2f357b21df34f5306867a3e2bbec3762f7879a87becf18f00e1e724",
+   "warmup": "261004_220645"
+  },
+  "5": {
+   "cycles": 89,
+   "file": "chunk_5.json",
+   "sha256_lf": "9e1fd1d96ab53ea2b62d53d736c1e07923ce478eb15c0d5e8c16f276ac574228",
+   "warmup": "261004_235800"
+  },
+  "6": {
+   "cycles": 89,
+   "file": "chunk_6.json",
+   "sha256_lf": "ce5b739ac6cbf39c67b92af201547a3f960e01c6318623439af642f67e4f4127",
+   "warmup": "261005_014915"
+  },
+  "7": {
+   "cycles": 87,
+   "file": "chunk_7.json",
+   "sha256_lf": "3e4a40361fa02c848198b36f3b05090169c73327687ed63839a61a40102bec18",
+   "warmup": "261005_034030"
+  }
+ },
+ "run": "20261004_1634",
+ "selection_sha256_lf": "27bb840f45c77da6e65f18f855ade547e9a002a253c2946bf723a6eaa53db11e",
+ "sizes": [
+  89,
+  89,
+  89,
+  89,
+  89,
+  89,
+  87
+ ]
+}

@@ -16,6 +16,7 @@ import { getConfig, getFrequencies, postTune, postAudioOffset,
          getDecodeFilter, postDecodeFilter }                                 from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
 import { isDecodeVisible, UNFILTERED_DECODE_FILTER }                         from './decodeFilter.js';
+import { createEarlyRowTracker, markEarlyRow }                              from './earlyRows.js';
 import { shouldCaptureDecode, buildTranscriptEntry, pushTranscriptEntry,
          hasEnteredNewActiveTxState, cacheRealRowText, pickRowText,
          TRANSCRIPT_LOG_MAX }                                               from './qsoTranscript.js';
@@ -706,6 +707,9 @@ function initDecodeFilter() {
 
 const decodesBody = /** @type {HTMLTableSectionElement} */ (document.getElementById('decodes-body'));
 
+// decode-early-batch-panel (FR-083): the early rows currently on the panel (web/js/earlyRows.js).
+const earlyRowTracker = createEarlyRowTracker(decodesBody, document);
+
 /**
  * Create a table cell with safely-escaped text content.
  * Using textContent prevents XSS from FT8 Type 5 (free-text) messages that
@@ -774,15 +778,24 @@ function formatRegion(region) {
  *
  * @param {Array<{time:string, snr:number, dt:number, freqHz:number, message:string, band?:string|null, region?:{continent?:string|null, entity:string, synthetic:boolean}|null, workedBefore?:{contact:string, country:string, continent:string, cqZone:string, ituZone:string}|null}>} results
  */
-function handleDecodes(results) {
-  if (!results || results.length === 0) return;
+function handleDecodes(results, resolves) {
+  // decode-early-batch-panel (FR-083, D5): a frame may carry `resolves`, what became of the cycle's early rows. An
+  // EMPTY batch 1 with resolves still matters (every early row of the cycle becomes "unconfirmed").
+  const hasResolves = Array.isArray(resolves) && resolves.length > 0;
+  if ((!results || results.length === 0) && !hasResolves) return;
+  results = results ?? [];
 
   // Remove placeholder row on first real decode.
   const placeholder = decodesBody.querySelector('tr .td-no-data, tr td.td-no-data');
   if (placeholder) placeholder.closest('tr')?.remove();
 
+  // Unconfirmed early rows are marked now; a confirmed early row is replaced IN PLACE by its final row below.
+  const confirmedEarly = earlyRowTracker.resolve(hasResolves ? resolves : null);
+  let finalIndex = -1;
+
   // Prepend newest rows (results are newest first if multiple in one cycle).
   for (const r of results) {
+    finalIndex++;
     const dtStr  = (r.dt >= 0 ? '+' : '') + r.dt.toFixed(1);
     const snrStr = r.snr >= 0 ? `+${r.snr}` : `${r.snr}`;
 
@@ -996,13 +1009,75 @@ function handleDecodes(results) {
     });
     // ── End D-CALLER-012 ─────────────────────────────────────────────────────
 
-    decodesBody.prepend(tr);
+    // decode-early-batch-panel (D5): the final row REPLACES its confirmed early row in place (one row, same position,
+    // no paint in between); every other row is prepended exactly as before.
+    const confirmedEarlyRow = confirmedEarly.get(finalIndex);
+    if (confirmedEarlyRow && confirmedEarlyRow.isConnected) {
+      confirmedEarlyRow.replaceWith(tr);
+      confirmedEarly.delete(finalIndex);
+    } else {
+      decodesBody.prepend(tr);
+    }
+  }
+
+  // A "confirmed" early row whose final row never arrived in this frame cannot stay marked early forever.
+  for (const orphan of confirmedEarly.values()) {
+    if (orphan.isConnected) markEarlyRow(orphan, 'unconfirmed');
   }
 
   // Cap at MAX_DECODE_ROWS — remove excess from the bottom.
   const rows = decodesBody.querySelectorAll('tr');
   for (let i = MAX_DECODE_ROWS; i < rows.length; i++) {
     rows[i].remove();
+  }
+}
+
+/**
+ * Handle a `decode-early` WebSocket event (decode-early-batch-panel, FR-083): the cycle's EARLY batch, decoded from the
+ * first part of the window about 2 s before the final decode. Each row is shown marked "early" (a text badge, never
+ * colour alone) and is display-only: it carries no click or double-click handler (the automation never acts on an early
+ * row; its confirming final row, which replaces it in place, is a normal interactive row). It does not feed the
+ * received-message transcript, the QSO highlighting or the session's distinct-value sets: those read the final batch.
+ * The active decode filter applies to early rows as to any row.
+ *
+ * @param {Array<{earlyId:number, decode:{time:string, snr:number, dt:number, freqHz:number, message:string, band?:string|null, region?:{continent?:string|null, entity:string, synthetic:boolean}|null, workedBefore?:{contact:string, country:string, continent:string, cqZone:string, ituZone:string}|null}}>} rows
+ */
+function handleEarlyDecodes(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+
+  const placeholder = decodesBody.querySelector('tr .td-no-data, tr td.td-no-data');
+  if (placeholder) placeholder.closest('tr')?.remove();
+
+  for (const { earlyId, decode: r } of rows) {
+    const dtStr  = (r.dt >= 0 ? '+' : '') + r.dt.toFixed(1);
+    const snrStr = r.snr >= 0 ? `+${r.snr}` : `${r.snr}`;
+
+    const tr = document.createElement('tr');
+    tr.appendChild(makeCell(r.time));
+    tr.appendChild(makeCell(r.band ?? ''));
+    tr.appendChild(makeCell(snrStr));
+    tr.appendChild(makeCell(dtStr));
+    tr.appendChild(makeCell(String(r.freqHz)));
+    const messageCell = makeCell(r.message);
+    tr.appendChild(messageCell);
+    tr.appendChild(makeCell(formatRegion(r.region)));
+    const wb = r.workedBefore;
+    tr.appendChild(makeWorkedBeforeCell(wb?.contact));
+    tr.appendChild(makeWorkedBeforeCell(wb?.country));
+    tr.appendChild(makeWorkedBeforeCell(wb?.continent));
+    tr.appendChild(makeWorkedBeforeCell(wb?.cqZone));
+    tr.appendChild(makeWorkedBeforeCell(wb?.ituZone));
+
+    /** @type {any} */ (tr).__decode = r;                       // so a filter change re-evaluates this row too
+    tr.hidden = !isDecodeVisible(r, currentDecodeFilter);
+    tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
+
+    earlyRowTracker.add(earlyId, tr, messageCell);
+  }
+
+  const all = decodesBody.querySelectorAll('tr');
+  for (let i = MAX_DECODE_ROWS; i < all.length; i++) {
+    all[i].remove();
   }
 }
 
@@ -1818,7 +1893,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (event.type === 'decode') {
-      handleDecodes(event.payload);
+      handleDecodes(event.payload, event.resolves);
+      return;
+    }
+
+    // decode-early-batch-panel (FR-083): the cycle's early batch, panel only.
+    if (event.type === 'decode-early') {
+      handleEarlyDecodes(event.payload);
       return;
     }
 

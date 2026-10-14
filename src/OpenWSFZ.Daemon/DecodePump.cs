@@ -25,7 +25,16 @@ internal sealed record DecodePumpDependencies(
     ChannelWriter<DecodeBatch>                                         AnswererChannel,
     ChannelWriter<DecodeBatch>                                         CallerChannel,
     ChannelWriter<DecodeBatch>                                         ExternalReportingChannel,
-    ILogger                                                            Logger);
+    ILogger                                                            Logger)
+{
+    /// <summary>
+    /// decode-early-batch-panel (design.md D2, D5): optional. <c>null</c> (the default; every existing caller) means the
+    /// pump takes no decode gate, publishes batch 1 exactly as before and abandons nothing: the pre-change pump, call for
+    /// call. When present it supplies the decode gate (held around the ordinary decode, so an early decode and an ordinary
+    /// decode never run together), the matching of batch 1 against the early rows, and the R7 log line's final-wait figure.
+    /// </summary>
+    public EarlyDecodeCoordinator? Early { get; init; }
+}
 
 /// <summary>
 /// The decode pump: reads completed PCM windows, decodes each, and publishes the result to every consumer.
@@ -85,6 +94,7 @@ internal sealed class DecodePump
                         cycleStart,
                         windowDialFreq?.ToString("F3") ?? "unknown",
                         currentDialFreq?.ToString("F3") ?? "unknown");
+                    _d.Early?.Abandon(cycleStart);   // an early row of a discarded cycle must not stay marked "early"
                     continue;
                 }
 
@@ -97,23 +107,41 @@ internal sealed class DecodePump
                 // alongside dialFreq, using the same already-trustworthy (D-013) value.
                 var currentBand = _d.DeriveBand(dialFreq);
 
-                // The flag is read ONCE per window. OFF: the ordinary single decode and one publish, exactly as
-                // before two-stage publish existed (P-9): this branch does not touch the two-batch machinery.
-                if (!_d.SubtractionEnabled())
+                // decode-early-batch-panel D2: the decode gate, only when the early machinery is wired. An early decode
+                // that is still running when the window closes is waited for (at most one, about 0.6 s); the wait is
+                // measured and reported on the cycle's R7 line as finalWaitMs. With no coordinator (null) this takes no
+                // gate and the calls below are the pre-change ones, in the same order.
+                var early = _d.Early;
+                if (early is not null)
                 {
-                    var results = await _d.DecodeSingleBatch(pcmWindow, cycleStart, currentBand, stoppingToken);
-                    await PublishFirstAsync(results, pcmWindow, cycleStart, windowClosedUtc, dialFreq);
+                    var gateWait = System.Diagnostics.Stopwatch.StartNew();
+                    await early.Gate.WaitAsync(stoppingToken);
+                    early.NoteFinalDecodeStarted(cycleStart, gateWait.Elapsed.TotalMilliseconds);
                 }
-                else
+                try
                 {
-                    var second = await _d.DecodeTwoStage(
-                        pcmWindow, cycleStart, currentBand,
-                        batch1 => PublishFirstAsync(batch1, pcmWindow, cycleStart, windowClosedUtc, dialFreq),
-                        stoppingToken);
+                    // The flag is read ONCE per window. OFF: the ordinary single decode and one publish, exactly as
+                    // before two-stage publish existed (P-9): this branch does not touch the two-batch machinery.
+                    if (!_d.SubtractionEnabled())
+                    {
+                        var results = await _d.DecodeSingleBatch(pcmWindow, cycleStart, currentBand, stoppingToken);
+                        await PublishFirstAsync(results, pcmWindow, cycleStart, windowClosedUtc, dialFreq);
+                    }
+                    else
+                    {
+                        var second = await _d.DecodeTwoStage(
+                            pcmWindow, cycleStart, currentBand,
+                            batch1 => PublishFirstAsync(batch1, pcmWindow, cycleStart, windowClosedUtc, dialFreq),
+                            stoppingToken);
 
-                    // Nothing is published for batch 2 unless the pass completed with a new decode (P-2).
-                    if (second.Count > 0)
-                        await PublishSecondAsync(second, cycleStart, dialFreq);
+                        // Nothing is published for batch 2 unless the pass completed with a new decode (P-2).
+                        if (second.Count > 0)
+                            await PublishSecondAsync(second, cycleStart, dialFreq);
+                    }
+                }
+                finally
+                {
+                    early?.Gate.Release();
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -123,6 +151,7 @@ internal sealed class DecodePump
             catch (Exception ex)
             {
                 _d.Logger.LogError(ex, "Decode error: {Message}", ex.Message);
+                _d.Early?.Abandon(cycleStart);   // no batch 1 will come for this cycle: resolve its early rows
             }
         }
     }
@@ -143,7 +172,11 @@ internal sealed class DecodePump
         // unfiltered `results`.
         var visibleResults = _d.ApplyNoiseSuppression(results);
 
-        _ = _d.PublishToPanel(visibleResults); // fire-and-forget: do not await WebSocket delivery
+        // decode-early-batch-panel D5: with early rows for this cycle, ONE frame carries batch 1 and what became of each
+        // early row; with none (and always with no coordinator) this is exactly the ordinary PublishToPanel call.
+        _ = _d.Early is { } earlyCoordinator
+            ? earlyCoordinator.PublishBatch1Async(visibleResults, cycleStart, _d.PublishToPanel)
+            : _d.PublishToPanel(visibleResults); // fire-and-forget: do not await WebSocket delivery
         await _d.AppendAllTxt(cycleStart, dialFreq, results); // unfiltered — ALL.TXT unaffected
 
         // cycle-audio-archive: non-blocking enqueue; the archive's own dedicated writer

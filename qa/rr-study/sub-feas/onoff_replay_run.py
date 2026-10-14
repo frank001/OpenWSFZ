@@ -50,9 +50,9 @@ R.OUT = OUT
 
 SELECTION = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-01-sub-feas-offline-onoff-replay", "selection.json")
 SELECTION_SHA256 = "55a951c86147e92a8262be9d84ffd29362ecd7b63995f62caa7981bd53c977cf"   # LF-normalised bytes
-CHECKOUT = r"C:\Users\Frank\w-twostage-review"
+CHECKOUT = r"D:\Projects\claude\_qa-scratch\w-twostage-review"
 BUILD_COMMIT = "247ac391"
-HOUT = r"C:\Users\Frank\w-onoff-out"
+HOUT = r"D:\Projects\claude\_qa-scratch\w-onoff-out"
 DLL = "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c"
 WAV_DIR = os.path.join(ART, f"{RUN}_endurance_run", "cycle-audio")
 WS_ALLTXT = os.path.join(ART, f"{RUN}_endurance_run-gathered", "wsjt-x", "ALL.TXT")

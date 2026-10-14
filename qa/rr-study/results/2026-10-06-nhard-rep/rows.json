@@ -1,0 +1,247 @@
+{
+ "BAR_N_pp": 0.5,
+ "cluster": {
+  "distinct_cycles_nonzero": 49,
+  "flag_gt_half": false,
+  "largest_abs_block_sum": 8,
+  "n_blocks": 39,
+  "sum_d": -55,
+  "top5_share_of_positive_sum": null
+ },
+ "consistency": {
+  "K_minus_G_equals_sum_d": {
+   "G": 57,
+   "K": 2,
+   "pass": true
+  },
+  "M_equals_b1_plus_b2_matched": {
+   "pass": true
+  },
+  "all_sampled_cycles_present_in_N40_and_N60": {
+   "missing": 0,
+   "pass": true
+  },
+  "matched_index_sets_present_and_size_equal_M": {
+   "pass": true
+  },
+  "wsjtx_W_identical_in_N40_and_N60": {
+   "pass": true
+  }
+ },
+ "descriptive": {
+  "G_confirmed_at_40_absent_at_60": 57,
+  "K_confirmed_at_60_absent_at_40": 2,
+  "K_minus_G": -55,
+  "NET_by_batch_pp": {
+   "b1": -0.05282062117050496,
+   "b2": -0.5282062117050497
+  },
+  "exchange_rate_extra_confirmed_per_extra_not_confirmed": -0.26570048309178745,
+  "not_confirmed_by_ows_snr_band": {
+   "A": {
+    "40": {
+     "n": 1723,
+     "not_confirmed": 25,
+     "not_confirmed_rate": 0.014509576320371444,
+     "wilson95": [
+      0.0098,
+      0.0213
+     ]
+    },
+    "60": {
+     "n": 1716,
+     "not_confirmed": 27,
+     "not_confirmed_rate": 0.015734265734265736,
+     "wilson95": [
+      0.0108,
+      0.0228
+     ]
+    }
+   },
+   "B": {
+    "40": {
+     "n": 2836,
+     "not_confirmed": 45,
+     "not_confirmed_rate": 0.015867418899858956,
+     "wilson95": [
+      0.0119,
+      0.0212
+     ]
+    },
+    "60": {
+     "n": 2825,
+     "not_confirmed": 58,
+     "not_confirmed_rate": 0.020530973451327435,
+     "wilson95": [
+      0.0159,
+      0.0264
+     ]
+    }
+   },
+   "C": {
+    "40": {
+     "n": 1316,
+     "not_confirmed": 21,
+     "not_confirmed_rate": 0.015957446808510637,
+     "wilson95": [
+      0.0105,
+      0.0243
+     ]
+    },
+    "60": {
+     "n": 1350,
+     "not_confirmed": 71,
+     "not_confirmed_rate": 0.052592592592592594,
+     "wilson95": [
+      0.0419,
+      0.0658
+     ]
+    }
+   },
+   "D": {
+    "40": {
+     "n": 1030,
+     "not_confirmed": 55,
+     "not_confirmed_rate": 0.05339805825242718,
+     "wilson95": [
+      0.0413,
+      0.0689
+     ]
+    },
+    "60": {
+     "n": 1166,
+     "not_confirmed": 197,
+     "not_confirmed_rate": 0.16895368782161235,
+     "wilson95": [
+      0.1485,
+      0.1915
+     ]
+    }
+   }
+  },
+  "not_confirmed_per_cycle": {
+   "40": 0.4694533762057878,
+   "60": 1.135048231511254,
+   "sum40": 146,
+   "sum60": 353
+  },
+  "replay_fidelity_N40_vs_live_ows": {
+   "cycles_equal": 293,
+   "mean_diff_replay_minus_live": 0.00964630225080386,
+   "n": 311,
+   "sum_live": 6902,
+   "sum_replay": 6905
+  },
+  "retired_v2_noise_descriptive": {
+   "cycles_40": 200,
+   "cycles_60": 200,
+   "n_false_40": 0,
+   "n_false_60": 0
+  }
+ },
+ "estimand": {
+  "B": 10000,
+  "NET_pp": -0.5810268328755546,
+  "block": 8,
+  "ci95": [
+   -0.7875690109462707,
+   -0.40791301643235844
+  ],
+  "n_blocks": 39,
+  "seed": 20261006,
+  "sum_M40": 6759,
+  "sum_M60": 6704,
+  "sum_W": 9466
+ },
+ "failing_rows": [],
+ "first_paragraph_flags": [],
+ "generated_utc": "2026-10-06T17:03:20Z",
+ "n_sampled": 311,
+ "n_scored": 311,
+ "numpy": "2.4.6",
+ "reported_not_used": {
+  "acf_of_d": {
+   "1": 0.06507349262094006,
+   "2": -0.07940587598292485,
+   "8": -0.041385956630749544
+  },
+  "ci_by_block": {
+   "16": [
+    -0.7475102460182736,
+    -0.4325784316867933
+   ],
+   "4": [
+    -0.7861330558625242,
+    -0.40410386805889775
+   ]
+  }
+ },
+ "selection_sha256_lf": "3cf04abb6b653bac5df70ce587ad48bd5d3bef7205eee6c040f8e2951cb13872",
+ "v6_multiset_differences_reported_not_gated": {
+  "differing": 0,
+  "explained": 0,
+  "n": 200,
+  "unexplained": 0,
+  "unexplained_stamps": []
+ },
+ "validity": {
+  "V1": {
+   "checked": 6,
+   "failed_or_missing": [],
+   "pass": true
+  },
+  "V2P": {
+   "pass": true,
+   "probe_rows": {
+    "AA": 4,
+    "N40": 4,
+    "N60": 4
+   },
+   "problems": []
+  },
+  "V3": {
+   "nonzero": {},
+   "pass": true
+  },
+  "V4": {
+   "pass": true,
+   "problems": []
+  },
+  "V5": {
+   "N40": {
+    "abandoned": 0,
+    "fraction": 0.0,
+    "included": 311,
+    "missing_from_abandon_file": 0
+   },
+   "N60": {
+    "abandoned": 1,
+    "fraction": 0.003215434083601286,
+    "included": 311,
+    "missing_from_abandon_file": 0
+   },
+   "pass": true
+  },
+  "V6": {
+   "NET_AA_pp": 0.0,
+   "ci95": [
+    0.0,
+    0.0
+   ],
+   "ci_inside_window": true,
+   "cycles_d_nonzero": 0,
+   "explained": 0,
+   "explained_stamps": [],
+   "n": 200,
+   "n_blocks": 25,
+   "pass": true,
+   "unexplained": 0,
+   "unexplained_stamps": [],
+   "window": [
+    -0.25,
+    0.25
+   ]
+  }
+ },
+ "verdict": "N-CLOSED"
+}

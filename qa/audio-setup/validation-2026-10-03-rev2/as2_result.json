@@ -1,0 +1,58 @@
+{
+ "PASS": true,
+ "endpoint": "Voicemeeter In 5",
+ "endpoint_tail": "5dadfc8f806}",
+ "gain_after": -27.0,
+ "gain_before": -27.0,
+ "gain_change": {
+  "detected_utc": "2026-10-03T11:09:58.492144Z",
+  "field": "voicemeeter.strips[3].gain",
+  "new": -26.0,
+  "old": -27.0,
+  "schema": 1,
+  "type": "change",
+  "utc": "2026-10-03T11:09:58.492160Z"
+ },
+ "gain_change_latency_s": 3.52,
+ "gain_restore": {
+  "detected_utc": "2026-10-03T11:10:03.575853Z",
+  "field": "voicemeeter.strips[3].gain",
+  "new": -27.0,
+  "old": -26.0,
+  "schema": 1,
+  "type": "change",
+  "utc": "2026-10-03T11:10:03.575869Z"
+ },
+ "gain_restore_latency_s": 4.58,
+ "restored_by_readback": true,
+ "row": "AS2",
+ "teardown": {
+  "force_killed": false,
+  "pidfile_removed": true,
+  "returncode": 0,
+  "stderr_bytes": 0,
+  "stderr_head": ""
+ },
+ "vol_change": {
+  "detected_utc": "2026-10-03T11:10:08.619106Z",
+  "field": "windows.endpoints[20].volume",
+  "new": 0.9,
+  "old": 1.0,
+  "schema": 1,
+  "type": "change",
+  "utc": "2026-10-03T11:10:08.619121Z"
+ },
+ "vol_change_latency_s": 4.62,
+ "vol_restore": {
+  "detected_utc": "2026-10-03T11:10:13.653729Z",
+  "field": "windows.endpoints[20].volume",
+  "new": 1.0,
+  "old": 0.9,
+  "schema": 1,
+  "type": "change",
+  "utc": "2026-10-03T11:10:13.653744Z"
+ },
+ "vol_restore_latency_s": 4.64,
+ "volume_after": 1.0,
+ "volume_before": 1.0
+}

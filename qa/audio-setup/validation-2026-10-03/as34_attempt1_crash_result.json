@@ -1,0 +1,19 @@
+{
+ "AS3_PASS": false,
+ "AS4_PASS": false,
+ "changes_logged": 0,
+ "cpu_fraction_of_one_core": 0.00065,
+ "duration_s": 600,
+ "heartbeats": 2,
+ "max_heartbeat_gap_s": 60.6,
+ "orphans": [],
+ "records_schema_valid": 3,
+ "row": "AS3+AS4",
+ "sample_ms_max_over_run": 1034.0,
+ "teardown": {
+  "force_killed": false,
+  "pidfile_removed": false,
+  "returncode": 3221225477,
+  "stderr_bytes": 557
+ }
+}

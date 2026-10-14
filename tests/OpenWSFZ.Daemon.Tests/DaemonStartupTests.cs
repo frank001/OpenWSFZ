@@ -26,12 +26,48 @@ public sealed class DaemonStartupTests
         return port;
     }
 
-    private static WebApplication BuildMinimalApp(int port)
+    private static WebApplication BuildMinimalApp(int port, HostStartFailureCounter? counter = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
         builder.Logging.ClearProviders();
+        if (counter is not null)
+            builder.Logging.AddProvider(counter);
         return builder.Build();
+    }
+
+    /// <summary>
+    /// Counts the host's own "Hosting failed to start" error record (<c>Microsoft.Extensions.Hosting.Internal.Host</c>,
+    /// EventId 11), which the generic host writes once for every start attempt that throws. It is the positive signal
+    /// that a start was attempted exactly once, with no wall-clock bound (TESTING_STRATEGY.md section 11; issue #217).
+    /// </summary>
+    private sealed class HostStartFailureCounter : ILoggerProvider
+    {
+        private const string HostCategory = "Microsoft.Extensions.Hosting.Internal.Host";
+        private const int HostingFailedToStartEventId = 11;
+
+        private int _failedStarts;
+
+        /// <summary>Number of failed start attempts the host has logged so far.</summary>
+        public int FailedStarts => Volatile.Read(ref _failedStarts);
+
+        public ILogger CreateLogger(string categoryName) => new CountingLogger(this, categoryName);
+
+        public void Dispose() { }
+
+        private sealed class CountingLogger(HostStartFailureCounter owner, string category) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                if (logLevel == LogLevel.Error && eventId.Id == HostingFailedToStartEventId && category == HostCategory)
+                    Interlocked.Increment(ref owner._failedStarts);
+            }
+        }
     }
 
     [Fact(DisplayName =
@@ -47,16 +83,18 @@ public sealed class DaemonStartupTests
 
         try
         {
-            await using var app = BuildMinimalApp(port);
+            var attempts = new HostStartFailureCounter();
+            await using var app = BuildMinimalApp(port, attempts);
 
-            var sw  = System.Diagnostics.Stopwatch.StartNew();
+            // No stopwatch (issue #217: a 500 ms bound on the cold first StartAsync measured 522 ms on a loaded CI
+            // runner). The positive signal that nothing retried is the host's own failed-start record: one start
+            // attempt throws, and one record is logged for it, however long the cold start takes.
             var act = async () => await app.StartAsync();
             await act.Should().ThrowAsync<IOException>(
                 "a bind conflict must surface immediately, exactly as before this change");
-            sw.Stop();
 
-            sw.ElapsedMilliseconds.Should().BeLessThan(DaemonStartup.DefaultRetryIntervalMs,
-                "a non-relaunch startup must fail on the very first attempt — no retry delay");
+            attempts.FailedStarts.Should().Be(1,
+                "a non-relaunch startup must fail on the very first attempt — exactly one start attempt, no retry");
         }
         finally
         {

@@ -1,0 +1,32 @@
+{
+ "A04": {
+  "cycles": 30,
+  "file": "selection_A04.json",
+  "sha256_lf": "0e3848dd6b993c09aa47fd2d85ca79d42f66f27921b60910c1a35483dff4abb6",
+  "warmup": "261004_133100"
+ },
+ "A08": {
+  "cycles": 30,
+  "file": "selection_A08.json",
+  "sha256_lf": "67b42f8d3a3c6dea6a8522c83b89246890744fae9774a1976d5ab56b6c6f122c",
+  "warmup": "261008_194045"
+ },
+ "A0929": {
+  "cycles": 30,
+  "file": "selection_A0929.json",
+  "sha256_lf": "f30886baeaef9800a08ab38e2ad2f59f379bc5a21ac04f297f88b7ede1ceb5aa",
+  "warmup": "260929_153715"
+ },
+ "A1002": {
+  "cycles": 30,
+  "file": "selection_A1002.json",
+  "sha256_lf": "f2b39aabad8fae29f1a0ca1025463c36325eeb761d112aa0acf91b36a5342e2b",
+  "warmup": "261002_231545"
+ },
+ "A1003": {
+  "cycles": 30,
+  "file": "selection_A1003.json",
+  "sha256_lf": "6f373b3f4ac3bcdb979deff20fe073f33bb306f3d459110fda113a22c7f71844",
+  "warmup": "261003_011630"
+ }
+}

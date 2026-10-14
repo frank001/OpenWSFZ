@@ -1,0 +1,195 @@
+{
+ "first_sample_failing_rows": [],
+ "fresh_sample_alone": {
+  "consistency": {
+   "K_minus_G_equals_sum_d": {
+    "G": 1,
+    "K": 9,
+    "pass": true
+   },
+   "M_equals_b1_plus_b2_matched": {
+    "pass": true
+   },
+   "all_sampled_cycles_present_in_N0_and_N40": {
+    "missing": 0,
+    "pass": true
+   },
+   "matched_index_sets_present_and_size_equal_M": {
+    "pass": true
+   },
+   "wsjtx_W_identical_in_N0_and_N40": {
+    "pass": true
+   }
+  },
+  "descriptive": {
+   "G_confirmed_at_40_absent_at_0": 1,
+   "K_confirmed_at_0_absent_at_40": 9,
+   "K_minus_G": 8,
+   "NET_by_batch_pp": {
+    "b1": 0.0,
+    "b2": 0.07881773399014778
+   },
+   "abandoned_residual_passes": {
+    "N0": 0,
+    "N40": 0
+   },
+   "decodes_by_batch": {
+    "N0": {
+     "b1": 5868,
+     "b2": 1181
+    },
+    "N40": {
+     "b1": 5890,
+     "b2": 1177
+    }
+   },
+   "exchange_rate_extra_confirmed_per_extra_not_confirmed": -0.3076923076923077,
+   "not_confirmed_by_ows_snr_band": {
+    "A": {
+     "N0": {
+      "n": 1599,
+      "not_confirmed": 29,
+      "rate": 0.01813633520950594,
+      "wilson95": [
+       0.0127,
+       0.0259
+      ]
+     },
+     "N40": {
+      "n": 1598,
+      "not_confirmed": 29,
+      "rate": 0.018147684605757195,
+      "wilson95": [
+       0.0127,
+       0.0259
+      ]
+     }
+    },
+    "B": {
+     "N0": {
+      "n": 2918,
+      "not_confirmed": 48,
+      "rate": 0.01644962302947224,
+      "wilson95": [
+       0.0124,
+       0.0217
+      ]
+     },
+     "N40": {
+      "n": 2910,
+      "not_confirmed": 49,
+      "rate": 0.01683848797250859,
+      "wilson95": [
+       0.0128,
+       0.0222
+      ]
+     }
+    },
+    "C": {
+     "N0": {
+      "n": 1523,
+      "not_confirmed": 40,
+      "rate": 0.026263952724885097,
+      "wilson95": [
+       0.0193,
+       0.0356
+      ]
+     },
+     "N40": {
+      "n": 1533,
+      "not_confirmed": 49,
+      "rate": 0.0319634703196347,
+      "wilson95": [
+       0.0243,
+       0.042
+      ]
+     }
+    },
+    "D": {
+     "N0": {
+      "n": 1009,
+      "not_confirmed": 30,
+      "rate": 0.02973240832507433,
+      "wilson95": [
+       0.0209,
+       0.0421
+      ]
+     },
+     "N40": {
+      "n": 1026,
+      "not_confirmed": 46,
+      "rate": 0.04483430799220273,
+      "wilson95": [
+       0.0338,
+       0.0593
+      ]
+     }
+    }
+   },
+   "not_confirmed_per_cycle": {
+    "N0": 0.47419354838709676,
+    "N40": 0.5580645161290323,
+    "change_per_cycle": -0.08387096774193549,
+    "sumN0": 147,
+    "sumN40": 173
+   }
+  },
+  "estimand": {
+   "B": 10000,
+   "NET_0_pp": 0.07881773399014778,
+   "block": 8,
+   "ci95": [
+    0.029148711896666304,
+    0.14070422478294164
+   ],
+   "n_blocks": 39,
+   "seed": 20261006,
+   "sum_M0": 6902,
+   "sum_M40": 6894,
+   "sum_W": 10150
+  },
+  "failing_rows": [],
+  "validity": {
+   "V1": {
+    "failed_or_missing": [],
+    "pass": true
+   },
+   "V2pp": {
+    "n0_rows": 4,
+    "n40_rows": 4,
+    "pass": true,
+    "problems": []
+   },
+   "V3": {
+    "contained": 0,
+    "exception_rows": 0,
+    "nonzero_exits": 0,
+    "pass": true,
+    "rows": 310
+   },
+   "V4": {
+    "pass": true,
+    "problems": []
+   },
+   "V5": {
+    "abandoned": 0,
+    "fraction": 0.0,
+    "included": 310,
+    "missing_from_abandon_file": 0,
+    "pass": true
+   }
+  },
+  "verdict": "O-GAIN"
+ },
+ "pooled": {
+  "NET_0_pp": 0.07646818923327896,
+  "ci95": [
+   0.03613266884573309,
+   0.12285719790033799
+  ],
+  "n_blocks": 78,
+  "n_cycles": 621,
+  "sum_W": 19616
+ },
+ "pooled_verdict": "O-GAIN"
+}

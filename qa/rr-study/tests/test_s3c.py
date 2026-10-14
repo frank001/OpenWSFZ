@@ -210,3 +210,58 @@ def test_an_earlier_batterys_decodes_in_the_cumulative_log_are_not_wrong_cycle(t
     r = SC.score(scen, tmp_path / "w.txt", tmp_path / "o.txt", tmp_path / "playback_log.csv")
     assert r["decoders"]["OpenWSFZ"]["wrong_cycle_decodes"] == 0
     assert all(v["X"] == 0 for v in r["decoders"]["OpenWSFZ"]["parts"].values())
+
+
+def test_owsfz_e50_is_descriptive_so_it_cannot_flag_but_wsjtx_e50_still_guards_validity(tmp_path, scen):
+    """Ruling 2026-10-05 4c: the OpenWSFZ E -2.00 cell is cycle-clustered (effective n ~ 4), so it is descriptive; WSJT-X's rows are unchanged."""
+    ow = [i for i in _all(scen) if i not in set(_sig_ids(scen, "S3c-E50", 32))]            # 0 of 32 at E -2.00
+    r = _run(tmp_path, scen, ow, _all(scen))
+    p = r["decoders"]["OpenWSFZ"]["parts"]["S3c-E50"]
+    assert p["X"] == 0 and p["descriptive"] and p["pass"] and p["k_star"] == 4          # k* recorded, not hidden
+    assert r["rows"]["S3c-OWSFZ (guard)"] == "PASS"
+    ws = [i for i in _all(scen) if i not in set(_sig_ids(scen, "S3c-E50", 32))]          # the same collapse on WSJT-X is a validity FAIL
+    r2 = _run(tmp_path, scen, _all(scen), ws)
+    assert not r2["decoders"]["WSJT-X"]["parts"]["S3c-E50"]["descriptive"]
+    assert r2["rows"]["S3c-WSJT-X (validity)"] == "FAIL"
+
+
+def test_e90_is_still_the_owsfz_early_guard(tmp_path, scen):
+    ow = [i for i in _all(scen) if i not in set(_sig_ids(scen, "S3c-E90", 10))]          # 22 < k* 24
+    r = _run(tmp_path, scen, ow, _all(scen))
+    assert not r["decoders"]["OpenWSFZ"]["parts"]["S3c-E90"]["descriptive"]
+    assert r["rows"]["S3c-OWSFZ (guard)"].startswith("FLAG")
+
+
+def test_cycles_with_decode_counts_cycles_not_signals(tmp_path, scen):
+    sigs = [s for s in scen["design"]["signals"] if s["cell"] == "S3c-E50"]
+    one_cycle = sorted({s["cycle"] for s in sigs})[0]
+    ids = [s["sig_id"] for s in sigs if s["cycle"] == one_cycle]                          # all 8 signals of ONE cycle
+    ow = [i for i in _all(scen) if i not in {s["sig_id"] for s in sigs}] + ids
+    p = _run(tmp_path, scen, ow, _all(scen))["decoders"]["OpenWSFZ"]["parts"]["S3c-E50"]
+    assert (p["X"], p["cycles_with_decode"], p["cycles_total"]) == (8, 1, 4)
+    # one signal in each of the four cycles: 4 signals, 4 cycles
+    per_cycle = {c: [s["sig_id"] for s in sigs if s["cycle"] == c][0] for c in {s["cycle"] for s in sigs}}
+    ow2 = [i for i in _all(scen) if i not in {s["sig_id"] for s in sigs}] + list(per_cycle.values())
+    p2 = _run(tmp_path, scen, ow2, _all(scen))["decoders"]["OpenWSFZ"]["parts"]["S3c-E50"]
+    assert (p2["X"], p2["cycles_with_decode"], p2["cycles_total"]) == (4, 4, 4)
+
+
+def test_trend_gains_cycle_columns_additively_and_old_rows_stay_blank(tmp_path):
+    old = tmp_path / "trend.csv"
+    old.write_text(",".join(SC.TREND_FIELDS_V1) + "\n" + ",".join(f"v{i}" for i in range(len(SC.TREND_FIELDS_V1))) + "\n", encoding="utf-8")
+    row = {f: "n" for f in SC.TREND_FIELDS}
+    SC.append_trend(old, row)
+    rows = list(csv.DictReader(open(old, newline="", encoding="utf-8")))
+    assert list(rows[0].keys()) == SC.TREND_FIELDS and len(rows) == 2
+    assert all(rows[0][c] == "" for c in SC.CYCLE_FIELDS)                              # the earlier battery is NOT back-filled
+    assert rows[0]["x_owsfz_e50"] == "v7" and rows[1]["cycles_owsfz_e50"] == "n"      # existing columns untouched, new ones written
+    SC.append_trend(old, row)                                                          # a second append to the current header is plain
+    assert len(list(csv.DictReader(open(old, newline="", encoding="utf-8")))) == 3
+
+
+def test_trend_refuses_an_unknown_header(tmp_path):
+    bad = tmp_path / "trend.csv"
+    bad.write_text("a,b,c\n1,2,3\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        SC.append_trend(bad, {f: "n" for f in SC.TREND_FIELDS})
+    assert bad.read_text(encoding="utf-8") == "a,b,c\n1,2,3\n"                        # untouched

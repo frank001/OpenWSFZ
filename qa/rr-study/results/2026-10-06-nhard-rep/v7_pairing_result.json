@@ -1,0 +1,13 @@
+{
+ "V7_pass": true,
+ "differing_cycles": 0,
+ "differing_stamps": [],
+ "harness_rc": 0,
+ "libft8_start_end_equal_pin": true,
+ "n": 100,
+ "on_fail": "do NOT pair with the old N40: re-run N40 in full with the new binary and pair N0 with that",
+ "paired_n40": "artefacts/rr_2026-10-06_nhard_rep (earlier harness binary)",
+ "reasons": {},
+ "replay81_dll_sha256_new": "1357013fc869dbe1d2dcd245bf628f0371c8a0d827fd162dff08252cd155971b",
+ "wall_s": 767
+}

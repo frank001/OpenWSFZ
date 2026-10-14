@@ -34,8 +34,8 @@ PROBE_BASE_COMMIT = "348e067e"        # probe as of the golden recording (pre-ch
 PROBE_CAND_COMMIT = "ca0bcd9b"
 DLL_PATH_IN_REPO = "src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll"
 
-W_BASE = r"C:\Users\Frank\w-e1-base"
-W_CAND = r"C:\Users\Frank\w-speed-review"      # detached at ca0bcd9b (already exists from the code review)
+W_BASE = r"D:\Projects\claude\_qa-scratch\w-e1-base"
+W_CAND = r"D:\Projects\claude\_qa-scratch\w-speed-review"      # detached at ca0bcd9b (already exists from the code review)
 RUNS = [("base", 14), ("cand", 14), ("cand", 4)]   # reference first; bit-identity must not depend on thread count
 THREADS = sorted({t for _, t in RUNS})
 GRID = 0                                       # the synthetic grid is the Developer's; this run is the real corpus

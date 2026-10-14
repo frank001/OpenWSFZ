@@ -365,6 +365,26 @@ The harness is built; this is the procedure the flag-ON `main` baseline (`2026-1
 
 ---
 
+### 3.2 Audio-setup sampler (#194) — rides along, never blocks a run
+
+`run_study.py` and the endurance supervisor start `qa/audio-setup/sampler.py` through `run_hook.py` (≥ 12 s before the first played or
+measured cycle, Amendment 1) and stop it by explicit teardown (HK-019, orphan check). Nothing about it can fail a run: a hook error means
+`PARTIAL`/absent sampler output, not a failed battery. It is **not scheduled**: it rides on runs that happen for their own reasons
+(Captain, 2026-10-03: "only when we need to run it").
+
+After the scan has run, add the join and the two review figures to the run's report block:
+
+```
+python qa/audio-setup/summarize.py <run>/audio_setup.jsonl --flagged <scan>/flagged_slots.csv
+python qa/rr-study/captured-audio-scan/scan_apply.py ... --audio-setup <run>/audio_setup.jsonl   # adds the setup_changes column
+```
+
+The report block prints worker crashes and restarts, coverage (**below 98 % labels the output `PARTIAL`**), restart cold samples over 2 s,
+the setup changes recorded (excluding `unverified_start_diff`), and the scan-flagged slots with ≥ 1 change in `detected_utc ∈ [S−30 s, S+40 s]`.
+**Five-run review:** append one row per integrated run to `qa/audio-setup/integrated_runs.csv`; when the fifth is gathered, send the five rows
+to the Architect (all five at 0 changes and 0 joined slots ⇒ the Architect recommends cutting the sampler back to start/end snapshots; the Captain decides).
+A start or restart snapshot is `unverified` until two ticks agree; its difference from the first verified tick is `unverified_start_diff`, never a change.
+
 ## 4. Running the S6 corpus replay study
 
 S6 plays the local off-air WAV corpus through VB-CABLE K=3 times in randomised order and

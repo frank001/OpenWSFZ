@@ -1,0 +1,37 @@
+{
+ "chunks": {
+  "1": {
+   "cycles": 215,
+   "file": "chunk_1.json",
+   "sha256_lf": "6f1faa72b734901e5862f48b4319e6baf30f7a8064ab4b396a91ab5ea74e2052",
+   "warmup": "260930_193045"
+  },
+  "2": {
+   "cycles": 215,
+   "file": "chunk_2.json",
+   "sha256_lf": "a5a5cbfb801515da6432c1f93b554701fd3f7dfdfde57fd2d828433d1add20ed",
+   "warmup": "260930_235830"
+  },
+  "3": {
+   "cycles": 215,
+   "file": "chunk_3.json",
+   "sha256_lf": "b84bb8b687f081ef465e5decac5ad34e873faebf17a0c50527d56eb9a1f23973",
+   "warmup": "261001_042715"
+  },
+  "4": {
+   "cycles": 215,
+   "file": "chunk_4.json",
+   "sha256_lf": "81bc152dd0b570ccb200a1193257caa614eed347982d9ce4e47f5d7d54b5e98e",
+   "warmup": "261001_085600"
+  }
+ },
+ "list": "TEST",
+ "run": "20260930_1930",
+ "selection_sha256_lf": "84b3d8849ea9da0ee989892a1b7de6ef2a2b3f8e68b0d47c4e477e6dc96f78b0",
+ "sizes": [
+  215,
+  215,
+  215,
+  215
+ ]
+}

@@ -1,0 +1,241 @@
+{
+ "B": 10000,
+ "FIX24_vs_REF": {
+  "K": null,
+  "NET": {
+   "blocks": 22,
+   "ci": [
+    0.11709115513393151,
+    0.32573391936141494
+   ],
+   "point": 0.20773225620311597
+  },
+  "NET_b1": {
+   "blocks": 22,
+   "ci": [
+    0.0396115690093564,
+    0.12098417077906502
+   ],
+   "point": 0.07693787266782073
+  },
+  "NET_b2": {
+   "blocks": 22,
+   "ci": [
+    0.05577866668441295,
+    0.23978946488720618
+   ],
+   "point": 0.13079438353529524
+  },
+  "dU": {
+   "blocks": 22,
+   "ci": [
+    -0.08953488372093023,
+    -0.05795454545454545
+   ],
+   "point": -0.07325581395348837
+  },
+  "dU_b1": {
+   "blocks": 22,
+   "ci": [
+    -0.07093023255813953,
+    -0.042045454545454546
+   ],
+   "point": -0.05581395348837209
+  },
+  "dU_b2": {
+   "blocks": 22,
+   "ci": [
+    -0.025,
+    -0.010227272727272727
+   ],
+   "point": -0.01744186046511628
+  }
+ },
+ "blind_instrument": false,
+ "block": 40,
+ "by_band": {
+  "A": {
+   "FP_WATCH_FLAG": false,
+   "NET": {
+    "ci": [
+     0.011108539726999107,
+     0.08285441097922616
+    ],
+    "point": 0.042315829967301405
+   },
+   "dU": {
+    "ci": [
+     0.0,
+     0.0
+    ],
+    "point": 0.0
+   },
+   "not_confirmed_per_cycle_FIX": {
+    "ci": [
+     0.029069767441860465,
+     0.10227272727272728
+    ],
+    "point": 0.06162790697674419
+   },
+   "not_confirmed_per_cycle_REF": {
+    "ci": [
+     0.029069767441860465,
+     0.10227272727272728
+    ],
+    "point": 0.06162790697674419
+   }
+  },
+  "B": {
+   "FP_WATCH_FLAG": false,
+   "NET": {
+    "ci": [
+     0.03802632168433818,
+     0.17000086060859534
+    ],
+    "point": 0.09617234083477592
+   },
+   "dU": {
+    "ci": [
+     -0.011627906976744186,
+     0.0
+    ],
+    "point": -0.005813953488372093
+   },
+   "not_confirmed_per_cycle_FIX": {
+    "ci": [
+     0.0659090909090909,
+     0.13372093023255813
+    ],
+    "point": 0.09651162790697675
+   },
+   "not_confirmed_per_cycle_REF": {
+    "ci": [
+     0.07325581395348837,
+     0.13837209302325582
+    ],
+    "point": 0.10232558139534884
+   }
+  },
+  "C": {
+   "FP_WATCH_FLAG": false,
+   "NET": {
+    "ci": [
+     0.01886120074989741,
+     0.0736205356537666
+    ],
+    "point": 0.04616272360069244
+   },
+   "dU": {
+    "ci": [
+     -0.026136363636363635,
+     -0.00909090909090909
+    ],
+    "point": -0.01744186046511628
+   },
+   "not_confirmed_per_cycle_FIX": {
+    "ci": [
+     0.03571428571428571,
+     0.08571428571428572
+    ],
+    "point": 0.05930232558139535
+   },
+   "not_confirmed_per_cycle_REF": {
+    "ci": [
+     0.05454545454545454,
+     0.10119047619047619
+    ],
+    "point": 0.07674418604651163
+   }
+  },
+  "D": {
+   "FP_WATCH_FLAG": false,
+   "NET": {
+    "ci": [
+     0.0,
+     0.050815129129742745
+    ],
+    "point": 0.02308136180034622
+   },
+   "dU": {
+    "ci": [
+     -0.0630952380952381,
+     -0.038636363636363635
+    ],
+    "point": -0.05
+   },
+   "not_confirmed_per_cycle_FIX": {
+    "ci": [
+     0.0616213002114165,
+     0.1325581395348837
+    ],
+    "point": 0.09534883720930233
+   },
+   "not_confirmed_per_cycle_REF": {
+    "ci": [
+     0.10952380952380952,
+     0.18414634146341463
+    ],
+    "point": 0.14534883720930233
+   }
+  }
+ },
+ "cycles": 860,
+ "first_pass": {
+  "batch1_not_confirmed_per_cycle": {
+   "FIX24": 0.2313953488372093,
+   "REF": 0.2872093023255814
+  },
+  "batch2_confirmed_per_cycle": {
+   "FIX24": 3.5348837209302326,
+   "REF": 3.4953488372093022
+  }
+ },
+ "limits": "one band, one night's audio, replay not live; Test B's not-confirmed count is an upper bound on false decodes; the OSD-accept nhard histogram of confirmed vs not-confirmed accepts is NOT available here (the native diagnostics are thread-local and Replay81 decodes on pool threads)",
+ "list": "TEST",
+ "rounds": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "seed": 20261007,
+ "validity": {
+  "V4": "A-SIGN' and A-OFF PASS (QA reports; accepted by the Architect 2026-10-08)",
+  "V5": "PASS",
+  "V5_false_decodes": 0,
+  "abandon": {
+   "FIX24": {
+    "V6_ok": true,
+    "cycles": 2,
+    "share": 0.002325581395348837
+   },
+   "REF": {
+    "V6_ok": true,
+    "cycles": 3,
+    "share": 0.0034883720930232558
+   }
+  },
+  "processes_ok": true
+ },
+ "verdict": "F-GO",
+ "wall_s_per_arm_process": {
+  "FIX24": {
+   "all": [
+    1376,
+    1629,
+    1609,
+    1021
+   ],
+   "median": 1492.5
+  },
+  "REF": {
+   "all": [
+    1466,
+    1613,
+    1593,
+    1036
+   ],
+   "median": 1529.5
+  }
+ }
+}

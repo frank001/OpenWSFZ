@@ -1,0 +1,33 @@
+{
+ "U_max": 0.15,
+ "features_csv_sha256": "e21fe3bbc15e94eecc690a1fe8ca03fde779f84bdfe3ba65b74d23cf481a5800",
+ "note": "chosen on TRAIN only; commit this file BEFORE cg_gate_rows.py --test (the test refuses otherwise)",
+ "q1_not_reproduced_rows_all_samples": 0,
+ "thresholds": {
+  "GA": {
+   "T1": 17.552446,
+   "kept_near": 110,
+   "kept_right": 1395,
+   "kept_rows": 1690,
+   "kept_unexplained": 185,
+   "upc": 0.14919354838709678
+  },
+  "GB": null,
+  "GC": {
+   "T1": 17.552446,
+   "T2": 0.37931,
+   "kept_near": 110,
+   "kept_right": 1395,
+   "kept_rows": 1690,
+   "kept_unexplained": 185,
+   "upc": 0.14919354838709678
+  }
+ },
+ "train_cycles": 1240,
+ "train_samples": [
+  5,
+  1,
+  2,
+  4
+ ]
+}

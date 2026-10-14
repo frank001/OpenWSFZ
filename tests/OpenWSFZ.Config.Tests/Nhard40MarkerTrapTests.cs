@@ -49,11 +49,11 @@ public sealed class Nhard40MarkerTrapTests
     {
         using var dir = new TempDirectory();
         var path = System.IO.Path.Combine(dir.Path, "config.json");
-        var seed = new AppConfig { Decoder = new DecoderConfig() };  // osdNhardMax at the code default (40), marker false (legacy-shaped file)
+        var seed = new AppConfig { Decoder = new DecoderConfig() with { OsdNhardMax = 40 } };  // osdNhardMax 40 (the pre-OSD-FIX default), markers false (legacy-shaped file)
         File.WriteAllText(path, JsonSerializer.Serialize(seed, ConfigJsonContext.Default.AppConfig));
 
         var store = new JsonConfigStore(path);
-        store.Current.Decoder!.OsdNhardMax.Should().Be(40);
+        store.Current.Decoder!.OsdNhardMax.Should().Be(24, "the persisted 40 is migrated to 24 by the OSD-FIX R4 step (the M2 step has nothing to do)");
         await store.SaveAsync(WithNhard(store.Current, 60));
 
         new JsonConfigStore(path).Current.Decoder!.OsdNhardMax.Should().Be(60,
@@ -69,7 +69,7 @@ public sealed class Nhard40MarkerTrapTests
         File.WriteAllText(path, JsonSerializer.Serialize(legacy, ConfigJsonContext.Default.AppConfig));
 
         var migrated = new JsonConfigStore(path);                    // the intended case: 60 -> 40 once, marker true, written back
-        migrated.Current.Decoder!.OsdNhardMax.Should().Be(40);
+        migrated.Current.Decoder!.OsdNhardMax.Should().Be(24, "60 -> 40 (M2) then 40 -> 24 (OSD-FIX R4) in one Load");
         migrated.Current.Decoder.Nhard40MigrationApplied.Should().BeTrue();
 
         await migrated.SaveAsync(WithNhard(migrated.Current, 60));   // operator sets 60 AFTER the migration
@@ -96,7 +96,7 @@ public sealed class Nhard40MarkerTrapTests
     }
 
     [Theory(DisplayName = "#199: a non-60 value is left untouched and the marker is persisted once")]
-    [InlineData(40)]
+    [InlineData(30)]
     [InlineData(55)]
     public void NonSixty_ValueUntouched_MarkerPersisted(int nhard)
     {

@@ -1,0 +1,49 @@
+{
+ "harness_rc": 0,
+ "note": "committed BEFORE V4' is computed (Amendment 3 item 5)",
+ "outputs": {
+  "abandon": {
+   "bytes": 6541,
+   "sha256": "9a66431c976072d77b45d4e1391a5b6c29029374103ca8e1d647bab6e707a1dc"
+  },
+  "log": {
+   "bytes": 82036,
+   "sha256": "ee227d615dc1d7074b9eeec09071034cc09c374083cc44860ee5765769bea05f"
+  },
+  "matched": {
+   "bytes": 22439,
+   "sha256": "aadf4fa707b9515aa700d31da4edf313ff3a7b8585def6fd4afc1c95c44d09bf"
+  },
+  "mb": {
+   "bytes": 36233,
+   "sha256": "474890efb276e440708fbf9db870a43ebf62513974b871afc17ee158fef14411"
+  },
+  "probe": {
+   "bytes": 154,
+   "sha256": "cbe5049af77f546e4e6ce6e766731617a67c2686e470b44444f0cb0f64eda3d6"
+  },
+  "run": {
+   "bytes": 19188,
+   "sha256": "cd2beb1c04d2abdd26c32e0ce3428a6b6efba19a38b4ae5d2568245db7b2f113"
+  },
+  "testb": {
+   "bytes": 107456,
+   "sha256": "51c6057a99461dd6726894fc194516611b0ed043b6c20cd325c5215896c6cf64"
+  }
+ },
+ "preflight": {
+  "build_commit": "be3cc5ac",
+  "cycles": 310,
+  "harness_commit": "06d10e59defb0dafb4652d5e730b00cc9a7a6147",
+  "libft8_sha256": "2fa6d99302c6c602231c870c1e61755aeeddb7ad1b9ce392fb98a4bdbd94f365",
+  "nhard": 40,
+  "replay81_dll_sha256": "ca5d62b44e013ddd518166165461369cfb8bd102e03b50e240fb86a5cf0f49ff",
+  "rows_json_sha256_lf": "7267de64c3979fe7838a32cbcd2a46d63e10316cc2dea1cad67220c9c4ff8852",
+  "spec": "COH-GAIN Amendment 3",
+  "threads": "8",
+  "utc": "2026-10-06T19:46:02Z"
+ },
+ "rows_in_run_csv": 310,
+ "spec": "COH-GAIN Amendment 3 (V4' replay)",
+ "wall_s": 2049
+}

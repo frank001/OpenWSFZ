@@ -78,17 +78,44 @@ public sealed class CycleFramer
     private readonly IClock                  _clock;
     private readonly ILogger<CycleFramer>?   _logger;
     private readonly Func<double?>?          _dialFreqProvider;
+    private readonly Func<(bool Enabled, double CutSeconds)>? _earlyDecodeProvider;
 
+    /// <summary>The shortest early cut (seconds before the end of the window) the framer accepts; mirrors the config clamp.</summary>
+    internal const double MinEarlyCutSeconds = 0.5;
+
+    /// <summary>The longest early cut (seconds before the end of the window) the framer accepts; mirrors the config clamp.</summary>
+    internal const double MaxEarlyCutSeconds = 3.0;
+
+    /// <summary>
+    /// The number of samples an early window holds for a cut of <paramref name="cutSeconds"/>:
+    /// <c>180 000 - round(12 000 x cut)</c> (156 000 at 2.0 s), with the cut clamped to
+    /// [<see cref="MinEarlyCutSeconds"/>, <see cref="MaxEarlyCutSeconds"/>].
+    /// </summary>
+    internal static int EarlyTriggerSamples(double cutSeconds)
+        => SamplesPerCycle - (int)Math.Round(SampleRate * Math.Clamp(cutSeconds, MinEarlyCutSeconds, MaxEarlyCutSeconds));
+
+    /// <param name="source">Capture chunks.</param>
+    /// <param name="clock">The UTC clock.</param>
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="dialFreqProvider">Optional dial-frequency snapshot provider.</param>
+    /// <param name="earlyDecodeProvider">
+    /// decode-early-batch-panel (design.md D1): optional. Read ONCE per window, at the same point that snapshots
+    /// <c>windowDialFreq</c>; when it reports <c>Enabled</c> and an early output was given to
+    /// <see cref="RunAsync(ChannelWriter{ValueTuple{float[], DateTime, double?}}, ChannelWriter{ValueTuple{float[], DateTime, double?}}?, CancellationToken)"/>,
+    /// the framer emits one early window per cycle. <c>null</c> (the default) changes nothing.
+    /// </param>
     public CycleFramer(
         ChannelReader<float[]>  source,
         IClock                  clock,
         ILogger<CycleFramer>?   logger           = null,
-        Func<double?>?          dialFreqProvider = null)
+        Func<double?>?          dialFreqProvider = null,
+        Func<(bool Enabled, double CutSeconds)>? earlyDecodeProvider = null)
     {
-        _source           = source;
-        _clock            = clock;
-        _logger           = logger;
-        _dialFreqProvider = dialFreqProvider;
+        _source              = source;
+        _clock               = clock;
+        _logger              = logger;
+        _dialFreqProvider    = dialFreqProvider;
+        _earlyDecodeProvider = earlyDecodeProvider;
     }
 
     /// <summary>
@@ -97,8 +124,24 @@ public sealed class CycleFramer
     /// frequency snapshot) to <paramref name="output"/>.
     /// Returns when the source channel completes or <paramref name="ct"/> is cancelled.
     /// </summary>
+    public Task RunAsync(
+        ChannelWriter<(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)> output,
+        CancellationToken ct)
+        => RunAsync(output, earlyOutput: null, ct);
+
+    /// <summary>
+    /// As <see cref="RunAsync(ChannelWriter{ValueTuple{float[], DateTime, double?}}, CancellationToken)"/>, with an
+    /// optional second output for the <b>early window</b> (decode-early-batch-panel, design.md D1): a new
+    /// <c>float[180 000]</c> holding exactly the first <see cref="EarlyTriggerSamples"/> samples of the window being
+    /// filled and zeros after them, written once per window, the moment the window first holds that many samples. It
+    /// carries the same <c>CycleStart</c> and dial-frequency snapshot as the window it was cut from. The full window is
+    /// untouched and still goes to <paramref name="output"/>. With <paramref name="earlyOutput"/> or the constructor's
+    /// provider <c>null</c>, or the provider reporting disabled for a window, nothing early is emitted and this is the
+    /// ordinary framer.
+    /// </summary>
     public async Task RunAsync(
         ChannelWriter<(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)> output,
+        ChannelWriter<(float[] Pcm, DateTime CycleStart, double? DialFrequencyMHz)>? earlyOutput,
         CancellationToken ct)
     {
         try
@@ -134,6 +177,12 @@ public sealed class CycleFramer
             // snapshot against the live frequency at decode time and discards the cycle if
             // they differ (audio spans two bands).
             double? windowDialFreq = _dialFreqProvider?.Invoke();
+
+            // decode-early-batch-panel D1: the early trigger for THIS window, in samples held, or -1 for "none". Read from
+            // the provider once per window, here and at the lazy-resync point below (the same two places the dial
+            // frequency is snapshotted), and cleared when the window is emitted.
+            int  earlyTrigger = ReadEarlyTrigger(earlyOutput);
+            bool earlyEmitted = false;
 
             // DEFECT-capture-clock-drift-silent-decode-loss.md: set the instant a window
             // closes, consumed (and cleared) the next time this loop is about to accumulate
@@ -287,6 +336,10 @@ public sealed class CycleFramer
                         // Do not move this back to the emission block "for tidiness".
                         windowDialFreq = _dialFreqProvider?.Invoke();
 
+                        // decode-early-batch-panel D1: armed (or not) once per window, at this same point.
+                        earlyTrigger = ReadEarlyTrigger(earlyOutput);
+                        earlyEmitted = false;
+
                         needsResync = false;
                     }
 
@@ -311,6 +364,18 @@ public sealed class CycleFramer
                         {
                             Array.Copy(chunk, chunkPos, window, filled, store);
                             filled += store;
+
+                            // decode-early-batch-panel D1: the first time the window holds the trigger length, cut
+                            // EXACTLY that many samples into a new zero-filled window (a chunk may overshoot the trigger
+                            // by up to 2 048 samples; what gate 4a decoded was exactly the trigger length).
+                            if (earlyTrigger >= 0 && !earlyEmitted && filled >= earlyTrigger)
+                            {
+                                earlyEmitted = true;
+                                var early = new float[SamplesPerCycle];
+                                Array.Copy(window, 0, early, 0, earlyTrigger);
+                                if (!earlyOutput!.TryWrite((early, cycleStart, windowDialFreq)))
+                                    _logger?.LogDebug("Early window dropped (early channel full), cycle {CycleStart:HH:mm:ss}.", cycleStart);
+                            }
                         }
 
                         chunkPos  += want;
@@ -332,9 +397,10 @@ public sealed class CycleFramer
                         // resolved lazily at the top of the loop, not here — see
                         // `needsResync` and the dev-tasks/2026-07-31-fix-cycleframer-dial-
                         // freq-lazy-resync-consistency.md comment above.
-                        window      = new float[SamplesPerCycle];
-                        filled      = 0;
-                        needsResync = true;
+                        window       = new float[SamplesPerCycle];
+                        filled       = 0;
+                        earlyTrigger = -1;
+                        needsResync  = true;
                     }
                 }
             }
@@ -354,6 +420,16 @@ public sealed class CycleFramer
             // ApplicationStopping. The decode pump must survive the restart.
             _logger?.LogDebug("CycleFramer cancelled (device restart or shutdown).");
         }
+    }
+
+    /// <summary>
+    /// decode-early-batch-panel D1: the early trigger (samples held) for the window about to fill, or -1 for none.
+    /// </summary>
+    private int ReadEarlyTrigger(object? earlyOutput)
+    {
+        if (earlyOutput is null || _earlyDecodeProvider is null) return -1;
+        var (enabled, cut) = _earlyDecodeProvider();
+        return enabled ? EarlyTriggerSamples(cut) : -1;
     }
 
     /// <summary>

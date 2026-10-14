@@ -37,13 +37,13 @@ E1_SUMMARY = os.path.join(ART, "sub_feas_speed_e1", "e1_summary.json")
 R.OUT = OUT
 
 BUILDS = {  # label -> (harness output dir, expected libft8.dll sha256)
-    "2b39cf18": (r"C:\Users\Frank\w-replay81-out-2b39cf18",
+    "2b39cf18": (r"D:\Projects\claude\_qa-scratch\w-replay81-out-2b39cf18",
                  "5a6a4dc04a2cf6fbd987c12ce7635a968f4c9b69f73cacebe422af62827e38c5"),
-    "ca0bcd9b": (r"C:\Users\Frank\w-speed-out-ca0bcd9b",
+    "ca0bcd9b": (r"D:\Projects\claude\_qa-scratch\w-speed-out-ca0bcd9b",
                  "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c"),
-    "84cac119": (r"C:\Users\Frank\w-replay81-out-84cac119",
+    "84cac119": (r"D:\Projects\claude\_qa-scratch\w-replay81-out-84cac119",
                  "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba"),
-    "51e40b55": (r"C:\Users\Frank\w-replay81-out-51e40b55",
+    "51e40b55": (r"D:\Projects\claude\_qa-scratch\w-replay81-out-51e40b55",
                  "38a21f840b00af146348c166786cb54e178cd2201c5ed4dba3016a4c589a1cba"),
 }
 RUNS = R.RUNS

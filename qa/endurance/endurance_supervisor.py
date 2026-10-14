@@ -40,6 +40,14 @@ script never prints message text.
 """
 import argparse, ctypes, datetime, hashlib, json, os, shutil, subprocess, sys, time, traceback, urllib.request
 
+# #194 audio-setup sampler hook. NOTHING here may fail a night: an import error just means no sampler.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio-setup"))
+try:
+    import run_hook
+except Exception as _exc:  # pragma: no cover
+    run_hook = None
+    print("audio-setup hook unavailable, the run continues without it: %r" % (_exc,), flush=True)
+
 NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)  # every child process: no console window
 POLL_S = 30
 MAX_CONSEC_RESTARTS = 5
@@ -536,6 +544,7 @@ def main():
     ap.add_argument("--resume", action="store_true")
     a = ap.parse_args()
     run = Run(a.corpus)
+    audio_handle = None
     os.makedirs(a.corpus, exist_ok=True)
     try:
         ctypes.windll.kernel32.SetThreadExecutionState(0x80000001)  # no idle sleep while we run
@@ -548,6 +557,11 @@ def main():
         run.log("RESUME from state.json: %s" % json.dumps({k: run.state.get(k) for k in
                                                             ("phase", "window_start", "window_end")}))
         run.daemon_pid = run.state.get("daemon_pid")
+        if run_hook is not None:
+            audio_handle = run_hook.start(a.corpus, a.wsjtx_ini)
+            if audio_handle is not None:
+                import atexit
+                atexit.register(run_hook.stop, audio_handle)
         if not pid_alive(run.daemon_pid):
             run.log("RESUME: recorded daemon pid %s is not running -- restarting" % run.daemon_pid)
             start_daemon(run, a.daemon_exe, a.config, a.port)
@@ -561,6 +575,11 @@ def main():
             run.state["phase"] = "ABORTED"; run.save(); run.handoff("ABORTED", "see arm_config.json")
             run.log("ABORT: PRECHECK failed -- refusing to arm on a detected mismatch (see arm_config.json)")
             return 3
+        if run_hook is not None:
+            audio_handle = run_hook.start(a.corpus, a.wsjtx_ini)   # >= 12 s lead before the window opens
+            if audio_handle is not None:
+                import atexit
+                atexit.register(run_hook.stop, audio_handle)
         ws = utcnow(); we = ws + datetime.timedelta(hours=a.hours)
         run.state.update(phase="WINDOW", window_start=iso(ws), window_end=iso(we))
         run.save(); run.handoff("WINDOW")
@@ -635,11 +654,18 @@ def main():
                      % (len(orphans), orphans))
         else:
             run.log("HK-019 orphan check: clean")
+        if run_hook is not None:
+            audio_info = run_hook.stop(audio_handle)
+            run.log("audio-setup sampler teardown: %s" % (audio_info,))
         write_readme(run, arm)
 
         # ---------------- GATHER (the standard gatherer -- always this one)
         run.state["phase"] = "GATHER"; run.save(); run.handoff("GATHER")
-        run_gatherer(run, arm, run.state["window_start"], run.state["window_end"])
+        gathered_name = run_gatherer(run, arm, run.state["window_start"], run.state["window_end"])
+        if run_hook is not None and gathered_name:
+            repo_root = os.path.dirname(os.path.dirname(os.path.abspath(run.c)))
+            md = run_hook.finish(audio_handle, os.path.join(repo_root, "artefacts", gathered_name))
+            run.log("audio-setup summary: %s" % ((md or "none").replace(chr(10), " | "),))
 
         run.state["phase"] = "DONE"; run.save(); run.handoff("DONE")
         run.log("DONE. Analysis is a separate step -- see HANDOFF.md.")

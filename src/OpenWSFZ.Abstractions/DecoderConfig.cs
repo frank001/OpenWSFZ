@@ -8,8 +8,8 @@ namespace OpenWSFZ.Abstractions;
 ///
 /// <para>
 /// <see cref="KMinScorePass2"/> and <see cref="OsdCorrThreshold"/> default to the D-009
-/// R&amp;R study calibrated values; <see cref="OsdNhardMax"/> defaults to the
-/// <c>NHARD40-DEFAULT</c> arm's calibrated value (2026-09-12, see its own doc comment).
+/// R&amp;R study calibrated values; <see cref="OsdNhardMax"/> defaults to 24
+/// (OSD-FIX R4, 2026-10-09, see its own doc comment).
 /// A null <see cref="AppConfig.Decoder"/> is treated by all consumers as equivalent
 /// to <c>new DecoderConfig()</c>, preserving the calibrated operating point for
 /// existing config files that predate this feature.
@@ -35,19 +35,28 @@ public sealed record DecoderConfig
     public DecoderConfig(
         int   kMinScorePass2           = 10,
         float osdCorrThreshold         = 0.10f,
-        int   osdNhardMax              = 40,
+        int   osdNhardMax              = 24,
         bool  nhard40MigrationApplied  = false,
+        bool  nhard24MigrationApplied  = false,
         bool  subtractionEnabled       = true,
         int   subtractionMaxThreads    = 0,
-        bool  subtractionOnMigrationApplied = false)
+        bool  subtractionOnMigrationApplied = false,
+        // decode-early-batch-panel (FR-083): in the constructor, with their defaults, for the same reason as the fields above. A
+        // property outside the [JsonConstructor] is set to the CLR default (false, 0) when its key is ABSENT, which would turn
+        // the ON-by-default early decode off (and its cut to 0) for every config file written before the key existed.
+        bool   earlyDecodeEnabled      = true,
+        double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
         OsdNhardMax             = osdNhardMax;
         Nhard40MigrationApplied = nhard40MigrationApplied;
+        Nhard24MigrationApplied = nhard24MigrationApplied;
         SubtractionEnabled      = subtractionEnabled;
         SubtractionMaxThreads   = subtractionMaxThreads;
         SubtractionOnMigrationApplied = subtractionOnMigrationApplied;
+        EarlyDecodeEnabled      = earlyDecodeEnabled;
+        EarlyDecodeCutSeconds   = earlyDecodeCutSeconds;
     }
 
     /// <summary>
@@ -72,14 +81,18 @@ public sealed record DecoderConfig
     /// OSD maximum Hamming-distance gate.
     /// Candidates with more hard-decision bit errors than this value are rejected.
     /// Genuine decodes cluster low; noise CRC-14 coincidences cluster near 87 (= 174/2).
-    /// Valid API range: [30, 100].
+    /// Valid API range: [24, 100] (24 is the lowest value the OSD-FIX TEST measured, so it
+    /// is the lowest allowed).
     /// <para>
-    /// Default: 40 (<c>NHARD40-DEFAULT</c> arm, 2026-09-12: 60→40 removes 95–98% of false
-    /// decodes with zero measured genuine loss on AWGN near-threshold/co-channel; native
-    /// default unchanged, see below). No genuine loss detected, at 60 → 40, in isolated
-    /// near-threshold or S7 co-channel conditions on AWGN; 95–98% fewer false decodes.
-    /// Fading, drift, Doppler, timing spread (E4) and any live corroborated-loss floor
-    /// remain untested/unbounded — never cite this default as "safe".
+    /// Default: 24 (OSD-FIX R4, 2026-10-09). Validated on replay of one 40 m night (860 cycles),
+    /// Test B's not-confirmed count is an upper bound on false decodes; not measured live, other
+    /// bands or fading/drift untested — never cite this default as "safe". The CORRECTED OSD (shim
+    /// 20260060) is what makes 24 meaningful: under the old sign-inverted OSD no accept below
+    /// <c>nhard</c> 28 ever occurred, so 24 on an unfixed DLL would simply switch the OSD off.
+    /// </para>
+    /// <para>
+    /// History: 40 was the <c>NHARD40-DEFAULT</c> arm's value (2026-09-12, 60→40), calibrated
+    /// against the inverted OSD.
     /// </para>
     /// <para>
     /// The old "60 (D-009 calibrated: S5/S7 histogram operating point)" framing is
@@ -97,7 +110,7 @@ public sealed record DecoderConfig
     /// task, not this one.
     /// </para>
     /// </summary>
-    public int   OsdNhardMax      { get; init; } = 40;
+    public int   OsdNhardMax      { get; init; } = 24;
 
     /// <summary>
     /// One-time migration marker (M2, <c>NHARD40-DEFAULT</c>, 2026-09-12): set to
@@ -116,6 +129,18 @@ public sealed record DecoderConfig
     /// </para>
     /// </summary>
     public bool  Nhard40MigrationApplied { get; init; } = false;
+
+    /// <summary>
+    /// One-time migration marker (OSD-FIX R4, 2026-10-09): means "no 40 -> 24 migration is pending for
+    /// this install" (the #199 rule). <c>JsonConfigStore.Load()</c> sets it <c>true</c> when it migrates a
+    /// persisted exactly-40 <see cref="OsdNhardMax"/> to 24, and also whenever it loads a decoder section
+    /// that carries it <c>false</c> with any other value, so a later deliberate 40 is never re-migrated.
+    /// <para>
+    /// <b>Server-owned — no request body may set or clear it</b> (<c>POST /api/v1/config</c> keeps the stored value;
+    /// a decoder section created from nothing gets <c>true</c>). An absent key deserialises to <c>false</c>.
+    /// </para>
+    /// </summary>
+    public bool  Nhard24MigrationApplied { get; init; } = false;
 
     /// <summary>
     /// sub-feas-native-subtraction (design.md Decision 6, shim 20260055): gates the
@@ -159,4 +184,31 @@ public sealed record DecoderConfig
     /// degrades this key to a sensible value rather than a wrong one. See <see cref="SubtractionThreads"/>.
     /// </summary>
     public int   SubtractionMaxThreads { get; init; } = 0;
+
+    /// <summary>The default for <see cref="EarlyDecodeCutSeconds"/>: the early decode runs 2.0 s before the window closes (at 13.0 s).</summary>
+    public const double DefaultEarlyDecodeCutSeconds = 2.0;
+
+    /// <summary>The smallest accepted <see cref="EarlyDecodeCutSeconds"/>.</summary>
+    public const double MinEarlyDecodeCutSeconds = 0.5;
+
+    /// <summary>The largest accepted <see cref="EarlyDecodeCutSeconds"/>.</summary>
+    public const double MaxEarlyDecodeCutSeconds = 3.0;
+
+    /// <summary>
+    /// decode-early-batch-panel (#122 step 4, phase 4a, FR-083): when <c>true</c> an <b>early decode</b> of the first part
+    /// of each window runs <see cref="EarlyDecodeCutSeconds"/> before the window closes (13.0 s at the default) and its
+    /// rows appear on the decode panel, marked <i>early</i> until the cycle's final decode confirms them. <b>Panel only</b>:
+    /// ALL.TXT, UDP, the QSO answerer and caller, the archive and decode-filter admission never see an early row.
+    /// Default <c>true</c> (ON by default, the Captain's decision of 2026-10-04; an absent key therefore reads as <c>true</c>,
+    /// as does a missing <c>decoder</c> section); set <c>false</c> to turn it off, and with it <c>false</c> nothing early exists.
+    /// Read once per window; takes effect on the next window.
+    /// </summary>
+    public bool   EarlyDecodeEnabled { get; init; } = true;
+
+    /// <summary>
+    /// decode-early-batch-panel: how many seconds before the end of the 15 s window the early decode runs. Default
+    /// <see cref="DefaultEarlyDecodeCutSeconds"/>; accepted <see cref="MinEarlyDecodeCutSeconds"/> to
+    /// <see cref="MaxEarlyDecodeCutSeconds"/>, clamped server-side like the other decoder values. Read once per window.
+    /// </summary>
+    public double EarlyDecodeCutSeconds { get; init; } = DefaultEarlyDecodeCutSeconds;
 }

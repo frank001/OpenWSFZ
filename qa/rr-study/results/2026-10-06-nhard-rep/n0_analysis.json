@@ -1,0 +1,194 @@
+{
+ "O_SAFE_margin_pp": 0.1,
+ "cluster": {
+  "distinct_cycles_nonzero": 6,
+  "flag_gt_half": true,
+  "largest_abs_block_sum": 2,
+  "n_blocks": 39,
+  "sum_d": 7,
+  "top5_share_of_positive_sum": 1.0
+ },
+ "consistency": {
+  "K_minus_G_equals_sum_d": {
+   "G": 0,
+   "K": 7,
+   "pass": true
+  },
+  "M_equals_b1_plus_b2_matched": {
+   "pass": true
+  },
+  "all_sampled_cycles_present_in_N0_and_N40": {
+   "missing": 0,
+   "pass": true
+  },
+  "matched_index_sets_present_and_size_equal_M": {
+   "pass": true
+  },
+  "wsjtx_W_identical_in_N0_and_N40": {
+   "pass": true
+  }
+ },
+ "descriptive": {
+  "G_confirmed_at_40_absent_at_0": 0,
+  "K_confirmed_at_0_absent_at_40": 7,
+  "K_minus_G": 7,
+  "NET_by_batch_pp": {
+   "b1": 0.0,
+   "b2": 0.07394886963870695
+  },
+  "abandoned_residual_passes": {
+   "N0": 0,
+   "N40": 0
+  },
+  "decodes_by_batch": {
+   "N0": {
+    "b1": 5908,
+    "b2": 981
+   },
+   "N40": {
+    "b1": 5925,
+    "b2": 980
+   }
+  },
+  "exchange_rate_extra_confirmed_per_extra_not_confirmed": -0.30434782608695654,
+  "not_confirmed_by_ows_snr_band": {
+   "A": {
+    "N0": {
+     "n": 1721,
+     "not_confirmed": 24,
+     "rate": 0.013945380592678676,
+     "wilson95": [
+      0.0094,
+      0.0207
+     ]
+    },
+    "N40": {
+     "n": 1723,
+     "not_confirmed": 25,
+     "rate": 0.014509576320371444,
+     "wilson95": [
+      0.0098,
+      0.0213
+     ]
+    }
+   },
+   "B": {
+    "N0": {
+     "n": 2840,
+     "not_confirmed": 44,
+     "rate": 0.015492957746478873,
+     "wilson95": [
+      0.0116,
+      0.0207
+     ]
+    },
+    "N40": {
+     "n": 2836,
+     "not_confirmed": 45,
+     "rate": 0.015867418899858956,
+     "wilson95": [
+      0.0119,
+      0.0212
+     ]
+    }
+   },
+   "C": {
+    "N0": {
+     "n": 1314,
+     "not_confirmed": 19,
+     "rate": 0.01445966514459665,
+     "wilson95": [
+      0.0093,
+      0.0225
+     ]
+    },
+    "N40": {
+     "n": 1316,
+     "not_confirmed": 21,
+     "rate": 0.015957446808510637,
+     "wilson95": [
+      0.0105,
+      0.0243
+     ]
+    }
+   },
+   "D": {
+    "N0": {
+     "n": 1014,
+     "not_confirmed": 36,
+     "rate": 0.03550295857988166,
+     "wilson95": [
+      0.0258,
+      0.0488
+     ]
+    },
+    "N40": {
+     "n": 1030,
+     "not_confirmed": 55,
+     "rate": 0.05339805825242718,
+     "wilson95": [
+      0.0413,
+      0.0689
+     ]
+    }
+   }
+  },
+  "not_confirmed_per_cycle": {
+   "N0": 0.3954983922829582,
+   "N40": 0.4694533762057878,
+   "change_per_cycle": -0.07395498392282958,
+   "sumN0": 123,
+   "sumN40": 146
+  }
+ },
+ "estimand": {
+  "B": 10000,
+  "NET_0_pp": 0.07394886963870695,
+  "block": 8,
+  "ci95": [
+   0.020341534443969793,
+   0.14609356311221028
+  ],
+  "n_blocks": 39,
+  "seed": 20261006,
+  "sum_M0": 6766,
+  "sum_M40": 6759,
+  "sum_W": 9466
+ },
+ "failing_rows": [],
+ "generated_utc": "2026-10-06T19:44:29Z",
+ "n_sampled": 311,
+ "n_scored": 311,
+ "v6": "carried from the closed run: N40's A/A, 200/200 cycles identical",
+ "validity": {
+  "V1": {
+   "failed_or_missing": [],
+   "pass": true
+  },
+  "V2pp": {
+   "n0_rows": 4,
+   "n40_rows": 4,
+   "pass": true,
+   "problems": []
+  },
+  "V3": {
+   "contained": 0,
+   "exception_rows": 0,
+   "nonzero_exits": 0,
+   "pass": true,
+   "rows": 311
+  },
+  "V4": {
+   "pass": true,
+   "problems": []
+  },
+  "V5": {
+   "abandoned": 0,
+   "fraction": 0.0,
+   "included": 311,
+   "missing_from_abandon_file": 0,
+   "pass": true
+  }
+ },
+ "verdict": "O-GAIN"
+}
