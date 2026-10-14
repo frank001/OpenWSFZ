@@ -87,7 +87,7 @@ def two_way(Y: np.ndarray) -> dict:
            ("Part x Appraiser", ssPA, dfPA, msPA, msPA / msE if msE > 0 else float("nan"), stats.f.sf(msPA / msE, dfPA, dfE) if msE > 0 else float("nan")),
            ("Repeatability (error)", ssE, dfE, msE, None, None), ("Total", ssT, P * A * n - 1, None, None, None)]
     return {"table": tab, "var": {"repeatability": rep, "reproducibility": reprod, "part": part, "grr": grr, "total": tot},
-            "pct": {"repeatability": pc(rep), "reproducibility": pc(reprod), "part": pc(part), "grr": pc(grr)},
+            "pct": {"repeatability": pc(rep), "reproducibility": pc(reprod), "part": pc(part), "grr": pc(grr), "grr_sv": (100.0 * math.sqrt(grr / tot) if tot > 0 else 0.0)},
             "ndc": (max(1, math.floor(1.41 * math.sqrt(part) / math.sqrt(grr))) if grr > 0 and part > 0 else None), "n": n, "grand_mean": g}
 
 
@@ -131,7 +131,7 @@ def three_way(Y: np.ndarray) -> dict:
     grr = groups["repeatability"] + groups["appraiser"] + groups["sweep"]
     pc = lambda v: 100.0 * v / total if total > 0 else 0.0
     return {"ss": ss, "df": df, "ms": ms, "vc": vc, "vc_raw": vc_raw, "tests": tests, "total_var": total, "ss_total": ssT, "df_total": P * A * S * n - 1,
-            "pct": {k: pc(v) for k, v in vc.items()}, "groups": groups, "pct_groups": {k: pc(v) for k, v in groups.items()}, "pct_grr": pc(grr), "grr_var": grr,
+            "pct": {k: pc(v) for k, v in vc.items()}, "groups": groups, "pct_groups": {k: pc(v) for k, v in groups.items()}, "pct_grr": pc(grr), "pct_grr_sv": (100.0 * math.sqrt(grr / total) if total > 0 else 0.0), "grr_var": grr,
             "ndc": (max(1, math.floor(1.41 * math.sqrt(vc["P"]) / math.sqrt(grr))) if grr > 0 and vc["P"] > 0 else None), "n": (P, A, S, n), "grand_mean": g}
 
 

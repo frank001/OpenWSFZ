@@ -110,7 +110,7 @@ def figures(R: dict, img: str) -> dict:
             a.text(i, max(v, 1e-3) * 1.5, "%.3f %%" % v, ha="center", fontsize=8)
         a.set_yscale("log"); a.set_ylim(1e-3, 30); a.axhline(10, color="#8b949e", ls=":")
         a.set_xticks(range(3)); a.set_xticklabels(["Repeatability", "Appraiser\n(A + PxA)", "Sweep\n(S + PxS + AxS + PxAxS)"], fontsize=8)
-        a.set_title("%s: %%GR&R %.2f %% (ndc %s)" % (sc, r["pct_grr"], r["ndc"] if r["ndc"] is not None else "n/a"), fontsize=9)
+        a.set_title("%s: %%Contribution %.2f %% (ndc %s)" % (sc, r["pct_grr"], r["ndc"] if r["ndc"] is not None else "n/a"), fontsize=9)
     axs[0].set_ylabel("% of total variance (log)")
     fig.suptitle("Variance components, four corrected-chain sweeps, three-way random-effects ANOVA (error bars: part-bootstrap 95 % CI; dotted line: 10 %)", fontsize=10)
     fig.tight_layout(); fig.savefig(os.path.join(img, "A1_variance_components.png"), dpi=110); plt.close(fig)
@@ -263,9 +263,10 @@ def build(results: str, out: str) -> None:
     m_d, sd_d, lo_d, hi_d = F.t_ci(dif)
     A("## Summary")
     A("")
-    A("1. **The measurement system is capable on the corrected chain.** Four corrected-chain sweeps, two appraisers, ten parts, three trials: %%GR&R (share of the total variance not due to the parts) is **%.2f %%** for S1 SNR (bootstrap 95 %% CI %s %%, ndc %s), **%.3f %%** for S2 frequency (ndc %s) and **%.2f %%** for S3 DT (CI %s %%, ndc %s); all far below the 10 %% line. The default chain, run 1, is the only marginal value (S1 %.1f %%)." % (
-        s1["pct_grr"], ci("S1", "grr"), s1["ndc"], s2["pct_grr"], s2["ndc"], s3["pct_grr"], ci("S3", "grr"), s3["ndc"], R["per"]["S1"]["run1"]["pct"]["grr"]))
-    A("2. **What the small remainder is made of.** S1: repeatability %.3f %%, appraiser %.3f %%, sweep %.3f %% of the total variance. S3: repeatability %.3f %%, **appraiser %.3f %% (the largest non-part source; appraiser main effect p %s)**, sweep %.3f %%. In S3 the two appraisers differ by a systematic offset (OpenWSFZ minus WSJT-X %+.3f s). In S1 the mean difference is %+.2f dB (t 95 %% CI %.2f to %.2f dB over the four sweeps, which includes 0), but OpenWSFZ's S1 bias differs between sweeps (%+.2f to %+.2f dB) while WSJT-X's does not (%+.2f to %+.2f dB): Appraiser x Sweep p %s." % (
+    A("1. **The measurement system is capable on the corrected chain, by the project's rule.** Four corrected-chain sweeps, two appraisers, ten parts, three trials: **%%Contribution** (the share of the total variance not due to the parts; the analyser prints it as '%%Contribution', and the project grades it against 10/30 under its ratified rule) is **%.2f %%** for S1 SNR (bootstrap 95 %% CI %s %%, ndc %s), **%.3f %%** for S2 frequency (ndc %s) and **%.2f %%** for S3 DT (CI %s %%, ndc %s), all below the project's 10 %% %%Contribution line. AIAG conventionally reads 10/30 on **%%StudyVar** (the ratio of standard deviations); on that metric the same data give **S1 %.1f %%, S2 %.1f %%, S3 %.1f %%**, so S3 is just over 10 %% on %%StudyVar. Run 1 (default chain), S1: %.1f %% %%Contribution and **%.1f %% %%StudyVar**: marginal by the project rule, above 30 %% on %%StudyVar. Whether the gate should read %%StudyVar is the Captain's decision and is not changed here." % (
+        s1["pct_grr"], ci("S1", "grr"), s1["ndc"], s2["pct_grr"], s2["ndc"], s3["pct_grr"], ci("S3", "grr"), s3["ndc"], s1["pct_grr_sv"], s2["pct_grr_sv"], s3["pct_grr_sv"],
+        R["per"]["S1"]["run1"]["pct"]["grr"], R["per"]["S1"]["run1"]["pct"]["grr_sv"]))
+    A("2. **What the small remainder is made of.** S1: repeatability %.3f %%, appraiser %.3f %%, sweep %.3f %% of the total variance (the sweep group contains the one significant S1 finding, the Appraiser x Sweep term, named below). S3: repeatability %.3f %%, **appraiser %.3f %% (the largest non-part source; appraiser main effect p %s; with only two programs this is a fixed offset between them, not measurement noise)**, sweep %.3f %%. In S3 the two appraisers differ by a systematic offset (OpenWSFZ minus WSJT-X %+.3f s). In S1 the mean difference is %+.2f dB (t 95 %% CI %.2f to %.2f dB over the four sweeps, which includes 0), but OpenWSFZ's S1 bias differs between sweeps (%+.2f to %+.2f dB) while WSJT-X's does not (%+.2f to %+.2f dB): Appraiser x Sweep p %s." % (
         s1["pct_groups"]["repeatability"], s1["pct_groups"]["appraiser"], s1["pct_groups"]["sweep"], s3["pct_groups"]["repeatability"], s3["pct_groups"]["appraiser"], fp(s3["tests"]["A"][3]), s3["pct_groups"]["sweep"],
         F.t_ci([R["bias"]["S3"][k]["OpenWSFZ"]["bias"] - R["bias"]["S3"][k]["WSJT-X"]["bias"] for k in F.CORRECTED])[0], m_d, lo_d, hi_d, min(o_b), max(o_b), min(w_b), max(w_b), fp(s1["tests"]["AS"][3])))
     s4o = R["s4"]["M"]["OpenWSFZ"].sum(axis=0)
@@ -290,10 +291,10 @@ def build(results: str, out: str) -> None:
     # ------------------------------------------------------------------ section 2
     A("## Section 2: method")
     A("")
-    A("1. **Per sweep**: the analyser's own two-way crossed ANOVA (Part x Appraiser, AIAG MSA 4th ed.), imported from `harness/analyse.py`. The 15 figures (3 scenarios x 5 sweeps) agree with those printed in each sweep's own `report.md` (%GR&R to 0.05 percentage points, ndc exactly); the check is an assertion in the code.")
+    A("1. **Per sweep**: the analyser's own two-way crossed ANOVA (Part x Appraiser, AIAG MSA 4th ed.), imported from `harness/analyse.py`. The 15 figures (3 scenarios x 5 sweeps) agree with those printed in each sweep's own `report.md` (%Contribution to 0.05 percentage points, ndc exactly); the check is an assertion in the code.")
     A("2. **Pooled, sweeps ignored**: the same two-way model with the four sweeps' trials as 12 replicates per cell. It is what the per-sweep analysis would give if the sweeps were interchangeable, and it is shown to measure what the sweep factor adds.")
-    A("3. **Pooled, sweeps as a random factor**: a three-way crossed random-effects ANOVA, factors Part (10), Appraiser (2), Sweep (4), 3 trials per cell, all interactions. Variance components by the expected-mean-squares method (negative estimates are reported and set to 0 for the percentages). F tests are exact for the four interactions; the three main effects have no exact error term in this model and use Satterthwaite quasi-F tests (marked). The percentage CIs are a **bootstrap over the 10 parts** (2000 resamples, seed %d): they describe the uncertainty from the choice of parts and not from the choice of sweeps, which cannot be resampled with four." % F.BOOT_SEED)
-    A("4. **Grouping**: repeatability = within-cell error; appraiser = appraiser main effect + Part x Appraiser; sweep = sweep main effect + Part x Sweep + Appraiser x Sweep + Part x Appraiser x Sweep (session-to-session reproducibility); %GR&R = the three groups together as a share of the total.")
+    A("3. **Pooled, sweeps as a random factor**: a three-way crossed random-effects ANOVA, factors Part (10), Appraiser (2), Sweep (4), 3 trials per cell, all interactions. Variance components by the expected-mean-squares method (negative estimates are reported and set to 0 for the percentages). F tests are exact for the four interactions; the three main effects have no exact error term in this model and use Satterthwaite quasi-F tests (marked). The percentage CIs are a **bootstrap over the 10 parts** (2000 resamples, seed %d): they describe the uncertainty from the choice of parts and not from the choice of sweeps, which cannot be resampled with four. Appraiser is treated as random only for comparability with AIAG; with exactly two programs it is really a fixed factor, so its component (1 df) is a fixed offset between them and is better read as the bias in Section 3.3." % F.BOOT_SEED)
+    A("4. **Grouping**: repeatability = within-cell error; appraiser = appraiser main effect + Part x Appraiser; sweep = sweep main effect + Part x Sweep + Appraiser x Sweep + Part x Appraiser x Sweep (session-to-session reproducibility); %Contribution = the three groups together as a share of the total.")
     A("5. **Bias and linearity**: mean error (reported minus injected) per sweep and appraiser; OLS slope of the error on the injected value; the between-appraiser difference as a t-interval over the four sweeps.")
     A("6. **Attribute data (S4, S1b)**: a message is decoded in a sweep if any of its rows matched (the analyser's rule). Cochran's Q across the four sweeps tests whether the decode rate moves between sweeps; an exact sign test on the per-message decode counts compares the appraisers; S5, S7 and S8 are shown per sweep.")
     A("")
@@ -304,8 +305,8 @@ def build(results: str, out: str) -> None:
     A("")
     rows = []
     for sc, *_r in F.SCEN:
-        rows.append([NAME[sc].split(" (")[0]] + ["%.2f %% (%s)" % (R["per"][sc][k]["pct"]["grr"], R["per"][sc][k]["ndc"] if R["per"][sc][k]["ndc"] is not None else "n/a") for k in F.PAIRED])
-    A(md_table(["%GR&R (ndc)"] + [SHORT[k] for k in F.PAIRED], rows))
+        rows.append([NAME[sc].split(" (")[0]] + ["%.2f %% / %.1f %% (%s)" % (R["per"][sc][k]["pct"]["grr"], R["per"][sc][k]["pct"]["grr_sv"], R["per"][sc][k]["ndc"] if R["per"][sc][k]["ndc"] is not None else "n/a") for k in F.PAIRED])
+    A(md_table(["%Contribution / %StudyVar (ndc)"] + [SHORT[k] for k in F.PAIRED], rows))
     A("")
     A("The S2 value is 0 in every sweep: the injected frequencies are recovered to within the 1 Hz rounding of the reports. Run 1's S1 value (11.2 %) is the default chain's.")
     A("")
@@ -317,14 +318,16 @@ def build(results: str, out: str) -> None:
         A("")
         A(anova_table(r, sc))
         A("")
+        A("Quasi-F (main effects): numerator MS_effect + MS_PxAxS, denominator the sum of the two mean squares of the interactions that involve the effect; degrees of freedom by Satterthwaite (hence non-integer denominators).")
+        A("")
         vrows = []
         for k in ("P", "A", "S", "PA", "PS", "AS", "PAS", "E"):
             vrows.append([TERM[k], fnum(r["vc"][k], 4) + (" (raw %s, set to 0)" % fnum(r["vc_raw"][k], 2) if r["vc_raw"][k] < 0 else ""), "%.4f %%" % r["pct"][k]])
         A(md_table(["Variance component", "Estimate (%s²)" % UNIT[sc], "% of total"], vrows))
         A("")
         gr = r["pct_groups"]
-        A("Grouped: repeatability **%.3f %%** (CI %s), appraiser **%.3f %%** (CI %s), sweep **%.3f %%** (CI %s); **%%GR&R %.3f %% (CI %s), ndc %s**; part %.3f %%. The pooled two-way analysis that ignores the sweeps gives %%GR&R %.3f %% (ndc %s)." % (
-            gr["repeatability"], ci(sc, "repeatability"), gr["appraiser"], ci(sc, "appraiser"), gr["sweep"], ci(sc, "sweep"), r["pct_grr"], ci(sc, "grr"), r["ndc"], gr["part"], R["pooled2"][sc]["pct"]["grr"], R["pooled2"][sc]["ndc"]))
+        A("Grouped: repeatability **%.3f %%** (CI %s), appraiser **%.3f %%** (CI %s), sweep **%.3f %%** (CI %s); **%%Contribution %.3f %% (CI %s), %%StudyVar %.1f %%, ndc %s**; part %.3f %%. The pooled two-way analysis that ignores the sweeps gives %%Contribution %.3f %% (ndc %s)." % (
+            gr["repeatability"], ci(sc, "repeatability"), gr["appraiser"], ci(sc, "appraiser"), gr["sweep"], ci(sc, "sweep"), r["pct_grr"], ci(sc, "grr"), r["pct_grr_sv"], r["ndc"], gr["part"], R["pooled2"][sc]["pct"]["grr"], R["pooled2"][sc]["ndc"]))
         A("")
     A("![%s](img/%s)" % ("Variance components", Fg["A1"][0]))
     A("")
@@ -412,12 +415,12 @@ def build(results: str, out: str) -> None:
         ["Sweep share of the variance", "%.3f %%" % T["S1"]["pct_groups"]["sweep"], "%.2f %%" % f1["pct_groups"]["sweep"]],
         ["Appraiser share", "%.3f %%" % T["S1"]["pct_groups"]["appraiser"], "%.3f %%" % f1["pct_groups"]["appraiser"]],
         ["Repeatability share", "%.3f %%" % T["S1"]["pct_groups"]["repeatability"], "%.3f %%" % f1["pct_groups"]["repeatability"]],
-        ["%GR&R (ndc)", "%.2f %% (%s)" % (T["S1"]["pct_grr"], T["S1"]["ndc"]), "%.2f %% (%s)" % (f1["pct_grr"], f1["ndc"])],
+        ["%Contribution (ndc)", "%.2f %% (%s)" % (T["S1"]["pct_grr"], T["S1"]["ndc"]), "%.2f %% (%s)" % (f1["pct_grr"], f1["ndc"])],
         ["Sweep main effect (quasi-F, p)", "%.2f, %s" % (T["S1"]["tests"]["S"][0], fp(T["S1"]["tests"]["S"][3])), "%.2f, %s" % (f1["tests"]["S"][0], fp(f1["tests"]["S"][3]))],
         ["Appraiser x Sweep (F, p)", "%.2f, %s" % (T["S1"]["tests"]["AS"][0], fp(T["S1"]["tests"]["AS"][3])), "%.2f, %s" % (f1["tests"]["AS"][0], fp(f1["tests"]["AS"][3]))],
     ]))
     A("")
-    A("Adding run 1 to the sweep factor makes one session differ for one appraiser only (OpenWSFZ), which is the Appraiser x Sweep term. S2 and S3 are unaffected by the chain (%%GR&R %.3f %% and %.2f %% with run 1 included, against %.3f %% and %.2f %%)." % (R["five"]["S2"]["pct_grr"], R["five"]["S3"]["pct_grr"], T["S2"]["pct_grr"], T["S3"]["pct_grr"]))
+    A("Adding run 1 to the sweep factor makes one session differ for one appraiser only (OpenWSFZ), which is the Appraiser x Sweep term. S2 and S3 are unaffected by the chain (%%Contribution %.3f %% and %.2f %% with run 1 included, against %.3f %% and %.2f %%)." % (R["five"]["S2"]["pct_grr"], R["five"]["S3"]["pct_grr"], T["S2"]["pct_grr"], T["S3"]["pct_grr"]))
     A("")
     A("![%s](img/%s)" % ("Chain effect", Fg["A7"][0]))
     A("")
@@ -452,16 +455,20 @@ def build(results: str, out: str) -> None:
     A("")
     A("**Conclusions.**")
     A("")
-    A("1. On `sol`, with the corrected capture chain, the R&R measurement system is **capable**: %%GR&R %.2f %% (S1), %.3f %% (S2), %.2f %% (S3), ndc %s / %s / %s, with two appraisers over four independent sweeps. All three are below the analyser's 10 %% acceptance line." % (s1["pct_grr"], s2["pct_grr"], s3["pct_grr"], s1["ndc"], s2["ndc"], s3["ndc"]))
-    A("2. The **default** audio chain is **not** capable for S1 (%%GR&R %.1f %%, OpenWSFZ bias %+.2f dB): the loss is in the capture converter (defect #234), not in the decoder or the matcher." % (R["per"]["S1"]["run1"]["pct"]["grr"], R["bias"]["S1"]["run1"]["OpenWSFZ"]["bias"]))
-    A("3. **Noise yardsticks for later changes** (corrected chain, same build, descriptive): OpenWSFZ S1 bias between-sweep SD %.2f dB (range %.2f dB); WSJT-X %.2f dB; S4 recovery 0 points (OpenWSFZ) and %.2f points (WSJT-X, one message in one sweep); S8 OpenWSFZ range %.2f points; S1b 0 points. A later change smaller than these is not distinguishable from noise on this instrument." % (
-        F.t_ci(o_b)[1], max(o_b) - min(o_b), F.t_ci(w_b)[1], max(S[k]["s4"]["WSJT-X"]["recovery"] for k in F.CORRECTED) - min(S[k]["s4"]["WSJT-X"]["recovery"] for k in F.CORRECTED), max(S[k]["s8"]["OpenWSFZ"]["rate"] for k in F.CORRECTED) - min(S[k]["s8"]["OpenWSFZ"]["rate"] for k in F.CORRECTED)))
+    A("1. On `sol`, with the corrected capture chain, the R&R measurement system is **capable**: %%Contribution %.2f %% (S1), %.3f %% (S2), %.2f %% (S3), ndc %s / %s / %s, with two appraisers over four sessions (replicates of one design). All three are below the project's 10 %% %%Contribution line; on AIAG's %%StudyVar reading they are %.1f %%, %.1f %% and %.1f %% (S3 just over 10 %%)." % (s1["pct_grr"], s2["pct_grr"], s3["pct_grr"], s1["ndc"], s2["ndc"], s3["ndc"], s1["pct_grr_sv"], s2["pct_grr_sv"], s3["pct_grr_sv"]))
+    A("2. The **default** audio chain is **not** capable for S1 (%%Contribution %.1f %%, %%StudyVar %.1f %%, OpenWSFZ bias %+.2f dB): the loss is in the default chain (defect #234) and the corrected chain removes it." % (R["per"]["S1"]["run1"]["pct"]["grr"], R["per"]["S1"]["run1"]["pct"]["grr_sv"], R["bias"]["S1"]["run1"]["OpenWSFZ"]["bias"]))
+    chi_lo, chi_hi = float(stats.chi2.ppf(0.025, 3)), float(stats.chi2.ppf(0.975, 3))
+    sdci = lambda sd: (sd * math.sqrt(3 / chi_hi), sd * math.sqrt(3 / chi_lo))
+    sdo, sdw = F.t_ci(o_b)[1], F.t_ci(w_b)[1]
+    A("3. **Descriptive noise figures for later changes** (corrected chain, same build; four sessions, so 3 degrees of freedom): OpenWSFZ S1 bias between-sweep SD %.2f dB (95 %% chi-square CI %.2f to %.2f dB; range %.2f dB); WSJT-X %.2f dB (CI %.2f to %.2f dB); S4 recovery range 0 points (OpenWSFZ) and %.2f points (WSJT-X, one message in one sweep); S8 OpenWSFZ range %.2f points (four values on 1.67-point steps: a range, not an SD); S1b 0 points. A later change well inside these is not distinguishable from noise on this instrument; with an SD interval this wide, none of them is a bar (HK-038)." % (
+        sdo, sdci(sdo)[0], sdci(sdo)[1], max(o_b) - min(o_b), sdw, sdci(sdw)[0], sdci(sdw)[1], max(S[k]["s4"]["WSJT-X"]["recovery"] for k in F.CORRECTED) - min(S[k]["s4"]["WSJT-X"]["recovery"] for k in F.CORRECTED),
+        max(S[k]["s8"]["OpenWSFZ"]["rate"] for k in F.CORRECTED) - min(S[k]["s8"]["OpenWSFZ"]["rate"] for k in F.CORRECTED)))
     A("4. **The dataset is complete for what it was run for** (a replicated crossed R&R of the two appraisers): five paired sweeps, four on the corrected chain. The two WSJT-X stalls (11-12 October; 14 October, replaced) do not touch the numbers above, because no stalled sweep is used.")
     A("")
     A("**Recommendations** (QA proposes; none is built or run without the Captain's go).")
     A("")
     A("1. Build the WSJT-X monitoring and the mid-run liveness gate before the next baseline re-run (plan `qa/rr-study/2026-10-14-1830-qa-plan-wsjtx-stall-monitoring-and-gate.md`, drafted with the Architect). The start-up warm-up check alone let both stalls through.")
-    A("2. Treat the four corrected sweeps as the standing noise estimate for the Linux series; a later R&R should add its sweeps to this three-way model and re-estimate, and report any new sweep's S1 bias against the %+.2f to %+.2f dB range above." % (min(o_b), max(o_b)))
+    A("2. Treat the four corrected sweeps as the standing noise estimate for the Linux series; a later R&R should add its sweeps to this three-way model and re-estimate, and report any new sweep's S1 bias against the %+.2f to %+.2f dB range above. That is a descriptive comparison, not a bar (HK-038)." % (min(o_b), max(o_b)))
     A("3. If OpenWSFZ's S1 bias spread between sweeps (%.2f dB, against %.2f dB for WSJT-X) matters, more corrected-chain sweeps are the only way to say whether it is drift or chance (four sweeps cannot)." % (max(o_b) - min(o_b), max(w_b) - min(w_b)))
     A("")
     A("**Not claimed.** No bar is proposed; nothing here compares this series with the Windows one; nothing says OpenWSFZ changed between sweeps (one build, one library); the cause of the two WSJT-X stalls is not known.")
@@ -474,18 +481,18 @@ def build(results: str, out: str) -> None:
     hist = []
     for k in F.PAIRED:
         s = S[k]
-        hist.append(["2026-10-11" if k in ("run1", "run2") else "2026-10-14", "`64246e4`", "%.1f%%%s" % (s["s1"]["pct_grr"], " MARGINAL (OpenWSFZ bias %+.2f dB **FAIL**)" % s["s1"]["bias_owsfz"] if s["s1"]["bias_verdict"] == "FAIL" else ""), "%.1f%%" % s["s2"]["pct_grr"], "%.1f%%" % s["s3"]["pct_grr"],
+        hist.append(["2026-10-11" if k in ("run1", "run2") else "2026-10-14", "`64246e4`", "%.1f%%%s" % (s["s1"]["pct_grr"], " MARGINAL by the project rule (%%Contribution; %.1f%% on %%StudyVar, above 30%%) (OpenWSFZ bias %+.2f dB **FAIL**)" % (R["per"]["S1"][k]["pct"]["grr_sv"], s["s1"]["bias_owsfz"]) if s["s1"]["bias_verdict"] == "FAIL" else ""), "%.1f%%" % s["s2"]["pct_grr"], "%.1f%%" % s["s3"]["pct_grr"],
                      "0.0% / 0.0%", "%.1f%% / %.1f%%" % (s["s7"]["all"]["wsjtx"], s["s7"]["all"]["owsfz"]), "%.1f%% / %.1f%%" % (s["s8"]["WSJT-X"]["rate"], s["s8"]["OpenWSFZ"]["rate"]), "%.2f%%" % (100.0 * s["s78_pooled_matched"]["OpenWSFZ"] / s["s78_pooled_matched"]["WSJT-X"])])
     A(md_table(["Date", "SHA", "S1 %GR&R", "S2 %GR&R", "S3 %GR&R", "S5 FP (WSJT-X / OpenWSFZ)", "S7 recovery (WSJT-X / OpenWSFZ)", "S8 decode rate (WSJT-X / OpenWSFZ)", "OpenWSFZ, % of WSJT-X (S7+S8 pooled, excl. FP)"], hist))
     A("")
-    A("Rows in order: run 1 (default chain), run 2, repeats 1b, 2b (replacement), 3b. WSJT-X's own pooled counts differ between rows; the ratio is not a measure of an OpenWSFZ change. The three 11-12 October OpenWSFZ-only repeats are in the consolidated report's Section 6.")
+    A("The %GR&R columns are the analyser's %Contribution (variance share), the standing column names of this table. Rows in order: run 1 (default chain), run 2, repeats 1b, 2b (replacement), 3b. WSJT-X's own pooled counts differ between rows; the ratio is not a measure of an OpenWSFZ change. The three 11-12 October OpenWSFZ-only repeats are in the consolidated report's Section 6.")
     A("")
     A("## Appendix: per-sweep two-way ANOVA tables (the analyser's model)")
     A("")
     for sc, *_r in F.SCEN:
         for k in F.PAIRED:
             tw = R["per"][sc][k]
-            A("**%s, %s** (%%GR&R %.2f %%, ndc %s, repeatability %.2f %%, reproducibility %.2f %%, part %.2f %%)" % (sc, SHORT[k], tw["pct"]["grr"], tw["ndc"], tw["pct"]["repeatability"], tw["pct"]["reproducibility"], tw["pct"]["part"]))
+            A("**%s, %s** (%%Contribution %.2f %%, ndc %s, repeatability %.2f %%, reproducibility %.2f %%, part %.2f %%)" % (sc, SHORT[k], tw["pct"]["grr"], tw["ndc"], tw["pct"]["repeatability"], tw["pct"]["reproducibility"], tw["pct"]["part"]))
             A("")
             A(md_table(["Source", "SS", "df", "MS", "F", "p"], [[t[0], fnum(t[1], 4), t[2], fnum(t[3], 4) if t[3] is not None else "", fnum(t[4], 3) if t[4] is not None else "", fp(t[5]) if t[5] is not None else ""] for t in tw["table"]]))
             A("")
