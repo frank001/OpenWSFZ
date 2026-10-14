@@ -135,6 +135,11 @@ REQUIRED_COLUMNS = {
 # NOT on %Contribution as the 2026-08 ratification had it. %Contribution is still printed beside it, labelled, with no verdict.
 # Not retroactive: reports written before this date were graded on %Contribution and stand as written.
 GATE_GRR_METRIC = "%StudyVar"
+# Printed under every future S3 study-metrics table (Architect, 2026-10-14): S3 sits at 9.7-11.1 % %StudyVar on the corrected Linux chain, so it can read MARGINAL;
+# that is the intended outcome of the AIAG reading and the gate is not adjusted for it.
+S3_DT_OFFSET_NOTE = ("S3 reproducibility is dominated by a fixed OpenWSFZ − WSJT-X DT offset (+0.12 s, Section 3.3 of the 2026-10-14 full-ANOVA report), "
+                     "not by run-to-run noise.")
+GATE_CHANGE_NOTE = "%GR&R gate changed to %StudyVar on 2026-10-14 (Captain); rows and reports before this date were graded on %Contribution and are not re-graded."
 THRESH_GRR_PASS = 10.0      # %GR&R (%StudyVar) < 10% → PASS
 THRESH_GRR_MARGINAL = 30.0  # %GR&R (%StudyVar) 10–30% → MARGINAL; > 30% → FAIL
 NDC_FAIL = 2                 # ndc < 2 → FAIL
@@ -2318,7 +2323,7 @@ def _collect_verdicts(
     notes: list[str] = []
 
     if any(r is not None for r in continuous_results.values()):
-        notes.append("%GR&R gate changed to %StudyVar on 2026-10-14 (Captain); rows and reports before this date were graded on %Contribution and are not re-graded.")
+        notes.append(GATE_CHANGE_NOTE)
     for scen_id, res in continuous_results.items():
         if res is None:
             continue
@@ -2632,6 +2637,8 @@ def _write_report(
             f"| ndc | {'not computable' if metrics['ndc'] is None else metrics['ndc']} | {_verdict_ndc(metrics['ndc'])} |",
             "",
         ]
+        if scen_id == "S3":
+            lines += [f"_{S3_DT_OFFSET_NOTE}_", ""]
         # Embedded PNG
         png_name = f"{scen_id}_grr_panel.png"
         lines += [f"![{scen_id} GR&R panel]({png_name})", ""]
@@ -2812,13 +2819,13 @@ _TREND_COLUMNS = [
 ]
 
 
-def _migrate_trend_header(trend_path: Path) -> None:
+def _migrate_trend_header(trend_path: Path, columns: "list[str] | None" = None) -> None:
     """If trend.csv exists with an older header, rewrite it with `pct_study_var_snr` appended (derived where `pct_grr_snr` is numeric, else empty)."""
     if not trend_path.exists():
         return
     with open(trend_path, newline="", encoding="utf-8") as fh:
         rows = list(csv.reader(fh))
-    if not rows or rows[0] == _TREND_COLUMNS:
+    if not rows or rows[0] == (columns if columns is not None else _TREND_COLUMNS):
         return
     old = rows[0]
     if "pct_study_var_snr" in old:

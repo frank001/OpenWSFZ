@@ -230,3 +230,32 @@ def test_trend_header_migration_adds_study_var_derived_from_contribution_and_is_
     _migrate_trend_header(f)                                                              # a second call changes nothing
     assert f.read_text(encoding="utf-8") == before
     assert len(lines[0].split(",")) == len(lines[1].split(",")) == len(lines[3].split(","))
+
+
+# ---- the cross-platform analyser follows the same gate (Captain 2026-10-14, applied to the file by the Architect's follow-up) ----------------
+
+def test_xplat_verdict_is_pinned_to_study_var_too():
+    from harness import analyse_xplat as X
+    m = _derived_metrics(_anova(2, 11.23, var_part=88.77), 10.0)
+    rows, overall, fails = X._collect_verdicts({"S1": {"metrics": m}}, {}, {}, {}, {}, {}, {})
+    row = [r for r in rows if r[0] == "%GR&R (%StudyVar)"][0]
+    assert row[3] == "FAIL" and "33.5%" in row[2] and "%Contribution 11.2%" in row[2]
+    assert any("%StudyVar" in f for f in fails)
+
+
+def test_s3_future_reports_carry_the_dt_offset_sentence():
+    from harness.analyse import S3_DT_OFFSET_NOTE
+    assert "fixed OpenWSFZ − WSJT-X DT offset" in S3_DT_OFFSET_NOTE and "+0.12 s" in S3_DT_OFFSET_NOTE and "not by run-to-run noise" in S3_DT_OFFSET_NOTE
+    src = (Path(__file__).resolve().parent.parent / "harness" / "analyse.py").read_text(encoding="utf-8")
+    xsrc = (Path(__file__).resolve().parent.parent / "harness" / "analyse_xplat.py").read_text(encoding="utf-8")
+    assert 'if scen_id == "S3":' in src and "S3_DT_OFFSET_NOTE" in src and 'if scen_id == "S3":' in xsrc and "S3_DT_OFFSET_NOTE" in xsrc
+
+
+def test_xplat_trend_migration_uses_its_own_columns(tmp_path):
+    from harness import analyse_xplat as X
+    f = tmp_path / "trend_xplat.csv"
+    f.write_text("\n".join(["run_date,git_sha,pct_grr_snr,ndc_snr,platform_snr_bias_db,win_wsjt_snr_bias_db,linux_wsjt_snr_bias_db,between_platform_kappa,fp_events_windows,fp_events_linux,fp_events_wsjt,mcnemar_p,overall",
+                            "2026-07-01,abc,4.0,5,0.1,0.2,0.3,0.9,0,0,0,1.0,PASS"]) + "\n", encoding="utf-8")
+    X._migrate_trend_header(f, X._TREND_COLUMNS_XPLAT)
+    lines = f.read_text(encoding="utf-8").splitlines()
+    assert lines[0].split(",") == X._TREND_COLUMNS_XPLAT and abs(float(lines[1].split(",")[-1]) - 100 * math.sqrt(0.04)) < 1e-6
