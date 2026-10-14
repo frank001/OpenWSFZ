@@ -64,6 +64,43 @@ def _t(s: str) -> datetime:
     return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
 
+FRAMES_PER_S = 48000      # the loopback / codec capture rate on `sol`
+
+
+def diagnose_stall(samples: list) -> dict | None:
+    """One stall window = the run of consecutive not-ok samples starting at the first. Reads the two fields M1 gained on 2026-10-14:
+    the capture PCM's kernel hw_ptr (does the sound hardware keep delivering?) and the CPU ticks of every wsjtx thread (is anything alive?)."""
+    bad = []
+    for s in samples:
+        if not s.get("ok"):
+            bad.append(s)
+        elif bad:
+            break
+    if len(bad) < 2:
+        return None
+    t0, t1 = _t(bad[0]["t"]), _t(bad[-1]["t"])
+    secs = (t1 - t0).total_seconds()
+    out: dict = {"first_not_ok_utc": bad[0]["t"], "last_not_ok_utc": bad[-1]["t"], "window_s": secs, "samples": len(bad)}
+    hw0, hw1 = bad[0].get("capture_hw_ptr") or {}, bad[-1].get("capture_hw_ptr") or {}
+    if hw0 and hw1 and secs > 0:
+        out["capture_hw_ptr_advance_ratio"] = {k: round((hw1[k] - hw0[k]) / (secs * FRAMES_PER_S), 3) for k in hw1 if k in hw0}
+    pids = sorted({p["pid"] for s in bad for p in s.get("wsjtx", [])})
+    out["wsjtx_pids"] = pids
+    adv = {}
+    for pid in pids:
+        a, b = (bad[0].get("wsjtx_cpu_ticks") or {}).get(str(pid)) or {}, (bad[-1].get("wsjtx_cpu_ticks") or {}).get(str(pid)) or {}
+        moved = {tid: [b[tid][0], b[tid][1] - a[tid][1]] for tid in b if tid in a and b[tid][1] > a[tid][1]}
+        adv[str(pid)] = {"threads": len(b), "threads_whose_cpu_advanced": len(moved), "advanced": moved}
+    out["wsjtx_thread_cpu_in_window"] = adv
+    if out.get("capture_hw_ptr_advance_ratio") and adv:
+        dev = all(0.9 <= v <= 1.1 for v in out["capture_hw_ptr_advance_ratio"].values())
+        alive = any(v["threads_whose_cpu_advanced"] for v in adv.values())
+        out["reading"] = ("the sound hardware kept delivering (hw_ptr advanced at the capture rate) and " + ("some wsjtx threads kept working: look at them" if alive else "NO wsjtx thread used any CPU: the application stopped reading")) if dev             else "the capture hw_ptr did NOT advance at the capture rate: the sound hardware itself stopped delivering"
+    else:
+        out["reading"] = "not decidable: the monitor log has no capture_hw_ptr / thread tick fields (older monitor)"
+    return out
+
+
 def summarise_monitor(samples: list, stall_events: list) -> dict:
     if not samples:
         return {"samples": 0, "note": "no monitor log: M1 was not running"}
@@ -105,7 +142,8 @@ def summarise_monitor(samples: list, stall_events: list) -> dict:
             "alsa_states": {k: dict(v) for k, v in sorted(alsa.items())},
             "suspended_s": {"first": susp[0] if susp else None, "last": susp[-1] if susp else None, "delta": round(susp[-1] - susp[0], 1) if susp else None},
             "owsfz_archive_age_s_max": max(arch) if arch else None,
-            "host_load1": {"median": statistics.median(load) if load else None, "max": max(load) if load else None}}
+            "host_load1": {"median": statistics.median(load) if load else None, "max": max(load) if load else None},
+            "stall_diagnosis": diagnose_stall(samples)}
 
 
 def summarise_daemon_log(path: str, tz_h: float, from_slot: str = "00:00:00") -> dict:
@@ -172,6 +210,8 @@ def summarise_run(sup_dir: str, run_dir: str, tz_h: float, from_slot: str = "00:
         cores = [os.path.basename(p) for p in glob.glob(os.path.join(core_dir, "core*")) if os.path.getmtime(p) >= t0]
     out["core_files_since_start"] = cores
     out["replacement"] = _load(os.path.join(run_dir, "REPLACEMENT.json"))
+    out["scenario_retries"] = _load(os.path.join(run_dir, "scenario_retries.json"))          # the stall row's source: attempts / failed attempts / replacements per scenario
+    out["retries_exhausted"] = _load(os.path.join(run_dir, "RETRIES_EXHAUSTED.json"))
     return out
 
 

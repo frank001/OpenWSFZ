@@ -5,7 +5,8 @@
 
 Every `--interval` seconds one JSON line is appended to `<out-dir>/monitor.jsonl`: UTC time, the PIDs, state, RSS and thread count of the REAL `wsjtx`
 and `jt9` binaries (by /proc/<pid>/comm, never the xvfb-run wrapper the first watcher logged), the age and count of the newest save WAV, the
-OpenWSFZ cycle-audio archive's newest age, ALSA PCM states, the number of live `aplay` processes (and the oldest one's age), and the suspended time
+OpenWSFZ cycle-audio archive's newest age, ALSA PCM states, the capture PCM's kernel `hw_ptr` (frames; advances 48,000 per second while the sound hardware delivers) and every `wsjtx` thread's CPU ticks (a
+thread that works advances; one blocked does not), the number of live `aplay` processes (and the oldest one's age), and the suspended time
 since boot (CLOCK_BOOTTIME - CLOCK_MONOTONIC), so a stall can be tied to a sleep or cleared of one.
 
 On a STALL (no new save WAV for more than `--stall-s`, or no `wsjtx` process) it writes ONE snapshot folder `<out-dir>/stall-<UTC>/` per episode: for
@@ -20,6 +21,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -65,6 +67,41 @@ def alsa_states(alsa_root: str = "/proc/asound") -> dict:
     return out
 
 
+HW_PTR = re.compile(r"hw_ptr\s*:\s*(\d+)")
+
+
+def alsa_capture_hw_ptr(alsa_root: str = "/proc/asound") -> dict:
+    """The kernel's hardware pointer (frames) of every capture substream: it advances 48,000 per second while the sound hardware delivers, whether or not the
+    application reads (2026-10-14: the 19:35Z stall could not tell 'device stopped' from 'app stopped'; the status fields appl_ptr/avail do not, a healthy WSJT-X reads the same)."""
+    out = {}
+    for p in sorted(glob.glob(os.path.join(alsa_root, "card*", "pcm*c", "sub*", "status"))):
+        m = HW_PTR.search(_read(p, 600))
+        if m:
+            out[os.path.relpath(p, alsa_root).replace(os.sep, "/")] = int(m.group(1))
+    return out
+
+
+def thread_cpu_ticks(pid: int, proc_root: str = "/proc") -> dict:
+    """{tid: [comm, utime + stime clock ticks]} for every thread of `pid`: a thread that is alive and working has ticks that advance; one blocked or idle does not."""
+    out = {}
+    base = os.path.join(proc_root, str(pid), "task")
+    try:
+        tids = os.listdir(base)
+    except OSError:
+        return out
+    for tid in tids:
+        if not tid.isdigit():
+            continue
+        st = _read(os.path.join(base, tid, "stat"), 600)
+        try:
+            comm = st[st.index("(") + 1:st.rindex(")")]
+            f = st[st.rindex(")") + 2:].split()
+            out[tid] = [comm, int(f[11]) + int(f[12])]
+        except (ValueError, IndexError):
+            continue
+    return out
+
+
 def aplay_info(proc_root: str = "/proc") -> dict:
     pids = LV.pids_by_comm("aplay", proc_root)
     oldest = None
@@ -93,7 +130,8 @@ def sample(save_dir: str, archive_dir: str | None, now: float, stall_s: float, p
     wavs = LV.list_wav_slots(save_dir)
     s = {"t": utc_now(), "ok": lv.ok, "reason": lv.reason, "wav_age_s": None if lv.age_s is None else round(lv.age_s, 1), "wav_count": len(wavs),
          "wsjtx": [proc_state(p, proc_root) for p in lv.pids], "jt9": [proc_state(p, proc_root) for p in LV.pids_by_comm(LV.JT9_COMM, proc_root)],
-         "aplay": aplay_info(proc_root), "alsa": alsa_states(alsa_root), "suspended_s": suspended_s()}
+         "aplay": aplay_info(proc_root), "alsa": alsa_states(alsa_root), "suspended_s": suspended_s(),
+         "capture_hw_ptr": alsa_capture_hw_ptr(alsa_root), "wsjtx_cpu_ticks": {str(p): thread_cpu_ticks(p, proc_root) for p in lv.pids}}
     try:
         s["load1"] = round(os.getloadavg()[0], 2)          # host load: the decoders share the CPU with everything else on the box
     except (AttributeError, OSError):

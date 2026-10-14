@@ -9,6 +9,7 @@ Attribution is by the line's slot stamp. Validity rows (a FAIL voids the S6 bloc
   S6-V1 corpus verified (from the player)         S6-V2 (1) every play starts within OFFSET_TOLERANCE_S of its nominal offset,
   S6-V3 warm-up decoded by both (player)                  (2) 0 decode lines stamped in a slot with no play, 0 slots with two plays
   S6-V4 plays completed = tier x 3                S6-V5 pins equal at start and end (player)
+  S6-V7 appraiser coverage (2026-10-14): every play slot has a WSJT-X save WAV and an OpenWSFZ archive cycle; 0 missing per appraiser
 Mandatory field (Architect, amendment 1): the per-play OpenWSFZ abandonment (deadlineAbandoned) from the daemon log; the report gives S6 in
 full AND over the WAVs with no abandoned play.
 """
@@ -36,8 +37,9 @@ import s6_stats as S  # noqa: E402
 
 PASS_LINE = re.compile(r"^\[(\d\d):(\d\d):(\d\d) \w+\] Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(True|False) "
                        r"containedException=(True|False) fittedSignals=(\d+)")
-ONSET_BAR_S = (0.0, 0.2)          # S6-V2(d) (Architect 2026-10-13): every read play's median DT shift (replay - live) lies in [0.0, +0.2] s. Source (HK-038): the S6 dry run
-                                  # (66 plays, min +0.1, max +0.2) + the 70 min keep-up run (+0.1), same chain on sol, DT resolution 0.1 s; re-check against the first standard run
+ONSET_BAR_S = (0.0, 0.3)          # S6-V2(d) (Architect amendment 3, 2026-10-14): every read play's median DT shift (replay - live) lies in [0.0, +0.3] s. Source (HK-038): TWO S6 quick dry runs on sol
+                                  # (10-13: 66 plays read, 10-14: 44 read; 110 plays: per-play median 0.1 or 0.2 s, median 0.1, max 0.2) = the observed maximum plus one 0.1 s DT reading step.
+                                  # PILOT-DERIVED, not a derived bar; re-examined after the first standard-tier baseline sweep, before it is frozen. (Until 2026-10-14 the bar was [0.0, 0.2].)
 ONSET_EPS = 1e-9
 MIN_ATTRIBUTED_SHARE = 0.9       # a DESIGN number (Architect 2026-10-13: stays 90 %): the daemon-log attribution is trusted only if this share of the residual-pass LINES in the window maps to a play slot
 
@@ -151,11 +153,46 @@ def v2_rows(plays: list, warm_slots: list, wsjt: dict, owsfz: dict) -> dict:
     dup = [s for s, c in Counter(play_slots).items() if c > 1]
     ok_slots = set(play_slots) | set(warm_slots)
     stray = {a: sum(len(rows) for s, rows in log.items() if s not in ok_slots) for a, log in (("wsjtx", wsjt), ("owsfz", owsfz))}
-    passed = not bad_off and not dup and stray["wsjtx"] == 0 and stray["owsfz"] == 0
+    # (a) the player's call time against the boundary is RETIRED AS A CHECK (Architect amendment 3, 2026-10-14): it reads the scheduler's own timestamp and was 0.000 s on all
+    # 144 plays of two runs, so it cannot fail. `plays_outside_tolerance` stays in the row as a RECORD; the row's other checks (no slot with two plays, no stray lines) stand.
+    passed = not dup and stray["wsjtx"] == 0 and stray["owsfz"] == 0
     return {"result": "PASS" if passed else "FAIL",
             "offset_tolerance_s": P.OFFSET_TOLERANCE_S, "offset_nominal_s": P.OFFSET_NOMINAL_S,
             "offset_min_s": min(offs) if offs else None, "offset_max_s": max(offs) if offs else None, "plays_outside_tolerance": len(bad_off),
             "slots_with_two_plays": len(dup), "stray_lines": stray}
+
+
+def v7_row(plays: list, run_dir: str) -> dict:
+    """S6-V7, appraiser coverage (Architect amendment 3, 2026-10-14; V6 is taken by the option-A loss-counter row). For EVERY play slot of the playlog:
+    (a) WSJT-X has a save WAV for the slot and (b) OpenWSFZ's cycle archive has the cycle. BAR: 0 missing slots per appraiser (stricter than the S1-S8 coverage row's
+    expected - 1 on purpose: the S6 design is balanced by WAV x trial, and the liveness gate already stops a stall of more than 45 s, so a gap without a stall is an anomaly).
+    The slot lists come from run_study.py (`coverage_slots_wsjtx.txt`, `coverage_slots_owsfz.txt`). If the battery ran with the liveness gate (`liveness_gate.json`) the lists are
+    REQUIRED and their absence FAILS; without the gate (older runs, desk runs) the row reads NOT MEASURED and does not void the block."""
+    from harness import liveness as LV
+    gate_on = os.path.isfile(os.path.join(run_dir, "liveness_gate.json"))
+    want = [LV.stamp_to_iso(p["slot_stamp"]) for p in plays]
+    out: dict = {"bar": "0 missing play slots per appraiser", "plays": len(want)}
+    ok = True
+    measured_any = False
+    for key, fname in (("wsjtx", "coverage_slots_wsjtx.txt"), ("owsfz", "coverage_slots_owsfz.txt")):
+        slots = LV.read_slots(os.path.join(run_dir, fname))
+        if slots is None:
+            out[key] = {"measured": False}
+            if gate_on:
+                ok = False
+            continue
+        measured_any = True
+        missing = [w for w in want if w not in slots]
+        out[key] = {"measured": True, "missing": len(missing), "first_missing": missing[:3]}
+        ok = ok and not missing
+    if not measured_any:
+        out["result"] = "FAIL" if gate_on else "NOT MEASURED"
+        out["reason"] = "the battery ran with the liveness gate but the coverage slot lists are missing" if gate_on else "no coverage slot lists in the run folder (the battery ran without --liveness-save-dir)"
+    else:
+        out["result"] = "PASS" if ok else "FAIL"
+        if gate_on and not ok and not all(out[k].get("measured") for k in ("wsjtx", "owsfz")):
+            out["reason"] = "one appraiser's slot list is missing although the gate was on"
+    return out
 
 
 def onset_check(onset: dict | None, checkable: bool) -> dict:
@@ -196,7 +233,7 @@ def fmt_block(res: dict, label: str) -> str:
       "No truth is assumed: the figures measure repeatability and reproducibility, not recall. Informational on its first battery." % (label, res["tier"], res["wavs"], S.K, res["plays"]))
     A("")
     od = v["S6-V2"].get("onset", {})
-    A("**Validity** (a FAIL withholds this block only, the rest of the battery stands): " + "; ".join("%s %s" % (k, v[k]["result"]) for k in ("S6-V1", "S6-V2", "S6-V3", "S6-V4", "S6-V5"))
+    A("**Validity** (a FAIL withholds this block only, the rest of the battery stands): " + "; ".join("%s %s" % (k, v[k]["result"]) for k in ("S6-V1", "S6-V2", "S6-V3", "S6-V4", "S6-V5", "S6-V7") if k in v)
       + ". **S6-V2(d) onset: %s**%s" % (od.get("result", "?"), (" (per-play median DT shift of %s plays read, min %+.1f, max %+.1f s, bar [%+.1f, %+.1f] s; %s plays not read)" % (
           od.get("plays_read"), od.get("min_s"), od.get("max_s"), od["bar_s"][0], od["bar_s"][1], od.get("plays_not_read")) if od.get("result") in ("PASS", "FAIL") and "plays_read" in od else
           (" (%s)" % od.get("reason") if od.get("reason") else ""))))
@@ -352,8 +389,10 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
         v["S6-V2"]["logs"] = "S6 log slices missing" if not slices_present else "both S6 log slices are empty"
     v["S6-V4"] = {"result": "PASS" if (len(plays) == expected and not validity.get("player_did_not_finish")) else "FAIL", "plays": len(plays), "expected": expected,
                   **({"note": "the player did not finish (no s6_validity.json)"} if validity.get("player_did_not_finish") else {})}
-    ok = all(v[k]["result"] == "PASS" for k in v)
-    status = "VALID" if ok else "VOID: " + ", ".join("%s %s" % (k, v[k]["result"]) for k in v if v[k]["result"] != "PASS")
+    v["S6-V7"] = v7_row(plays, run_dir)
+    okr = lambda k: v[k]["result"] == "PASS" or (k == "S6-V7" and v[k]["result"] == "NOT MEASURED")
+    ok = all(okr(k) for k in v)
+    status = "VALID" if ok else "VOID: " + ", ".join("%s %s" % (k, v[k]["result"]) for k in v if not okr(k))
     res = {"tier": tier, "status": status, "validity": v, "onset": onset, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
            "cpu_chain_label": cpu_chain_label, "window": window, "pins": pins}
     if ok:

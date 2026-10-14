@@ -69,3 +69,31 @@ def test_daemon_log_aggregates_counts_only(tmp_path):
     assert r["cycles_logged"] == 2 and r["residual_passes"] == 2 and r["residual_abandoned"] == 1 and r["clamp_warnings"] == 1 and r["clamp_positive"] == 1
     assert r["late_cycles"] == 1 and r["residual_elapsed_ms"]["max"] == 10400
     assert "episodes" in r and "examples" not in json.dumps(r)
+
+
+# ---- the two M1 fields added 2026-10-14: capture hw_ptr and per-thread CPU ticks -------------------------------------------------------------
+
+def _stall_samples(hw_step, ticks_step):
+    out = []
+    for i in range(5):
+        s = smp("2026-10-14T10:00:%02dZ" % (i * 15) if i < 4 else "2026-10-14T10:01:00Z", ok=(i == 0), age=10.0 + 15 * i)
+        s["capture_hw_ptr"] = {"card0/pcm0c/sub0/status": 1_000_000 + i * hw_step}
+        s["wsjtx_cpu_ticks"] = {"100": {"100": ["wsjtx", 50 + i * ticks_step], "101": ["QThread", 10]}}
+        out.append(s)
+    return out
+
+
+def test_stall_diagnosis_device_delivering_and_all_threads_idle():
+    r = MS.diagnose_stall(_stall_samples(hw_step=720_000, ticks_step=0)[:5] if False else [dict(x, ok=(i < 1)) for i, x in enumerate(_stall_samples(720_000, 0))])
+    assert r["capture_hw_ptr_advance_ratio"]["card0/pcm0c/sub0/status"] == 1.0
+    assert r["wsjtx_thread_cpu_in_window"]["100"]["threads_whose_cpu_advanced"] == 0 and "application stopped reading" in r["reading"]
+
+
+def test_stall_diagnosis_device_stopped_and_unreadable_fields():
+    rows = [dict(x, ok=(i < 1)) for i, x in enumerate(_stall_samples(0, 3))]
+    r = MS.diagnose_stall(rows)
+    assert r["capture_hw_ptr_advance_ratio"]["card0/pcm0c/sub0/status"] == 0.0 and "sound hardware itself stopped" in r["reading"]
+    assert r["wsjtx_thread_cpu_in_window"]["100"]["advanced"]["100"][0] == "wsjtx"
+    old = [smp("2026-10-14T10:00:%02dZ" % (i * 15), ok=(i < 1)) for i in range(4)]
+    assert "not decidable" in MS.diagnose_stall(old)["reading"]
+    assert MS.diagnose_stall([smp("2026-10-14T10:00:00Z")]) is None            # no stall, no diagnosis

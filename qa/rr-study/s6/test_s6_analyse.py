@@ -98,14 +98,15 @@ def test_a_missing_play_fails_v4(tmp_path):
     assert r["validity"]["S6-V4"]["result"] == "FAIL" and r["status"].startswith("VOID")
 
 
-def test_a_late_play_fails_v2_offset(tmp_path):
+def test_a_late_play_is_recorded_but_no_longer_fails_v2_offset_retired_as_a_check(tmp_path):
     run, scratch, dl = make_run(tmp_path)
     p = run / "s6" / "s6_playlog.jsonl"
     rows = [json.loads(x) for x in p.read_text(encoding="utf8").splitlines()]
     rows[5]["offset_s"] = 0.9
     p.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf8")
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
-    assert r["validity"]["S6-V2"]["plays_outside_tolerance"] == 1 and r["status"].startswith("VOID")
+    # Architect amendment 3 (2026-10-14): the call-time row (a) is RETIRED as a check and kept as a record: it cannot fail, so a late play is recorded and does not void the block
+    assert r["validity"]["S6-V2"]["plays_outside_tolerance"] == 1 and r["validity"]["S6-V2"]["result"] == "PASS" and r["status"] == "VALID"
 
 
 def test_unattributable_daemon_log_gives_unknown_not_zero(tmp_path):
@@ -273,13 +274,13 @@ def test_v2d_passes_when_every_read_play_shift_is_inside_the_bar(tmp_path):
     corpus, wl = with_corpus(tmp_path, run, shift=0.1)
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50, corpus=corpus, wavlist_path=wl)
     od = r["validity"]["S6-V2"]["onset"]
-    assert od["result"] == "PASS" and od["plays_read"] == 36 and od["min_s"] == od["max_s"] == 0.1 and od["bar_s"] == [0.0, 0.2]
+    assert od["result"] == "PASS" and od["plays_read"] == 36 and od["min_s"] == od["max_s"] == 0.1 and od["bar_s"] == [0.0, 0.3]
     assert r["status"] == "VALID" and "S6-V2(d) onset: PASS" in open(run / "s6" / "s6_section5.md", encoding="utf8").read()
 
 
 def test_v2d_fails_and_voids_the_block_when_a_read_play_is_outside_the_bar(tmp_path):
     run, scratch, dl = make_run(tmp_path)
-    corpus, wl = with_corpus(tmp_path, run, shift=0.4)                       # the replay chain added 0.4 s: outside [0.0, +0.2]
+    corpus, wl = with_corpus(tmp_path, run, shift=0.4)                       # the replay chain added 0.4 s: outside [0.0, +0.3]
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50, corpus=corpus, wavlist_path=wl)
     assert r["validity"]["S6-V2"]["onset"]["result"] == "FAIL" and r["validity"]["S6-V2"]["result"] == "FAIL" and r["status"].startswith("VOID")
     corpus2, wl2 = with_corpus(tmp_path, run, shift=-0.1)                     # overwrites the same synthetic corpus
@@ -299,3 +300,57 @@ def test_v2d_is_not_checked_without_a_corpus_and_says_so(tmp_path):
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
     assert r["validity"]["S6-V2"]["onset"]["result"] == "NOT CHECKED" and r["status"] == "VALID"
     assert "S6-V2(d) onset: NOT CHECKED" in open(run / "s6" / "s6_section5.md", encoding="utf8").read()
+
+
+# ---- S6-V7, appraiser coverage (Architect amendment 3, 2026-10-14) ---------------------------------------------------------------------------
+
+def _slots(run, plays_rows, drop_wsjtx=0, drop_owsfz=0, wsjtx=True, owsfz=True, gate=True):
+    from harness import liveness as LV
+    iso = [LV.stamp_to_iso(r["slot_stamp"]) for r in plays_rows if r["kind"] == "play"]
+    if wsjtx:
+        LV.write_slots(str(run / "coverage_slots_wsjtx.txt"), set(iso[drop_wsjtx:]))
+    if owsfz:
+        LV.write_slots(str(run / "coverage_slots_owsfz.txt"), set(iso[drop_owsfz:]))
+    if gate:
+        (run / "liveness_gate.json").write_text("{}", encoding="utf8")
+
+
+def _rows(run):
+    return [json.loads(x) for x in (run / "s6" / "s6_playlog.jsonl").read_text(encoding="utf8").splitlines()]
+
+
+def test_v7_passes_with_every_play_slot_present_for_both_appraisers(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    _slots(run, _rows(run))
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    v7 = r["validity"]["S6-V7"]
+    assert v7["result"] == "PASS" and v7["wsjtx"]["missing"] == 0 and v7["owsfz"]["missing"] == 0 and r["status"] == "VALID"
+
+
+def test_v7_one_missing_slot_for_one_appraiser_fails_and_voids_the_block(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    _slots(run, _rows(run), drop_wsjtx=1)                           # WSJT-X has no WAV for the first play slot: not a tolerance of expected - 1
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    v7 = r["validity"]["S6-V7"]
+    assert v7["result"] == "FAIL" and v7["wsjtx"]["missing"] == 1 and v7["owsfz"]["missing"] == 0 and r["status"].startswith("VOID") and "S6-V7 FAIL" in r["status"]
+
+
+def test_v7_the_dry_run_shape_a_third_of_the_plays_unheard_fails(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    rows = _rows(run)
+    _slots(run, rows, drop_wsjtx=0)
+    from harness import liveness as LV
+    iso = [LV.stamp_to_iso(x["slot_stamp"]) for x in rows if x["kind"] == "play"]
+    LV.write_slots(str(run / "coverage_slots_wsjtx.txt"), set(iso[: len(iso) * 2 // 3]))
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert r["validity"]["S6-V7"]["result"] == "FAIL" and r["validity"]["S6-V7"]["wsjtx"]["missing"] == len(iso) - len(iso) * 2 // 3
+
+
+def test_v7_lists_missing_with_the_gate_on_fails_and_without_the_gate_reads_not_measured(tmp_path):
+    run, scratch, dl = make_run(tmp_path)
+    (run / "liveness_gate.json").write_text("{}", encoding="utf8")                       # the battery ran with the gate but no slot lists were written
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert r["validity"]["S6-V7"]["result"] == "FAIL" and r["status"].startswith("VOID")
+    run2, scratch2, dl2 = make_run(tmp_path / "second")
+    r2 = A.run(str(run2), str(scratch2), str(dl2), "x", "y", n_boot=50)
+    assert r2["validity"]["S6-V7"]["result"] == "NOT MEASURED" and r2["status"] == "VALID"   # an older run: not a PASS, and it does not void

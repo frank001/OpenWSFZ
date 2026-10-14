@@ -39,7 +39,7 @@ def fake_proc(root: Path, pid: int, comm: str, wchan: str = "snd_pcm_read") -> N
     (t / "comm").write_text("audio-thread\n")
     (t / "wchan").write_text(wchan)
     (t / "syscall").write_text("0 0x7 0x0\n")
-    (t / "stat").write_text("%d (audio-thread) S\n" % pid)
+    (t / "stat").write_text("%d (audio-thread) S 1 1 1 0 -1 0 0 0 0 0 7 3 0 0 20 0 1 0 1 0 0\n" % pid)     # utime 7 + stime 3 ticks
 
 
 # ---------------------------------------------------------------------------------------------------------------------------- stamps and slots
@@ -224,3 +224,19 @@ def test_snapshot_writes_wait_channels_and_alsa_state_and_never_raises(tmp_path)
 def test_suspended_seconds_never_raises():
     v = MON.suspended_s()
     assert isinstance(v, float)
+
+
+def test_sample_carries_capture_hw_ptr_and_thread_cpu_ticks(tmp_path):
+    proc, save, alsa = tmp_path / "proc", tmp_path / "save", tmp_path / "asound"
+    proc.mkdir()
+    save.mkdir()
+    fake_proc(proc, 200, "wsjtx")
+    (alsa / "card0" / "pcm0c" / "sub0").mkdir(parents=True)
+    (alsa / "card0" / "pcm0c" / "sub0" / "status").write_text("state: RUNNING\n-----\nhw_ptr      : 13109436\nappl_ptr    : 0\n")
+    (alsa / "card0" / "pcm0p" / "sub0").mkdir(parents=True)
+    (alsa / "card0" / "pcm0p" / "sub0" / "status").write_text("state: RUNNING\nhw_ptr      : 5\n")        # playback: not read
+    make_wav(save, "261014_110930", 1000.0)
+    s = MON.sample(str(save), None, 1010.0, 45.0, str(proc), str(alsa))
+    assert s["capture_hw_ptr"] == {"card0/pcm0c/sub0/status": 13109436}
+    ticks = s["wsjtx_cpu_ticks"]["200"]
+    assert ticks == {"200": ["audio-thread", 10]}                                  # utime 7 + stime 3

@@ -72,16 +72,36 @@ def register(keys: list, folders: list) -> None:
 
 
 def stall_row(results: str, ok_dirs: list, inv_dirs: list) -> dict:
-    rows = []
+    """The stall row, SCENARIO level: per scenario and in total, attempts / failed attempts (stalls and coverage failures) / replacements, from each sweep's `scenario_retries.json`;
+    whole-sweep INVALID folders (the earlier launcher; none expected) are still listed. 'retries exhausted' = a scenario failed again with its cap used up (the series halted)."""
+    per: dict = {}
+    fails = []
+    sweeps_with_retry = 0
+    exhausted = []
+    for d in ok_dirs:
+        doc = jload(os.path.join(results, d, "scenario_retries.json"))
+        if jload(os.path.join(results, d, "RETRIES_EXHAUSTED.json")):
+            exhausted.append(d)
+        if not doc:
+            continue
+        used = 0
+        for sid, v in doc.get("scenarios", {}).items():
+            row = per.setdefault(sid, {"attempts": 0, "failed": 0, "replacements": 0})
+            row["attempts"] += v.get("attempts", 0)
+            row["failed"] += len(v.get("failed", []))
+            row["replacements"] += v.get("retries_used", 0)
+            used += v.get("retries_used", 0)
+            for f in v.get("failed", []):
+                fails.append({"sweep": d, "scenario": sid, "attempt": f.get("attempt"), "kind": f.get("kind"), "reason": f.get("reason"), "utc": f.get("utc"), "replaced_by_attempt": f.get("replaced_by_attempt")})
+        sweeps_with_retry += 1 if used else 0
+    inv = []
     for d in inv_dirs:
         st = jload(os.path.join(results, d, "STALLED.json")) or {}
-        rows.append({"folder": d, "utc": st.get("utc"), "scenario": st.get("scenario"), "where": st.get("where"), "reason": st.get("reason"), "wav_age_s": st.get("newest_wav_age_s")})
-    rep = []
-    for d in ok_dirs:
-        r = jload(os.path.join(results, d, "REPLACEMENT.json"))
-        if r:
-            rep.append({"folder": d, "attempt": r.get("attempt"), "replaces": r.get("replaces")})
-    return {"sweeps_complete": len(ok_dirs), "stalls": len(inv_dirs), "replacements": len(rep), "attempts": len(ok_dirs) + len(inv_dirs), "stall_list": rows, "replacement_list": rep}
+        inv.append({"folder": d, "utc": st.get("utc"), "scenario": st.get("scenario"), "reason": st.get("reason")})
+    tot = {k: sum(r[k] for r in per.values()) for k in ("attempts", "failed", "replacements")}
+    return {"sweeps_complete": len(ok_dirs), "sweeps_with_a_retry": sweeps_with_retry, "per_scenario": per, "totals": tot, "failures": fails, "retries_exhausted_in": exhausted, "invalid_sweep_folders": inv,
+            # kept for the summary text
+            "stalls": tot["failed"], "replacements": tot["replacements"], "attempts": tot["attempts"], "stall_list": inv}
 
 
 def t_row(vals: list):
@@ -158,8 +178,9 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
     s4w = R["s4"]["M"]["WSJT-X"].sum(axis=0)
     A("3. **Attribute results.** S4 (%d messages): OpenWSFZ %s per sweep, WSJT-X %s; Cochran's Q across the sweeps p %s (OpenWSFZ), %s (WSJT-X)." % (
         R["s4"]["keys"], "/".join(str(x) for x in s4o), "/".join(str(x) for x in s4w), B.fp(F.cochran_q(R["s4"]["M"]["OpenWSFZ"])[2]), B.fp(F.cochran_q(R["s4"]["M"]["WSJT-X"])[2])))
-    A("4. **Stall row (its own row):** %d complete sweeps in %d attempts: **%d stall(s), %d replacement(s)**%s." % (
-        stall["sweeps_complete"], stall["attempts"], stall["stalls"], stall["replacements"], "" if not stall["stall_list"] else " (" + "; ".join(("%s in %s at %s" % (x["reason"], x["scenario"], x["utc"])) if x["reason"] else ("see folder %s" % x["folder"]) for x in stall["stall_list"]) + ")"))
+    A("4. **Stall row (its own row, scenario level):** %d complete sweeps; %d scenario attempts, **%d failed attempt(s) (stalls and coverage failures), %d replacement(s)**, in %d of the sweeps%s." % (
+        stall["sweeps_complete"], stall["attempts"], stall["stalls"], stall["replacements"], stall["sweeps_with_a_retry"],
+        "" if not stall["failures"] else " (" + "; ".join("%s %s attempt %s: %s" % (f["sweep"].split("-B2BASE-")[-1] if "B2BASE" in f["sweep"] else f["sweep"][-12:], f["scenario"], f["attempt"], f["reason"]) for f in stall["failures"]) + ")"))
     if any(s6.values()):
         pa = [s6[k]["full"]["headline"]["positive_agreement"] for k in keys if s6.get(k)]
         ab = [s6[k]["abandonment"]["plays_abandoned"] for k in keys if s6.get(k)]
@@ -175,13 +196,13 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
         sm = mon[k] or {}
         rep = (sm.get("replacement") or {})
         rows.append([B.SHORT[k], "%s to %s" % (S[k]["cycle_utc_first_last"][0][5:16].replace("T", " "), S[k]["cycle_utc_first_last"][1][5:16].replace("T", " ")), "%d / %d" % (S[k]["wsjt_all_lines"], S[k]["owsfz_all_lines"]),
-                     ("attempt %s (replaces `%s`)" % (rep.get("attempt"), rep.get("replaces"))) if rep else "attempt 1", "`%s`" % folders[i]])
-    A(B.md_table(["Sweep", "Cycles first to last (UTC)", "`wsjt-all.txt` / `owsfz-all.txt` lines", "Attempt", "Folder"], rows))
+                     ("; ".join("%s x%d" % (sid, v["retries_used"]) for sid, v in ((jload(os.path.join(results, folders[i], "scenario_retries.json")) or {}).get("scenarios", {})).items() if v.get("retries_used")) or "none"), "`%s`" % folders[i]])
+    A(B.md_table(["Sweep", "Cycles first to last (UTC)", "`wsjt-all.txt` / `owsfz-all.txt` lines", "Scenario retries", "Folder"], rows))
     A("")
     if inv:
         A("**Replaced sweeps (kept on disk, INVALID, none of their data is used):** " + "; ".join("`%s`" % d for d in inv) + ".")
         A("")
-    A("**The series rule:** the series is %d COMPLETE sweeps; a sweep in which an appraiser has no data for part of the battery (the M2 gate stops it, or the M3 coverage row fails) is INVALID and replaced by a complete rerun of the whole sweep, within the cap set at launch. Nothing is repaired, nothing is pooled with another series." % n)
+    A("**The series rule (Captain 2026-10-14):** the series is %d COMPLETE sweeps. The retry unit is the SCENARIO: when WSJT-X stalls inside a scenario (the M2 gate stops it) or the scenario's coverage fails (M3; S6-V7), WSJT-X is restarted and THAT scenario is rerun with all its trials in the same sweep folder; the failed attempt is kept as INVALID (its truth rows as `truth_INVALID_*`, its `s6/` as `s6-INVALID-attemptK`) and a replacement is recorded in `scenario_retries.json`; at most 3 retries per scenario, a 4th failure of the same scenario halts and flags; passed scenarios are kept; there is no wall-time limit. Nothing is repaired below the scenario (a part's trials come from one WSJT-X session), and nothing is pooled with another series." % n)
     A("")
     A("**Design (checked in code: every cell has exactly 3 trials).** S1 SNR, S2 frequency and S3 DT: 10 parts x 2 appraisers x 3 trials per sweep; the sweeps are separate sessions (daemon and WSJT-X restarted) with identical injected seeds.")
     A("")
@@ -356,12 +377,17 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
                          ",".join((mon.get(k) or {}).get("core_files_since_start") or []) or "none"])
         A(B.md_table(["Sweep", "Cycles logged", "Late cycles", "Residual passes abandoned / run", "Residual pass elapsed median / p90 / max (ms)", "Clamp warnings", "Drop-like lines", "Build", "Shim", "Core files"], rows))
         A("")
-    A("**Stall row (its own row):**")
+    A("**Stall row (its own row, scenario level):**")
     A("")
-    A(B.md_table(["Complete sweeps", "Attempts", "Stalls", "Replacements"], [[stall["sweeps_complete"], stall["attempts"], stall["stalls"], stall["replacements"]]]))
+    A(B.md_table(["Complete sweeps", "Sweeps with a retry", "Scenario attempts", "Failed attempts", "Replacements"], [[stall["sweeps_complete"], stall["sweeps_with_a_retry"], stall["attempts"], stall["stalls"], stall["replacements"]]]))
     A("")
-    if stall["stall_list"]:
-        A(B.md_table(["Stalled attempt (kept INVALID)", "UTC", "Scenario", "Where", "Reason"], [[s["folder"], s["utc"], s["scenario"], s["where"], s["reason"]] for s in stall["stall_list"]]))
+    A(B.md_table(["Scenario", "Attempts (all sweeps)", "Failed attempts", "Replacements"], [[sid, v["attempts"], v["failed"], v["replacements"]] for sid, v in sorted(stall["per_scenario"].items())]))
+    A("")
+    if stall["failures"]:
+        A(B.md_table(["Sweep", "Scenario", "Attempt", "Kind", "Reason", "UTC", "Replaced by attempt"], [["`%s`" % f["sweep"], f["scenario"], f["attempt"], f["kind"], f["reason"], f["utc"], f["replaced_by_attempt"]] for f in stall["failures"]]))
+        A("")
+    if stall["retries_exhausted_in"]:
+        A("**RETRIES EXHAUSTED (the series halted) in:** " + ", ".join("`%s`" % d for d in stall["retries_exhausted_in"]))
         A("")
     A("With M1 on, each stall has a snapshot in the sweep's supervisor folder (the wait channel of the audio thread, the ALSA state, the process list); the stall count over the series is the stall-rate data the root-cause question needs. The cause of the 11 and 14 October stalls is not established.")
     A("")
@@ -404,7 +430,7 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
     A("3. **Session to session.** The sweep share of the variance: %.3f %% (S1), %.3f %% (S2), %.3f %% (S3). OpenWSFZ's S1 bias in the order the sweeps ran: %s dB (range %.2f dB); WSJT-X: %s dB (range %.2f dB)." % (
         s1["pct_groups"]["sweep"], s2["pct_groups"]["sweep"], s3["pct_groups"]["sweep"], ", ".join("%+.2f" % R["bias"]["S1"][k]["OpenWSFZ"]["bias"] for k in chrono), max(o_b) - min(o_b),
         ", ".join("%+.2f" % R["bias"]["S1"][k]["WSJT-X"]["bias"] for k in chrono), max(w_b) - min(w_b)))
-    A("4. **Validity of the data.** %d sweeps in %d attempts (%d stall(s), %d replacement(s)); every sweep passed the M3 coverage rows" % (stall["sweeps_complete"], stall["attempts"], stall["stalls"], stall["replacements"]) +
+    A("4. **Validity of the data.** %d sweeps, %d scenario attempts (%d failed, %d replacement(s)); every kept scenario passed its coverage check (M3 / S6-V7)" % (stall["sweeps_complete"], stall["attempts"], stall["stalls"], stall["replacements"]) +
       ("." if all(((mon.get(k) or {}).get("M3_coverage") or {}).get("rows_invalid", 0) == 0 and (mon.get(k) or {}).get("M3_coverage", {}).get("rows") for k in keys) else " **(check the table: at least one sweep has no coverage rows or an INVALID row)**."))
     A("5. **Assumptions.** Balanced data, exact models; rounded reported values make the F p values approximate; the bootstrap resamples parts, not sweeps; no bar is proposed (HK-038).")
     A("")
@@ -413,7 +439,7 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
     A("1. On the B2 build, graded on %%StudyVar: S1 %.1f %% (%s), S2 %.1f %% (%s), S3 %.1f %% (%s); ndc %s / %s / %s. S3 sits near the 10 %% line on this metric; the Architect's reading (2026-10-14) is that this is the intended outcome of the AIAG metric, driven by a fixed DT offset between the programs, and neither the S3 tolerance nor the gate is adjusted." % (
         s1["pct_grr_sv"], v("S1"), s2["pct_grr_sv"], v("S2"), s3["pct_grr_sv"], v("S3"), s1["ndc"], s2["ndc"], s3["ndc"]))
     A("2. This is the baseline for the B2 build on `sol`: later changes are read against its sweep-to-sweep spread (Section 3.3 and the S1 bias range %.2f dB for OpenWSFZ, %.2f dB for WSJT-X), descriptively, not as a bar." % (max(o_b) - min(o_b), max(w_b) - min(w_b)))
-    A("3. The stall row (Section 3.6) is part of the result: %d stall(s) in %d attempts. If stalls recur, the M1 snapshots are the evidence to read first." % (stall["stalls"], stall["attempts"]))
+    A("3. The stall row (Section 3.6) is part of the result: %d failed scenario attempt(s) in %d attempts (%d replacement(s)). If stalls recur, the M1 snapshots (the capture hw_ptr advance and the wsjtx thread CPU ticks) are the evidence to read first." % (stall["stalls"], stall["attempts"], stall["replacements"]))
     A("")
     A("**Not claimed.** No decoder-improvement statement; no pooling or testing across series; S6 is a live-path reading, not a decode-rate claim; the cause of the 11 and 14 October stalls is not known.")
     A("")
@@ -467,7 +493,7 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
         return 'src="data:image/png;base64,' + base64.b64encode(open(p, "rb").read()).decode("ascii") + '"' if os.path.isfile(p) else m.group(0)
     with open(os.path.join(out, "report-standalone.html"), "w", encoding="utf8", newline="\n") as fh:
         fh.write(re.sub(r'src="(img/[^"]+)"', emb, html))
-    print("wrote", out, len(md), "chars;", n, "sweeps;", stall["stalls"], "stall(s)")
+    print("wrote", out, len(md), "chars;", n, "sweeps;", stall["stalls"], "failed scenario attempt(s)")
 
 
 def main() -> None:
