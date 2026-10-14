@@ -1,0 +1,47 @@
+#!/bin/sh
+# The B2 BASELINE series driver on sol (QA, 2026-10-14; Architect amendment 3 + the Captain's retry ruling): N COMPLETE sweeps in a row on the B2 build, S6 (standard tier) in every sweep,
+# with the monitoring M1-M3 and the SCENARIO-level retry (SCENARIO_RETRIES per scenario, default 3; no wall-time limit). Detached by the caller; no cron (HK-023).
+#   usage: [SCENARIO_RETRIES=3] series-b2base.sh <n sweeps> [series id, default B2BASE] [scenarios, default the full battery]
+# For each sweep it runs battery-b2.sh (one battery = one sweep; the retries happen INSIDE it, per scenario), then renames the sweep's run folder (and its captured-audio folder and the S6
+# scratch folder) to <date>-<sha>-<ID>-sweep<n>, so the next sweep cannot collide with it and every folder carries the series label. It HALTS the whole series on any halt of a sweep
+# (a scenario failing again with its retries used up, a restart that fails, any non-stall failure). After every sweep it logs the RUNNING TOTALS (scenario attempts / failed attempts /
+# replacements) to ~/rr-run/series-<ID>.log. There is no series-level cap (the Captain's call; the Architect flagged the worst case). The series is never pooled with another one.
+N=${1:?number of sweeps}; ID=${2:-B2BASE}
+SCEN=${3:-S1,S1b,S2,S3,S4,S5,S7,S8,S3c,S6}
+export SCENARIO_RETRIES=${SCENARIO_RETRIES:-3}
+SLOG=$HOME/rr-run/series-$ID.log
+PY=$HOME/rr-venv/bin/python
+slog() { echo "$(date -u +%FT%TZ) $*" >> "$SLOG"; }
+slog "series $ID start: $N sweeps; scenarios $SCEN; retries per scenario $SCENARIO_RETRIES; build $(git -C $HOME/OpenWSFZ-b2src rev-parse HEAD); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
+TA=0; TF=0; TR=0
+i=1
+while [ $i -le "$N" ]; do
+  NAME=$(echo "$ID" | tr 'A-Z' 'a-z')-$i
+  rm -f "$HOME/rr-run/$NAME.log"
+  slog "sweep $i of $N: start ($NAME)"
+  case ",$SCEN," in *,S6,*) sh "$HOME/battery-b2.sh" "$NAME" "$SCEN" --s6-tier standard;; *) sh "$HOME/battery-b2.sh" "$NAME" "$SCEN";; esac
+  rc=$?
+  if [ $rc -ne 0 ] || ! grep -q " DONE$" "$HOME/rr-run/$NAME.log" 2>/dev/null; then
+    slog "HALT: sweep $i did not end DONE (rc $rc); see $HOME/rr-run/$NAME.log; the series stops here (complete sweeps so far: $((i - 1)))"
+    exit 1
+  fi
+  RUN=$(grep "run folder:" "$HOME/rr-run/$NAME.log" | tail -1 | sed 's/.*run folder: //')
+  [ -d "$RUN" ] || { slog "HALT: run folder of sweep $i not found ($RUN)"; exit 1; }
+  FINAL="$RUN-$ID-sweep$i"
+  mv "$RUN" "$FINAL" || { slog "HALT: cannot rename $RUN"; exit 1; }
+  [ -d "$RUN-captured-audio" ] && mv "$RUN-captured-audio" "$FINAL-captured-audio"
+  S6S="$HOME/qa-scratch/s6-$(basename "$RUN")"
+  [ -d "$S6S" ] && mv "$S6S" "$HOME/qa-scratch/s6-$(basename "$FINAL")"
+  cp "$HOME/rr-run/$NAME.log" "$FINAL/launcher.log" 2>/dev/null
+  SUMLINE=$("$PY" - "$FINAL" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1] + "/scenario_retries.json"))["totals"]
+print(d["scenario_attempts"], d["failed_attempts"], d["replacements"])
+PYEOF
+)
+  set -- $SUMLINE
+  TA=$((TA + $1)); TF=$((TF + $2)); TR=$((TR + $3))
+  slog "sweep $i of $N DONE: $(basename "$FINAL"); this sweep: attempts $1, failed $2, replacements $3; RUNNING TOTALS over $i sweep(s): scenario attempts $TA, failed attempts $TF, replacements $TR"
+  i=$((i + 1))
+done
+slog "SERIES $ID COMPLETE: $N complete sweeps; scenario attempts $TA, failed attempts $TF, replacements $TR"
