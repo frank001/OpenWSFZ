@@ -2469,6 +2469,39 @@ def _collect_verdicts(
 
 
 # ---------------------------------------------------------------------------
+# M3 (2026-10-14, Architect): per-scenario COVERAGE of each appraiser: a validity row, never a result
+# ---------------------------------------------------------------------------
+
+def _coverage_check(run_dir: Path) -> "tuple[list, list, list] | None":
+    """(rows, invalid_messages, notes) from `coverage_slots_wsjtx.txt` / `coverage_slots_owsfz.txt` (cycle stamps for which the appraiser had audio data,
+    written by run_study.py) against the expected cycles of each scenario in truth.csv. A scenario with fewer cycles with data than (expected - 1)
+    makes the sweep INVALID. Missing slot files = NOT MEASURED (a note, never a PASS). Returns None when truth.csv is absent."""
+    from harness import liveness as _lv
+    truth = run_dir / "truth.csv"
+    if not truth.is_file():
+        return None
+    expected: dict[str, set] = {}
+    with open(truth, newline="", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if r.get("scenario_id") and r.get("cycle_utc"):
+                expected.setdefault(r["scenario_id"], set()).add(r["cycle_utc"])
+    rows: list = []
+    bad: list = []
+    notes: list = []
+    for appr, fname in (("WSJT-X", "coverage_slots_wsjtx.txt"), ("OpenWSFZ", "coverage_slots_owsfz.txt")):
+        slots = _lv.read_slots(str(run_dir / fname))
+        if slots is None:
+            notes.append(f"Coverage ({appr}) NOT MEASURED: no {fname} in the run folder (the battery ran without --liveness-save-dir / --coverage-owsfz-dir)")
+            continue
+        for c in _lv.coverage_rows(expected, slots, appr):
+            ok = c["result"] == "PASS"
+            rows.append(("Coverage (validity)", f"{c['scenario']}/{appr}", f"{c['with_data']} of {c['expected']} cycles with data (needs >= {c['required']})", "PASS" if ok else "INVALID"))
+            if not ok:
+                bad.append(f"INVALID: {appr} has data for only {c['with_data']} of {c['expected']} cycles of {c['scenario']} (needs >= {c['required']}); the appraiser was silent for part of the scenario")
+    return rows, bad, notes
+
+
+# ---------------------------------------------------------------------------
 # Task 4.9 — Write report.md
 # ---------------------------------------------------------------------------
 
@@ -3185,6 +3218,19 @@ def main() -> None:
         fp_narrowband_results=fp_narrowband_results,
         s5_window_result=s5_window_result,
     )
+
+    # --- M3: coverage (validity) ---
+    _cov = _coverage_check(run_dir) if not scenario_filter else None
+    if _cov:
+        _cov_rows, _cov_bad, _cov_notes = _cov
+        verdict_rows.extend(_cov_rows)
+        notes.extend(_cov_notes)
+        if _cov_bad:
+            overall = "INVALID"
+            fails = list(_cov_bad) + list(fails)
+            print("  *** COVERAGE FAILED: sweep INVALID ***")
+            for m in _cov_bad:
+                print("    " + m)
 
     # --- Write report ---
     report_path = _write_report(

@@ -13,6 +13,7 @@ Run from qa/rr-study/:
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,7 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from harness.common import make_run_dir  # noqa: E402
+from harness import liveness as _lv  # noqa: E402  (M2/M3, 2026-10-14)
 
 # #194 audio-setup sampler hook. A sampler problem must NEVER fail a battery: import errors included.
 sys.path.insert(0, str(_HERE.parent / "audio-setup"))
@@ -157,15 +159,39 @@ def _load_arm_config(run_dir: Path) -> dict:
             "subtraction_enabled": {True: "true", False: "false"}.get(flag, "unknown")}
 
 
+_CHILD = None        # the scenario process currently running (M2: the liveness watchdog stops it on a WSJT-X stall)
+
+
 def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command via the venv Python, streaming output in real time."""
+    global _CHILD
     cmd = [str(_VENV_PYTHON), *args]
     print(f"\n>>> {' '.join(cmd)}\n", flush=True)
     # CREATE_NO_WINDOW: this process may itself be console-less (run_study_detached.py's --poll
     # child); without it Windows gives every child a fresh visible console (found live 2026-09-22).
-    result = subprocess.run(cmd, cwd=str(_HERE), check=check,
-                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    return result
+    proc = subprocess.Popen(cmd, cwd=str(_HERE), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    _CHILD = proc
+    try:
+        rc = proc.wait()
+    except BaseException:
+        proc.kill()
+        raise
+    finally:
+        _CHILD = None
+    if check and rc != 0:
+        raise subprocess.CalledProcessError(rc, cmd)
+    return subprocess.CompletedProcess(cmd, rc)
+
+
+def _flag_stall_and_exit(run_dir: Path, reading, scenario, where: str) -> None:
+    """M2: STOP AND FLAG. No restart, no recovery, no analysis of a sweep in which an appraiser went silent (Architect, 2026-10-14)."""
+    info = {"utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "scenario": scenario, "where": where, "reason": reading.reason,
+            "newest_wav_age_s": reading.age_s, "wsjtx_pids": reading.pids,
+            "note": "The battery STOPPED because WSJT-X stopped taking in audio (liveness gate). The sweep is INVALID and is replaced, never repaired; "
+                    "see monitor.jsonl / stall-*/ in the supervisor folder for the snapshot."}
+    (run_dir / "STALLED.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
+    print(f"\n  *** STALLED ({where}, scenario {scenario}): {reading.reason}. Battery stopped; sweep INVALID (STALLED.json). ***", flush=True)
+    raise SystemExit(21)
 
 
 def _s6_corpus(args) -> Path:
@@ -245,6 +271,15 @@ def main() -> None:
                         help="Path to WSJT-X's ALL.TXT.")
     parser.add_argument("--owsfz-all-txt", default=str(OWSFZ_ALL_TXT), metavar="PATH",
                         help="Path to OpenWSFZ's ALL.TXT.")
+    parser.add_argument("--liveness-save-dir", default=None, metavar="PATH",
+                        help="WSJT-X's save/ folder (SaveAll true). Turns on M2 (stop and flag when no new WAV arrives for --liveness-stall-s, or no `wsjtx` process) "
+                             "and M3 (coverage slots written to the run folder for the analyser). Off by default (Windows runs unchanged).")
+    parser.add_argument("--coverage-owsfz-dir", default=None, metavar="PATH",
+                        help="OpenWSFZ's cycle-audio archive folder (same yymmdd_HHMMSS.wav names): M3 coverage for the second appraiser.")
+    parser.add_argument("--liveness-stall-s", type=float, default=_lv.STALL_S, help="Stall limit in seconds (default 45 = 3 cycles).")
+    parser.add_argument("--liveness-poll-s", type=float, default=_lv.POLL_S, help="Watchdog polling interval in seconds (default 15).")
+    parser.add_argument("--no-liveness-gate", action="store_true",
+                        help="Do NOT stop on a WSJT-X stall (DANGEROUS; recorded in the run folder). The coverage slots are still written.")
     args = parser.parse_args()
     WSJT_ALL_TXT, OWSFZ_ALL_TXT = Path(args.wsjt_all_txt), Path(args.owsfz_all_txt)
 
@@ -388,39 +423,82 @@ def main() -> None:
     # seeded texts, so the copies taken below are trimmed to this window (see _trim_log_to_window).
     battery_start_utc = datetime.now(timezone.utc)
 
+    # ── M2: WSJT-X liveness gate (stop and flag; Architect 2026-10-14) ─────
+    stall_hit: dict = {"reading": None}
+    current_scenario: dict = {"sid": None}
+    watchdog = None
+    if args.liveness_save_dir:
+        if args.no_liveness_gate:
+            print("  WARNING: --no-liveness-gate: the battery will NOT stop if WSJT-X goes silent mid-run.", flush=True)
+            (run_dir / "liveness_gate.json").write_text('{"bypassed": "--no-liveness-gate"}', encoding="utf-8")
+        else:
+            first = _lv.check_liveness(args.liveness_save_dir, args.liveness_stall_s)
+            (run_dir / "liveness_gate.json").write_text(json.dumps({"stall_s": args.liveness_stall_s, "poll_s": args.liveness_poll_s, "save_dir": args.liveness_save_dir,
+                                                                   "first_reading_ok": first.ok, "first_reading": first.reason, "wsjtx_pids": first.pids}, indent=1), encoding="utf-8")
+            if not first.ok:
+                _flag_stall_and_exit(run_dir, first, None, "before scenario 1")
+
+            def _on_stall(r) -> None:
+                stall_hit["reading"] = r
+                child = _CHILD
+                if child is not None and child.poll() is None:
+                    child.terminate()
+            watchdog = _lv.Watchdog(args.liveness_save_dir, _on_stall, args.liveness_stall_s, args.liveness_poll_s)
+            watchdog.start()
+            print(f"  Liveness gate ON: save dir {args.liveness_save_dir}, stall limit {args.liveness_stall_s:.0f} s, poll {args.liveness_poll_s:.0f} s", flush=True)
+
     # ── Step 1: Run all scenarios ──────────────────────────────────────────
     for sid, sf in zip(scenario_ids, scenario_files):
         if not sf.exists():
             sys.exit(f"ERROR: scenario file not found: {sf}")
-        run_args = [
-            "harness/run_scenario.py", str(sf),
-            "--device", args.device,
-            "--run-dir", str(run_dir),
-        ]
-        parts_for_this = args.parts or scenario_part_overrides.get(sid)
-        if parts_for_this:
-            run_args += ["--parts", parts_for_this]
-        if sid == _S3C_ID:
-            # S3c is the LAST playback and additive: its failure must never cost S1-S8's logs,
-            # matcher and analyser (check=False; the scorer then finds no playback log and warns).
-            r3 = _py("s3c/s3c_play.py", "--scenario", str(sf), "--run-dir", str(run_dir),
-                     "--device", args.device, check=False)
-            if r3.returncode != 0:
-                print(f"  [WARN] S3c playback exited {r3.returncode}; S1-S8 continue", flush=True)
-        elif sid == _S6_ID:
-            # S6 is additive and LAST: its failure (any exit code) voids the S6 block only; S1-S8's logs, matcher and analyser stand.
-            wsjtx_exe = args.s6_wsjtx_exe or (str(Path.home() / "wsjtx-2.7.0" / "bin" / "wsjtx") if sys.platform != "win32" else None)
-            r6 = _py("s6/s6_play.py", "--run-dir", str(run_dir), "--tier", args.s6_tier, "--corpus", str(_s6_corpus(args)),
-                     "--device", args.device, "--wsjt-all-txt", str(WSJT_ALL_TXT), "--owsfz-all-txt", str(OWSFZ_ALL_TXT),
-                     *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
-                     *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else []), check=False)
-            if r6.returncode != 0:
-                print(f"  [WARN] S6 playback exited {r6.returncode} (2 = corpus verification, 4 = warm-up, 5 = pins, 6 = other); S1-S8 continue", flush=True)
-        else:
-            _py(*run_args)
+        current_scenario["sid"] = sid
+        if sid == _S6_ID and watchdog is not None:
+            # S6 restarts WSJT-X itself (leg E) and has its own warm-up and pins: the save-WAV gate would read that restart as a stall. Off from S6 on.
+            watchdog.stop()
+            watchdog = None
+            print("  Liveness gate paused from S6 on (S6 restarts WSJT-X and runs its own checks).", flush=True)
+        if watchdog is not None:
+            _pre = _lv.check_liveness(args.liveness_save_dir, args.liveness_stall_s)
+            if not _pre.ok:
+                _flag_stall_and_exit(run_dir, _pre, sid, "before the scenario")
+        try:
+            run_args = [
+                "harness/run_scenario.py", str(sf),
+                "--device", args.device,
+                "--run-dir", str(run_dir),
+            ]
+            parts_for_this = args.parts or scenario_part_overrides.get(sid)
+            if parts_for_this:
+                run_args += ["--parts", parts_for_this]
+            if sid == _S3C_ID:
+                # S3c is the LAST playback and additive: its failure must never cost S1-S8's logs,
+                # matcher and analyser (check=False; the scorer then finds no playback log and warns).
+                r3 = _py("s3c/s3c_play.py", "--scenario", str(sf), "--run-dir", str(run_dir),
+                         "--device", args.device, check=False)
+                if r3.returncode != 0:
+                    print(f"  [WARN] S3c playback exited {r3.returncode}; S1-S8 continue", flush=True)
+            elif sid == _S6_ID:
+                # S6 is additive and LAST: its failure (any exit code) voids the S6 block only; S1-S8's logs, matcher and analyser stand.
+                wsjtx_exe = args.s6_wsjtx_exe or (str(Path.home() / "wsjtx-2.7.0" / "bin" / "wsjtx") if sys.platform != "win32" else None)
+                r6 = _py("s6/s6_play.py", "--run-dir", str(run_dir), "--tier", args.s6_tier, "--corpus", str(_s6_corpus(args)),
+                         "--device", args.device, "--wsjt-all-txt", str(WSJT_ALL_TXT), "--owsfz-all-txt", str(OWSFZ_ALL_TXT),
+                         *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
+                         *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else []), check=False)
+                if r6.returncode != 0:
+                    print(f"  [WARN] S6 playback exited {r6.returncode} (2 = corpus verification, 4 = warm-up, 5 = pins, 6 = other); S1-S8 continue", flush=True)
+            else:
+                _py(*run_args)
+        except subprocess.CalledProcessError:
+            if stall_hit["reading"] is not None:
+                _flag_stall_and_exit(run_dir, stall_hit["reading"], sid, "during the scenario")
+            raise
+        if stall_hit["reading"] is not None:
+            _flag_stall_and_exit(run_dir, stall_hit["reading"], sid, "during the scenario")
         print(f"  [OK] {sf.name} complete\n", flush=True)
         time.sleep(_POST_SCENARIO_SETTLE_S)
 
+    if watchdog is not None:
+        watchdog.stop()
     if run_hook is not None:
         run_hook.stop(_as_handle)
     print(f"\nRun directory: {run_dir.relative_to(_HERE)}")
@@ -447,6 +525,17 @@ def main() -> None:
     for dest in (wsjt_dest, owsfz_dest):
         kept, dropped = _trim_log_to_window(dest, battery_start_utc)
         print(f"  Trimmed {dest.name} to this battery's window: kept {kept} lines, dropped {dropped} earlier ones")
+
+    # M3: the cycles for which each appraiser had audio data in this battery's window (slot stamps only; the analyser's coverage row reads them)
+    if args.liveness_save_dir:
+        _end = datetime.now(timezone.utc)
+        _w = _lv.list_wav_slots(args.liveness_save_dir, battery_start_utc, _end)
+        _lv.write_slots(str(run_dir / "coverage_slots_wsjtx.txt"), _w)
+        print(f"  Coverage slots: WSJT-X {len(_w)} cycles with a saved WAV", flush=True)
+        if args.coverage_owsfz_dir:
+            _o = _lv.list_wav_slots(args.coverage_owsfz_dir, battery_start_utc, _end)
+            _lv.write_slots(str(run_dir / "coverage_slots_owsfz.txt"), _o)
+            print(f"  Coverage slots: OpenWSFZ {len(_o)} cycles in the cycle-audio archive", flush=True)
 
     # S6 plays REAL off-air audio: its log lines carry real callsigns and would be unexplained decodes to the S1-S8 matcher. Move them out of the
     # run folder's copies into a scratch dir outside git before anything reads the copies (NFR-021, HK-037).
