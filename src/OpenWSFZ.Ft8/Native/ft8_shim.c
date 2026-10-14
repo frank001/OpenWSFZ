@@ -947,15 +947,15 @@ static ftx_callsign_hash_interface_t s_hash_if = { cb_lookup_hash, cb_save_hash 
  * HSM-RESET tls_osd_acc_depth ft8_shim.c:608  as tls_osd_acc_nhard
  * HSM-RESET tls_osd_acc_batch ft8_shim.c:608  as tls_osd_acc_nhard
  * HSM-NOWRITE s_hash_if ft8_shim.c:875  two function pointers set by the initialiser, never assigned afterwards
- * HSM-NOWRITE g_pool_lock subfeas_fit.c:600  subfeas fit-workspace pool: written only by the pool functions of the residual pass
- * HSM-NOWRITE g_pool_idle subfeas_fit.c:605  as g_pool_lock
- * HSM-NOWRITE g_pool_idle_n subfeas_fit.c:606  as g_pool_lock
- * HSM-NOWRITE g_pool_bound subfeas_fit.c:607  as g_pool_lock
- * HSM-NOWRITE g_pool_live subfeas_fit.c:608  as g_pool_lock
- * HSM-NOWRITE g_pool_leased subfeas_fit.c:609  as g_pool_lock
- * HSM-NOWRITE g_pool_peak_leased subfeas_fit.c:610  as g_pool_lock
- * HSM-NOWRITE g_pool_refusals subfeas_fit.c:611  as g_pool_lock
- * HSM-NOWRITE g_pool_closing subfeas_fit.c:612  as g_pool_lock
+ * HSM-NOWRITE g_pool_lock subfeas_fit.c:689  subfeas fit-workspace pool: written only by the pool functions of the residual pass
+ * HSM-NOWRITE g_pool_idle subfeas_fit.c:698  as g_pool_lock
+ * HSM-NOWRITE g_pool_idle_n subfeas_fit.c:699  as g_pool_lock
+ * HSM-NOWRITE g_pool_bound subfeas_fit.c:700  as g_pool_lock
+ * HSM-NOWRITE g_pool_live subfeas_fit.c:701  as g_pool_lock
+ * HSM-NOWRITE g_pool_leased subfeas_fit.c:702  as g_pool_lock
+ * HSM-NOWRITE g_pool_peak_leased subfeas_fit.c:703  as g_pool_lock
+ * HSM-NOWRITE g_pool_refusals subfeas_fit.c:704  as g_pool_lock
+ * HSM-NOWRITE g_pool_closing subfeas_fit.c:705  as g_pool_lock
  */
 typedef struct {
     callsign_table_t session_table;                        /* g_session_hash_table          */

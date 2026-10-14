@@ -16,11 +16,13 @@ NO new or changed export, no ABI change, no change to any decode path beyond B2'
 both lines (ft8_set/get_osd_sign_fix, ft8_get_last_osd_diag, ft8_hash_state_*, ft8_subfeas_*), checked with nm -D.
 
   Windows x64 (rebuild_shim.bat, MSVC): SHA256
-    4a2cf96de120d446473b90cc7e619dabc2b4f0d24fd6406436df8f8d469a4746
+    06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613
     (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
   Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
     873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a
     tools/check_native_version.py reports shim 20260062 for both files built here.
+  Second commit (on a5b509e6): a COMMENT-ONLY fix of the nine HSM-NOWRITE g_pool_* citations in ft8_shim.c (subfeas_fit.c:600..612 ->
+  :689..705, moved by B2's added lines); both binaries rebuilt. The first-commit DLL (4a2cf96d...) is superseded; the .so is byte-identical (873287b1...).
   macOS ARM64: NOT rebuilt here (the .dylib stays as it is on main). CI owns it.
 
 === Previous: osd-sign-fix, #215 (FT8_SHIM_VERSION 20260060) ===
