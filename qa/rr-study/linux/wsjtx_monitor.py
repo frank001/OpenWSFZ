@@ -94,6 +94,10 @@ def sample(save_dir: str, archive_dir: str | None, now: float, stall_s: float, p
     s = {"t": utc_now(), "ok": lv.ok, "reason": lv.reason, "wav_age_s": None if lv.age_s is None else round(lv.age_s, 1), "wav_count": len(wavs),
          "wsjtx": [proc_state(p, proc_root) for p in lv.pids], "jt9": [proc_state(p, proc_root) for p in LV.pids_by_comm(LV.JT9_COMM, proc_root)],
          "aplay": aplay_info(proc_root), "alsa": alsa_states(alsa_root), "suspended_s": suspended_s()}
+    try:
+        s["load1"] = round(os.getloadavg()[0], 2)          # host load: the decoders share the CPU with everything else on the box
+    except (AttributeError, OSError):
+        pass
     if archive_dir:
         a = LV.newest_wav_age_s(archive_dir, now)
         s["owsfz_archive_age_s"] = None if a is None else round(a, 1)

@@ -31,10 +31,13 @@ stop_wsjtx() {   # a frozen (SIGSTOP) wsjtx cannot act on SIGTERM: continue it f
 }
 
 cd "$HOME"
-if pgrep -f "run_refset|run_leg_e|OpenWSFZ.Daemon|aplay|run_study|RefSet.dll" > /dev/null 2>&1; then halt "another job is running on sol"; fi
+# busy check by EXACT process name / anchored command line, so the launcher's own command line (which may mention the daemon's path) can never match
+if pgrep -x OpenWSFZ.Daemon > /dev/null 2>&1 || pgrep -x aplay > /dev/null 2>&1 || pgrep -f "^[^ ]*python[^ ]* [^ ]*(run_study|run_refset|run_leg_e)" > /dev/null 2>&1 || pgrep -f "^dotnet [^ ]*RefSet.dll" > /dev/null 2>&1; then halt "another job is running on sol"; fi
 log "battery $NAME start; scenarios $SCEN; extra args: $*; max stall retries: $MAXR"
 log "build under test: $(git -C $HOME/OpenWSFZ-b2src rev-parse HEAD); libft8.so $(sha256sum "$(dirname "$DAEMON")/libft8.so" | cut -d' ' -f1); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
 
+# S6 pins the OpenWSFZ native library the daemon loads: the one in the daemon's publish folder (added here so no caller has to pass the path)
+S6LIB=""; case ",$SCEN," in *,S6,*) S6LIB="--s6-ows-lib $(dirname "$DAEMON")/libft8.so";; esac
 attempt=1
 REPLACES=""
 while : ; do
@@ -54,7 +57,7 @@ while : ; do
   export PYTHONPATH=$WORK/linux/shim RR_ALSA_PLAYBACK=plughw:0,0 ALSA_PLUGIN_DIR=$HOME/local/lib/alsa-lib
   ( cd "$WORK" && "$PY" run_study_linux.py --poll --supervisor-dir "$SUP" --daemon-exe "$DAEMON" --config "$HOME/rr-run/config.json" --port 8080 \
       --wsjtx-ini "$HOME/.local/share/WSJT-X - rr/WSJT-X - rr.ini" -- --scenarios "$SCEN" --skip-warmup --device RR-ALSA \
-      --liveness-save-dir "$SAVE" --coverage-owsfz-dir "$ARCH" "$@" > "$SUP/supervisor.log" 2>&1 )
+      --liveness-save-dir "$SAVE" --coverage-owsfz-dir "$ARCH" $S6LIB "$@" > "$SUP/supervisor.log" 2>&1 )
   rc=$?
   PH=$("$PY" -c "import json;print(json.load(open('$SUP/status.json'))['phase'])" 2>/dev/null)
   log "attempt $attempt ended rc=$rc phase=$PH"

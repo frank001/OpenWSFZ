@@ -71,8 +71,8 @@ def compute(results: str) -> dict:
         R["per"][sc] = {k: F.two_way(cubes[sc][k][0]) for k in F.PAIRED}
         for k in F.PAIRED:                                           # cross-check against each sweep's own report (the analyser's figures)
             rep = summ[k][sc.lower()]
-            assert summ[k]["grr_metric"] == "%Contribution", "this check compares the analyser's %Contribution; a report graded on %StudyVar needs its own comparison"
-            assert abs(R["per"][sc][k]["pct"]["grr"] - rep["pct_grr"]) < 0.06, (sc, k, R["per"][sc][k]["pct"]["grr"], rep["pct_grr"])
+            mine = R["per"][sc][k]["pct"]["grr_sv"] if summ[k]["grr_metric"] == "%StudyVar" else R["per"][sc][k]["pct"]["grr"]   # the metric that report was graded on
+            assert abs(mine - rep["pct_grr"]) < 0.06, (sc, k, mine, rep["pct_grr"], summ[k]["grr_metric"])
             assert R["per"][sc][k]["ndc"] == int(rep["ndc"]), (sc, k)
         Yc = np.stack([cubes[sc][k][0] for k in F.CORRECTED], axis=2)
         R["three"][sc] = F.three_way(Yc)
@@ -81,14 +81,14 @@ def compute(results: str) -> dict:
         R["five"][sc] = F.three_way(np.stack([cubes[sc][k][0] for k in F.PAIRED], axis=2))
     # attribute data
     U4 = {k: F.units_s4(results, folders[k]) for k in F.PAIRED}
-    keys = sorted(U4["run2"]["OpenWSFZ"])
+    keys = sorted(U4[F.PAIRED[1] if len(F.PAIRED) > 1 else F.PAIRED[0]]["OpenWSFZ"])
     for k in F.PAIRED:
         for a in F.APPR:
             assert sorted(U4[k][a]) == keys, "S4 unit keys differ between sweeps"
     R["s4"] = {"keys": len(keys), "M": {a: np.array([[int(U4[k][a][u]) for k in F.CORRECTED] for u in keys]) for a in F.APPR},
                "M5": {a: np.array([[int(U4[k][a][u]) for k in F.PAIRED] for u in keys]) for a in F.APPR}}
     U1 = {k: F.units_s1b(results, folders[k]) for k in F.PAIRED}
-    k1 = sorted(U1["run2"]["OpenWSFZ"])
+    k1 = sorted(U1[F.PAIRED[1] if len(F.PAIRED) > 1 else F.PAIRED[0]]["OpenWSFZ"])
     R["s1b"] = {"keys": len(k1), "M": {a: np.array([[int(U1[k][a][u]) for k in F.CORRECTED] for u in k1]) for a in F.APPR},
                 "M5": {a: np.array([[int(U1[k][a][u]) for k in F.PAIRED] for u in k1]) for a in F.APPR}}
     return R
@@ -98,6 +98,9 @@ def compute(results: str) -> dict:
 def figures(R: dict, img: str) -> dict:
     plt = style()
     out = {}
+    N = len(F.CORRECTED)                                   # sweeps in the three-way model (4 for the 2026-10-14 series, 5 for the B2 baseline)
+    NW = {3: 'three', 4: 'four', 5: 'five', 6: 'six'}.get(N, str(N))
+    NP = len(F.PAIRED)
     # F1 variance components
     fig, axs = plt.subplots(1, 3, figsize=(14, 4.4))
     for a, (sc, *_r) in zip(axs, F.SCEN):
@@ -113,7 +116,7 @@ def figures(R: dict, img: str) -> dict:
         a.set_xticks(range(3)); a.set_xticklabels(["Repeatability", "Appraiser\n(A + PxA)", "Sweep\n(S + PxS + AxS + PxAxS)"], fontsize=8)
         a.set_title("%s: %%Contribution %.2f %% (ndc %s)" % (sc, r["pct_grr"], r["ndc"] if r["ndc"] is not None else "n/a"), fontsize=9)
     axs[0].set_ylabel("% of total variance (log)")
-    fig.suptitle("Variance components, four corrected-chain sweeps, three-way random-effects ANOVA (error bars: part-bootstrap 95 % CI; dotted line: 10 %)", fontsize=10)
+    fig.suptitle("Variance components, %s corrected-chain sweeps, three-way random-effects ANOVA (error bars: part-bootstrap 95 %% CI; dotted line: 10 %%)" % NW, fontsize=10)
     fig.tight_layout(); fig.savefig(os.path.join(img, "A1_variance_components.png"), dpi=110); plt.close(fig)
     out["A1"] = ("A1_variance_components.png", "Percentage of the total variance carried by each non-part source, per scenario. A zero is drawn at the 0.001 %% floor of the log axis. The part variance (the signal) is the remainder: S1 %.2f %%, S2 %.3f %%, S3 %.2f %%." % tuple(R["three"][s]["pct"]["P"] for s in ("S1", "S2", "S3")))
     # F2 interaction
@@ -126,10 +129,10 @@ def figures(R: dict, img: str) -> dict:
         Ys = np.stack([R["cubes"][sc][k][0] for k in F.CORRECTED], axis=2)
         ref = R["cubes"][sc][F.CORRECTED[0]][1]
         for j, ap in enumerate(F.APPR):
-            a.plot(ref, (Ys[:, j] - ref[:, None, None]).mean(axis=(1, 2)), "o-", color="#58a6ff" if ap == "OpenWSFZ" else "#e3b341", lw=2.2, label=ap + " (mean of 4 sweeps)")
+            a.plot(ref, (Ys[:, j] - ref[:, None, None]).mean(axis=(1, 2)), "o-", color="#58a6ff" if ap == "OpenWSFZ" else "#e3b341", lw=2.2, label=ap + " (mean of %d sweeps)" % N)
         a.set_xlabel("injected value (%s)" % F.SCEN[[s[0] for s in F.SCEN].index(sc)][3]); a.set_title(NAME[sc].split(" (")[0], fontsize=9)
     axs[0].set_ylabel("reported minus injected (mean of 3 trials)"); axs[0].legend(fontsize=8)
-    fig.suptitle("Part x Appraiser interaction: mean error by injected value (thin lines: the four sweeps; thick: their mean)", fontsize=10)
+    fig.suptitle("Part x Appraiser interaction: mean error by injected value (thin lines: the %s sweeps; thick: their mean)" % NW, fontsize=10)
     fig.tight_layout(); fig.savefig(os.path.join(img, "A2_interaction.png"), dpi=110); plt.close(fig)
     out["A2"] = ("A2_interaction.png", "Mean error (reported minus injected) at each injected value, per appraiser. Parallel lines mean no Part x Appraiser interaction. S3: a near-constant offset between the appraisers over most of the range. S1: the offset varies with the injected SNR (the significant Part x Appraiser term). S2: WSJT-X is exact at every frequency; OpenWSFZ is off by 1 to 2 Hz at a few of them.")
     # F3 sweep effect
@@ -138,11 +141,11 @@ def figures(R: dict, img: str) -> dict:
         for j, ap in enumerate(F.APPR):
             y = [R["bias"][sc][k][ap]["bias"] for k in F.CORRECTED]
             m, sd, lo, hi = F.t_ci(y)
-            a.plot(range(4), y, "o", color="#58a6ff" if ap == "OpenWSFZ" else "#e3b341", ms=8, label=ap)
+            a.plot(range(N), y, "o", color="#58a6ff" if ap == "OpenWSFZ" else "#e3b341", ms=8, label=ap)
             a.axhspan(lo, hi, color="#58a6ff" if ap == "OpenWSFZ" else "#e3b341", alpha=0.12)
-        a.set_xticks(range(4)); a.set_xticklabels([LAB[k] for k in F.CORRECTED], fontsize=8); a.set_title(NAME[sc].split(" (")[0] + " (%s)" % UNIT[sc], fontsize=9)
+        a.set_xticks(range(N)); a.set_xticklabels([LAB[k] for k in F.CORRECTED], fontsize=8); a.set_title(NAME[sc].split(" (")[0] + " (%s)" % UNIT[sc], fontsize=9)
     axs[0].set_ylabel("mean error of the sweep"); axs[0].legend(fontsize=8)
-    fig.suptitle("Sweep (session) effect: each sweep's mean error per appraiser; the band is the t-based 95 % interval of the four sweeps", fontsize=10)
+    fig.suptitle("Sweep (session) effect: each sweep's mean error per appraiser; the band is the t-based 95 %% interval of the %s sweeps" % NW, fontsize=10)
     fig.tight_layout(); fig.savefig(os.path.join(img, "A3_sweep_effect.png"), dpi=110); plt.close(fig)
     out["A3"] = ("A3_sweep_effect.png", "Mean error of each corrected-chain sweep, per appraiser and scenario. OpenWSFZ's S1 bias differs between the sweeps (+0.88 to +1.45 dB); WSJT-X's does not (+0.82 to +0.85 dB).")
     # F4 Bland-Altman style, S1
@@ -164,16 +167,16 @@ def figures(R: dict, img: str) -> dict:
     fig, axs = plt.subplots(1, 2, figsize=(11, 4.6))
     for a, (key, title) in zip(axs, (("s4", "S4: %d messages" % R["s4"]["keys"]), ("s1b", "S1b: %d low-SNR messages" % R["s1b"]["keys"]))):
         cw, co = R[key]["M"]["WSJT-X"].sum(axis=1), R[key]["M"]["OpenWSFZ"].sum(axis=1)
-        ct = np.zeros((5, 5), dtype=int)
+        ct = np.zeros((N + 1, N + 1), dtype=int)
         for x, y in zip(co, cw):
             ct[x, y] += 1
         a.imshow(ct, cmap="Blues", origin="lower")
-        for i in range(5):
-            for j in range(5):
+        for i in range(N + 1):
+            for j in range(N + 1):
                 a.text(j, i, str(ct[i, j]), ha="center", va="center", color=("#e6edf3" if ct[i, j] > 0.5 * ct.max() else "#0d1117") if ct[i, j] else "#8b949e", fontsize=9)
-        a.set_xlabel("sweeps (of 4) in which WSJT-X decoded the message"); a.set_ylabel("sweeps (of 4) in which OpenWSFZ decoded it"); a.set_title(title, fontsize=9)
-        a.set_xticks(range(5)); a.set_yticks(range(5)); a.grid(False)
-    fig.suptitle("Per-message decode count across the four corrected sweeps, OpenWSFZ against WSJT-X", fontsize=10)
+        a.set_xlabel("sweeps (of %d) in which WSJT-X decoded the message" % N); a.set_ylabel("sweeps (of %d) in which OpenWSFZ decoded it" % N); a.set_title(title, fontsize=9)
+        a.set_xticks(range(N + 1)); a.set_yticks(range(N + 1)); a.grid(False)
+    fig.suptitle("Per-message decode count across the %s corrected sweeps, OpenWSFZ against WSJT-X" % NW, fontsize=10)
     fig.tight_layout(); fig.savefig(os.path.join(img, "A5_attribute_crosstab.png"), dpi=110); plt.close(fig)
     out["A5"] = ("A5_attribute_crosstab.png", "Each message is counted by the number of the four corrected sweeps in which each appraiser decoded it. Mass on the corners (0 or 4 for both) means the decoders are deterministic on this audio; off-diagonal cells are messages one appraiser decodes and the other does not.")
     # F6 recovery per sweep
@@ -184,27 +187,28 @@ def figures(R: dict, img: str) -> dict:
         for j, ap in enumerate(F.APPR):
             for i, k in enumerate(F.PAIRED):
                 a.bar(i + (j - 0.5) * 0.38, g(R["summ"][k], ap), 0.36, color=COL[k] if ap == "OpenWSFZ" else "#8b949e", alpha=1.0 if ap == "OpenWSFZ" else 0.75)
-        a.set_xticks(range(5)); a.set_xticklabels([LAB[k] for k in F.PAIRED], fontsize=7, rotation=20); a.set_title(t, fontsize=9); a.set_ylim(0, 105)
+        a.set_xticks(range(NP)); a.set_xticklabels([LAB[k] for k in F.PAIRED], fontsize=7, rotation=20); a.set_title(t, fontsize=9); a.set_ylim(0, 105)
     fig.suptitle("Decode and recovery rates per sweep (coloured: OpenWSFZ, grey: WSJT-X; run 1 is the default chain)", fontsize=10)
     fig.tight_layout(); fig.savefig(os.path.join(img, "A6_rates.png"), dpi=110); plt.close(fig)
     out["A6"] = ("A6_rates.png", "Attribute-style results per sweep. S4 is identical for OpenWSFZ in all five sweeps; run 1's S1b loss is the default chain.")
-    # F7 chain effect
-    fig, ax = plt.subplots(figsize=(9, 4.8))
-    snrs = R["cubes"]["S1"]["run1"][1]
-    for ap, c in (("OpenWSFZ", "#58a6ff"), ("WSJT-X", "#e3b341")):
-        j = F.APPR.index(ap)
-        Yc = np.stack([R["cubes"]["S1"][k][0][:, j, :] - snrs[:, None] for k in F.CORRECTED], axis=2).mean(axis=(1, 2)) if False else None
-        per = np.array([(R["cubes"]["S1"][k][0][:, j, :] - snrs[:, None]).mean(axis=1) for k in F.CORRECTED])
-        ax.errorbar(snrs, per.mean(axis=0), yerr=per.std(axis=0, ddof=1), fmt="o-", color=c, capsize=3, label="%s, corrected chain (mean ± SD of 4 sweeps)" % ap)
-    d = (R["cubes"]["S1"]["run1"][0][:, 1, :] - snrs[:, None]).mean(axis=1)
-    ax.plot(snrs, d, "s--", color="#f85149", label="OpenWSFZ, default chain (run 1)")
-    dw = (R["cubes"]["S1"]["run1"][0][:, 0, :] - snrs[:, None]).mean(axis=1)
-    ax.plot(snrs, dw, "s:", color="#f0883e", label="WSJT-X, run 1 (same audio path, default chain)")
-    ax.axhline(2, color="#8b949e", ls=":"); ax.axhline(-2, color="#8b949e", ls=":")
-    ax.set(xlabel="injected SNR (dB)", ylabel="reported minus injected (dB)", title="Chain effect on S1: default chain against the four corrected sweeps"); ax.legend(fontsize=7)
-    fig.tight_layout(); fig.savefig(os.path.join(img, "A7_chain_effect.png"), dpi=110); plt.close(fig)
-    gap = d - np.array([(R["cubes"]["S1"][k][0][:, 1, :] - snrs[:, None]).mean(axis=1) for k in F.CORRECTED]).mean(axis=0)
-    out["A7"] = ("A7_chain_effect.png", "S1 error by injected SNR. The default chain moves OpenWSFZ down by %.2f to %.2f dB (depending on the injected SNR) against the mean of the corrected sweeps; WSJT-X in run 1 differs from its corrected-chain mean by at most %.2f dB." % (-gap.max(), -gap.min(), float(np.abs(dw - np.array([(R["cubes"]["S1"][k][0][:, 0, :] - snrs[:, None]).mean(axis=1) for k in F.CORRECTED]).mean(axis=0)).max())))
+    if "run1" in R["cubes"]["S1"]:
+        # F7 chain effect
+        fig, ax = plt.subplots(figsize=(9, 4.8))
+        snrs = R["cubes"]["S1"]["run1"][1]
+        for ap, c in (("OpenWSFZ", "#58a6ff"), ("WSJT-X", "#e3b341")):
+            j = F.APPR.index(ap)
+            Yc = np.stack([R["cubes"]["S1"][k][0][:, j, :] - snrs[:, None] for k in F.CORRECTED], axis=2).mean(axis=(1, 2)) if False else None
+            per = np.array([(R["cubes"]["S1"][k][0][:, j, :] - snrs[:, None]).mean(axis=1) for k in F.CORRECTED])
+            ax.errorbar(snrs, per.mean(axis=0), yerr=per.std(axis=0, ddof=1), fmt="o-", color=c, capsize=3, label="%s, corrected chain (mean ± SD of %d sweeps)" % (ap, N))
+        d = (R["cubes"]["S1"]["run1"][0][:, 1, :] - snrs[:, None]).mean(axis=1)
+        ax.plot(snrs, d, "s--", color="#f85149", label="OpenWSFZ, default chain (run 1)")
+        dw = (R["cubes"]["S1"]["run1"][0][:, 0, :] - snrs[:, None]).mean(axis=1)
+        ax.plot(snrs, dw, "s:", color="#f0883e", label="WSJT-X, run 1 (same audio path, default chain)")
+        ax.axhline(2, color="#8b949e", ls=":"); ax.axhline(-2, color="#8b949e", ls=":")
+        ax.set(xlabel="injected SNR (dB)", ylabel="reported minus injected (dB)", title="Chain effect on S1: default chain against the four corrected sweeps"); ax.legend(fontsize=7)
+        fig.tight_layout(); fig.savefig(os.path.join(img, "A7_chain_effect.png"), dpi=110); plt.close(fig)
+        gap = d - np.array([(R["cubes"]["S1"][k][0][:, 1, :] - snrs[:, None]).mean(axis=1) for k in F.CORRECTED]).mean(axis=0)
+        out["A7"] = ("A7_chain_effect.png", "S1 error by injected SNR. The default chain moves OpenWSFZ down by %.2f to %.2f dB (depending on the injected SNR) against the mean of the corrected sweeps; WSJT-X in run 1 differs from its corrected-chain mean by at most %.2f dB." % (-gap.max(), -gap.min(), float(np.abs(dw - np.array([(R["cubes"]["S1"][k][0][:, 0, :] - snrs[:, None]).mean(axis=1) for k in F.CORRECTED]).mean(axis=0)).max())))
     # F8 residual diagnostics S1
     fig, axs = plt.subplots(1, 3, figsize=(14, 4.2))
     for a, (sc, *_r) in zip(axs, F.SCEN):
