@@ -434,37 +434,6 @@ def main() -> None:
         else:
             if not _mechanical_warmup_check("warmup_check.json"):
                 sys.exit("ERROR: the mechanical warm-up failed. Nothing was run. (Start/repair the silent appraiser and re-launch.)")
-        return _ok
-
-    if args.skip_warmup:
-        # The interactive prompt is skipped (supervised run), the MECHANICAL check is not: both appraisers must decode a synthetic cycle
-        # before scenario 1, or the battery stops here (2026-10-13; the Linux repeats ran with WSJT-X silent).
-        if scenario_ids == [_S6_ID]:
-            print("  Warm-up: S6 runs its own mechanical warm-up.")
-        elif args.no_warmup_check:
-            print("  WARNING: --no-warmup-check: NO warm-up of any kind; a silent appraiser would not be noticed.", flush=True)
-            (run_dir / "warmup_check.json").write_text('{"skipped": "--no-warmup-check"}', encoding="utf-8")
-        else:
-            import json as _json
-            from harness import warmup_check
-            from harness import run_scenario as _rs
-            from harness.warmup import _render_warmup_cycle
-            import sounddevice as _sd
-            _dev = _rs._select_device(args.device)
-            _buf = _render_warmup_cycle()
-
-            def _play(boundary_ts: float) -> None:
-                time.sleep(max(0.0, boundary_ts - _rs._CYCLE_PREWARM_S - time.time()))
-                _sd.play(_buf, samplerate=48_000, device=_dev, blocking=False)
-                _sd.wait()
-            print("  Mechanical warm-up check (both ALL.TXT must gain a line from a synthetic cycle) ...", flush=True)
-            _ok, _res = warmup_check.mechanical_warmup(_play, str(WSJT_ALL_TXT), str(OWSFZ_ALL_TXT))
-            (run_dir / "warmup_check.json").write_text(_json.dumps(_res, indent=1), encoding="utf-8")
-            for _r in _res["attempts"]:
-                print(f"    attempt {_r['attempt']} slot {_r['slot_stamp']}: WSJT-X {_r['wsjtx_lines']} line(s), OpenWSFZ {_r['owsfz_lines']} line(s)", flush=True)
-            if not _ok:
-                sys.exit(f"ERROR: {_res['message']}. Nothing was run. (Start/repair the silent appraiser and re-launch.)")
-            print("  Warm-up check PASSED.\n", flush=True)
     else:
         _py("harness/warmup.py", "--device", args.device)
 
