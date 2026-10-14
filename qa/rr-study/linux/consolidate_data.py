@@ -75,7 +75,10 @@ def one(results: str, key: str, folder: str, label: str, corrected: bool) -> dic
     out["overall"] = re.search(r"\*\*Overall verdict: (\w+)\*\*", md).group(1)
     out["summary"] = [{"metric": a, "scope": b, "value": c, "verdict": v} for a, b, c, v in summary_rows(md)]
     sm = {(a, b): (c, v) for a, b, c, v in summary_rows(md)}
-    g = lambda m, s: sm[(m, s)]
+    # From 2026-10-14 the analyser's row is "%GR&R (%StudyVar)" (the gate metric moved from %Contribution to %StudyVar); reports before that date
+    # carry "%GR&R" (= %Contribution). The figure is read from whichever row exists and the metric is recorded, never silently mixed.
+    out["grr_metric"] = "%StudyVar" if ("%GR&R (%StudyVar)", "S1") in sm else "%Contribution"
+    g = lambda m, s: sm[("%GR&R (%StudyVar)" if (m == "%GR&R" and ("%GR&R (%StudyVar)", s) in sm) else m, s)]
     out["s1"] = {"pct_grr": pct(g("%GR&R", "S1")[0]), "ndc": float(g("ndc", "S1")[0]), "bias_owsfz": float(g("SNR bias", "S1/OpenWSFZ")[0].split()[0]),
                  "bias_wsjtx": float(g("SNR bias", "S1/WSJT-X")[0].split()[0]) if ("SNR bias", "S1/WSJT-X") in sm else None,
                  "bias_verdict": g("SNR bias", "S1/OpenWSFZ")[1], "pct_grr_verdict": g("%GR&R", "S1")[1], "ndc_verdict": g("ndc", "S1")[1]}

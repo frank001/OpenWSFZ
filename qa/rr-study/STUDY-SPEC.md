@@ -2,7 +2,7 @@
 
 **Document type:** Study specification & harness blueprint (Architect deliverable)
 **Owner of execution & reporting:** QA
-**Status:** **Ratified** by the Captain 2026-06-05 — §7 tolerances, §10 thresholds, Python analysis, and synthesiser-first build all approved. Harness build underway.
+**Status:** **Ratified** by the Captain 2026-06-05 — §7 tolerances, §10 thresholds, Python analysis, and synthesiser-first build all approved. Harness build underway. **§10 %GR&R gate amended 2026-10-14: read on %StudyVar (Captain).**
 **Applies to:** OpenWSFZ FT8 receive/decode pipeline, measured against WSJT-X as a co-appraiser
 **Last updated:** 2026-06-05
 
@@ -518,7 +518,7 @@ AIAG conventions, for ratification:
 
 | Metric | Acceptable | Marginal | Unacceptable |
 |---|---|---|---|
-| %GR&R (per response) | < 10% | 10–30% | > 30% |
+| %GR&R (per response), read on **%StudyVar** (σ_GRR / σ_total, the SD ratio) since 2026-10-14 — see the amendment below | < 10% | 10–30% | > 30% |
 | ndc | ≥ 5 | — | < 2 |
 | Attribute Kappa (vs truth, between apps) | ≥ 0.90 | 0.70–0.90 | < 0.70 |
 | Gate A (per-sweep, S5 AWGN, parts 0/1, N=120) — **SUPERSEDED as a gate 2026-09-08, R&R-011** | `INFO` — reported, never gates | — | — |
@@ -528,6 +528,18 @@ AIAG conventions, for ratification:
 | SNR bias (OpenWSFZ vs truth) | ≤ ±2 dB mean AND slope ≤ 0.1 | — | mean > ±2 dB OR slope > 0.1 |
 
 Evaluated every run; a regression past these bands raises a defect for the Developer.
+
+> **AMENDMENT 2026-10-14 — the %GR&R gate reads %StudyVar (Captain's ruling, relayed by the Architect, message `arch-9f` to QA, 2026-10-14).**
+> The 10 / 30 % thresholds are applied to **%StudyVar** (100 · σ_GRR / σ_total, the ratio of standard deviations, AIAG's convention), **not** to
+> %Contribution (the variance share), which the 2026-08 ratification and the Architect's review of 2026-08-27 (R4) had graded. This **replaces** that
+> reading of this section's %GR&R row. The report row is labelled `%GR&R (%StudyVar)`; %Contribution is still printed beside it, labelled, with **no
+> verdict**. ndc stays as is (≥ 5). **Not retroactive:** reports and trend rows written before 2026-10-14 were graded on %Contribution and stand as
+> written; they are not re-run or re-graded. `trend.csv` gains a `pct_study_var_snr` column (`pct_grr_snr` keeps meaning %Contribution; old rows are
+> filled by the exact identity %StudyVar = 100·√(%Contribution/100), rows with no figure stay empty); Section 6 of a report gains a %StudyVar column,
+> "n/a" where the variance components are not on file. Footnote for any table that carries both: *gate changed to %StudyVar 2026-10-14 (Captain);
+> rows before this date were graded on %Contribution.* Implemented in `harness/analyse.py` (`GATE_GRR_METRIC`, `_verdict_grr`, the verdict row and the
+> report table); pinned by `tests/test_analyse.py` (`test_verdict_is_pinned_to_study_var_…`: 11.2 % contribution → 33.5 % study var → FAIL).
+> `harness/analyse_xplat.py` (the Windows/WSL2 cross-platform analyser) is **not** changed by this amendment.
 
 > **False-positive gate definition (ratified 2026-07-04, R&R-004 / GitHub #32).**
 > The FP gate is the **per-slot event rate** — P(a signal-free S5 slot emits ≥ 1

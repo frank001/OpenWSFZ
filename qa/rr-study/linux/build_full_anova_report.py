@@ -71,6 +71,7 @@ def compute(results: str) -> dict:
         R["per"][sc] = {k: F.two_way(cubes[sc][k][0]) for k in F.PAIRED}
         for k in F.PAIRED:                                           # cross-check against each sweep's own report (the analyser's figures)
             rep = summ[k][sc.lower()]
+            assert summ[k]["grr_metric"] == "%Contribution", "this check compares the analyser's %Contribution; a report graded on %StudyVar needs its own comparison"
             assert abs(R["per"][sc][k]["pct"]["grr"] - rep["pct_grr"]) < 0.06, (sc, k, R["per"][sc][k]["pct"]["grr"], rep["pct_grr"])
             assert R["per"][sc][k]["ndc"] == int(rep["ndc"]), (sc, k)
         Yc = np.stack([cubes[sc][k][0] for k in F.CORRECTED], axis=2)
@@ -266,6 +267,12 @@ def build(results: str, out: str) -> None:
     A("1. **The measurement system is capable on the corrected chain, by the project's rule.** Four corrected-chain sweeps, two appraisers, ten parts, three trials: **%%Contribution** (the share of the total variance not due to the parts; the analyser prints it as '%%GR&R', and the project grades it against 10/30 under its ratified rule) is **%.2f %%** for S1 SNR (bootstrap 95 %% CI %s %%, ndc %s), **%.3f %%** for S2 frequency (ndc %s) and **%.2f %%** for S3 DT (CI %s %%, ndc %s), all below the project's 10 %% %%Contribution line. AIAG conventionally reads 10/30 on **%%StudyVar** (the ratio of standard deviations); on that metric the same data give **S1 %.1f %%, S2 %.1f %%, S3 %.1f %%**, so S3 is just over 10 %% on %%StudyVar. Run 1 (default chain), S1: %.1f %% %%Contribution and **%.1f %% %%StudyVar**: marginal by the project rule, above 30 %% on %%StudyVar. Whether the gate should read %%StudyVar is the Captain's decision and is not changed here." % (
         s1["pct_grr"], ci("S1", "grr"), s1["ndc"], s2["pct_grr"], s2["ndc"], s3["pct_grr"], ci("S3", "grr"), s3["ndc"], s1["pct_grr_sv"], s2["pct_grr_sv"], s3["pct_grr_sv"],
         R["per"]["S1"]["run1"]["pct"]["grr"], R["per"]["S1"]["run1"]["pct"]["grr_sv"]))
+    from harness import analyse as _AN
+    v3 = [_AN._verdict_grr(R["per"]["S3"][k]["pct"]["grr_sv"]) for k in F.PAIRED]
+    A("   **Under the gate as ruled on 2026-10-14** (the project's %%GR&R gate now reads %%StudyVar, 10 / 30 %%; Captain, relayed by the Architect; this report was accepted before the ruling and is otherwise unchanged): **S3 reads %s** on the four corrected sweeps pooled (%.1f %%; per sweep, all five sweeps, %.1f to %.1f %%: %s) and **run 1 S1 reads %s** (%.1f %%); S1 reads %s (%.1f %%) and S2 reads %s (%.1f %%) on the four corrected sweeps." % (
+        _AN._verdict_grr(s3["pct_grr_sv"]), s3["pct_grr_sv"], min(R["per"]["S3"][k]["pct"]["grr_sv"] for k in F.PAIRED), max(R["per"]["S3"][k]["pct"]["grr_sv"] for k in F.PAIRED),
+        ", ".join("%s %s" % (LAB[k], v) for k, v in zip(F.PAIRED, v3)), _AN._verdict_grr(R["per"]["S1"]["run1"]["pct"]["grr_sv"]), R["per"]["S1"]["run1"]["pct"]["grr_sv"],
+        _AN._verdict_grr(s1["pct_grr_sv"]), s1["pct_grr_sv"], _AN._verdict_grr(s2["pct_grr_sv"]), s2["pct_grr_sv"]))
     A("2. **What the small remainder is made of.** S1: repeatability %.3f %%, appraiser %.3f %%, sweep %.3f %% of the total variance (the sweep group contains the one significant S1 finding, the Appraiser x Sweep term, named below). S3: repeatability %.3f %%, **appraiser %.3f %% (the largest non-part source; appraiser main effect p %s; with only two programs this is a fixed offset between them, not measurement noise)**, sweep %.3f %%. In S3 the two appraisers differ by a systematic offset (OpenWSFZ minus WSJT-X %+.3f s). In S1 the mean difference is %+.2f dB (t 95 %% CI %.2f to %.2f dB over the four sweeps, which includes 0), but OpenWSFZ's S1 bias differs between sweeps (%+.2f to %+.2f dB) while WSJT-X's does not (%+.2f to %+.2f dB): Appraiser x Sweep p %s." % (
         s1["pct_groups"]["repeatability"], s1["pct_groups"]["appraiser"], s1["pct_groups"]["sweep"], s3["pct_groups"]["repeatability"], s3["pct_groups"]["appraiser"], fp(s3["tests"]["A"][3]), s3["pct_groups"]["sweep"],
         F.t_ci([R["bias"]["S3"][k]["OpenWSFZ"]["bias"] - R["bias"]["S3"][k]["WSJT-X"]["bias"] for k in F.CORRECTED])[0], m_d, lo_d, hi_d, min(o_b), max(o_b), min(w_b), max(w_b), fp(s1["tests"]["AS"][3])))
@@ -481,11 +488,12 @@ def build(results: str, out: str) -> None:
     hist = []
     for k in F.PAIRED:
         s = S[k]
-        hist.append(["2026-10-11" if k in ("run1", "run2") else "2026-10-14", "`64246e4`", "%.1f%%%s" % (s["s1"]["pct_grr"], " MARGINAL by the project rule (%%Contribution; %.1f%% on %%StudyVar, above 30%%) (OpenWSFZ bias %+.2f dB **FAIL**)" % (R["per"]["S1"][k]["pct"]["grr_sv"], s["s1"]["bias_owsfz"]) if s["s1"]["bias_verdict"] == "FAIL" else ""), "%.1f%%" % s["s2"]["pct_grr"], "%.1f%%" % s["s3"]["pct_grr"],
+        sv = lambda sc: "%.1f%%" % R["per"][sc][k]["pct"]["grr_sv"]
+        hist.append(["2026-10-11" if k in ("run1", "run2") else "2026-10-14", "`64246e4`", "%.1f%%%s" % (s["s1"]["pct_grr"], " MARGINAL by the project rule (%%Contribution; %.1f%% on %%StudyVar, above 30%%) (OpenWSFZ bias %+.2f dB **FAIL**)" % (R["per"]["S1"][k]["pct"]["grr_sv"], s["s1"]["bias_owsfz"]) if s["s1"]["bias_verdict"] == "FAIL" else ""), "%.1f%%" % s["s2"]["pct_grr"], "%.1f%%" % s["s3"]["pct_grr"], sv("S1"), sv("S2"), sv("S3"),
                      "0.0% / 0.0%", "%.1f%% / %.1f%%" % (s["s7"]["all"]["wsjtx"], s["s7"]["all"]["owsfz"]), "%.1f%% / %.1f%%" % (s["s8"]["WSJT-X"]["rate"], s["s8"]["OpenWSFZ"]["rate"]), "%.2f%%" % (100.0 * s["s78_pooled_matched"]["OpenWSFZ"] / s["s78_pooled_matched"]["WSJT-X"])])
-    A(md_table(["Date", "SHA", "S1 %GR&R", "S2 %GR&R", "S3 %GR&R", "S5 FP (WSJT-X / OpenWSFZ)", "S7 recovery (WSJT-X / OpenWSFZ)", "S8 decode rate (WSJT-X / OpenWSFZ)", "OpenWSFZ, % of WSJT-X (S7+S8 pooled, excl. FP)"], hist))
+    A(md_table(["Date", "SHA", "S1 %GR&R", "S2 %GR&R", "S3 %GR&R", "S1 %StudyVar", "S2 %StudyVar", "S3 %StudyVar", "S5 FP (WSJT-X / OpenWSFZ)", "S7 recovery (WSJT-X / OpenWSFZ)", "S8 decode rate (WSJT-X / OpenWSFZ)", "OpenWSFZ, % of WSJT-X (S7+S8 pooled, excl. FP)"], hist))
     A("")
-    A("The %GR&R columns are the analyser's %Contribution (variance share), the standing column names of this table. Rows in order: run 1 (default chain), run 2, repeats 1b, 2b (replacement), 3b. WSJT-X's own pooled counts differ between rows; the ratio is not a measure of an OpenWSFZ change. The three 11-12 October OpenWSFZ-only repeats are in the consolidated report's Section 6.")
+    A("Gate changed to %StudyVar 2026-10-14 (Captain); rows before this date were graded on %Contribution. The %GR&R columns are the analyser's %Contribution (variance share), the standing column names of this table; the %StudyVar columns are computed from the variance components of these five sweeps (n/a would stand where the components are not on file). Rows in order: run 1 (default chain), run 2, repeats 1b, 2b (replacement), 3b. WSJT-X's own pooled counts differ between rows; the ratio is not a measure of an OpenWSFZ change. The three 11-12 October OpenWSFZ-only repeats are in the consolidated report's Section 6.")
     A("")
     A("## Appendix: per-sweep two-way ANOVA tables (the analyser's model)")
     A("")
