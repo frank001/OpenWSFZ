@@ -22,6 +22,11 @@ SWEEPS = [
     ("rep1", "2026-10-11-64246e4-LINUX-sol-SAMPLERATE-chain-REPEAT1", "Repeat 1: corrected chain", True),
     ("rep2", "2026-10-11-64246e4-LINUX-sol-SAMPLERATE-chain-REPEAT2", "Repeat 2: corrected chain", True),
     ("rep3", "2026-10-11-64246e4-LINUX-sol-SAMPLERATE-chain-REPEAT3", "Repeat 3: corrected chain", True),
+    # 2026-10-14: the corrected-chain repeats rerun WITH WSJT-X decoding (mechanical warm-up on). W2 is the REPLACEMENT for a sweep whose WSJT-X
+    # stalled at 11:09:30Z (folder `...-WSJTX-REPEAT2`, INVALID, never read here).
+    ("w1", "2026-10-14-64246e4-LINUX-sol-SAMPLERATE-chain-WSJTX-REPEAT1", "Repeat 1b: corrected chain, WSJT-X decoding", True),
+    ("w2", "2026-10-14-64246e4-LINUX-sol-SAMPLERATE-chain-WSJTX-REPEAT2-REPLACEMENT", "Repeat 2b: corrected chain, WSJT-X decoding (replacement)", True),
+    ("w3", "2026-10-14-64246e4-LINUX-sol-SAMPLERATE-chain-WSJTX-REPEAT3", "Repeat 3b: corrected chain, WSJT-X decoding", True),
 ]
 
 
