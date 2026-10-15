@@ -48,7 +48,7 @@ echo "  load: $(cut -d' ' -f1-3 /proc/loadavg)   disk free in ~: $(df -h ~ | awk
 hr
 
 # ---- 3. latest sweep -------------------------------------------------------
-last=$(ls -d "$RUN"/${lc}-[0-9]* 2>/dev/null | grep -v '\.log$' | sort -V | tail -1)
+last=$(ls -d "$RUN"/${lc}-[0-9]* 2>/dev/null | grep -v '\.log$' | grep -E -- "/${lc}-[0-9]+\$" | sort -V | tail -1)     # numbered sweeps only: not the preserved -HALTED- folders
 if [ -z "$last" ]; then
   echo "No sweep folder ${lc}-<n> yet."
 else
