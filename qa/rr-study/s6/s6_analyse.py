@@ -90,26 +90,48 @@ def build_obs(plays: list, wsjt: dict, owsfz: dict, abandoned: dict) -> dict:
 
 # ------------------------------------------------------------------ the daemon log: per-play abandonment
 
+CYCLE_LINE = re.compile(r"^\[(\d\d):(\d\d):(\d\d) \w+\] Cycle (\d\d):(\d\d):(\d\d): (\d+) decode\(s\) found")
+DAEMON_START = re.compile(r"Native FT8 decoder shim ABI version")
+EARLY_DECODE = re.compile(r"\] Early decode: cycle=")
+
+
 def read_pass_lines(path: str) -> list:
+    """The residual-pass lines of a daemon log, each with `cycle_sod`: the UTC start (second of day) of the cycle of the nearest PRECEDING 'Cycle HH:mm:ss: N decode(s) found' line (Architect
+    amendment 5, 2026-10-15; the daemon logs the cycle's own start there, in UTC, while every line's own stamp is LOCAL time). In the TWO-STAGE decode path (the product default; its log has
+    'Early decode: cycle=' lines) the pass runs AFTER the Cycle line (Ft8Decoder.cs:747), so the preceding Cycle line is the pass's own cycle. A single-stage log runs the pass BEFORE the Cycle
+    line (:546): there `cycle_sod` would be the previous cycle, so it is left None and only the formula attributes. The pairing resets at every daemon start."""
     out = []
-    if path and os.path.isfile(path):
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                m = PASS_LINE.match(line)
-                if m:
-                    h, mi, s, rd, ms, ab, ce, fs = m.groups()
-                    out.append({"sod": int(h) * 3600 + int(mi) * 60 + int(s), "elapsed_ms": int(ms), "abandoned": ab == "True",
-                                "exception": ce == "True", "fitted": int(fs), "residual_decodes": int(rd)})
+    if not (path and os.path.isfile(path)):
+        return out
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        text = fh.read().splitlines()
+    two_stage = any(EARLY_DECODE.search(x) for x in text)
+    cycle = None
+    for line in text:
+        if DAEMON_START.search(line):
+            cycle = None
+            continue
+        m = CYCLE_LINE.match(line)
+        if m:
+            cycle = int(m.group(4)) * 3600 + int(m.group(5)) * 60 + int(m.group(6))
+            continue
+        m = PASS_LINE.match(line)
+        if m:
+            h, mi, s, rd, ms, ab, ce, fs = m.groups()
+            out.append({"sod": int(h) * 3600 + int(mi) * 60 + int(s), "elapsed_ms": int(ms), "abandoned": ab == "True",
+                        "exception": ce == "True", "fitted": int(fs), "residual_decodes": int(rd), "cycle_sod": cycle if two_stage else None})
     return out
 
 
 def attribute_pass_lines(lines: list, play_slots: list, tz_offset_s: int | None = None) -> dict:
-    """Pass-log lines carry a local time of day only. A residual pass starts after the slot it decodes has ended, so a line stamped T that took
-    `elapsed` ms belongs to the slot  floor((T - offset - elapsed) / 15) * 15 - 15 (a pass-0 time before it is a few seconds and never a slot).
-    The local-to-UTC offset is the one the SYSTEM reported at S6 start (`tz_offset_s`, from s6_tz.json); the offset that attributes the most lines
-    (whole hours) is computed only as a CROSS-CHECK. Trusted only if (1) the system offset attributes at least MIN_ATTRIBUTED_SHARE of the plays and
-    (2) the inferred whole-hour offset equals it; otherwise the abandonment field reads UNKNOWN (amendment 2 (b)).
-    -> {"offset_h", "tz_offset_s", "inferred_offset_h", "attributed_plays", "by_slot": {slot_stamp: line}, "trusted", "reason"}"""
+    """Which pass line belongs to which play slot (the abandonment field). THE RULE (Architect amendment 5, 2026-10-15): a pass line belongs to the cycle of its adjacent 'Cycle' line
+    (`cycle_sod`, see read_pass_lines). The older FORMULA (Architect 2026-10-13) is kept as a CROSS-CHECK: a line stamped T (LOCAL, whole seconds) that took `elapsed` ms belongs to the slot
+    floor((T - offset - elapsed) / 15) * 15 - 15. Where the formula and the Cycle line disagree the Cycle line wins, because the formula has whole-second resolution and a fast pass (OpenWSFZ
+    alone on the CPU) can end just before the next boundary: its second line falls one slot early (desk check of the first sequential S6 run: 9 of 68 lines). ONE line stands for a slot:
+    a second line for a slot, or a line in no play slot, is UNMAPPED (an abandoned line stands for its slot, which changes no count). THE FLOOR (MIN_ATTRIBUTED_SHARE, unchanged) applies to
+    the lines where BOTH rules agree: mapped = agreeing lines that stand for a play slot, over the lines whose pass started inside the window of the plays. Trusted only if the floor holds and
+    the system offset equals the whole-hour offset that attributes the most lines (the time-zone cross-check; amendment 2 (b)); otherwise the field reads UNKNOWN (but see run(): the interim rule).
+    -> {"offset_h", "tz_offset_s", "inferred_offset_h", "attributed_plays", "by_slot": {slot_stamp: line}, "trusted", "reason", counts of agreeing / disagreeing lines, "window_abandoned_lines"}"""
     slot_sod = {}
     for st in play_slots:
         d = datetime.strptime(st, "%y%m%d_%H%M%S")
@@ -117,46 +139,48 @@ def attribute_pass_lines(lines: list, play_slots: list, tz_offset_s: int | None 
     sod_to_slot = defaultdict(list)
     for st, sod in slot_sod.items():
         sod_to_slot[sod].append(st)
-    def attribute(off_s: int) -> tuple:
-        """-> ({slot: the line that stands for it}, {id of every line that belongs to a play slot}). A slot can have SEVERAL pass lines (found on the first sequential S6 run, 2026-10-15: 7 of 68
-        lines were second lines of a slot and were counted as unmapped, so the share read 88.2 % although every line was attributed by the rule above). Every line that the rule assigns to
-        a play slot is mapped; the line that stands for the slot is an ABANDONED one if the slot has any, else the first, so an abandonment is never lost."""
-        got, ids = {}, set()
-        for ln in lines:
-            utc_sod = (ln["sod"] - off_s) % 86400
-            start = utc_sod - ln["elapsed_ms"] / 1000.0
-            slot_sod_c = int(math.floor(start / 15.0) * 15 - 15) % 86400
-            for st in sod_to_slot.get(slot_sod_c, []):
-                ids.add(id(ln))
-                if st not in got or (ln["abandoned"] and not got[st]["abandoned"]):
-                    got[st] = ln
-        return got, ids
 
-    best = (-1, None, {})
-    for off in range(-14, 15):                                     # the cross-check
-        got, _ = attribute(3600 * off)
-        if len(got) > best[0]:
-            best = (len(got), off, got)
+    def formula_sod(ln: dict, off_s: int) -> int:
+        start = ((ln["sod"] - off_s) % 86400) - ln["elapsed_ms"] / 1000.0
+        return int(math.floor(start / 15.0) * 15 - 15) % 86400
+
+    best = (-1, None)
+    for off in range(-14, 15):                                     # the time-zone cross-check: the whole-hour offset that places the most lines in play slots by the formula
+        hit = {st for ln in lines for st in sod_to_slot.get(formula_sod(ln, 3600 * off), [])}
+        if len(hit) > best[0]:
+            best = (len(hit), off)
     inferred = best[1]
     if tz_offset_s is None:
         return {"offset_h": None, "tz_offset_s": None, "inferred_offset_h": inferred, "attributed_plays": 0, "by_slot": {}, "trusted": False,
                 "reason": "no system time zone recorded at S6 start (s6_tz.json missing)"}
-    got, all_ids = attribute(tz_offset_s)
-    n = len(got)
-    # Architect, 2026-10-13 (ruling on the S6 dry run, 1b): the floor is read on the residual-pass LINES inside the S6 window, not on plays: a pass runs on only
-    # some cycles, so most plays have no line, and "no line" means "no pass ran" (the play is not abandoned). Share = lines mapped to a play slot / lines whose
-    # pass started inside the window of the plays. Source of the floor: the dry run (26 of 27 = 96.3 %), HK-038.
+
+    def slot_of(ln: dict) -> int:
+        c = ln.get("cycle_sod")
+        return c if c is not None else formula_sod(ln, tz_offset_s)
+
+    got, standing = {}, set()                                      # {slot stamp: the line standing for it}, ids of the standing lines
+    for ln in lines:
+        for st in sod_to_slot.get(slot_of(ln), []):
+            if st not in got:
+                got[st] = ln
+            elif ln["abandoned"] and not got[st]["abandoned"]:
+                got[st] = ln                                       # an abandoned line stands for its slot: an abandonment is never hidden behind a first line
+    standing = {id(v) for v in got.values()}
     first, last = min(slot_sod.values()), max(slot_sod.values())
     in_window = [ln for ln in lines if first <= ((ln["sod"] - tz_offset_s) % 86400) - ln["elapsed_ms"] / 1000.0 - P.SLOT_S <= last + 2 * P.SLOT_S]
-    mapped_lines = sum(1 for ln in in_window if id(ln) in all_ids)
-    first_only = sum(1 for ln in in_window if id(ln) in {id(v) for v in got.values()})          # the figure the code gave until 2026-10-15 (kept for the record)
-    share = mapped_lines / len(in_window) if in_window else None
+    agree = [ln for ln in in_window if id(ln) in standing and (ln.get("cycle_sod") is None or ln["cycle_sod"] == formula_sod(ln, tz_offset_s))]
+    disagree = [ln for ln in in_window if ln.get("cycle_sod") is not None and ln["cycle_sod"] != formula_sod(ln, tz_offset_s)]
+    cycle_mapped = [ln for ln in in_window if id(ln) in standing]
+    share = len(agree) / len(in_window) if in_window else None
     enough = share is not None and share >= MIN_ATTRIBUTED_SHARE
-    agrees = tz_offset_s % 3600 == 0 and tz_offset_s // 3600 == inferred
-    reason = "" if (enough and agrees) else ("%d of %d pass lines in the window map to a play slot" % (mapped_lines, len(in_window)) if not enough else
-                                              "the system offset (%+d s) and the inferred offset (%+d h) disagree" % (tz_offset_s, inferred))
-    return {"offset_h": tz_offset_s / 3600.0, "tz_offset_s": tz_offset_s, "inferred_offset_h": inferred, "attributed_plays": n, "by_slot": got,
-            "lines_in_window": len(in_window), "lines_mapped": mapped_lines, "line_share": share, "lines_mapped_first_line_per_slot_only": first_only, "trusted": enough and agrees, "reason": reason}
+    tz_agrees = tz_offset_s % 3600 == 0 and tz_offset_s // 3600 == inferred
+    reason = "" if (enough and tz_agrees) else ("%d of %d pass lines in the window map to a play slot by both rules" % (len(agree), len(in_window)) if not enough else
+                                                 "the system offset (%+d s) and the inferred offset (%+d h) disagree" % (tz_offset_s, inferred))
+    return {"offset_h": tz_offset_s / 3600.0, "tz_offset_s": tz_offset_s, "inferred_offset_h": inferred, "attributed_plays": len(got), "by_slot": got,
+            "lines_in_window": len(in_window), "lines_mapped": len(agree), "line_share": share,
+            "lines_agree": len(agree), "lines_disagree": len(disagree), "lines_cycle_mapped": len(cycle_mapped), "share_cycle_mapped": (len(cycle_mapped) / len(in_window)) if in_window else None,
+            "attribution": "the adjacent Cycle line (formula as cross-check)" if any(ln.get("cycle_sod") is not None for ln in lines) else "the formula only (no usable Cycle lines in the log)",
+            "window_abandoned_lines": sum(1 for ln in in_window if ln["abandoned"]), "tz_agrees": tz_agrees, "trusted": enough and tz_agrees, "reason": reason}
 
 
 # ------------------------------------------------------------------ validity rows
@@ -286,8 +310,8 @@ def fmt_block(res: dict, label: str) -> str:
         A("")
         A("*The abandonment count below is for the SEQUENTIAL design (OpenWSFZ alone on the CPU) and is NOT comparable with the concurrent 10-14 dry run's 0 of 68.*")
     A("")
-    A("*Daemon-log attribution: %s of %s residual-pass lines in the window map to a play slot = %s (floor %.0f %%, read on lines, ruled 2026-10-13; a pass runs on only some cycles, here %s of %s plays have a line, and no line means no pass ran). Play-start offset, player call time (S6-V2 a; it cannot see the sound's onset, see the onset row): min %s s, max %s s, tolerance ±%.2f s (a design number).*" % (
-        ab.get("pass_lines_mapped"), ab.get("pass_lines_in_window"), pct(ab.get("pass_line_share")), 100 * MIN_ATTRIBUTED_SHARE,
+    A("*Daemon-log attribution (Architect amendment 5): each pass line belongs to the cycle of its adjacent Cycle line (%s); the older formula is the cross-check: both rules agree on %s lines and disagree on %s. %s of %s residual-pass lines in the window map to a play slot by both rules = %s (floor %.0f %%, read on the lines where both agree; a pass runs on only some cycles, here %s of %s plays have a line, and no line means no pass ran). Play-start offset, player call time (S6-V2 a; it cannot see the sound's onset, see the onset row): min %s s, max %s s, tolerance ±%.2f s (a design number).*" % (
+        ab.get("attribution"), ab.get("lines_agree"), ab.get("lines_disagree"), ab.get("pass_lines_mapped"), ab.get("pass_lines_in_window"), pct(ab.get("pass_line_share")), 100 * MIN_ATTRIBUTED_SHARE,
         ab["plays_with_pass_line"], res["plays"], v["S6-V2"]["offset_min_s"], v["S6-V2"]["offset_max_s"], P.OFFSET_TOLERANCE_S))
     if not v["S6-V5"].get("wsjtx_exe_pinned", False):
         A("")
@@ -298,6 +322,9 @@ def fmt_block(res: dict, label: str) -> str:
             A("**%s:** not available (%s)." % (name, res.get("no_abandon_note", "no data")))
             A("")
             continue
+        if res["abandonment"].get("interim_rule") and name.startswith("Sensitivity"):
+            A("*The abandonment field reads 0 by the interim rule (Architect amendment 5): no parsed pass line in the S6 window has deadlineAbandoned=True, so the sensitivity below equals the full figure.*")
+            A("")
         h, b = blk["headline"], boot["headline"] if boot else {}
         A("**%s** (%d WAVs, %d signals in the non-hashed universe; WAV-clustered 95 %% CIs)" % (name, h["wavs"], h["signals_in_universe"]))
         A("")
@@ -462,12 +489,19 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
               else {"trusted": False, "by_slot": {}, "attributed_plays": 0, "offset_h": None, "inferred_offset_h": None, "reason": "no daemon log"})
         ab = {s: ln["abandoned"] for s, ln in pl["by_slot"].items()} if pl["trusted"] else {}
         n_ab = sum(1 for x in ab.values() if x)
+        # INTERIM RULE (Architect amendment 5, ruling 2, mechanical): if the floor is not met but NO parsed pass line inside the S6 window has deadlineAbandoned=True (and the time zone checks
+        # out, so the window is the right one), the field reads 0 and needs no attribution; the no-abandonment sensitivity then equals the full figure, and the block says so.
+        interim = (not pl["trusted"]) and bool(pl.get("tz_agrees")) and (pl.get("lines_in_window") or 0) > 0 and pl.get("window_abandoned_lines") == 0
         res["abandonment"] = {"daemon_log_attributed": pl["trusted"], "plays_with_pass_line": pl["attributed_plays"], "pass_lines_in_window": pl.get("lines_in_window"), "pass_lines_mapped": pl.get("lines_mapped"),
-                              "pass_line_share": pl.get("line_share"), "plays_abandoned": n_ab if pl["trusted"] else None,
+                              "pass_line_share": pl.get("line_share"), "plays_abandoned": n_ab if pl["trusted"] else (0 if interim else None),
+                              "interim_rule": interim, "attribution": pl.get("attribution"), "lines_agree": pl.get("lines_agree"), "lines_disagree": pl.get("lines_disagree"),
+                              "lines_cycle_mapped": pl.get("lines_cycle_mapped"), "share_cycle_mapped": pl.get("share_cycle_mapped"), "window_abandoned_lines": pl.get("window_abandoned_lines"),
                               "tz_offset_h_system": pl["offset_h"], "tz_offset_h_inferred": pl.get("inferred_offset_h"), "not_trusted_because": pl.get("reason", ""),
                               "elapsed_ms_median": float(np.median([ln["elapsed_ms"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None,
                               "fitted_signals_median": float(np.median([ln["fitted"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None}
-        res["abandonment"]["summary"] = ("%d of %d plays abandoned" % (n_ab, len(plays))) if pl["trusted"] else "UNKNOWN (%s): no sensitivity is given" % (pl.get("reason") or "the log could not be matched to the plays")
+        res["abandonment"]["summary"] = (("%d of %d plays abandoned" % (n_ab, len(plays))) if pl["trusted"] else
+                                         (("0 of %d plays abandoned (no abandoned line in the window; attribution not needed)" % len(plays)) if interim else
+                                          "UNKNOWN (%s): no sensitivity is given" % (pl.get("reason") or "the log could not be matched to the plays")))
         obs = build_obs(plays, wsjt, owsfz, ab)
         tallies_by_wav = {w: S.wav_tally(o["trials"]) for w, o in obs.items()}
         tall = [tallies_by_wav[w] for w in sorted(tallies_by_wav)]
@@ -482,6 +516,10 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
                 res["bootstrap_no_abandon"] = S.bootstrap(tk, n_boot)
             else:
                 res["no_abandon_note"] = "only %d WAVs have no abandoned play" % len(keep)
+        elif interim:
+            res["no_abandon_wavs"] = {"kept": len(obs), "of": len(obs)}
+            res["no_abandon"], res["bootstrap_no_abandon"] = res["full"], res["bootstrap_full"]
+            res["no_abandon_note"] = "equals the full figure: no abandoned line in the window"
         else:
             res["no_abandon_note"] = res["abandonment"]["summary"]
         res["hashed_per_play"] = {"wsjtx": sum(t["hw"] for o in obs.values() for t in o["trials"].values()) / max(1, len(plays)),

@@ -89,7 +89,7 @@ def test_valid_run_numbers_and_sensitivity(tmp_path):
     assert r["figure"] == "s6_figure.png" and (run / "s6" / "s6_figure.png").stat().st_size > 10_000
     md = open(run / "s6" / "s6_section5.md", encoding="utf8").read()
     assert "First S6 row of the LINUX series" in md and "Positive agreement" in md and "Sensitivity: WAVs with no abandoned play" in md
-    assert "Daemon-log attribution: 36 of 36 residual-pass lines in the window map to a play slot" in md and "a design number" in md and "player call time" in md
+    assert "36 of 36 residual-pass lines in the window map to a play slot by both rules" in md and "Daemon-log attribution (Architect amendment 5)" in md and "a design number" in md and "player call time" in md
     assert "QWARM" not in md and "Q1" not in md                                          # no message text in the report block
 
 
@@ -245,34 +245,89 @@ def test_lines_that_map_to_no_play_slot_push_the_share_below_the_floor(tmp_path)
     assert not r["abandonment"]["daemon_log_attributed"] and r["abandonment"]["pass_line_share"] < A.MIN_ATTRIBUTED_SHARE
 
 
-def test_a_second_pass_line_for_the_same_slot_is_a_mapped_line_and_an_abandoned_one_flags_the_play(tmp_path):
-    """Found on the first sequential S6 run (2026-10-15): 7 of 68 lines were SECOND lines of a slot; the code kept the first line per slot and counted the rest as unmapped
-    (88.2 % < the 90 % floor) although the rule attributes every one of them to a play slot. Every such line is mapped; an abandoned line stands for its slot."""
+def test_a_second_pass_line_for_the_same_slot_is_unmapped_and_one_line_stands_for_the_slot(tmp_path):
+    """Architect amendment 5, ruling 1: ONE line maps a slot; a second line is unmapped (counting it passes exactly the error the 90 % floor guards). An ABANDONED line may stand for
+    its slot, because that changes no count."""
     import re
     run, scratch, dl = make_run(tmp_path)
     base = dl.read_text(encoding="utf8").splitlines()
     assert A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)["abandonment"]["plays_abandoned"] == 0
     hh, mm, ss = map(int, re.match(r"\[(\d\d):(\d\d):(\d\d) ", base[0]).groups())
-    t2 = "%02d:%02d:%02d" % (hh, mm, ss + 1)                                                      # one second later, same pass length: the same slot
-    dup = re.sub(r"^\[\d\d:\d\d:\d\d ", "[" + t2 + " ", base[0]).replace("deadlineAbandoned=False", "deadlineAbandoned=True")
+    dup = re.sub(r"^\[\d\d:\d\d:\d\d ", "[%02d:%02d:%02d " % (hh, mm, ss + 1), base[0]).replace("deadlineAbandoned=False", "deadlineAbandoned=True")   # one second later: the same slot by the formula
     dl.write_text("\n".join(base) + "\n" + dup + "\n", encoding="utf8")
-    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
-    ab = r["abandonment"]
-    assert ab["daemon_log_attributed"] and ab["pass_line_share"] == 1.0 and ab["pass_lines_mapped"] == ab["pass_lines_in_window"] == len(base) + 1
-    assert ab["plays_abandoned"] == 1                                                              # the abandoned DUPLICATE flags the play; it is not lost behind the first line
+    ab = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)["abandonment"]
+    assert ab["pass_lines_in_window"] == len(base) + 1 and ab["pass_lines_mapped"] == len(base)          # the second line is NOT mapped
+    assert ab["daemon_log_attributed"] and ab["plays_abandoned"] == 1                                    # still above the floor; the abandoned line stands for its slot
 
 
-def test_attribution_counts_every_line_of_a_slot_and_prefers_the_abandoned_one():
+def test_formula_only_attribution_stands_the_abandoned_line_for_its_slot():
     def ln(sod, ms, ab):
-        return {"sod": sod, "elapsed_ms": ms, "abandoned": ab, "exception": False, "fitted": 5, "residual_decodes": 0}
+        return {"sod": sod, "elapsed_ms": ms, "abandoned": ab, "exception": False, "fitted": 5, "residual_decodes": 0, "cycle_sod": None}
     # local = UTC + 2 h. Slot 15:59:30 UTC takes a pass whose start (T - elapsed) lies in [15:59:45, 16:00:00): T 15:59:53 / 3000 ms and T 15:59:55 / 3200 ms are both in it
     lines = [ln(17 * 3600 + 59 * 60 + 53, 3000, False), ln(17 * 3600 + 59 * 60 + 55, 3200, True)]
     slot = "261015_155930"
     pl = A.attribute_pass_lines(lines, [slot], 2 * 3600)
     assert pl["by_slot"][slot]["abandoned"] is True and pl["attributed_plays"] == 1
-    assert pl["lines_mapped_first_line_per_slot_only"] == 1                                       # what the code counted until 2026-10-15
-    first_only_view = [lines[0]]
-    assert A.attribute_pass_lines(first_only_view, [slot], 2 * 3600)["by_slot"][slot]["abandoned"] is False
+    assert pl["lines_mapped"] == 1 and pl["lines_in_window"] == 2                                   # ONE line maps the slot; the other is unmapped
+    assert A.attribute_pass_lines([lines[0]], [slot], 2 * 3600)["by_slot"][slot]["abandoned"] is False
+
+
+DESK_LOG = "\n".join([
+    "[17:59:00 INF] Native FT8 decoder shim ABI version: 20260062.",
+    "[17:59:46 INF] Early decode: cycle=15:59:30, n=1, elapsedMs=300, skipped=0, skipReason=none, finalWaitMs=0.",
+    "[17:59:46 INF] Cycle 15:59:30: 3 decode(s) found, elapsed=900 ms.",
+    "[17:59:50 INF] Sub-feas residual pass: residualDecodes=1 elapsedMs=3800 deadlineAbandoned=False containedException=False fittedSignals=5",
+    "[18:00:00 INF] Early decode: cycle=15:59:45, n=1, elapsedMs=300, skipped=0, skipReason=none, finalWaitMs=0.",
+    "[18:00:00 INF] Cycle 15:59:45: 2 decode(s) found, elapsed=800 ms.",
+    # the artefact of the desk check (2026-10-15): this pass is fast, T has whole-second resolution, so T - elapsed = 15:59:59.86 falls BEFORE the 16:00:00 boundary and the formula
+    # places the line one slot early (slot 15:59:30); its adjacent Cycle line says 15:59:45
+    "[18:00:01 INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=1141 deadlineAbandoned=True containedException=False fittedSignals=4",
+]) + "\n"
+
+
+def test_a_pass_line_belongs_to_the_cycle_of_its_adjacent_cycle_line_and_the_formula_is_the_cross_check(tmp_path):
+    dl = tmp_path / "d.log"
+    dl.write_text(DESK_LOG, encoding="utf8")
+    lines = A.read_pass_lines(str(dl))
+    assert [x["cycle_sod"] for x in lines] == [15 * 3600 + 59 * 60 + 30, 15 * 3600 + 59 * 60 + 45]
+    slots = ["261015_155930", "261015_155945"]
+    pl = A.attribute_pass_lines(lines, slots, 2 * 3600)
+    assert pl["attribution"].startswith("the adjacent Cycle line")
+    assert set(pl["by_slot"]) == set(slots) and pl["by_slot"]["261015_155945"]["abandoned"] is True      # the Cycle line puts the fast pass in ITS slot
+    assert pl["lines_agree"] == 1 and pl["lines_disagree"] == 1 and pl["lines_cycle_mapped"] == 2 and pl["lines_in_window"] == 2
+    assert pl["line_share"] == 0.5 and pl["share_cycle_mapped"] == 1.0                                   # the floor reads the lines where BOTH rules agree
+    assert not pl["trusted"] and pl["window_abandoned_lines"] == 1
+    # the formula ALONE (what the code did before) puts both lines in the first slot: the second slot has no line and its abandonment would be missed
+    only = A.attribute_pass_lines([{**x, "cycle_sod": None} for x in lines], slots, 2 * 3600)
+    assert set(only["by_slot"]) == {"261015_155930"}
+
+
+def test_the_cycle_pairing_is_for_two_stage_logs_only_and_resets_at_a_daemon_start(tmp_path):
+    two = tmp_path / "two.log"
+    two.write_text(DESK_LOG + "\n".join(["[18:01:00 INF] Native FT8 decoder shim ABI version: 20260062.",
+                                         "[18:01:03 INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=900 deadlineAbandoned=False containedException=False fittedSignals=3"]) + "\n", encoding="utf8")
+    assert [x["cycle_sod"] is None for x in A.read_pass_lines(str(two))] == [False, False, True]        # a pass line after a daemon start has no earlier Cycle line of ITS process
+    single = tmp_path / "single.log"                                                                      # no 'Early decode' lines: single-stage, where the pass runs BEFORE the Cycle line
+    single.write_text("\n".join(x for x in DESK_LOG.splitlines() if "Early decode" not in x) + "\n", encoding="utf8")
+    assert all(x["cycle_sod"] is None for x in A.read_pass_lines(str(single)))                           # the formula alone is used there
+
+
+def test_interim_rule_no_abandoned_line_in_the_window_reads_zero_and_the_sensitivity_equals_the_full_figure(tmp_path):
+    """Architect amendment 5, ruling 2 (mechanical): below the floor, if NO parsed line in the S6 window is abandoned the field reads 0 and needs no attribution."""
+    run, scratch, dl = make_run(tmp_path)
+    extra = ["[18:10:10 INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=5000 deadlineAbandoned=False containedException=False fittedSignals=4" for i in range(60)]
+    dl.write_text(dl.read_text(encoding="utf8") + "\n".join(extra) + "\n", encoding="utf8")           # below the floor, nothing abandoned
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    ab = r["abandonment"]
+    assert not ab["daemon_log_attributed"] and ab["interim_rule"] and ab["plays_abandoned"] == 0
+    assert "no abandoned line in the window; attribution not needed" in ab["summary"]
+    assert r["no_abandon"] is r["full"] and r["no_abandon_wavs"] == {"kept": 12, "of": 12} and "equals the full figure" in r["no_abandon_note"]
+    md = open(run / "s6" / "s6_section5.md", encoding="utf8").read()
+    assert "interim rule" in md and "equals the full figure" in md
+    # one abandoned line anywhere in the window and the same log reads UNKNOWN, as before
+    dl.write_text(dl.read_text(encoding="utf8") + extra[0].replace("deadlineAbandoned=False", "deadlineAbandoned=True") + "\n", encoding="utf8")
+    r2 = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert not r2["abandonment"]["interim_rule"] and r2["abandonment"]["plays_abandoned"] is None and "UNKNOWN" in r2["abandonment"]["summary"] and "no_abandon" not in r2
 
 
 def line_dt(stamp, snr, dt, freq, text):
