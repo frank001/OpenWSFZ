@@ -39,36 +39,51 @@ def _read_truth(run_dir: str):
         return rd.fieldnames, list(rd)
 
 
+def _s6_playlogs(run_dir: str) -> list:
+    """The S6 play logs of a run folder: the top-level one (a concurrent S6, or the MERGED log of a sequential S6) and the per-pass logs of a sequential S6
+    (s6/pass-w, s6/pass-o), which exist even when a pass died before the merge."""
+    base = os.path.join(run_dir, "s6")
+    out = [os.path.join(base, "s6_playlog.jsonl")]
+    try:
+        out += [os.path.join(base, d, "s6_playlog.jsonl") for d in sorted(os.listdir(base)) if d.startswith("pass-")]
+    except OSError:
+        pass
+    return [p for p in out if os.path.isfile(p)]
+
+
 def scenario_cycles(run_dir: str, sid: str) -> list:
-    """Distinct cycle stamps (ISO, UTC) of the scenario's rows in truth.csv; for S6 the slots of its playlog (warm-up and plays)."""
+    """Distinct cycle stamps (ISO, UTC) of the scenario's rows in truth.csv; for S6 the slots of its playlog(s) (warm-up and plays; for a sequential S6 the slots of both passes)."""
     if sid == "S6":
-        p = os.path.join(run_dir, "s6", "s6_playlog.jsonl")
         out = set()
-        try:
-            with open(p, encoding="utf-8") as fh:
-                for line in fh:
-                    if line.strip():
-                        r = json.loads(line)
-                        iso = LV.stamp_to_iso(r.get("slot_stamp", ""))
-                        if iso:
-                            out.add(iso)
-        except OSError:
-            pass
+        for p in _s6_playlogs(run_dir):
+            try:
+                with open(p, encoding="utf-8") as fh:
+                    for line in fh:
+                        if line.strip():
+                            r = json.loads(line)
+                            for key in ("slot_stamp", "slot_stamp_o"):
+                                iso = LV.stamp_to_iso(r.get(key, ""))
+                                if iso:
+                                    out.add(iso)
+            except OSError:
+                pass
         return sorted(out)
     _, rows = _read_truth(run_dir)
     return sorted({r["cycle_utc"] for r in rows if r.get("scenario_id") == sid and r.get("cycle_utc")})
 
 
-def play_slots(run_dir: str) -> list:
-    """S6: the play slots only (no warm-up), in order."""
+def play_slots(run_dir: str, appraiser: str = "wsjtx") -> list:
+    """S6: the play slots only (no warm-up), in order, of the MERGED / concurrent play log. A sequential S6 has two sets (the passes played the same plays in different slots):
+    'wsjtx' = the WSJT-X pass's `slot_stamp`, 'owsfz' = the OpenWSFZ pass's `slot_stamp_o` (a concurrent S6 has no `slot_stamp_o`: both are the one slot)."""
     out = []
+    key = "slot_stamp_o" if appraiser == "owsfz" else "slot_stamp"
     try:
         with open(os.path.join(run_dir, "s6", "s6_playlog.jsonl"), encoding="utf-8") as fh:
             for line in fh:
                 if line.strip():
                     r = json.loads(line)
                     if r.get("kind") == "play":
-                        iso = LV.stamp_to_iso(r.get("slot_stamp", ""))
+                        iso = LV.stamp_to_iso(r.get(key) or r.get("slot_stamp", ""))
                         if iso:
                             out.append(iso)
     except OSError:
@@ -80,11 +95,12 @@ def coverage_failure(run_dir: str, sid: str, wsjtx_slots: set, owsfz_slots: set 
     """After a scenario: None if both appraisers have data, else {"reason": ...}. S1-S8: fewer cycles with data than (expected - 1) (the M3 rule); S6: ANY play slot missing (S6-V7);
     S3c is not in truth.csv and is covered by the stall gate only."""
     if sid == "S6":
-        want = play_slots(run_dir)
+        want = play_slots(run_dir, "wsjtx")
+        want_o = play_slots(run_dir, "owsfz")           # sequential S6: the OpenWSFZ pass's own slots
         if not want:
             return {"reason": "S6 wrote no play slots"}
         miss_w = [w for w in want if w not in wsjtx_slots]
-        miss_o = [w for w in want if owsfz_slots is not None and w not in owsfz_slots]
+        miss_o = [w for w in want_o if owsfz_slots is not None and w not in owsfz_slots]
         if miss_w or miss_o:
             return {"reason": "S6-V7: %d play slot(s) without a WSJT-X save WAV, %d without an OpenWSFZ archive cycle (bar 0)" % (len(miss_w), len(miss_o))}
         return None

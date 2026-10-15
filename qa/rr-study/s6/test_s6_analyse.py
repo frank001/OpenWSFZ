@@ -20,16 +20,22 @@ def line(stamp, snr, freq, text):
     return "%s     14.074 Rx FT8 %5d  0.1 %4d %s\n" % (stamp, snr, freq, text)
 
 
-def make_run(tmp, n_wavs=12, stray=False, drop_play=False, abandon_wav=None, seed=5):
+def make_run(tmp, n_wavs=12, stray=False, drop_play=False, abandon_wav=None, seed=5, sequential=False):
     rng = random.Random(seed)
     run, scratch = tmp / "run", tmp / "scratch"
     (run / "s6").mkdir(parents=True)
     scratch.mkdir()
     t0 = datetime(2026, 10, 13, 16, 0, 0)
     rows, wsjt, ows, dlog = [], [], [], []
-    rows.append({"kind": "warmup", "attempt": 1, "boundary_utc": "x", "slot_stamp": t0.strftime("%y%m%d_%H%M%S"), "offset_s": 0.0, "wsjtx_lines": 1, "owsfz_lines": 1})
-    wsjt.append(line(t0.strftime("%y%m%d_%H%M%S"), 6, 1500, "CQ QWARM FN42"))
-    ows.append(line(t0.strftime("%y%m%d_%H%M%S"), 6, 1500, "CQ QWARM FN42"))
+    shift = timedelta(hours=1) if sequential else timedelta(0)           # sequential S6: the OpenWSFZ pass played the same plays one hour later
+    fmt = lambda d: d.strftime("%y%m%d_%H%M%S")
+    if sequential:
+        rows.append({"kind": "warmup", "attempt": 1, "boundary_utc": "x", "slot_stamp": fmt(t0), "offset_s": 0.0, "wsjtx_lines": 1, "owsfz_lines": 0, "pass": "w"})
+        rows.append({"kind": "warmup", "attempt": 1, "boundary_utc": "x", "slot_stamp": fmt(t0 + shift), "offset_s": 0.0, "wsjtx_lines": 0, "owsfz_lines": 1, "pass": "o"})
+    else:
+        rows.append({"kind": "warmup", "attempt": 1, "boundary_utc": "x", "slot_stamp": fmt(t0), "offset_s": 0.0, "wsjtx_lines": 1, "owsfz_lines": 1})
+    wsjt.append(line(fmt(t0), 6, 1500, "CQ QWARM FN42"))
+    ows.append(line(fmt(t0 + shift), 6, 1500, "CQ QWARM FN42"))
     wavs = [{"id": "b%02d:s%02d" % (i, i), "band": ["17m", "20m", "40m", "80m"][i % 4], "sun": "day", "gain": 2.0} for i in range(n_wavs)]
     truth = {w["id"]: [("CQ Q%dAAA FN42" % (i * 10 + j), rng.uniform(-18, 0), 500 + 100 * j) for j in range(5)] for i, w in enumerate(wavs)}
     sched = P.make_schedule(wavs)
@@ -38,14 +44,15 @@ def make_run(tmp, n_wavs=12, stray=False, drop_play=False, abandon_wav=None, see
         st = slot.strftime("%y%m%d_%H%M%S")
         if not (drop_play and n == 7):
             rows.append({"kind": "play", "play_index": n, "trial": trial, "order": order, "wav_id": item["id"], "band": item["band"], "sun": "day",
-                         "gain": 2.0, "boundary_utc": "x", "slot_stamp": st, "offset_s": 0.0, "slips_so_far": 0})
+                         "gain": 2.0, "boundary_utc": "x", "slot_stamp": st, "offset_s": 0.0, "slips_so_far": 0,
+                         **({"slot_stamp_o": fmt(slot + shift), "boundary_utc_o": "x", "offset_s_o": 0.0} if sequential else {})})
         for j, (text, snr, f) in enumerate(truth[item["id"]]):
             wsjt.append(line(st, round(snr), f, text))                                 # WSJT-X decodes all 5, steadily
             if rng.random() < 0.7:
-                ows.append(line(st, round(snr + 1.0), f, text))                        # OWS decodes 70 %, SNR +1 dB
+                ows.append(line(fmt(slot + shift), round(snr + 1.0), f, text))         # OWS decodes 70 %, SNR +1 dB
         wsjt.append(line(st, -20, 1900, "CQ <...> FN42"))                              # a hashed row, excluded
         ab = (item["id"] == abandon_wav)
-        local = slot + timedelta(seconds=15 + 2 + 9) + timedelta(hours=TZ_H)           # pass ends 2 s of pass 0 + 9 s of residual after the slot's end
+        local = slot + shift + timedelta(seconds=15 + 2 + 9) + timedelta(hours=TZ_H)    # pass ends 2 s of pass 0 + 9 s of residual after the slot's end
         dlog.append("[%s INF] Sub-feas residual pass: residualDecodes=1 elapsedMs=9000 deadlineAbandoned=%s containedException=False fittedSignals=7\n"
                     % (local.strftime("%H:%M:%S"), "True" if ab else "False"))
         slot += timedelta(seconds=15)
@@ -354,3 +361,70 @@ def test_v7_lists_missing_with_the_gate_on_fails_and_without_the_gate_reads_not_
     run2, scratch2, dl2 = make_run(tmp_path / "second")
     r2 = A.run(str(run2), str(scratch2), str(dl2), "x", "y", n_boot=50)
     assert r2["validity"]["S6-V7"]["result"] == "NOT MEASURED" and r2["status"] == "VALID"   # an older run: not a PASS, and it does not void
+
+
+# ---- SEQUENTIAL S6 (Captain 2026-10-15): the two appraisers played the identical schedule in turn, in different slots ---------------------------
+
+def test_sequential_run_gives_the_same_figures_as_the_concurrent_run_of_the_same_decodes(tmp_path):
+    run_c, scr_c, dl_c = make_run(tmp_path / "c", abandon_wav="b03:s03")
+    run_s, scr_s, dl_s = make_run(tmp_path / "s", abandon_wav="b03:s03", sequential=True)
+    rc = A.run(str(run_c), str(scr_c), str(dl_c), "x", "y", n_boot=50)
+    rs = A.run(str(run_s), str(scr_s), str(dl_s), "x", "y", n_boot=50)
+    assert rc["design"] == "concurrent" and rs["design"] == "sequential"
+    assert rs["status"] == "VALID", rs["validity"]
+    assert rs["validity"]["S6-V2"]["stray_lines"] == {"wsjtx": 0, "owsfz": 0}
+    hc, hs = rc["full"]["headline"], rs["full"]["headline"]
+    for k in ("decodes_per_wav_wsjtx", "decodes_per_wav_owsfz", "positive_agreement", "consistency_own_wsjtx", "consistency_own_owsfz", "snr_delta_mean"):
+        assert hc[k] == hs[k], k                                                       # same decodes, same attribution: the slots are only keys
+    assert rs["abandonment"]["plays_abandoned"] == 3 and rs["abandonment"]["daemon_log_attributed"]      # the daemon log is read in the OpenWSFZ pass's slots
+    md = open(run_s / "s6" / "s6_section5.md", encoding="utf8").read()
+    assert "SEQUENTIAL" in md and "Not pooled with a concurrent S6 row" in md
+    assert "SEQUENTIAL" not in open(run_c / "s6" / "s6_section5.md", encoding="utf8").read()
+
+
+def test_sequential_stray_lines_are_judged_against_each_logs_own_pass(tmp_path):
+    run, scratch, dl = make_run(tmp_path, sequential=True)
+    # an OpenWSFZ line stamped in the WSJT-X pass's slot (the daemon was supposed to be OFF then) is a stray in the OpenWSFZ log
+    rows = _rows(run)
+    first_w = [r for r in rows if r["kind"] == "play"][0]["slot_stamp"]
+    with open(scratch / "owsfz-s6.txt", "a", encoding="utf8") as fh:
+        fh.write(line(first_w, -5, 1000, "CQ QSTRAY FN42"))
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert r["validity"]["S6-V2"]["stray_lines"] == {"wsjtx": 0, "owsfz": 1} and r["status"].startswith("VOID")
+
+
+def test_sequential_v7_checks_each_appraiser_against_its_own_pass_slots(tmp_path):
+    from harness import liveness as LV
+    run, scratch, dl = make_run(tmp_path, sequential=True)
+    plays = [r for r in _rows(run) if r["kind"] == "play"]
+    LV.write_slots(str(run / "coverage_slots_wsjtx.txt"), {LV.stamp_to_iso(p["slot_stamp"]) for p in plays})
+    LV.write_slots(str(run / "coverage_slots_owsfz.txt"), {LV.stamp_to_iso(p["slot_stamp_o"]) for p in plays})
+    (run / "liveness_gate.json").write_text("{}", encoding="utf8")
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    v7 = r["validity"]["S6-V7"]
+    assert v7["result"] == "PASS" and v7["wsjtx"]["missing"] == 0 and v7["owsfz"]["missing"] == 0 and r["status"] == "VALID"
+    # the OpenWSFZ archive holding the WSJT-X pass's slots (the concurrent assumption) is NOT coverage of the OpenWSFZ pass
+    LV.write_slots(str(run / "coverage_slots_owsfz.txt"), {LV.stamp_to_iso(p["slot_stamp"]) for p in plays})
+    r2 = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    assert r2["validity"]["S6-V7"]["result"] == "FAIL" and r2["validity"]["S6-V7"]["owsfz"]["missing"] == len(plays)
+
+
+def test_the_chain_label_names_the_sequential_pass(tmp_path):
+    run, scratch, dl = make_run(tmp_path, sequential=True)
+    assert "OpenWSFZ alone" in A.describe_chain(str(run), "sequential") and "WSJT-X decoding on the same CPUs" in A.describe_chain(str(run))
+
+
+def test_sequential_split_cuts_both_logs_at_the_earliest_slot_so_an_off_appraisers_line_is_a_stray(tmp_path):
+    run, scratch, _ = make_run(tmp_path, sequential=True)
+    w, o = tmp_path / "wsjt-all.txt", tmp_path / "owsfz-all.txt"
+    pre = line("261013_155000", -9, 1200, "CQ QOLD FN42")
+    first_w = [r for r in _rows(run) if r["kind"] == "play"][0]["slot_stamp"]
+    # the daemon (supposed to be OFF during the WSJT-X pass) decoded one line in that pass's first play slot
+    o.write_text(pre + line(first_w, -5, 1000, "CQ QSTRAY FN42") + (scratch / "owsfz-s6.txt").read_text(encoding="utf8"), encoding="utf8")
+    w.write_text(pre + (scratch / "wsjt-s6.txt").read_text(encoding="utf8"), encoding="utf8")
+    out = tmp_path / "scratch2"
+    r = SP.split_logs(str(run), str(w), str(o), str(out))
+    assert r["first_slot_wsjtx_pass"] < r["first_slot_owsfz_pass"] and r["wsjtx"]["kept"] == 1 and r["owsfz"]["kept"] == 1
+    assert o.read_text(encoding="utf8") == pre                                          # the stray moved to the S6 slice with the rest of the OpenWSFZ pass
+    res = A.run(str(run), str(out), None, "x", "y", n_boot=50)
+    assert res["validity"]["S6-V2"]["stray_lines"]["owsfz"] == 1 and res["status"].startswith("VOID")

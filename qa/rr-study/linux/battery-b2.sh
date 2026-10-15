@@ -30,6 +30,11 @@ log "sweep $NAME start; scenarios $SCEN; extra args: $*; retries per scenario: $
 log "build under test: $(git -C $HOME/OpenWSFZ-b2src rev-parse HEAD); libft8.so $(sha256sum "$(dirname "$DAEMON")/libft8.so" | cut -d' ' -f1); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
 # S6 pins the OpenWSFZ native library the daemon loads: the one in the daemon's publish folder (added here so no caller has to pass the path)
 S6LIB=""; case ",$SCEN," in *,S6,*) S6LIB="--s6-ows-lib $(dirname "$DAEMON")/libft8.so";; esac
+# S6 MODE (Captain 2026-10-15): SEQUENTIAL by default on sol. Played together, WSJT-X's Qt ALSA capture stalls (4 of 4 S6 attempts of B2BASE sweep 1; isolation runs of 2026-10-15), so S6 is
+# played twice, WSJT-X alone and then OpenWSFZ alone (run_study.py --s6-mode sequential; hook s6-phase.sh; s6/s6_merge.py). S1-S5, S7, S8 and S3c stay concurrent. S6_MODE=concurrent restores
+# the original single concurrent S6 (never pool a concurrent S6 row with a sequential one).
+S6_MODE=${S6_MODE:-sequential}
+S6SEQ=""; case ",$SCEN," in *,S6,*) [ "$S6_MODE" = "sequential" ] && S6SEQ="--s6-mode sequential --s6-phase-cmd $HOME/s6-phase.sh";; esac
 
 sh "$HOME/restart-wsjtx-rr.sh" > "$SUP/wsjtx-start.out" 2>&1 || halt "WSJT-X (the real wsjtx binary) did not start (see $SUP/wsjtx-start.out)"
 log "WSJT-X up: pid $(pgrep -x wsjtx | head -1); core limit in its shell: $(grep -m1 'Max core' /proc/$(pgrep -x wsjtx | head -1)/limits)"
@@ -37,14 +42,28 @@ rm -rf "$ARCH"/* 2>/dev/null
 setsid nohup "$PY" "$WORK/linux/wsjtx_monitor.py" --save-dir "$SAVE" --out-dir "$SUP" --owsfz-archive "$ARCH" >> "$SUP/monitor.out" 2>&1 < /dev/null &
 sleep 3
 log "monitor started (pid $(pgrep -f wsjtx_monitor.py | head -1)); supervisor folder $SUP"
+# CPU scheduling of the daemon (sched-helper.sh; QA 2026-10-15): DAEMON_SCHED=none (default) | nice | pin. The daemon's residual pass can starve WSJT-X's Qt ALSA capture thread (WSJT-X then
+# silently stops saving WAVs); 'nice' lowers the daemon's threads so WSJT-X and the daemon's own arecord pre-empt them. Whatever is chosen is recorded in this sweep's log.
+SCHED=${DAEMON_SCHED:-none}
+rm -f "$SUP/sched.stop"
+if [ "$SCHED" != "none" ]; then
+  setsid nohup sh "$HOME/sched-helper.sh" "$SCHED" "$SUP/sched.stop" "$LOG" > /dev/null 2>&1 < /dev/null &
+fi
+log "daemon scheduling: $SCHED"
+log "S6 mode: $S6_MODE"
+rm -f "$SUP/wsjtx.expected_off"
+export S6_SUP="$SUP" S6_DAEMON="$DAEMON" S6_CONFIG="$HOME/rr-run/config.json" S6_PORT=8080 S6_LOG="$LOG" S6_PY="$PY"
 export PYTHONPATH=$WORK/linux/shim RR_ALSA_PLAYBACK=plughw:0,0 ALSA_PLUGIN_DIR=$HOME/local/lib/alsa-lib
 ( cd "$WORK" && "$PY" run_study_linux.py --poll --supervisor-dir "$SUP" --daemon-exe "$DAEMON" --config "$HOME/rr-run/config.json" --port 8080 \
     --wsjtx-ini "$HOME/.local/share/WSJT-X - rr/WSJT-X - rr.ini" -- --scenarios "$SCEN" --skip-warmup --device RR-ALSA \
-    --liveness-save-dir "$SAVE" --coverage-owsfz-dir "$ARCH" --scenario-retries "$RETR" --wsjtx-restart-cmd "sh $HOME/restart-wsjtx-rr.sh" $S6LIB "$@" > "$SUP/supervisor.log" 2>&1 )
+    --liveness-save-dir "$SAVE" --coverage-owsfz-dir "$ARCH" --scenario-retries "$RETR" --wsjtx-restart-cmd "sh $HOME/restart-wsjtx-rr.sh" $S6LIB $S6SEQ "$@" > "$SUP/supervisor.log" 2>&1 )
 rc=$?
+touch "$SUP/sched.stop"
+rm -f "$SUP/wsjtx.expected_off"
 PH=$("$PY" -c "import json;print(json.load(open('$SUP/status.json'))['phase'])" 2>/dev/null)
 log "battery ended rc=$rc phase=$PH"
 touch "$SUP/monitor.stop"; sleep 20
+pkill -x OpenWSFZ.Daemon 2>/dev/null     # a sequential S6 restarts the daemon outside the supervisor's pid record: make sure none is left
 sh "$HOME/stop-wsjtx.sh" > /dev/null 2>&1; pkill -CONT -x wsjtx 2>/dev/null; sleep 1; pkill -9 -x wsjtx 2>/dev/null; pkill -9 -x jt9 2>/dev/null; pkill -9 -x Xvfb 2>/dev/null
 # the run folder of this sweep: the newest results folder touched since T0 (captured-audio and INVALID folders are not it)
 RUN=""

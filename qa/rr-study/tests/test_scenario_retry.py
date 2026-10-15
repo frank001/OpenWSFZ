@@ -91,3 +91,45 @@ def test_ledger_counts_retries_per_scenario_and_writes_the_record(tmp_path):
     assert doc["totals"] == {"scenario_attempts": 5, "failed_attempts": 4, "replacements": 3}
     assert doc["scenarios"]["S1b"]["failed"][0]["replaced_by_attempt"] == 2 and doc["scenarios"]["S1b"]["failed"][3]["replaced_by_attempt"] is None
     assert "2026-10-14T10:00:00Z" in led.invalid_cycles
+
+
+# ---- sequential S6 (Captain 2026-10-15): two passes, each appraiser in its own slots ----------------------------------------------------------
+
+def _seq_s6(tmp):
+    (tmp / "s6").mkdir()
+    rows = [{"kind": "warmup", "slot_stamp": "261014_100000", "pass": "w"}, {"kind": "warmup", "slot_stamp": "261014_110000", "pass": "o"}]
+    rows += [{"kind": "play", "play_index": i, "slot_stamp": "261014_1001%02d" % (i * 15), "slot_stamp_o": "261014_1101%02d" % (i * 15)} for i in range(3)]
+    (tmp / "s6" / "s6_playlog.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    return rows
+
+
+def test_sequential_play_slots_are_per_appraiser(tmp_path):
+    run = mk(tmp_path, [["S1", 0, 0, cyc(0)]])
+    _seq_s6(tmp_path)
+    assert SR.play_slots(str(run), "wsjtx") == ["2026-10-14T10:01:00Z", "2026-10-14T10:01:15Z", "2026-10-14T10:01:30Z"]
+    assert SR.play_slots(str(run), "owsfz") == ["2026-10-14T11:01:00Z", "2026-10-14T11:01:15Z", "2026-10-14T11:01:30Z"]
+    # a concurrent play log has one slot per play, the same for both appraisers
+    (tmp_path / "s6" / "s6_playlog.jsonl").write_text(json.dumps({"kind": "play", "slot_stamp": "261014_100100"}) + "\n")
+    assert SR.play_slots(str(run), "wsjtx") == SR.play_slots(str(run), "owsfz") == ["2026-10-14T10:01:00Z"]
+
+
+def test_sequential_s6_coverage_is_judged_per_appraiser_against_its_own_pass(tmp_path):
+    run = mk(tmp_path, [["S1", 0, 0, cyc(0)]])
+    _seq_s6(tmp_path)
+    w, o = set(SR.play_slots(str(run), "wsjtx")), set(SR.play_slots(str(run), "owsfz"))
+    assert SR.coverage_failure(str(run), "S6", w, o) is None
+    f = SR.coverage_failure(str(run), "S6", w, w)                                               # the OpenWSFZ archive holds only the WSJT-X pass's slots: not coverage
+    assert f and "0 play slot(s) without a WSJT-X save WAV, 3 without an OpenWSFZ archive cycle" in f["reason"]
+    f2 = SR.coverage_failure(str(run), "S6", o, o)
+    assert f2 and "3 play slot(s) without a WSJT-X save WAV, 0 without" in f2["reason"]
+
+
+def test_set_aside_of_a_sequential_s6_returns_the_slots_of_both_passes_even_before_the_merge(tmp_path):
+    run = mk(tmp_path, [["S1", 0, 0, cyc(0)]])
+    for sub, stamp in (("pass-w", "261014_100000"), ("pass-o", "261014_110000")):
+        (tmp_path / "s6" / sub).mkdir(parents=True)
+        (tmp_path / "s6" / sub / "s6_playlog.jsonl").write_text(json.dumps({"kind": "warmup", "slot_stamp": stamp}) + "\n" + json.dumps({"kind": "play", "slot_stamp": stamp[:9] + "0115"}) + "\n")
+    assert not (tmp_path / "s6" / "s6_playlog.jsonl").exists()                                   # no merged log: pass O died, say
+    aside = SR.set_aside(str(run), "S6", 1)
+    assert aside["cycles"] == ["2026-10-14T10:00:00Z", "2026-10-14T10:01:15Z", "2026-10-14T11:00:00Z", "2026-10-14T11:01:15Z"]
+    assert (tmp_path / "s6-INVALID-attempt1" / "pass-o" / "s6_playlog.jsonl").is_file()

@@ -97,3 +97,51 @@ def test_stall_diagnosis_device_stopped_and_unreadable_fields():
     old = [smp("2026-10-14T10:00:%02dZ" % (i * 15), ok=(i < 1)) for i in range(4)]
     assert "not decidable" in MS.diagnose_stall(old)["reading"]
     assert MS.diagnose_stall([smp("2026-10-14T10:00:00Z")]) is None            # no stall, no diagnosis
+
+
+# ---- sequential S6 (Captain 2026-10-15): WSJT-X is OFF on purpose while OpenWSFZ plays its pass --------------------------------------------------
+
+def _off(t):
+    s = smp(t, ok=False, age=None)
+    s.update(wsjtx=[], reason="no wsjtx process", expected_off=True)
+    return s
+
+
+def test_samples_taken_while_wsjtx_is_off_on_purpose_are_counted_apart_and_are_no_stall_or_gap():
+    ss = [smp("2026-10-14T10:00:00Z"), smp("2026-10-14T10:00:15Z"), _off("2026-10-14T10:00:30Z"), _off("2026-10-14T10:00:45Z"), _off("2026-10-14T10:01:00Z"),
+          smp("2026-10-14T10:01:15Z"), smp("2026-10-14T10:01:30Z")]
+    r = MS.summarise_monitor(ss, [])
+    assert r["samples"] == 4 and r["samples_expected_off"] == 3 and r["samples_not_ok"] == 0 and r["ok_share"] == 1.0 and r["stall_episodes"] == 0
+    assert r["first_utc"] == "2026-10-14T10:00:00Z" and r["last_utc"] == "2026-10-14T10:01:30Z"       # the window is the whole battery
+    assert r["gaps_over_2x_interval"] == 0 and r["max_gap_s"] == 15.0                                 # the gap statistics use every sample
+    assert r["wsjtx_restarts_during_monitoring"] == 0
+    assert MS.summarise_monitor([_off("2026-10-14T10:00:00Z")], [])["samples"] == 0
+
+
+def _run_monitor(tmp_path, monkeypatch, flag):
+    import threading
+    import wsjtx_monitor as WM
+    sup = tmp_path / "sup"
+    sup.mkdir()
+    if flag:
+        (sup / "wsjtx.expected_off").write_text("")
+    snaps = []
+    bad = {"ok": False, "reason": "no wsjtx process", "wav_age_s": None, "wav_count": 0, "wsjtx": [], "jt9": [], "aplay": {}, "alsa": {}, "suspended_s": 1.0}
+    monkeypatch.setattr(WM, "sample", lambda *a, **k: dict(bad, t=WM.utc_now()))
+    monkeypatch.setattr(WM, "snapshot", lambda out_dir, tail, *a, **k: snaps.append(1) or str(sup / "stall-x"))
+    threading.Timer(0.7, lambda: (sup / "monitor.stop").write_text("")).start()
+    monkeypatch.setattr(sys, "argv", ["wsjtx_monitor", "--save-dir", str(tmp_path), "--out-dir", str(sup), "--interval", "0.2"])
+    assert WM.main() == 0
+    return sup, snaps
+
+
+def test_the_monitor_takes_no_snapshot_while_the_expected_off_flag_exists(tmp_path, monkeypatch):
+    sup, snaps = _run_monitor(tmp_path, monkeypatch, flag=True)
+    rows = [json.loads(x) for x in open(sup / "monitor.jsonl", encoding="utf-8")]
+    assert rows and all(r["expected_off"] for r in rows) and snaps == [] and not (sup / "stall_events.jsonl").exists()
+
+
+def test_without_the_flag_the_same_silence_is_a_stall_with_a_snapshot(tmp_path, monkeypatch):
+    sup, snaps = _run_monitor(tmp_path, monkeypatch, flag=False)
+    rows = [json.loads(x) for x in open(sup / "monitor.jsonl", encoding="utf-8")]
+    assert rows and not any("expected_off" in r for r in rows) and snaps == [1] and (sup / "stall_events.jsonl").is_file()

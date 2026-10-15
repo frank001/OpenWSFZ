@@ -104,8 +104,14 @@ def diagnose_stall(samples: list) -> dict | None:
 def summarise_monitor(samples: list, stall_events: list) -> dict:
     if not samples:
         return {"samples": 0, "note": "no monitor log: M1 was not running"}
+    # sequential S6: the samples taken while WSJT-X was OFF ON PURPOSE (the OpenWSFZ pass) are counted apart and are in no WSJT-X statistic; the gap statistics use all of them
     ts = [_t(s["t"]) for s in samples]
     gaps = [(b - a).total_seconds() for a, b in zip(ts, ts[1:])]
+    n_expected_off = sum(1 for s in samples if s.get("expected_off"))
+    first_t, last_t = samples[0]["t"], samples[-1]["t"]
+    samples = [s for s in samples if not s.get("expected_off")]
+    if not samples:
+        return {"samples": 0, "samples_expected_off": n_expected_off, "note": "every sample was taken while WSJT-X was expected to be off"}
     age = [s["wav_age_s"] for s in samples if s.get("wav_age_s") is not None]
     wp = Counter()
     rss, thr, jp = [], [], Counter()
@@ -129,7 +135,7 @@ def summarise_monitor(samples: list, stall_events: list) -> dict:
     apl = [s.get("aplay", {}) for s in samples]
     load = [s["load1"] for s in samples if s.get("load1") is not None]
     arch = [s["owsfz_archive_age_s"] for s in samples if s.get("owsfz_archive_age_s") is not None]
-    return {"samples": len(samples), "first_utc": samples[0]["t"], "last_utc": samples[-1]["t"], "interval_s_median": statistics.median(gaps) if gaps else None,
+    return {"samples": len(samples), "samples_expected_off": n_expected_off, "first_utc": first_t, "last_utc": last_t, "interval_s_median": statistics.median(gaps) if gaps else None,
             "gaps_over_2x_interval": sum(1 for g in gaps if g > 2 * (statistics.median(gaps) if gaps else 15)), "max_gap_s": max(gaps) if gaps else None,
             "ok_share": round(sum(1 for s in samples if s.get("ok")) / len(samples), 4), "samples_not_ok": sum(1 for s in samples if not s.get("ok")),
             "wav_age_s": {"median": statistics.median(age) if age else None, "p99": _pct(age, 0.99), "max": max(age) if age else None},

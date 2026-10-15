@@ -184,6 +184,47 @@ def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(cmd, rc)
 
 
+def _s6_phase(cmd: str, phase: str, timeout_s: int = 900) -> int:
+    """Sequential S6: run the launcher's phase hook (`CMD w` = WSJT-X alone, `CMD o` = OpenWSFZ alone, `CMD restore` = both appraisers up again). 0 = done."""
+    print(f"  S6 phase '{phase}': {cmd} {phase}", flush=True)
+    try:
+        rr = subprocess.run(f"{cmd} {phase}", shell=True, timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        print(f"  [WARN] S6 phase '{phase}' timed out ({timeout_s} s)", flush=True)
+        return 124
+    if rr.returncode != 0:
+        print(f"  [WARN] S6 phase '{phase}' failed (rc {rr.returncode})", flush=True)
+    return rr.returncode
+
+
+def _run_s6_sequential(args, run_dir: Path, wsjtx_exe, stall_hit: dict, stop_watchdog) -> int:
+    """S6 SEQUENTIAL (Captain 2026-10-15; why: s6/s6_merge.py). Two passes of the identical schedule, one appraiser listening in each:
+         phase w -> pass W (WSJT-X alone, the daemon is stopped; the WSJT-X liveness gate stays ON)
+         phase o -> pass O (OpenWSFZ alone: WSJT-X stopped, a fresh daemon started; the gate is OFF because WSJT-X is absent by design)
+         s6_merge.py joins them into the files the analyser reads.
+    Returns 0 only if both passes and the merge succeeded; a WSJT-X stall in pass W returns at once (the caller sees stall_hit and retries the scenario)."""
+    common = ["--run-dir", str(run_dir), "--tier", args.s6_tier, "--corpus", str(_s6_corpus(args)),
+              "--device", args.device, "--wsjt-all-txt", str(WSJT_ALL_TXT), "--owsfz-all-txt", str(OWSFZ_ALL_TXT),
+              *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
+              *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else [])]
+    worst = 0
+    rc = _s6_phase(args.s6_phase_cmd, "w")
+    if rc != 0:
+        return rc
+    r = _py("s6/s6_play.py", *common, "--appraiser", "wsjtx", "--out-sub", "pass-w", check=False)
+    if stall_hit["reading"] is not None:
+        return r.returncode or 1
+    worst = worst or r.returncode
+    stop_watchdog()                       # WSJT-X is stopped for pass O: the gate would read that as a stall
+    rc = _s6_phase(args.s6_phase_cmd, "o")
+    if rc != 0:
+        return rc
+    r = _py("s6/s6_play.py", *common, "--appraiser", "owsfz", "--out-sub", "pass-o", check=False)
+    worst = worst or r.returncode
+    m = _py("s6/s6_merge.py", "--run-dir", str(run_dir), check=False)
+    return worst or m.returncode
+
+
 def _flag_stall_and_exit(run_dir: Path, reading, scenario, where: str) -> None:
     """M2: STOP AND FLAG. No restart, no recovery, no analysis of a sweep in which an appraiser went silent (Architect, 2026-10-14)."""
     info = {"utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "scenario": scenario, "where": where, "reason": reading.reason,
@@ -262,6 +303,12 @@ def main() -> None:
     parser.add_argument("--daemon-log", default=None, help="the daemon's stdout log (per-play deadlineAbandoned for S6; the detached launcher passes it)")
     parser.add_argument("--s6-series-label", default="First S6 row of the LINUX series",
                         help="label of the S6 block (the tier is added); never pool across series or tiers")
+    parser.add_argument("--s6-mode", default="concurrent", choices=["concurrent", "sequential"],
+                        help="concurrent (default): both appraisers listen to every play at once. sequential (Captain 2026-10-15): S6 is played twice, WSJT-X alone and then OpenWSFZ alone "
+                             "(on sol the two together make WSJT-X's Qt ALSA capture stall; see s6/s6_merge.py). Needs --s6-phase-cmd. S1-S8 and S3c stay concurrent.")
+    parser.add_argument("--s6-phase-cmd", default=None, metavar="CMD",
+                        help="sequential S6 only: the launcher's hook, run as `CMD w` (daemon off, WSJT-X on), `CMD o` (WSJT-X off, a fresh daemon on) and `CMD restore` "
+                             "(daemon back on, before a retry restarts WSJT-X). Returns 0 when the state is reached.")
     parser.add_argument("--legacy-no-arm-config", action="store_true",
                         help="allow a run with no arm_config.json in the run dir (a hand-run battery). Without it "
                              "the run is REFUSED at the start, not after hours: the report header would name the "
@@ -293,6 +340,8 @@ def main() -> None:
         sys.exit("ERROR: --scenario-retries > 0 needs --wsjtx-restart-cmd (the command that restarts WSJT-X).")
     if args.scenario_retries > 0 and not args.liveness_save_dir:
         sys.exit("ERROR: --scenario-retries > 0 needs --liveness-save-dir (the gate that detects the stall).")
+    if args.s6_mode == "sequential" and not args.s6_phase_cmd:
+        sys.exit("ERROR: --s6-mode sequential needs --s6-phase-cmd (the launcher hook that switches the appraisers on and off).")
 
     # ── Build scenario list ────────────────────────────────────────────────
     scenario_part_overrides: dict[str, str] = {}
@@ -527,12 +576,16 @@ def main() -> None:
                     elif sid == _S6_ID:
                         # S6 is additive and LAST: its failure (any exit code) voids the S6 block only; S1-S8's logs, matcher and analyser stand.
                         wsjtx_exe = args.s6_wsjtx_exe or (str(Path.home() / "wsjtx-2.7.0" / "bin" / "wsjtx") if sys.platform != "win32" else None)
-                        r6 = _py("s6/s6_play.py", "--run-dir", str(run_dir), "--tier", args.s6_tier, "--corpus", str(_s6_corpus(args)),
-                                 "--device", args.device, "--wsjt-all-txt", str(WSJT_ALL_TXT), "--owsfz-all-txt", str(OWSFZ_ALL_TXT),
-                                 *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
-                                 *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else []), check=False)
-                        if r6.returncode != 0:
-                            print(f"  [WARN] S6 playback exited {r6.returncode} (2 = corpus verification, 4 = warm-up, 5 = pins, 6 = other); S1-S8 continue", flush=True)
+                        if args.s6_mode == "sequential":
+                            rc6 = _run_s6_sequential(args, run_dir, wsjtx_exe, stall_hit, _stop_watchdog)
+                        else:
+                            r6 = _py("s6/s6_play.py", "--run-dir", str(run_dir), "--tier", args.s6_tier, "--corpus", str(_s6_corpus(args)),
+                                     "--device", args.device, "--wsjt-all-txt", str(WSJT_ALL_TXT), "--owsfz-all-txt", str(OWSFZ_ALL_TXT),
+                                     *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
+                                     *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else []), check=False)
+                            rc6 = r6.returncode
+                        if rc6 != 0:
+                            print(f"  [WARN] S6 playback exited {rc6} (2 = corpus verification, 4 = warm-up, 5 = pins, 6 = other); S1-S8 continue", flush=True)
                     else:
                         _py(*run_args)
                 except subprocess.CalledProcessError:
@@ -574,6 +627,11 @@ def main() -> None:
                 _r = _R()
                 _r.reason, _r.age_s, _r.pids = reason, None, []
                 _flag_stall_and_exit(run_dir, _r, sid, "coverage after the scenario")
+            if sid == _S6_ID and args.s6_mode == "sequential":
+                # a sequential S6 leaves one appraiser off; the warm-up after the WSJT-X restart needs BOTH listening
+                if _s6_phase(args.s6_phase_cmd, "restore") != 0:
+                    print("  *** the daemon could not be brought back before the S6 retry: halting. ***", flush=True)
+                    raise SystemExit(23)
             _restart_wsjtx_and_rewarm()
             _start_watchdog()
 
@@ -673,7 +731,7 @@ def main() -> None:
     if _S6_ID in scenario_ids and (run_dir / "s6" / "s6_playlog.jsonl").is_file():
         r6a = _py("s6/s6_analyse.py", "--run-dir", str(run_dir), "--scratch", str(s6_scratch),
                   *(["--daemon-log", args.daemon_log] if args.daemon_log else []),
-                  "--series-label", f"{args.s6_series_label} (tier {args.s6_tier})", "--corpus", str(_s6_corpus(args)), check=False)
+                  "--series-label", f"{args.s6_series_label}{' [SEQUENTIAL passes]' if args.s6_mode == 'sequential' else ''} (tier {args.s6_tier})", "--corpus", str(_s6_corpus(args)), check=False)
         blk = run_dir / "s6" / "s6_section5.md"
         if r6a.returncode == 0 and blk.is_file() and s6_only:
             from s6 import s6_report_header

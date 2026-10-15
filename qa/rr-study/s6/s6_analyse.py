@@ -68,13 +68,23 @@ def key_rows(rows: list) -> tuple:
     return out, hashed
 
 
+def stamp_o(p: dict) -> str:
+    """The slot in which OpenWSFZ heard this play. A concurrent S6 has one slot per play (both appraisers listened at once); a SEQUENTIAL S6 (s6_merge.py) played the
+    identical schedule twice, so a play has the WSJT-X pass's slot (`slot_stamp`) and the OpenWSFZ pass's slot (`slot_stamp_o`)."""
+    return p.get("slot_stamp_o", p["slot_stamp"])
+
+
+def design_of(plays: list) -> str:
+    return "sequential" if plays and all("slot_stamp_o" in p for p in plays) else "concurrent"
+
+
 def build_obs(plays: list, wsjt: dict, owsfz: dict, abandoned: dict) -> dict:
     obs = {}
     for p in plays:
         w, hw = key_rows(wsjt.get(p["slot_stamp"], []))
-        o, ho = key_rows(owsfz.get(p["slot_stamp"], []))
+        o, ho = key_rows(owsfz.get(stamp_o(p), []))
         d = obs.setdefault(p["wav_id"], {"band": p["band"], "sun": p["sun"], "trials": {}})
-        d["trials"][p["trial"]] = {"w": w, "o": o, "hw": hw, "ho": ho, "order": p["order"], "abandoned": bool(abandoned.get(p["slot_stamp"]))}
+        d["trials"][p["trial"]] = {"w": w, "o": o, "hw": hw, "ho": ho, "order": p["order"], "abandoned": bool(abandoned.get(stamp_o(p)))}
     return obs
 
 
@@ -146,13 +156,19 @@ def attribute_pass_lines(lines: list, play_slots: list, tz_offset_s: int | None 
 
 # ------------------------------------------------------------------ validity rows
 
-def v2_rows(plays: list, warm_slots: list, wsjt: dict, owsfz: dict) -> dict:
-    offs = [p["offset_s"] for p in plays]
+def v2_rows(plays: list, warm_slots: list, wsjt: dict, owsfz: dict, warm_slots_o: list | None = None) -> dict:
+    """Concurrent S6: one set of slots for both logs. Sequential S6 (`slot_stamp_o` present): each log is checked against ITS OWN pass's slots (the WSJT-X pass's
+    `slot_stamp` and warm-up; the OpenWSFZ pass's `slot_stamp_o` and warm-up `warm_slots_o`)."""
+    offs = [p["offset_s"] for p in plays] + [p["offset_s_o"] for p in plays if "offset_s_o" in p]
     bad_off = [o for o in offs if abs(o - P.OFFSET_NOMINAL_S) > P.OFFSET_TOLERANCE_S]
     play_slots = [p["slot_stamp"] for p in plays]
+    play_slots_o = [stamp_o(p) for p in plays]
     dup = [s for s, c in Counter(play_slots).items() if c > 1]
-    ok_slots = set(play_slots) | set(warm_slots)
-    stray = {a: sum(len(rows) for s, rows in log.items() if s not in ok_slots) for a, log in (("wsjtx", wsjt), ("owsfz", owsfz))}
+    if design_of(plays) == "sequential":                       # the OpenWSFZ pass has its own slots: no slot may hold two plays there either
+        dup += [s for s, c in Counter(play_slots_o).items() if c > 1]
+    ok_w = set(play_slots) | set(warm_slots)
+    ok_o = set(play_slots_o) | set(warm_slots if warm_slots_o is None else warm_slots_o)
+    stray = {"wsjtx": sum(len(rows) for s, rows in wsjt.items() if s not in ok_w), "owsfz": sum(len(rows) for s, rows in owsfz.items() if s not in ok_o)}
     # (a) the player's call time against the boundary is RETIRED AS A CHECK (Architect amendment 3, 2026-10-14): it reads the scheduler's own timestamp and was 0.000 s on all
     # 144 plays of two runs, so it cannot fail. `plays_outside_tolerance` stays in the row as a RECORD; the row's other checks (no slot with two plays, no stray lines) stand.
     passed = not dup and stray["wsjtx"] == 0 and stray["owsfz"] == 0
@@ -170,11 +186,14 @@ def v7_row(plays: list, run_dir: str) -> dict:
     REQUIRED and their absence FAILS; without the gate (older runs, desk runs) the row reads NOT MEASURED and does not void the block."""
     from harness import liveness as LV
     gate_on = os.path.isfile(os.path.join(run_dir, "liveness_gate.json"))
-    want = [LV.stamp_to_iso(p["slot_stamp"]) for p in plays]
+    want_by = {"wsjtx": [LV.stamp_to_iso(p["slot_stamp"]) for p in plays],            # sequential S6: each appraiser against the slots of ITS OWN pass
+               "owsfz": [LV.stamp_to_iso(stamp_o(p)) for p in plays]}
+    want = want_by["wsjtx"]
     out: dict = {"bar": "0 missing play slots per appraiser", "plays": len(want)}
     ok = True
     measured_any = False
     for key, fname in (("wsjtx", "coverage_slots_wsjtx.txt"), ("owsfz", "coverage_slots_owsfz.txt")):
+        want = want_by[key]
         slots = LV.read_slots(os.path.join(run_dir, fname))
         if slots is None:
             out[key] = {"measured": False}
@@ -227,8 +246,16 @@ def fmt_block(res: dict, label: str) -> str:
     L = []
     A = L.append
     v = res["validity"]
-    A("### S6 — Off-air WAV replay (K = 3, WSJT-X and OpenWSFZ listening to each playback at once)")
+    seq = res.get("design") == "sequential"
+    A("### S6 — Off-air WAV replay (K = 3, " + ("SEQUENTIAL: WSJT-X and OpenWSFZ each played the identical schedule in turn, one appraiser at a time)" if seq
+                                               else "WSJT-X and OpenWSFZ listening to each playback at once)"))
     A("")
+    if seq:
+        A("*Sequential design (Captain, 2026-10-15). Played together, WSJT-X's Qt ALSA capture stopped delivering audio after OpenWSFZ's residual pass delayed its capture thread "
+          "(sol, B2BASE sweep 1 and the isolation runs), so S6 is played twice with one appraiser listening each time: first WSJT-X alone, then OpenWSFZ alone, the same WAVs in the same "
+          "order and the same slots of the schedule, at different clock times. The two appraisers therefore heard two separate captures of the same recording (codec noise and timing "
+          "differ slightly) and OpenWSFZ ran in a fresh process. **Not pooled with a concurrent S6 row.** S6-V2 stray lines, S6-V3 and S6-V7 are judged per pass.*")
+        A("")
     A("**%s.** Tier **%s**: %d WAVs x %d trials = %d plays on the 15 s grid; source = the WSJT-X-side WAV of the frozen reference-set corpus; peak-normalised to 0.9 as every scenario. "
       "No truth is assumed: the figures measure repeatability and reproducibility, not recall. Informational on its first battery." % (label, res["tier"], res["wavs"], S.K, res["plays"]))
     A("")
@@ -325,7 +352,7 @@ def fmt_block(res: dict, label: str) -> str:
 
 # ------------------------------------------------------------------ main
 
-def describe_chain(run_dir: str) -> str:
+def describe_chain(run_dir: str, design: str = "concurrent") -> str:
     """The CPU / thread label of the block, from the RUN'S OWN arm_config.json and /proc/cpuinfo (never typed): the Architect's rule (2026-10-13) is that the
     dry run says 'subtractionMaxThreads N (station value, not auto)' and claims nothing about the default set-up."""
     cpus = os.cpu_count() or 0
@@ -350,7 +377,8 @@ def describe_chain(run_dir: str) -> str:
         t = "subtractionMaxThreads 0 (auto = %s on %s CPUs)" % (auto, cpus)
     else:
         t = "subtractionMaxThreads %s on %s CPUs (as configured; auto would give %s)%s" % (threads, cpus, auto, " (station value, not auto)" if threads != auto else " (= auto)")
-    return "%s, subtraction deadline ON, %s, WSJT-X decoding on the same CPUs; a drop on the capture path would be SILENT (no counter or log line exists)" % (model or "host CPU unknown", t)
+    who = ("OpenWSFZ alone on the host during its pass (WSJT-X stopped; sequential S6)" if design == "sequential" else "WSJT-X decoding on the same CPUs")
+    return "%s, subtraction deadline ON, %s, %s; a drop on the capture path would be SILENT (no counter or log line exists)" % (model or "host CPU unknown", t, who)
 
 
 def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, cpu_chain_label: str | None = None, n_boot: int = S.BOOT_N,
@@ -358,7 +386,10 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     s6 = os.path.join(run_dir, "s6")
     rows = [json.loads(x) for x in open(os.path.join(s6, "s6_playlog.jsonl"), encoding="utf8")]
     plays = [r for r in rows if r["kind"] == "play"]
-    warm_slots = [r["slot_stamp"] for r in rows if r["kind"] == "warmup"]
+    design = design_of(plays)
+    # the warm-up rows of a sequential S6 are tagged with their pass ("w" = the WSJT-X pass, "o" = the OpenWSFZ pass); a concurrent S6's have no tag and serve both logs
+    warm_slots = [r["slot_stamp"] for r in rows if r["kind"] == "warmup" and r.get("pass", "w") == "w"]
+    warm_slots_o = [r["slot_stamp"] for r in rows if r["kind"] == "warmup" and r.get("pass", "o") == "o"]
     vp = os.path.join(s6, "s6_validity.json")
     # the player writes s6_validity.json on every exit it controls; a killed or crashed player leaves none: the block is VOID, not a crash
     validity = json.load(open(vp, encoding="utf8")) if os.path.isfile(vp) else {"tier": "unknown", "plays_planned": 0, "player_did_not_finish": True}
@@ -367,11 +398,11 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     wsjt, owsfz = parse_log(os.path.join(scratch, "wsjt-s6.txt")), parse_log(os.path.join(scratch, "owsfz-s6.txt"))
     pins_file = os.path.join(s6, "s6_pins.json")
     pins = json.load(open(pins_file, encoding="utf8")) if os.path.isfile(pins_file) else {}
-    cpu_chain_label = cpu_chain_label or describe_chain(run_dir)
+    cpu_chain_label = cpu_chain_label or describe_chain(run_dir, design)
     tier = validity["tier"]
     expected = validity["plays_planned"]
     v = {"S6-V1": validity.get("S6-V1", {"result": "MISSING"}), "S6-V3": validity.get("S6-V3", {"result": "MISSING"}), "S6-V5": validity.get("S6-V5", {"result": "MISSING"})}
-    v["S6-V2"] = v2_rows(plays, warm_slots, wsjt, owsfz)
+    v["S6-V2"] = v2_rows(plays, warm_slots, wsjt, owsfz, warm_slots_o)
     onset = None
     can_check_onset = bool(corpus and wavlist_path and os.path.isfile(wavlist_path) and slices_present)
     if can_check_onset:
@@ -393,12 +424,12 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
     okr = lambda k: v[k]["result"] == "PASS" or (k == "S6-V7" and v[k]["result"] == "NOT MEASURED")
     ok = all(okr(k) for k in v)
     status = "VALID" if ok else "VOID: " + ", ".join("%s %s" % (k, v[k]["result"]) for k in v if not okr(k))
-    res = {"tier": tier, "status": status, "validity": v, "onset": onset, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
+    res = {"tier": tier, "status": status, "design": design, "validity": v, "onset": onset, "plays": len(plays), "wavs": len({p["wav_id"] for p in plays}), "series_label": series_label,
            "cpu_chain_label": cpu_chain_label, "window": window, "pins": pins}
     if ok:
         tzp = os.path.join(s6, "s6_tz.json")
         tz_s = json.load(open(tzp, encoding="utf8"))["gmtoff_s"] if os.path.isfile(tzp) else None
-        pl = (attribute_pass_lines(read_pass_lines(daemon_log), [p["slot_stamp"] for p in plays], tz_s) if daemon_log
+        pl = (attribute_pass_lines(read_pass_lines(daemon_log), [stamp_o(p) for p in plays], tz_s) if daemon_log      # the daemon ran in the OpenWSFZ pass's slots
               else {"trusted": False, "by_slot": {}, "attributed_plays": 0, "offset_h": None, "inferred_offset_h": None, "reason": "no daemon log"})
         ab = {s: ln["abandoned"] for s, ln in pl["by_slot"].items()} if pl["trusted"] else {}
         n_ab = sum(1 for x in ab.values() if x)

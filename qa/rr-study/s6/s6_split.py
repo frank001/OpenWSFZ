@@ -18,21 +18,34 @@ import sys
 STAMP = re.compile(r"^\d{6}_\d{6}$")
 
 
-def first_s6_slot(run_dir: str):
+def first_s6_slots(run_dir: str):
+    """(first slot of the WSJT-X side, first slot of the OpenWSFZ side), or None without a play log. A concurrent S6 has one first slot for both. A SEQUENTIAL S6
+    (s6_merge.py) played the two appraisers in two passes: warm-up and batch_plan rows carry "pass": "w"|"o" and a play row carries `slot_stamp_o` for the OpenWSFZ pass."""
     p = os.path.join(run_dir, "s6", "s6_playlog.jsonl")
     if not os.path.isfile(p):
         return None
-    # only the warm-up and play rows carry a slot_stamp (a batch_plan row has first_slot): the first S6 slot is the earliest of either
-    slots = []
+    w, o = [], []
     for x in open(p, encoding="utf8"):
         if not x.strip():
             continue
         r = json.loads(x)
-        if "slot_stamp" in r:
-            slots.append(r["slot_stamp"])
-        elif "first_slot" in r:
-            slots.append(r["first_slot"])
-    return min(slots) if slots else None
+        stamp = r.get("slot_stamp") or r.get("first_slot")      # only the warm-up and play rows carry a slot_stamp (a batch_plan row has first_slot)
+        who = r.get("pass")
+        if stamp and who in (None, "w"):
+            w.append(stamp)
+        if stamp and who in (None, "o"):
+            o.append(stamp)
+        if r.get("slot_stamp_o"):
+            o.append(r["slot_stamp_o"])
+    if not w and not o:
+        return None
+    return (min(w) if w else min(o)), (min(o) if o else min(w))
+
+
+def first_s6_slot(run_dir: str):
+    """The earliest S6 slot of either side (the old single-slot view; a concurrent S6 has only one)."""
+    f = first_s6_slots(run_dir)
+    return None if f is None else min(f)
 
 
 def split_one(copy_path: str, out_path: str, first: str) -> tuple:
@@ -49,13 +62,19 @@ def split_one(copy_path: str, out_path: str, first: str) -> tuple:
 
 
 def split_logs(run_dir: str, wsjt_copy: str, owsfz_copy: str, scratch: str):
-    first = first_s6_slot(run_dir)
-    if first is None:
+    """Both logs are cut at the EARLIEST S6 slot of either pass (the old rule: S6 is the last playback of a battery, so every line stamped at or after its first slot belongs to
+    S6). In a sequential S6 that also means a decode of the appraiser that should be OFF during the other's pass lands in the S6 slice, where the S6-V2 stray-line check sees it."""
+    firsts = first_s6_slots(run_dir)
+    if firsts is None:
         return None
+    first = min(firsts)
     os.makedirs(scratch, exist_ok=True)
     k1, m1 = split_one(wsjt_copy, os.path.join(scratch, "wsjt-s6.txt"), first)
     k2, m2 = split_one(owsfz_copy, os.path.join(scratch, "owsfz-s6.txt"), first)
-    return {"first_s6_slot": first, "wsjtx": {"kept": k1, "moved": m1}, "owsfz": {"kept": k2, "moved": m2}}
+    out = {"first_s6_slot": first, "wsjtx": {"kept": k1, "moved": m1}, "owsfz": {"kept": k2, "moved": m2}}
+    if firsts[0] != firsts[1]:
+        out["first_slot_wsjtx_pass"], out["first_slot_owsfz_pass"] = firsts
+    return out
 
 
 def main() -> None:

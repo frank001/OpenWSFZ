@@ -12,7 +12,7 @@ export SCENARIO_RETRIES=${SCENARIO_RETRIES:-3}
 SLOG=$HOME/rr-run/series-$ID.log
 PY=$HOME/rr-venv/bin/python
 slog() { echo "$(date -u +%FT%TZ) $*" >> "$SLOG"; }
-slog "series $ID start: $N sweeps; scenarios $SCEN; retries per scenario $SCENARIO_RETRIES; build $(git -C $HOME/OpenWSFZ-b2src rev-parse HEAD); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
+slog "series $ID start: $N sweeps; scenarios $SCEN; retries per scenario $SCENARIO_RETRIES; S6 mode ${S6_MODE:-sequential}; daemon scheduling ${DAEMON_SCHED:-none}; build $(git -C $HOME/OpenWSFZ-b2src rev-parse HEAD); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
 TA=0; TF=0; TR=0
 i=1
 while [ $i -le "$N" ]; do

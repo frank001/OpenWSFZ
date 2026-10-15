@@ -207,16 +207,22 @@ def main() -> int:
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: halt.update(flag=True))
     log = os.path.join(a.out_dir, "monitor.jsonl")
+    # SEQUENTIAL S6 (Captain 2026-10-15): while OpenWSFZ plays its pass alone, WSJT-X is switched off ON PURPOSE. The launcher's phase hook creates this flag file for that
+    # time; a sample taken while it exists is tagged `expected_off` and is neither a stall nor a snapshot. The summary counts those samples apart.
+    expected_off_flag = os.path.join(a.out_dir, "wsjtx.expected_off")
     tail: list = []
     in_stall = False
     print("monitor started %s: save-dir=%s interval=%.0fs stall=%.0fs abort_on_stall=%s" % (utc_now(), a.save_dir, a.interval, a.stall_s, a.abort_on_stall), flush=True)
     while not halt["flag"] and not os.path.exists(stop):
         s = sample(a.save_dir, a.owsfz_archive, time.time(), a.stall_s)
+        if os.path.exists(expected_off_flag):
+            s["expected_off"] = True
         tail.append(s)
         tail[:] = tail[-TAIL_LINES:]
         with open(log, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(s) + "\n")
-        if not s["ok"] and not in_stall:
+        stalled = (not s["ok"]) and not s.get("expected_off")
+        if stalled and not in_stall:
             in_stall = True
             d = snapshot(a.out_dir, tail)
             with open(os.path.join(a.out_dir, "stall_events.jsonl"), "a", encoding="utf-8") as fh:
@@ -229,7 +235,7 @@ def main() -> int:
                         print("SIGABRT sent to wsjtx %d (core dump needs ulimit -c unlimited)" % p, flush=True)
                     except OSError as e:
                         print("SIGABRT failed for %d: %s" % (p, e), flush=True)
-        elif s["ok"]:
+        elif not stalled:
             in_stall = False
         for _ in range(int(a.interval * 2)):
             if halt["flag"] or os.path.exists(stop):

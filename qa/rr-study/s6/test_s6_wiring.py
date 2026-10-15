@@ -42,3 +42,61 @@ def test_s6_series_table_is_carried_and_extended():
     assert tbl2 == "" and "S6" not in rest2
     _, tbl3 = AR.s6_series("## Section 6\n\n| run | x |\n", "| S6 | VALID | tier quick | first | n/a |")
     assert tbl3.startswith("### S6 series") and tbl3.count("\n| S6 | VALID") == 1
+
+
+# ---- sequential S6 driver (Captain 2026-10-15) ------------------------------------------------------------------------------------------------
+
+class _R:
+    def __init__(self, rc):
+        self.returncode = rc
+
+
+def _drive(monkeypatch, tmp_path, phase_rc=None, play_rc=None, stall_on_first_play=False, merge_rc=0):
+    calls = []
+    phase_rc, play_rc = phase_rc or {}, play_rc or {}
+    stall = {"reading": None}
+
+    def fake_phase(cmd, phase, timeout_s=900):
+        calls.append(("phase", phase))
+        return phase_rc.get(phase, 0)
+
+    def fake_py(*a, check=True):
+        who = a[a.index("--appraiser") + 1] if "--appraiser" in a else None
+        calls.append(("py", a[0], who))
+        if who == "wsjtx" and stall_on_first_play:
+            stall["reading"] = object()
+            return _R(-15)
+        return _R(merge_rc if a[0].endswith("s6_merge.py") else play_rc.get(who, 0))
+
+    monkeypatch.setattr(RS, "_s6_phase", fake_phase)
+    monkeypatch.setattr(RS, "_py", fake_py)
+    stopped = []
+    args = Namespace(s6_tier="quick", s6_corpus=str(tmp_path), s6_scratch=None, device="D", s6_ows_lib=None, s6_phase_cmd="hook")
+    rc = RS._run_s6_sequential(args, tmp_path, None, stall, lambda: stopped.append(len(calls)))
+    return rc, calls, stopped
+
+
+def test_the_sequential_driver_runs_w_then_o_then_merges_and_stops_the_gate_between(monkeypatch, tmp_path):
+    rc, calls, stopped = _drive(monkeypatch, tmp_path)
+    assert rc == 0
+    assert calls == [("phase", "w"), ("py", "s6/s6_play.py", "wsjtx"), ("phase", "o"), ("py", "s6/s6_play.py", "owsfz"), ("py", "s6/s6_merge.py", None)]
+    assert stopped == [2]                       # the gate was stopped after pass W and BEFORE the phase that switches WSJT-X off
+
+
+def test_a_wsjtx_stall_in_pass_w_returns_at_once_for_the_scenario_retry(monkeypatch, tmp_path):
+    rc, calls, stopped = _drive(monkeypatch, tmp_path, stall_on_first_play=True)
+    assert rc == -15 and calls == [("phase", "w"), ("py", "s6/s6_play.py", "wsjtx")] and stopped == []      # no phase o, no pass O, no merge, the gate left to the caller
+
+
+def test_a_failed_phase_stops_the_driver_before_any_playback(monkeypatch, tmp_path):
+    rc, calls, _ = _drive(monkeypatch, tmp_path, phase_rc={"w": 1})
+    assert rc == 1 and calls == [("phase", "w")]
+    rc2, calls2, _ = _drive(monkeypatch, tmp_path, phase_rc={"o": 1})
+    assert rc2 == 1 and calls2 == [("phase", "w"), ("py", "s6/s6_play.py", "wsjtx"), ("phase", "o")]       # pass W was played; the daemon did not come up: no pass O, no merge
+
+
+def test_a_pass_that_reports_a_nonzero_exit_still_merges_and_the_worst_code_is_returned(monkeypatch, tmp_path):
+    rc, calls, _ = _drive(monkeypatch, tmp_path, play_rc={"owsfz": 4})
+    assert rc == 4 and calls[-1] == ("py", "s6/s6_merge.py", None)
+    rc2, _, _ = _drive(monkeypatch, tmp_path, merge_rc=1)
+    assert rc2 == 1

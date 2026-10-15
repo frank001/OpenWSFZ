@@ -7,6 +7,7 @@ What it does, in order (any failure stops S6 ONLY; the exit code says which row 
   S6-V1  the frozen corpus verifies and every WAV of the tier is the one in s6-wavlist.json
   S6-V5  (start) SHA-256 of the OpenWSFZ native library and of the WSJT-X executable
   S6-V3  mechanical warm-up: one synthetic Q-prefix cycle; both ALL.TXT must gain >= 1 line stamped with that slot (3 attempts)
+         (sequential S6, --appraiser wsjtx|owsfz: only the appraiser listening in this pass; see s6_merge.py)
   plays  K = 3 trials; each trial is a seeded shuffle of the tier's WAVs (seed = sha256("S6,<trial>") mod 2^31, the corpus_replay
          rule); one WAV per 15 s slot, consecutive slots, sound started AT the slot boundary (the WAVs were recorded from the slot start);
          the next WAV is rendered while the current one plays
@@ -94,6 +95,12 @@ def lines_for_slot(path: str, pos: int, stamp: str) -> int:
     return n
 
 
+def warmup_ok(wsjtx_lines: int, owsfz_lines: int, appraiser: str) -> bool:
+    """S6-V3 for one warm-up attempt. Concurrent S6 ('both'): both logs must have decoded the synthetic cycle. A sequential pass: only the appraiser that is
+    listening in it ('wsjtx' or 'owsfz'); the other one is switched off for the pass, so its log is silent by design."""
+    return (wsjtx_lines >= 1 or appraiser == "owsfz") and (owsfz_lines >= 1 or appraiser == "wsjtx")
+
+
 def file_size(path: str) -> int:
     return os.path.getsize(path) if os.path.isfile(path) else 0
 
@@ -132,13 +139,17 @@ def main() -> None:
     ap.add_argument("--wsjtx-exe", default=None, help="the WSJT-X executable (hashed at start and end)")
     ap.add_argument("--dry-run", action="store_true", help="no sound, no waiting: a fake clock (tests and desk checks only)")
     ap.add_argument("--skip-verify", action="store_true", help="DEV ONLY: skips the corpus verification; S6-V1 is then recorded as SKIPPED = not PASS")
+    ap.add_argument("--appraiser", default="both", choices=("both", "wsjtx", "owsfz"),
+                    help="SEQUENTIAL S6 (Captain 2026-10-15): which appraiser is listening in THIS pass. 'both' (default) is the original concurrent S6. With 'wsjtx' or "
+                         "'owsfz' only that appraiser's log has to decode the warm-up cycle (the other one is switched off for the pass).")
+    ap.add_argument("--out-sub", default="", help="write the pass's files to <run-dir>/s6/<out-sub>/ (sequential S6: pass-w, pass-o; s6_merge.py combines them)")
     a = ap.parse_args()
 
-    out = os.path.join(a.run_dir, "s6")
+    out = os.path.join(a.run_dir, "s6", a.out_sub) if a.out_sub else os.path.join(a.run_dir, "s6")
     os.makedirs(out, exist_ok=True)
     wl = json.load(open(a.wavlist, encoding="utf8"))
     items = D.tier_items(wl, a.tier)
-    validity: dict = {"tier": a.tier, "plays_planned": len(items) * D.K_TRIALS}
+    validity: dict = {"tier": a.tier, "plays_planned": len(items) * D.K_TRIALS, "appraiser": a.appraiser}
 
     def save_validity(exit_code: int, note: str = "") -> None:
         validity["exit_code"], validity["note"] = exit_code, note
@@ -218,7 +229,8 @@ def main() -> None:
                           "offset_s": round(started - b, 3), "wsjtx_lines": cw, "owsfz_lines": co})
         print("S6 warm-up attempt %d slot %s: WSJT-X %d line(s), OpenWSFZ %d line(s)" % (attempt, stamp, cw, co), flush=True)
         next_b = next_boundary(now() + 1)
-        if cw >= 1 and co >= 1:
+        # concurrent S6: both appraisers must decode the warm-up; a sequential pass needs only the appraiser that is listening in it (the other is switched off)
+        if warmup_ok(cw, co, a.appraiser):
             v3_ok = True
             break
     validity["S6-V3"] = {"result": "PASS" if v3_ok else "FAIL", "attempts": warm_rows}
@@ -295,7 +307,7 @@ def main() -> None:
     with open(os.path.join(out, "s6_pins.json"), "w", encoding="utf8", newline="\n") as f2:
         json.dump({"start": pins_start, "end": pins_end}, f2, indent=1)
     with open(os.path.join(out, "s6_window.json"), "w", encoding="utf8", newline="\n") as f3:
-        json.dump({"tier": a.tier, "wavlist_sha256": D.sha256_file(a.wavlist), "wavlist_seed": wl["seed"], "k_trials": D.K_TRIALS,
+        json.dump({"tier": a.tier, "appraiser": a.appraiser, "wavlist_sha256": D.sha256_file(a.wavlist), "wavlist_seed": wl["seed"], "k_trials": D.K_TRIALS,
                    "first_warmup_slot": warm_rows[0]["slot_stamp"], "first_play_slot": slot_stamp(first_b), "last_play_slot": slot_stamp(last_b),
                    "plays": len(sched), "batches": len(batches), "idle_slots_between_batches": idle_slots, "slips": slips, "end_utc": iso(now())}, f3, indent=1)
     validity["S6-V4-plays_completed"] = len(sched)
