@@ -128,9 +128,12 @@ def attribute_pass_lines(lines: list, play_slots: list, tz_offset_s: int | None 
     (`cycle_sod`, see read_pass_lines). The older FORMULA (Architect 2026-10-13) is kept as a CROSS-CHECK: a line stamped T (LOCAL, whole seconds) that took `elapsed` ms belongs to the slot
     floor((T - offset - elapsed) / 15) * 15 - 15. Where the formula and the Cycle line disagree the Cycle line wins, because the formula has whole-second resolution and a fast pass (OpenWSFZ
     alone on the CPU) can end just before the next boundary: its second line falls one slot early (desk check of the first sequential S6 run: 9 of 68 lines). ONE line stands for a slot:
-    a second line for a slot, or a line in no play slot, is UNMAPPED (an abandoned line stands for its slot, which changes no count). THE FLOOR (MIN_ATTRIBUTED_SHARE, unchanged) applies to
-    the lines where BOTH rules agree: mapped = agreeing lines that stand for a play slot, over the lines whose pass started inside the window of the plays. Trusted only if the floor holds and
-    the system offset equals the whole-hour offset that attributes the most lines (the time-zone cross-check; amendment 2 (b)); otherwise the field reads UNKNOWN (but see run(): the interim rule).
+    a second line for a slot, or a line in no play slot, is UNMAPPED (an abandoned line stands for its slot, which changes no count). TRUST (Architect amendment 6, which replaces amendment 5's "both
+    agree" floor): the attribution is TRUSTED only if (a) the share of window pass lines that map to a play slot BY THEIR CYCLE LINE is at least MIN_ATTRIBUTED_SHARE, (b) no play slot has
+    two lines by the Cycle line, (c) there is no UNEXPLAINED disagreement between the Cycle line and the formula (a disagreement is explained only if the formula's slot is exactly one slot
+    before the Cycle line's slot AND T - elapsed lies within 1.0 s before the end of the Cycle line's cycle; a long pass that printed after the NEXT Cycle line must show up here), and (d) the
+    time-zone cross-check holds (the system offset equals the whole-hour offset that attributes the most lines; amendment 2 (b)). Otherwise the field reads UNKNOWN (but see run(): the interim
+    rule). A log with no usable Cycle lines (single-stage) uses the formula alone under the floor of amendment 2 (b).
     -> {"offset_h", "tz_offset_s", "inferred_offset_h", "attributed_plays", "by_slot": {slot_stamp: line}, "trusted", "reason", counts of agreeing / disagreeing lines, "window_abandoned_lines"}"""
     slot_sod = {}
     for st in play_slots:
@@ -168,19 +171,55 @@ def attribute_pass_lines(lines: list, play_slots: list, tz_offset_s: int | None 
     standing = {id(v) for v in got.values()}
     first, last = min(slot_sod.values()), max(slot_sod.values())
     in_window = [ln for ln in lines if first <= ((ln["sod"] - tz_offset_s) % 86400) - ln["elapsed_ms"] / 1000.0 - P.SLOT_S <= last + 2 * P.SLOT_S]
+    play_sods = set(slot_sod.values())
+    use_cycle = any(ln.get("cycle_sod") is not None for ln in in_window)
+    counts = Counter(slot_of(ln) for ln in in_window if slot_of(ln) in play_sods)
+    slots_with_two = sum(1 for c in counts.values() if c > 1)                          # (b) one parsed line per cycle per daemon, so two lines in one slot are an error
+    cycle_mapped = [ln for ln in in_window if id(ln) in standing]
     agree = [ln for ln in in_window if id(ln) in standing and (ln.get("cycle_sod") is None or ln["cycle_sod"] == formula_sod(ln, tz_offset_s))]
     disagree = [ln for ln in in_window if ln.get("cycle_sod") is not None and ln["cycle_sod"] != formula_sod(ln, tz_offset_s)]
-    cycle_mapped = [ln for ln in in_window if id(ln) in standing]
-    share = len(agree) / len(in_window) if in_window else None
-    enough = share is not None and share >= MIN_ATTRIBUTED_SHARE
-    tz_agrees = tz_offset_s % 3600 == 0 and tz_offset_s // 3600 == inferred
-    reason = "" if (enough and tz_agrees) else ("%d of %d pass lines in the window map to a play slot by both rules" % (len(agree), len(in_window)) if not enough else
-                                                 "the system offset (%+d s) and the inferred offset (%+d h) disagree" % (tz_offset_s, inferred))
+
+    def md(a: float, b: float) -> float:                                               # a - b on the 24 h circle, in [-12 h, +12 h)
+        return ((a - b + 43200.0) % 86400.0) - 43200.0
+
+    def explained(ln: dict) -> bool:
+        """Architect amendment 6 (c): a disagreement is explained ONLY if the formula's slot is exactly one slot BEFORE the Cycle line's slot AND T - elapsed lies within 1.0 s before the END of
+        the Cycle line's cycle. The bar is the 1 s resolution of the log stamp, not this run's 0.0-0.3 s. Anything else is unexplained (e.g. a long pass that printed after the NEXT Cycle line)."""
+        c = ln["cycle_sod"]
+        start = ((ln["sod"] - tz_offset_s) % 86400) - ln["elapsed_ms"] / 1000.0
+        return md(formula_sod(ln, tz_offset_s), c) == -P.SLOT_S and -1.0 <= md(start, c + P.SLOT_S) < 0.0
+
+    n_expl = sum(1 for ln in disagree if explained(ln))
+    n_unexpl = len(disagree) - n_expl
+    share_cycle = (len(cycle_mapped) / len(in_window)) if in_window else None         # (a)
+    share_both = (len(agree) / len(in_window)) if in_window else None                  # recorded; no longer the floor's basis when the Cycle line is used
+    tz_agrees = tz_offset_s % 3600 == 0 and tz_offset_s // 3600 == inferred           # (d)
+    if use_cycle:
+        failed = []
+        if not (share_cycle is not None and share_cycle >= MIN_ATTRIBUTED_SHARE):
+            failed.append("(a) %d of %d pass lines in the window map to a play slot by their Cycle line (floor %.0f %%)" % (len(cycle_mapped), len(in_window), 100 * MIN_ATTRIBUTED_SHARE))
+        if slots_with_two:
+            failed.append("(b) %d play slot(s) have two pass lines by the Cycle line" % slots_with_two)
+        if n_unexpl:
+            failed.append("(c) %d unexplained disagreement(s) between the Cycle line and the formula" % n_unexpl)
+        if not tz_agrees:
+            failed.append("(d) the system offset (%+d s) and the inferred offset (%+d h) disagree" % (tz_offset_s, inferred))
+        trusted, reason = not failed, "; ".join(failed)
+        share = share_cycle
+        enough = not failed
+    else:
+        # a single-stage log (or none with usable Cycle lines): the formula alone, under amendment 2 (b)'s floor, one line per slot
+        share = share_both
+        enough = share is not None and share >= MIN_ATTRIBUTED_SHARE
+        trusted = enough and tz_agrees
+        reason = "" if trusted else ("%d of %d pass lines in the window map to a play slot (formula only)" % (len(agree), len(in_window)) if not enough else
+                                     "the system offset (%+d s) and the inferred offset (%+d h) disagree" % (tz_offset_s, inferred))
     return {"offset_h": tz_offset_s / 3600.0, "tz_offset_s": tz_offset_s, "inferred_offset_h": inferred, "attributed_plays": len(got), "by_slot": got,
-            "lines_in_window": len(in_window), "lines_mapped": len(agree), "line_share": share,
-            "lines_agree": len(agree), "lines_disagree": len(disagree), "lines_cycle_mapped": len(cycle_mapped), "share_cycle_mapped": (len(cycle_mapped) / len(in_window)) if in_window else None,
-            "attribution": "the adjacent Cycle line (formula as cross-check)" if any(ln.get("cycle_sod") is not None for ln in lines) else "the formula only (no usable Cycle lines in the log)",
-            "window_abandoned_lines": sum(1 for ln in in_window if ln["abandoned"]), "tz_agrees": tz_agrees, "trusted": enough and tz_agrees, "reason": reason}
+            "lines_in_window": len(in_window), "lines_mapped": len(cycle_mapped) if use_cycle else len(agree), "line_share": share_both,
+            "lines_agree": len(agree), "lines_disagree": len(disagree), "disagree_explained": n_expl, "disagree_unexplained": n_unexpl,
+            "lines_cycle_mapped": len(cycle_mapped), "share_cycle_mapped": share_cycle, "slots_with_two_lines": slots_with_two,
+            "attribution": "the adjacent Cycle line (formula as cross-check)" if use_cycle else "formula only (no usable Cycle lines in the log)",
+            "window_abandoned_lines": sum(1 for ln in in_window if ln["abandoned"]), "tz_agrees": tz_agrees, "trusted": trusted, "reason": reason}
 
 
 # ------------------------------------------------------------------ validity rows
@@ -310,8 +349,10 @@ def fmt_block(res: dict, label: str) -> str:
         A("")
         A("*The abandonment count below is for the SEQUENTIAL design (OpenWSFZ alone on the CPU) and is NOT comparable with the concurrent 10-14 dry run's 0 of 68.*")
     A("")
-    A("*Daemon-log attribution (Architect amendment 5): each pass line belongs to the cycle of its adjacent Cycle line (%s); the older formula is the cross-check: both rules agree on %s lines and disagree on %s. %s of %s residual-pass lines in the window map to a play slot by both rules = %s (floor %.0f %%, read on the lines where both agree; a pass runs on only some cycles, here %s of %s plays have a line, and no line means no pass ran). Play-start offset, player call time (S6-V2 a; it cannot see the sound's onset, see the onset row): min %s s, max %s s, tolerance ±%.2f s (a design number).*" % (
-        ab.get("attribution"), ab.get("lines_agree"), ab.get("lines_disagree"), ab.get("pass_lines_mapped"), ab.get("pass_lines_in_window"), pct(ab.get("pass_line_share")), 100 * MIN_ATTRIBUTED_SHARE,
+    A("*Daemon-log attribution (Architect amendment 5): each pass line belongs to the cycle of its adjacent Cycle line (%s); the older formula is the cross-check: both rules agree on %s lines and disagree on %s (%s explained, %s unexplained). %s of %s residual-pass lines in the window map to a play slot by the rule above = %s (floor %.0f %%; by the formula and the Cycle line together %s; plays slots with two lines: %s). Trusted only if that share holds, no slot has two lines, no disagreement is unexplained (explained = the formula one slot early and T - elapsed within 1.0 s before the cycle's end) and the time zone checks out; a pass runs on only some cycles, here %s of %s plays have a line, and no line means no pass ran). Play-start offset, player call time (S6-V2 a; it cannot see the sound's onset, see the onset row): min %s s, max %s s, tolerance ±%.2f s (a design number).*" % (
+        ab.get("attribution"), ab.get("lines_agree"), ab.get("lines_disagree"), ab.get("disagree_explained"), ab.get("disagree_unexplained"), ab.get("pass_lines_mapped"), ab.get("pass_lines_in_window"),
+        pct(ab.get("share_cycle_mapped") if ab.get("share_cycle_mapped") is not None else ab.get("pass_line_share")), 100 * MIN_ATTRIBUTED_SHARE, pct(ab.get("lines_agree") / ab["pass_lines_in_window"]) if ab.get("pass_lines_in_window") else "n/a",
+        ab.get("slots_with_two_lines"),
         ab["plays_with_pass_line"], res["plays"], v["S6-V2"]["offset_min_s"], v["S6-V2"]["offset_max_s"], P.OFFSET_TOLERANCE_S))
     if not v["S6-V5"].get("wsjtx_exe_pinned", False):
         A("")
@@ -496,6 +537,7 @@ def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, c
                               "pass_line_share": pl.get("line_share"), "plays_abandoned": n_ab if pl["trusted"] else (0 if interim else None),
                               "interim_rule": interim, "attribution": pl.get("attribution"), "lines_agree": pl.get("lines_agree"), "lines_disagree": pl.get("lines_disagree"),
                               "lines_cycle_mapped": pl.get("lines_cycle_mapped"), "share_cycle_mapped": pl.get("share_cycle_mapped"), "window_abandoned_lines": pl.get("window_abandoned_lines"),
+                              "disagree_explained": pl.get("disagree_explained"), "disagree_unexplained": pl.get("disagree_unexplained"), "slots_with_two_lines": pl.get("slots_with_two_lines"),
                               "tz_offset_h_system": pl["offset_h"], "tz_offset_h_inferred": pl.get("inferred_offset_h"), "not_trusted_because": pl.get("reason", ""),
                               "elapsed_ms_median": float(np.median([ln["elapsed_ms"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None,
                               "fitted_signals_median": float(np.median([ln["fitted"] for ln in pl["by_slot"].values()])) if pl["trusted"] and pl["by_slot"] else None}

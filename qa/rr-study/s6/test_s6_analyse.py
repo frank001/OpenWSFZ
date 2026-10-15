@@ -89,7 +89,7 @@ def test_valid_run_numbers_and_sensitivity(tmp_path):
     assert r["figure"] == "s6_figure.png" and (run / "s6" / "s6_figure.png").stat().st_size > 10_000
     md = open(run / "s6" / "s6_section5.md", encoding="utf8").read()
     assert "First S6 row of the LINUX series" in md and "Positive agreement" in md and "Sensitivity: WAVs with no abandoned play" in md
-    assert "36 of 36 residual-pass lines in the window map to a play slot by both rules" in md and "Daemon-log attribution (Architect amendment 5)" in md and "a design number" in md and "player call time" in md
+    assert "36 of 36 residual-pass lines in the window map to a play slot by the rule above" in md and "Daemon-log attribution (Architect amendment 5)" in md and "a design number" in md and "player call time" in md
     assert "QWARM" not in md and "Q1" not in md                                          # no message text in the report block
 
 
@@ -285,7 +285,7 @@ DESK_LOG = "\n".join([
 ]) + "\n"
 
 
-def test_a_pass_line_belongs_to_the_cycle_of_its_adjacent_cycle_line_and_the_formula_is_the_cross_check(tmp_path):
+def test_a_pass_line_belongs_to_the_cycle_of_its_adjacent_cycle_line_and_an_explained_disagreement_is_trusted(tmp_path):
     dl = tmp_path / "d.log"
     dl.write_text(DESK_LOG, encoding="utf8")
     lines = A.read_pass_lines(str(dl))
@@ -294,12 +294,69 @@ def test_a_pass_line_belongs_to_the_cycle_of_its_adjacent_cycle_line_and_the_for
     pl = A.attribute_pass_lines(lines, slots, 2 * 3600)
     assert pl["attribution"].startswith("the adjacent Cycle line")
     assert set(pl["by_slot"]) == set(slots) and pl["by_slot"]["261015_155945"]["abandoned"] is True      # the Cycle line puts the fast pass in ITS slot
-    assert pl["lines_agree"] == 1 and pl["lines_disagree"] == 1 and pl["lines_cycle_mapped"] == 2 and pl["lines_in_window"] == 2
-    assert pl["line_share"] == 0.5 and pl["share_cycle_mapped"] == 1.0                                   # the floor reads the lines where BOTH rules agree
-    assert not pl["trusted"] and pl["window_abandoned_lines"] == 1
+    assert pl["lines_agree"] == 1 and pl["lines_disagree"] == 1 and pl["disagree_explained"] == 1 and pl["disagree_unexplained"] == 0
+    assert pl["lines_cycle_mapped"] == 2 and pl["share_cycle_mapped"] == 1.0 and pl["slots_with_two_lines"] == 0 and pl["line_share"] == 0.5
+    # amendment 6: (a) 100 %, (b) no slot with two lines, (c) the one disagreement is EXPLAINED (the formula is exactly one slot early and T - elapsed is 0.14 s before the cycle's end), (d) tz holds
+    assert pl["trusted"] and pl["window_abandoned_lines"] == 1 and pl["tz_agrees"]
     # the formula ALONE (what the code did before) puts both lines in the first slot: the second slot has no line and its abandonment would be missed
     only = A.attribute_pass_lines([{**x, "cycle_sod": None} for x in lines], slots, 2 * 3600)
-    assert set(only["by_slot"]) == {"261015_155930"}
+    assert set(only["by_slot"]) == {"261015_155930"} and only["attribution"].startswith("formula only")
+
+
+def _log_with(*items):
+    """A two-stage daemon log: a start line, then the given lines in order."""
+    return "\n".join(["[17:59:00 INF] Native FT8 decoder shim ABI version: 20260062.", "[17:59:01 INF] Early decode: cycle=15:59:15, n=1, elapsedMs=300, skipped=0, skipReason=none, finalWaitMs=0."] + list(items)) + "\n"
+
+
+CYC30 = "[17:59:46 INF] Cycle 15:59:30: 3 decode(s) found, elapsed=900 ms."
+CYC45 = "[18:00:00 INF] Cycle 15:59:45: 2 decode(s) found, elapsed=800 ms."
+PASS_30 = "[17:59:50 INF] Sub-feas residual pass: residualDecodes=1 elapsedMs=3800 deadlineAbandoned=False containedException=False fittedSignals=5"      # start 15:59:46.2: slot 15:59:30 by both
+SLOTS = ["261015_155930", "261015_155945"]
+
+
+def _attr(tmp_path, *items):
+    dl = tmp_path / "x.log"
+    dl.write_text(_log_with(*items), encoding="utf8")
+    return A.attribute_pass_lines(A.read_pass_lines(str(dl)), SLOTS, 2 * 3600)
+
+
+def test_trust_condition_c_a_disagreement_that_is_not_the_one_second_artefact_is_unexplained(tmp_path):
+    """Amendment 6 (c): a long pass that printed after the NEXT cycle's Cycle line is paired with the wrong cycle by 'nearest preceding'; the formula's T - elapsed still points at the right
+    slot, and the disagreement is NOT the 1 s artefact (T - elapsed is far from the end of the Cycle line's cycle): unexplained, so the block must read UNKNOWN, not a wrong slot."""
+    # pass for slot 15:59:30 that took 12 s: T = 18:00:00 (UTC 16:00:00) minus 12 s -> start 15:59:48, in slot 15:59:30's own window by the formula... but printed after Cycle 15:59:45 (logged 18:00:00)
+    late = "[18:00:01 INF] Sub-feas residual pass: residualDecodes=3 elapsedMs=12000 deadlineAbandoned=True containedException=False fittedSignals=9"
+    pl = _attr(tmp_path, CYC30, CYC45, late)
+    assert pl["lines_disagree"] == 1 and pl["disagree_unexplained"] == 1 and pl["disagree_explained"] == 0
+    assert not pl["trusted"] and "(c) 1 unexplained disagreement" in pl["reason"]
+    # explained needs BOTH halves: one slot early AND within 1.0 s of the end. Same slot arithmetic but 1.5 s early is unexplained:
+    near = "[18:00:00 INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=500 deadlineAbandoned=False containedException=False fittedSignals=3"          # start 15:59:59.5: 0.5 s early -> explained
+    assert _attr(tmp_path, CYC30, CYC45, near)["disagree_explained"] == 1
+    far = "[17:59:59 INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=500 deadlineAbandoned=False containedException=False fittedSignals=3"           # start 15:59:58.5: 1.5 s early
+    pl2 = _attr(tmp_path, CYC30, CYC45, far)
+    assert pl2["disagree_unexplained"] == 1 and not pl2["trusted"]
+
+
+def test_trust_condition_b_two_lines_in_one_slot_by_the_cycle_line_are_untrusted(tmp_path):
+    pl = _attr(tmp_path, CYC30, PASS_30, PASS_30.replace("17:59:50", "17:59:51"))
+    assert pl["slots_with_two_lines"] == 1 and not pl["trusted"] and "(b) 1 play slot(s) have two pass lines" in pl["reason"]
+    assert pl["lines_mapped"] == 1 and pl["lines_in_window"] == 2                                          # one line maps the slot, the second is unmapped
+
+
+def test_trust_condition_a_the_floor_is_read_on_the_cycle_line_mapping(tmp_path):
+    other = ["[17:55:46 INF] Cycle 15:55:30: 3 decode(s) found, elapsed=900 ms.", "[17:55:50 INF] Sub-feas residual pass: residualDecodes=1 elapsedMs=3800 deadlineAbandoned=False containedException=False fittedSignals=5"]
+    # a pass line whose Cycle line is outside the played slots but whose pass started inside the window: counted in the window, not mapped by its Cycle line
+    pl = _attr(tmp_path, CYC30, PASS_30, *other)
+    assert pl["lines_in_window"] >= 1 and pl["share_cycle_mapped"] is not None
+    ok = _attr(tmp_path, CYC30, PASS_30)
+    assert ok["trusted"] and ok["share_cycle_mapped"] == 1.0 and ok["disagree_unexplained"] == 0
+
+
+def test_trust_condition_d_a_wrong_time_zone_is_untrusted_even_with_perfect_cycle_lines(tmp_path):
+    dl = tmp_path / "x.log"
+    dl.write_text(_log_with(CYC30, PASS_30), encoding="utf8")
+    lines = A.read_pass_lines(str(dl))
+    pl = A.attribute_pass_lines(lines, SLOTS, 3 * 3600)                                                    # the system said +3 h, the log is +2 h
+    assert not pl["tz_agrees"] and not pl["trusted"]
 
 
 def test_the_cycle_pairing_is_for_two_stage_logs_only_and_resets_at_a_daemon_start(tmp_path):
