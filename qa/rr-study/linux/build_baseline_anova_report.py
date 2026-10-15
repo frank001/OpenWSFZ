@@ -109,7 +109,7 @@ def t_row(vals: list):
     return m, sd, lo, hi
 
 
-def build(results: str, out: str, series_id: str, config: str | None) -> None:
+def build(results: str, out: str, series_id: str, config: str | None, status: str = "DRAFT") -> None:
     os.makedirs(os.path.join(out, "img"), exist_ok=True)
     if config:
         cfg = jload(config)
@@ -155,6 +155,14 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
     A = L.append
     A("# OpenWSFZ R&R Study: LINUX series on `sol`, %s baseline, full ANOVA report" % series_id)
     A("")
+    A("> **%s**%s" % (status, " (Architect amendment 4: marked DRAFT, sent to the Architect, final after the Architect's review)." if status == "DRAFT" else "."))
+    A("")
+    tiers_ = sorted({str(s6[k].get("tier")) for k in keys if s6.get(k)})
+    chain_ = next((s6[k]["cpu_chain_label"].split("SEQUENTIAL (each appraiser alone on the CPU), ")[-1] for k in keys if s6.get(k) and "SEQUENTIAL (each appraiser alone on the CPU), " in s6[k].get("cpu_chain_label", "")), "ALSA chain: see the run folders")
+    A("> **Scope:** %s sweeps, one machine (`sol`, FX-8350), one build (`%s`, shim %s), one %s; %s, %s." % (
+        NW, S[keys[0]]["build"]["commit"][:8], S[keys[0]]["build"]["shim"], chain_ if chain_.startswith("non-default") or chain_.startswith("default") else "ALSA chain (see the run folders)",
+        ("S6 SEQUENTIAL" if s6_seq_only else ("S6 a MIX of concurrent and sequential designs" if s6_mixed else "S6 concurrent")) if tiers_ else "S6 not run", ("%s tier" % "/".join(tiers_)) if tiers_ else "no S6 tier"))
+    A("")
     A("> **A NEW series: %s complete sweeps (S1-S8, S3c%s) on the B2 build, with the monitoring layer on (M1 monitor, M2 liveness gate, M3 coverage).** Full ANOVA of the two appraisers over the sweeps as the replication, bias and attribute statistics, S6, the monitoring record, the stall row, a DESCRIPTIVE comparison with the earlier series (**never pooled with it**) and the history of every LINUX series. **Not comparable with the Windows series.** Informational: no merge or build decision rests on this report." % (
         n, ", S6" if any(s6.values()) else ""))
     A("")
@@ -188,8 +196,8 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
     if any(s6.values()):
         pa = [s6[k]["full"]["headline"]["positive_agreement"] for k in keys if s6.get(k)]
         ab = [s6[k]["abandonment"]["plays_abandoned"] for k in keys if s6.get(k)]
-        A("5. **S6 (real off-air audio, live path):** %d sweeps; positive agreement %s; abandoned plays per sweep %s of %s. See Section 3.5 (live-path reading only, not a decode-rate claim)." % (
-            len(pa), "/".join("%.1f %%" % (100 * x) for x in pa), "/".join(str(x) for x in ab), "/".join(str(s6[k]["plays"]) for k in keys if s6.get(k))))
+        A("5. **S6 (real off-air audio, live path):** %d sweeps; positive agreement%s %s; abandoned plays per sweep %s of %s. See Section 3.5 and C6 (live-path reading only, not a decode-rate claim)." % (
+            len(pa), " † (program and pass together, not separable)" if s6_seq_only else "", "/".join("%.1f %%" % (100 * x) for x in pa), "/".join(str(x) for x in ab), "/".join(str(s6[k]["plays"]) for k in keys if s6.get(k))))
     A("%d. **Limits.** One host, one build, one chain; %d sweeps (the sweep factor has %d degrees of freedom); the same 10 parts and 108 messages in every sweep; rounded reported values (1 dB, 1 Hz, 0.1 s). The earlier series (main without B2) is compared descriptively and never pooled." % (6 if any(s6.values()) else 5, n, n - 1))
     A("")
     # ------------------------------------------------------------------------------------------------------------------------------ section 1
@@ -440,14 +448,106 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
       ("." if all(((mon.get(k) or {}).get("M3_coverage") or {}).get("rows_invalid", 0) == 0 and (mon.get(k) or {}).get("M3_coverage", {}).get("rows") for k in keys) else " **(check the table: at least one sweep has no coverage rows or an INVALID row)**."))
     A("5. **Assumptions.** Balanced data, exact models; rounded reported values make the F p values approximate; the bootstrap resamples parts, not sweeps; no bar is proposed (HK-038).")
     A("")
-    A("## Section 5: conclusions and recommendations")
+    A("## Section 5: conclusions")
     A("")
-    A("1. On the B2 build, graded on %%StudyVar: S1 %.1f %% (%s), S2 %.1f %% (%s), S3 %.1f %% (%s); ndc %s / %s / %s. S3 sits near the 10 %% line on this metric; the Architect's reading (2026-10-14) is that this is the intended outcome of the AIAG metric, driven by a fixed DT offset between the programs, and neither the S3 tolerance nor the gate is adjusted." % (
-        s1["pct_grr_sv"], v("S1"), s2["pct_grr_sv"], v("S2"), s3["pct_grr_sv"], v("S3"), s1["ndc"], s2["ndc"], s3["ndc"]))
-    A("2. This is the baseline for the B2 build on `sol`: later changes are read against its sweep-to-sweep spread (Section 3.3 and the S1 bias range %.2f dB for OpenWSFZ, %.2f dB for WSJT-X), descriptively, not as a bar." % (max(o_b) - min(o_b), max(w_b) - min(w_b)))
-    A("3. The stall row (Section 3.6) is part of the result: %d failed scenario attempt(s) in %d attempts (%d replacement(s)). If stalls recur, the M1 snapshots (the capture hw_ptr advance and the wsjtx thread CPU ticks) are the evidence to read first." % (stall["stalls"], stall["attempts"], stall["replacements"]))
+    A("*Fixed by the Architect (amendment 4, 2026-10-15): C1 to C7 in this order. No pooling across builds, S6 designs, tiers or platforms. No bar is proposed (HK-038); every figure carries its n and, where one exists, its CI. Source of every number: the sweeps' own run folders (`scenario_retries.json`, `monitoring_summary.json`, `s6/s6_result.json`, the analyser's CSVs).*")
     A("")
-    A("**Not claimed.** No decoder-improvement statement; no pooling or testing across series; S6 is a live-path reading, not a decode-rate claim; the cause of the 11 and 14 October stalls is not known.")
+    sv_ci = lambda sc: tuple(100.0 * math.sqrt(max(x, 0.0) / 100.0) for x in BT[sc]["grr"])        # a monotone transform of the %Contribution percentile CI
+    short = lambda d: d.split("-B2BASE-")[-1] if "B2BASE" in d else d[-12:]
+    # ---- C1 completeness
+    fails = stall["failures"]
+    m3rows = [((mon.get(k) or {}).get("M3_coverage") or {}) for k in keys]
+    v7 = [(((s6.get(k) or {}).get("validity") or {}).get("S6-V7") or {}).get("result", "-") for k in keys]
+    A("1. **C1, completeness.** %s complete sweeps; %d scenario attempts, %d failed attempt(s), %d replacement(s) (%d sweep(s) needed a retry); whole-sweep INVALID folders: %d. %s Scenarios that ran out of retries: %s. M3 coverage rows over the sweeps: %d PASS, %d INVALID (%d rows in all). S6-V7 per sweep: %s." % (
+        NW.capitalize(), stall["attempts"], stall["stalls"], stall["replacements"], stall["sweeps_with_a_retry"], len(stall["invalid_sweep_folders"]),
+        ("Failed attempts and their times: " + "; ".join("%s %s attempt %s (%s, %s UTC): %s" % (short(f["sweep"]), f["scenario"], f["attempt"], f["kind"], f["utc"], f["reason"]) for f in fails) + ".") if fails
+        else "No scenario failed an attempt, so there are no stall times to list.",
+        "none" if not stall["retries_exhausted_in"] else ", ".join(short(d) for d in stall["retries_exhausted_in"]),
+        sum(m.get("rows_pass", 0) for m in m3rows), sum(m.get("rows_invalid", 0) for m in m3rows), sum(len(m.get("rows", [])) for m in m3rows), ", ".join("%s %s" % (B.SHORT[k], r) for k, r in zip(keys, v7))))
+    # ---- C2 the %StudyVar verdict
+    A("2. **C2, the %%StudyVar verdict (gate 10 / 30 %%, Captain 2026-10-14, not retroactive).** S1 **%.1f %% (%s)**, bootstrap 95 %% CI %.1f to %.1f %%; S2 **%.1f %% (%s)**, CI %.1f to %.1f %%; S3 **%.1f %% (%s)**, CI %.1f to %.1f %%. %%Contribution beside it, no verdict: S1 %.2f %% (CI %s), S2 %.3f %% (CI %s), S3 %.2f %% (CI %s). ndc %s / %s / %s. Design: %s sweeps x 10 parts x 2 appraisers x 3 trials; **the CIs resample parts, not sweeps** (the sweep factor has %d degrees of freedom)." % (
+        s1["pct_grr_sv"], v("S1"), sv_ci("S1")[0], sv_ci("S1")[1], s2["pct_grr_sv"], v("S2"), sv_ci("S2")[0], sv_ci("S2")[1], s3["pct_grr_sv"], v("S3"), sv_ci("S3")[0], sv_ci("S3")[1],
+        s1["pct_grr"], ci("S1", "grr"), s2["pct_grr"], ci("S2", "grr"), s3["pct_grr"], ci("S3", "grr"), s1["ndc"], s2["ndc"], s3["ndc"], NW, n - 1))
+    # ---- C3 S3 stated plainly
+    s3_off = F.t_ci([R["bias"]["S3"][k]["OpenWSFZ"]["bias"] - R["bias"]["S3"][k]["WSJT-X"]["bias"] for k in keys])
+    if v("S3") == "MARGINAL":
+        A("3. **C3, S3.** S3 (DT) reads **MARGINAL** on %%StudyVar (%.1f %%). Reading of 2026-10-14 (Architect): this is the intended outcome of the AIAG metric, driven by a fixed DT offset between the programs (appraiser share of the S3 variance %.3f %%; OpenWSFZ minus WSJT-X %+.3f s, t 95 %% CI %.3f to %.3f s over %d sweeps); **the S3 tolerance and the gate are not adjusted.**" % (
+            s3["pct_grr_sv"], s3["pct_groups"]["appraiser"], s3_off[0], s3_off[2], s3_off[3], n))
+    else:
+        A("3. **C3, S3.** S3 (DT) reads **%s** on %%StudyVar (%.1f %%, bootstrap 95 %% CI %.1f to %.1f %%)." % (v("S3"), s3["pct_grr_sv"], sv_ci("S3")[0], sv_ci("S3")[1]))
+    # ---- C4 S1 bias per sweep
+    p_as = s1["tests"]["AS"][3]
+    A("4. **C4, S1 bias per sweep.** In the order the sweeps ran: OpenWSFZ %s dB, WSJT-X %s dB (each value: 10 parts x 3 trials; range %.2f dB and %.2f dB). OpenWSFZ minus WSJT-X %+.2f dB (t 95 %% CI %.2f to %.2f over %d sweeps). Appraiser x Sweep p %s: %s" % (
+        ", ".join("%+.2f" % R["bias"]["S1"][k]["OpenWSFZ"]["bias"] for k in chrono), ", ".join("%+.2f" % R["bias"]["S1"][k]["WSJT-X"]["bias"] for k in chrono), max(o_b) - min(o_b), max(w_b) - min(w_b),
+        m_d, lo_d, hi_d, n, B.fp(p_as),
+        "the bias difference between the programs **varies between sweeps**." if p_as < 0.05 else "no evidence that the bias difference varies between sweeps at this n."))
+    # ---- C5 S4 as in the 2026-10-14 final
+    q_o, q_w = F.cochran_q(R["s4"]["M"]["OpenWSFZ"])[2], F.cochran_q(R["s4"]["M"]["WSJT-X"])[2]
+    d4 = R["s4"]["M"]["WSJT-X"].sum(axis=1) - R["s4"]["M"]["OpenWSFZ"].sum(axis=1)
+    pos4, neg4, p4 = F.exact_sign(d4)
+    d1b = R["s1b"]["M"]["WSJT-X"].sum(axis=1) - R["s1b"]["M"]["OpenWSFZ"].sum(axis=1)
+    pos1b, neg1b, p1b = F.exact_sign(d1b)
+    stable = q_o > 0.05 and q_w > 0.05
+    A("5. **C5, attribute performance (S4, S1b, S5).** S4: OpenWSFZ %s of %d, WSJT-X %s; Cochran's Q across the %d sweeps p %s (OpenWSFZ) and %s (WSJT-X): %s. Per message, WSJT-X decodes %d message(s) more often than OpenWSFZ and OpenWSFZ decodes %d more often than WSJT-X (exact sign test p %s); in S1b the counts are %d and %d (p %s). S5 OpenWSFZ false positives (Gate A-W) per sweep: %s. These sweeps cannot say why the gap exists." % (
+        "/".join(str(x) for x in s4o), R["s4"]["keys"], "/".join(str(x) for x in s4w), n, B.fp(q_o), B.fp(q_w),
+        "the test does not reject a constant rate for either appraiser" if stable else "**the test rejects a constant rate for at least one appraiser**",
+        pos4, neg4, B.fp(p4), pos1b, neg1b, B.fp(p1b), ", ".join(S[k]["s5"]["gate_aw"].split(" (")[0] for k in keys)))
+    # ---- C6 S6, informational, no bar
+    have6 = [k for k in keys if s6.get(k)]
+    if not have6:
+        A("6. **C6, S6.** S6 did not run in these sweeps.")
+    else:
+        ok6 = [k for k in have6 if s6[k].get("status") == "VALID"]
+        bad6 = [k for k in have6 if k not in ok6]
+        tiers = sorted({str(s6[k].get("tier")) for k in have6})
+        def sp(fld, mult=100.0, d=1, unit=" %"):
+            vals = [s6[k]["full"]["headline"][fld] * mult for k in ok6 if s6[k].get("full") and s6[k]["full"]["headline"].get(fld) is not None]
+            if len(vals) >= 2:
+                m, sd, lo, hi = F.t_ci(vals)
+                return "%s (mean %.*f%s, t 95 %% CI %.*f to %.*f, n = %d sweeps)" % (" / ".join("%.*f" % (d, x) for x in vals), d, m, unit, d, lo, d, hi, len(vals))
+            return " / ".join("%.*f" % (d, x) for x in vals) if vals else "n/a"
+        A("6. **C6, S6, informational, no bar** (%s S6, %s tier, %d of %d sweeps VALID%s)." % ("SEQUENTIAL" if s6_seq_only else ("a MIX of concurrent and sequential" if s6_mixed else "concurrent"), "/".join(tiers), len(ok6), len(have6),
+                                                                                           ("; WITHHELD: " + ", ".join("%s (%s)" % (B.SHORT[k], s6[k].get("status")) for k in bad6)) if bad6 else ""))
+        A("")
+        if ok6:
+            A("   - **Within-appraiser figures first (they keep their meaning):** own-universe consistency WSJT-X %s; OpenWSFZ %s. Decodes per WAV (non-hashed, mean of 3 trials) WSJT-X %s; OpenWSFZ %s." % (
+                sp("consistency_own_wsjtx"), sp("consistency_own_owsfz"), sp("decodes_per_wav_wsjtx", 1.0, 2, ""), sp("decodes_per_wav_owsfz", 1.0, 2, "")))
+            A("   - **Between-appraiser figures** (%s): positive agreement %s; SNR delta (OpenWSFZ minus WSJT-X) %s. %s" % (
+                "†: **program and pass together, not separable**" if s6_seq_only else "concurrent design", sp("positive_agreement"), sp("snr_delta_mean", 1.0, 2, " dB"),
+                "The appraiser and part x appraiser components of the S6 ANOVA carry the same †." if s6_seq_only else ""))
+            A("   - **Abandonment** (mandatory field) per sweep: %s; no-abandonment sensitivity (WAVs with no abandoned play, kept of all): %s. %s" % (
+                ", ".join("%s %s of %s" % (B.SHORT[k], s6[k]["abandonment"].get("plays_abandoned"), s6[k]["plays"]) for k in ok6),
+                ", ".join("%s %s" % (B.SHORT[k], ("%d of %d" % (s6[k]["no_abandon_wavs"]["kept"], s6[k]["no_abandon_wavs"]["of"])) if s6[k].get("no_abandon_wavs") else "not available") for k in ok6),
+                "The count is for the sequential design and is NOT comparable with the concurrent 10-14 dry run's 0 of 68." if s6_seq_only else ""))
+            A("   - **Hashed rows** (excluded from every figure; per play): WSJT-X %s; OpenWSFZ %s." % (", ".join("%.2f" % s6[k]["hashed_per_play"]["wsjtx"] for k in ok6), ", ".join("%.2f" % s6[k]["hashed_per_play"]["owsfz"] for k in ok6)))
+            an = [(s6[k]["full"]["headline"].get("anova"), s6[k]["full"]["headline"]) for k in ok6 if s6[k].get("full")]
+            an = [(g, h) for g, h in an if g and "error" not in g]
+            if an:
+                A("   - **ANOVA on SNR, conditional on detection** (parts both appraisers decoded in every trial): %s of %s candidate signals per sweep; total R&R %%StudyVar %s%%; this is not a measurement-system verdict (repeatability is understated, ndc overstated)%s." % (
+                    " / ".join(str(h["anova_parts"]) for g, h in an), " / ".join(str(h["signals_in_universe"]) for g, h in an), " / ".join("%.1f" % g["pct_study_var"]["RR"] for g, h in an),
+                    "; the appraiser and part x appraiser components are † program and pass together" if s6_seq_only else ""))
+            bands = {}
+            for k in ok6:
+                for band, r in (s6[k].get("per_band") or {}).items():
+                    bands.setdefault(band, []).append(r)
+            if bands:
+                A("   - **Per band, descriptive only** (mean over the sweeps; %s WAVs per band per sweep at this tier, wide intervals, no comparison between bands): %s." % (
+                    "/".join(sorted({str(r["wavs"]) for rs in bands.values() for r in rs})),
+                    "; ".join("%s: own consistency WSJT-X %.1f %% / OpenWSFZ %.1f %%, decodes per WAV %.2f / %.2f" % (b, 100 * float(np.mean([r["consistency_own_wsjtx"] for r in rs])), 100 * float(np.mean([r["consistency_own_owsfz"] for r in rs])),
+                                                                                                                     float(np.mean([r["decodes_per_wav_wsjtx"] for r in rs])), float(np.mean([r["decodes_per_wav_owsfz"] for r in rs]))) for b, rs in sorted(bands.items()))))
+            onset = [((s6[k].get("validity") or {}).get("S6-V2") or {}).get("onset", {}) for k in ok6]
+            A("   - **Sound onset** (from WSJT-X's own DT, pass W; V2(d) bar [0.0, +0.3] s, source: two quick dry runs 2026-10-13/14, pilot-derived, Architect amendment 3): %s." % (
+                "; ".join("%s %s (median of per-play medians %s s, %s plays read)" % (B.SHORT[k], o.get("result"), (s6[k].get("onset") or {}).get("per_play_median_shift_s", {}).get("median"), o.get("plays_read")) for k, o in zip(ok6, onset))))
+        A("")
+        A("   S6 reads the live path of each program in its own pass. It is not a decode-rate claim, and its 2026-06/07 figures are **not comparable** (a different design, tier and build).")
+    # ---- C7 the stall paragraph
+    conc_fail = [f for f in fails if f["scenario"] != "S6"]
+    s6_fail = [f for f in fails if f["scenario"] == "S6"]
+    A("")
+    A("7. **C7, the stall.** On `sol` WSJT-X stopped saving WAVs in 8 of 8 isolation runs in which OpenWSFZ ran beside it with its subtraction residual pass on and the daemon unpinned, and in 0 of 3 runs without that (WSJT-X alone, a bare reader, the daemon with the residual pass off). The stall begins inside Qt's own ALSA plugin: it closes and reopens WSJT-X's capture device and the reopened input never delivers again; **what triggers the reopen was not shown**. This is why S6 is played sequentially in this series. It is a finding about this machine and its audio chain (`sol` only) and says nothing about the Windows station. In this series: %d failed attempt(s) in the concurrent scenarios (S1-S5, S7, S8, S3c)%s and %d in S6." % (
+        len(conc_fail), (" (" + "; ".join("%s %s attempt %s at %s UTC" % (short(f["sweep"]), f["scenario"], f["attempt"], f["utc"]) for f in conc_fail) + ")") if conc_fail else "", len(s6_fail)))
+    A("")
+    A("**Not claimed.** No decoder-improvement statement, no \"safe\", no \"no regression\", no \"better\" or \"worse\" decoder; no pooling or testing across series, builds, S6 designs, tiers or platforms; no bar is proposed; S6 is a live-path reading in a design that cannot separate program from pass; the cause of the stall trigger is not known.")
     A("")
     # ------------------------------------------------------------------------------------------------------------------------------ section 6 history
     A("## Section 6: historical trend, every full S1-S8 sweep of the LINUX series")
@@ -508,8 +608,9 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     ap.add_argument("--series-id", default="B2BASE")
     ap.add_argument("--config", default=None, help="JSON {\"sweeps\": [folder, ...], \"invalid\": [folder, ...]} instead of discovery by name")
+    ap.add_argument("--status", default="DRAFT", choices=["DRAFT", "FINAL"], help="DRAFT (default; Architect amendment 4: the report goes to the Architect for review) or FINAL")
     a = ap.parse_args()
-    build(a.results, a.out, a.series_id, a.config)
+    build(a.results, a.out, a.series_id, a.config, a.status)
 
 
 if __name__ == "__main__":
