@@ -55,3 +55,31 @@ Known non-blocking noise: the audio-setup sampler hook tries PowerShell and repo
 `battery-b2.sh <name> <scenarios> [extra run_study.py args]` runs ONE supervised battery on `sol` with the B2-merged daemon (`~/OpenWSFZ-b2src`, publish folder, `libft8.so` pin from the merged tree) and the tooling checkout `~/rr-work-b2`: it (re)starts WSJT-X 2.7.0 with `ulimit -c unlimited`, starts the M1 monitor (`wsjtx_monitor.py`) beside the battery, passes `--liveness-save-dir` / `--coverage-owsfz-dir` to `run_study.py` (M2 gate: stop and flag when no new save WAV for 45 s or no `wsjtx` process; M3: coverage slots for the analyser's validity row), and tears everything down. Needs `tools/capture_build_provenance.py --rid linux-x64` run once after publishing the daemon, and the `.venv/Scripts/python.exe` wrapper in the tooling checkout (copy it from `~/rr-work`).
 
 **Capped retry, opt-in:** `MAX_STALL_RETRIES=1 sh battery-b2.sh ...` (default 0 = stop and flag). Only a liveness stop (`STALLED.json`) is retried, and only as a COMPLETE sweep: the failed sweep's folders are kept as `*-INVALID-stall-attemptK` with an `INVALID.md`, WSJT-X is restarted, the new sweep carries `REPLACEMENT.json`. A second stall, or any other failure, halts for good. `inject-stall-test.sh <name>` (TEST ONLY) freezes `wsjtx` once with SIGSTOP to prove the chain; tested 2026-10-14: stall detected after 53 s, snapshot shows `wchan=do_signal_stop`, attempt 2 complete and PASS.
+
+## WSJT-X stops saving WAVs when OpenWSFZ runs beside it, and the SEQUENTIAL S6 (2026-10-15)
+
+**Symptom.** In B2BASE sweep 1 (2026-10-14) S1-S5, S7, S8 and S3c ran clean, then all 4 attempts of S6 stalled WSJT-X (no new save WAV for 45 s; it never recovered by itself). It is not a crash, not a lock, not the clock, not cron, Samba or an ssh login.
+
+**What the isolation runs on `sol` showed** (each WSJT-X + the monitor + the S6 player, 180 plays, `ARM*` folders in `~/rr-run/`, sol only):
+
+| arm | what ran next to WSJT-X | result |
+|---|---|---|
+| A | nothing | clean, 50 min |
+| A3 | a bare `arecord` reader on the same `dsnoop` source | clean, 50 min |
+| A4 | the daemon with `subtractionEnabled=false` (no residual pass) | clean, 50 min |
+| J | the daemon pinned to cores 2-7 (`arecord` on 0-1) | WSJT-X clean, 50 min; the daemon's own capture clamps rose to 58 % of cycles |
+| A2 x2, V1, V2, F, G, H, I | the daemon, residual pass on | stall at 4-16 min every time; bigger `dsnoop` buffers (V1) or a separate plug layer (V2) did not help |
+
+**Mechanism, as far as it was shown.** The stall begins inside Qt's own ALSA plugin: `perf record` of WSJT-X's capture thread caught `QTimer::timeout` -> `libqtaudio_alsa.so` -> `snd_device_name_hint` -> `snd_config_update_r`: a close and reopen of the capture PCM (`strace` shows `close(timer)`, `close(pcm)`, a full device scan, a reopen). After that reopen the thread wakes every 50 ms and never reads again; the sound hardware kept delivering and the daemon's `arecord` kept reading the same `dsnoop` source. What starts the reopen (a late wake-up of the capture thread under the daemon's 8-thread residual pass is the best-fitting guess) is NOT shown: `dsnoop` runs in user space, so neither tool sees the error code.
+
+**What the battery does now.** S6 is played TWICE with one appraiser listening each time (`run_study.py --s6-mode sequential`, the default in `battery-b2.sh`; `S6_MODE=concurrent` restores the old behaviour):
+
+1. `s6-phase.sh w`: the daemon is stopped, WSJT-X is proven to be writing save WAVs; pass W (`s6_play.py --appraiser wsjtx --out-sub pass-w`) with the liveness gate ON.
+2. `s6-phase.sh o`: `wsjtx.expected_off` is created (the monitor then neither flags a stall nor takes a snapshot), WSJT-X is stopped, a FRESH daemon is started with the battery's exe/config/port and its stdout appended to the supervisor's `daemon.stdout.log`; pass O (`--appraiser owsfz --out-sub pass-o`), gate OFF.
+3. `s6_merge.py` joins the passes by `play_index` (it refuses if the schedules differ) into the files the analyser reads: a play carries `slot_stamp` (the WSJT-X pass) and `slot_stamp_o` (the OpenWSFZ pass). S6-V2 strays, S6-V3 and S6-V7 are judged per pass; the daemon-log abandonment is attributed in the OpenWSFZ pass's slots.
+
+S1-S5, S7, S8 and S3c stay concurrent. A retry of S6 repeats both passes (`s6-phase.sh restore` brings the daemon back before WSJT-X is restarted). Cost: about 55 min more per sweep at the standard tier.
+
+**What changes in the data.** The two appraisers no longer hear the same capture: they hear two captures of the same WAVs (codec noise and timing differ a little), OpenWSFZ runs in a fresh process, and its hash table starts empty (hashed rows are excluded from every S6 figure). The block says so ("SEQUENTIAL ... Not pooled with a concurrent S6 row"). **Never pool a sequential S6 row with a concurrent one.**
+
+**Not adopted, but available:** `DAEMON_SCHED=nice` (renice the daemon's threads to +10 so WSJT-X and `arecord` pre-empt them; `sched-helper.sh`) was prepared and NOT tested; `DAEMON_SCHED=pin` works for WSJT-X but degrades the daemon's capture (see arm J) and is not recommended.

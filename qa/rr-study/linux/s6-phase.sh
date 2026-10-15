@@ -18,7 +18,9 @@ PY=${S6_PY:-python3}
 log() { echo "$(date -u +%FT%TZ) s6-phase[$PHASE]: $*" >> "$LOG"; echo "  s6-phase[$PHASE]: $*"; }
 fail() { log "FAILED: $*"; exit 1; }
 
-daemon_pids() { pgrep -x OpenWSFZ.Daemon; }
+# LIVE daemon pids. A stopped daemon the supervisor has not reaped yet is a zombie (<defunct>): pgrep -x still lists it, so it must be filtered out by state
+# (found on the first sol validation run, 2026-10-15: "the daemon would not stop" with the daemon long dead).
+daemon_pids() { ps -C OpenWSFZ.Daemon -o pid=,stat= 2>/dev/null | awk '$2 !~ /^Z/ {print $1}'; }
 
 stop_daemon() {
   [ -z "$(daemon_pids)" ] && { log "daemon already stopped"; return 0; }

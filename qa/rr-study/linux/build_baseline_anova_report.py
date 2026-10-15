@@ -131,6 +131,10 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
     mon = {k: jload(os.path.join(results, folders[i], "monitoring_summary.json")) for i, k in enumerate(keys)}
     s6 = {k: jload(os.path.join(results, folders[i], "s6", "s6_result.json")) for i, k in enumerate(keys)}
     s6v = {k: jload(os.path.join(results, folders[i], "s6", "s6_validity.json")) for i, k in enumerate(keys)}
+    # S6 design per sweep (2026-10-15): "sequential" = WSJT-X alone, then OpenWSFZ alone (s6/s6_merge.py); anything else (and every result from before) = concurrent
+    s6_designs = {k: (s6[k].get("design") or "concurrent") for k in keys if s6.get(k)}
+    s6_seq_only = bool(s6_designs) and set(s6_designs.values()) == {"sequential"}
+    s6_mixed = len(set(s6_designs.values())) > 1
     stall = stall_row(results, folders, inv)
     # ---- the earlier series, descriptive comparison only (computed with the same tools, then the baseline setting is restored)
     ref = None
@@ -212,7 +216,8 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
     A("1. **Per sweep:** the analyser's own two-way crossed ANOVA (imported from `harness/analyse.py`); the figures are asserted equal to each sweep's own `report.md` (on the metric that report was graded on: %StudyVar).")
     A("2. **Pooled over sweeps:** a three-way crossed random-effects ANOVA Part (10) x Appraiser (2) x Sweep (%d), 3 trials per cell; variance components by expected mean squares (negative estimates truncated to 0 for the percentages), exact F for the interactions, Satterthwaite quasi-F for the main effects, a part-cluster bootstrap for the percentages (2000 resamples; it resamples parts, not sweeps). Appraiser is treated as random only for comparability with AIAG; with two programs it is a fixed offset, read as the bias in 3.3." % n)
     A("3. **Bias and linearity, attribute data (S4, S1b), S5, S7, S8:** as in the 2026-10-14 report (Cochran's Q across sweeps, an exact sign test between appraisers).")
-    A("4. **S6** (real off-air audio replayed in consecutive 15 s slots, both appraisers listening at once, K = 3): read from each sweep's own `s6_result.json`; shown per sweep and as the spread over the sweeps. It is a LIVE-PATH reading; the S6 figures are not decode-rate claims.")
+    A("4. **S6** (real off-air audio replayed in consecutive 15 s slots, " + ("the identical schedule played twice, WSJT-X alone and then OpenWSFZ alone (SEQUENTIAL passes, 2026-10-15: played together WSJT-X's capture stalled on `sol`)" if s6_seq_only else
+      ("a MIX of concurrent and sequential S6 sweeps: they are NOT comparable and must not be pooled" if s6_mixed else "both appraisers listening at once")) + ", K = 3): read from each sweep's own `s6_result.json`; shown per sweep and as the spread over the sweeps. It is a LIVE-PATH reading; the S6 figures are not decode-rate claims.")
     A("5. **Monitoring:** the per-sweep `monitoring_summary.json` (M1 monitor log, M2 gate record, M3 coverage rows, daemon-log aggregates, build pins, core files); section 3.6.")
     A("6. **The earlier series** (main without B2: run 1 default chain, run 2, repeats 1b-3b) is computed with the same code and shown beside the baseline in 3.7, descriptively. No test is run across the two series.")
     A("")
@@ -320,7 +325,7 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
     else:
         have = [k for k in keys if s6.get(k)]
         A(B.md_table(["Sweep", "Status", "Tier / plays", "Validity rows (V1/V2/V3/V4/V5)", "Abandoned plays", "Positive agreement", "Decodes per WAV (WSJT-X / OpenWSFZ)", "SNR delta mean (dB)", "Onset median (s)"], [
-            [B.SHORT[k], s6[k].get("status"), "%s / %s" % (s6[k].get("tier"), s6[k].get("plays")),
+            [B.SHORT[k], s6[k].get("status"), "%s / %s%s" % (s6[k].get("tier"), s6[k].get("plays"), " (sequential)" if s6_designs.get(k) == "sequential" else ""),
              "/".join(str((s6[k].get("validity") or {}).get("S6-V%d" % i, {}).get("result", "-")) for i in (1, 2, 3, 4, 5)),
              "%s of %s" % (s6[k]["abandonment"].get("plays_abandoned"), s6[k].get("plays")),
              "%.1f %%" % (100 * s6[k]["full"]["headline"]["positive_agreement"]),
@@ -335,7 +340,8 @@ def build(results: str, out: str, series_id: str, config: str | None) -> None:
                 srows.append([lab, "%.2f %s" % (m, unit), "%.2f" % sd, "%.2f to %.2f" % (lo, hi), "%.2f to %.2f" % (min(vals), max(vals))])
         A(B.md_table(["S6 measure (over %d sweeps)" % len(have), "Mean", "SD", "95 % t-CI of the mean", "Range"], srows))
         A("")
-        A("S6 reads the **live path** of both programs on the same CPU; a decode-rate claim cannot be made from it (the within-appraiser consistency is the consistency of each program's own decodes across the three trials of the same WAV, not agreement with truth). The S6 ANOVA over parts is reported as the sweep's own `s6_result.json` gives it (`anova_parts`); where it is 0 the block reports no balanced part and no ANOVA is shown.")
+        A(("S6 reads the **live path** of each program in its OWN pass (WSJT-X alone, then OpenWSFZ alone; the two did not hear the same capture, and OpenWSFZ ran in a fresh process)" if s6_seq_only
+           else "S6 reads the **live path** of both programs on the same CPU") + "; a decode-rate claim cannot be made from it (the within-appraiser consistency is the consistency of each program's own decodes across the three trials of the same WAV, not agreement with truth). The S6 ANOVA over parts is reported as the sweep's own `s6_result.json` gives it (`anova_parts`); where it is 0 the block reports no balanced part and no ANOVA is shown.")
         A("")
     # ---- 3.6 monitoring
     A("### 3.6 Monitoring and validity (M1, M2, M3 and the other monitoring)")
