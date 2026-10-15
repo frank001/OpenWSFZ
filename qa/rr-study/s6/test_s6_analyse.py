@@ -238,10 +238,41 @@ def test_the_attribution_floor_is_read_on_pass_lines_and_a_missing_line_means_no
 
 def test_lines_that_map_to_no_play_slot_push_the_share_below_the_floor(tmp_path):
     run, scratch, dl = make_run(tmp_path)
-    extra = ["[%02d:%02d:%02d INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=5000 deadlineAbandoned=False containedException=False fittedSignals=4" % (18, 1 + i // 15, (10 + i * 4) % 60) for i in range(60)]
-    dl.write_text(dl.read_text(encoding="utf8") + "\n".join(extra) + "\n", encoding="utf8")   # many lines that fall in no play slot but inside the window
+    # 60 lines whose slot is the one AFTER the last play (inside the window's +30 s margin, but no play): local 18:10:10 - 5 s of pass = UTC 16:10:05 -> slot 16:09:45
+    extra = ["[18:10:10 INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=5000 deadlineAbandoned=False containedException=False fittedSignals=4" for i in range(60)]
+    dl.write_text(dl.read_text(encoding="utf8") + "\n".join(extra) + "\n", encoding="utf8")
     r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
     assert not r["abandonment"]["daemon_log_attributed"] and r["abandonment"]["pass_line_share"] < A.MIN_ATTRIBUTED_SHARE
+
+
+def test_a_second_pass_line_for_the_same_slot_is_a_mapped_line_and_an_abandoned_one_flags_the_play(tmp_path):
+    """Found on the first sequential S6 run (2026-10-15): 7 of 68 lines were SECOND lines of a slot; the code kept the first line per slot and counted the rest as unmapped
+    (88.2 % < the 90 % floor) although the rule attributes every one of them to a play slot. Every such line is mapped; an abandoned line stands for its slot."""
+    import re
+    run, scratch, dl = make_run(tmp_path)
+    base = dl.read_text(encoding="utf8").splitlines()
+    assert A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)["abandonment"]["plays_abandoned"] == 0
+    hh, mm, ss = map(int, re.match(r"\[(\d\d):(\d\d):(\d\d) ", base[0]).groups())
+    t2 = "%02d:%02d:%02d" % (hh, mm, ss + 1)                                                      # one second later, same pass length: the same slot
+    dup = re.sub(r"^\[\d\d:\d\d:\d\d ", "[" + t2 + " ", base[0]).replace("deadlineAbandoned=False", "deadlineAbandoned=True")
+    dl.write_text("\n".join(base) + "\n" + dup + "\n", encoding="utf8")
+    r = A.run(str(run), str(scratch), str(dl), "x", "y", n_boot=50)
+    ab = r["abandonment"]
+    assert ab["daemon_log_attributed"] and ab["pass_line_share"] == 1.0 and ab["pass_lines_mapped"] == ab["pass_lines_in_window"] == len(base) + 1
+    assert ab["plays_abandoned"] == 1                                                              # the abandoned DUPLICATE flags the play; it is not lost behind the first line
+
+
+def test_attribution_counts_every_line_of_a_slot_and_prefers_the_abandoned_one():
+    def ln(sod, ms, ab):
+        return {"sod": sod, "elapsed_ms": ms, "abandoned": ab, "exception": False, "fitted": 5, "residual_decodes": 0}
+    # local = UTC + 2 h. Slot 15:59:30 UTC takes a pass whose start (T - elapsed) lies in [15:59:45, 16:00:00): T 15:59:53 / 3000 ms and T 15:59:55 / 3200 ms are both in it
+    lines = [ln(17 * 3600 + 59 * 60 + 53, 3000, False), ln(17 * 3600 + 59 * 60 + 55, 3200, True)]
+    slot = "261015_155930"
+    pl = A.attribute_pass_lines(lines, [slot], 2 * 3600)
+    assert pl["by_slot"][slot]["abandoned"] is True and pl["attributed_plays"] == 1
+    assert pl["lines_mapped_first_line_per_slot_only"] == 1                                       # what the code counted until 2026-10-15
+    first_only_view = [lines[0]]
+    assert A.attribute_pass_lines(first_only_view, [slot], 2 * 3600)["by_slot"][slot]["abandoned"] is False
 
 
 def line_dt(stamp, snr, dt, freq, text):

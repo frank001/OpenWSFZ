@@ -117,41 +117,46 @@ def attribute_pass_lines(lines: list, play_slots: list, tz_offset_s: int | None 
     sod_to_slot = defaultdict(list)
     for st, sod in slot_sod.items():
         sod_to_slot[sod].append(st)
-    def attribute(off_s: int) -> dict:
-        got = {}
+    def attribute(off_s: int) -> tuple:
+        """-> ({slot: the line that stands for it}, {id of every line that belongs to a play slot}). A slot can have SEVERAL pass lines (found on the first sequential S6 run, 2026-10-15: 7 of 68
+        lines were second lines of a slot and were counted as unmapped, so the share read 88.2 % although every line was attributed by the rule above). Every line that the rule assigns to
+        a play slot is mapped; the line that stands for the slot is an ABANDONED one if the slot has any, else the first, so an abandonment is never lost."""
+        got, ids = {}, set()
         for ln in lines:
             utc_sod = (ln["sod"] - off_s) % 86400
             start = utc_sod - ln["elapsed_ms"] / 1000.0
             slot_sod_c = int(math.floor(start / 15.0) * 15 - 15) % 86400
             for st in sod_to_slot.get(slot_sod_c, []):
-                got.setdefault(st, ln)
-        return got
+                ids.add(id(ln))
+                if st not in got or (ln["abandoned"] and not got[st]["abandoned"]):
+                    got[st] = ln
+        return got, ids
 
     best = (-1, None, {})
     for off in range(-14, 15):                                     # the cross-check
-        got = attribute(3600 * off)
+        got, _ = attribute(3600 * off)
         if len(got) > best[0]:
             best = (len(got), off, got)
     inferred = best[1]
     if tz_offset_s is None:
         return {"offset_h": None, "tz_offset_s": None, "inferred_offset_h": inferred, "attributed_plays": 0, "by_slot": {}, "trusted": False,
                 "reason": "no system time zone recorded at S6 start (s6_tz.json missing)"}
-    got = attribute(tz_offset_s)
+    got, all_ids = attribute(tz_offset_s)
     n = len(got)
     # Architect, 2026-10-13 (ruling on the S6 dry run, 1b): the floor is read on the residual-pass LINES inside the S6 window, not on plays: a pass runs on only
     # some cycles, so most plays have no line, and "no line" means "no pass ran" (the play is not abandoned). Share = lines mapped to a play slot / lines whose
     # pass started inside the window of the plays. Source of the floor: the dry run (26 of 27 = 96.3 %), HK-038.
     first, last = min(slot_sod.values()), max(slot_sod.values())
     in_window = [ln for ln in lines if first <= ((ln["sod"] - tz_offset_s) % 86400) - ln["elapsed_ms"] / 1000.0 - P.SLOT_S <= last + 2 * P.SLOT_S]
-    mapped_ids = {id(v) for v in got.values()}
-    mapped_lines = sum(1 for ln in in_window if id(ln) in mapped_ids)
+    mapped_lines = sum(1 for ln in in_window if id(ln) in all_ids)
+    first_only = sum(1 for ln in in_window if id(ln) in {id(v) for v in got.values()})          # the figure the code gave until 2026-10-15 (kept for the record)
     share = mapped_lines / len(in_window) if in_window else None
     enough = share is not None and share >= MIN_ATTRIBUTED_SHARE
     agrees = tz_offset_s % 3600 == 0 and tz_offset_s // 3600 == inferred
     reason = "" if (enough and agrees) else ("%d of %d pass lines in the window map to a play slot" % (mapped_lines, len(in_window)) if not enough else
                                               "the system offset (%+d s) and the inferred offset (%+d h) disagree" % (tz_offset_s, inferred))
     return {"offset_h": tz_offset_s / 3600.0, "tz_offset_s": tz_offset_s, "inferred_offset_h": inferred, "attributed_plays": n, "by_slot": got,
-            "lines_in_window": len(in_window), "lines_mapped": mapped_lines, "line_share": share, "trusted": enough and agrees, "reason": reason}
+            "lines_in_window": len(in_window), "lines_mapped": mapped_lines, "line_share": share, "lines_mapped_first_line_per_slot_only": first_only, "trusted": enough and agrees, "reason": reason}
 
 
 # ------------------------------------------------------------------ validity rows
