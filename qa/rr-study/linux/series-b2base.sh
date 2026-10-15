@@ -1,7 +1,9 @@
 #!/bin/sh
 # The B2 BASELINE series driver on sol (QA, 2026-10-14; Architect amendment 3 + the Captain's retry ruling): N COMPLETE sweeps in a row on the B2 build, S6 (standard tier) in every sweep,
 # with the monitoring M1-M3 and the SCENARIO-level retry (SCENARIO_RETRIES per scenario, default 3; no wall-time limit). Detached by the caller; no cron (HK-023).
-#   usage: [SCENARIO_RETRIES=3] series-b2base.sh <n sweeps> [series id, default B2BASE] [scenarios, default the full battery]
+#   usage: [SCENARIO_RETRIES=3] [START=<k>] series-b2base.sh <n sweeps> [series id, default B2BASE] [scenarios, default the full battery]
+#   START=k RESUMES a halted series at sweep k (sweeps 1..k-1 are already complete and renamed; <n> stays the TOTAL, so the sweep names and folders carry on). The running totals then
+#   count only the sweeps of this invocation: the per-sweep scenario_retries.json files are the record.
 # For each sweep it runs battery-b2.sh (one battery = one sweep; the retries happen INSIDE it, per scenario), then renames the sweep's run folder (and its captured-audio folder and the S6
 # scratch folder) to <date>-<sha>-<ID>-sweep<n>, so the next sweep cannot collide with it and every folder carries the series label. It HALTS the whole series on any halt of a sweep
 # (a scenario failing again with its retries used up, a restart that fails, any non-stall failure). After every sweep it logs the RUNNING TOTALS (scenario attempts / failed attempts /
@@ -12,9 +14,9 @@ export SCENARIO_RETRIES=${SCENARIO_RETRIES:-3}
 SLOG=$HOME/rr-run/series-$ID.log
 PY=$HOME/rr-venv/bin/python
 slog() { echo "$(date -u +%FT%TZ) $*" >> "$SLOG"; }
-slog "series $ID start: $N sweeps; scenarios $SCEN; retries per scenario $SCENARIO_RETRIES; S6 mode ${S6_MODE:-sequential}; daemon scheduling ${DAEMON_SCHED:-none}; build $(git -C $HOME/OpenWSFZ-b2src rev-parse HEAD); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
+slog "series $ID start (from sweep ${START:-1}): $N sweeps; scenarios $SCEN; retries per scenario $SCENARIO_RETRIES; S6 mode ${S6_MODE:-sequential}; daemon scheduling ${DAEMON_SCHED:-none}; build $(git -C $HOME/OpenWSFZ-b2src rev-parse HEAD); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
 TA=0; TF=0; TR=0
-i=1
+i=${START:-1}
 while [ $i -le "$N" ]; do
   NAME=$(echo "$ID" | tr 'A-Z' 'a-z')-$i
   rm -f "$HOME/rr-run/$NAME.log"
