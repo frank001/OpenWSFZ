@@ -56,7 +56,7 @@ def _drive(monkeypatch, tmp_path, phase_rc=None, play_rc=None, stall_on_first_pl
     phase_rc, play_rc = phase_rc or {}, play_rc or {}
     stall = {"reading": None}
 
-    def fake_phase(cmd, phase, timeout_s=900):
+    def fake_phase(cmd, phase, timeout_s=900, run_dir=None):
         calls.append(("phase", phase))
         return phase_rc.get(phase, 0)
 
@@ -100,3 +100,17 @@ def test_a_pass_that_reports_a_nonzero_exit_still_merges_and_the_worst_code_is_r
     assert rc == 4 and calls[-1] == ("py", "s6/s6_merge.py", None)
     rc2, _, _ = _drive(monkeypatch, tmp_path, merge_rc=1)
     assert rc2 == 1
+
+
+def test_the_phase_hook_gets_the_run_folder_in_its_environment(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(cmd, shell, timeout, env):
+        seen.update(cmd=cmd, env=env)
+        return Namespace(returncode=0)
+
+    monkeypatch.setattr(RS.subprocess, "run", fake_run)
+    assert RS._s6_phase("hook", "o", run_dir=tmp_path) == 0
+    assert seen["cmd"] == "hook o" and seen["env"]["S6_RUN_DIR"] == str(tmp_path)
+    monkeypatch.delenv("S6_RUN_DIR", raising=False)
+    assert RS._s6_phase("hook", "restore") == 0 and "S6_RUN_DIR" not in seen["env"]            # no run_dir given, none invented

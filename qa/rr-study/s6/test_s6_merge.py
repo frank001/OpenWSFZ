@@ -49,6 +49,9 @@ def test_merge_refuses_different_schedules_and_missing_plays():
         M.merge_playlogs(w, [])
 
 
+LIB = {"pid": 4242, "libft8_path": "/x/publish/libft8.so", "libft8_sha256": "a"}          # what s6-phase.sh o records from the live pass-O daemon
+
+
 def _validity(v1="PASS", v3="PASS", v5="PASS", n=72, appraiser="wsjtx", tier="quick"):
     return {"tier": tier, "plays_planned": 72, "appraiser": appraiser, "S6-V1": {"result": v1}, "S6-V3": {"result": v3},
             "S6-V5": {"result": v5, "wsjtx_exe_pinned": True}, "S6-V4-plays_completed": n, "exit_code": 0}
@@ -56,22 +59,22 @@ def _validity(v1="PASS", v3="PASS", v5="PASS", n=72, appraiser="wsjtx", tier="qu
 
 def test_merge_validity_a_row_passes_only_if_it_passed_in_both_passes():
     pins = {"start": {"ows_lib_sha256": "a", "wsjtx_exe_sha256": "b", "loadavg_1_5_15": [1, 1, 1]}, "end": {"ows_lib_sha256": "a", "wsjtx_exe_sha256": "b", "loadavg_1_5_15": [2, 2, 2]}}
-    ok = M.merge_validity(_validity(), _validity(appraiser="owsfz"), pins, pins)
+    ok = M.merge_validity(_validity(), _validity(appraiser="owsfz"), pins, pins, LIB)
     assert [ok[k]["result"] for k in ("S6-V1", "S6-V3", "S6-V5")] == ["PASS"] * 3 and ok["S6-V4-plays_completed"] == 72 and ok["design"] == "sequential"
-    bad = M.merge_validity(_validity(), _validity(v3="FAIL", n=60, appraiser="owsfz"), pins, pins)
+    bad = M.merge_validity(_validity(), _validity(v3="FAIL", n=60, appraiser="owsfz"), pins, pins, LIB)
     assert bad["S6-V3"]["result"] == "FAIL" and bad["S6-V4-plays_completed"] == 60
-    skipped = M.merge_validity(_validity(v1="SKIPPED"), _validity(appraiser="owsfz"), pins, pins)
+    skipped = M.merge_validity(_validity(v1="SKIPPED"), _validity(appraiser="owsfz"), pins, pins, LIB)
     assert skipped["S6-V1"]["result"] == "SKIPPED"
-    gone = M.merge_validity(_validity(), None, pins, pins)
+    gone = M.merge_validity(_validity(), None, pins, pins, LIB)
     assert gone["player_did_not_finish"] is True
-    other_tier = M.merge_validity(_validity(), _validity(tier="standard", appraiser="owsfz"), pins, pins)
+    other_tier = M.merge_validity(_validity(), _validity(tier="standard", appraiser="owsfz"), pins, pins, LIB)
     assert other_tier["player_did_not_finish"] is True
 
 
 def test_merge_validity_v5_needs_the_pins_equal_across_the_whole_s6():
     pw = {"start": {"ows_lib_sha256": "a", "wsjtx_exe_sha256": "b", "loadavg_1_5_15": [1, 1, 1]}, "end": {"ows_lib_sha256": "a", "wsjtx_exe_sha256": "b", "loadavg_1_5_15": [1, 1, 1]}}
     po = {"start": {"ows_lib_sha256": "a", "wsjtx_exe_sha256": "b", "loadavg_1_5_15": [1, 1, 1]}, "end": {"ows_lib_sha256": "CHANGED", "wsjtx_exe_sha256": "b", "loadavg_1_5_15": [1, 1, 1]}}
-    v = M.merge_validity(_validity(), _validity(appraiser="owsfz"), pw, po)
+    v = M.merge_validity(_validity(), _validity(appraiser="owsfz"), pw, po, LIB)
     assert v["S6-V5"]["result"] == "FAIL" and "across_passes" in v["S6-V5"]
 
 
@@ -120,3 +123,28 @@ def test_merge_with_a_missing_pass_writes_nothing(tmp_path):
     with pytest.raises(M.MergeError, match="pass O left no s6_playlog.jsonl"):
         M.merge(str(run))
     assert not (run / "s6" / "s6_playlog.jsonl").exists()
+
+
+def test_v5_needs_the_record_of_the_library_the_pass_o_daemon_loaded_and_it_must_equal_the_pinned_file():
+    pins = {"start": {"ows_lib_sha256": "a", "wsjtx_exe_sha256": "b", "loadavg_1_5_15": [1, 1, 1]}, "end": {"ows_lib_sha256": "a", "wsjtx_exe_sha256": "b", "loadavg_1_5_15": [1, 1, 1]}}
+    ok = M.merge_validity(_validity(), _validity(appraiser="owsfz"), pins, pins, LIB)
+    assert ok["S6-V5"]["result"] == "PASS" and ok["S6-V5"]["pass_o_daemon_library"] == {"path": "/x/publish/libft8.so", "sha256": "a", "pid": 4242}
+    none = M.merge_validity(_validity(), _validity(appraiser="owsfz"), pins, pins, None)          # Architect condition 1a: no record = NOT CHECKED, never PASS
+    assert none["S6-V5"]["result"] == "NOT CHECKED" and "daemon_lib.json" in none["S6-V5"]["reason"]
+    nosha = M.merge_validity(_validity(), _validity(appraiser="owsfz"), pins, pins, {"pid": 1, "libft8_path": None, "libft8_sha256": None})
+    assert nosha["S6-V5"]["result"] == "NOT CHECKED"
+    other = M.merge_validity(_validity(), _validity(appraiser="owsfz"), pins, pins, {**LIB, "libft8_sha256": "different"})
+    assert other["S6-V5"]["result"] == "FAIL" and "differs from the pinned file" in other["S6-V5"]["across_passes"]
+    notpinned = M.merge_validity(_validity(v5="NOT PINNED"), _validity(appraiser="owsfz"), pins, pins, None)
+    assert notpinned["S6-V5"]["result"] == "NOT PINNED"                                              # a pass that was not pinned stays NOT PINNED, not turned into NOT CHECKED
+
+
+def test_merge_copies_the_pass_o_library_record_into_the_s6_folder(tmp_path):
+    run = tmp_path / "run"
+    run.mkdir()
+    _dry_pass(run, "wsjtx", "pass-w")
+    _dry_pass(run, "owsfz", "pass-o")
+    (run / "s6" / "pass-o" / "daemon_lib.json").write_text(json.dumps(LIB), encoding="utf-8")
+    M.merge(str(run))
+    assert json.load(open(run / "s6" / "s6_daemon_lib.json"))["libft8_sha256"] == "a"
+    assert json.load(open(run / "s6" / "s6_validity.json"))["S6-V5"]["pass_o_daemon_library"]["sha256"] == "a"

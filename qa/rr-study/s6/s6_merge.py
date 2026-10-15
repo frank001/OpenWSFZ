@@ -86,7 +86,7 @@ def _row_result(a: dict | None, b: dict | None) -> str:
     return "FAIL"
 
 
-def merge_validity(vw: dict | None, vo: dict | None, pins_w: dict | None, pins_o: dict | None) -> dict:
+def merge_validity(vw: dict | None, vo: dict | None, pins_w: dict | None, pins_o: dict | None, lib_o: dict | None = None) -> dict:
     if vw is None or vo is None:
         return {"tier": (vw or vo or {}).get("tier", "unknown"), "plays_planned": (vw or vo or {}).get("plays_planned", 0), "player_did_not_finish": True,
                 "design": "sequential", "note": "a pass left no s6_validity.json (the player did not finish)"}
@@ -103,6 +103,18 @@ def merge_validity(vw: dict | None, vo: dict | None, pins_w: dict | None, pins_o
         if pin_identity(pins_w["start"]) != pin_identity(pins_o["end"]):
             out["S6-V5"]["result"] = "FAIL"
             out["S6-V5"]["across_passes"] = "the pins at the start of pass W differ from those at the end of pass O"
+    # Condition 1a (Architect, amendment 4, 2026-10-15): the run record states the library the FRESH pass-O daemon actually loaded (read from the live process by s6-phase.sh) and
+    # its SHA-256. It must exist and equal the pinned library file; without it V5 is NOT CHECKED, never PASS.
+    sha_loaded = (lib_o or {}).get("libft8_sha256")
+    out["S6-V5"]["pass_o_daemon_library"] = {"path": (lib_o or {}).get("libft8_path"), "sha256": sha_loaded, "pid": (lib_o or {}).get("pid")}
+    if out["S6-V5"]["result"] == "PASS":
+        pinned = ((pins_w or {}).get("start") or {}).get("ows_lib_sha256")
+        if not sha_loaded:
+            out["S6-V5"]["result"] = "NOT CHECKED"
+            out["S6-V5"]["reason"] = "no record of the library the pass-O daemon loaded (s6/pass-o/daemon_lib.json missing or without a SHA-256)"
+        elif pinned and sha_loaded != pinned:
+            out["S6-V5"]["result"] = "FAIL"
+            out["S6-V5"]["across_passes"] = "the library the pass-O daemon loaded differs from the pinned file"
     out["S6-V5"]["wsjtx_exe_pinned"] = bool((vw.get("S6-V5") or {}).get("wsjtx_exe_pinned"))
     out["S6-V4-plays_completed"] = min(vw.get("S6-V4-plays_completed", 0), vo.get("S6-V4-plays_completed", 0))
     ex = [x.get("exit_code") for x in (vw, vo) if x.get("exit_code")]
@@ -125,7 +137,10 @@ def merge(run_dir: str) -> dict:
     with open(os.path.join(s6, "s6_playlog.jsonl"), "w", encoding="utf8", newline="\n") as fh:
         for r in merged:
             fh.write(json.dumps(r) + "\n")
-    _write_json(os.path.join(s6, "s6_validity.json"), merge_validity(vw, vo, pw, po))
+    lib_o = _json(os.path.join(d["o"], "daemon_lib.json"))
+    _write_json(os.path.join(s6, "s6_validity.json"), merge_validity(vw, vo, pw, po, lib_o))
+    if lib_o:
+        _write_json(os.path.join(s6, "s6_daemon_lib.json"), lib_o)
     if pw and po:
         _write_json(os.path.join(s6, "s6_pins.json"), {"start": pw["start"], "end": po["end"], "w": pw, "o": po})
     if ww and wo:

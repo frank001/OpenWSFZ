@@ -61,7 +61,8 @@ def make_run(tmp, n_wavs=12, stray=False, drop_play=False, abandon_wav=None, see
     (run / "s6" / "s6_playlog.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf8")
     n_plays = len(wavs) * 3
     (run / "s6" / "s6_validity.json").write_text(json.dumps({
-        "tier": "standard", "plays_planned": n_plays, "S6-V1": {"result": "PASS"}, "S6-V3": {"result": "PASS"}, "S6-V5": {"result": "PASS"}}), encoding="utf8")
+        "tier": "standard", "plays_planned": n_plays, "S6-V1": {"result": "PASS"}, "S6-V3": {"result": "PASS"},
+        "S6-V5": {"result": "PASS", **({"pass_o_daemon_library": {"path": "/x/publish/libft8.so", "sha256": "abc123", "pid": 4242}} if sequential else {})}}), encoding="utf8")
     (scratch / "wsjt-s6.txt").write_text("".join(wsjt), encoding="utf8")
     (scratch / "owsfz-s6.txt").write_text("".join(ows), encoding="utf8")
     (tmp / "daemon.log").write_text("".join(dlog), encoding="utf8")
@@ -409,22 +410,32 @@ def test_sequential_v7_checks_each_appraiser_against_its_own_pass_slots(tmp_path
     assert r2["validity"]["S6-V7"]["result"] == "FAIL" and r2["validity"]["S6-V7"]["owsfz"]["missing"] == len(plays)
 
 
-def test_the_chain_label_names_the_sequential_pass(tmp_path):
+def test_the_chain_label_is_the_architects_sequential_label_built_from_the_host(tmp_path):
     run, scratch, dl = make_run(tmp_path, sequential=True)
-    assert "OpenWSFZ alone" in A.describe_chain(str(run), "sequential") and "WSJT-X decoding on the same CPUs" in A.describe_chain(str(run))
+    rc = tmp_path / "asoundrc"
+    rc.write_text("\n".join(["pcm.rr_in {", " type plug", ' slave.pcm "rr_cap"', ' rate_converter "samplerate_best"', "}"]) + "\n", encoding="utf8")
+    assert A.alsa_chain_label(str(rc)) == "non-default ALSA chain (rate_converter samplerate_best)"
+    rc.write_text("pcm.rr_in { type plug }\n", encoding="utf8")
+    assert A.alsa_chain_label(str(rc)).startswith("default ALSA chain")
+    assert "NOT READ" in A.alsa_chain_label(str(tmp_path / "missing"))
+    lab = A.describe_chain(str(run), "sequential")
+    assert "subtraction deadline ON" in lab and "SEQUENTIAL (each appraiser alone on the CPU)" in lab and "ALSA chain" in lab
+    assert "WSJT-X decoding on the same CPUs" in A.describe_chain(str(run)) and "SEQUENTIAL" not in A.describe_chain(str(run))
 
 
-def test_sequential_split_cuts_both_logs_at_the_earliest_slot_so_an_off_appraisers_line_is_a_stray(tmp_path):
-    run, scratch, _ = make_run(tmp_path, sequential=True)
-    w, o = tmp_path / "wsjt-all.txt", tmp_path / "owsfz-all.txt"
-    pre = line("261013_155000", -9, 1200, "CQ QOLD FN42")
-    first_w = [r for r in _rows(run) if r["kind"] == "play"][0]["slot_stamp"]
-    # the daemon (supposed to be OFF during the WSJT-X pass) decoded one line in that pass's first play slot
-    o.write_text(pre + line(first_w, -5, 1000, "CQ QSTRAY FN42") + (scratch / "owsfz-s6.txt").read_text(encoding="utf8"), encoding="utf8")
-    w.write_text(pre + (scratch / "wsjt-s6.txt").read_text(encoding="utf8"), encoding="utf8")
-    out = tmp_path / "scratch2"
-    r = SP.split_logs(str(run), str(w), str(o), str(out))
-    assert r["first_slot_wsjtx_pass"] < r["first_slot_owsfz_pass"] and r["wsjtx"]["kept"] == 1 and r["owsfz"]["kept"] == 1
-    assert o.read_text(encoding="utf8") == pre                                          # the stray moved to the S6 slice with the rest of the OpenWSFZ pass
-    res = A.run(str(run), str(out), None, "x", "y", n_boot=50)
-    assert res["validity"]["S6-V2"]["stray_lines"]["owsfz"] == 1 and res["status"].startswith("VOID")
+def test_the_sequential_block_marks_every_between_appraiser_figure_and_states_the_library_and_the_abandonment_caveat(tmp_path):
+    run, scratch, dl = make_run(tmp_path, sequential=True)
+    r = A.run(str(run), str(scratch), str(dl), "x", None, n_boot=50)
+    md = open(run / "s6" / "s6_section5.md", encoding="utf8").read()
+    for frag in ("Positive agreement between the appraisers** †", "Decodes per WAV, OpenWSFZ minus WSJT-X †", "SNR delta (OpenWSFZ − WSJT-X) †", "Cohen's κ †",
+                 "appraiser (AV) †", "part × appraiser (INT) †", "total R&R †", "appraiser means †"):
+        assert frag in md, frag
+    assert "**not separable**" in md and "Within-appraiser figures keep their meaning" in md
+    assert "Library loaded by the fresh pass-O daemon" in md and "/x/publish/libft8.so" in md and "abc123" in md
+    assert "NOT comparable with the concurrent 10-14 dry run's 0 of 68" in md
+    assert "SEQUENTIAL (each appraiser alone on the CPU)" in r["cpu_chain_label"]
+    # the within-appraiser rows carry no dagger, and a concurrent block carries none at all
+    assert "within-appraiser consistency, own universe (decoded in all 3 of the trials it decoded in at least once) †" not in md
+    run2, scratch2, dl2 = make_run(tmp_path / "c")
+    A.run(str(run2), str(scratch2), str(dl2), "x", "y", n_boot=50)
+    assert "†" not in open(run2 / "s6" / "s6_section5.md", encoding="utf8").read()

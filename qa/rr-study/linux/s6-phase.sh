@@ -71,6 +71,26 @@ wsjtx_listening() {
   [ -n "$(find "$SAVE" -name '*.wav' -newermt "45 seconds ago" 2>/dev/null | head -1)" ]
 }
 
+# Condition 1a (Architect, amendment 4): the run record states, once per S6, the library the FRESH pass-O daemon actually loaded (read from the live process, never from the path we
+# pinned) and that file's SHA-256. S6_RUN_DIR is exported by run_study.py for the hook. Without this record the merged S6-V5 reads NOT CHECKED, not PASS.
+record_daemon_lib() {
+  [ -n "${S6_RUN_DIR:-}" ] || { log "S6_RUN_DIR not set: no library record written"; return 0; }
+  d=$(daemon_pids | head -1)
+  [ -n "$d" ] || return 1
+  lib=$(awk '/libft8/ {print $6}' "/proc/$d/maps" 2>/dev/null | sort -u | head -1)
+  mkdir -p "$S6_RUN_DIR/s6/pass-o"
+  if [ -n "$lib" ] && [ -f "$lib" ]; then
+    real=$(readlink -f "$lib"); sha=$(sha256sum "$real" | cut -d' ' -f1)
+    printf '{"pid": %s, "libft8_path": "%s", "libft8_sha256": "%s", "recorded_utc": "%s"}
+' "$d" "$real" "$sha" "$(date -u +%FT%TZ)" > "$S6_RUN_DIR/s6/pass-o/daemon_lib.json"
+    log "pass-O daemon pid $d loaded $real (sha256 $sha)"
+  else
+    printf '{"pid": %s, "libft8_path": null, "libft8_sha256": null, "recorded_utc": "%s"}
+' "$d" "$(date -u +%FT%TZ)" > "$S6_RUN_DIR/s6/pass-o/daemon_lib.json"
+    log "pass-O daemon pid $d: no libft8 mapping found in /proc/$d/maps"
+  fi
+}
+
 case "$PHASE" in
   w)
     rm -f "$SUP/wsjtx.expected_off"
@@ -82,6 +102,7 @@ case "$PHASE" in
     touch "$SUP/wsjtx.expected_off"
     stop_wsjtx || fail "WSJT-X would not stop"
     start_daemon || fail "the daemon did not report captureActive within 180 s"
+    record_daemon_lib || fail "could not read the daemon's loaded library"
     log "pass O may start: OpenWSFZ capturing, WSJT-X off"
     ;;
   restore)

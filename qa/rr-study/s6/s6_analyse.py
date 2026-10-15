@@ -254,7 +254,8 @@ def fmt_block(res: dict, label: str) -> str:
         A("*Sequential design (Captain, 2026-10-15). Played together, WSJT-X's Qt ALSA capture stopped delivering audio after OpenWSFZ's residual pass delayed its capture thread "
           "(sol, B2BASE sweep 1 and the isolation runs), so S6 is played twice with one appraiser listening each time: first WSJT-X alone, then OpenWSFZ alone, the same WAVs in the same "
           "order and the same slots of the schedule, at different clock times. The two appraisers therefore heard two separate captures of the same recording (codec noise and timing "
-          "differ slightly) and OpenWSFZ ran in a fresh process. **Not pooled with a concurrent S6 row.** S6-V2 stray lines, S6-V3 and S6-V7 are judged per pass.*")
+          "differ slightly) and OpenWSFZ ran in a fresh process. **Not pooled with a concurrent S6 row.** S6-V2 stray lines, S6-V3 and S6-V7 are judged per pass. "
+          "Every figure marked † compares the two programs: in this design the appraiser effect is the program AND the pass together, **not separable**. Within-appraiser figures keep their meaning.*")
         A("")
     A("**%s.** Tier **%s**: %d WAVs x %d trials = %d plays on the 15 s grid; source = the WSJT-X-side WAV of the frozen reference-set corpus; peak-normalised to 0.9 as every scenario. "
       "No truth is assumed: the figures measure repeatability and reproducibility, not recall. Informational on its first battery." % (label, res["tier"], res["wavs"], S.K, res["plays"]))
@@ -272,6 +273,13 @@ def fmt_block(res: dict, label: str) -> str:
     A("**CPU and chain label:** %s. OpenWSFZ ran the product path with the subtraction deadline ON (per-play abandonment: %s). Load average (1 / 5 / 15 min) at the start of the plays %s and at the end %s." % (
         res["cpu_chain_label"], res["abandonment"]["summary"], res["pins"].get("start", {}).get("loadavg_1_5_15"), res["pins"].get("end", {}).get("loadavg_1_5_15")))
     ab = res["abandonment"]
+    if seq:
+        lib = (v.get("S6-V5") or {}).get("pass_o_daemon_library") or {}
+        A("")
+        A("**Library loaded by the fresh pass-O daemon** (read from the live process, once for this S6): `%s`, SHA-256 `%s` (pid %s); S6-V5 %s." % (
+            lib.get("path"), lib.get("sha256"), lib.get("pid"), (v.get("S6-V5") or {}).get("result")))
+        A("")
+        A("*The abandonment count below is for the SEQUENTIAL design (OpenWSFZ alone on the CPU) and is NOT comparable with the concurrent 10-14 dry run's 0 of 68.*")
     A("")
     A("*Daemon-log attribution: %s of %s residual-pass lines in the window map to a play slot = %s (floor %.0f %%, read on lines, ruled 2026-10-13; a pass runs on only some cycles, here %s of %s plays have a line, and no line means no pass ran). Play-start offset, player call time (S6-V2 a; it cannot see the sound's onset, see the onset row): min %s s, max %s s, tolerance ±%.2f s (a design number).*" % (
         ab.get("pass_lines_mapped"), ab.get("pass_lines_in_window"), pct(ab.get("pass_line_share")), 100 * MIN_ATTRIBUTED_SHARE,
@@ -297,12 +305,13 @@ def fmt_block(res: dict, label: str) -> str:
         A("| decodes per WAV (non-hashed, mean of 3 trials) | %.2f%s | %.2f%s |" % (
             h["decodes_per_wav_wsjtx"], ci_txt(b.get("decodes_per_wav_wsjtx"), 1, 2, ""), h["decodes_per_wav_owsfz"], ci_txt(b.get("decodes_per_wav_owsfz"), 1, 2, "")))
         A("")
-        A("- **Positive agreement between the appraisers** (rows both decoded / rows either decoded, per trial): **%s%s**." % (pct(h["positive_agreement"]), ci_txt(b.get("positive_agreement"))))
-        A("- Decodes per WAV, OpenWSFZ minus WSJT-X: %+.2f%s." % (h["decodes_per_wav_diff_owsfz_minus_wsjtx"], ci_txt(b.get("decodes_per_wav_diff_owsfz_minus_wsjtx"), 1, 2, "")))
+        dag = " †" if seq else ""
+        A("- **Positive agreement between the appraisers**%s (rows both decoded / rows either decoded, per trial): **%s%s**." % (dag, pct(h["positive_agreement"]), ci_txt(b.get("positive_agreement"))))
+        A("- Decodes per WAV, OpenWSFZ minus WSJT-X%s: %+.2f%s." % (dag, h["decodes_per_wav_diff_owsfz_minus_wsjtx"], ci_txt(b.get("decodes_per_wav_diff_owsfz_minus_wsjtx"), 1, 2, "")))
         if h.get("snr_delta_mean") is not None:
-            A("- SNR delta (OpenWSFZ − WSJT-X) over %d matched pairs: mean %+.2f dB%s, SD %.2f dB." % (h["snr_delta_n"], h["snr_delta_mean"], ci_txt(b.get("snr_delta_mean"), 1, 2, ""), h.get("snr_delta_sd", float("nan"))))
+            A("- SNR delta (OpenWSFZ − WSJT-X)%s over %d matched pairs: mean %+.2f dB%s, SD %.2f dB." % (dag, h["snr_delta_n"], h["snr_delta_mean"], ci_txt(b.get("snr_delta_mean"), 1, 2, ""), h.get("snr_delta_sd", float("nan"))))
         k = blk["kappa"]
-        A("- Cohen's κ (union universe over trials): %s %s (rows %s). *The both-negative cell exists only through trial-to-trial flicker, so κ mostly measures that; read it with the positive-agreement share.*" % (k.get("kappa"), k.get("ci95_asymptotic"), k.get("rows")))
+        A("- Cohen's κ%s (union universe over trials): %s %s (rows %s). *The both-negative cell exists only through trial-to-trial flicker, so κ mostly measures that; read it with the positive-agreement share.*" % (dag, k.get("kappa"), k.get("ci95_asymptotic"), k.get("rows")))
         g = h.get("anova")
         if g and "error" not in g:
             sv, bb = g["pct_study_var"], boot["anova"] if boot else {}
@@ -311,10 +320,10 @@ def fmt_block(res: dict, label: str) -> str:
             A("")
             A("| component | %StudyVar | 95 % CI |")
             A("|---|---|---|")
-            for key, nm in (("EV", "repeatability (EV)"), ("AV", "appraiser (AV)"), ("INT", "part × appraiser (INT)"), ("RR", "total R&R"), ("PV", "part-to-part (PV)")):
+            for key, nm in (("EV", "repeatability (EV)"), ("AV", "appraiser (AV)" + dag), ("INT", "part × appraiser (INT)" + dag), ("RR", "total R&R" + dag), ("PV", "part-to-part (PV)")):
                 A("| %s | %.1f %% | %s |" % (nm, sv[key], ("[%.1f, %.1f]" % tuple(bb["pct_study_var/" + key])) if bb.get("pct_study_var/" + key) else "n/a"))
             A("")
-            A("ndc %.1f%s; appraiser means %.2f / %.2f dB (WSJT-X / OpenWSFZ)." % (g["ndc"], (" [%.1f, %.1f]" % tuple(bb["ndc"])) if bb.get("ndc") else "", g["appraiser_means_db"][0], g["appraiser_means_db"][1]))
+            A("ndc %.1f%s; appraiser means%s %.2f / %.2f dB (WSJT-X / OpenWSFZ)." % (g["ndc"], (" [%.1f, %.1f]" % tuple(bb["ndc"])) if bb.get("ndc") else "", dag, g["appraiser_means_db"][0], g["appraiser_means_db"][1]))
         A("")
     on = res.get("onset")
     A("")
@@ -352,6 +361,18 @@ def fmt_block(res: dict, label: str) -> str:
 
 # ------------------------------------------------------------------ main
 
+def alsa_chain_label(asoundrc: str | None = None) -> str:
+    """The ALSA capture chain, read from the host's ~/.asoundrc: the corrected chain sets rate_converter "samplerate_best" (the default `linear` converter reads OpenWSFZ's SNR about 4.5 dB
+    low, product issue #234; linux/README.md item 6). Never typed: an unreadable file says so."""
+    p = asoundrc or os.path.expanduser("~/.asoundrc")
+    try:
+        txt = open(p, encoding="utf8", errors="replace").read()
+    except OSError:
+        return "ALSA chain NOT READ (no ~/.asoundrc)"
+    m = re.search(r'rate_converter\s+"?([A-Za-z_]+)"?', txt)
+    return ("non-default ALSA chain (rate_converter %s)" % m.group(1)) if m else "default ALSA chain (no rate_converter set)"
+
+
 def describe_chain(run_dir: str, design: str = "concurrent") -> str:
     """The CPU / thread label of the block, from the RUN'S OWN arm_config.json and /proc/cpuinfo (never typed): the Architect's rule (2026-10-13) is that the
     dry run says 'subtractionMaxThreads N (station value, not auto)' and claims nothing about the default set-up."""
@@ -377,8 +398,11 @@ def describe_chain(run_dir: str, design: str = "concurrent") -> str:
         t = "subtractionMaxThreads 0 (auto = %s on %s CPUs)" % (auto, cpus)
     else:
         t = "subtractionMaxThreads %s on %s CPUs (as configured; auto would give %s)%s" % (threads, cpus, auto, " (station value, not auto)" if threads != auto else " (= auto)")
-    who = ("OpenWSFZ alone on the host during its pass (WSJT-X stopped; sequential S6)" if design == "sequential" else "WSJT-X decoding on the same CPUs")
-    return "%s, subtraction deadline ON, %s, %s; a drop on the capture path would be SILENT (no counter or log line exists)" % (model or "host CPU unknown", t, who)
+    if design == "sequential":
+        # Architect amendment 4 (2026-10-15), 1b: "<host>, <CPU>, subtraction deadline ON, SEQUENTIAL (each appraiser alone on the CPU), <ALSA chain>". Every part is READ, none typed.
+        import socket
+        return "%s, %s, subtraction deadline ON, %s, SEQUENTIAL (each appraiser alone on the CPU), %s" % (socket.gethostname(), model or "host CPU unknown", t, alsa_chain_label())
+    return "%s, subtraction deadline ON, %s, WSJT-X decoding on the same CPUs; a drop on the capture path would be SILENT (no counter or log line exists)" % (model or "host CPU unknown", t)
 
 
 def run(run_dir: str, scratch: str, daemon_log: str | None, series_label: str, cpu_chain_label: str | None = None, n_boot: int = S.BOOT_N,

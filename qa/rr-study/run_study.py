@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -184,11 +185,12 @@ def _py(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(cmd, rc)
 
 
-def _s6_phase(cmd: str, phase: str, timeout_s: int = 900) -> int:
+def _s6_phase(cmd: str, phase: str, timeout_s: int = 900, run_dir=None) -> int:
     """Sequential S6: run the launcher's phase hook (`CMD w` = WSJT-X alone, `CMD o` = OpenWSFZ alone, `CMD restore` = both appraisers up again). 0 = done."""
     print(f"  S6 phase '{phase}': {cmd} {phase}", flush=True)
     try:
-        rr = subprocess.run(f"{cmd} {phase}", shell=True, timeout=timeout_s)
+        env = {**os.environ, **({"S6_RUN_DIR": str(run_dir)} if run_dir is not None else {})}      # the hook writes the pass-O library record into the run folder
+        rr = subprocess.run(f"{cmd} {phase}", shell=True, timeout=timeout_s, env=env)
     except subprocess.TimeoutExpired:
         print(f"  [WARN] S6 phase '{phase}' timed out ({timeout_s} s)", flush=True)
         return 124
@@ -208,7 +210,7 @@ def _run_s6_sequential(args, run_dir: Path, wsjtx_exe, stall_hit: dict, stop_wat
               *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
               *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else [])]
     worst = 0
-    rc = _s6_phase(args.s6_phase_cmd, "w")
+    rc = _s6_phase(args.s6_phase_cmd, "w", run_dir=run_dir)
     if rc != 0:
         return rc
     r = _py("s6/s6_play.py", *common, "--appraiser", "wsjtx", "--out-sub", "pass-w", check=False)
@@ -216,7 +218,7 @@ def _run_s6_sequential(args, run_dir: Path, wsjtx_exe, stall_hit: dict, stop_wat
         return r.returncode or 1
     worst = worst or r.returncode
     stop_watchdog()                       # WSJT-X is stopped for pass O: the gate would read that as a stall
-    rc = _s6_phase(args.s6_phase_cmd, "o")
+    rc = _s6_phase(args.s6_phase_cmd, "o", run_dir=run_dir)
     if rc != 0:
         return rc
     r = _py("s6/s6_play.py", *common, "--appraiser", "owsfz", "--out-sub", "pass-o", check=False)
