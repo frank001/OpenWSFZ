@@ -1,0 +1,10 @@
+{
+ "note": "V2 for sweeps 2-5 (every play maps to exactly one archive file and one save WAV), from the make_lists output of the driver log and a re-check of the written lists on sol, 2026-10-16. Aggregates only.",
+ "bar": "180 of 180 per sweep",
+ "sweeps": {
+  "2": {"plays": 180, "archive_files_found": 180, "savewav_files_found": 180, "distinct_archive_paths": 180, "distinct_savewav_paths": 180, "result": "PASS"},
+  "3": {"plays": 180, "archive_files_found": 180, "savewav_files_found": 180, "distinct_archive_paths": 180, "distinct_savewav_paths": 180, "result": "PASS"},
+  "4": {"plays": 180, "archive_files_found": 180, "savewav_files_found": 180, "distinct_archive_paths": 180, "distinct_savewav_paths": 180, "result": "PASS"},
+  "5": {"plays": 180, "archive_files_found": 180, "savewav_files_found": 180, "distinct_archive_paths": 180, "distinct_savewav_paths": 180, "result": "PASS"}
+ }
+}

@@ -7,6 +7,8 @@
 
 ## Validity
 
+**V2 (added 2026-10-16, on the Architect's ruling):** per sweep, every play maps to exactly one archive file and one save WAV: sweep 2 180 of 180, sweep 3 180 of 180, sweep 4 180 of 180, sweep 5 180 of 180 (both lists; 0 files missing; 180 distinct paths in each list). Source: the `make_lists` output line in the driver log (`plays 180, missing_archive 0, missing_savewav 0, v2 PASS`, one per sweep), re-checked on `sol` against the written lists (`archive_o.tsv`, `savewav_w.tsv`: 180 lines, 180 distinct existing paths each). No re-run. The V2 line is not in the sweep JSON validity block, which holds V1, V3, V4, V5; it is recorded here and in `sweep_v2_record.json`. All four sweeps are at 180, so X3 and X4 for sweeps 2-5 stand.
+
 V1 pins equal at start and end in all 8 runs; V3 180 of 180 per run; V5 0 untagged; V4 L and C_w recomputed equal the sweep's report figures in all four sweeps. **Residual passes abandoned: 0 in all 8 runs** (174-177 passes per run). Archive health: 0 of 180 cycles with clipped samples or a drop before, in every sweep. Wall time per run 634-657 s (R-A), 718-721 s (R-W).
 
 ## Rows, per sweep (WAV-clustered bootstrap, 2,000 resamples of the 60 WAVs, paired)
