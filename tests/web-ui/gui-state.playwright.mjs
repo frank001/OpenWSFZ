@@ -50,6 +50,7 @@ const BG_VALUE   = 30;
 const STRIPE_VALUE = 200;
 const STRIPE_FROM = 20, STRIPE_TO = 25;     // bins [20, 25): 20 % - 25 % of the width
 const LINES      = 300;
+const EXTRA_LINES = 20;     // injected while the panel is open (A4)
 
 /** Same gradient as the page's colormap(), re-stated here so the test does not import the code under test. */
 function colormap(v) {
@@ -147,10 +148,13 @@ async function expectEventually(pred, name) {
 }
 
 /** Runs one acceptance block; a crash inside it (e.g. a missing element on the unfixed tree) is one FAIL, not an abort. */
+const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;   // e.g. ONLY=A6 while debugging one block
 async function section(name, body) {
+  if (ONLY && !ONLY.includes(name)) return;
   try { await body(); }
   catch (e) {
     check(`${name} completed`, false, String(e.message ?? e).split('\n')[0]);
+    await page.screenshot({ path: join(SHOTS, `crash-${name}.png`) }).catch(() => {});
     try {
       await page.keyboard.press('Escape');
       if (new URL(page.url()).pathname !== '/') {          // the page navigated away: start the next block on a main page
@@ -202,7 +206,7 @@ const stripeReport = (n, newestIndex) => page.evaluate(({ n, newestIndex, marker
   }
   return { rows, bad, first, w, left, right };
 }, { n, newestIndex,
-     markerColours: Array.from({ length: LINES }, (_, i) => colormap(markerOf(i))),
+     markerColours: Array.from({ length: LINES + EXTRA_LINES }, (_, i) => colormap(markerOf(i))),
      stripe: colormap(STRIPE_VALUE), bg: colormap(BG_VALUE), from: STRIPE_FROM, to: STRIPE_TO, bins: BIN_COUNT });
 
 /** Injects spectrum lines one at a time; waits (on a positive condition) until each one is painted at row 0. */
@@ -410,14 +414,14 @@ await openSettings();
 const rowsBeforeA4 = (await decodeRowTexts()).length;
 inject({ type: 'decode', payload: [makeDecode('CQ Q2GGG CC33'), makeDecode('CQ Q2HHH DD44')] });
 await page.screenshot({ path: join(SHOTS, 'after-2-settings-panel-open.png') });
-await injectSpectrum(LINES, 20);
+await injectSpectrum(LINES, EXTRA_LINES);
 await closePaths['Close link']();
 await waitPanelClosed();
 await page.waitForFunction((n) => document.querySelectorAll('#decodes-body tr').length === n, rowsBeforeA4 + 2,
   { timeout: STEP_TIMEOUT_MS });
 check('A4 exactly 2 more decode rows after frames arrived behind the panel',
   (await decodeRowTexts()).length === rowsBeforeA4 + 2);
-const repA4 = await stripeReport(LINES + 20, LINES + 19);
+const repA4 = await stripeReport(LINES + EXTRA_LINES, LINES + EXTRA_LINES - 1);
 check('A4 exactly 20 more waterfall lines (rows 0-319 are the newest 320 lines)', repA4.bad === 0,
   `${repA4.bad} bad rows, first ${JSON.stringify(repA4.first)}`);
 });
@@ -495,6 +499,8 @@ await page.screenshot({ path: join(SHOTS, 'after-3-config-refreshed.png') });
 await section('A6', async () => {
 for (const [name, doClose] of Object.entries(closePaths)) {
   await openSettings();
+  // Settings remembers its last tab, so select General explicitly before editing the callsign.
+  await frameLocator().locator('#tab-btn-general').click();
   await frameLocator().locator('#general-callsign').fill('Q9DIRTY');
   const rowsBefore = JSON.stringify(await decodeRowTexts());
 

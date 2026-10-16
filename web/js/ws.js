@@ -6,6 +6,8 @@
  * @module ws
  */
 
+import { redirectToLogin } from './api.js';
+
 const WS_URL_PATH   = '/api/v1/ws';
 const DELAY_INITIAL = 1_000;   // ms
 const DELAY_MAX     = 30_000;  // ms
@@ -85,8 +87,7 @@ export function connect(onEvent) {
       // assume auth failure (server returned 401 on the WS upgrade).
       // Clear the key and redirect to the login page.
       if (!everOpened && sessionStorage.getItem('owsfz-api-key')) {
-        sessionStorage.removeItem('owsfz-api-key');
-        window.location.href = '/login.html';
+        redirectToLogin();
         return;
       }
 
