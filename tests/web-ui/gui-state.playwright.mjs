@@ -442,6 +442,12 @@ check('A4 exactly 20 more waterfall lines (rows 0-319 are the newest 320 lines)'
 
 // ── A5: saved config shows up without a reload ───────────────────────────────────────────────────────
 await section('A5', async () => {
+// A real status frame from the daemon (CAT disabled) can turn the dial control back into a span at any time,
+// so put the CAT-connected state back and wait for the dropdown before this block relies on it.
+inject({ type: 'status', payload: { audioDevice: 'test', audioActive: true, decodingEnabled: false,
+  catConnectionStatus: 'Connected', dialFrequencyMHz: 7.074, rxAudioOffsetHz: 1500, txAudioOffsetHz: 1500, holdTxFreq: false } });
+await page.waitForFunction(() => document.getElementById('dial-freq')?.tagName === 'SELECT',
+  null, { timeout: STEP_TIMEOUT_MS });
 const timerBefore = await page.evaluate(() => window.__liveCountdownIntervals());
 check('A5 precondition: countdown is off and no interval is running', timerBefore === 0, `live=${timerBefore}`);
 await openSettings();
@@ -540,6 +546,41 @@ for (const [name, doClose] of Object.entries(closePaths)) {
     && (await sentinel()) === SENTINEL);
 }
 dialogAnswer = true;
+});
+
+// ── A6b: repeated Escape on the main page cannot bypass the guard ────────────────────────────────────
+// Chromium makes the dialog's `cancel` event non-cancelable when Escape repeats without user activation,
+// so a guard that only listens to `cancel` is bypassed from the 3rd press on.
+await section('A6b', async () => {
+  await openSettings();
+  await frameLocator().locator('#tab-btn-general').click();
+  await frameLocator().locator('#general-callsign').fill('Q9DIRTY');
+  await page.locator('#settings-dialog-close').focus();         // focus on a main-document element
+  dialogLog.length = 0;
+  dialogAnswer = false;                                          // Cancel every time
+  const PRESSES = 4;
+  for (let i = 1; i <= PRESSES; i++) {
+    await page.keyboard.press('Escape');
+    await expectEventually(() => dialogLog.length >= i, `A6b press ${i}: confirmation raised`);
+  }
+  check(`A6b ${PRESSES} Escapes raised ${PRESSES} prompts`, dialogLog.length === PRESSES, `prompts=${dialogLog.length}`);
+  check('A6b the panel is still open after the Cancels', await panelIsOpen());
+  check('A6b the edit is intact', (await frameLocator().locator('#general-callsign').inputValue()) === 'Q9DIRTY');
+  dialogAnswer = true;
+  await closePaths['Close link']();                              // leave via OK
+  await waitPanelClosed();
+});
+
+// ── Dark scrollbar on the Settings page's root scroller (computed style; headless draws no classic bar) ─
+await section('scrollbar', async () => {
+  await openSettings();
+  const inPanel = await page.evaluate(() => getComputedStyle(
+    document.querySelector('#settings-dialog iframe').contentDocument.documentElement).scrollbarColor);
+  await closePaths['Close link']();
+  await waitPanelClosed();
+  const mainPage = await page.evaluate(() => getComputedStyle(document.documentElement).scrollbarColor);
+  check('Settings iframe root scroller has a themed scrollbar-color', inPanel !== 'auto' && /rgb/.test(inPanel), inPanel);
+  check('main page root scroller has the same themed scrollbar-color', mainPage === inPanel, `${mainPage} vs ${inPanel}`);
 });
 
 // ── A8: a direct visit, and a modified click, behave as before ───────────────────────────────────────

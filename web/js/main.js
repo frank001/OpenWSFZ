@@ -2112,7 +2112,15 @@ function initSettingsPanel(settingsLink) {
 
   closeBtn.addEventListener('click', () => { requestCloseSettings(); });
 
-  // Escape on the main page: the browser's native close would bypass the guard, so cancel it.
+  // Escape on the main page. Handled on keydown so the browser's own close request never starts:
+  // Chromium makes the dialog's `cancel` event NON-cancelable when Escape repeats without user
+  // activation, and a preventDefault() there is then ignored (the guard was bypassed on the 3rd press).
+  dialogEl.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    ev.preventDefault();
+    requestCloseSettings();
+  });
+  // Backstop: any close request that still reaches `cancel` goes through the same guard.
   dialogEl.addEventListener('cancel', (ev) => {
     ev.preventDefault();
     requestCloseSettings();

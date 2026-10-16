@@ -196,28 +196,34 @@ label {
    #decodes-panel (main decode table), #tx-transcript-section (QSO transcript — the only
    scrolling region left inside the TX column now that controls are pinned, see
    feat/qso-transcript-own-section), and .decode-filter-popup (column-header filter
-   dropdowns). */
+   dropdowns). `html` is the page's root scroller (settings.html scrolls on it, so the Settings
+   page, direct or in the #212 panel, otherwise showed the light OS bar). */
+html,
 #decodes-panel,
 #tx-transcript-section,
 .decode-filter-popup {
   scrollbar-color: var(--color-border) var(--color-surface);
 }
+html::-webkit-scrollbar,
 #decodes-panel::-webkit-scrollbar,
 #tx-transcript-section::-webkit-scrollbar,
 .decode-filter-popup::-webkit-scrollbar {
   width: 10px;
 }
+html::-webkit-scrollbar-track,
 #decodes-panel::-webkit-scrollbar-track,
 #tx-transcript-section::-webkit-scrollbar-track,
 .decode-filter-popup::-webkit-scrollbar-track {
   background: var(--color-surface);
 }
+html::-webkit-scrollbar-thumb,
 #decodes-panel::-webkit-scrollbar-thumb,
 #tx-transcript-section::-webkit-scrollbar-thumb,
 .decode-filter-popup::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: var(--radius);
 }
+html::-webkit-scrollbar-thumb:hover,
 #decodes-panel::-webkit-scrollbar-thumb:hover,
 #tx-transcript-section::-webkit-scrollbar-thumb:hover,
 .decode-filter-popup::-webkit-scrollbar-thumb:hover {
