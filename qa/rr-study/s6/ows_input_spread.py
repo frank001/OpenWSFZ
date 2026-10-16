@@ -113,9 +113,8 @@ def describe(spread: np.ndarray) -> dict:
 
 def run(sweep_dir: str, audio_dir: str, corpus: str, wavlist: str, runs_dir: str) -> dict:
     plan = json.load(open(os.path.join(runs_dir, "plan.json"), encoding="utf8"))
-    plays = {p["index"]: p for p in R.load_plays(sweep_dir)}
-    # plan index i == the i-th play in pass-O slot order (R.load_plays); join the boundaries back by the stamps
-    by_stamp = {R.A.stamp_o(p): p for p in plays.values()}
+    # plan index i == the i-th play in pass-O slot order (R.load_plays); join the boundaries back by the pass-O stamps
+    by_stamp = {R.A.stamp_o(p): p for p in R.load_plays(sweep_dir)}
     pw = [{"index": q["index"], "wav_id": q["wav_id"], "stamp": q["stamp_w"], "boundary_utc": by_stamp[q["stamp_o"]]["boundary_utc"]} for q in plan]
     po = [{"index": q["index"], "wav_id": q["wav_id"], "stamp": q["stamp_o"], "boundary_utc_o": by_stamp[q["stamp_o"]]["boundary_utc_o"]} for q in plan]
     wl = {it["id"]: it for it in json.load(open(wavlist, encoding="utf8"))["items"]}
