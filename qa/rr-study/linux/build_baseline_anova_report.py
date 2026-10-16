@@ -536,7 +536,7 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
                     "; ".join("%s: own consistency WSJT-X %.1f %% / OpenWSFZ %.1f %%, decodes per WAV %.2f / %.2f" % (b, 100 * float(np.mean([r["consistency_own_wsjtx"] for r in rs])), 100 * float(np.mean([r["consistency_own_owsfz"] for r in rs])),
                                                                                                                      float(np.mean([r["decodes_per_wav_wsjtx"] for r in rs])), float(np.mean([r["decodes_per_wav_owsfz"] for r in rs]))) for b, rs in sorted(bands.items()))))
             onset = [((s6[k].get("validity") or {}).get("S6-V2") or {}).get("onset", {}) for k in ok6]
-            A("   - **Sound onset** (from WSJT-X's own DT, pass W; V2(d) bar [0.0, +0.3] s, source: two quick dry runs 2026-10-13/14, pilot-derived, Architect amendment 3): %s." % (
+            A("   - **Sound onset** (from WSJT-X's own DT, pass W; V2(d) bar [0.0, +0.3] s, source: two quick dry runs 2026-10-13/14, the validation run and sweep 1; frozen by Architect amendment 7): %s." % (
                 "; ".join("%s %s (median of per-play medians %s s, %s plays read)" % (B.SHORT[k], o.get("result"), (s6[k].get("onset") or {}).get("per_play_median_shift_s", {}).get("median"), o.get("plays_read")) for k, o in zip(ok6, onset))))
         A("")
         A("   S6 reads the live path of each program in its own pass. It is not a decode-rate claim, and its 2026-06/07 figures are **not comparable** (a different design, tier and build).")

@@ -39,7 +39,7 @@ PASS_LINE = re.compile(r"^\[(\d\d):(\d\d):(\d\d) \w+\] Sub-feas residual pass: r
                        r"containedException=(True|False) fittedSignals=(\d+)")
 ONSET_BAR_S = (0.0, 0.3)          # S6-V2(d) (Architect amendment 3, 2026-10-14): every read play's median DT shift (replay - live) lies in [0.0, +0.3] s. Source (HK-038): TWO S6 quick dry runs on sol
                                   # (10-13: 66 plays read, 10-14: 44 read; 110 plays: per-play median 0.1 or 0.2 s, median 0.1, max 0.2) = the observed maximum plus one 0.1 s DT reading step.
-                                  # PILOT-DERIVED, not a derived bar; re-examined after the first standard-tier baseline sweep, before it is frozen. (Until 2026-10-14 the bar was [0.0, 0.2].)
+                                  # FROZEN by Architect amendment 7 (2026-10-16): basis = the 2 dry runs, the validation run and B2BASE sweep 1 (174 of 180 plays read, per-play median 0.05-0.1 s, all inside); not narrowed toward 0.1 s. (Until 2026-10-14 the bar was [0.0, 0.2].)
 ONSET_EPS = 1e-9
 MIN_ATTRIBUTED_SHARE = 0.9       # a DESIGN number (Architect 2026-10-13: stays 90 %): the daemon-log attribution is trusted only if this share of the residual-pass LINES in the window maps to a play slot
 
