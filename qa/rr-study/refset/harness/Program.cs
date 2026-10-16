@@ -73,6 +73,7 @@ internal static class Program
     {
         var a = ParseArgs(args);
         if (a.ContainsKey("selftest")) return SelfTest();
+        if (a.ContainsKey("wavlist")) return await RunListAsync(a);
 
         string manifestPath = Req(a, "manifest"), corpus = Req(a, "corpus"), blockId = Req(a, "block"), leg = Req(a, "leg");
         string outDir = Req(a, "out-dir"), jit = Req(a, "jit-wav"), pass = Req(a, "pass");
@@ -194,6 +195,93 @@ internal static class Program
         File.WriteAllText(sumPath + ".part", JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }));
         File.Move(sumPath + ".part", sumPath, true);
         Console.WriteLine($"BLOCK {blockId} leg {leg} pass {pass}: wall {wall:F1}s cpu {cpu:F1}s abandoned {_abandoned - ab0} of {_ran - ran0} residual passes");
+        return 0;
+    }
+
+    // ------------------------------------------------------------ OWS-REPLAY-CONSISTENCY list mode (Architect spec 2026-10-16-1635 + amendment 1)
+    // ONE PROCESS = ONE RUN-REPEAT: decodes the WAVs named in --wavlist, in list order, through the live call, and tags every decode with its batch
+    // (1 = pass 0, handed to the callback; 2 = the residual pass, returned). List file: one line per item, "index<TAB>wav path<TAB>cycle stamp".
+    // Working file (message text, scratch only, HK-037): index, batch, snr, dt, freq, text. Summary json: pins, readback, per-item rows / ms / residual-pass flags.
+    private static async Task<int> RunListAsync(Dictionary<string, string> a)
+    {
+        string listPath = Req(a, "wavlist"), outDir = Req(a, "out-dir"), runId = Req(a, "run-id"), jit = Req(a, "jit-wav");
+        string label = a.TryGetValue("label", out var lb) ? lb : "unlabelled";
+        int nhard = int.Parse(Req(a, "nhard"), CultureInfo.InvariantCulture), signFix = int.Parse(Req(a, "osd-sign-fix"), CultureInfo.InvariantCulture);
+        int threads = int.Parse(Req(a, "threads"), CultureInfo.InvariantCulture);
+        var items = new List<(int Index, string Path, string Stamp)>();
+        foreach (var line in File.ReadAllLines(listPath))
+        {
+            if (line.Length == 0) continue;
+            var f = line.Split('\t');
+            if (f.Length != 3) throw new InvalidDataException("wavlist line is not index<TAB>path<TAB>stamp");
+            items.Add((int.Parse(f[0], CultureInfo.InvariantCulture), f[1], f[2]));
+        }
+        if (items.Count == 0) throw new InvalidDataException("empty wavlist");
+        foreach (var it in items) if (!File.Exists(it.Path)) throw new InvalidOperationException("missing WAV in the list");
+        Directory.CreateDirectory(outDir);
+        string workPath = Path.Combine(outDir, runId + ".decodes.tsv"), sumPath = Path.Combine(outDir, runId + ".json");
+
+        string nativeSha = NativeLibSha(out string nativeName);
+        var decoder = new Ft8Decoder(new WallClock(), new CountingLogger<Ft8Decoder>());
+        decoder.SetDecodeParams(KMinScorePass2, OsdCorrThreshold, nhard);
+        decoder.SetOsdSignFix(signFix);
+        decoder.SetSubtractionMaxThreads(threads);
+        decoder.SetSubtractionEnabled(true);
+        var readbackStart = new SortedDictionary<string, object>
+        {
+            ["subtractionEnabled"] = decoder.SubtractionEnabled, ["threadsConfigured"] = threads, ["cores"] = Environment.ProcessorCount,
+            ["nhard"] = nhard, ["kMinScorePass2"] = KMinScorePass2, ["osdCorrThreshold"] = OsdCorrThreshold, ["shim"] = Ft8Decoder.LoadedShimVersion,
+            ["osdSignFixSet"] = signFix, ["osdSignFixRead"] = decoder.GetOsdSignFix(),
+        };
+        await decoder.DecodeTwoStageAsync(ReadWav(jit), StampToUtc(items[0].Stamp), null, _ => Task.CompletedTask);   // JIT warm-up on the synthetic fixture, discarded
+        int ran0 = _ran, ab0 = _abandoned, co0 = _contained;
+
+        var proc = Process.GetCurrentProcess();
+        var cpu0 = proc.TotalProcessorTime;
+        var swAll = Stopwatch.StartNew();
+        var itemInfo = new List<SortedDictionary<string, object>>();
+        int nUntagged = 0;
+        using (var work = new StreamWriter(workPath + ".part", false, new UTF8Encoding(false)))
+        {
+            work.WriteLine("index\tbatch\tsnr\tdt\tfreq_hz\ttext");
+            foreach (var it in items)
+            {
+                var pcm = ReadWav(it.Path);
+                int r1 = _ran, a1 = _abandoned, c1 = _contained;
+                _lastResidualMs = -1;
+                _lastFitted = -1;
+                var batch1 = new List<DecodeResult>();
+                var sw = Stopwatch.StartNew();
+                var batch2 = await decoder.DecodeTwoStageAsync(pcm, StampToUtc(it.Stamp), null, b => { batch1.AddRange(b); return Task.CompletedTask; });
+                double ms = sw.Elapsed.TotalMilliseconds;
+                itemInfo.Add(new SortedDictionary<string, object>
+                {
+                    ["index"] = it.Index, ["stamp"] = it.Stamp, ["rows_b1"] = batch1.Count, ["rows_b2"] = batch2.Count, ["ms"] = Math.Round(ms, 1),
+                    ["ran"] = _ran - r1, ["abandoned"] = _abandoned - a1, ["contained"] = _contained - c1, ["residual_ms"] = _lastResidualMs, ["fitted"] = _lastFitted,
+                });
+                foreach (var (rows, batch) in new[] { (batch1, 1), (batch2.ToList(), 2) })
+                    foreach (var r in rows.OrderBy(x => x.FreqHz).ThenBy(x => x.Message, StringComparer.Ordinal))
+                        work.WriteLine(string.Join("\t", it.Index.ToString(CultureInfo.InvariantCulture), batch.ToString(CultureInfo.InvariantCulture),
+                            r.Snr.ToString(CultureInfo.InvariantCulture), r.Dt.ToString("F2", CultureInfo.InvariantCulture),
+                            r.FreqHz.ToString("F0", CultureInfo.InvariantCulture), Sanitise(r.Message)));
+            }
+        }
+        double wall = swAll.Elapsed.TotalSeconds, cpu = (proc.TotalProcessorTime - cpu0).TotalSeconds;
+        File.Move(workPath + ".part", workPath, true);
+        var summary = new SortedDictionary<string, object>
+        {
+            ["mode"] = "wavlist", ["run_id"] = runId, ["label"] = label, ["generated_utc"] = DateTime.UtcNow.ToString("O"),
+            ["os"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription, ["budget_override_env"] = Environment.GetEnvironmentVariable(BudgetEnvVar) ?? "(unset: 13 s default)",
+            ["native_lib"] = nativeName, ["native_sha256_start"] = nativeSha, ["native_sha256_end"] = NativeLibSha(out _),
+            ["readback_start"] = readbackStart,
+            ["readback_end"] = new SortedDictionary<string, object> { ["subtractionEnabled"] = decoder.SubtractionEnabled, ["shim"] = Ft8Decoder.LoadedShimVersion },
+            ["items"] = items.Count, ["untagged_decodes"] = nUntagged,
+            ["residual_pass"] = new SortedDictionary<string, object> { ["ran"] = _ran - ran0, ["abandoned"] = _abandoned - ab0, ["contained"] = _contained - co0 },
+            ["wall_s"] = Math.Round(wall, 2), ["cpu_s"] = Math.Round(cpu, 2), ["item_info"] = itemInfo,
+        };
+        File.WriteAllText(sumPath + ".part", JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }));
+        File.Move(sumPath + ".part", sumPath, true);
+        Console.WriteLine($"RUN {runId}: {items.Count} items, wall {wall:F1}s cpu {cpu:F1}s abandoned {_abandoned - ab0} of {_ran - ran0} residual passes");
         return 0;
     }
 
