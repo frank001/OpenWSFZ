@@ -66,7 +66,7 @@ degrades the history. Repainting from raw lines is exact at every size, so shrin
   `ctrlKey`, `metaKey`, `shiftKey`, `altKey` is set; `preventDefault()` and open. Anything else falls
   through to the real `href`.
 - **One close function** `requestCloseSettings()` in `main.js`. The four paths: the Close link inside the
-  iframe (posts to the parent or calls `parent.requestCloseSettings`), the dialog's own close button, a
+  iframe (a `postMessage` to the parent, see "Transport as built" below), the dialog's own close button, a
   `keydown` Escape listener on the iframe's document, and the `<dialog>`'s `cancel` event (Escape on the
   main page, with `preventDefault()` so the browser's native close does not bypass the guard).
 - **Dirty guard transport: direct same-origin call, not `postMessage`** (the Developer may choose
@@ -77,6 +77,15 @@ degrades the history. Repainting from raw lines is exact at every size, so shrin
   value makes "Cancel leaves the panel open" trivially testable; `postMessage` would need a reply protocol.
   If the iframe has not finished loading, `owsfzSettings` is absent and the parent closes without a prompt
   (nothing can be dirty before the form exists).
+- **Transport as built (Developer, 2026-10-16).** Parent to iframe is the direct same-origin call above
+  (`iframe.contentWindow.owsfzSettings.requestClose()`, synchronous boolean). Iframe to parent is a
+  **`postMessage`** `{ type: 'owsfz.settings.close' }` to `location.origin`, accepted by `main.js` only when
+  `event.origin === location.origin` and `event.source === iframe.contentWindow`. It is used by the Close link
+  AND by Escape inside the iframe, and `settings.js` owns both listeners (`isEmbedded` only). Reason: no global
+  on the main page for the iframe to reach into, the Escape listener lives with the page it belongs to (nothing
+  to re-attach if the iframe navigates), and there is no reply to wait for. Every way the dialog ends, including
+  a native close the browser forces, lands on the dialog's `close` event, which is the single place that removes
+  the iframe, returns focus and starts the refresh (so a native close cannot skip the cleanup).
 - **Embedded mode** is read once from `new URLSearchParams(location.search).get('embedded') === '1'` in
   `settings.js`. Embedded: the back link's text becomes Close, its click calls the parent's close function
   and is prevented. Not embedded: the code is untouched (R2.10).

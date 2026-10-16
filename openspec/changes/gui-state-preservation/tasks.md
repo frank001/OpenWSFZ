@@ -12,33 +12,33 @@ Handoff: `dev-tasks/2026-10-16-eng-to-dev-212-gui-state.md`.
 
 - [x] 0.1 `origin/main` is `76aa48cd` (2026-10-16). Evidence: `git log -1 origin/main`.
 - [x] 0.2 Load-time inventory (spec E1): `design.md` §E1. Ten rows, four re-read on close, no daemon change needed.
-- [ ] 0.3 The Developer re-reads the line numbers quoted in `design.md` on the tree they branch from.
+- [x] 0.3 The Developer re-reads the line numbers quoted in `design.md` on the tree they branch from.
 
 ## 1. Tests first (Developer)
 
-- [ ] 1.1 `web/js/waterfallHistory.test.js`: U1–U6 (spec §4). Each must be able to fail (HK-025(k)).
-- [ ] 1.2 `web/js/cycleTimer.test.js`: U7, with a fake `setInterval`/`clearInterval`.
-- [ ] 1.3 `tests/web-ui/gui-state.playwright.mjs`: acceptance A1–A10 (spec §5 plus `design.md`), same conventions
+- [x] 1.1 `web/js/waterfallHistory.test.js`: U1–U6 (spec §4). Each must be able to fail (HK-025(k)).
+- [x] 1.2 `web/js/cycleTimer.test.js`: U7, with a fake `setInterval`/`clearInterval`.
+- [x] 1.3 `tests/web-ui/gui-state.playwright.mjs`: acceptance A1–A10 (spec §5 plus `design.md`), same conventions
       as `settings-archive.playwright.mjs` (isolated daemon and port, never the station's; `routeWebSocket`
       for the frames). Written before the implementation; it SHALL be red on `origin/main` for A1–A5, A9.
 
 ## 2. Part A: waterfall (Developer)
 
-- [ ] 2.1 `web/js/waterfallHistory.js` (DOM-free): `HISTORY_LINES = 2048`, colormap LUT, `WaterfallHistory`.
-- [ ] 2.2 `spectrum.js`: `render()` pushes and paints row 0 through the shared row painter; `_resize()` ignores a
+- [x] 2.1 `web/js/waterfallHistory.js` (DOM-free): `HISTORY_LINES = 2048`, colormap LUT, `WaterfallHistory`.
+- [x] 2.2 `spectrum.js`: `render()` pushes and paints row 0 through the shared row painter; `_resize()` ignores a
       zero size, ignores an unchanged size, otherwise repaints from the ring.
-- [ ] 2.3 `main.js`: `ResizeObserver` callback coalesced to one `requestAnimationFrame`; a `devicePixelRatio`
+- [x] 2.3 `main.js`: `ResizeObserver` callback coalesced to one `requestAnimationFrame`; a `devicePixelRatio`
       `matchMedia` listener feeds the same path.
 
 ## 3. Parts B–E: Settings panel (Developer)
 
-- [ ] 3.1 `index.html` + `app.css`: `<dialog id="settings-dialog" aria-label="Settings">`, close button.
-- [ ] 3.2 `main.js`: link click interception (primary button, no modifier), fresh iframe per open, one
+- [x] 3.1 `index.html` + `app.css`: `<dialog id="settings-dialog" aria-label="Settings">`, close button.
+- [x] 3.2 `main.js`: link click interception (primary button, no modifier), fresh iframe per open, one
       `requestCloseSettings()`, Escape on the main page via the dialog's `cancel` event, focus in and back.
-- [ ] 3.3 `settings.js` + `settings.html`: `embedded=1` mode (Close, no navigation), `window.owsfzSettings.requestClose()`,
+- [x] 3.3 `settings.js` + `settings.html`: `embedded=1` mode (Close, no navigation), `window.owsfzSettings.requestClose()`,
       Escape forwarded from the iframe, the direct-visit path untouched.
-- [ ] 3.4 `api.js` `redirectToLogin()`, all twelve sites use it (`api.js` ×10, `main.js`, `ws.js`).
-- [ ] 3.5 `cycleTimer.js` and the split of `startCycleTimerIfEnabled` into `initConfigDerivedState()` and
+- [x] 3.4 `api.js` `redirectToLogin()`, all twelve sites use it (`api.js` ×10, `main.js`, `ws.js`).
+- [x] 3.5 `cycleTimer.js` and the split of `startCycleTimerIfEnabled` into `initConfigDerivedState()` and
       `refreshConfigDerivedState()`; `renderDialFreqSelect` rebuilds on a content difference; refresh on every close
       and on a WebSocket `connected` that follows a disconnect.
 
@@ -65,11 +65,11 @@ PC. Reported to the Architect, who rules if the median is over 16.7 ms.
 
 ## 5. Documentation and gates (Developer; Engineer verifies)
 
-- [ ] 5.1 `REQUIREMENTS.md`: add **FR-086** (waterfall history survives a resize) and **FR-087** (Settings opens over
+- [x] 5.1 `REQUIREMENTS.md`: add **FR-086** (waterfall history survives a resize) and **FR-087** (Settings opens over
       the live main page, with its close paths, config refresh and 401 rule); amend **FR-041** (its guard
       now also covers the panel's close paths); add a revision-history row.
 - [ ] 5.2 `VERSION` bump (G9b); commit before running `check_version_bump.py` (it reads the proposal from git).
-- [ ] 5.3 Traceability: follow the precedent for the other web-only FRs (FR-062, FR-083) and report what it was.
+- [x] 5.3 Traceability: follow the precedent for the other web-only FRs (FR-062, FR-083) and report what it was.
 - [ ] 5.4 `openspec validate gui-state-preservation --strict`; `node --test web/js/*.test.js` green.
 
 ## 6. Out of scope, to note on #212 as follow-ups (not built here)
