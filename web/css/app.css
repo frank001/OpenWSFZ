@@ -196,28 +196,34 @@ label {
    #decodes-panel (main decode table), #tx-transcript-section (QSO transcript — the only
    scrolling region left inside the TX column now that controls are pinned, see
    feat/qso-transcript-own-section), and .decode-filter-popup (column-header filter
-   dropdowns). */
+   dropdowns). `html` is the page's root scroller (settings.html scrolls on it, so the Settings
+   page, direct or in the #212 panel, otherwise showed the light OS bar). */
+html,
 #decodes-panel,
 #tx-transcript-section,
 .decode-filter-popup {
   scrollbar-color: var(--color-border) var(--color-surface);
 }
+html::-webkit-scrollbar,
 #decodes-panel::-webkit-scrollbar,
 #tx-transcript-section::-webkit-scrollbar,
 .decode-filter-popup::-webkit-scrollbar {
   width: 10px;
 }
+html::-webkit-scrollbar-track,
 #decodes-panel::-webkit-scrollbar-track,
 #tx-transcript-section::-webkit-scrollbar-track,
 .decode-filter-popup::-webkit-scrollbar-track {
   background: var(--color-surface);
 }
+html::-webkit-scrollbar-thumb,
 #decodes-panel::-webkit-scrollbar-thumb,
 #tx-transcript-section::-webkit-scrollbar-thumb,
 .decode-filter-popup::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: var(--radius);
 }
+html::-webkit-scrollbar-thumb:hover,
 #decodes-panel::-webkit-scrollbar-thumb:hover,
 #tx-transcript-section::-webkit-scrollbar-thumb:hover,
 .decode-filter-popup::-webkit-scrollbar-thumb:hover {
@@ -1363,4 +1369,70 @@ select#dial-freq {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
+}
+
+/* ── Settings panel over the live main page (#212, FR-087) ─────────────── */
+
+#settings-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* display:flex only while open — a bare `display` would override the UA's closed-dialog hiding. */
+#settings-dialog {
+  background:     var(--color-bg);
+  color:          var(--color-text);
+  border:         1px solid var(--color-border);
+  border-radius:  calc(var(--radius) * 2);
+  padding:        0;
+  width:          min(1000px, 96vw);
+  height:         min(94vh, 1100px);
+  max-width:      96vw;
+  max-height:     94vh;
+  overflow:       hidden;
+}
+
+#settings-dialog[open] {
+  display:        flex;
+  flex-direction: column;
+}
+
+#settings-dialog-header {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         0.4rem 0.75rem;
+  background:      var(--color-surface);
+  border-bottom:   1px solid var(--color-border);
+  font-weight:     600;
+}
+
+#settings-dialog-close {
+  background:    transparent;
+  color:         var(--color-text);
+  border:        1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding:       0.15rem 0.55rem;
+  cursor:        pointer;
+}
+
+#settings-dialog-close:hover {
+  background: var(--color-border);
+}
+
+#settings-dialog-body {
+  flex:       1 1 auto;
+  min-height: 0;
+  display:    flex;
+}
+
+#settings-dialog-body iframe {
+  flex:   1 1 auto;
+  width:  100%;
+  border: 0;
+  background: var(--color-bg);
+}
+
+/* Settings shown inside the panel: the dialog header already carries the title. */
+.settings-embedded #settings-page h1 {
+  display: none;
 }
