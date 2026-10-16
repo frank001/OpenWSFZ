@@ -126,6 +126,14 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
     B.NAME  # noqa: B018 (shared label dicts)
     R = B.compute(results)
     Fg = B.figures(R, os.path.join(out, "img"))
+    _nwd = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven"}.get(len(keys), str(len(keys)))
+    for _k in ("A4", "A5", "A8"):
+        Fg[_k] = (Fg[_k][0], Fg[_k][1].replace("four corrected sweeps", _nwd + " sweeps").replace("four-sweep", _nwd + "-sweep").replace("(0 or 4 for both)", "(0 or %d for both)" % len(keys)).replace("of the 40 values", "of the %d values" % (10 * len(keys))))
+    _bo = [R["bias"]["S1"][k]["OpenWSFZ"]["bias"] for k in keys]
+    _bw = [R["bias"]["S1"][k]["WSJT-X"]["bias"] for k in keys]
+    Fg["A3"] = (Fg["A3"][0], "Mean error of each sweep, per appraiser and scenario. OpenWSFZ's S1 bias per sweep lies between %+.2f and %+.2f dB; WSJT-X's between %+.2f and %+.2f dB." % (min(_bo), max(_bo), min(_bw), max(_bw)))
+    Fg["A6"] = (Fg["A6"][0], Fg["A6"][1].replace("; run 1's S1b loss is the default chain.", "."))
+    _alt = {"A1": "Variance components", "A2": "Interaction plots", "A3": "Sweep effect", "A8": "Residual plots"}
     S, T, BT = R["summ"], R["three"], R["boot"]
     n = len(keys)
     mon = {k: jload(os.path.join(results, folders[i], "monitoring_summary.json")) for i, k in enumerate(keys)}
@@ -167,7 +175,7 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
         n, ", S6" if any(s6.values()) else ""))
     A("")
     A(B.md_table(["Field", "Value"], [
-        ["Report date", "analysis of the run folders, no new run"],
+        ["Report date", "2026-10-16 (QA; analysis of the five run folders, no new run)"],
         ["Host", "`sol`: AMD FX-8350, Gentoo; no radio, no CAT; audio through the codec loopback, PCM `rr_in`"],
         ["OpenWSFZ build, all %d sweeps" % n, "`%s` (v%s, shim %s)" % (r1["build"]["commit"], r1["build"]["daemon_version"], r1["build"]["shim"])],
         ["`libft8.so` SHA-256", "`%s` in all %d (read back from each run's `arm_config.json`: %s)" % (r1["build"]["dll_sha256"], n, "equal" if len({S[k]["build"]["dll_sha256"] for k in keys}) == 1 else "**NOT EQUAL**")],
@@ -259,11 +267,13 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
             gr["repeatability"], ci(sc, "repeatability"), gr["appraiser"], ci(sc, "appraiser"), gr["sweep"], ci(sc, "sweep"), r["pct_grr"], ci(sc, "grr"), r["pct_grr_sv"], _AN._verdict_grr(r["pct_grr_sv"]), r["ndc"], gr["part"], R["pooled2"][sc]["pct"]["grr"], R["pooled2"][sc]["ndc"]))
         A("")
     for key in ("A1", "A2", "A3", "A8"):
-        A("![%s](img/%s)" % (Fg[key][1][:40], Fg[key][0]))
+        A("![%s](img/%s)" % (_alt[key], Fg[key][0]))
         A("")
         A("*Figure %s. %s*" % (key, Fg[key][1]))
         A("")
-    A("S3 note (Architect, 2026-10-14): S3 reproducibility is dominated by a fixed OpenWSFZ − WSJT-X DT offset (+0.12 s, Section 3.3 of the 2026-10-14 full-ANOVA report), not by run-to-run noise.")
+    _d3 = [R["bias"]["S3"][k]["OpenWSFZ"]["bias"] - R["bias"]["S3"][k]["WSJT-X"]["bias"] for k in keys]
+    A("S3 note (the Architect's reading of 2026-10-14, checked here): S3 reproducibility is dominated by a fixed OpenWSFZ − WSJT-X DT offset (%+.3f s on average, per sweep %s; Section 3.3), not by run-to-run noise; the appraiser share and the repeatability share are in the grouped line above." % (
+        sum(_d3) / len(_d3), ", ".join("%+.3f" % x for x in _d3)))
     A("")
     A("### 3.3 Bias and linearity")
     A("")
@@ -332,9 +342,27 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
         A("")
     else:
         have = [k for k in keys if s6.get(k)]
-        A(B.md_table(["Sweep", "Status", "Tier / plays", "Validity rows (V1/V2/V3/V4/V5)", "Abandoned plays", "Positive agreement", "Decodes per WAV (WSJT-X / OpenWSFZ)", "SNR delta mean (dB)", "Onset median (s)"], [
+        def _vw(k, row):
+            v = (s6[k].get("validity") or {}).get(row, {})
+            return "%s / %s" % (v.get("w", {}).get("result", "-"), v.get("o", {}).get("result", "-"))
+        def _v2(k):
+            v = (s6[k].get("validity") or {}).get("S6-V2", {})
+            sl = v.get("stray_lines", {})
+            return "%s (strays W %s / O %s; double plays %s; plays outside %s; onset %s, %s of 180 read)" % (v.get("result"), sl.get("wsjtx"), sl.get("owsfz"), v.get("slots_with_two_plays"), v.get("plays_outside_tolerance"), (v.get("onset") or {}).get("result"), (v.get("onset") or {}).get("plays_read"))
+        def _v7(k):
+            v = (s6[k].get("validity") or {}).get("S6-V7", {})
+            return "%s (missing WSJT-X %s / OpenWSFZ %s of %s)" % (v.get("result"), (v.get("wsjtx") or {}).get("missing"), (v.get("owsfz") or {}).get("missing"), v.get("plays"))
+        A("**Validity rows, as recorded** (rows with two passes read pass W / pass O; V2 and V4 are one row per sweep with the strays split by appraiser; V7 is one row per appraiser; V6 is the option-A loss-counter row, not part of this design):")
+        A("")
+        A(B.md_table(["Sweep", "V1 (W / O)", "V2", "V3 warm-up (W / O)", "V4 plays completed", "V5 pins (W / O)", "V7 coverage"], [
+            [B.SHORT[k], _vw(k, "S6-V1"), _v2(k), _vw(k, "S6-V3"), "%s (%s of %s)" % ((s6[k].get("validity") or {}).get("S6-V4", {}).get("result"), (s6[k].get("validity") or {}).get("S6-V4", {}).get("plays"), (s6[k].get("validity") or {}).get("S6-V4", {}).get("expected")), _vw(k, "S6-V5"), _v7(k)] for k in have]))
+        A("")
+        _v2s = [(s6[k].get("validity") or {}).get("S6-V2", {}) for k in have]
+        A("**Player call-time offset (a RECORD, not a check; retired as a check by amendment 3 item 6 because it cannot fail):** nominal %s s, min %s s, max %s s per sweep, tolerance %s s." % (
+            "/".join(str(abs(v.get("offset_nominal_s") or 0.0)) for v in _v2s), "/".join(str(v.get("offset_min_s")) for v in _v2s), "/".join(str(v.get("offset_max_s")) for v in _v2s), _v2s[0].get("offset_tolerance_s")))
+        A("")
+        A(B.md_table(["Sweep", "Status", "Tier / plays", "Abandoned plays", "Positive agreement", "Decodes per WAV (WSJT-X / OpenWSFZ)", "SNR delta mean (dB)", "Onset median (s)"], [
             [B.SHORT[k], s6[k].get("status"), "%s / %s%s" % (s6[k].get("tier"), s6[k].get("plays"), " (sequential)" if s6_designs.get(k) == "sequential" else ""),
-             "/".join(str((s6[k].get("validity") or {}).get("S6-V%d" % i, {}).get("result", "-")) for i in (1, 2, 3, 4, 5)),
              "%s of %s" % (s6[k]["abandonment"].get("plays_abandoned"), s6[k].get("plays")),
              "%.1f %%" % (100 * s6[k]["full"]["headline"]["positive_agreement"]),
              "%.2f / %.2f" % (s6[k]["full"]["headline"]["decodes_per_wav_wsjtx"], s6[k]["full"]["headline"]["decodes_per_wav_owsfz"]),
@@ -403,7 +431,7 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
     if stall["retries_exhausted_in"]:
         A("**RETRIES EXHAUSTED (the series halted) in:** " + ", ".join("`%s`" % d for d in stall["retries_exhausted_in"]))
         A("")
-    A("With M1 on, each stall has a snapshot in the sweep's supervisor folder (the wait channel of the audio thread, the ALSA state, the process list); the stall count over the series is the stall-rate data the root-cause question needs. The cause of the 11 and 14 October stalls is not established.")
+    A("With M1 on, each stall has a snapshot in the sweep's supervisor folder (the wait channel of the audio thread, the ALSA state, the process list); stalls are reported here as events, not as a rate. The cause of the 11 and 14 October stalls is not established.")
     A("")
     # ---- 3.7 comparison with the earlier series
     A("### 3.7 Against the earlier series (main WITHOUT B2), descriptive only")
@@ -515,10 +543,18 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
             A("   - **Between-appraiser figures** (%s): positive agreement %s; SNR delta (OpenWSFZ minus WSJT-X) %s. %s" % (
                 "†: **program and pass together, not separable**" if s6_seq_only else "concurrent design", sp("positive_agreement"), sp("snr_delta_mean", 1.0, 2, " dB"),
                 "The appraiser and part x appraiser components of the S6 ANOVA carry the same †." if s6_seq_only else ""))
-            A("   - **Abandonment** (mandatory field) per sweep: %s; no-abandonment sensitivity (WAVs with no abandoned play, kept of all): %s. %s" % (
-                ", ".join("%s %s of %s" % (B.SHORT[k], s6[k]["abandonment"].get("plays_abandoned"), s6[k]["plays"]) for k in ok6),
-                ", ".join("%s %s" % (B.SHORT[k], ("%d of %d" % (s6[k]["no_abandon_wavs"]["kept"], s6[k]["no_abandon_wavs"]["of"])) if s6[k].get("no_abandon_wavs") else "not available") for k in ok6),
-                "The count is for the sequential design and is NOT comparable with the concurrent 10-14 dry run's 0 of 68." if s6_seq_only else ""))
+            _abs = [s6[k]["abandonment"] for k in ok6]
+            _trusted = all((not a.get("not_trusted_because")) and (not a.get("interim_rule")) and a.get("plays_abandoned") == 0 and a.get("daemon_log_attributed") for a in _abs)
+            if _trusted and s6_seq_only:
+                A("   - **Abandonment** (mandatory field): 0 of %d plays abandoned in each sweep (0 of %d), OpenWSFZ alone on the CPU (SEQUENTIAL); not comparable with any concurrent figure. The attribution of daemon-log pass lines to play slots is TRUSTED in %d of %d sweeps (Architect amendment 6: (a) share of window pass lines mapped by their Cycle line %.1f to %.1f %%, (b) play slots with two lines %s, (c) unexplained disagreements with the formula %s (disagreements %s, all explained), (d) the time-zone check holds); the interim rule was not used; the no-abandonment sensitivity therefore equals the full figures. Residual pass in the S6 window, OpenWSFZ alone on the CPU: elapsed median %s ms per sweep, fitted signals median %s (context for the zero; not comparable with the 10-14 dry run's 3.0 s, which was read concurrent, nor with the whole-sweep figures of Section 3.6, which cover every cycle)." % (
+                    s6[ok6[0]]["plays"], sum(s6[k]["plays"] for k in ok6), len(ok6), len(ok6), 100 * min(a["share_cycle_mapped"] for a in _abs), 100 * max(a["share_cycle_mapped"] for a in _abs),
+                    "/".join(str(a.get("slots_with_two_lines")) for a in _abs), "/".join(str(a.get("disagree_unexplained")) for a in _abs), "/".join(str(a.get("lines_disagree")) for a in _abs),
+                    "/".join("%d" % a["elapsed_ms_median"] for a in _abs), "/".join("%d" % a["fitted_signals_median"] for a in _abs)))
+            else:
+                A("   - **Abandonment** (mandatory field) per sweep: %s; no-abandonment sensitivity (WAVs with no abandoned play, kept of all): %s. %s" % (
+                    ", ".join("%s %s of %s" % (B.SHORT[k], s6[k]["abandonment"].get("plays_abandoned"), s6[k]["plays"]) for k in ok6),
+                    ", ".join("%s %s" % (B.SHORT[k], ("%d of %d" % (s6[k]["no_abandon_wavs"]["kept"], s6[k]["no_abandon_wavs"]["of"])) if s6[k].get("no_abandon_wavs") else "not available") for k in ok6),
+                    "The count is for the sequential design and is NOT comparable with the concurrent 10-14 dry run's 0 of 68." if s6_seq_only else ""))
             A("   - **Hashed rows** (excluded from every figure; per play): WSJT-X %s; OpenWSFZ %s." % (", ".join("%.2f" % s6[k]["hashed_per_play"]["wsjtx"] for k in ok6), ", ".join("%.2f" % s6[k]["hashed_per_play"]["owsfz"] for k in ok6)))
             an = [(s6[k]["full"]["headline"].get("anova"), s6[k]["full"]["headline"]) for k in ok6 if s6[k].get("full")]
             an = [(g, h) for g, h in an if g and "error" not in g]
@@ -536,7 +572,7 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
                     "; ".join("%s: own consistency WSJT-X %.1f %% / OpenWSFZ %.1f %%, decodes per WAV %.2f / %.2f" % (b, 100 * float(np.mean([r["consistency_own_wsjtx"] for r in rs])), 100 * float(np.mean([r["consistency_own_owsfz"] for r in rs])),
                                                                                                                      float(np.mean([r["decodes_per_wav_wsjtx"] for r in rs])), float(np.mean([r["decodes_per_wav_owsfz"] for r in rs]))) for b, rs in sorted(bands.items()))))
             onset = [((s6[k].get("validity") or {}).get("S6-V2") or {}).get("onset", {}) for k in ok6]
-            A("   - **Sound onset** (from WSJT-X's own DT, pass W; V2(d) bar [0.0, +0.3] s, source: two quick dry runs 2026-10-13/14, the validation run and sweep 1; frozen by Architect amendment 7): %s." % (
+            A("   - **Sound onset** (from WSJT-X's own DT, pass W; V2(d) bar [0.0, 0.3] s, frozen 2026-10-16 (amendment 7)): %s." % (
                 "; ".join("%s %s (median of per-play medians %s s, %s plays read)" % (B.SHORT[k], o.get("result"), (s6[k].get("onset") or {}).get("per_play_median_shift_s", {}).get("median"), o.get("plays_read")) for k, o in zip(ok6, onset))))
         A("")
         A("   S6 reads the live path of each program in its own pass. It is not a decode-rate claim, and its 2026-06/07 figures are **not comparable** (a different design, tier and build).")
@@ -546,6 +582,22 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
     A("")
     A("7. **C7, the stall.** On `sol` WSJT-X stopped saving WAVs in 8 of 8 isolation runs in which OpenWSFZ ran beside it with its subtraction residual pass on and the daemon unpinned, and in 0 of 3 runs without that (WSJT-X alone, a bare reader, the daemon with the residual pass off). The stall begins inside Qt's own ALSA plugin: it closes and reopens WSJT-X's capture device and the reopened input never delivers again; **what triggers the reopen was not shown**. This is why S6 is played sequentially in this series. It is a finding about this machine and its audio chain (`sol` only) and says nothing about the Windows station. In this series: %d failed attempt(s) in the concurrent scenarios (S1-S5, S7, S8, S3c)%s and %d in S6." % (
         len(conc_fail), (" (" + "; ".join("%s %s attempt %s at %s UTC" % (short(f["sweep"]), f["scenario"], f["attempt"], f["utc"]) for f in conc_fail) + ")") if conc_fail else "", len(s6_fail)))
+    for f in conc_fail + s6_fail:
+        _dp = os.path.join(results, f["sweep"], "stall_detail.json")
+        if not os.path.isfile(_dp):
+            continue
+        _sd = json.load(open(_dp, encoding="utf-8"))
+        _tk = _sd["thread_ticks_per_sample_median"]
+        _hw = _sd["hw_ptr_frames_per_sample"]
+        _rp = _sd["residual_pass_lines_in_window"]
+        _during = [x for x in _rp if x["cycle_utc"] >= _sd["last_save_wav_utc_approx"][:5] + ":00" and x["cycle_utc"] <= _sd["stall_utc"][11:19]]
+        _busy = max(_tk, key=lambda t: _tk[t]["before_last_wav"] or 0)
+        _busy2 = sorted(_tk, key=lambda t: -(_tk[t]["before_last_wav"] or 0))[1]
+        A("")
+        A("   Detail of this series' stall (%s %s attempt %s, from the supervisor's own M1 monitor log and the daemon log; no new run; aggregates only): **a stall with the same observed symptom (no save WAV for more than 45 s) as the 10-14 S6 attempts and the sol isolation runs.** It is one event, no rate is derived from it, and it has no perf or strace trace, so it is not claimed to be the same mechanism. (1) The last save WAV was at about %s UTC and the gate stopped at %s. Over the %d monitor samples around it the capture pointer of the PCM (`hw_ptr`) advanced %d to %d frames per %s s sample (median %d, about 48 kHz), with %d flat samples, and the PCM stayed in state RUNNING: the device kept delivering. The CPU ticks of WSJT-X's main thread fell from a median of %s per sample before the last WAV to %s after it, and of its busiest worker thread from %s to %s. The thread count went from %d to %d: one thread is gone from the %s sample (which thread is unknown, the names in the log being truncated); this fits a close of the capture PCM, which is not claimed. So: device delivering while the application's use of it fell, **consistent with** the arm-I picture, and no more. (2) The daemon's residual pass was LIGHT at the stall: %s; none was abandoned, none raised an exception, and the daemon's own capture was unaffected. This one event argues neither for nor against the guess of a late wake-up under the 8-thread residual pass; the association in the isolation runs (8 of 8 against 3 of 3) remains the only comparative evidence." % (
+            short(f["sweep"]), f["scenario"], f["attempt"], _sd["last_save_wav_utc_approx"], _sd["stall_utc"][11:19], _hw["samples"], _hw["min"], _hw["max"], _hw["sample_interval_s_median"], _hw["median"], _hw["flat_samples"],
+            _tk[_busy]["before_last_wav"], _tk[_busy]["after_last_wav_to_gate_stop"], _tk[_busy2]["before_last_wav"], _tk[_busy2]["after_last_wav_to_gate_stop"], len(_tk), _sd["thread_count"][0]["threads"] if _sd["thread_count"] else len(_tk), _sd["thread_count"][0]["t"] if _sd["thread_count"] else "n/a",
+            ("cycles %s: elapsed %s ms, %s fitted signals" % (", ".join(x["cycle_utc"] for x in _during), "/".join(str(x["elapsedMs"]) for x in _during), "/".join(str(x["fittedSignals"]) for x in _during))) if _during else "no pass line in the window"))
     A("")
     A("**Not claimed.** No decoder-improvement statement, no \"safe\", no \"no regression\", no \"better\" or \"worse\" decoder; no pooling or testing across series, builds, S6 designs, tiers or platforms; no bar is proposed; S6 is a live-path reading in a design that cannot separate program from pass; the cause of the stall trigger is not known.")
     A("")
@@ -572,6 +624,8 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
     A("The three 11-12 October OpenWSFZ-only repeats (WSJT-X silent) and the INVALID sweeps are not rows of this table; see the consolidated report and the INVALID folders.")
     A("")
     A("## Appendix: per-sweep two-way ANOVA tables (the analyser's model)")
+    A("")
+    A("*Reading note: a sum of squares or mean square of the order of 1e-12 to 1e-30 (and the huge F that follows from dividing by it) is floating-point zero, not a measured effect; it occurs where a cell has no variation at all (for example OpenWSFZ's S2 frequencies of one sweep, or the S3 interaction of sweep 1).*")
     A("")
     for sc, *_r in F.SCEN:
         for k in keys:

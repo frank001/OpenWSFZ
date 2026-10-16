@@ -36,7 +36,9 @@ def read_csv(path):
 
 
 def pct(s):
-    return float(s.replace("*", "").strip().rstrip("%"))
+    # a summary cell can read "4.7% (%Contribution 0.2%, no verdict)" (the %StudyVar gate, 2026-10-14): the figure is the leading number
+    m = re.match(r"\s*\**\s*(-?[\d.]+)", s)
+    return float(m.group(1)) if m else float(s.replace("*", "").strip().rstrip("%"))
 
 
 def summary_rows(md: str) -> list:

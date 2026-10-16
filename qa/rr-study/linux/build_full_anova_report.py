@@ -188,7 +188,7 @@ def figures(R: dict, img: str) -> dict:
             for i, k in enumerate(F.PAIRED):
                 a.bar(i + (j - 0.5) * 0.38, g(R["summ"][k], ap), 0.36, color=COL[k] if ap == "OpenWSFZ" else "#8b949e", alpha=1.0 if ap == "OpenWSFZ" else 0.75)
         a.set_xticks(range(NP)); a.set_xticklabels([LAB[k] for k in F.PAIRED], fontsize=7, rotation=20); a.set_title(t, fontsize=9); a.set_ylim(0, 105)
-    fig.suptitle("Decode and recovery rates per sweep (coloured: OpenWSFZ, grey: WSJT-X; run 1 is the default chain)", fontsize=10)
+    fig.suptitle("Decode and recovery rates per sweep (coloured: OpenWSFZ, grey: WSJT-X%s)" % ("; run 1 is the default chain" if "run1" in R["cubes"]["S1"] else ""), fontsize=10)
     fig.tight_layout(); fig.savefig(os.path.join(img, "A6_rates.png"), dpi=110); plt.close(fig)
     out["A6"] = ("A6_rates.png", "Attribute-style results per sweep. S4 is identical for OpenWSFZ in all five sweeps; run 1's S1b loss is the default chain.")
     if "run1" in R["cubes"]["S1"]:
