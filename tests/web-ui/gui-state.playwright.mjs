@@ -254,8 +254,15 @@ const api = async (method, path, data) => {
 // ── Fixture: a known isolated config ──────────────────────────────────────────────────────────────────
 await api('POST', '/api/v1/config', { tx: { callsign: OWN_CALL, grid: OWN_GRID }, showCycleCountdown: false });
 
-// Frequency list: record the original so A5 can restore nothing it did not add (the daemon is isolated anyway).
-const freqsBefore = await (await api('GET', '/api/v1/frequencies')).json();
+// A known frequency list, so a re-run of this script (which saves frequencies) starts from the same state:
+// without it a leftover row from an earlier run can make the dropdown checks pass vacuously.
+const FIXTURE_FREQUENCIES = [
+  { protocol: 'FT8', frequencyMHz: 1.840,  description: '160m' },
+  { protocol: 'FT8', frequencyMHz: 7.074,  description: '40m' },
+  { protocol: 'FT8', frequencyMHz: 14.074, description: '20m' },
+  { protocol: 'FT8', frequencyMHz: 28.074, description: '10m' },
+];
+await api('POST', '/api/v1/frequencies', FIXTURE_FREQUENCIES);
 
 // ── Load the main page ────────────────────────────────────────────────────────────────────────────────
 await page.goto(BASE + '/');
@@ -320,13 +327,20 @@ check('A1 back at the original size: rows 0-299 are byte-identical to before the
   hashBack.hash === hash0.hash, `before ${hash0.hash.slice(0, 12)} after ${hashBack.hash.slice(0, 12)}`);
 
 // ── A2: collapsing the panel to zero height and restoring it ──────────────────────────────────────────
-await page.addStyleTag({ content: '#waterfall-panel { flex: 0 0 0 !important; min-height: 0 !important; height: 0 !important; }' })
-  .then(async (tag) => {
-    await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
-    await tag.evaluate((el) => el.remove());
-  });
-await page.waitForFunction((h) => document.getElementById('waterfall').height === h, size0.h, { timeout: STEP_TIMEOUT_MS })
-  .catch(() => {});
+const collapseTag = await page.addStyleTag({
+  content: '#waterfall-panel { flex: 0 0 0 !important; min-height: 0 !important; height: 0 !important; }' });
+// Positive condition: the panel really is collapsed; then two frames for the (coalesced) resize to run.
+// (The renderer measures the CANVAS; the panel keeps a 1 px bottom border, so its own height never reads 0.)
+await page.waitForFunction(() => document.getElementById('waterfall').getBoundingClientRect().height === 0,
+  null, { timeout: STEP_TIMEOUT_MS });
+await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
+const collapsedSize = await canvasSize();
+check('A2 while collapsed the canvas keeps its size (buffers untouched, no 1x1 clamp)',
+  collapsedSize.w === size0.w && collapsedSize.h === size0.h, `${collapsedSize.w}x${collapsedSize.h} vs ${size0.w}x${size0.h}`);
+await collapseTag.evaluate((el) => el.remove());
+// Positive condition: the layout is back (the rect height may be fractional, so compare rounded).
+await page.waitForFunction((h) => Math.round(document.getElementById('waterfall').getBoundingClientRect().height * devicePixelRatio) === h,
+  size0.h, { timeout: STEP_TIMEOUT_MS });
 await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
 const hashA2 = await readbackHash(LINES);
 check('A2 collapse to height 0 and restore: rows 0-299 byte-identical to before', hashA2.hash === hash0.hash,
@@ -470,6 +484,8 @@ await openSettings();
 await fr.locator('#tab-btn-frequencies').click();
 await fr.locator('#freq-tbody .freq-desc').nth(await freqRowIndex(fr, '50.313')).fill('6m RENAMED');
 const countBefore = await page.$$eval('#dial-freq option', (os) => os.length);
+check('A5 same-length edit precondition: the dropdown does not yet show the new description',
+  !(await page.$$eval('#dial-freq option', (os) => os.map((o) => o.textContent))).some((t) => t.includes('6m RENAMED')));
 await saveAndWaitClean(fr);
 await closePaths['Close link']();
 await waitPanelClosed();

@@ -56,7 +56,7 @@ Rows A1–A9 are the spec's §5, verbatim. **Extended by the Engineer (neither c
 Plus **T-resize** (descriptive, not a gate): median and maximum of 20 resizes at 2,048 stored lines on the station
 PC. Reported to the Architect, who rules if the median is over 16.7 ms.
 
-- [ ] 4.1 A1–A10 run on an isolated daemon and port, with before and after screenshots (HK-005).
+- [x] 4.1 A1–A10 run on an isolated daemon and port, with before and after screenshots (HK-005).
 - [ ] 4.2 Mutations, each turning a test red: (m1) restore the `canvas.width` wipe in the resize path; (m2) make
       the refresh a no-op; (m3) let one close path skip the dirty guard; (m4, optional) restore the 1×1 clamp;
       (m5, Engineer's addition) restore the length-only rebuild test in `renderDialFreqSelect`.
@@ -68,9 +68,9 @@ PC. Reported to the Architect, who rules if the median is over 16.7 ms.
 - [x] 5.1 `REQUIREMENTS.md`: add **FR-086** (waterfall history survives a resize) and **FR-087** (Settings opens over
       the live main page, with its close paths, config refresh and 401 rule); amend **FR-041** (its guard
       now also covers the panel's close paths); add a revision-history row.
-- [ ] 5.2 `VERSION` bump (G9b); commit before running `check_version_bump.py` (it reads the proposal from git).
+- [x] 5.2 `VERSION` bump (G9b); commit before running `check_version_bump.py` (it reads the proposal from git).
 - [x] 5.3 Traceability: follow the precedent for the other web-only FRs (FR-062, FR-083) and report what it was.
-- [ ] 5.4 `openspec validate gui-state-preservation --strict`; `node --test web/js/*.test.js` green.
+- [x] 5.4 `openspec validate gui-state-preservation --strict`; `node --test web/js/*.test.js` green.
 
 ## 6. Out of scope, to note on #212 as follow-ups (not built here)
 
