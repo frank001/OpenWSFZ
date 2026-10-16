@@ -49,6 +49,7 @@ degrades the history. Repainting from raw lines is exact at every size, so shrin
   `requestAnimationFrame`; the frame runs `renderer.resize()` once. A `devicePixelRatio` change is
   watched with a `matchMedia('(resolution: …dppx)')` listener, re-armed after each change, feeding the
   same coalesced path.
+- A bin that is not an integer in [0, 255] is stored truncated by `Uint8Array.from` (and an out-of-range value wraps), where the old `colormap()` was given the float and rounded it. The daemon sends integers in range, so nothing changes today.
 - Memory: 2,048 lines × the bin count in bytes (about 2 MB at 1,000 bins), accepted by the Architect.
 - `HISTORY_LINES` is a design constant that covers a canvas up to 2,048 physical pixels tall; it is not a
   pass bar (spec R1.3, HK-038: its number comes from the layout, not from a population).

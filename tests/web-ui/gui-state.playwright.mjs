@@ -101,17 +101,24 @@ const REFRESH_PATHS = {
   decodeFilter: '/api/v1/decode-filter',
 };
 const mainGets = { config: 0, frequencies: 0, txStatus: 0, decodeFilter: 0 };
+const refreshInFlight = new Set();   // main-frame refresh GETs sent and not yet finished or failed
+const isRefreshGet = (r) => r.method() === 'GET' && r.frame() === page.mainFrame()
+  && Object.values(REFRESH_PATHS).includes(new URL(r.url()).pathname);
 page.on('request', (r) => {
   if (r.method() !== 'GET') return;
   // Only the MAIN frame's requests: the Settings iframe also reads config and frequencies.
   if (r.frame() !== page.mainFrame()) return;
   const p = new URL(r.url()).pathname;
   for (const [k, path] of Object.entries(REFRESH_PATHS)) if (p === path) mainGets[k]++;
+  if (isRefreshGet(r)) refreshInFlight.add(r);
 });
+page.on('requestfinished', (r) => refreshInFlight.delete(r));
+page.on('requestfailed',   (r) => refreshInFlight.delete(r));
 
 // Proxy the WebSocket so the test can add frames to what the real daemon sends.
 let wsToPage = null;          // the page-facing route of the CURRENT connection
 let wsConnections = 0;
+let suppressFilterEvents = false;   // drop the daemon's decodeFilterChanged frames (A11: prove the re-read, not the event)
 let serverConnectedGen = 0;   // bumped on the first frame the REAL daemon sends on each connection
 await page.routeWebSocket(/\/api\/v1\/ws/, (ws) => {
   wsConnections++;
@@ -120,6 +127,7 @@ await page.routeWebSocket(/\/api\/v1\/ws/, (ws) => {
   let first = true;
   server.onMessage((msg) => {           // installing a handler stops the default forwarding: forward by hand
     if (first) { first = false; serverConnectedGen++; }
+    if (suppressFilterEvents && typeof msg === 'string' && msg.includes('"decodeFilterChanged"')) return;
     ws.send(msg);
   });
   ws.onMessage((msg) => server.send(msg));
@@ -163,6 +171,19 @@ async function section(name, body) {
       }
     } catch { /* best effort */ }
   }
+}
+
+/** Positive condition: the Settings panel is closed and no main-frame refresh GET is in flight. */
+async function waitRefreshQuiet() {
+  const deadline = Date.now() + STEP_TIMEOUT_MS;
+  for (;;) {
+    const open = await page.evaluate(() => !!document.getElementById('settings-dialog')?.open);
+    if (!open && refreshInFlight.size === 0) break;
+    if (Date.now() > deadline) throw new Error(`refresh not quiet: open=${open} inFlight=${refreshInFlight.size}`);
+    await page.waitForTimeout(25);
+  }
+  // The response is applied in a microtask after the request finishes; two frames let it land.
+  await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))));
 }
 
 // ── In-page helpers ───────────────────────────────────────────────────────────────────────────────────
@@ -228,12 +249,12 @@ const msgRowsText = () => page.$$eval('.tx-msg-text', (els) => els.map((e) => e.
 const sentinel = () => page.evaluate(() => window.__ows212);
 
 let decodeSerial = 0;
-function makeDecode(message) {
+function makeDecode(message, entity = 'Test') {
   decodeSerial++;
   const hh = String(Math.floor(decodeSerial / 60) % 24).padStart(2, '0');
   const mm = String(decodeSerial % 60).padStart(2, '0');
   return { time: `${hh}${mm}00`, band: '40m', snr: -5, dt: 0.1, freqHz: 1000 + decodeSerial, message,
-           region: { entity: 'Test', synthetic: true, continent: null } };
+           region: { entity, synthetic: true, continent: null } };
 }
 async function injectDecodes(messages, expectRows) {
   inject({ type: 'decode', payload: messages.map(makeDecode) });
@@ -252,7 +273,12 @@ const api = async (method, path, data) => {
 };
 
 // ── Fixture: a known isolated config ──────────────────────────────────────────────────────────────────
-await api('POST', '/api/v1/config', { tx: { callsign: OWN_CALL, grid: OWN_GRID }, showCycleCountdown: false });
+const UNFILTERED = { allowedEntities: null, allowedContinents: null, allowedCqZones: null, allowedItuZones: null,
+  contactStates: null, countryStates: null, continentStates: null, cqZoneStates: null, ituZoneStates: null };
+const fixtureConfig = await api('POST', '/api/v1/config', { tx: { callsign: OWN_CALL, grid: OWN_GRID }, showCycleCountdown: false });
+check('fixture: config POST accepted', fixtureConfig.status() === 200, String(fixtureConfig.status()));
+const fixtureFilter = await api('POST', '/api/v1/decode-filter', UNFILTERED);
+check('fixture: decode filter reset to unfiltered', fixtureFilter.status() === 200, String(fixtureFilter.status()));
 
 // A known frequency list, so a re-run of this script (which saves frequencies) starts from the same state:
 // without it a leftover row from an earlier run can make the dropdown checks pass vacuously.
@@ -262,7 +288,14 @@ const FIXTURE_FREQUENCIES = [
   { protocol: 'FT8', frequencyMHz: 14.074, description: '20m' },
   { protocol: 'FT8', frequencyMHz: 28.074, description: '10m' },
 ];
-await api('POST', '/api/v1/frequencies', FIXTURE_FREQUENCIES);
+const fixtureFreqs = await api('POST', '/api/v1/frequencies', FIXTURE_FREQUENCIES);
+check('fixture: frequency list POST accepted', fixtureFreqs.status() === 200, String(fixtureFreqs.status()));
+{
+  const stored = await (await api('GET', '/api/v1/frequencies')).json();
+  check('fixture: the daemon holds exactly the fixture frequencies',
+    JSON.stringify(stored.map((e) => e.description)) === JSON.stringify(FIXTURE_FREQUENCIES.map((e) => e.description)),
+    JSON.stringify(stored.map((e) => e.description)));
+}
 
 // ── Load the main page ────────────────────────────────────────────────────────────────────────────────
 await page.goto(BASE + '/');
@@ -486,12 +519,18 @@ check('A5 same-length edit: the dropdown shows the edited description of the exi
   dialOptions.some((t) => t.includes('7.074') && t.includes('40m EDITED')), JSON.stringify(dialOptions));
 
 // Same-length edit proper: change a description and NOTHING else, so the entry count stays equal.
+await waitRefreshQuiet();       // the previous close's refresh must have landed before this precondition is read
 await openSettings();
 await fr.locator('#tab-btn-frequencies').click();
 await fr.locator('#freq-tbody .freq-desc').nth(await freqRowIndex(fr, '50.313')).fill('6m RENAMED');
 const countBefore = await page.$$eval('#dial-freq option', (os) => os.length);
-check('A5 same-length edit precondition: the dropdown does not yet show the new description',
-  !(await page.$$eval('#dial-freq option', (os) => os.map((o) => o.textContent))).some((t) => t.includes('6m RENAMED')));
+{
+  const shown  = await page.$$eval('#dial-freq option', (os) => os.map((o) => o.textContent));
+  const stored = (await (await api('GET', '/api/v1/frequencies')).json()).map((e) => e.description);
+  check('A5 same-length edit precondition: the dropdown does not yet show the new description',
+    !shown.some((t) => t.includes('6m RENAMED')),
+    `dropdown=${JSON.stringify(shown)} daemon=${JSON.stringify(stored)} refreshInFlight=${refreshInFlight.size} gets=${JSON.stringify(mainGets)}`);
+}
 await saveAndWaitClean(fr);
 await closePaths['Close link']();
 await waitPanelClosed();
@@ -656,6 +695,96 @@ await section('A7', async () => {
   check('A7 transcript entries are still there', JSON.stringify(await transcriptTexts()) === transcriptA7);
   check('A7 waterfall history is still there', (await readbackHash(LINES)).hash === hashA7.hash);
 }
+});
+
+// ── A11: the decode filter is seeded client-side on load, on close and on reconnect ─────────────────
+// Moved into applyDecodeFilter / readConfigDerivedState (#212). The daemon's decodeFilterChanged frame is
+// SUPPRESSED in the proxy for (ii) and (iii), otherwise the page would learn of the change from the event and
+// the test would prove nothing about the re-read.
+await section('A11', async () => {
+  const filterOf = (entities) => ({ ...UNFILTERED, allowedEntities: entities });
+  const setFilter = async (entities) => {
+    const r = await api('POST', '/api/v1/decode-filter', filterOf(entities));
+    if (r.status() !== 200) throw new Error(`POST decode-filter -> ${r.status()}`);
+  };
+  /** Texts of the rows currently hidden by the filter, sorted. */
+  const hiddenTexts = () => page.$$eval('#decodes-body tr', (rows) =>
+    rows.filter((r) => r.hidden).map((r) => r.innerText.replace(/\s+/g, ' ').trim()).sort());
+  const KEEP = 'KeepLand', DROP = 'DropLand';
+  const keepMsgs = ['CQ Q4KEP AA10', 'CQ Q4KEQ AA11'];
+  const dropMsgs = ['CQ Q4DRP BB20', 'CQ Q4DRQ BB21'];
+  /** True when exactly the rows carrying `msgs` are hidden right now (no waiting). */
+  const hiddenNow = (msgs) => page.evaluate((w) => {
+    const hidden = [...document.querySelectorAll('#decodes-body tr')].filter((r) => r.hidden).map((r) => r.innerText);
+    return hidden.length === w.length && w.every((m) => hidden.some((t) => t.includes(m)));
+  }, msgs);
+  /** Waits (positive condition) until exactly the rows carrying `msgs` are hidden. */
+  const expectHidden = async (msgs, name) => {
+    const want = [...msgs].sort();
+    const ok = await page.waitForFunction((w) => {
+      const hidden = [...document.querySelectorAll('#decodes-body tr')].filter((r) => r.hidden)
+        .map((r) => r.innerText);
+      return hidden.length === w.length && w.every((m) => hidden.some((t) => t.includes(m)));
+    }, want, { timeout: STEP_TIMEOUT_MS }).then(() => true, () => false);
+    check(name, ok, `hidden now: ${JSON.stringify(await hiddenTexts())}`);
+    return ok;
+  };
+  const injectEntityRows = async () => {
+    inject({ type: 'decode', payload: [...keepMsgs.map((m) => makeDecode(m, KEEP)), ...dropMsgs.map((m) => makeDecode(m, DROP))] });
+    await page.waitForFunction((n) => document.querySelectorAll('#decodes-body tr').length === n, 4, { timeout: STEP_TIMEOUT_MS });
+  };
+
+  // (i) a filter set BEFORE the page loads is applied after load.
+  suppressFilterEvents = true;
+  await setFilter([KEEP]);
+  await page.goto(BASE + '/');
+  await waitConnected();
+  await injectEntityRows();
+  await expectHidden(dropMsgs, 'A11 (i) a filter set before page load hides the matching rows after load');
+  const sentinel11 = Math.random().toString(36).slice(2);
+  await page.evaluate((s) => { window.__ows212 = s; }, sentinel11);
+  const sentinelNow = () => page.evaluate(() => window.__ows212);
+
+  // (ii) changed from outside while the panel is open; no event reaches the page; closing re-reads it.
+  await openSettings();
+  await setFilter([DROP]);
+  check('A11 (ii) the page still shows the OLD filter while the panel is open (the event was not delivered)',
+    await hiddenNow(dropMsgs));
+  await closePaths['Close link']();
+  await waitPanelClosed();
+  await expectHidden(keepMsgs, 'A11 (ii) after close the page shows the new filter (the other rows are hidden)');
+  check('A11 (ii) no reload (sentinel unchanged)', (await sentinelNow()) === sentinel11);
+
+  // (iii) changed while the daemon is restarting: POST as soon as the daemon answers HTTP again, BEFORE the
+  // page's WebSocket has reconnected; the reconnect refresh must pick it up.
+  let conclusive = false;
+  for (let attempt = 1; attempt <= 3 && !conclusive; attempt++) {
+    await setFilter(attempt % 2 === 1 ? [DROP] : [KEEP]);        // known state before the restart
+    await waitRefreshQuiet();
+    await openSettings();
+    const genBefore = serverConnectedGen;
+    await frameLocator().locator('#tab-btn-advanced').click();
+    await frameLocator().locator('#restart-daemon-btn').click();
+    await frameLocator().locator('#restart-daemon-status').waitFor({ state: 'visible', timeout: STEP_TIMEOUT_MS });
+    await closePaths['panel close button']();
+    await waitPanelClosed();
+    // The daemon goes down, then answers again. Poll over HTTP from the test, never the page.
+    const answers = async () => { try { return (await page.request.get(`${BASE}/api/v1/status`, { timeout: 2000 })).ok(); } catch { return false; } };
+    const deadline = Date.now() + RESTART_TIMEOUT_MS;
+    while (await answers() && Date.now() < deadline) await page.waitForTimeout(25);     // old daemon still up
+    while (!(await answers()) && Date.now() < deadline) await page.waitForTimeout(25);  // new daemon not yet up
+    const next = attempt % 2 === 1 ? [KEEP] : [DROP];
+    await setFilter(next);
+    conclusive = serverConnectedGen === genBefore;      // the page had not reconnected when the POST landed
+    const wantHidden = (next[0] === KEEP ? dropMsgs : keepMsgs);
+    await expectHidden(wantHidden, `A11 (iii) attempt ${attempt}: after the reconnect the page shows the filter POSTed during the restart`);
+  }
+  check('A11 (iii) the POST landed before the page reconnected (the test is conclusive)', conclusive,
+    'the page had already reconnected when the POST landed, on all 3 attempts');
+  check('A11 (iii) no reload (sentinel unchanged)', (await sentinelNow()) === sentinel11);
+
+  suppressFilterEvents = false;
+  await setFilter(null);                                  // leave the daemon unfiltered
 });
 
 // ── A9: a 401 inside the panel sends the TOP window to the login page ────────────────────────────────
