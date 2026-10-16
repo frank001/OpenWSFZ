@@ -204,7 +204,7 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
     if any(s6.values()):
         pa = [s6[k]["full"]["headline"]["positive_agreement"] for k in keys if s6.get(k)]
         ab = [s6[k]["abandonment"]["plays_abandoned"] for k in keys if s6.get(k)]
-        A("5. **S6 (real off-air audio, live path):** %d sweeps; positive agreement%s %s; abandoned plays per sweep %s of %s. See Section 3.5 and C6 (live-path reading only, not a decode-rate claim)." % (
+        A("5. **S6 (replayed off-air audio):** %d sweeps; positive agreement%s %s; abandoned plays per sweep %s of %s. See Section 3.5 and C6 (recorded off-air WAVs played through each program's own capture and decode path (the product's real code path, not a C-ABI replay), on one chain on sol; not the station's live operation, not a decode-rate claim)." % (
             len(pa), " † (program and pass together, not separable)" if s6_seq_only else "", "/".join("%.1f %%" % (100 * x) for x in pa), "/".join(str(x) for x in ab), "/".join(str(s6[k]["plays"]) for k in keys if s6.get(k))))
     A("%d. **Limits.** One host, one build, one chain; %d sweeps (the sweep factor has %d degrees of freedom); the same 10 parts and 108 messages in every sweep; rounded reported values (1 dB, 1 Hz, 0.1 s). The earlier series (main without B2) is compared descriptively and never pooled." % (6 if any(s6.values()) else 5, n, n - 1))
     A("")
@@ -233,7 +233,7 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
     A("2. **Pooled over sweeps:** a three-way crossed random-effects ANOVA Part (10) x Appraiser (2) x Sweep (%d), 3 trials per cell; variance components by expected mean squares (negative estimates truncated to 0 for the percentages), exact F for the interactions, Satterthwaite quasi-F for the main effects, a part-cluster bootstrap for the percentages (2000 resamples; it resamples parts, not sweeps). Appraiser is treated as random only for comparability with AIAG; with two programs it is a fixed offset, read as the bias in 3.3." % n)
     A("3. **Bias and linearity, attribute data (S4, S1b), S5, S7, S8:** as in the 2026-10-14 report (Cochran's Q across sweeps, an exact sign test between appraisers).")
     A("4. **S6** (real off-air audio replayed in consecutive 15 s slots, " + ("the identical schedule played twice, WSJT-X alone and then OpenWSFZ alone (SEQUENTIAL passes, 2026-10-15: played together WSJT-X's capture stalled on `sol`)" if s6_seq_only else
-      ("a MIX of concurrent and sequential S6 sweeps: they are NOT comparable and must not be pooled" if s6_mixed else "both appraisers listening at once")) + ", K = 3): read from each sweep's own `s6_result.json`; shown per sweep and as the spread over the sweeps. It is a LIVE-PATH reading; the S6 figures are not decode-rate claims.")
+      ("a MIX of concurrent and sequential S6 sweeps: they are NOT comparable and must not be pooled" if s6_mixed else "both appraisers listening at once")) + ", K = 3): read from each sweep's own `s6_result.json`; shown per sweep and as the spread over the sweeps. S6 is recorded off-air WAVs played through each program's own capture and decode path (the product's real code path, not a C-ABI replay), on one chain on sol; not the station's live operation, not a decode-rate claim.")
     A("5. **Monitoring:** the per-sweep `monitoring_summary.json` (M1 monitor log, M2 gate record, M3 coverage rows, daemon-log aggregates, build pins, core files); section 3.6.")
     A("6. **The earlier series** (main without B2: run 1 default chain, run 2, repeats 1b-3b) is computed with the same code and shown beside the baseline in 3.7, descriptively. No test is run across the two series.")
     A("")
@@ -335,7 +335,7 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
     A("*Figure A6. %s*" % Fg["A6"][1])
     A("")
     # ---- 3.5 S6
-    A("### 3.5 S6: real off-air audio, the live path")
+    A("### 3.5 S6: replayed off-air audio")
     A("")
     if not any(s6.values()):
         A("S6 did not run in these sweeps (no `s6/s6_result.json`).")
@@ -376,8 +376,12 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
                 srows.append([lab, "%.2f %s" % (m, unit), "%.2f" % sd, "%.2f to %.2f" % (lo, hi), "%.2f to %.2f" % (min(vals), max(vals))])
         A(B.md_table(["S6 measure (over %d sweeps)" % len(have), "Mean", "SD", "95 % t-CI of the mean", "Range"], srows))
         A("")
-        A(("S6 reads the **live path** of each program in its OWN pass (WSJT-X alone, then OpenWSFZ alone; the two did not hear the same capture, and OpenWSFZ ran in a fresh process)" if s6_seq_only
-           else "S6 reads the **live path** of both programs on the same CPU") + "; a decode-rate claim cannot be made from it (the within-appraiser consistency is the consistency of each program's own decodes across the three trials of the same WAV, not agreement with truth). The S6 ANOVA over parts is reported as the sweep's own `s6_result.json` gives it (`anova_parts`); where it is 0 the block reports no balanced part and no ANOVA is shown.")
+        _pb = lambda k: (s6[k].get("bootstrap_full") or {}).get("headline", {}).get("positive_agreement")
+        A("The t 95 %% CI is over the %d sweep means. Per sweep, the WAV-clustered 95 %% bootstrap CI (2000 resamples of that sweep's WAVs) of the positive agreement is: %s." % (
+            len(have), "; ".join("%s %s" % (B.SHORT[k], ("[%.3f, %.3f]" % tuple(_pb(k))) if _pb(k) else "not computed") for k in have)))
+        A("")
+        A(("S6 is recorded off-air WAVs played through each program's own capture and decode path (the product's real code path, not a C-ABI replay), on one chain on sol; not the station's live operation, not a decode-rate claim. Each program is read in its OWN pass (WSJT-X alone, then OpenWSFZ alone; the two did not hear the same capture, and OpenWSFZ ran in a fresh process)" if s6_seq_only
+           else "S6 is recorded off-air WAVs played through each program's own capture and decode path (the product's real code path, not a C-ABI replay), on one chain on sol; not the station's live operation, not a decode-rate claim; both programs ran on the same CPU") + "; a decode-rate claim cannot be made from it (the within-appraiser consistency is the consistency of each program's own decodes across the three trials of the same WAV, not agreement with truth). The S6 ANOVA over parts is reported as the sweep's own `s6_result.json` gives it (`anova_parts`); where it is 0 the block reports no balanced part and no ANOVA is shown.")
         A("")
     # ---- 3.6 monitoring
     A("### 3.6 Monitoring and validity (M1, M2, M3 and the other monitoring)")
@@ -543,6 +547,44 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
             A("   - **Between-appraiser figures** (%s): positive agreement %s; SNR delta (OpenWSFZ minus WSJT-X) %s. %s" % (
                 "†: **program and pass together, not separable**" if s6_seq_only else "concurrent design", sp("positive_agreement"), sp("snr_delta_mean", 1.0, 2, " dB"),
                 "The appraiser and part x appraiser components of the S6 ANOVA carry the same †." if s6_seq_only else ""))
+            def _g(k, *path):
+                x = s6[k]
+                for q in path:
+                    if not isinstance(x, dict) or q not in x:
+                        return None
+                    x = x[q]
+                return x
+            def _per(fn):
+                return "; ".join("%s %s" % (B.SHORT[k], fn(k)) for k in ok6)
+            def _ci(v, d=3):
+                return "not computed" if not v else "[%.*f, %.*f]" % (d, v[0], d, v[1])
+            _dag = " †" if s6_seq_only else ""
+            def _trial(k):
+                t = _g(k, "trial_effect")
+                if not t:
+                    return "not computed"
+                part = []
+                for ap, lab in (("wsjtx", "WSJT-X"), ("owsfz", "OpenWSFZ")):
+                    m = t[ap]["mean_by_trial"]
+                    cis = [t[ap]["diff_trial1_minus_trial0"]["ci95"], t[ap]["diff_trial2_minus_trial0"]["ci95"]]
+                    part.append("%s %s (trial differences' WAV-clustered CIs %s 0)" % (lab, "/".join("%.2f" % x for x in m), "all include" if all(c[0] <= 0 <= c[1] for c in cis) else "do NOT all include"))
+                return "; ".join(part)
+            A("   - **Trial-index effect** (decodes per play, mean of the %s WAVs, trial 1/2/3, per appraiser, per sweep): %s." % (
+                "/".join(sorted({str(_g(k, "trial_effect", "wavs")) for k in ok6})), "; ".join("%s: %s" % (B.SHORT[k], _trial(k)) for k in ok6)))
+            def _ord(k):
+                o = _g(k, "order_effect")
+                if not o:
+                    return "not computed"
+                return "WSJT-X rho %+.3f (p %.3f%s), OpenWSFZ rho %+.3f (p %.3f%s)" % (o["wsjtx"]["rho"], o["wsjtx"]["p"], ", flagged" if o["wsjtx"].get("flagged_p_lt_0.05") else "", o["owsfz"]["rho"], o["owsfz"]["p"], ", flagged" if o["owsfz"].get("flagged_p_lt_0.05") else "")
+            A("   - **Order effect** (Spearman rho of the play order against the decodes of the play, n = %s plays per appraiser per sweep; a p below 0.05 is flagged): %s." % (
+                "/".join(sorted({str(_g(k, "order_effect", "wsjtx", "n")) for k in ok6})), _per(_ord)))
+            A("   - **Kappa**%s, as constructed: the union-over-trials universe makes its 'neither' cell trial flicker (amendment 1 A2), not an agreement figure: %s." % (
+                _dag, _per(lambda k: ("%.3f (asymptotic 95 %% CI %s)" % (_g(k, "full", "kappa", "kappa"), _ci(_g(k, "full", "kappa", "ci95_asymptotic")))) if _g(k, "full", "kappa") else "not computed")))
+            A("   - **Per-WAV decode difference**%s (OpenWSFZ minus WSJT-X, decodes per WAV, mean of 3 trials; WAV-clustered 95 %% bootstrap CI, 2000 resamples of the %s WAVs of that sweep): %s." % (
+                _dag, "/".join(sorted({str(_g(k, "full", "headline", "wavs")) for k in ok6})),
+                _per(lambda k: ("%+.2f %s" % (_g(k, "full", "headline", "decodes_per_wav_diff_owsfz_minus_wsjtx"), _ci(_g(k, "bootstrap_full", "headline", "decodes_per_wav_diff_owsfz_minus_wsjtx"), 2))) if _g(k, "full", "headline", "decodes_per_wav_diff_owsfz_minus_wsjtx") is not None else "not computed")))
+            A("   - **Which interval is which:** the t 95 %% CIs above are over the sweep means (n = %d sweeps, 4 degrees of freedom); the WAV-clustered CIs are within one sweep (resampling its WAVs). Positive agreement%s per sweep, WAV-clustered 95 %% CI: %s." % (
+                len(ok6), _dag, _per(lambda k: _ci(_g(k, "bootstrap_full", "headline", "positive_agreement")))))
             _abs = [s6[k]["abandonment"] for k in ok6]
             _trusted = all((not a.get("not_trusted_because")) and (not a.get("interim_rule")) and a.get("plays_abandoned") == 0 and a.get("daemon_log_attributed") for a in _abs)
             if _trusted and s6_seq_only:
@@ -575,12 +617,12 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
             A("   - **Sound onset** (from WSJT-X's own DT, pass W; V2(d) bar [0.0, 0.3] s, frozen 2026-10-16 (amendment 7)): %s." % (
                 "; ".join("%s %s (median of per-play medians %s s, %s plays read)" % (B.SHORT[k], o.get("result"), (s6[k].get("onset") or {}).get("per_play_median_shift_s", {}).get("median"), o.get("plays_read")) for k, o in zip(ok6, onset))))
         A("")
-        A("   S6 reads the live path of each program in its own pass. It is not a decode-rate claim, and its 2026-06/07 figures are **not comparable** (a different design, tier and build).")
+        A("   S6 is recorded off-air WAVs played through each program's own capture and decode path (the product's real code path, not a C-ABI replay), on one chain on sol; not the station's live operation, not a decode-rate claim; each program is read in its own pass. Its 2026-06/07 figures are **not comparable** (a different design, tier and build).")
     # ---- C7 the stall paragraph
     conc_fail = [f for f in fails if f["scenario"] != "S6"]
     s6_fail = [f for f in fails if f["scenario"] == "S6"]
     A("")
-    A("7. **C7, the stall.** On `sol` WSJT-X stopped saving WAVs in 8 of 8 isolation runs in which OpenWSFZ ran beside it with its subtraction residual pass on and the daemon unpinned, and in 0 of 3 runs without that (WSJT-X alone, a bare reader, the daemon with the residual pass off). The stall begins inside Qt's own ALSA plugin: it closes and reopens WSJT-X's capture device and the reopened input never delivers again; **what triggers the reopen was not shown**. This is why S6 is played sequentially in this series. It is a finding about this machine and its audio chain (`sol` only) and says nothing about the Windows station. In this series: %d failed attempt(s) in the concurrent scenarios (S1-S5, S7, S8, S3c)%s and %d in S6." % (
+    A("7. **C7, the stall.** On `sol` WSJT-X stopped saving WAVs in 8 of 8 isolation runs in which OpenWSFZ ran beside it with its subtraction residual pass on and the daemon unpinned, and in 0 of 3 runs without that (WSJT-X alone, a bare reader, the daemon with the residual pass off). In isolation arm I, one perf trace placed the start of the stall inside Qt's ALSA plugin (a close and reopen of the capture PCM, after which the input never ticked); **what triggers the reopen was not shown**. In arm J, with the daemon pinned to separate cores (daemon on cores 2-7, its reader on 0-1), WSJT-X stayed clean but the daemon's own capture clamped on 58 %% of cycles. This is why S6 is played sequentially in this series. It is a finding about this machine and its audio chain (`sol` only) and says nothing about the Windows station. In this series: %d failed attempt(s) in the concurrent scenarios (S1-S5, S7, S8, S3c)%s and %d in S6." % (
         len(conc_fail), (" (" + "; ".join("%s %s attempt %s at %s UTC" % (short(f["sweep"]), f["scenario"], f["attempt"], f["utc"]) for f in conc_fail) + ")") if conc_fail else "", len(s6_fail)))
     for f in conc_fail + s6_fail:
         _dp = os.path.join(results, f["sweep"], "stall_detail.json")
@@ -600,7 +642,7 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
             _tk[_busy]["before_last_wav"], _tk[_busy]["after_last_wav_to_gate_stop"], _nm.get(_busy2, "?"), sum(1 for v in _nm.values() if v == _nm.get(_busy2)), _tk[_busy2]["before_last_wav"], _tk[_busy2]["after_last_wav_to_gate_stop"], len(_tk), _sd["thread_count"][0]["threads"] if _sd["thread_count"] else len(_tk), _sd["thread_count"][0]["t"] if _sd["thread_count"] else "n/a", (_nm.get(_sd["thread_count"][0]["gone"][0], "?") if _sd["thread_count"] and _sd["thread_count"][0]["gone"] else "n/a"),
             ("cycles %s: elapsed %s ms, %s fitted signals" % (", ".join(x["cycle_utc"] for x in _during), "/".join(str(x["elapsedMs"]) for x in _during), "/".join(str(x["fittedSignals"]) for x in _during))) if _during else "no pass line in the window"))
     A("")
-    A("**Not claimed.** No decoder-improvement statement, no \"safe\", no \"no regression\", no \"better\" or \"worse\" decoder; no pooling or testing across series, builds, S6 designs, tiers or platforms; no bar is proposed; S6 is a live-path reading in a design that cannot separate program from pass; the cause of the stall trigger is not known.")
+    A("**Not claimed.** No decoder-improvement statement, no \"safe\", no \"no regression\", no \"better\" or \"worse\" decoder; no pooling or testing across series, builds, S6 designs, tiers or platforms; no bar is proposed; S6 is replayed off-air audio in a design that cannot separate program from pass (recorded off-air WAVs played through each program's own capture and decode path (the product's real code path, not a C-ABI replay), on one chain on sol; not the station's live operation, not a decode-rate claim); the cause of the stall trigger is not known.")
     A("")
     # ------------------------------------------------------------------------------------------------------------------------------ section 6 history
     A("## Section 6: historical trend, every full S1-S8 sweep of the LINUX series")
@@ -639,6 +681,8 @@ def build(results: str, out: str, series_id: str, config: str | None, status: st
     A("")
     A("*Generated by `qa/rr-study/linux/build_baseline_anova_report.py` from the sweep folders (no message text); it reuses the 2026-10-14 full-ANOVA tools. The numbers in the text are computed from the data, not typed.*")
     md = "\n".join(L) + "\n"
+    # plural artefacts "N attempt(s)" / "N failed attempt(s)": the word agrees with the number (Architect R4)
+    md = re.sub(r"(\b\d+(?: [a-z]+)?) ([a-z]+)\(s\)", lambda m: m.group(1) + " " + m.group(2) + ("" if m.group(1).split()[0] == "1" else "s"), md)
     with open(os.path.join(out, "report.md"), "w", encoding="utf8", newline="\n") as fh:
         fh.write(md)
     js = {"series_id": series_id, "sweeps": folders, "invalid": inv, "stall_row": stall,
