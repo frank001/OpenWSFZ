@@ -9,7 +9,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 JIT=${JIT_WAV:-$HERE/../../../tests/OpenWSFZ.Ft8.Tests/Fixtures/synth-qso-01.wav}   # the committed SYNTHETIC fixture, discarded
 actual=$(sha256sum "$BIN/libft8.so" | cut -d' ' -f1)
 [ "$actual" = "$PIN" ] || { echo "PIN FAILED: actual $actual pinned $PIN"; exit 2; }
-for arm in Z S K; do
+for arm in ${ARMS:-Z S K}; do
   "$DOTNET" "$BIN/RefSet.dll" --wavlist "$SH/$arm.tsv" --out-dir "$SH" --run-id "SH-$arm" --jit-wav "$JIT" --nhard 24 --osd-sign-fix 1 --threads 8 --label "SH-$arm"
 done
 echo "pin actual $actual pinned $PIN"
