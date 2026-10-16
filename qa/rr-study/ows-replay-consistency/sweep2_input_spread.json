@@ -1,0 +1,94 @@
+{
+ "wavs": 60,
+ "plays": 180,
+ "min_matched_chunks": 1,
+ "offsets": {
+  "owsfz": {
+   "plays_with_offset": 180,
+   "median_play_matched_chunks": 15.0,
+   "play_e_median_s": 0.0848
+  },
+  "wsjtx": {
+   "plays_with_offset": 180,
+   "median_play_matched_chunks": 15.0,
+   "play_e_median_s": -0.1003
+  }
+ },
+ "spread": {
+  "owsfz": {
+   "wavs_with_spread": 60,
+   "median_s": 1.0620500000000002,
+   "p90_s": 1.68309,
+   "max_s": 2.7068999999999996,
+   "min_s": 0.023400000000000018,
+   "wavs_excluded": 0
+  },
+  "wsjtx": {
+   "wavs_with_spread": 60,
+   "median_s": 0.021100000000000008,
+   "p90_s": 0.030300000000000007,
+   "max_s": 0.0406,
+   "min_s": 0.0031000000000000055,
+   "wavs_excluded": 0
+  }
+ },
+ "lines": {
+  "owsfz_capture": {
+   "median_spread_s": 1.0620500000000002,
+   "wavs_equal_to_median": 0,
+   "measures": {
+    "A_owsfz_own_captures": {
+     "lower_n_wavs": 30,
+     "upper_n_wavs": 30,
+     "lower": 0.7240704500978473,
+     "upper": 0.4909090909090909,
+     "upper_minus_lower": -0.2331613591887564,
+     "lo": -0.39775759628979585,
+     "hi": -0.05463675275366751,
+     "separates": true,
+     "spearman_spread_vs_wav_consistency": {
+      "n": 59,
+      "rho": -0.34332052372164007,
+      "p": 0.0077651079618580275
+     }
+    }
+   }
+  },
+  "wsjtx_capture": {
+   "median_spread_s": 0.021100000000000008,
+   "wavs_equal_to_median": 0,
+   "measures": {
+    "W_owsfz_on_wsjtx_captures": {
+     "lower_n_wavs": 30,
+     "upper_n_wavs": 30,
+     "lower": 0.9342723004694836,
+     "upper": 0.8903508771929824,
+     "upper_minus_lower": -0.04392142327650117,
+     "lo": -0.09428382335731485,
+     "hi": 0.004418122989114146,
+     "separates": false,
+     "spearman_spread_vs_wav_consistency": {
+      "n": 59,
+      "rho": -0.20487304515327331,
+      "p": 0.1195771410858004
+     }
+    },
+    "C_w_wsjtx_own": {
+     "lower_n_wavs": 30,
+     "upper_n_wavs": 30,
+     "lower": 0.9302721088435374,
+     "upper": 0.943986820428336,
+     "upper_minus_lower": 0.013714711584798644,
+     "lo": -0.011567033704604874,
+     "hi": 0.04125224710215367,
+     "separates": false,
+     "spearman_spread_vs_wav_consistency": {
+      "n": 59,
+      "rho": 0.04784032828234901,
+      "p": 0.7189875246898306
+     }
+    }
+   }
+  }
+ }
+}

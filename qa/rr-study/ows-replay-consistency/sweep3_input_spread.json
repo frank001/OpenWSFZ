@@ -1,0 +1,94 @@
+{
+ "wavs": 60,
+ "plays": 180,
+ "min_matched_chunks": 1,
+ "offsets": {
+  "owsfz": {
+   "plays_with_offset": 180,
+   "median_play_matched_chunks": 15.0,
+   "play_e_median_s": -0.0928
+  },
+  "wsjtx": {
+   "plays_with_offset": 180,
+   "median_play_matched_chunks": 15.0,
+   "play_e_median_s": -0.1034
+  }
+ },
+ "spread": {
+  "owsfz": {
+   "wavs_with_spread": 60,
+   "median_s": 0.4615,
+   "p90_s": 1.4476600000000002,
+   "max_s": 1.7945,
+   "min_s": 0.0040999999999999925,
+   "wavs_excluded": 0
+  },
+  "wsjtx": {
+   "wavs_with_spread": 60,
+   "median_s": 0.0325,
+   "p90_s": 0.04479999999999999,
+   "max_s": 0.0553,
+   "min_s": 0.0022000000000000075,
+   "wavs_excluded": 0
+  }
+ },
+ "lines": {
+  "owsfz_capture": {
+   "median_spread_s": 0.4615,
+   "wavs_equal_to_median": 0,
+   "measures": {
+    "A_owsfz_own_captures": {
+     "lower_n_wavs": 30,
+     "upper_n_wavs": 30,
+     "lower": 0.8514150943396226,
+     "upper": 0.6277372262773723,
+     "upper_minus_lower": -0.22367786806225032,
+     "lo": -0.36032574892869007,
+     "hi": -0.09915191503439826,
+     "separates": true,
+     "spearman_spread_vs_wav_consistency": {
+      "n": 59,
+      "rho": -0.38594978995182333,
+      "p": 0.0025359273868865743
+     }
+    }
+   }
+  },
+  "wsjtx_capture": {
+   "median_spread_s": 0.0325,
+   "wavs_equal_to_median": 4,
+   "measures": {
+    "W_owsfz_on_wsjtx_captures": {
+     "lower_n_wavs": 28,
+     "upper_n_wavs": 28,
+     "lower": 0.927765237020316,
+     "upper": 0.8661616161616161,
+     "upper_minus_lower": -0.06160362085869986,
+     "lo": -0.11405970101065789,
+     "hi": -0.012348006266979813,
+     "separates": true,
+     "spearman_spread_vs_wav_consistency": {
+      "n": 59,
+      "rho": -0.15292843055022715,
+      "p": 0.24753828542653927
+     }
+    },
+    "C_w_wsjtx_own": {
+     "lower_n_wavs": 28,
+     "upper_n_wavs": 28,
+     "lower": 0.9410774410774411,
+     "upper": 0.935672514619883,
+     "upper_minus_lower": -0.005404926457558079,
+     "lo": -0.03986283618026254,
+     "hi": 0.023729119408191057,
+     "separates": false,
+     "spearman_spread_vs_wav_consistency": {
+      "n": 59,
+      "rho": -0.0724898804463035,
+      "p": 0.5853336908323344
+     }
+    }
+   }
+  }
+ }
+}
