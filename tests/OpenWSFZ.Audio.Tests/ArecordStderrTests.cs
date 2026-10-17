@@ -173,7 +173,7 @@ public sealed class ArecordStderrTests
 
         info.FileName.Should().Be("arecord");
         info.ArgumentList.Should().Equal(
-            "-D", "hw:1,0", "-f", "FLOAT_LE", "-r", "12000", "-c", "1", "-t", "raw", "-");
+            "-D", "hw:1,0", "-f", "FLOAT_LE", "-r", "12000", "-c", "1", "-t", "raw", "--period-time=20000", "-");
         info.Environment["LC_ALL"].Should().Be("C");
         info.RedirectStandardOutput.Should().BeTrue();
         info.RedirectStandardError.Should().BeTrue();

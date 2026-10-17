@@ -31,6 +31,7 @@ internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
     private readonly Func<string, ProcessStartInfo> _startInfoFactory;
     private readonly ILogger<ArecordAudioSource>?   _logger;
     private readonly Func<DateTime>                 _utcNow;
+    private readonly PipeResizer?                   _pipeResizer;
 
     private long _overrunCount;
     private long _otherStderrLines;
@@ -41,7 +42,8 @@ internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
 
     /// <summary>Production constructor with a logger for the stderr reports.</summary>
     public ArecordAudioSource(ILogger<ArecordAudioSource>? logger)
-        : this(DefaultStartInfo, logger) { }
+        : this(DefaultStartInfo, logger,
+               pipeResizer: OperatingSystem.IsLinux() ? LibcPipeResizer.Resize : null) { }
 
     /// <summary>
     /// Test constructor — supply a custom <see cref="ProcessStartInfo"/> factory
@@ -50,11 +52,13 @@ internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
     internal ArecordAudioSource(
         Func<string, ProcessStartInfo> startInfoFactory,
         ILogger<ArecordAudioSource>?   logger = null,
-        Func<DateTime>?                utcNow = null)
+        Func<DateTime>?                utcNow = null,
+        PipeResizer?                   pipeResizer = null)
     {
         _startInfoFactory = startInfoFactory;
         _logger           = logger;
         _utcNow           = utcNow ?? (() => DateTime.UtcNow);
+        _pipeResizer      = pipeResizer;
     }
 
     /// <inheritdoc/>
@@ -74,6 +78,12 @@ internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
         var stderrTask = Task.Run(() => DrainStderrAsync(process.StandardError));
 
         var    stdout   = process.StandardOutput.BaseStream;
+
+        // capture-pipe-headroom: a larger stdout pipe (Linux only; null elsewhere and in tests that
+        // do not ask for it).  Never fatal, never changes the bytes read.
+        if (_pipeResizer is not null)
+            StdoutPipeEnlarger.Apply(stdout, _pipeResizer, _logger);
+
         const int ChunkBytes = 2048 * sizeof(float);
         var    buf       = new byte[ChunkBytes];
         int    pos       = 0;
@@ -184,6 +194,9 @@ internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
         info.ArgumentList.Add("-r");    info.ArgumentList.Add("12000");
         info.ArgumentList.Add("-c");    info.ArgumentList.Add("1");
         info.ArgumentList.Add("-t");    info.ArgumentList.Add("raw");
+        // capture-pipe-headroom: pin the client period to 20 ms (arecord's plain-device default is
+        // ~125 ms); a dsnoop chain ignores it.
+        info.ArgumentList.Add("--period-time=20000");
         info.ArgumentList.Add("-");     // stdout
         return info;
     }
