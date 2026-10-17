@@ -10,8 +10,9 @@
   "F2_off_grid_gt_600": 17,
   "F3_at_clamp": 0,
   "F4_remaining_overruns": [],
-  "F5_decodes_total": 0,
-  "F5_plays_with_decode_lines": 0
+  "F5_decodes_total": null,
+  "F5_plays_with_decode_lines": null,
+  "F5_decode_lines_for_the_60_slot_stamps": 896
  },
  "baseline_trial0_G_0.2s": {
   "plays": 60,
@@ -92,11 +93,13 @@
     "loss_vs_G": 7.157
    }
   ],
-  "F5_decodes_total": 0,
-  "F5_plays_with_decode_lines": 0
+  "F5_decodes_total": null,
+  "F5_plays_with_decode_lines": null,
+  "F5_decode_lines_for_the_60_slot_stamps": 721
  },
  "F1_class": "EFFECTIVE",
  "counter_delta_overruns_over_block_incl_tail": 0,
  "counter_delta_channel_drops": 0,
- "counter_delta_watchdog_restarts": 0
+ "counter_delta_watchdog_restarts": 0,
+ "F5_provenance": "f1_rows.py was run without the ALL.TXT paths it needs (--run-all pointed at a file that was never copied; the baseline file was the wrong one), so its F5 fields were 0 and are nulled here. The counts come from a separate count of ALL.TXT lines whose first token equals one of the 60 play slot stamps (slot_stamp_o of plays 0-59): baseline = the 2026-10-17 block's captured-audio owsfz/ALL.TXT (721); F1' = sol ~/rr-run/owsfz-ALL.TXT (896). Counts only (HK-037). One block each, descriptive, never a rate."
 }

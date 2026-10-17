@@ -43,7 +43,7 @@ Baseline = trial 0 of the 2026-10-17 block, same WAVs, same order, **taken at G 
 - \|wanted\| 600-1,100 samples: **17** here (all of magnitude 1,013-1,037 samples, 4 positive and 13 negative) against 3 in the baseline.
 Those 17 are not losses. A \|wanted\| of ~1,020 samples (~85 ms) is the size of the framer's chunk-boundary quantisation (chunks are 2,048 samples), so the 600-sample bar of F-2 sits inside the quantisation band; with the 4 s buffer the arecord period is larger (1,600 frames at 12 kHz against 240) and the quantisation is more visible. I read F-2's remaining 17 as "off-grid by about one chunk's quantisation, no loss", and F-3 = 0 and \|wanted\| above 1,100 = 0 as "no windows displaced by a loss". The off-grid tail after a loss is gone; I make no claim that the grid is exact.
 
-**F-5 (descriptive, aggregates only):** 896 decode lines against 721 for the same 60 WAVs in the same order, +24 %. Both are OpenWSFZ-alone replays on the same build; the second was recorded without losses. One block each, no interval, no claim beyond the count.
+**F-5 (descriptive; WITHHELD as a finding pending the Architect's ruling, corrected 2026-10-17):** the first version of `f1_rows.json` carried 0 for both blocks because `f1_rows.py` was run without the ALL.TXT paths it needs; those fields are now null. The numbers in this note were counted separately: ALL.TXT lines whose first token equals one of the 60 play slot stamps (plays 0-59). Baseline 721, from the 2026-10-17 block's captured-audio `owsfz/ALL.TXT`; F1' 896, from `sol`'s `~/rr-run/owsfz-ALL.TXT`. Two different files, counted by one rule; counts only; one block each; never a rate. Provenance is in `f1_rows.json` (`F5_provenance`).
 
 ## What this does and does not establish
 
