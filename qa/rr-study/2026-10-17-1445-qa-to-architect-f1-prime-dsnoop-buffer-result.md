@@ -45,6 +45,10 @@ Those 17 are not losses. A \|wanted\| of ~1,020 samples (~85 ms) is the size of 
 
 **F-5 (descriptive; WITHHELD as a finding pending the Architect's ruling, corrected 2026-10-17):** the first version of `f1_rows.json` carried 0 for both blocks because `f1_rows.py` was run without the ALL.TXT paths it needs; those fields are now null. The numbers in this note were counted separately: ALL.TXT lines whose first token equals one of the 60 play slot stamps (plays 0-59). Baseline 721, from the 2026-10-17 block's captured-audio `owsfz/ALL.TXT`; F1' 896, from `sol`'s `~/rr-run/owsfz-ALL.TXT`. Two different files, counted by one rule; counts only; one block each; never a rate. Provenance is in `f1_rows.json` (`F5_provenance`).
 
+## Correction after the Architect's rulings (465a12f7, b56691ec)
+
+My explanation of F-2's 17 windows ("chunk-boundary quantisation, about one chunk") is a reading, not an established mechanism, and F-2 is not a loss measure: in the D-b' block (client period 1,600 frames) `wanted` repeats +1871 / -1888 / +123 every three cycles before any loss, so the framer chases delivery-period jitter. The loss rows of this block are F-1 (0), F-3 (0) and the absence of loss-anchored tails.
+
 ## What this does and does not establish
 
 - **Does:** on `sol`'s chain the overruns, the steps and the multi-window off-grid tail come from the 0.2 s dsnoop ring being outrun; with a 4 s buffer there is no overrun, no channel drop and no clamped window in 60 plays. The treatment was demonstrated (CT1) and the instrument was proven alive (CT2) in the same daemon instance.
