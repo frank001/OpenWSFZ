@@ -59,6 +59,7 @@ Overrun time minus the step's start chunk: -0.15 to +3.12 s, median ~ +0.5 s (th
 
 ## What else the block shows (descriptive, not pre-registered; counts)
 
+- **Correction 2026-10-17 (F1 baseline recompute):** the "80 of 180" below was counted on the framer line of the window AFTER each play (cycle start + 15 s). On each play's OWN window line it is **79 of 180 (44 %)**, 65 at the clamp both ways, and per trial 27 / 20 / 32 off-grid, 21 / 17 / 27 at the clamp, 10 / 6 / 6 overruns. The Architect's reconstruction (79) is the own-window count; the loss size (O5/K3) correctly uses the next window.
 - **The step count understates the damage.** In 80 of 180 windows (44 %) the framer's `wanted` is outside +-600 samples (50 ms) and 65 windows are at the clamp (applied +-3000). After each loss the grid stays displaced for up to ~9 windows, while the realignment is applied *between* windows, so those windows contain no step above J but are offset from the slot. That is consistent with the earlier finding that OpenWSFZ's capture start wanders (0.52 s vs 0.025 s for WSJT-X). The fix spec should judge against "overruns" and "off-grid windows", not steps alone.
 - 22 overruns in 50 minutes and 22 steps: nearly one-to-one. Reported lengths in the block are 0.02-0.19 ms (sum 3 ms); they say nothing about the loss.
 - Control overruns (#1, #2) are outside the block (11:30 and 11:33) and not counted in O3.
