@@ -41,6 +41,10 @@
 - In all three `arecord` spent 20-60 % of the 3 s blocked in `pipe_write`; the rest of the time it sat in its normal ALSA wait (`do_sys_poll`), the larger share in two of the three. That is the shape of the daemon's reader not draining the pipe for part of the 3 s before the Warning. The two unclassified cases fall short of the 50 % cut-off (40 %, 20 %); the cut-off is a judgment with no prior data, and with three overruns no share is estimated. The overrun line is printed at recovery, so the stall began up to 1.4-2.0 s before it (the F-4 losses); the 3 s window therefore contains stalled and unstalled seconds, which lowers every share.
 - The block spent 15 minutes with the sampler running; there is no control without it, so its overhead on F-1 is not separated (it reads three small `/proc` files at 10 Hz).
 
+## Correction after the Architect's ruling (b56691ec, 2026-10-17)
+
+F-2 is NOT accepted as a loss measure, here or in F1'. In this block's daemon log before any loss (14:45-15:10Z) `wanted` repeats +1871 / -1888 / +123 every three cycles (about +-156 ms), applied in full: the framer chases delivery-period jitter of the 1,600-frame client period. My split of F-2 at 1,100 samples into "loss-sized" (29) and "quantisation" (16) therefore has no basis: the 29 include jitter. The loss rows are F-1, F-3 and the loss-anchored tails (F-4), not F-2. The same holds for F1' (its 17 windows at about 1,020 samples are not a mechanism I established).
+
 ## What this does and does not establish
 
 - **Does:** at the default-like buffer (G 0.53 s) the loss persists but is smaller than at 0.2 s: 3 overruns and 12 clamped windows in 60 plays against 10 and 21. At 4 s there are none. So on this rig the loss falls with the buffer (0.2 s: 10; 0.53 s: 3; 4 s: 0), one block per point. A plain-`plughw` user with a 0.5 s default is therefore not shown to be safe on this load: the same 60 plays lose audio there too, less often.
