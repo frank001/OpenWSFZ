@@ -118,7 +118,8 @@ def loadavg():
 
 def pins(a) -> dict:
     return {"ows_lib": a.ows_lib, "ows_lib_sha256": sha_or_none(a.ows_lib),
-            "wsjtx_exe": a.wsjtx_exe, "wsjtx_exe_sha256": sha_or_none(a.wsjtx_exe), "loadavg_1_5_15": loadavg()}
+            "wsjtx_exe": a.wsjtx_exe, "wsjtx_exe_sha256": sha_or_none(a.wsjtx_exe),
+            "config_json": a.config, "config_json_sha256": sha_or_none(a.config), "loadavg_1_5_15": loadavg()}
 
 
 def pin_identity(p: dict) -> dict:
@@ -136,6 +137,7 @@ def main() -> None:
     ap.add_argument("--wsjt-all-txt", required=True)
     ap.add_argument("--owsfz-all-txt", required=True)
     ap.add_argument("--ows-lib", default=None, help="the OpenWSFZ native library the daemon loaded (hashed at start and end)")
+    ap.add_argument("--config", default=None, help="the daemon's config.json (hashed at start and end: the decoder settings are pinned, not inferred)")
     ap.add_argument("--wsjtx-exe", default=None, help="the WSJT-X executable (hashed at start and end)")
     ap.add_argument("--dry-run", action="store_true", help="no sound, no waiting: a fake clock (tests and desk checks only)")
     ap.add_argument("--skip-verify", action="store_true", help="DEV ONLY: skips the corpus verification; S6-V1 is then recorded as SKIPPED = not PASS")

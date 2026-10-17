@@ -86,3 +86,16 @@ def test_dry_run_writes_a_consistent_play_log(tmp_path):
     assert v["S6-V1"]["result"] == "SKIPPED" and v["S6-V3"]["result"] == "PASS" and v["S6-V5"]["result"] == "NOT PINNED"
     assert v["S6-V4-plays_completed"] == 72
     assert "S6 batch 4/4 done: plays 61-72" in r.stdout and "S6 playback done: 72 plays, 0 slip(s)" in r.stdout
+
+
+def test_pins_hash_the_daemon_config_and_a_change_breaks_the_pin_identity(tmp_path):
+    """Architect 2026-10-17 (F1' ruling): the decoder settings are PINNED by the hash of config.json, not inferred. A changed config must break start/end equality."""
+    import argparse
+    cfg = tmp_path / "config.json"
+    cfg.write_text('{"a": 1}', encoding="utf8")
+    a = argparse.Namespace(ows_lib=None, wsjtx_exe=None, config=str(cfg))
+    start = P.pins(a)
+    assert start["config_json_sha256"] == D.sha256_file(str(cfg))
+    cfg.write_text('{"a": 2}', encoding="utf8")
+    assert P.pin_identity(start) != P.pin_identity(P.pins(a))
+    assert P.pins(argparse.Namespace(ows_lib=None, wsjtx_exe=None, config=None))["config_json_sha256"] is None

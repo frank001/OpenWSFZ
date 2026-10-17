@@ -207,7 +207,7 @@ def _run_s6_sequential(args, run_dir: Path, wsjtx_exe, stall_hit: dict, stop_wat
     Returns 0 only if both passes and the merge succeeded; a WSJT-X stall in pass W returns at once (the caller sees stall_hit and retries the scenario)."""
     common = ["--run-dir", str(run_dir), "--tier", args.s6_tier, "--corpus", str(_s6_corpus(args)),
               "--device", args.device, "--wsjt-all-txt", str(WSJT_ALL_TXT), "--owsfz-all-txt", str(OWSFZ_ALL_TXT),
-              *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
+              *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []), *_s6_config_args(),
               *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else [])]
     worst = 0
     rc = _s6_phase(args.s6_phase_cmd, "w", run_dir=run_dir)
@@ -236,6 +236,12 @@ def _flag_stall_and_exit(run_dir: Path, reading, scenario, where: str) -> None:
     (run_dir / "STALLED.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
     print(f"\n  *** STALLED ({where}, scenario {scenario}): {reading.reason}. Battery stopped; sweep INVALID (STALLED.json). ***", flush=True)
     raise SystemExit(21)
+
+
+def _s6_config_args() -> list:
+    """The daemon's config.json, hashed by s6_play at start and end (the Linux batteries export S6_CONFIG)."""
+    cfg = os.environ.get("S6_CONFIG")
+    return ["--config", cfg] if cfg and os.path.isfile(cfg) else []
 
 
 def _s6_corpus(args) -> Path:
@@ -583,7 +589,7 @@ def main() -> None:
                         else:
                             r6 = _py("s6/s6_play.py", "--run-dir", str(run_dir), "--tier", args.s6_tier, "--corpus", str(_s6_corpus(args)),
                                      "--device", args.device, "--wsjt-all-txt", str(WSJT_ALL_TXT), "--owsfz-all-txt", str(OWSFZ_ALL_TXT),
-                                     *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []),
+                                     *(["--ows-lib", args.s6_ows_lib] if args.s6_ows_lib else []), *_s6_config_args(),
                                      *(["--wsjtx-exe", wsjtx_exe] if wsjtx_exe and Path(wsjtx_exe).is_file() else []), check=False)
                             rc6 = r6.returncode
                         if rc6 != 0:
