@@ -1362,6 +1362,12 @@ select#dial-freq {
 #decodes-table tr.decode-responder.decode-early-unconfirmed td {
   color: #fff;
 }
+/* Early rows are display-only (no handler): the CQ/responder classes they now carry must not show the      */
+/* pointer cursor that `.decode-cq:hover` / `.decode-responder:hover` give a final row.                      */
+#decodes-table tr.decode-early:hover,
+#decodes-table tr.decode-early-unconfirmed:hover {
+  cursor: default;
+}
 /* Hover: the generic and per-class `tr:hover td` rules repaint every td, so early rows need their own,  */
 /* one step darker than the final rows' hover colours (#1b5324 CQ, rgba(180,40,40,.32)-ish partner).     */
 #decodes-table tr.decode-cq.decode-early:hover td,
