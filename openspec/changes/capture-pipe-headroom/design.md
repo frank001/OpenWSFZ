@@ -1,0 +1,20 @@
+## Context
+
+`ArecordAudioSource` starts `arecord` with stdout redirected and reads the raw samples on the daemon's side. Between the two is a kernel pipe, 64 KiB by default (about 1.37 s of 12 kHz float). The daemon's reader can stall for several seconds when the residual decode pass saturates the CPU (seen on `sol`, B2: residual passes up to 6.5 s; on `main`'s decoder up to 22.6 s). While the reader stalls, `arecord` fills the pipe, blocks in `write`, and ALSA's capture ring overruns behind it. A larger pipe moves that headroom into memory.
+
+## Decisions
+
+1. **Where.** Right after `process.Start()`, before the stdout read loop starts, on Linux only (`OperatingSystem.IsLinux()`); other platforms do nothing. Setting the pipe size on a running pipe is allowed; the tested wrapper set it before the exec and the difference is the few milliseconds before the call.
+2. **How.** `fcntl(fd, F_SETPIPE_SZ = 1031, 1_048_576)` through a libc P/Invoke (`[DllImport("libc", SetLastError = true)]` or `LibraryImport`), then `fcntl(fd, F_GETPIPE_SZ = 1032)` to read back the granted size (Linux rounds up to a power of two number of pages; the granted size can exceed the request). Both constants are named `const`s with a comment giving the Linux value.
+3. **Which fd.** `process.StandardOutput.BaseStream` on Unix is, to our knowledge, an `AnonymousPipeClientStream` whose `SafePipeHandle` wraps the read end; `F_SETPIPE_SZ` applies to the pipe, from either end. **The Developer confirms on .NET 10 how the fd is exposed and states what was found**; if the stream is not what is expected (a socket, for example), the call must not be attempted and a Warning is logged (the tested wrapper's V1b check was `readlink /proc/<arecord>/fd/1` = `pipe:[...]`).
+4. **Failure is never fatal.** Any error (`EPERM` when the request exceeds `/proc/sys/fs/pipe-max-size`, `EBADF`, `EINVAL`, a missing `libc`, an `EntryPointNotFoundException`) is caught, logged at Warning with the errno or exception, and capture continues with the default pipe. The call has no effect on which bytes are read.
+5. **Logging.** One Information line on success: `arecord stdout pipe enlarged: requested 1048576, granted N bytes`. One Warning on failure: `could not enlarge the arecord stdout pipe (errno E); capture continues with the default pipe size`. No per-chunk logging.
+6. **Testability.** The syscall sits behind a small internal seam (a delegate or interface taking the handle and the size and returning the granted size or an errno), injected through the test constructor. Tests: a refusing seam (Warning logged, capture unaffected, byte-identical chunks); an accepting seam (Information line with the granted size); and one test on Linux with a **real pipe** and the real P/Invoke (skipped on other platforms) asserting the granted size is at least the request or a Warning is logged.
+7. **`--period-time=20000`.** One more argument at the end of the option list (before the `-` output). The existing arguments, their order, `LC_ALL=C` and the redirects are unchanged. Evidence and limits are in the proposal; the handoff and the PR must say it is untested through the daemon on plain devices and on the rig (`dsnoop` ignores it).
+8. **What stays.** The channel (16 chunks, `DropOldest`), the framer, `CaptureManager`, the chunk size, the exit-code handling, the stderr drain and the counters of PR #239 are untouched.
+
+## Risks
+
+- A pipe of 1 MiB per capture start is 1 MiB of kernel memory: negligible. If the user's `pipe-max-size` is lower, the Warning says so and the default pipe remains.
+- A stall longer than the pipe (about 21.8 s of audio) still loses audio, and a stall longer than the framer's backlog wrap limit (about 7.5 s) that ends at a window start is not corrected by the pipe (F2, parked, recorded here as a known limit).
+- `--period-time` changes how often `arecord` delivers data on plain devices: 20 ms periods mean more small reads. The reader reads 2,048-sample chunks regardless. Not measured on a plain device through the daemon.
