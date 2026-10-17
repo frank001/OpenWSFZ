@@ -10,7 +10,4 @@ internal interface ICaptureLossCounters
 {
     /// <summary>Number of overrun reports received from the capture subprocess.</summary>
     long CaptureOverrunCount { get; }
-
-    /// <summary>Sum of the lengths those reports gave, in milliseconds (a lower bound).</summary>
-    long CaptureOverrunReportedMs { get; }
 }

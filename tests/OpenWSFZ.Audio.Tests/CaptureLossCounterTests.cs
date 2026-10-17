@@ -24,7 +24,6 @@ public sealed class CaptureLossCounterTests
         public int  SampleRate   => 12_000;
         public int  ChannelCount => 1;
         public long CaptureOverrunCount      => 3;
-        public long CaptureOverrunReportedMs => 42;
 
         public async IAsyncEnumerable<float[]> CaptureAsync(
             string deviceId,
@@ -117,12 +116,10 @@ public sealed class CaptureLossCounterTests
     {
         await using var withCounters = new CaptureManager(new BurstSource(1));
         withCounters.CaptureOverrunCount.Should().Be(3);
-        withCounters.CaptureOverrunReportedMs.Should().Be(42);
-        withCounters.GetLossSnapshot().Should().Be(new CaptureLossSnapshot(3, 42, 0));
+        withCounters.GetLossSnapshot().Should().Be(new CaptureLossSnapshot(3, 0));
 
         await using var without = new CaptureManager(new InfiniteAudioSource());
         without.CaptureOverrunCount.Should().Be(0);
-        without.CaptureOverrunReportedMs.Should().Be(0);
         without.GetLossSnapshot().Should().Be(default(CaptureLossSnapshot));
     }
 }

@@ -79,12 +79,9 @@ public sealed class CaptureManager : IAsyncDisposable
     /// </summary>
     public long CaptureOverrunCount => (_source as ICaptureLossCounters)?.CaptureOverrunCount ?? 0;
 
-    /// <summary>Sum of the lengths those overrun reports gave, in milliseconds (a lower bound).</summary>
-    public long CaptureOverrunReportedMs => (_source as ICaptureLossCounters)?.CaptureOverrunReportedMs ?? 0;
-
-    /// <summary>All three capture-loss counters in one read.</summary>
+    /// <summary>Both capture-loss counters in one read.</summary>
     public CaptureLossSnapshot GetLossSnapshot() =>
-        new(CaptureOverrunCount, CaptureOverrunReportedMs, CaptureChannelDroppedChunks);
+        new(CaptureOverrunCount, CaptureChannelDroppedChunks);
 
     public CaptureManager(IAudioSource source, ILogger<CaptureManager>? logger = null)
     {

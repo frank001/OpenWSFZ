@@ -11,14 +11,14 @@ using Xunit;
 namespace OpenWSFZ.Web.Tests;
 
 /// <summary>
-/// capture-loss-instrument 1.8: the three capture-loss counters appear on
+/// capture-loss-instrument 1.8: the two capture-loss counters appear on
 /// <c>GET /api/v1/status</c> and on the initial WebSocket <c>status</c> event, read live from a
 /// provider, and default to 0 when no provider is wired.  JSON names follow the camelCase of
 /// <c>cycleArchiveDroppedCycles</c>.
 /// </summary>
 public sealed class CaptureLossStatusTests
 {
-    private static readonly CaptureLossSnapshot Sample = new(OverrunCount: 7, OverrunReportedMs: 1234, ChannelDroppedChunks: 55);
+    private static readonly CaptureLossSnapshot Sample = new(OverrunCount: 7, ChannelDroppedChunks: 55);
 
     private static async Task<(Microsoft.AspNetCore.Builder.WebApplication App, int Port)> StartAsync(
         Func<CaptureLossSnapshot>? provider)
@@ -47,7 +47,7 @@ public sealed class CaptureLossStatusTests
         return doc;
     }
 
-    [Fact(DisplayName = "capture-loss 1.8: GET /api/v1/status carries the three counters from the provider")]
+    [Fact(DisplayName = "capture-loss 1.8: GET /api/v1/status carries the two counters from the provider")]
     public async Task RestStatus_CarriesTheProviderValues()
     {
         var (app, port) = await StartAsync(() => Sample);
@@ -55,13 +55,12 @@ public sealed class CaptureLossStatusTests
         {
             using var doc = await GetRestStatusAsync(port);
             doc.RootElement.GetProperty("captureOverrunCount").GetInt64().Should().Be(7);
-            doc.RootElement.GetProperty("captureOverrunReportedMs").GetInt64().Should().Be(1234);
             doc.RootElement.GetProperty("captureChannelDroppedChunks").GetInt64().Should().Be(55);
         }
         finally { await app.StopAsync(); await app.DisposeAsync(); }
     }
 
-    [Fact(DisplayName = "capture-loss 1.8: the initial WebSocket status event carries the three counters from the provider")]
+    [Fact(DisplayName = "capture-loss 1.8: the initial WebSocket status event carries the two counters from the provider")]
     public async Task WebSocketStatus_CarriesTheProviderValues()
     {
         var (app, port) = await StartAsync(() => Sample);
@@ -71,13 +70,12 @@ public sealed class CaptureLossStatusTests
             doc.RootElement.GetProperty("type").GetString().Should().Be("status");
             var payload = doc.RootElement.GetProperty("payload");
             payload.GetProperty("captureOverrunCount").GetInt64().Should().Be(7);
-            payload.GetProperty("captureOverrunReportedMs").GetInt64().Should().Be(1234);
             payload.GetProperty("captureChannelDroppedChunks").GetInt64().Should().Be(55);
         }
         finally { await app.StopAsync(); await app.DisposeAsync(); }
     }
 
-    [Fact(DisplayName = "capture-loss 1.8: with no provider all three counters read 0 on both surfaces")]
+    [Fact(DisplayName = "capture-loss 1.8: with no provider both counters read 0 on both surfaces")]
     public async Task NoProvider_AllCountersReadZero_OnBothSurfaces()
     {
         var (app, port) = await StartAsync(provider: null);
@@ -86,7 +84,7 @@ public sealed class CaptureLossStatusTests
             using var rest = await GetRestStatusAsync(port);
             using var ws   = await GetInitialWsStatusAsync(port);
             var payload = ws.RootElement.GetProperty("payload");
-            foreach (var name in new[] { "captureOverrunCount", "captureOverrunReportedMs", "captureChannelDroppedChunks" })
+            foreach (var name in new[] { "captureOverrunCount", "captureChannelDroppedChunks" })
             {
                 rest.RootElement.GetProperty(name).GetInt64().Should().Be(0, $"REST {name}");
                 payload.GetProperty(name).GetInt64().Should().Be(0, $"WebSocket {name}");

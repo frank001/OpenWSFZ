@@ -99,8 +99,8 @@ public sealed class ArecordStderrTests
     }
 
     // capture-loss-instrument 1.1 — overruns are counted and logged with their own UTC time.
-    [Fact(DisplayName = "capture-loss 1.1: overrun lines are counted, summed and logged at Warning with a UTC millisecond time")]
-    public async Task Overruns_AreCounted_SummedAndLoggedWithUtcMillisecondTime()
+    [Fact(DisplayName = "capture-loss 1.1: overrun lines are counted and logged at Warning with a UTC millisecond time")]
+    public async Task Overruns_AreCounted_AndLoggedWithUtcMillisecondTime()
     {
         var stamp = new DateTime(2026, 10, 17, 12, 34, 56, 789, DateTimeKind.Utc);
         var (_, source, log) = await RunAsync(
@@ -109,14 +109,13 @@ public sealed class ArecordStderrTests
             () => stamp);
 
         source.CaptureOverrunCount.Should().Be(2);
-        source.CaptureOverrunReportedMs.Should().Be(31, "10.5 + 20.5 ms, kept in microseconds and rounded once");
 
         var warnings = log.Entries.Where(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning).ToList();
         warnings.Should().HaveCount(2);
         warnings.Should().OnlyContain(w => w.Message.Contains("12:34:56.789"),
             "the message carries its own UTC receive time to the millisecond (log-sink stamps are whole seconds)");
-        warnings[0].Message.Should().Contain("10.5");
-        warnings[1].Message.Should().Contain("20.5");
+        warnings[0].Message.Should().Contain("overrun!!! (at least 10.5 ms long)", "arecord's own line is logged verbatim");
+        warnings[1].Message.Should().Contain("overrun!!! (at least 20.5 ms long)");
     }
 
     // capture-loss-instrument 1.2 — byte identity.
@@ -158,13 +157,12 @@ public sealed class ArecordStderrTests
         info.Last().Should().Contain("Recording header line 100");
     }
 
-    [Fact(DisplayName = "capture-loss 1.4: a mixed-case OVERRUN counts, and a line without a parsable length adds 0 ms")]
-    public async Task MixedCaseOverrun_Counts_AndUnparsableLengthAddsNothing()
+    [Fact(DisplayName = "capture-loss 1.4: a mixed-case OVERRUN counts, with or without a length in the line")]
+    public async Task MixedCaseOverrun_Counts_WithOrWithoutLength()
     {
         var (_, source, _) = await RunAsync(MakePcm(1), Lines("OVERRUN!!! (at least 7 ms long)", "Overrun!!!"));
 
         source.CaptureOverrunCount.Should().Be(2);
-        source.CaptureOverrunReportedMs.Should().Be(7);
     }
 
     // capture-loss-instrument 1.5 — how arecord is started.

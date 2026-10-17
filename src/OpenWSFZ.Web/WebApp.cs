@@ -63,10 +63,10 @@ public static class WebApp
     /// </param>
     /// <param name="captureLossProvider">
     /// Live provider for the capture-loss counters (capture-loss-instrument), surfaced as
-    /// <see cref="DaemonStatus.CaptureOverrunCount"/>, <see cref="DaemonStatus.CaptureOverrunReportedMs"/>
-    /// and <see cref="DaemonStatus.CaptureChannelDroppedChunks"/> on <c>GET /api/v1/status</c> and the
+    /// <see cref="DaemonStatus.CaptureOverrunCount"/> and
+    /// <see cref="DaemonStatus.CaptureChannelDroppedChunks"/> on <c>GET /api/v1/status</c> and the
     /// initial WebSocket <c>status</c> event (callers pass <c>() =&gt; captureManager.GetLossSnapshot()</c>).
-    /// Defaults to <c>null</c> → all three reported as 0.
+    /// Defaults to <c>null</c> → both reported as 0.
     /// </param>
     /// <param name="appScope">
     /// App-instance scope GUID to tag every WebSocket connection accepted through this
@@ -367,7 +367,6 @@ public static class WebApp
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
                 CaptureOverrunCount: captureLoss.OverrunCount,
-                CaptureOverrunReportedMs: captureLoss.OverrunReportedMs,
                 CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
                 DataFlowing:         captureHealthSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
@@ -772,7 +771,6 @@ public static class WebApp
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
                 CaptureOverrunCount: captureLoss.OverrunCount,
-                CaptureOverrunReportedMs: captureLoss.OverrunReportedMs,
                 CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
                 DataFlowing:         startSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
@@ -806,7 +804,6 @@ public static class WebApp
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
                 CaptureOverrunCount: captureLoss.OverrunCount,
-                CaptureOverrunReportedMs: captureLoss.OverrunReportedMs,
                 CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
                 DataFlowing:         stopSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,

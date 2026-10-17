@@ -124,8 +124,6 @@ public sealed record DaemonStatus(
     /// capture restart. Zero here does not prove nothing was lost (see <c>CaptureLossSnapshot</c>).
     /// </summary>
     long    CaptureOverrunCount = 0,
-    /// <summary>Sum of the lengths <c>arecord</c> reported for those overruns, in milliseconds (a lower bound).</summary>
-    long    CaptureOverrunReportedMs = 0,
     /// <summary>
     /// Process-lifetime count of chunks (2 048 samples, ~170.7 ms each) the capture manager's
     /// bounded DropOldest channel discarded because the consumer fell behind.

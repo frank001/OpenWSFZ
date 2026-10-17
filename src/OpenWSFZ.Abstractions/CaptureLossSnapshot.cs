@@ -9,15 +9,10 @@ namespace OpenWSFZ.Abstractions;
 /// <param name="OverrunCount">
 /// <c>arecord</c> "overrun" reports on stderr (Linux only; 0 on other platforms).
 /// </param>
-/// <param name="OverrunReportedMs">
-/// Sum of the lengths <c>arecord</c> reported for those overruns, in milliseconds (a lower bound,
-/// as <c>arecord</c> prints "at least N ms long").
-/// </param>
 /// <param name="ChannelDroppedChunks">
 /// Chunks the capture manager's bounded DropOldest channel discarded because the consumer
 /// fell behind (2 048 samples, about 170.7 ms each).
 /// </param>
 public readonly record struct CaptureLossSnapshot(
     long OverrunCount,
-    long OverrunReportedMs,
     long ChannelDroppedChunks);

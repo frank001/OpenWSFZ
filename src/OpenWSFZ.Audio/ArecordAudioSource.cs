@@ -1,8 +1,6 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 
@@ -30,19 +28,11 @@ internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
     /// <summary>Upper bound on waiting for the stderr reader at teardown (it ends when the child's pipe closes).</summary>
     private static readonly TimeSpan StderrDrainTimeout = TimeSpan.FromSeconds(2);
 
-    private const long MicrosPerMs = 1_000;
-
-    // "overrun!!! (at least 10.5 ms long)" — alsa-utils' text; the length is optional.
-    private static readonly Regex AtLeastMs = new(
-        @"\(at least\s+(?<ms>[0-9]+(?:\.[0-9]+)?)\s*ms long\)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
     private readonly Func<string, ProcessStartInfo> _startInfoFactory;
     private readonly ILogger<ArecordAudioSource>?   _logger;
     private readonly Func<DateTime>                 _utcNow;
 
     private long _overrunCount;
-    private long _overrunReportedMicros;
     private long _otherStderrLines;
 
     /// <summary>Production constructor — uses real <c>arecord</c>.</summary>
@@ -69,11 +59,6 @@ internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
 
     /// <inheritdoc/>
     public long CaptureOverrunCount => Interlocked.Read(ref _overrunCount);
-
-    /// <inheritdoc/>
-    /// <remarks>Kept internally in microseconds so fractional reports ("10.5 ms") are not rounded away per line.</remarks>
-    public long CaptureOverrunReportedMs =>
-        (Interlocked.Read(ref _overrunReportedMicros) + MicrosPerMs / 2) / MicrosPerMs;
 
     public int SampleRate   => 12_000;
     public int ChannelCount => 1;
@@ -168,22 +153,12 @@ internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
     {
         if (line.Contains("overrun", StringComparison.OrdinalIgnoreCase))
         {
-            long   micros   = 0;
-            string reported = "unknown";
-            var m = AtLeastMs.Match(line);
-            if (m.Success && double.TryParse(m.Groups["ms"].Value, NumberStyles.Float,
-                    CultureInfo.InvariantCulture, out var ms))
-            {
-                micros   = (long)Math.Round(ms * MicrosPerMs);
-                reported = ms.ToString("0.###", CultureInfo.InvariantCulture);
-            }
-
+            // The "(at least N ms long)" figure is NOT parsed or summed: on sol it read 0.02-0.4 ms
+            // even for 2 s and 3 s stalls, so it is not a lost duration. The line is logged verbatim.
             var count = Interlocked.Increment(ref _overrunCount);
-            var total = Interlocked.Add(ref _overrunReportedMicros, micros);
             _logger?.LogWarning(
-                "arecord overrun at {ReceivedUtc:HH:mm:ss.fff} UTC: reported {ReportedMs} ms " +
-                "(overrun #{Count}, {TotalMs} ms reported in total): {Line}",
-                receivedUtc, reported, count, (total + MicrosPerMs / 2) / MicrosPerMs, line);
+                "arecord overrun at {ReceivedUtc:HH:mm:ss.fff} UTC (overrun #{Count}): {Line}",
+                receivedUtc, count, line);
             return;
         }
 

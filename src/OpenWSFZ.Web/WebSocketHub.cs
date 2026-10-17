@@ -337,7 +337,6 @@ internal static class WebSocketHub
                 HashTableRejectCount: hashTableRejectCount,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCycles,
                 CaptureOverrunCount: captureLoss.OverrunCount,
-                CaptureOverrunReportedMs: captureLoss.OverrunReportedMs,
                 CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
                 DataFlowing:         initialSnapshot.DataFlowing,
                 LastChunkAgeMs:      lastChunkAgeMs,

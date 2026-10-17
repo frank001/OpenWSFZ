@@ -22,7 +22,6 @@ public sealed class PlatformAudioSource : IAudioSource, ICaptureLossCounters
 
     // capture-loss-instrument: forwarded from the platform source; 0 where it cannot observe overruns.
     long ICaptureLossCounters.CaptureOverrunCount      => (_inner as ICaptureLossCounters)?.CaptureOverrunCount ?? 0;
-    long ICaptureLossCounters.CaptureOverrunReportedMs => (_inner as ICaptureLossCounters)?.CaptureOverrunReportedMs ?? 0;
 
     public IAsyncEnumerable<float[]> CaptureAsync(string deviceId, CancellationToken ct)
         => _inner.CaptureAsync(deviceId, ct);
