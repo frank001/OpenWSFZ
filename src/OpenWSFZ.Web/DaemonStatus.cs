@@ -117,4 +117,17 @@ public sealed record DaemonStatus(
     /// alongside <see cref="ConsecutiveCaptureFailures"/> (0 once healthy) to distinguish "recovered,
     /// but here's the last failure" from "currently failing".
     /// </summary>
-    string? LastCaptureError = null);
+    string? LastCaptureError = null,
+    /// <summary>
+    /// Process-lifetime count of <c>arecord</c> overrun reports (capture-loss-instrument). Linux
+    /// only; 0 on other platforms and for callers that do not wire up a provider. Never reset by a
+    /// capture restart. Zero here does not prove nothing was lost (see <c>CaptureLossSnapshot</c>).
+    /// </summary>
+    long    CaptureOverrunCount = 0,
+    /// <summary>Sum of the lengths <c>arecord</c> reported for those overruns, in milliseconds (a lower bound).</summary>
+    long    CaptureOverrunReportedMs = 0,
+    /// <summary>
+    /// Process-lifetime count of chunks (2 048 samples, ~170.7 ms each) the capture manager's
+    /// bounded DropOldest channel discarded because the consumer fell behind.
+    /// </summary>
+    long    CaptureChannelDroppedChunks = 0);

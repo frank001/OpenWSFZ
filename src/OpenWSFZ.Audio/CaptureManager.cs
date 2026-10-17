@@ -59,16 +59,59 @@ public sealed class CaptureManager : IAsyncDisposable
     /// </summary>
     public ChannelReader<float[]> Samples => _channel.Reader;
 
+    /// <summary>Capacity of the sample channel, in chunks (2 048 samples each).</summary>
+    private const int ChannelCapacity = 16;
+
+    /// <summary>Warn on the first dropped chunk and then on every this-many-th.</summary>
+    private const int DropLogEvery = 100;
+
+    private long _channelDroppedChunks;
+
+    /// <summary>
+    /// Chunks the bounded DropOldest channel discarded because the consumer fell behind
+    /// (capture-loss-instrument).  Process-lifetime; a capture restart never resets it.
+    /// </summary>
+    public long CaptureChannelDroppedChunks => Interlocked.Read(ref _channelDroppedChunks);
+
+    /// <summary>
+    /// <c>arecord</c> overrun reports received (0 where the platform source cannot observe them).
+    /// Process-lifetime.
+    /// </summary>
+    public long CaptureOverrunCount => (_source as ICaptureLossCounters)?.CaptureOverrunCount ?? 0;
+
+    /// <summary>Sum of the lengths those overrun reports gave, in milliseconds (a lower bound).</summary>
+    public long CaptureOverrunReportedMs => (_source as ICaptureLossCounters)?.CaptureOverrunReportedMs ?? 0;
+
+    /// <summary>All three capture-loss counters in one read.</summary>
+    public CaptureLossSnapshot GetLossSnapshot() =>
+        new(CaptureOverrunCount, CaptureOverrunReportedMs, CaptureChannelDroppedChunks);
+
     public CaptureManager(IAudioSource source, ILogger<CaptureManager>? logger = null)
     {
         _source  = source;
         _logger  = logger;
-        _channel = Channel.CreateBounded<float[]>(new BoundedChannelOptions(16)
-        {
-            FullMode     = BoundedChannelFullMode.DropOldest,
-            SingleWriter = true,
-            SingleReader = false,
-        });
+        _channel = Channel.CreateBounded<float[]>(
+            new BoundedChannelOptions(ChannelCapacity)
+            {
+                FullMode     = BoundedChannelFullMode.DropOldest,
+                SingleWriter = true,
+                SingleReader = false,
+            },
+            OnChunkDropped);
+    }
+
+    /// <summary>
+    /// Runs in the writer's path for every chunk the channel discards: it only counts and
+    /// (rarely) logs, and must never block.
+    /// </summary>
+    private void OnChunkDropped(float[] dropped)
+    {
+        var n = Interlocked.Increment(ref _channelDroppedChunks);
+        if (n == 1 || n % DropLogEvery == 0)
+            _logger?.LogWarning(
+                "Capture channel dropped a chunk at {DroppedUtc:HH:mm:ss.fff} UTC: the consumer is not keeping up " +
+                "({Dropped} chunks dropped since process start).",
+                DateTime.UtcNow, n);
     }
 
     /// <summary>

@@ -61,6 +61,13 @@ public static class WebApp
     /// as a delegate (callers pass <c>() =&gt; cycleArchiveService.DroppedCycles</c>). Defaults to
     /// <c>null</c> → reported as 0 for callers that do not wire up the archive.
     /// </param>
+    /// <param name="captureLossProvider">
+    /// Live provider for the capture-loss counters (capture-loss-instrument), surfaced as
+    /// <see cref="DaemonStatus.CaptureOverrunCount"/>, <see cref="DaemonStatus.CaptureOverrunReportedMs"/>
+    /// and <see cref="DaemonStatus.CaptureChannelDroppedChunks"/> on <c>GET /api/v1/status</c> and the
+    /// initial WebSocket <c>status</c> event (callers pass <c>() =&gt; captureManager.GetLossSnapshot()</c>).
+    /// Defaults to <c>null</c> → all three reported as 0.
+    /// </param>
     /// <param name="appScope">
     /// App-instance scope GUID to tag every WebSocket connection accepted through this
     /// instance's <c>/api/v1/ws</c> endpoint (N6). Pass this when a bus that broadcasts
@@ -110,7 +117,8 @@ public static class WebApp
         int                                                  shimVersion                 = 0,
         Func<int>?                                           hashTableRejectCountProvider = null,
         Func<long>?                                          cycleArchiveDroppedCyclesProvider = null,
-        Guid?                                                appScope                    = null)
+        Guid?                                                appScope                    = null,
+        Func<CaptureLossSnapshot>?                           captureLossProvider         = null)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
         // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(scope)
@@ -345,6 +353,7 @@ public static class WebApp
             var captureHealthSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
             var isCapturing = captureManager?.IsCapturing ?? false;
             var recovery = BuildCaptureRecoveryFields(store.Current, isCapturing);
+            var captureLoss = captureLossProvider?.Invoke() ?? default;
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
@@ -357,6 +366,9 @@ public static class WebApp
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
+                CaptureOverrunCount: captureLoss.OverrunCount,
+                CaptureOverrunReportedMs: captureLoss.OverrunReportedMs,
+                CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
                 DataFlowing:         captureHealthSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
                 WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0,
@@ -746,6 +758,7 @@ public static class WebApp
             var startSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
             var startIsCapturing = captureManager?.IsCapturing ?? false;
             var startRecovery = BuildCaptureRecoveryFields(store.Current, startIsCapturing);
+            var captureLoss = captureLossProvider?.Invoke() ?? default;
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
@@ -758,6 +771,9 @@ public static class WebApp
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
+                CaptureOverrunCount: captureLoss.OverrunCount,
+                CaptureOverrunReportedMs: captureLoss.OverrunReportedMs,
+                CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
                 DataFlowing:         startSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
                 WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0,
@@ -776,6 +792,7 @@ public static class WebApp
             var stopSnapshot = captureHealthMonitor?.Current ?? CaptureHealthSnapshot.Empty;
             var stopIsCapturing = captureManager?.IsCapturing ?? false;
             var stopRecovery = BuildCaptureRecoveryFields(store.Current, stopIsCapturing);
+            var captureLoss = captureLossProvider?.Invoke() ?? default;
             return TypedResults.Ok(new DaemonStatus(
                 State:               "Running",
                 Version:             AssemblyVersion.Get(),
@@ -788,6 +805,9 @@ public static class WebApp
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCountProvider?.Invoke() ?? 0,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
+                CaptureOverrunCount: captureLoss.OverrunCount,
+                CaptureOverrunReportedMs: captureLoss.OverrunReportedMs,
+                CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
                 DataFlowing:         stopSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
                 WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0,
@@ -2006,6 +2026,7 @@ public static class WebApp
                 wsLogger, scope, shimVersion,
                 hashTableRejectCountProvider?.Invoke() ?? 0,
                 cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
+                captureLossProvider?.Invoke() ?? default,
                 dataFlowMonitor?.LastChunkAgeMs,
                 captureRecoveryState,
                 store.Current.AudioDeviceId is not null && store.Current.DecodingEnabled,

@@ -552,6 +552,8 @@ var app = WebApp.Create(
     // configureServices the moment DI first constructs the singleton — guaranteed to have
     // happened by the time any real status request can arrive (Kestrel is not yet listening).
     cycleArchiveDroppedCyclesProvider: () => cycleArchiveServiceRef?.DroppedCycles ?? 0,
+    // capture-loss-instrument: process-lifetime loss counters (arecord overruns, capture-channel drops).
+    captureLossProvider:  () => captureManager.GetLossSnapshot(),
     configureServices:    services =>
     {
         // Register the auth policy selected above (daemon wins over WebApp.Create default).

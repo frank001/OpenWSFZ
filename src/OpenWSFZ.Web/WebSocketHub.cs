@@ -269,6 +269,10 @@ internal static class WebSocketHub
     /// <c>GET /api/v1/status</c>; this is a point-in-time snapshot for the WS handshake.
     /// Defaults to 0 when the caller does not wire up the archive.
     /// </param>
+    /// <param name="captureLoss">
+    /// Snapshot of the capture-loss counters at connection time (capture-loss-instrument), included
+    /// in the initial <c>status</c> event; a live value is served on <c>GET /api/v1/status</c>.
+    /// </param>
     /// <param name="lastChunkAgeMs">
     /// Snapshot of <c>DataFlowMonitor.LastChunkAgeMs</c> at connection time (FR-068,
     /// capture-stall-detection-unattended #188), included in the initial <c>status</c> event.
@@ -298,6 +302,7 @@ internal static class WebSocketHub
         int shimVersion,
         int hashTableRejectCount,
         long cycleArchiveDroppedCycles,
+        CaptureLossSnapshot captureLoss,
         int? lastChunkAgeMs,
         CaptureRecoveryState? captureRecovery,
         bool deviceConfiguredAndDecodingEnabled,
@@ -331,6 +336,9 @@ internal static class WebSocketHub
                 ShimVersion:         shimVersion,
                 HashTableRejectCount: hashTableRejectCount,
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCycles,
+                CaptureOverrunCount: captureLoss.OverrunCount,
+                CaptureOverrunReportedMs: captureLoss.OverrunReportedMs,
+                CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
                 DataFlowing:         initialSnapshot.DataFlowing,
                 LastChunkAgeMs:      lastChunkAgeMs,
                 WatchdogRestartCount: captureHealth?.WatchdogRestartCount ?? 0,
