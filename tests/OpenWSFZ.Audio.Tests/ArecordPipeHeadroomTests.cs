@@ -119,7 +119,7 @@ public sealed class ArecordPipeHeadroomTests
         finally { File.Delete(pcmFile); }
     }
 
-    // 1.5 — not a pipe: the syscall is not attempted (libc is not even loaded: this runs on Windows too).
+    // 1.5 - not a pipe: the syscall is not attempted (libc is not even loaded: this runs on Windows too).
     [Fact(DisplayName = "pipe-headroom 1.5: a stream that is not a pipe is not resized; a Warning is logged")]
     public void NonPipeStream_IsNotAttempted_AndWarns()
     {
