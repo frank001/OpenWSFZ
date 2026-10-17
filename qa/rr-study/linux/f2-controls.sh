@@ -62,7 +62,7 @@ run_control() {   # <CT1|CT2> <attempt>
   t1=$(date -u +%FT%T.%3NZ)
   say "$NAME attempt $ATT: STOP at $t0, CONT at $t1; counter before=$cnt0 watchdog before=$wd0"
   # the three windows after -CONT (CT1) / the counter within 5 s (CT2)
-  i=0; while [ "$(( $(nwin) - nw0 ))" -lt 3 ] && [ "$i" -lt 90 ]; do sleep 1; i=$((i + 1)); done
+  i=0; while [ "$(( $(nwin) - nw0 ))" -lt 4 ] && [ "$i" -lt 120 ]; do sleep 1; i=$((i + 1)); done      # four lines: the window the stop fell in + the three after -CONT
   cnt1=$(status captureOverrunCount); wd1=$(status watchdogRestartCount)
   OV=$(lines_after "$L0" | grep -i 'arecord overrun' | cut -c1-300)
   UNEXP=$(lines_after "$L0" | grep -c 'Capture ended unexpectedly')

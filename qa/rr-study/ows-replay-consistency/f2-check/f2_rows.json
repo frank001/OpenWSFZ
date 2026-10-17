@@ -1,0 +1,323 @@
+{
+ "plays": 60,
+ "windows_with_framer_line": 60,
+ "overruns_total_in_log": 2,
+ "C1_overruns_in_play_windows": 0,
+ "C1_windows_with_overrun": 0,
+ "excluded_windows": 0,
+ "windows_scored_for_C2_C3": 60,
+ "C2_off_grid_gt_600_excl": 58,
+ "C3_clamp_excl": 58,
+ "C2_C3_windows": [
+  {
+   "play": 2,
+   "wanted": 67685,
+   "applied": 3000
+  },
+  {
+   "play": 3,
+   "wanted": 64712,
+   "applied": 3000
+  },
+  {
+   "play": 4,
+   "wanted": 61611,
+   "applied": 3000
+  },
+  {
+   "play": 5,
+   "wanted": 58637,
+   "applied": 3000
+  },
+  {
+   "play": 6,
+   "wanted": 55666,
+   "applied": 3000
+  },
+  {
+   "play": 7,
+   "wanted": 52561,
+   "applied": 3000
+  },
+  {
+   "play": 8,
+   "wanted": 49589,
+   "applied": 3000
+  },
+  {
+   "play": 9,
+   "wanted": 46728,
+   "applied": 3000
+  },
+  {
+   "play": 10,
+   "wanted": 43516,
+   "applied": 3000
+  },
+  {
+   "play": 11,
+   "wanted": 40656,
+   "applied": 3000
+  },
+  {
+   "play": 12,
+   "wanted": 37678,
+   "applied": 3000
+  },
+  {
+   "play": 13,
+   "wanted": 34706,
+   "applied": 3000
+  },
+  {
+   "play": 14,
+   "wanted": 31604,
+   "applied": 3000
+  },
+  {
+   "play": 15,
+   "wanted": 28633,
+   "applied": 3000
+  },
+  {
+   "play": 16,
+   "wanted": 25528,
+   "applied": 3000
+  },
+  {
+   "play": 17,
+   "wanted": 22556,
+   "applied": 3000
+  },
+  {
+   "play": 18,
+   "wanted": 19455,
+   "applied": 3000
+  },
+  {
+   "play": 19,
+   "wanted": 16485,
+   "applied": 3000
+  },
+  {
+   "play": 20,
+   "wanted": 10649,
+   "applied": 3000
+  },
+  {
+   "play": 21,
+   "wanted": 7437,
+   "applied": 3000
+  },
+  {
+   "play": 22,
+   "wanted": 55689,
+   "applied": 3000
+  },
+  {
+   "play": 23,
+   "wanted": 52717,
+   "applied": 3000
+  },
+  {
+   "play": 24,
+   "wanted": 49741,
+   "applied": 3000
+  },
+  {
+   "play": 25,
+   "wanted": 46641,
+   "applied": 3000
+  },
+  {
+   "play": 26,
+   "wanted": 43668,
+   "applied": 3000
+  },
+  {
+   "play": 27,
+   "wanted": 40819,
+   "applied": 3000
+  },
+  {
+   "play": 28,
+   "wanted": 37597,
+   "applied": 3000
+  },
+  {
+   "play": 29,
+   "wanted": 34731,
+   "applied": 3000
+  },
+  {
+   "play": 30,
+   "wanted": 31757,
+   "applied": 3000
+  },
+  {
+   "play": 31,
+   "wanted": 28794,
+   "applied": 3000
+  },
+  {
+   "play": 32,
+   "wanted": 25684,
+   "applied": 3000
+  },
+  {
+   "play": 33,
+   "wanted": 22708,
+   "applied": 3000
+  },
+  {
+   "play": 34,
+   "wanted": 19608,
+   "applied": 3000
+  },
+  {
+   "play": 35,
+   "wanted": 16633,
+   "applied": 3000
+  },
+  {
+   "play": 36,
+   "wanted": 13771,
+   "applied": 3000
+  },
+  {
+   "play": 37,
+   "wanted": 10561,
+   "applied": 3000
+  },
+  {
+   "play": 38,
+   "wanted": 7586,
+   "applied": 3000
+  },
+  {
+   "play": 39,
+   "wanted": 4724,
+   "applied": 3000
+  },
+  {
+   "play": 40,
+   "wanted": 66341,
+   "applied": 3000
+  },
+  {
+   "play": 41,
+   "wanted": 63116,
+   "applied": 3000
+  },
+  {
+   "play": 42,
+   "wanted": 60253,
+   "applied": 3000
+  },
+  {
+   "play": 43,
+   "wanted": 57281,
+   "applied": 3000
+  },
+  {
+   "play": 44,
+   "wanted": 54309,
+   "applied": 3000
+  },
+  {
+   "play": 45,
+   "wanted": 51212,
+   "applied": 3000
+  },
+  {
+   "play": 46,
+   "wanted": 48232,
+   "applied": 3000
+  },
+  {
+   "play": 47,
+   "wanted": 45125,
+   "applied": 3000
+  },
+  {
+   "play": 48,
+   "wanted": 42158,
+   "applied": 3000
+  },
+  {
+   "play": 49,
+   "wanted": 39055,
+   "applied": 3000
+  },
+  {
+   "play": 50,
+   "wanted": 36081,
+   "applied": 3000
+  },
+  {
+   "play": 51,
+   "wanted": 33106,
+   "applied": 3000
+  },
+  {
+   "play": 52,
+   "wanted": 30244,
+   "applied": 3000
+  },
+  {
+   "play": 53,
+   "wanted": 27033,
+   "applied": 3000
+  },
+  {
+   "play": 54,
+   "wanted": 24172,
+   "applied": 3000
+  },
+  {
+   "play": 55,
+   "wanted": 21197,
+   "applied": 3000
+  },
+  {
+   "play": 56,
+   "wanted": 18095,
+   "applied": 3000
+  },
+  {
+   "play": 57,
+   "wanted": 15121,
+   "applied": 3000
+  },
+  {
+   "play": 58,
+   "wanted": 12149,
+   "applied": 3000
+  },
+  {
+   "play": 59,
+   "wanted": 9046,
+   "applied": 3000
+  }
+ ],
+ "C2_off_grid_gt_600_all_windows_unexcluded": 58,
+ "C3_clamp_all_windows_unexcluded": 58,
+ "C4_wanted_samples": {
+  "median": 34718.5,
+  "p5": 7301.35,
+  "p95": 63195.799999999996
+ },
+ "bars": {
+  "C1": "<= 1",
+  "C2": "<= 2 of 60 (excluding)",
+  "C3": "0 (excluding)"
+ },
+ "C1_pass": true,
+ "C2_pass": false,
+ "C3_pass": false,
+ "counter_delta": {
+  "overruns": 1,
+  "channel_drops": 95,
+  "watchdog_restarts": 0
+ }
+}
