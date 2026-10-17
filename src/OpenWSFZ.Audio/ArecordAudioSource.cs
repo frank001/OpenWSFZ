@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Audio;
@@ -10,22 +11,58 @@ namespace OpenWSFZ.Audio;
 /// 12 000 Hz mono and converts stdout bytes to float samples via
 /// <see cref="MemoryMarshal.Cast{TFrom,TTo}"/>.
 /// </summary>
-internal sealed class ArecordAudioSource : IAudioSource
+/// <remarks>
+/// capture-loss-instrument: the child's stderr is drained on its own task from start to exit
+/// (an undrained pipe fills and blocks <c>arecord</c>), and its <c>overrun</c> reports are
+/// counted and logged.  That task never touches the stdout read loop, so the captured chunks
+/// are unchanged.
+/// </remarks>
+internal sealed class ArecordAudioSource : IAudioSource, ICaptureLossCounters
 {
+    /// <summary>The first this-many non-overrun stderr lines are logged; after that, every <see cref="StderrLogEvery"/>th.</summary>
+    private const int StderrLogFirst = 20;
+
+    /// <summary>Rate limit for non-overrun stderr lines after the first <see cref="StderrLogFirst"/>.</summary>
+    private const int StderrLogEvery = 100;
+
+    /// <summary>Upper bound on waiting for the stderr reader at teardown (it ends when the child's pipe closes).</summary>
+    private static readonly TimeSpan StderrDrainTimeout = TimeSpan.FromSeconds(2);
+
     private readonly Func<string, ProcessStartInfo> _startInfoFactory;
+    private readonly ILogger<ArecordAudioSource>?   _logger;
+    private readonly Func<DateTime>                 _utcNow;
+    private readonly PipeResizer?                   _pipeResizer;
+
+    private long _overrunCount;
+    private long _otherStderrLines;
 
     /// <summary>Production constructor — uses real <c>arecord</c>.</summary>
     public ArecordAudioSource()
         : this(DefaultStartInfo) { }
 
+    /// <summary>Production constructor with a logger for the stderr reports.</summary>
+    public ArecordAudioSource(ILogger<ArecordAudioSource>? logger)
+        : this(DefaultStartInfo, logger,
+               pipeResizer: OperatingSystem.IsLinux() ? LibcPipeResizer.Resize : null) { }
+
     /// <summary>
     /// Test constructor — supply a custom <see cref="ProcessStartInfo"/> factory
     /// to redirect the subprocess to a test stub.
     /// </summary>
-    internal ArecordAudioSource(Func<string, ProcessStartInfo> startInfoFactory)
+    internal ArecordAudioSource(
+        Func<string, ProcessStartInfo> startInfoFactory,
+        ILogger<ArecordAudioSource>?   logger = null,
+        Func<DateTime>?                utcNow = null,
+        PipeResizer?                   pipeResizer = null)
     {
         _startInfoFactory = startInfoFactory;
+        _logger           = logger;
+        _utcNow           = utcNow ?? (() => DateTime.UtcNow);
+        _pipeResizer      = pipeResizer;
     }
+
+    /// <inheritdoc/>
+    public long CaptureOverrunCount => Interlocked.Read(ref _overrunCount);
 
     public int SampleRate   => 12_000;
     public int ChannelCount => 1;
@@ -37,7 +74,16 @@ internal sealed class ArecordAudioSource : IAudioSource
         using var process = new Process { StartInfo = _startInfoFactory(deviceId) };
         process.Start();
 
-        var    stdout    = process.StandardOutput.BaseStream;
+        // Drain stderr for the whole life of the child, independent of the stdout loop below.
+        var stderrTask = Task.Run(() => DrainStderrAsync(process.StandardError));
+
+        var    stdout   = process.StandardOutput.BaseStream;
+
+        // capture-pipe-headroom: a larger stdout pipe (Linux only; null elsewhere and in tests that
+        // do not ask for it).  Never fatal, never changes the bytes read.
+        if (_pipeResizer is not null)
+            StdoutPipeEnlarger.Apply(stdout, _pipeResizer, _logger);
+
         const int ChunkBytes = 2048 * sizeof(float);
         var    buf       = new byte[ChunkBytes];
         int    pos       = 0;
@@ -67,6 +113,8 @@ internal sealed class ArecordAudioSource : IAudioSource
                 try { process.Kill(); } catch { }
                 await process.WaitForExitAsync(CancellationToken.None);
             }
+
+            await AwaitStderrDrainAsync(stderrTask);
         }
 
         // Reached here only if the loop exited via EOF (not cancellation).
@@ -80,9 +128,58 @@ internal sealed class ArecordAudioSource : IAudioSource
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
+    // ── stderr ───────────────────────────────────────────────────────────────
+
+    /// <summary>Reads <paramref name="stderr"/> line by line until EOF, counting and logging what it sees.</summary>
+    private async Task DrainStderrAsync(StreamReader stderr)
+    {
+        try
+        {
+            while (await stderr.ReadLineAsync() is { } line)
+                OnStderrLine(line, _utcNow());
+        }
+        catch (Exception ex)
+        {
+            // The pipe closing under us (child killed) is expected; anything else is worth a line.
+            _logger?.LogDebug(ex, "arecord stderr reader ended with an exception.");
+        }
+    }
+
+    private async Task AwaitStderrDrainAsync(Task stderrTask)
+    {
+        try
+        {
+            await stderrTask.WaitAsync(StderrDrainTimeout);
+        }
+        catch (TimeoutException)
+        {
+            _logger?.LogWarning("arecord stderr reader did not finish within {Seconds} s of the child exiting.",
+                StderrDrainTimeout.TotalSeconds);
+        }
+        catch (Exception) { /* already reported inside the reader */ }
+    }
+
+    private void OnStderrLine(string line, DateTime receivedUtc)
+    {
+        if (line.Contains("overrun", StringComparison.OrdinalIgnoreCase))
+        {
+            // The "(at least N ms long)" figure is NOT parsed or summed: on sol it read 0.02-0.4 ms
+            // even for 2 s and 3 s stalls, so it is not a lost duration. The line is logged verbatim.
+            var count = Interlocked.Increment(ref _overrunCount);
+            _logger?.LogWarning(
+                "arecord overrun at {ReceivedUtc:HH:mm:ss.fff} UTC (overrun #{Count}): {Line}",
+                receivedUtc, count, line);
+            return;
+        }
+
+        var n = Interlocked.Increment(ref _otherStderrLines);
+        if (n <= StderrLogFirst || n % StderrLogEvery == 0)
+            _logger?.LogInformation("arecord stderr [{N}]: {Line}", n, line);
+    }
+
     // ── Factory helpers ──────────────────────────────────────────────────────
 
-    private static ProcessStartInfo DefaultStartInfo(string deviceId)
+    internal static ProcessStartInfo DefaultStartInfo(string deviceId)
     {
         var info = new ProcessStartInfo("arecord")
         {
@@ -90,11 +187,16 @@ internal sealed class ArecordAudioSource : IAudioSource
             RedirectStandardError  = true,
             UseShellExecute        = false,
         };
+        // Pin the message text: the overrun parser matches alsa-utils' English wording.
+        info.Environment["LC_ALL"] = "C";
         info.ArgumentList.Add("-D");    info.ArgumentList.Add(deviceId);
         info.ArgumentList.Add("-f");    info.ArgumentList.Add("FLOAT_LE");
         info.ArgumentList.Add("-r");    info.ArgumentList.Add("12000");
         info.ArgumentList.Add("-c");    info.ArgumentList.Add("1");
         info.ArgumentList.Add("-t");    info.ArgumentList.Add("raw");
+        // capture-pipe-headroom: pin the client period to 20 ms (arecord's plain-device default is
+        // ~125 ms); a dsnoop chain ignores it.
+        info.ArgumentList.Add("--period-time=20000");
         info.ArgumentList.Add("-");     // stdout
         return info;
     }
