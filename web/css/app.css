@@ -1341,11 +1341,36 @@ select#dial-freq {
 /* ── Decode table — early rows (decode-early-batch-panel, FR-083) ────────── */
 /* An early row is a decode of the first part of a window, shown ~2 s before the cycle's final decode.      */
 /* The mark is TEXT (the .early-badge span says "early" or "unconfirmed"), never colour alone: the italics, */
-/* the left rule and the muted tone are reinforcement, not the signal.                                       */
+/* the left rule and the dark, bold look are reinforcement, not the signal.                                  */
+/* #219 (FINAL SPEC, 2026-10-08): full opacity (no dimming), bold text, and a darker background than the     */
+/* final row for CQ (#04140a vs #103115) and rows addressed to the operator (#1c0709 vs ~#2b151a). The      */
+/* responder keeps its teal background, with bold white text. Final rows are unchanged.                      */
 #decodes-table tr.decode-early td,
 #decodes-table tr.decode-early-unconfirmed td {
   font-style: italic;
-  opacity: 0.8;
+  font-weight: 800;
+}
+#decodes-table tr.decode-cq.decode-early td,
+#decodes-table tr.decode-cq.decode-early-unconfirmed td {
+  background: #04140a;
+}
+#decodes-table tr.decode-partner.decode-early td,
+#decodes-table tr.decode-partner.decode-early-unconfirmed td {
+  background: #1c0709;
+}
+#decodes-table tr.decode-responder.decode-early td,
+#decodes-table tr.decode-responder.decode-early-unconfirmed td {
+  color: #fff;
+}
+/* Hover: the generic and per-class `tr:hover td` rules repaint every td, so early rows need their own,  */
+/* one step darker than the final rows' hover colours (#1b5324 CQ, rgba(180,40,40,.32)-ish partner).     */
+#decodes-table tr.decode-cq.decode-early:hover td,
+#decodes-table tr.decode-cq.decode-early-unconfirmed:hover td {
+  background: #0b2d14;
+}
+#decodes-table tr.decode-partner.decode-early:hover td,
+#decodes-table tr.decode-partner.decode-early-unconfirmed:hover td {
+  background: #2e0e12;
 }
 #decodes-table tr.decode-early td:first-child,
 #decodes-table tr.decode-early-unconfirmed td:first-child {
