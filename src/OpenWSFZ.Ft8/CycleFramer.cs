@@ -166,6 +166,13 @@ public sealed class CycleFramer
             int consume = SamplesPerCycle - leadingSilence;
             int taken   = 0;
 
+            // capture-loss-instrument: what the grid asked of the CURRENT window and what was applied
+            // after the clamp, in samples — logged once per window.  Set at the resync point below and
+            // read only by the "Window emitted" line; they feed nothing else.  The first window has no
+            // resync (it is anchored by `leadingSilence`), so both read 0 for it.
+            int windowWanted  = 0;
+            int windowApplied = 0;
+
             // The current cycle started at the most recent 15-second UTC boundary.
             // Computed once here and advanced by CycleDurationSecs after each emission
             // so the framer — not the decoder — is the authoritative source of cycle
@@ -320,6 +327,9 @@ public sealed class CycleFramer
                         consume = SamplesPerCycle - correction;
                         taken   = 0;
 
+                        windowWanted  = wanted;
+                        windowApplied = correction;
+
                         // Now honestly ON the grid — true only *because* `consume` moved the
                         // window. Assigning this without the line above would put a false grid
                         // label on genuinely drifted audio, which is worse than the status quo.
@@ -388,10 +398,15 @@ public sealed class CycleFramer
                         // Window complete — emit it with its cycle-start timestamp and
                         // the dial frequency that was live when this window began accumulating.
                         output.TryWrite((window, cycleStart, windowDialFreq));
-                        _logger?.LogDebug(
+                        // capture-loss-instrument: Information (was Debug), with `wanted` beside the applied
+                        // value. A `wanted` that stays near 0 means the sample stream tracked the wall
+                        // clock; a step of several hundred ms or more means audio was lost (or the clock
+                        // moved) upstream — whichever loss point it was. The prefix is unchanged.
+                        _logger?.LogInformation(
                             "Window emitted ({Samples} samples, cycle {CycleStart:HH:mm:ss}); " +
+                            "wanted {Wanted}, applied {Applied} samples; " +
                             "consumed {Consumed} source samples ({Realign:+0;-0;0} grid realignment).",
-                            SamplesPerCycle, cycleStart, consume, SamplesPerCycle - consume);
+                            SamplesPerCycle, cycleStart, windowWanted, windowApplied, consume, SamplesPerCycle - consume);
 
                         // Advance to the next cycle. Both cycleStart and windowDialFreq are
                         // resolved lazily at the top of the loop, not here — see

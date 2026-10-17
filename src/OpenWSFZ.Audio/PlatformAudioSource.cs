@@ -8,7 +8,7 @@ namespace OpenWSFZ.Audio;
 /// Selects the correct <see cref="IAudioSource"/> implementation for the current
 /// OS at runtime and delegates to it. Mirrors <see cref="PlatformAudioDeviceProvider"/>.
 /// </summary>
-public sealed class PlatformAudioSource : IAudioSource
+public sealed class PlatformAudioSource : IAudioSource, ICaptureLossCounters
 {
     private readonly IAudioSource _inner;
 
@@ -19,6 +19,9 @@ public sealed class PlatformAudioSource : IAudioSource
 
     public int SampleRate   => _inner.SampleRate;
     public int ChannelCount => _inner.ChannelCount;
+
+    // capture-loss-instrument: forwarded from the platform source; 0 where it cannot observe overruns.
+    long ICaptureLossCounters.CaptureOverrunCount      => (_inner as ICaptureLossCounters)?.CaptureOverrunCount ?? 0;
 
     public IAsyncEnumerable<float[]> CaptureAsync(string deviceId, CancellationToken ct)
         => _inner.CaptureAsync(deviceId, ct);
@@ -33,7 +36,7 @@ public sealed class PlatformAudioSource : IAudioSource
             return new WasapiAudioSource(loggerFactory?.CreateLogger<WasapiAudioSource>());
 #endif
         if (OperatingSystem.IsLinux())
-            return new ArecordAudioSource();
+            return new ArecordAudioSource(loggerFactory?.CreateLogger<ArecordAudioSource>());
 
         if (OperatingSystem.IsMacOS())
             return new SoxAudioSource();
