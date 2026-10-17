@@ -53,7 +53,8 @@ test('applyDecodeRowClasses adds exactly the chosen classes', () => {
 });
 
 // ── wiring, pinned as text ────────────────────────────────────────────────────────────────────────────────
-const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'main.js'), 'utf8');
+const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'main.js'), 'utf8')
+  .replace(/\r\n/g, '\n');   // a Windows checkout (core.autocrlf) has CRLF; the pins below look for a bare LF
 function functionBody(name) {
   const start = source.indexOf(`function ${name}(`);
   assert.ok(start >= 0, `main.js: function ${name} not found`);
