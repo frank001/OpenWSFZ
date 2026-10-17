@@ -1,9 +1,9 @@
 ## 1. Tests first (each must be able to fail)
 
-- [ ] 1.1 `ArecordAudioSource`: a fake process (test `ProcessStartInfo`, as `FilePipeStartInfo` does) writes known PCM to stdout and `overrun!!! (at least 10.5 ms long)` lines to stderr. Assert `CaptureOverrunCount`, `CaptureOverrunReportedMs`, and the Warning log text (UTC time with milliseconds, reported length).
+- [ ] 1.1 `ArecordAudioSource`: a fake process (test `ProcessStartInfo`, as `FilePipeStartInfo` does) writes known PCM to stdout and `overrun!!! (at least 10.5 ms long)` lines to stderr. Assert `CaptureOverrunCount` and the Warning log text (UTC time with milliseconds, the `arecord` line verbatim).
 - [ ] 1.2 **Byte identity:** the chunks yielded with stderr noise equal, element for element, the chunks yielded for the same PCM with empty stderr (compare the raw bytes).
 - [ ] 1.3 **Pipe-fill regression:** the fake writes at least 256 KiB to stderr before its stdout reaches EOF; capture must complete within a generous timeout. **State in the handoff that this test hangs on the base commit** (run it there and record the result).
-- [ ] 1.4 Non-overrun stderr lines: logged at Information, the first 20 and then every 100th; not counted as overruns. A mixed-case `OVERRUN` counts; a line without a parsable length counts and adds 0 ms.
+- [ ] 1.4 Non-overrun stderr lines: logged at Information, the first 20 and then every 100th; not counted as overruns. A mixed-case `OVERRUN` counts; a line without a length counts the same.
 - [ ] 1.5 `arecord` is started with `LC_ALL=C` in the environment and with the same arguments as before (assert the argument list equals the base commit's).
 - [ ] 1.6 `CaptureManager`: a source that outruns a non-reading consumer increments `CaptureChannelDroppedChunks` by exactly the number of chunks dropped; the first and every 100th drop log a Warning with a UTC millisecond time; with a draining consumer the counter stays 0.
 - [ ] 1.7 `CycleFramer`: the existing alignment tests pass **unchanged**; one new test asserts one Information line per emitted window carrying the cycle start, `wanted` and applied in samples (use a drifting source so `wanted` is non-zero).

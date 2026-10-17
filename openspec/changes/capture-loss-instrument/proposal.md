@@ -14,7 +14,7 @@ The Captain decided to instrument first and fix afterwards (2026-10-17, "spec it
 
 ## What Changes
 
-- `ArecordAudioSource` **drains stderr** concurrently with stdout, logs every `overrun` line at Warning with the receive time (UTC, milliseconds) and the reported length, and counts them (`CaptureOverrunCount`, `CaptureOverrunReportedMs`). Other lines are logged at Information, rate-limited. `arecord` is started with `LC_ALL=C` so the text is not localised.
+- `ArecordAudioSource` **drains stderr** concurrently with stdout, logs every `overrun` line at Warning with the receive time (UTC, milliseconds) and `arecord`'s own line verbatim, and counts them (`CaptureOverrunCount`). Other lines are logged at Information, rate-limited. `arecord` is started with `LC_ALL=C` so the text is not localised.
 - `CaptureManager` **counts channel drops** via the channel's `itemDropped` callback (`CaptureChannelDroppedChunks`) and logs the first and every 100th at Warning, with the UTC millisecond time.
 - `CycleFramer` logs **every window's realignment at Information**: the cycle start, `wanted` and applied, in samples. The arithmetic is untouched.
 - The three counters are added to `DaemonStatus` (`GET /api/v1/status` and the WebSocket `status` event), the way `CycleArchiveDroppedCycles` is. **The `Heartbeat:` log line is NOT changed**: FR-067 fixes its text byte for byte and supervisor scripts string-match it.

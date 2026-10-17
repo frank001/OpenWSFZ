@@ -4,13 +4,13 @@
 
 The `arecord`-based capture source SHALL read the subprocess's standard error continuously from process start until exit, concurrently with standard output, so that a full stderr pipe can never block `arecord`. The stderr reader SHALL NOT delay or alter the standard-output read loop: the chunks yielded SHALL be byte-identical to those yielded for the same PCM when stderr is empty. `arecord` SHALL be started with `LC_ALL=C` in its environment and otherwise with the same arguments as before this change.
 
-A stderr line containing `overrun` (case-insensitive) is an overrun. For each one the source SHALL log a Warning whose text contains its receive time in UTC to the millisecond and the reported length in milliseconds when present, SHALL increment a process-lifetime `CaptureOverrunCount`, and SHALL add the reported length to a process-lifetime `CaptureOverrunReportedMs` when it parses. Other stderr lines SHALL be logged at Information, the first 20 and then every 100th, with a running count.
+A stderr line containing `overrun` (case-insensitive) is an overrun. For each one the source SHALL log a Warning whose text contains its receive time in UTC to the millisecond and `arecord`'s own line verbatim, and SHALL increment a process-lifetime `CaptureOverrunCount`. The reported length SHALL NOT be parsed or summed (it is not the lost duration). Other stderr lines SHALL be logged at Information, the first 20 and then every 100th, with a running count.
 
 #### Scenario: An overrun line is counted and logged with its time
 
 - **WHEN** the subprocess writes `overrun!!! (at least 10.5 ms long)` to stderr while streaming PCM
-- **THEN** `CaptureOverrunCount` increases by 1 and `CaptureOverrunReportedMs` by 10.5
-- **AND** a Warning is logged whose text contains the UTC receive time with milliseconds and the reported length
+- **THEN** `CaptureOverrunCount` increases by 1
+- **AND** a Warning is logged whose text contains the UTC receive time with milliseconds and the `arecord` line verbatim
 
 #### Scenario: Stderr noise does not change the audio
 
@@ -53,7 +53,7 @@ For every emitted window the cycle framer SHALL log at Information the window's 
 
 ### Requirement: The capture-loss counters SHALL be reported on the daemon status surface
 
-`CaptureOverrunCount`, `CaptureOverrunReportedMs` and `CaptureChannelDroppedChunks` SHALL be reported in `DaemonStatus` on `GET /api/v1/status` and on the WebSocket `status` event, defaulting to 0 where a platform has no such source. The `Heartbeat:` log line defined by FR-067 SHALL remain byte-identical.
+`CaptureOverrunCount` and `CaptureChannelDroppedChunks` SHALL be reported in `DaemonStatus` on `GET /api/v1/status` and on the WebSocket `status` event, defaulting to 0 where a platform has no such source. The `Heartbeat:` log line defined by FR-067 SHALL remain byte-identical.
 
 #### Scenario: Counters appear on the status endpoint
 

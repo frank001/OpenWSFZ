@@ -14,7 +14,7 @@ An overrun counter at zero does not prove nothing was lost (L3 loses audio witho
 ## Decisions
 
 1. **Stderr is read on its own task**, from process start to exit, line by line. It never shares a read loop or a lock with the stdout loop, and it is drained even when nothing is logged (the hazard is the pipe filling). The reader task is awaited at the source's teardown with the same `WaitForExitAsync` ordering as today.
-2. **An overrun is a line containing `overrun`, case-insensitive.** The reported length is parsed from `(at least N ms long)` when present (invariant culture, decimals allowed); an unparsable one still counts, adding nothing to `CaptureOverrunReportedMs`.
+2. **An overrun is a line containing `overrun`, case-insensitive.** The reported length is NOT parsed or summed: the instrumented sol block (2026-10-17) showed `arecord`'s `(at least N ms long)` is 0.02-0.4 ms for stalls of 0.2-3 s, so it is not the lost duration (Architect ruling `b659ba4b`). `arecord`'s own line is carried verbatim in the Warning text, which is enough to read N if wanted. There is no `CaptureOverrunReportedMs`.
 3. **The overrun log message carries its own UTC receive time to the millisecond** (`HH:mm:ss.fff`), because log-sink stamps are whole seconds. The study joins overrun time to step intervals at sub-second resolution.
 4. **Other stderr lines (`arecord` prints a header on start) are Information, rate-limited**: the first 20, then every 100th, with a running count.
 5. **`LC_ALL=C` is set in the `arecord` environment** (`ProcessStartInfo.Environment`). It is the only change to how `arecord` is started; arguments are untouched.
