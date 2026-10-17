@@ -1,0 +1,102 @@
+{
+ "G_s": 4.0,
+ "same_wavs_same_order": true,
+ "same_gains": true,
+ "this_block": {
+  "plays": 60,
+  "F1_overruns_in_play_windows": 0,
+  "F1_windows_with_overrun": 0,
+  "windows_with_framer_line": 60,
+  "F2_off_grid_gt_600": 17,
+  "F3_at_clamp": 0,
+  "F4_remaining_overruns": [],
+  "F5_decodes_total": 0,
+  "F5_plays_with_decode_lines": 0
+ },
+ "baseline_trial0_G_0.2s": {
+  "plays": 60,
+  "F1_overruns_in_play_windows": 10,
+  "F1_windows_with_overrun": 10,
+  "windows_with_framer_line": 60,
+  "F2_off_grid_gt_600": 27,
+  "F3_at_clamp": 21,
+  "F4_remaining_overruns": [
+   {
+    "play": 3,
+    "position_s": 3.862,
+    "next_window_wanted_samples": 2455,
+    "loss_s": 0.205,
+    "loss_vs_G": 1.023
+   },
+   {
+    "play": 9,
+    "position_s": 2.846,
+    "next_window_wanted_samples": 4092,
+    "loss_s": 0.341,
+    "loss_vs_G": 1.705
+   },
+   {
+    "play": 16,
+    "position_s": 2.491,
+    "next_window_wanted_samples": 2889,
+    "loss_s": 0.241,
+    "loss_vs_G": 1.204
+   },
+   {
+    "play": 18,
+    "position_s": 2.925,
+    "next_window_wanted_samples": 5289,
+    "loss_s": 0.441,
+    "loss_vs_G": 2.204
+   },
+   {
+    "play": 23,
+    "position_s": 4.038,
+    "next_window_wanted_samples": 17529,
+    "loss_s": 1.461,
+    "loss_vs_G": 7.304
+   },
+   {
+    "play": 28,
+    "position_s": 4.47,
+    "next_window_wanted_samples": 6881,
+    "loss_s": 0.573,
+    "loss_vs_G": 2.867
+   },
+   {
+    "play": 36,
+    "position_s": 5.115,
+    "next_window_wanted_samples": 31889,
+    "loss_s": 2.657,
+    "loss_vs_G": 13.287
+   },
+   {
+    "play": 45,
+    "position_s": 3.53,
+    "next_window_wanted_samples": 6550,
+    "loss_s": 0.546,
+    "loss_vs_G": 2.729
+   },
+   {
+    "play": 50,
+    "position_s": 3.196,
+    "next_window_wanted_samples": 4808,
+    "loss_s": 0.401,
+    "loss_vs_G": 2.003
+   },
+   {
+    "play": 59,
+    "position_s": 4.243,
+    "next_window_wanted_samples": 17177,
+    "loss_s": 1.431,
+    "loss_vs_G": 7.157
+   }
+  ],
+  "F5_decodes_total": 0,
+  "F5_plays_with_decode_lines": 0
+ },
+ "F1_class": "EFFECTIVE",
+ "counter_delta_overruns_over_block_incl_tail": 0,
+ "counter_delta_channel_drops": 0,
+ "counter_delta_watchdog_restarts": 0
+}

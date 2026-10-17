@@ -1,0 +1,8 @@
+4c4
+<     ipc_key 51234
+---
+>     ipc_key 51235
+12c12
+<         buffer_size 9600
+---
+>         buffer_size 192000
