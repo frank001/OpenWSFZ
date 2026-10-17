@@ -80,6 +80,23 @@ def main() -> None:
     res["C1_pass"] = c1 <= BARS["C1"]
     res["C2_pass"] = len(c2_w) <= BARS["C2"]
     res["C3_pass"] = len(c3_w) == BARS["C3"]
+    # C5 (amendment 2, descriptive): channel drops per play window from the 1 Hz status poll, and each C2/C3 window's distance (in windows) from its batch's first slot (20-play batches)
+    sp = os.path.join(a.run, "statuspoll.jsonl")
+    if os.path.isfile(sp):
+        polls = [json.loads(l) for l in open(sp, encoding="utf8")]
+        polls = [x for x in polls if x.get("drops") is not None]
+
+        def drops_at(t):
+            before = [x for x in polls if x["t"] <= t]
+            return before[-1]["drops"] if before else None
+        per = []
+        for p in plays:
+            d0, d1 = drops_at(p["t"]), drops_at(p["t"] + 15)
+            per.append(None if d0 is None or d1 is None else d1 - d0)
+        bad = sorted(set(c2_w) | set(c3_w))
+        res["C5"] = {"polls": len(polls), "drops_per_play_window": per, "plays_with_drops": sum(1 for x in per if x), "drops_total_in_play_windows": sum(x for x in per if x),
+                     "batch_size_plays": 20, "distance_from_batch_first_slot_of_each_C2_C3_window": [plays[i]["i"] % 20 for i in bad],
+                     "first_window_with_drops_distance_from_its_batch_first_slot": next((plays[i]["i"] % 20 for i, x in enumerate(per) if x), None)}
     cb, ca = os.path.join(a.run, "counters_before.txt"), os.path.join(a.run, "counters_after.txt")
     if os.path.isfile(cb) and os.path.isfile(ca):
         b0, a0 = [int(x) for x in open(cb).read().split()], [int(x) for x in open(ca).read().split()]

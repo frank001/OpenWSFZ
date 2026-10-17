@@ -59,6 +59,9 @@ grep -q "pipe size 1048576" "$RUN/v1b_log_pipe_size.txt" || halt "V1b: the log d
 case "$(cat $RUN/v1b_fd1.txt)" in pipe:*) ;; *) halt "V1b: fd 1 of arecord is not a pipe: $(cat $RUN/v1b_fd1.txt)";; esac
 grep -qi python "$RUN/v2_arecord_args.txt" "$RUN/v2_daemon_children.txt" && halt "V2: a python process is in the chain"
 export S6_PY=$PY
+rm -f "$RUN/poller.stop"
+setsid nohup python3 "$HOME/status_poller.py" --port "$PORT" --out "$RUN/statuspoll.jsonl" --stop-file "$RUN/poller.stop" > "$RUN/poller.out" 2>&1 < /dev/null &
+log "status poller started (1 Hz)"
 sh "$HOME/f2-controls.sh" "$LOG" "$PORT" "$RUN/controls" >> "$RL" 2>&1
 status() { curl -s http://127.0.0.1:$PORT/api/v1/status | "$PY" -c "import sys,json;d=json.load(sys.stdin);print(d['captureOverrunCount'],d['captureChannelDroppedChunks'],d['watchdogRestartCount'])"; }
 status > "$RUN/counters_before.txt"; log "counters before the plays (overruns, channel drops, watchdog restarts): $(cat $RUN/counters_before.txt)"
@@ -68,6 +71,7 @@ status > "$RUN/counters_before.txt"; log "counters before the plays (overruns, c
     --ows-lib "$LIB" --config "$CONFIG" --appraiser owsfz --out-sub pass-o ) > "$RUN/s6_play.out" 2>&1
 log "s6_play exited rc=$?"
 sleep 20
+touch "$RUN/poller.stop"; sleep 2
 status > "$RUN/counters_after.txt"; log "counters after the plays: $(cat $RUN/counters_after.txt)"
 ps -o args= -p "$(pgrep -P "$DP" -x arecord | head -1)" > "$RUN/v2_arecord_args_end.txt" 2>&1
 [ "$(sha256sum "$LIB" | cut -d' ' -f1)" = "$LIBSHA" ] && log "end pin: libft8.so $LIBSHA" || log "END PIN FAILED (libft8.so)"
