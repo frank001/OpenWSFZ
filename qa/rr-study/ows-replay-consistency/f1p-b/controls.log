@@ -1,0 +1,61 @@
+2026-10-17T14:41:20.391Z CT2 attempt 1: begin (stop 1.533 s)
+2026-10-17T14:41:35.570Z CT2 attempt 1: STOP at 2026-10-17T14:41:34.028Z, CONT at 2026-10-17T14:41:35.567Z; counter before=0 watchdog before=0
+---- CT2 attempt 1: verbatim overrun line(s) ----
+[16:41:35 WRN] arecord overrun at 14:41:35.565 UTC: reported 1.299 ms (overrun #1, 1 ms reported in total): overrun!!! (at least 1.299 ms long)
+---- window lines after the stop ----
+[16:41:46 INF] Window emitted (180000 samples, cycle 14:41:30); wanted 2127, applied 2127 samples; consumed 177873 source samples (+2127 grid realignment).
+[16:42:01 INF] Window emitted (180000 samples, cycle 14:41:45); wanted 20218, applied 3000 samples; consumed 177000 source samples (+3000 grid realignment).
+2026-10-17T14:42:02.719Z CT2 attempt 1: counter 0 -> 1; watchdog 0 -> 0; unexpected-end lines 0; next-window wanted=20218
+2026-10-17T14:42:02.721Z RESULT CT2 attempt 1: PASS (overrun counter 0 -> 1; stop 1.533 s; next-window wanted 20218)
+2026-10-17T14:42:16.819Z settle: wanted=17085 ok=0
+2026-10-17T14:42:30.905Z settle: wanted=12202 ok=0
+2026-10-17T14:42:47.001Z settle: wanted=9061 ok=0
+2026-10-17T14:43:01.091Z settle: wanted=7079 ok=0
+2026-10-17T14:43:15.170Z settle: wanted=3954 ok=0
+2026-10-17T14:43:31.262Z settle: wanted=813 ok=0
+2026-10-17T14:43:45.343Z settle: wanted=-1033 ok=0
+2026-10-17T14:44:01.439Z settle: wanted=1884 ok=0
+2026-10-17T14:44:15.523Z settle: wanted=-1897 ok=0
+2026-10-17T14:44:31.617Z settle: wanted=129 ok=1
+2026-10-17T14:44:45.704Z settle: wanted=1883 ok=0
+2026-10-17T14:45:01.800Z settle: wanted=-1899 ok=0
+2026-10-17T14:45:15.877Z settle: wanted=128 ok=1
+2026-10-17T14:45:31.976Z settle: wanted=1873 ok=0
+2026-10-17T14:45:46.064Z settle: wanted=-1880 ok=0
+2026-10-17T14:46:00.150Z settle: wanted=1871 ok=0
+2026-10-17T14:46:16.249Z settle: wanted=-1888 ok=0
+2026-10-17T14:46:30.338Z settle: wanted=123 ok=1
+2026-10-17T14:46:46.430Z settle: wanted=1871 ok=0
+2026-10-17T14:47:00.515Z settle: wanted=-1877 ok=0
+2026-10-17T14:47:16.609Z settle: wanted=119 ok=1
+2026-10-17T14:47:30.696Z settle: wanted=1873 ok=0
+2026-10-17T14:47:46.793Z settle: wanted=-1881 ok=0
+2026-10-17T14:48:00.881Z settle: wanted=1869 ok=0
+2026-10-17T14:48:16.978Z settle: wanted=-1879 ok=0
+2026-10-17T14:48:31.066Z settle: wanted=118 ok=1
+2026-10-17T14:48:45.147Z settle: wanted=1877 ok=0
+2026-10-17T14:49:01.245Z settle: wanted=-1893 ok=0
+2026-10-17T14:49:15.329Z settle: wanted=128 ok=1
+2026-10-17T14:49:31.428Z settle: wanted=1877 ok=0
+2026-10-17T14:49:45.517Z settle: wanted=-1893 ok=0
+2026-10-17T14:50:01.616Z settle: wanted=1877 ok=0
+2026-10-17T14:50:15.702Z settle: wanted=-1887 ok=0
+2026-10-17T14:50:31.800Z settle: wanted=131 ok=1
+2026-10-17T14:50:45.884Z settle: wanted=-1028 ok=0
+2026-10-17T14:50:59.962Z settle: wanted=1867 ok=0
+2026-10-17T14:51:16.056Z settle: wanted=-1883 ok=0
+2026-10-17T14:51:32.151Z settle: wanted=118 ok=1
+2026-10-17T14:51:46.237Z settle: wanted=1877 ok=0
+2026-10-17T14:52:00.325Z settle: wanted=-1882 ok=0
+2026-10-17T14:52:16.422Z settle: wanted=118 ok=1
+2026-10-17T14:52:30.508Z settle: wanted=1873 ok=0
+2026-10-17T14:52:46.607Z settle: wanted=-1881 ok=0
+2026-10-17T14:53:00.692Z settle: wanted=1868 ok=0
+2026-10-17T14:53:16.784Z settle: wanted=-1888 ok=0
+2026-10-17T14:53:30.874Z settle: wanted=137 ok=1
+2026-10-17T14:53:44.964Z settle: wanted=1862 ok=0
+2026-10-17T14:54:01.062Z settle: wanted=-1869 ok=0
+2026-10-17T14:54:07.089Z settle: did not converge in 12 min
+2026-10-17T14:54:07.092Z quiet gap: 10 cycles
+2026-10-17T14:56:37.461Z RESULT counters at hand-over: overruns 1; channel drops 0; watchdog restarts 0
+2026-10-17T14:56:37.463Z controls done

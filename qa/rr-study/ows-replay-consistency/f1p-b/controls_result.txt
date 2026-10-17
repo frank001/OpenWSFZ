@@ -1,0 +1,2 @@
+CT2 attempt 1: PASS (overrun counter 0 -> 1; stop 1.533 s; next-window wanted 20218)
+counters at hand-over: overruns 1; channel drops 0; watchdog restarts 0
