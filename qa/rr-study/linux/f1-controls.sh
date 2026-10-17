@@ -93,7 +93,8 @@ run_control() {   # <CT1|CT2> <attempt>
   [ "$v" = PASS ] && return 0 || return 1
 }
 
-for CT in CT1 CT2; do
+CTS="CT1 CT2"; [ -n "${ONLY_CT2:-}" ] && CTS="CT2"      # D-b' (no wrapper): CT1 would lose audio by design (the buffer is ~0.5 s); only the instrument-alive control runs
+for CT in $CTS; do
   run_control "$CT" 1; rc=$?
   [ "$rc" = 3 ] && { run_control "$CT" 2; rc=$?; [ "$rc" = 3 ] && res "$CT: INVALID TWICE (counts as failed)"; }
   [ "$CT" = CT1 ] && sleep 30

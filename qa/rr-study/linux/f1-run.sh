@@ -70,10 +70,14 @@ tr '\0' '\n' < /proc/$DP/environ | grep -E '^(ALSA_CONFIG_PATH|ALSA_PLUGIN_DIR)=
 tr '\0' '\n' < /proc/$DP/environ | grep -c "^PATH=$F1/bin" > "$RUN/v1b_path_has_wrapper.txt"
 log "V1b: arecord child args [$(cat $RUN/v1b_arecord_args.txt)]; wrapper on the daemon's PATH: $(cat $RUN/v1b_path_has_wrapper.txt)"
 export S6_PY=$PY
+# D (passive /proc sampler, 10 Hz, on the daemon's arecord child) runs in the D-b' arm (WRAP=0) by default; SAMPLE=1/0 overrides
+SAMPLE=${SAMPLE:-$([ "$WRAP" = 0 ] && echo 1 || echo 0)}
+rm -f "$RUN/sampler.stop"
+if [ "$SAMPLE" = 1 ]; then setsid nohup python3 "$HOME/f1_sampler.py" --daemon-pid "$DP" --out "$RUN/sampler.jsonl" --stop-file "$RUN/sampler.stop" > "$RUN/sampler.out" 2>&1 < /dev/null & log "sampler started (10 Hz) on the arecord child of $DP"; fi
 if [ "$WRAP" = 1 ]; then
   sh "$HOME/f1-controls.sh" "$LOG" "$PORT" "$RUN/controls" "$G" >> "$RL" 2>&1
 else
-  sleep 150
+  ONLY_CT2=1 sh "$HOME/f1-controls.sh" "$LOG" "$PORT" "$RUN/controls" "$G" >> "$RL" 2>&1
 fi
 CNT0=$(curl -s http://127.0.0.1:$PORT/api/v1/status | "$PY" -c "import sys,json;d=json.load(sys.stdin);print(d['captureOverrunCount'],d['captureChannelDroppedChunks'],d['watchdogRestartCount'])")
 log "counters before the plays (overruns, channel drops, watchdog restarts): $CNT0"
@@ -85,6 +89,7 @@ echo "$CNT0" > "$RUN/counters_before.txt"
     --ows-lib "$LIB" --appraiser owsfz --out-sub pass-o ) > "$RUN/s6_play.out" 2>&1
 log "s6_play exited rc=$?"
 sleep 20
+touch "$RUN/sampler.stop"; sleep 1
 CNT1=$(curl -s http://127.0.0.1:$PORT/api/v1/status | "$PY" -c "import sys,json;d=json.load(sys.stdin);print(d['captureOverrunCount'],d['captureChannelDroppedChunks'],d['watchdogRestartCount'])")
 echo "$CNT1" > "$RUN/counters_after.txt"
 log "counters after the plays (overruns, channel drops, watchdog restarts): $CNT1"
