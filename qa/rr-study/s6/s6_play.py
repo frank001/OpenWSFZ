@@ -142,6 +142,7 @@ def main() -> None:
     ap.add_argument("--appraiser", default="both", choices=("both", "wsjtx", "owsfz"),
                     help="SEQUENTIAL S6 (Captain 2026-10-15): which appraiser is listening in THIS pass. 'both' (default) is the original concurrent S6. With 'wsjtx' or "
                          "'owsfz' only that appraiser's log has to decode the warm-up cycle (the other one is switched off for the pass).")
+    ap.add_argument("--k-trials", type=int, default=D.K_TRIALS, help="F1 (capture-loss arm): play only the first k trials. Trial t is the same seeded shuffle whatever k is, so --k-trials 1 is exactly trial 0 of the full S6")
     ap.add_argument("--out-sub", default="", help="write the pass's files to <run-dir>/s6/<out-sub>/ (sequential S6: pass-w, pass-o; s6_merge.py combines them)")
     a = ap.parse_args()
 
@@ -149,7 +150,7 @@ def main() -> None:
     os.makedirs(out, exist_ok=True)
     wl = json.load(open(a.wavlist, encoding="utf8"))
     items = D.tier_items(wl, a.tier)
-    validity: dict = {"tier": a.tier, "plays_planned": len(items) * D.K_TRIALS, "appraiser": a.appraiser}
+    validity: dict = {"tier": a.tier, "plays_planned": len(items) * a.k_trials, "appraiser": a.appraiser}
 
     def save_validity(exit_code: int, note: str = "") -> None:
         validity["exit_code"], validity["note"] = exit_code, note
@@ -169,7 +170,7 @@ def main() -> None:
             print("S6-V1 FAIL: %d problems; S6 stops (S1-S8 stand)" % len(problems), flush=True)
             save_validity(EXIT_V1, "corpus or wavlist verification failed")
             sys.exit(EXIT_V1)
-    print("S6-V1 %s; tier %s: %d WAVs x %d trials = %d plays" % (validity["S6-V1"]["result"], a.tier, len(items), D.K_TRIALS, len(items) * D.K_TRIALS), flush=True)
+    print("S6-V1 %s; tier %s: %d WAVs x %d trials = %d plays" % (validity["S6-V1"]["result"], a.tier, len(items), a.k_trials, len(items) * a.k_trials), flush=True)
 
     pins_start = pins(a)
     # amendment 2 (b): the daemon log is stamped in the system's LOCAL time; the zone is taken from the system here, at S6 start, not inferred
@@ -244,7 +245,7 @@ def main() -> None:
     # sd.wait() returns just after the next wake-up point and every play would slip a slot; and a buffer much longer than 20 slots once made
     # both appraisers hallucinate, 2026-08-30). Between two batches there is ONE idle slot (the next batch starts at the first boundary the
     # previous wait leaves room for): about 5 % of the wall time. An idle slot has no audio, so any decode line stamped in it is a STRAY (S6-V2).
-    sched = make_schedule(items)
+    sched = make_schedule(items, a.k_trials)
     logp = os.path.join(out, "s6_playlog.jsonl")
     fh = open(logp, "w", encoding="utf8", newline="\n")
     for w in warm_rows:
@@ -307,7 +308,7 @@ def main() -> None:
     with open(os.path.join(out, "s6_pins.json"), "w", encoding="utf8", newline="\n") as f2:
         json.dump({"start": pins_start, "end": pins_end}, f2, indent=1)
     with open(os.path.join(out, "s6_window.json"), "w", encoding="utf8", newline="\n") as f3:
-        json.dump({"tier": a.tier, "appraiser": a.appraiser, "wavlist_sha256": D.sha256_file(a.wavlist), "wavlist_seed": wl["seed"], "k_trials": D.K_TRIALS,
+        json.dump({"tier": a.tier, "appraiser": a.appraiser, "wavlist_sha256": D.sha256_file(a.wavlist), "wavlist_seed": wl["seed"], "k_trials": a.k_trials,
                    "first_warmup_slot": warm_rows[0]["slot_stamp"], "first_play_slot": slot_stamp(first_b), "last_play_slot": slot_stamp(last_b),
                    "plays": len(sched), "batches": len(batches), "idle_slots_between_batches": idle_slots, "slips": slips, "end_utc": iso(now())}, f3, indent=1)
     validity["S6-V4-plays_completed"] = len(sched)
