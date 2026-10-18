@@ -24,7 +24,7 @@ while [ $i -le "$N" ]; do
   NAME=$(echo "$ID" | tr 'A-Z' 'a-z')-$i
   rm -f "$HOME/rr-run/$NAME.log"
   slog "sweep $i of $N: start ($NAME)"
-  case ",$SCEN," in *,S6,*) sh "$HOME/battery-tp.sh" "$NAME" "$SCEN" --s6-tier standard;; *) sh "$HOME/battery-tp.sh" "$NAME" "$SCEN";; esac
+  case ",$SCEN," in *,S6,*) sh "$HOME/battery-tp.sh" "$NAME" "$SCEN" --s6-tier "${S6_TIER:-standard}";; *) sh "$HOME/battery-tp.sh" "$NAME" "$SCEN";; esac
   rc=$?
   if [ $rc -ne 0 ] || ! grep -q " DONE$" "$HOME/rr-run/$NAME.log" 2>/dev/null; then
     slog "HALT: sweep $i did not end DONE (rc $rc); see $HOME/rr-run/$NAME.log; the series stops here (complete sweeps so far: $((i - 1)))"
