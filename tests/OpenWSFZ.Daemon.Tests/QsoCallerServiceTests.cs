@@ -1475,6 +1475,37 @@ public sealed class QsoCallerServiceTests
         partner.Should().BeEmpty();
     }
 
+    [Theory(DisplayName = "#192: TryParseResponder rejects closing tokens RR73/RRR as third token")]
+    [InlineData("PD2FZ Q1ABC RR73")]
+    [InlineData("PD2FZ Q1ABC rr73")]
+    [InlineData("PD2FZ Q1ABC RRR")]
+    [InlineData("PD2FZ Q1ABC 73")]
+    public void TryParseResponder_RejectsClosingTokens(string msg)
+    {
+        var result = QsoCallerService.TryParseResponder(
+            msg, "PD2FZ", out var partner, out _, out var grid);
+
+        result.Should().BeFalse();
+        partner.Should().BeEmpty();
+        grid.Should().BeNull();
+    }
+
+    [Theory(DisplayName = "#192: TryParseResponder still accepts a real grid or a report")]
+    [InlineData("PD2FZ Q1ABC JO22", "JO22")]
+    [InlineData("PD2FZ Q1ABC RR99", "RR99")]
+    [InlineData("PD2FZ Q1ABC -12", null)]
+    [InlineData("PD2FZ Q1ABC R-05", null)]
+    [InlineData("PD2FZ Q1ABC +03", null)]
+    public void TryParseResponder_AcceptsGridAndReport(string msg, string? expectedGrid)
+    {
+        var result = QsoCallerService.TryParseResponder(
+            msg, "PD2FZ", out var partner, out _, out var grid);
+
+        result.Should().BeTrue();
+        partner.Should().Be("Q1ABC");
+        grid.Should().Be(expectedGrid);
+    }
+
     // ── TryParseResponder signal-report tests (D-CALLER-001) ─────────────────
 
     [Fact(DisplayName = "TryParseResponder: accepts positive signal report (+32) as third token")]

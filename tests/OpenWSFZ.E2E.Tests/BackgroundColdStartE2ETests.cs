@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using FluentAssertions;
+using OpenWSFZ.TestSupport;
 using Xunit;
 
 namespace OpenWSFZ.E2E.Tests;
@@ -81,8 +82,15 @@ public sealed class BackgroundColdStartE2ETests
             var exited = await WaitForExitAsync(orchestrator, TimeSpan.FromSeconds(10));
             exited.Should().BeTrue("the --background orchestrator must exit on its own once it has spawned and confirmed the worker");
 
+            // The orchestrator exits once the worker is confirmed spawned, which can be BEFORE the worker
+            // has created its logs directory (issue #185: macOS CI saw the directory missing). Poll for
+            // the positive condition: the worker's log file exists and holds the started line.
             var logsDir = Path.Combine(tempDir, "logs");
-            Directory.Exists(logsDir).Should().BeTrue("the worker forces file logging on regardless of the (freshly-created, default) config");
+            await Poll.UntilAsync(() =>
+                Directory.Exists(logsDir)
+                && Directory.GetFiles(logsDir, "openswfz-*.log").Length > 0
+                && ReadWithSharing(Directory.GetFiles(logsDir, "openswfz-*.log")[0]).Contains("OpenWSFZ started on port"),
+                timeout: TimeSpan.FromSeconds(15));
 
             var logFiles = Directory.GetFiles(logsDir, "openswfz-*.log");
             logFiles.Should().HaveCount(1,

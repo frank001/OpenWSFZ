@@ -18,6 +18,7 @@ import { WaterfallRenderer }                                                 fro
 import { createCycleTimer }                                                  from './cycleTimer.js';
 import { isDecodeVisible, UNFILTERED_DECODE_FILTER }                         from './decodeFilter.js';
 import { createEarlyRowTracker, markEarlyRow }                              from './earlyRows.js';
+import { classifyDecodeRow, applyDecodeRowClasses }                         from './decodeRowClasses.js';
 import { shouldCaptureDecode, buildTranscriptEntry, pushTranscriptEntry,
          hasEnteredNewActiveTxState, cacheRealRowText, pickRowText,
          TRANSCRIPT_LOG_MAX }                                               from './qsoTranscript.js';
@@ -423,14 +424,16 @@ function extractCqCallsign(message) {
 }
 
 /**
- * Returns true if `token` matches `callsign` exactly or as a portable suffix
- * (e.g. "PD2FZ/P" matches callsign "PD2FZ").
- * @param {string} token
- * @param {string} callsign
- * @returns {boolean}
+ * The inputs `classifyDecodeRow` needs, read from the live TX state (decodeRowClasses.js).
+ * @returns {import('./decodeRowClasses.js').DecodeRowContext}
  */
-function tokenMatchesCallsign(token, callsign) {
-  return token === callsign || token.startsWith(callsign + '/');
+function decodeRowContext() {
+  return {
+    txCallsign:    txCallsign ?? '',
+    role:          currentTxRole,
+    state:         currentTxState,
+    partnerSelect: currentCallerPartnerSelect,
+  };
 }
 
 // ── decode-panel-filtering: filter state and popup UI ───────────────────────
@@ -844,17 +847,12 @@ function handleDecodes(results, resolves) {
     // the race against engage-decode's own abort-then-dispatch and produced a guaranteed
     // spurious 409 on every double-click; see
     // dev-tasks/2026-07-12-answerer-abort-hard-stop-and-reengage-timing.md).
-    if (r.message.startsWith('CQ ')) {
-      tr.classList.add('decode-cq');
-      tr.style.cursor = 'pointer';
-    }
-
-    // Highlight any row addressed to the operator's callsign in red.
-    // Simple rule: any space-delimited token in the message matches our callsign.
+    // The highlight classes come from decodeRowClasses.js, shared with the early-row path (#219).
+    // Highlight any row addressed to the operator's callsign in red (any token matches our callsign).
+    const rowClass = classifyDecodeRow(r.message, decodeRowContext());
+    applyDecodeRowClasses(tr, rowClass);
+    if (rowClass.cq) tr.style.cursor = 'pointer';
     const msgTokens = r.message.split(' ');
-    if (txCallsign && msgTokens.some(t => tokenMatchesCallsign(t, txCallsign))) {
-      tr.classList.add('decode-partner');
-    }
 
     // Task 7.5 / 7.7 — Caller responder highlighting and click-to-select.
     // When role is 'caller', state is WaitAnswer, and CallerPartnerSelect is
@@ -864,18 +862,7 @@ function handleDecodes(results, resolves) {
     // POST /api/v1/tx/select-responder with the responder's callsign.
     // Note: decode-responder (teal) wins over decode-partner (red) in the CSS
     // cascade when both apply, correctly signalling that the row is clickable.
-    const txCallsignBase = txCallsign ? txCallsign.split('/')[0] : '';
-    const isResponderRow =
-      currentTxRole === 'caller'
-      && currentTxState === 'WaitAnswer'
-      && currentCallerPartnerSelect === 'None'
-      && msgTokens.length >= 3
-      && txCallsign
-      && (msgTokens[0] === txCallsign
-          || msgTokens[0] === txCallsignBase);
-
-    if (isResponderRow) {
-      tr.classList.add('decode-responder');
+    if (rowClass.responder) {
       tr.style.cursor = 'pointer';
 
       let selectInFlight = false;
@@ -1065,6 +1052,10 @@ function handleEarlyDecodes(rows) {
     /** @type {any} */ (tr).__decode = r;                       // so a filter change re-evaluates this row too
     tr.hidden = !isDecodeVisible(r, currentDecodeFilter);
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
+
+    // #219: the same highlight classes as a final row (CQ, addressed to the operator, responder), so the early-row
+    // colours show. Display-only still: no handler and no pointer cursor (app.css keeps the default cursor).
+    applyDecodeRowClasses(tr, classifyDecodeRow(r.message, decodeRowContext()));
 
     earlyRowTracker.add(earlyId, tr, messageCell);
   }

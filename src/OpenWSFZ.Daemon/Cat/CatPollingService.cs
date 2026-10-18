@@ -132,8 +132,9 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner, IC
     /// </summary>
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _cts         = new CancellationTokenSource();
-        _pollingTask = Task.Run(() => RunAsync(_cts.Token), CancellationToken.None);
+        var cts      = new CancellationTokenSource();
+        _cts         = cts;
+        _pollingTask = Task.Run(() => RunAsync(cts.Token), CancellationToken.None);
         return Task.CompletedTask;
     }
 
@@ -142,9 +143,13 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner, IC
     /// </summary>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_cts is null) return;
+        // Atomically take ownership of _cts (same pattern as DisposeAsync) so a
+        // concurrent DisposeAsync cannot null the field between the check and
+        // CancelAsync (GitHub #181). Whichever caller wins disposes the source.
+        var cts = Interlocked.Exchange(ref _cts, null);
+        if (cts is null) return;   // never started, or already stopped/disposed
 
-        await _cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync().ConfigureAwait(false);
 
         if (_pollingTask is not null)
         {
@@ -156,6 +161,8 @@ public class CatPollingService : IHostedService, IAsyncDisposable, ICatTuner, IC
             catch (TimeoutException) { /* loop did not finish in time — acceptable on shutdown */ }
             catch (OperationCanceledException) { /* expected */ }
         }
+
+        cts.Dispose();
     }
 
     // ── IAsyncDisposable ─────────────────────────────────────────────────────
