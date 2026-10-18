@@ -37,6 +37,23 @@ T0=$(date +%s)
 log "sweep $NAME start; scenarios $SCEN; extra args: $*; retries per scenario: $RETR"
 DEPTH=$("$PY" -c "import json;print(json.load(open('$CFG'))['decoder'].get('decodingDepth','Normal (key absent)'))" 2>/dev/null)
 log "decoding depth (config $CFG): $DEPTH"
+# CONFIG PIN (QA, 2026-10-18, after a Settings-page save changed the rig config unnoticed): the rig config must still be byte-identical to the pinned one, and TP_CONFIG must be
+# that config plus ONLY decoder.decodingDepth (re-serialised in the daemon's own style: indent 2, no trailing newline). Anything else HALTS the sweep before it starts.
+RIGCFG=${TP_RIG_CONFIG:-$HOME/rr-run/config.json}
+PIN=${TP_RIG_CONFIG_SHA:-661de047bc52b833620316c2fe505000584fcde318987f25793a378c37733c9d}
+CK=$("$PY" - "$RIGCFG" "$CFG" "$PIN" <<'PYEOF'
+import hashlib, json, sys
+rig, tp, pin = sys.argv[1:4]
+rs = hashlib.sha256(open(rig, "rb").read()).hexdigest()
+c = json.load(open(tp, encoding="utf8"))
+c["decoder"].pop("decodingDepth", None)
+ts = hashlib.sha256(json.dumps(c, indent=2, ensure_ascii=False).encode()).hexdigest()
+ok = rs == pin and ts == pin
+print(("OK" if ok else "FAIL") + " rig=%s tp-minus-depth=%s pin=%s" % (rs[:16], ts[:16], pin[:16]))
+PYEOF
+)
+log "config pin: $CK"
+case "$CK" in OK*) ;; *) halt "CONFIG PIN FAILED ($CK): the rig config or the sweep config differs from the pinned one; nothing was run";; esac
 log "build under test: $(git -C $TP_REPO rev-parse HEAD); libft8.so $(sha256sum "$(dirname "$DAEMON")/libft8.so" | cut -d' ' -f1); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
 # S6 pins the OpenWSFZ native library the daemon loads: the one in the daemon's publish folder (added here so no caller has to pass the path)
 S6LIB=""; case ",$SCEN," in *,S6,*) S6LIB="--s6-ows-lib $(dirname "$DAEMON")/libft8.so";; esac
