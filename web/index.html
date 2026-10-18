@@ -232,6 +232,21 @@
 
   </dialog>
 
+  <!-- ── Settings panel (#212, FR-087) ───────────────────────────────────────── -->
+  <!--
+    A plain left-click on the Settings link opens /settings.html?embedded=1 in a fresh <iframe> in
+    this modal dialog, so the page behind (waterfall, decode table, transcript, WebSocket) keeps
+    running. main.js creates the iframe on open and removes it on close. The link keeps its real
+    href, so middle-click, Ctrl-click and "open in new tab" still open Settings as a normal page.
+  -->
+  <dialog id="settings-dialog" aria-label="Settings">
+    <div id="settings-dialog-header">
+      <span id="settings-dialog-title">Settings</span>
+      <button type="button" id="settings-dialog-close" aria-label="Close Settings">&#x2715;</button>
+    </div>
+    <div id="settings-dialog-body"></div>
+  </dialog>
+
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

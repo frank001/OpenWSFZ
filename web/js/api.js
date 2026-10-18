@@ -9,6 +9,23 @@
 const API_KEY_SESSION_KEY = 'owsfz-api-key';
 
 /**
+ * True when this page is Settings shown inside the main page's panel (`?embedded=1`, #212, FR-087).
+ * Read once from the query string; deliberately NOT inferred from `window.top !== window.self`.
+ */
+export const isEmbedded = new URLSearchParams(location.search).get('embedded') === '1';
+
+/**
+ * Sends the operator to the login page after a 401: drops the stored passphrase and navigates.
+ * In embedded mode it is the TOP window that navigates, never the iframe, so the login page (or a
+ * second main GUI) is not loaded inside the Settings panel. Every 401 handler in the web client
+ * goes through this one function.
+ */
+export function redirectToLogin() {
+  sessionStorage.removeItem(API_KEY_SESSION_KEY);
+  (isEmbedded ? window.top : window).location.href = '/login.html';
+}
+
+/**
  * Returns the stored API passphrase, or null if none is present
  * (loopback access or no passphrase configured).
  * @returns {string|null}
@@ -59,8 +76,7 @@ async function fetchJson(url, init) {
 
   if (res.status === 401) {
     // Passphrase rejected or session expired — return to login.
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     // Return a never-resolving promise so callers don't see a thrown error
     // while the navigation is in progress.
     return new Promise(() => {});
@@ -182,8 +198,7 @@ export async function postCatRetry() {
     headers: key ? { 'X-Api-Key': key } : {},
   });
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     return;
   }
   if (!res.ok) {
@@ -209,8 +224,7 @@ export async function postPttTest() {
   });
 
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     return new Promise(() => {});
   }
 
@@ -248,8 +262,7 @@ export async function postSystemRestart() {
   });
 
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     return new Promise(() => {});
   }
 
@@ -346,8 +359,7 @@ export async function postTxEngageDecode(message, frequencyHz, cycleStartUtc, co
     body: JSON.stringify({ message, frequencyHz, cycleStartUtc, confirm, snr }),
   });
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     throw new Error('Unauthorized');
   }
   const err = new Error(`engage-decode: ${res.status}`);
@@ -385,8 +397,7 @@ export async function postTxAnswerCq(callsign, frequencyHz, cqCycleStartUtc) {
     body:    JSON.stringify({ callsign, frequencyHz, cqCycleStartUtc }),
   });
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     return new Promise(() => {});
   }
   if (!res.ok) {
@@ -420,8 +431,7 @@ export async function postTxSelectResponder(callsign, frequencyHz, responseCycle
     body:    JSON.stringify({ callsign, frequencyHz, responseCycleStartUtc }),
   });
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     return new Promise(() => {});
   }
   if (!res.ok) {
@@ -448,8 +458,7 @@ export async function postTxCallCq() {
     headers: key ? { 'X-Api-Key': key } : {},
   });
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     return new Promise(() => {});
   }
   if (!res.ok) {
@@ -484,8 +493,7 @@ export async function getLogsFull() {
     headers: key ? { 'X-Api-Key': key } : {},
   });
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     return new Promise(() => {});
   }
   if (!res.ok) {
@@ -526,8 +534,7 @@ export async function postTxCallerPartnerSelect(mode) {
     body: JSON.stringify({ mode }),
   });
   if (res.status === 401) {
-    sessionStorage.removeItem(API_KEY_SESSION_KEY);
-    window.location.href = '/login.html';
+    redirectToLogin();
     return new Promise(() => {});
   }
   if (!res.ok) {

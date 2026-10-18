@@ -7,7 +7,7 @@
  * @module settings
  */
 
-import { getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, postPttTest, postSystemRestart, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
+import { isEmbedded, getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, postPttTest, postSystemRestart, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
 import { resolveUnknownCheckboxDisplay } from './decodeNoiseSuppression.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
@@ -462,21 +462,60 @@ document.getElementById('settings-form').addEventListener('change', syncDirtyUI)
 
 // ── Breadcrumb navigation guard (FR-041) ─────────────────────────────────
 
+/** The FR-041 question, shared by the back link and the embedded panel's close paths. */
+const UNSAVED_CHANGES_PROMPT = 'You have unsaved changes. Leave without saving?';
+
+/**
+ * Asks the FR-041 question if the form is dirty.
+ * @returns {boolean} true if the caller may leave (clean, or the operator confirmed)
+ */
+function confirmLeaveIfDirty() {
+  if (!isDirty()) return true;
+  const confirmed = window.confirm(UNSAVED_CHANGES_PROMPT);
+  // Stand down the beforeunload guard on confirm — the operator has already agreed to discard.
+  // Without this, the browser fires beforeunload as part of a navigation and produces a second,
+  // redundant prompt.
+  if (confirmed) window.removeEventListener('beforeunload', onBeforeUnload);
+  return confirmed;
+}
+
 backLink.addEventListener('click', event => {
-  if (isDirty()) {
-    const confirmed = window.confirm(
-      'You have unsaved changes. Leave without saving?'
-    );
-    if (confirmed) {
-      // Stand down the beforeunload guard — the operator has already confirmed
-      // intent to discard. Without this, the browser fires beforeunload as part
-      // of the navigation and produces a second, redundant prompt.
-      window.removeEventListener('beforeunload', onBeforeUnload);
-    } else {
-      event.preventDefault();
-    }
+  if (!isEmbedded) {
+    // Direct visit (FR-041): unchanged behaviour.
+    if (!confirmLeaveIfDirty()) event.preventDefault();
+    return;
   }
+  // Embedded in the main page's panel (#212, FR-087): the link reads Close and asks the main page
+  // to close the panel (which asks requestClose() below); it never navigates the iframe.
+  event.preventDefault();
+  requestParentClose();
 });
+
+// ── Embedded panel mode (#212, FR-087) ───────────────────────────────────
+
+/** `postMessage` type that asks the main page to close the Settings panel. */
+const SETTINGS_CLOSE_MESSAGE = 'owsfz.settings.close';
+
+function requestParentClose() {
+  window.parent.postMessage({ type: SETTINGS_CLOSE_MESSAGE }, location.origin);
+}
+
+if (isEmbedded) {
+  document.documentElement.classList.add('settings-embedded');
+  backLink.textContent = 'Close';
+
+  // The main page's close function calls this synchronously: it runs the FR-041 prompt when the
+  // form is dirty and returns whether the panel may close. (Same-origin direct call; a postMessage
+  // reply protocol would add nothing but a round trip.)
+  /** @type {any} */ (window).owsfzSettings = { requestClose: confirmLeaveIfDirty };
+
+  // Escape with focus inside the iframe: the key never reaches the main page's document.
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    requestParentClose();
+  });
+}
 
 // ── Frequencies tab (FR-043) ─────────────────────────────────────────────
 

@@ -498,7 +498,22 @@ internal static class Ft8LibInterop
     /// main's early-decode hash-state exports (20260058) and osd-sign-fix exports (20260060) are all present; the one
     /// source hunk both lines touched is decode.c's OSD call (osd_prepare_llr, then osd_decode with OSD_DEPTH == 2).
     /// </remarks>
-    private const int ExpectedShimVersion = 20260061;
+    /// <remarks>
+    /// sub-feas-speed-redesign Stage B item B2, shim 20260059: a pruned frequency search inside the native fit
+    /// (<c>subfeas_fit.c</c>'s <c>freq_search</c>). Numerics-changing (accepted by E2 and E3, not by bit-identity); no new or
+    /// changed export, so this binding file changes only the expected version.
+    /// </remarks>
+    /// <remarks>
+    /// sub-feas-stage-b B2 merged with main (origin/main 76aa48cd, shim 20260060; B2 branch aab18b75, shim 20260059), shim 20260062:
+    /// brings the pruned frequency search onto the 20260060 line. No new or changed export and no ABI change, so this binding
+    /// file changes only the expected version. 20260061 is held by <c>decoding_improvement</c>.
+    /// </remarks>
+    /// <remarks>
+    /// decoding_improvement sync 6 (2026-10-18), shim 20260063: main's B2 (shim 20260062, the pruned frequency search in
+    /// <c>subfeas_fit.c</c>) merged into decoding_improvement (shim 20260061). The UNION of both lines of native work, no
+    /// new or changed export and no ABI change, so this binding file changes only the expected version.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260063;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
