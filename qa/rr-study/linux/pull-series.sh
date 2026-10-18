@@ -46,6 +46,8 @@ for d in $DIRS; do
         echo \"residual pass, LAST daemon (S6 pass O, from log line \$S):\";
         tail -n +\$S \$L | grep 'Sub-feas residual pass' | sed -E 's/.*elapsedMs=([0-9]+) deadlineAbandoned=([A-Za-z]+).*/\1 \2/' | sort -n |
           awk '{a[NR]=\$1; if(\$2!=\"False\")ab++} END{ if(NR==0){print \"  none\"} else printf \"  n=%d median=%d ms p90=%d ms max=%d ms abandoned=%d (bar: median <= 4000 ms, 0 abandoned)\n\",NR,a[int((NR+1)/2)],a[int(NR*0.9)],a[NR],ab+0}'" > "$DEST/$d/capture_counters.txt"
+  # third pass (#240, 2026-10-18): outcome counts, abandon share over STARTED passes and wall time, from the same daemon log (feeds the script over ssh; nothing is deployed on sol)
+  $SOL "python3 - /home/claude/rr-run/$LC-$n/daemon.stdout.log" < "$(dirname "$0")/third_pass_counters.py" >> "$DEST/$d/capture_counters.txt" 2>/dev/null
   cat "$DEST/$d/capture_counters.txt"
   # the S6 row + the tripwire
   R="$DEST/$d/report.md"
