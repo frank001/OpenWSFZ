@@ -69,7 +69,7 @@ def main():
         m = CYCLE.match(x)
         if m:
             cur = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
-            per_cycle[cur] = {"clamped": 1 if pending_clamp else 0, "resid_ms": None, "resid_abandoned": None, "third": None}
+            per_cycle[cur] = {"clamped": 1 if pending_clamp else 0, "resid_ms": None, "resid_abandoned": None, "third": None, "pass0": int(m.group(4))}
             pending_clamp = False
             continue
         if cur is not None:
@@ -98,7 +98,9 @@ def main():
         st = A.stamp_o(p)
         sod = sod_of(st)
         c = per_cycle.get(sod, {})
-        th = c.get("third") or ("no-line", 0, 0)
+        # A play with no third-pass line is NOT an unknown: the decoder returns before the residual pass (and so before the third pass) when pass 0 found nothing, and logs neither
+        # line. "no-pass0-decodes" = the Cycle line said 0 decodes (explained); "MISSING-LINE" = pass 0 had decodes yet no third-pass line (a defect to look at).
+        th = c.get("third") or (("no-pass0-decodes" if c.get("pass0") == 0 else "MISSING-LINE") if c else "no-cycle-line", 0, 0)
         nd = sum(1 for d in drops if sod <= d < sod + 15)
         t0 = epoch_of(st)
         ov = None if not polls else _delta("overruns", polls, t0)
