@@ -111,3 +111,44 @@ Any V-row FAIL ⇒ the measurement rows for **that corpus** are withheld (HK-021
 5. Architect's ruling, which scores TP-1..3.
 
 Open for the Architect (non-blocking): confirm from WSJT-X 2.7.0's documentation what Deep does for FT8, for context only (GPL: facts, never code).
+
+## Amendment 1 (2026-10-18, after QA's (k) review `2026-10-18-1204-qa-to-architect-k-review-third-pass-spec.md`): A1–A4 accepted, A2 = option (b)
+
+Where this amendment conflicts with §3–§5, **it overrides them.** The text above stays as written.
+
+**A1 (TP-3, M4): accepted.**
+- **The primary denominator is "cycles where the third pass started"** (not skipped).
+- The share over all cycles is reported beside it, with the skip counts by reason.
+
+**A2 (V4, M5): option (b).**
+- **No "unlimited budget":** `SubtractionCycleBudget` is a fixed 13 s on the build under test. The replay override (`feat/subtraction-budget-replay-override`) stays unmerged, so the build needs no extra Developer change.
+- **Yield runs (Y-40, Y-2) use the production 13 s budget on the Windows PC.** QA records the machine (CPU, thread count) and whether the live daemon was running at the time.
+- **M1/M2 are therefore "at the production budget on that PC".** §3.2's claim that yield does not depend on the machine is withdrawn.
+- **New V4, mechanical:** count the cycles abandoned in **any** pass in **either** arm.
+  - Those cycles are **excluded from both arms** (pairwise), and the count is reported.
+  - **V4 FAILS if they exceed 5 % of the corpus's cycles.**
+  - Where 5 % comes from (HK-038): the Architect's judgement, not data. Above it the yield figure would be measuring the budget, not the decoder. sol's B2 residual pass had 0 of 59 abandoned at max 6.5 s, and the PC is not expected to be slower.
+- **V3 (determinism) compares only cycles with no abandon in either run.**
+- **M5 redefined:** on T-REF (sol, 13 s), the Deep − Normal decode count (gross; WSJT-X-matched too, if T-REF has a reference), plus the share of third passes abandoned. The comparison against an unlimited count is withdrawn.
+
+**A3 (scope): accepted.**
+- **M5 gets its own Normal/Deep pair on T-REF/sol,** because output is platform-specific.
+- **Stop scope** (HK-021 (ab)):
+
+  | rows | guard |
+  |---|---|
+  | V0 + V3 on T-REF | M3–M5 |
+  | V0 + V1 + V2 + V3 + V4 on Y-40 | M1/M2 |
+  | the same on Y-2 | M6 |
+
+  A failure on one corpus never withholds another corpus's rows. V1 or V2 failing anywhere is still reported to the Architect first, as a build defect.
+
+**A4 (tooling): accepted.**
+- Replay81 carries **batch 3 as its own kind** through the outcomes, `matched-out` and `matched-batch-out`. That is QA tooling, not `src/`.
+- **Proof before any Deep-ON data is read:** a fixture or check showing a batch-3 row counted as batch 3 and never as batch 1 or 2.
+- **B5 (batch 3 as its own publish) is a hard dependency** of the build.
+
+**Predictions restated before any build or data (the original lines in §5 stay as written):**
+- **TP-1:** the NET_3 point estimate on Y-40 **at the production 13 s budget on the PC, abandoned cycles excluded pairwise**, lies in [+0.3, +2.0] pp. **0.55.** VOID if any Y-40 V-row fails.
+- **TP-2:** unchanged (≤ 2.0 s median on T-REF), **0.60**.
+- **TP-3:** the third-pass abandon share **over the T-REF cycles where it started** is ≤ 5 %. **0.55** (lowered from 0.60: the smaller denominator raises the share). VOID as TP-2.
