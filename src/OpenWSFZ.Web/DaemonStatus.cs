@@ -128,4 +128,10 @@ public sealed record DaemonStatus(
     /// Process-lifetime count of chunks (2 048 samples, ~170.7 ms each) the capture manager's
     /// bounded DropOldest channel discarded because the consumer fell behind.
     /// </summary>
-    long    CaptureChannelDroppedChunks = 0);
+    long    CaptureChannelDroppedChunks = 0,
+    /// <summary>
+    /// third-pass-deep (#240, B1/B6): the decoding depth the decoder is using now (<c>"Normal"</c>/<c>"Deep"</c>) and the
+    /// third pass's counters. Served on <c>GET /api/v1/status</c> only; <c>null</c> on the other status frames and when no
+    /// provider is wired.
+    /// </summary>
+    OpenWSFZ.Abstractions.ThirdPassStatus? ThirdPass = null);

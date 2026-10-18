@@ -177,6 +177,37 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     private volatile bool _subtractionEnabled;
 
+    // ── third-pass-deep (#240, step 1) ───────────────────────────────────────
+
+    private volatile int _decodingDepth;   // (int)DecodingDepth; Normal (0) at construction
+
+    /// <summary>
+    /// third-pass-deep: sets <c>decoder.decodingDepth</c>. <see cref="DecodingDepth.Normal"/> (the default at
+    /// construction) is the decoder as it was before the third pass existed; <see cref="DecodingDepth.Deep"/> adds the
+    /// third pass to <see cref="DecodeStagedAsync"/> cycles. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetDecodingDepth(DecodingDepth depth)
+        => _decodingDepth = (int)depth;
+
+    /// <summary>The decoding depth the decoder is using now (what <c>GET /api/v1/status</c> reports).</summary>
+    public DecodingDepth DecodingDepth => (DecodingDepth)_decodingDepth;
+
+    private long _thirdPassRuns, _thirdPassSkippedNoNew, _thirdPassSkippedAbandoned,
+                 _thirdPassAbandoned, _thirdPassFailed, _thirdPassDecodes;
+
+    /// <summary>
+    /// third-pass-deep (B6): the third pass's process-lifetime counters and the depth in use, separate from the residual
+    /// pass's. All counters stay 0 while the depth is <see cref="DecodingDepth.Normal"/>.
+    /// </summary>
+    public ThirdPassStatus GetThirdPassStatus() => new(
+        DecodingDepth.ToString(),
+        Interlocked.Read(ref _thirdPassRuns),
+        Interlocked.Read(ref _thirdPassSkippedNoNew),
+        Interlocked.Read(ref _thirdPassSkippedAbandoned),
+        Interlocked.Read(ref _thirdPassAbandoned),
+        Interlocked.Read(ref _thirdPassFailed),
+        Interlocked.Read(ref _thirdPassDecodes));
+
     /// <summary>
     /// Return the process-lifetime count of Type 4 callsign announcements the native decoder
     /// discarded because its session-scoped callsign hash table was already at its 4096-slot
@@ -382,6 +413,55 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     }
 
     /// <summary>
+    /// third-pass-deep (#240, step 1): the staged decode with <b>every batch delivered through a callback</b>, so the
+    /// residual pass's batch 2 can leave BEFORE the optional third pass starts. Batches:
+    /// <list type="number">
+    ///   <item><b>1</b> = pass 0, delivered exactly once, always (an empty batch 1 is a real cycle), as in <see cref="DecodeTwoStageAsync"/>;</item>
+    ///   <item><b>2</b> = the residual pass's new decodes, delivered only when non-empty, mapped exactly like batch 1;</item>
+    ///   <item><b>3</b> = the third pass's new decodes (decoding depth <see cref="DecodingDepth.Deep"/> only), delivered
+    ///   only when non-empty, mapped exactly like batch 2 with the same per-cycle text de-duplication set.</item>
+    /// </list>
+    /// With the depth <see cref="DecodingDepth.Normal"/> this delivers exactly what <see cref="DecodeTwoStageAsync"/>
+    /// would (batch 1, then batch 2), and the third pass code is not reached. The third pass is all-or-nothing: if it
+    /// is abandoned on the cycle budget or fails, nothing is delivered for batch 3 and batches 1 and 2 stand.
+    /// </summary>
+    /// <param name="pcm">15 s x 12 000 Hz mono PCM samples.</param>
+    /// <param name="cycleStart">UTC instant the capture window began accumulating.</param>
+    /// <param name="currentBand">The session's current band, or <c>null</c>.</param>
+    /// <param name="publishBatch">Called with the batch number (1, 2 or 3) and the batch. Awaited before the next stage begins.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task DecodeStagedAsync(
+        float[]                                              pcm,
+        DateTime                                             cycleStart,
+        string?                                              currentBand,
+        Func<int, IReadOnlyList<DecodeResult>, Task>         publishBatch,
+        CancellationToken                                    ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(publishBatch);
+
+        bool published = false;
+        async Task MarkAndPublish(IReadOnlyList<DecodeResult> batch1)
+        {
+            published = true;
+            await publishBatch(1, batch1).ConfigureAwait(false);
+        }
+
+        var rest = await DecodeCoreAsync(
+            pcm, cycleStart, currentBand, MarkAndPublish, early: false, ct,
+            onSecondBatch: batch2 => publishBatch(2, batch2),
+            onThirdBatch:  batch3 => publishBatch(3, batch3)).ConfigureAwait(false);
+
+        if (!published)
+        {
+            // Single-batch outcome (flag OFF, silent cycle, native AV, ...): what the core returned IS the cycle.
+            await publishBatch(1, rest).ConfigureAwait(false);
+            return;
+        }
+        // Two-stage with no staged callbacks consumed (Normal): the return value is batch 2.
+        if (rest.Count > 0) await publishBatch(2, rest).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// The decode itself. <paramref name="onFirstBatch"/> <c>null</c> = the single-batch behaviour of
     /// <see cref="DecodeAsync(float[],DateTime,string?,CancellationToken)"/> (with the flag ON the residual pass runs
     /// inside this call and its decodes are appended to the one returned list). Non-null AND the flag ON = two-stage
@@ -393,7 +473,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         string?                                    currentBand,
         Func<IReadOnlyList<DecodeResult>, Task>?   onFirstBatch,
         bool                                       early,
-        CancellationToken                          ct)
+        CancellationToken                          ct,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onSecondBatch = null,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onThirdBatch  = null)
     {
         // The flag is read ONCE per cycle. Two-stage only when the caller asked for it AND the flag is on: with the
         // flag off this method is, statement for statement, the pre-change single-batch path (P-9).
@@ -753,14 +835,70 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
             if (native.Length == 0) return [];
 
+            // third-pass-deep: the depth is read ONCE per cycle, and only a staged caller (one that supplied both
+            // callbacks) can receive batch 3. Otherwise this is, statement for statement, the two-stage path as it was.
+            bool deep = onSecondBatch is not null && onThirdBatch is not null && DecodingDepth == DecodingDepth.Deep;
+            var report = deep ? new SubtractionPass.ResidualPassReport() : null;
+
             // The residual pass, after batch 1 is out. Its wall-clock budget is what remains of the cycle budget,
             // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
             var newFromResidual = await SubtractionPass.RunAsync(
                 _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
-                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report);
 
             // Batch 2: nothing when the pass was abandoned, failed, or found nothing new.
-            return newFromResidual.Length == 0 ? [] : MapNative(newFromResidual);
+            var second = newFromResidual.Length == 0 ? [] : MapNative(newFromResidual);
+            if (!deep) return second;
+
+            // ── Deep: batch 2 leaves NOW (before the third pass starts), then the third pass ───────────────────
+            if (second.Count > 0) await onSecondBatch!(second).ConfigureAwait(false);
+
+            // Skip rules (spec section 1 step 1): run only when the residual pass returned >= 1 new decode and was not
+            // abandoned. Anything else would only repeat the residual pass on an unchanged buffer.
+            if (report!.DeadlineAbandoned || report.ContainedException)
+            {
+                Interlocked.Increment(ref _thirdPassSkippedAbandoned);
+                SubtractionPass.LogThirdPass(_logger, 0, 0, SubtractionPass.ThirdPassOutcome.SkippedAbandoned, 0);
+                return [];
+            }
+            if (newFromResidual.Length == 0 || report.Residual is null)
+            {
+                Interlocked.Increment(ref _thirdPassSkippedNoNew);
+                SubtractionPass.LogThirdPass(_logger, 0, 0, SubtractionPass.ThirdPassOutcome.SkippedNoNew, 0);
+                return [];
+            }
+
+            // Same budget, same cancellation/reserve mechanism: what remains of the 13 s measured from the start of this decode.
+            var third = await SubtractionPass.RunThirdPassAsync(
+                _interop, report.Residual, newFromResidual, native, EffectiveSubtractionThreads, _logger,
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+
+            switch (third.Outcome)
+            {
+                case SubtractionPass.ThirdPassOutcome.SkippedNoNew:
+                    Interlocked.Increment(ref _thirdPassSkippedNoNew);   // nothing re-encodable: never started a fit
+                    return [];
+                case SubtractionPass.ThirdPassOutcome.Abandoned:
+                    Interlocked.Increment(ref _thirdPassRuns);
+                    Interlocked.Increment(ref _thirdPassAbandoned);
+                    return [];
+                case SubtractionPass.ThirdPassOutcome.Failed:
+                    Interlocked.Increment(ref _thirdPassRuns);
+                    Interlocked.Increment(ref _thirdPassFailed);
+                    return [];
+            }
+
+            Interlocked.Increment(ref _thirdPassRuns);
+            if (third.NewResults.Length == 0) return [];
+
+            // Batch 3: mapped exactly like batch 2 (same per-cycle text de-duplication set), delivered only if non-empty.
+            var batch3 = MapNative(third.NewResults);
+            if (batch3.Count > 0)
+            {
+                Interlocked.Add(ref _thirdPassDecodes, batch3.Count);
+                await onThirdBatch!(batch3).ConfigureAwait(false);
+            }
+            return [];
         }
 
         return results;

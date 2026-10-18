@@ -68,6 +68,11 @@ public static class WebApp
     /// initial WebSocket <c>status</c> event (callers pass <c>() =&gt; captureManager.GetLossSnapshot()</c>).
     /// Defaults to <c>null</c> → both reported as 0.
     /// </param>
+    /// <param name="thirdPassProvider">
+    /// Live provider for the decoding depth in use and the third pass's counters (third-pass-deep, #240), surfaced as
+    /// <see cref="DaemonStatus.ThirdPass"/> on <c>GET /api/v1/status</c> (callers pass <c>() =&gt; ft8Decoder.GetThirdPassStatus()</c>).
+    /// Defaults to <c>null</c> → the field is omitted (null).
+    /// </param>
     /// <param name="appScope">
     /// App-instance scope GUID to tag every WebSocket connection accepted through this
     /// instance's <c>/api/v1/ws</c> endpoint (N6). Pass this when a bus that broadcasts
@@ -118,7 +123,8 @@ public static class WebApp
         Func<int>?                                           hashTableRejectCountProvider = null,
         Func<long>?                                          cycleArchiveDroppedCyclesProvider = null,
         Guid?                                                appScope                    = null,
-        Func<CaptureLossSnapshot>?                           captureLossProvider         = null)
+        Func<CaptureLossSnapshot>?                           captureLossProvider         = null,
+        Func<ThirdPassStatus>?                               thirdPassProvider           = null)
     {
         // S1: unique scope ID for this WebApp instance, used to tag every WebSocket
         // connection accepted through this app's /api/v1/ws endpoint.  AbortAll(scope)
@@ -368,6 +374,7 @@ public static class WebApp
                 CycleArchiveDroppedCycles: cycleArchiveDroppedCyclesProvider?.Invoke() ?? 0,
                 CaptureOverrunCount: captureLoss.OverrunCount,
                 CaptureChannelDroppedChunks: captureLoss.ChannelDroppedChunks,
+                ThirdPass:           thirdPassProvider?.Invoke(),
                 DataFlowing:         captureHealthSnapshot.DataFlowing,
                 LastChunkAgeMs:      dataFlowMonitor?.LastChunkAgeMs,
                 WatchdogRestartCount: captureHealthMonitor?.WatchdogRestartCount ?? 0,

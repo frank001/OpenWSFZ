@@ -44,7 +44,9 @@ public sealed class DecodePumpTests
         public Func<float[], DateTime, string?, Func<IReadOnlyList<DecodeResult>, Task>, Task<IReadOnlyList<DecodeResult>>>? TwoStage;
         public Func<DateTime, IReadOnlyList<DecodeResult>>? Single;
         public Func<IReadOnlyList<DecodeResult>, IReadOnlyList<DecodeResult>> Suppress = r => r;
-        public int SingleCalls, TwoStageCalls;
+        public int SingleCalls, TwoStageCalls, StagedCalls;
+        public bool Deep;
+        public Func<Func<int, IReadOnlyList<DecodeResult>, Task>, Task>? Staged;
 
         public DecodePump Build() => new(new DecodePumpDependencies(
             CurrentDialFrequency:     () => CurrentDial,
@@ -70,7 +72,16 @@ public sealed class DecodePumpTests
             AnswererChannel:          Answerer.Writer,
             CallerChannel:            Caller.Writer,
             ExternalReportingChannel: External.Writer,
-            Logger:                   NullLogger.Instance));
+            Logger:                   NullLogger.Instance)
+        {
+            // third-pass-deep (#240): the staged entry, used only while Deep is on (and the residual pass is).
+            DecodeStaged = async (pcm, cs, band, publishBatch, _) =>
+            {
+                lock (Events) { StagedCalls++; Events.Add($"decode-staged:{cs:mm:ss}"); }
+                await Staged!(publishBatch);
+            },
+            DecodingDeep = () => Deep,
+        });
 
         public static async IAsyncEnumerable<(float[] Pcm, DateTime CycleStart, double? DialFrequency)> Windows(
             params DateTime[] cycles)
@@ -380,5 +391,81 @@ public sealed class DecodePumpTests
         {
             lock (_entries) _entries.Add(formatter(state, exception));
         }
+    }
+    // ── third-pass-deep (#240): batch 3 ─────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "Third pass: Deep + flag ON — the staged entry is used instead of the two-stage one; batch 1 reaches every consumer, batches 2 and 3 only the batch-2 sinks")]
+    public async Task Deep_StagedEntry_Batch3GoesWhereBatch2Goes()
+    {
+        var rig = new Rig { FlagOn = true, Deep = true };
+        var b1 = new[] { R("CQ Q1ABC JO33") };
+        var b2 = new[] { R("CQ Q1DEF EN37", 2100) };
+        var b3 = new[] { R("CQ Q1GHI FN20", 2400) };
+        rig.Staged = async publish =>
+        {
+            await publish(1, b1);
+            await publish(2, b2);
+            await publish(3, b3);
+        };
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.StagedCalls.Should().Be(1);
+        rig.TwoStageCalls.Should().Be(0, "Deep takes the staged entry");
+        rig.SingleCalls.Should().Be(0);
+        rig.Panel.Should().HaveCount(3);
+        rig.Panel[0].Should().Equal(b1);
+        rig.Panel[1].Should().Equal(b2);
+        rig.Panel[2].Should().Equal(b3);
+        rig.AllTxt.Select(a => a.Results.Count).Should().Equal(1, 1, 1);
+        rig.AllTxt.Select(a => a.Stamp).Should().OnlyContain(t => t == Cycle1, "all three batches carry the cycle's stamp");
+        rig.Admitted.Should().Equal("CQ Q1ABC JO33", "CQ Q1DEF EN37", "CQ Q1GHI FN20");
+        rig.Archive.Should().ContainSingle("the archive runs once per cycle, at batch 1");
+
+        var answerer = rig.Drain(rig.Answerer);
+        var caller   = rig.Drain(rig.Caller);
+        answerer.Should().ContainSingle().Which.Results.Should().Equal(b1, "batches 2 and 3 never reach the answerer");
+        caller.Should().ContainSingle().Which.Results.Should().Equal(b1);
+        rig.Drain(rig.External).Select(b => b.Results.Count).Should().Equal(1, 1, 1);
+    }
+
+    [Fact(DisplayName = "Third pass: Deep with no batch 2 or 3 (staged entry delivers batch 1 only) — a single, ordinary batch-1 publish")]
+    public async Task Deep_OnlyBatch1_IsOrdinary()
+    {
+        var rig = new Rig { FlagOn = true, Deep = true };
+        var b1 = new[] { R("CQ Q1ABC JO33") };
+        rig.Staged = async publish => { await publish(1, b1); };
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.Panel.Should().ContainSingle();
+        rig.Drain(rig.Answerer).Should().ContainSingle();
+    }
+
+    [Fact(DisplayName = "Third pass: Normal (Deep off) — the two-stage entry as ever, the staged entry never called")]
+    public async Task Normal_UsesTwoStageEntry()
+    {
+        var rig = new Rig { FlagOn = true, Deep = false };
+        rig.TwoStage = TwoBatches([R("CQ Q1ABC JO33")], [R("CQ Q1DEF EN37", 2100)]);
+        rig.Staged = _ => throw new InvalidOperationException("must not be called");
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.TwoStageCalls.Should().Be(1);
+        rig.StagedCalls.Should().Be(0);
+        rig.Panel.Should().HaveCount(2);
+    }
+
+    [Fact(DisplayName = "Third pass: Deep but the residual flag OFF — the ordinary single batch, no staged entry")]
+    public async Task Deep_WithFlagOff_IsSingleBatch()
+    {
+        var rig = new Rig { FlagOn = false, Deep = true };
+        rig.Single = _ => [R("CQ Q1ABC JO33")];
+        rig.Staged = _ => throw new InvalidOperationException("must not be called");
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.SingleCalls.Should().Be(1);
+        rig.StagedCalls.Should().Be(0);
     }
 }

@@ -45,7 +45,9 @@ public sealed record DecoderConfig
         // property outside the [JsonConstructor] is set to the CLR default (false, 0) when its key is ABSENT, which would turn
         // the ON-by-default early decode off (and its cut to 0) for every config file written before the key existed.
         bool   earlyDecodeEnabled      = true,
-        double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds)
+        double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds,
+        // third-pass-deep (#240): in the constructor with its default, for the same reason as the fields above.
+        DecodingDepth decodingDepth    = DecodingDepth.Normal)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -57,6 +59,7 @@ public sealed record DecoderConfig
         SubtractionOnMigrationApplied = subtractionOnMigrationApplied;
         EarlyDecodeEnabled      = earlyDecodeEnabled;
         EarlyDecodeCutSeconds   = earlyDecodeCutSeconds;
+        DecodingDepth           = decodingDepth;
     }
 
     /// <summary>
@@ -211,4 +214,14 @@ public sealed record DecoderConfig
     /// <see cref="MaxEarlyDecodeCutSeconds"/>, clamped server-side like the other decoder values. Read once per window.
     /// </summary>
     public double EarlyDecodeCutSeconds { get; init; } = DefaultEarlyDecodeCutSeconds;
+
+    /// <summary>
+    /// third-pass-deep (#240, step 1): <see cref="Abstractions.DecodingDepth.Normal"/> (the default) is the decoder as it
+    /// always was; <see cref="Abstractions.DecodingDepth.Deep"/> adds one more incremental subtract-and-decode round after the
+    /// residual pass (published as batch 3, sharing the 13 s cycle budget). It has an effect only while
+    /// <see cref="SubtractionEnabled"/> is on. Config API / file only in step 1 (no Settings-page control). Read once per
+    /// window; takes effect on the next window. The value the decoder is actually using is served on
+    /// <c>GET /api/v1/status</c> as <c>thirdPass.decodingDepth</c>. An absent key reads as <c>Normal</c>.
+    /// </summary>
+    public DecodingDepth DecodingDepth { get; init; } = DecodingDepth.Normal;
 }

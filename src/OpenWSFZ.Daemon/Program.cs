@@ -554,6 +554,8 @@ var app = WebApp.Create(
     cycleArchiveDroppedCyclesProvider: () => cycleArchiveServiceRef?.DroppedCycles ?? 0,
     // capture-loss-instrument: process-lifetime loss counters (arecord overruns, capture-channel drops).
     captureLossProvider:  () => captureManager.GetLossSnapshot(),
+    // third-pass-deep (#240): the decoding depth in use and the third pass's counters (GET /api/v1/status, thirdPass).
+    thirdPassProvider:    () => ft8Decoder.GetThirdPassStatus(),
     configureServices:    services =>
     {
         // Register the auth policy selected above (daemon wins over WebApp.Create default).
@@ -804,6 +806,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
     // sub-feas-speed-redesign A4: 0 (the default, and what an older config loads as) = auto. One warning
     // here if a hand-edited value is out of range; it is never logged per decode cycle.
     ft8Decoder.SetSubtractionMaxThreads(initialDecoder.SubtractionMaxThreads);
+    // third-pass-deep (#240): Normal unless the config says Deep; read once per cycle.
+    ft8Decoder.SetDecodingDepth(initialDecoder.DecodingDepth);
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
     // not the raw pre-DI `configStore` local, so a WebApplicationFactory-hosted test host's
@@ -858,6 +862,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
         Logger:                   startupLogger)
     {
         Early = earlyCoordinator,
+        // third-pass-deep (#240): only used while decoder.decodingDepth is Deep (and the residual pass is on).
+        DecodeStaged = (pcm, cycleStart, band, publishBatch, _) =>
+                           ft8Decoder.DecodeStagedAsync(pcm, cycleStart, band, publishBatch),
+        DecodingDeep = () => ft8Decoder.DecodingDepth == DecodingDepth.Deep,
     });
     _ = Task.Run(() => decodePump.RunAsync(
         framerOutput.Reader.ReadAllAsync(stoppingToken),
@@ -898,6 +906,7 @@ configStore.OnSaved += newConfig =>
     // cycle, no rebuild required (spec's own "Feature can be enabled without a rebuild" scenario).
     ft8Decoder.SetSubtractionEnabled(dec.SubtractionEnabled);
     ft8Decoder.SetSubtractionMaxThreads(dec.SubtractionMaxThreads);
+    ft8Decoder.SetDecodingDepth(dec.DecodingDepth);   // third-pass-deep (#240): next cycle
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
     // create a spurious new log file and reset the active sink.
