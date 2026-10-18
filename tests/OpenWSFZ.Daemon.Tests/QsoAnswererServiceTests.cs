@@ -420,6 +420,9 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             timeout: TimeSpan.FromSeconds(5));
 
         await _ptt.Received(1).KeyUpAsync(Arg.Any<CancellationToken>());
+        // KeyUp is called inside the finally block BEFORE Keying is cleared (issue #180: the read raced
+        // that clear on macOS). Wait for the positive condition, then assert.
+        await Poll.WaitForEqualAsync(() => _sut!.Keying, false, timeout: TimeSpan.FromSeconds(5), what: "Keying");
         _sut!.Keying.Should().BeFalse("the finally block clears keying even on the cancellation path");
     }
 

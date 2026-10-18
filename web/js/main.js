@@ -10,13 +10,15 @@ import { connect }                                                          from
 import { getConfig, getFrequencies, postTune, postAudioOffset,
          getTxStatus, postTxEnable, postTxDisable, postTxAbort,
          postTxSelectResponder, postTxCallCq, postTxStopCq,
-         postTxCallerPartnerSelect, getApiKey,
+         postTxCallerPartnerSelect, getApiKey, redirectToLogin,
          getPropModes, postLogQso,
          postTxEngageDecode,
          getDecodeFilter, postDecodeFilter }                                 from './api.js';
 import { WaterfallRenderer }                                                 from './spectrum.js';
+import { createCycleTimer }                                                  from './cycleTimer.js';
 import { isDecodeVisible, UNFILTERED_DECODE_FILTER }                         from './decodeFilter.js';
 import { createEarlyRowTracker, markEarlyRow }                              from './earlyRows.js';
+import { classifyDecodeRow, applyDecodeRowClasses }                         from './decodeRowClasses.js';
 import { shouldCaptureDecode, buildTranscriptEntry, pushTranscriptEntry,
          hasEnteredNewActiveTxState, cacheRealRowText, pickRowText,
          TRANSCRIPT_LOG_MAX }                                               from './qsoTranscript.js';
@@ -182,7 +184,7 @@ function appendTranscriptEntry(kind, text, partner) {
  * `activeStates` (design.md Decision 2). `prevState` defaults to `state` itself (no-op: no
  * entry logged) for callers that are merely re-rendering the current state rather than
  * reacting to a genuine `txState` transition (e.g. the post-config-load refresh in
- * `startCycleTimerIfEnabled`).
+ * `applyConfig`).
  *
  * @param {string|null}      partner
  * @param {string}           state
@@ -422,14 +424,16 @@ function extractCqCallsign(message) {
 }
 
 /**
- * Returns true if `token` matches `callsign` exactly or as a portable suffix
- * (e.g. "PD2FZ/P" matches callsign "PD2FZ").
- * @param {string} token
- * @param {string} callsign
- * @returns {boolean}
+ * The inputs `classifyDecodeRow` needs, read from the live TX state (decodeRowClasses.js).
+ * @returns {import('./decodeRowClasses.js').DecodeRowContext}
  */
-function tokenMatchesCallsign(token, callsign) {
-  return token === callsign || token.startsWith(callsign + '/');
+function decodeRowContext() {
+  return {
+    txCallsign:    txCallsign ?? '',
+    role:          currentTxRole,
+    state:         currentTxState,
+    partnerSelect: currentCallerPartnerSelect,
+  };
 }
 
 // ── decode-panel-filtering: filter state and popup UI ───────────────────────
@@ -694,13 +698,6 @@ function initDecodeFilter() {
     if (target instanceof HTMLElement && target.classList.contains('filterable-col')) return;
     closeFilterPopup();
   });
-
-  getDecodeFilter().then(state => {
-    currentDecodeFilter = { ...UNFILTERED_DECODE_FILTER, ...state };
-    reapplyDecodeFilterToRenderedRows();
-  }).catch(err => {
-    console.warn('GET /api/v1/decode-filter failed on load — filtering stays unfiltered:', err);
-  });
 }
 
 // ── Decoded-messages table ────────────────────────────────────────────────
@@ -850,17 +847,12 @@ function handleDecodes(results, resolves) {
     // the race against engage-decode's own abort-then-dispatch and produced a guaranteed
     // spurious 409 on every double-click; see
     // dev-tasks/2026-07-12-answerer-abort-hard-stop-and-reengage-timing.md).
-    if (r.message.startsWith('CQ ')) {
-      tr.classList.add('decode-cq');
-      tr.style.cursor = 'pointer';
-    }
-
-    // Highlight any row addressed to the operator's callsign in red.
-    // Simple rule: any space-delimited token in the message matches our callsign.
+    // The highlight classes come from decodeRowClasses.js, shared with the early-row path (#219).
+    // Highlight any row addressed to the operator's callsign in red (any token matches our callsign).
+    const rowClass = classifyDecodeRow(r.message, decodeRowContext());
+    applyDecodeRowClasses(tr, rowClass);
+    if (rowClass.cq) tr.style.cursor = 'pointer';
     const msgTokens = r.message.split(' ');
-    if (txCallsign && msgTokens.some(t => tokenMatchesCallsign(t, txCallsign))) {
-      tr.classList.add('decode-partner');
-    }
 
     // Task 7.5 / 7.7 — Caller responder highlighting and click-to-select.
     // When role is 'caller', state is WaitAnswer, and CallerPartnerSelect is
@@ -870,18 +862,7 @@ function handleDecodes(results, resolves) {
     // POST /api/v1/tx/select-responder with the responder's callsign.
     // Note: decode-responder (teal) wins over decode-partner (red) in the CSS
     // cascade when both apply, correctly signalling that the row is clickable.
-    const txCallsignBase = txCallsign ? txCallsign.split('/')[0] : '';
-    const isResponderRow =
-      currentTxRole === 'caller'
-      && currentTxState === 'WaitAnswer'
-      && currentCallerPartnerSelect === 'None'
-      && msgTokens.length >= 3
-      && txCallsign
-      && (msgTokens[0] === txCallsign
-          || msgTokens[0] === txCallsignBase);
-
-    if (isResponderRow) {
-      tr.classList.add('decode-responder');
+    if (rowClass.responder) {
       tr.style.cursor = 'pointer';
 
       let selectInFlight = false;
@@ -1072,6 +1053,10 @@ function handleEarlyDecodes(rows) {
     tr.hidden = !isDecodeVisible(r, currentDecodeFilter);
     tr.dataset.cqCycleStartUtc = parseFt8CycleStartUtc(r.time);
 
+    // #219: the same highlight classes as a final row (CQ, addressed to the operator, responder), so the early-row
+    // colours show. Display-only still: no handler and no pointer cursor (app.css keeps the default cursor).
+    applyDecodeRowClasses(tr, classifyDecodeRow(r.message, decodeRowContext()));
+
     earlyRowTracker.add(earlyId, tr, messageCell);
   }
 
@@ -1120,42 +1105,128 @@ function tickCycleTimer() {
 }
 
 /**
- * Fetch config. If ShowCycleCountdown is true, make the timer visible and
- * start the 100 ms tick. The hidden attribute is never used — see FR-036.
+ * The 100 ms countdown interval, started at most once however often the configuration is
+ * applied (#212, FR-087: the configuration is re-applied every time the Settings panel closes).
  */
-async function startCycleTimerIfEnabled() {
+const cycleTimer = createCycleTimer({ tick: tickCycleTimer });
+
+// ── Config-derived state (#212, FR-087) ───────────────────────────────────
+//
+// The main page reads its configuration-derived state from the daemon, and no WebSocket event
+// reports a configuration change. Each read below therefore has an idempotent `apply…` half, so
+// the same code serves the first load (`initConfigDerivedState`) and every later refresh
+// (`refreshConfigDerivedState`, on Settings close and on a WebSocket reconnect). Design E1 lists
+// every load-time read and why it is, or is not, refreshed.
+
+/**
+ * Apply `GET /api/v1/config` to the page: countdown visibility, the operator's callsign and grid
+ * (and the message rows built from them) and the pile-up selection mode. Idempotent.
+ * @param {any} config
+ */
+function applyConfig(config) {
+  // FR-036: the hidden attribute is never used; CSS provides the default (visibility: hidden).
+  const visible = cycleTimer.apply(!!config.showCycleCountdown);
+  cycleTimerEl.style.visibility = visible ? 'visible' : '';
+
+  // Task 6.8: extract callsign and grid from tx config; refresh message rows.
+  if (config.tx?.callsign) txCallsign = config.tx.callsign;
+  if (config.tx?.grid)     txGrid     = config.tx.grid;
+  // Task 7.6: read callerPartnerSelect for decode-responder row click handling.
+  // Guard against null/undefined (not falsy) so 'First' (which is truthy anyway)
+  // and 'None' are both accepted, and any future integer serialisation artefacts
+  // are still captured correctly.
+  if (config.tx?.callerPartnerSelect != null) {
+    currentCallerPartnerSelect = config.tx.callerPartnerSelect;
+  }
+  // Sync checkbox state (no event fired).
+  if (pileupAutoSelectEl) {
+    pileupAutoSelectEl.checked = (currentCallerPartnerSelect === 'First');
+  }
+  renderMessageRows(currentTxPartner, currentTxState, currentAutoAnswerEnabled, currentTxRole);
+}
+
+/**
+ * Apply the working-frequency list: cache the active protocol's entries and rebuild the dial
+ * dropdown if it is showing. Idempotent.
+ * @param {Array<{protocol: string, frequencyMHz: number, description: string}>} entries
+ */
+function applyFrequencies(entries) {
+  if (!Array.isArray(entries)) return;
+  cachedFt8Frequencies = entries.filter(e => e.protocol === activeProtocol);
+
+  // F-004: if the dropdown was already rendered before the fetch resolved (start-up race —
+  // WebSocket status arrives before the HTTP round-trip completes), force a rebuild now so all
+  // frequency options appear. It also picks up an edited list after Settings (#212).
+  const existing = document.getElementById('dial-freq');
+  if (existing?.tagName === 'SELECT') {
+    const currentVal = parseFloat(/** @type {HTMLSelectElement} */ (existing).value);
+    renderDialFreqSelect(isFinite(currentVal) ? currentVal : 0);
+  }
+}
+
+/**
+ * Apply `GET /api/v1/tx/status` to the TX panel. Idempotent.
+ * @param {any} status
+ */
+function applyTxStatus(status) {
+  // FR-PILEUP-001: initialise pileup mode from the status response if present.
+  if (status.callerPartnerSelect != null) {
+    currentCallerPartnerSelect = status.callerPartnerSelect;
+  }
+  renderTxPanel(
+    status.state             ?? 'Idle',
+    status.partner           ?? null,
+    status.autoAnswerEnabled ?? false,
+    status.role              ?? 'answerer',
+    status.keying            ?? false,
+    status.lastTxMessage     ?? null);
+}
+
+/**
+ * Apply the daemon's decode-filter state and re-evaluate every rendered row. Idempotent.
+ * @param {any} state
+ */
+function applyDecodeFilter(state) {
+  currentDecodeFilter = { ...UNFILTERED_DECODE_FILTER, ...state };
+  reapplyDecodeFilterToRenderedRows();
+}
+
+/**
+ * Re-read the four config-derived sources and apply each on its own: one failing GET leaves the
+ * other three applied (and the page keeps whatever it already showed for the failed one).
+ * @returns {Promise<void>}
+ */
+async function readConfigDerivedState() {
+  await Promise.all([
+    getConfig().then(applyConfig).catch(err =>
+      console.warn('GET /api/v1/config failed — config-derived state unchanged:', err)),
+    getFrequencies().then(applyFrequencies).catch(() => {
+      // Best-effort; the dropdown keeps what it had (or falls back to its single-option display).
+    }),
+    getTxStatus().then(applyTxStatus).catch(err =>
+      // Non-fatal — the TX panel keeps its state.
+      console.warn('GET /api/v1/tx/status failed:', err)),
+    getDecodeFilter().then(applyDecodeFilter).catch(err =>
+      console.warn('GET /api/v1/decode-filter failed — filter state unchanged:', err)),
+  ]);
+}
+
+/** One-time start-up read (from DOMContentLoaded). */
+function initConfigDerivedState() {
   // Remove the HTML hidden attribute unconditionally — CSS provides the default
   // visibility: hidden state.  This prevents a FOUC if the attribute is left on
   // the element at parse time.
   cycleTimerEl.removeAttribute('hidden');
+  return readConfigDerivedState();
+}
 
-  try {
-    const config = await getConfig();
-    if (config.showCycleCountdown) {
-      cycleTimerEl.style.visibility = 'visible';
-      tickCycleTimer();
-      setInterval(tickCycleTimer, 100);
-    }
-    // If false, CSS default (visibility: hidden) applies — no explicit set needed.
-
-    // Task 6.8: extract callsign and grid from tx config; refresh message rows.
-    if (config.tx?.callsign) txCallsign = config.tx.callsign;
-    if (config.tx?.grid)     txGrid     = config.tx.grid;
-    // Task 7.6: read callerPartnerSelect for decode-responder row click handling.
-    // Guard against null/undefined (not falsy) so 'First' (which is truthy anyway)
-    // and 'None' are both accepted, and any future integer serialisation artefacts
-    // are still captured correctly.
-    if (config.tx?.callerPartnerSelect != null) {
-      currentCallerPartnerSelect = config.tx.callerPartnerSelect;
-    }
-    // Sync initial checkbox state (no event fired).
-    if (pileupAutoSelectEl) {
-      pileupAutoSelectEl.checked = (currentCallerPartnerSelect === 'First');
-    }
-    renderMessageRows(currentTxPartner, currentTxState, currentAutoAnswerEnabled, currentTxRole);
-  } catch {
-    // Config fetch failed — timer stays hidden; message rows keep their defaults.
-  }
+/**
+ * Re-read the config-derived state without reloading the page: called when the Settings panel
+ * closes and when the WebSocket reconnects after a disconnect (a daemon restart can finish after
+ * the panel has closed, so the close-time reads may have seen the old daemon or failed).
+ */
+function refreshConfigDerivedState() {
+  return readConfigDerivedState();
 }
 
 // ── Status bar elements ───────────────────────────────────────────────────
@@ -1197,6 +1268,29 @@ function renderDialFreqSpan(freqMHz) {
 }
 
 /**
+ * Display text of one dial-dropdown option.
+ * @param {{frequencyMHz: number, description: string}} entry
+ * @returns {string}
+ */
+function dialOptionText(entry) {
+  return entry.frequencyMHz.toFixed(3) + ' MHz'
+         + (entry.description ? ` — ${entry.description}` : '');
+}
+
+/**
+ * Whether `select` already shows exactly the cached frequency list: same length and the same
+ * (value, text) pair at every position.
+ * @param {HTMLSelectElement} select
+ * @returns {boolean}
+ */
+function dialSelectShowsCachedList(select) {
+  if (select.options.length !== cachedFt8Frequencies.length) return false;
+  return cachedFt8Frequencies.every((entry, i) =>
+    select.options[i].value === String(entry.frequencyMHz) &&
+    select.options[i].textContent === dialOptionText(entry));
+}
+
+/**
  * Replace #dial-freq with a <select> populated from the cached FT8 frequency
  * list. Selects the option closest to freqMHz. Attaches a change handler
  * that calls POST /api/v1/tune and updates the display on success.
@@ -1207,12 +1301,13 @@ function renderDialFreqSelect(freqMHz) {
   const old = document.getElementById('dial-freq');
   if (!old) return;
 
-  // Re-use existing select only if options are already fully populated.
-  // When the cache was empty at first render (start-up race — F-004) the
-  // select will have fewer options than the cache; fall through to rebuild.
+  // Re-use the existing select only if it already shows exactly the cached list. The comparison
+  // is on CONTENT (value and text of every option), not on the option count: a start-up race
+  // (F-004) leaves fewer options than the cache, and an edit in Settings can keep the count while
+  // changing a description or a frequency (#212).
   if (old.tagName === 'SELECT' &&
       cachedFt8Frequencies.length > 0 &&
-      old.options.length === cachedFt8Frequencies.length) {
+      dialSelectShowsCachedList(/** @type {HTMLSelectElement} */ (old))) {
     updateSelectValue(/** @type {HTMLSelectElement} */ (old), hz);
     return;
   }
@@ -1230,8 +1325,7 @@ function renderDialFreqSelect(freqMHz) {
     for (const entry of cachedFt8Frequencies) {
       const opt = document.createElement('option');
       opt.value       = String(entry.frequencyMHz);
-      opt.textContent = entry.frequencyMHz.toFixed(3) + ' MHz'
-                        + (entry.description ? ` — ${entry.description}` : '');
+      opt.textContent = dialOptionText(entry);
       select.appendChild(opt);
     }
   }
@@ -1500,30 +1594,13 @@ async function openQsoLogDialog(ev) {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  // Start cycle countdown timer (shows only when enabled in config).
-  // Also extracts config.tx.callsign / .grid for message row rendering (task 6.8).
-  startCycleTimerIfEnabled();
-
-  // decode-panel-filtering: wire column-header popups and seed the current filter state.
+  // decode-panel-filtering: wire column-header popups (the filter state itself is read below).
   initDecodeFilter();
 
-  // Task 6.1 / 7.4 — Seed the TX panel with current server state on page load.
-  getTxStatus().then(status => {
-    // FR-PILEUP-001: initialise pileup mode from the status response if present.
-    if (status.callerPartnerSelect != null) {
-      currentCallerPartnerSelect = status.callerPartnerSelect;
-    }
-    renderTxPanel(
-      status.state             ?? 'Idle',
-      status.partner           ?? null,
-      status.autoAnswerEnabled ?? false,
-      status.role              ?? 'answerer',
-      status.keying            ?? false,
-      status.lastTxMessage     ?? null);
-  }).catch(err => {
-    // Non-fatal — panel stays in default disarmed / Idle state.
-    console.warn('GET /api/v1/tx/status failed on load:', err);
-  });
+  // Seed everything the daemon owns on first load: config (callsign, grid, countdown, pile-up
+  // mode; task 6.8), the working-frequency list (task 8.1), the TX panel (tasks 6.1 / 7.4) and the
+  // decode filter. The same reads run again on every Settings close and WebSocket reconnect.
+  initConfigDerivedState();
 
   // Task 6.6 — Enable TX / TX Armed toggle button.
   if (txEnableBtnEl) {
@@ -1642,28 +1719,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Task 8.1: fetch frequency list once on page load and cache it.
-  // F-004: if the dropdown was already rendered before the fetch resolved
-  // (start-up race — WebSocket status arrives before the HTTP round-trip
-  // completes), force a rebuild now so all frequency options appear.
-  getFrequencies().then(entries => {
-    if (!Array.isArray(entries)) return;
-    cachedFt8Frequencies = entries.filter(e => e.protocol === activeProtocol);
-
-    const existing = document.getElementById('dial-freq');
-    if (existing?.tagName === 'SELECT') {
-      const currentVal = parseFloat(/** @type {HTMLSelectElement} */ (existing).value);
-      renderDialFreqSelect(isFinite(currentVal) ? currentVal : 0);
-    }
-  }).catch(() => {
-    // Best-effort; dropdown will fall back to single-option display.
-  });
-
   // Live waterfall renderer — replaces the static placeholder.
   const canvas   = /** @type {HTMLCanvasElement} */ (document.getElementById('waterfall'));
   const renderer = new WaterfallRenderer(canvas);
-  const observer = new ResizeObserver(() => renderer.resize());
+
+  // FR-086: ResizeObserver can fire many times per frame during a window drag; repaint at most once
+  // per animation frame. A change of devicePixelRatio (monitor change, browser zoom) changes the
+  // physical size without changing the CSS size, so it feeds the same path.
+  let waterfallResizeFramePending = false;
+  function scheduleWaterfallResize() {
+    if (waterfallResizeFramePending) return;
+    waterfallResizeFramePending = true;
+    requestAnimationFrame(() => {
+      waterfallResizeFramePending = false;
+      renderer.resize();
+    });
+  }
+  const observer = new ResizeObserver(scheduleWaterfallResize);
   observer.observe(canvas.parentElement ?? canvas);
+
+  /** Re-arms a one-shot listener for the NEXT devicePixelRatio change. */
+  function watchDevicePixelRatio() {
+    const query = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    query.addEventListener('change', () => {
+      scheduleWaterfallResize();
+      watchDevicePixelRatio();
+    }, { once: true });
+  }
+  watchDevicePixelRatio();
 
   // ── Audio offset / cursor state ───────────────────────────────────────────
 
@@ -1779,8 +1862,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: key ? { 'X-Api-Key': key } : {},
       });
       if (response.status === 401) {
-        sessionStorage.removeItem('owsfz-api-key');
-        window.location.href = '/login.html';
+        redirectToLogin();
         return;
       }
       if (response.ok) {
@@ -1798,11 +1880,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Connect WebSocket and update status bar.
+  // wasDisconnected: the next `connected` is a RECONNECT (not the first connect, which
+  // initConfigDerivedState() covers). The hub sends only `status` on connect, so after a daemon
+  // restart the config-derived state is re-read here (FR-087).
+  let wasDisconnected = false;
   connect((event) => {
     if (event.type === '__state') {
       if (event.payload === 'connected') {
         setWsState('connected', 'Connected');
+        if (wasDisconnected) {
+          wasDisconnected = false;
+          refreshConfigDerivedState();
+        }
       } else {
+        wasDisconnected = true;
         setWsState('disconnected', 'Disconnected');
         audioDeviceEl.textContent = '(no device)';
         setAudioActive(false);
@@ -1930,5 +2021,106 @@ document.addEventListener('DOMContentLoaded', () => {
     if (key) {
       settingsNavLink.href = '/settings.html?key=' + encodeURIComponent(key);
     }
+    initSettingsPanel(/** @type {HTMLAnchorElement} */ (settingsNavLink));
   }
 });
+
+// ── Settings panel (#212, FR-087) ─────────────────────────────────────────
+
+/** `postMessage` type the embedded Settings page sends to ask the main page to close the panel. */
+const SETTINGS_CLOSE_MESSAGE = 'owsfz.settings.close';
+
+/**
+ * Wires the Settings link, the panel's own close button and the dialog's cancel event to the ONE
+ * close function, and makes a plain left-click open Settings in a modal iframe instead of
+ * navigating (the page behind keeps running). Anything but an unmodified primary-button click
+ * falls through to the link's real href.
+ *
+ * Close paths, all through `requestCloseSettings()`:
+ *   1. the Close link inside the iframe        (postMessage from settings.js)
+ *   2. the panel's close button
+ *   3. Escape with focus inside the iframe     (postMessage from settings.js)
+ *   4. Escape on the main page                 (the dialog's `cancel` event)
+ *
+ * @param {HTMLAnchorElement} settingsLink
+ */
+function initSettingsPanel(settingsLink) {
+  const dialogEl = /** @type {HTMLDialogElement|null} */ (document.getElementById('settings-dialog'));
+  const bodyEl   = document.getElementById('settings-dialog-body');
+  const closeBtn = document.getElementById('settings-dialog-close');
+  if (!dialogEl || !bodyEl || !closeBtn) return;
+
+  /** @type {HTMLIFrameElement|null} */
+  let frameEl = null;
+
+  function openSettingsPanel() {
+    if (dialogEl.open) return;
+    // A fresh iframe on every open: Settings always shows the daemon's current configuration and no
+    // second set of Settings timers runs while the panel is closed.
+    const url = new URL(settingsLink.href, location.href);
+    url.searchParams.set('embedded', '1');
+    const iframe = document.createElement('iframe');
+    iframe.title = 'Settings';
+    iframe.addEventListener('load', () => {
+      // Focus moves into the panel: the active tab button.
+      const tab = iframe.contentDocument?.querySelector('[role="tab"][aria-selected="true"]');
+      if (tab instanceof iframe.contentWindow.HTMLElement) tab.focus();
+    });
+    iframe.src = url.pathname + url.search;
+    bodyEl.replaceChildren(iframe);
+    frameEl = iframe;
+    dialogEl.showModal();
+  }
+
+  /**
+   * The one close function. When the Settings form is dirty (FR-040) the embedded page asks the
+   * FR-041 question; answering Cancel leaves the panel open with the edits intact.
+   * @returns {boolean} true if the panel closed
+   */
+  function requestCloseSettings() {
+    if (!dialogEl.open) return false;
+    // The page is absent while the iframe is still loading: nothing can be dirty before the form exists.
+    const guard = frameEl?.contentWindow?.owsfzSettings;
+    if (guard && !guard.requestClose()) return false;
+    dialogEl.close();
+    return true;
+  }
+
+  // Every way the dialog can end (requestCloseSettings, or a native close) lands here once.
+  dialogEl.addEventListener('close', () => {
+    frameEl?.remove();
+    frameEl = null;
+    settingsLink.focus();
+    // The page reads its configuration at load only and no event reports a change, so re-read it.
+    refreshConfigDerivedState();
+  });
+
+  settingsLink.addEventListener('click', (ev) => {
+    if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
+    ev.preventDefault();
+    openSettingsPanel();
+  });
+
+  closeBtn.addEventListener('click', () => { requestCloseSettings(); });
+
+  // Escape on the main page. Handled on keydown so the browser's own close request never starts:
+  // Chromium makes the dialog's `cancel` event NON-cancelable when Escape repeats without user
+  // activation, and a preventDefault() there is then ignored (the guard was bypassed on the 3rd press).
+  dialogEl.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    ev.preventDefault();
+    requestCloseSettings();
+  });
+  // Backstop: any close request that still reaches `cancel` goes through the same guard.
+  dialogEl.addEventListener('cancel', (ev) => {
+    ev.preventDefault();
+    requestCloseSettings();
+  });
+
+  // The embedded Settings page asks to close (its Close link, or Escape inside the iframe).
+  window.addEventListener('message', (ev) => {
+    if (ev.origin !== location.origin) return;
+    if (!frameEl || ev.source !== frameEl.contentWindow) return;
+    if (ev.data?.type === SETTINGS_CLOSE_MESSAGE) requestCloseSettings();
+  });
+}

@@ -1383,7 +1383,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     /// <summary>
     /// Returns <c>true</c> if <paramref name="msg"/> appears to be a response to our CQ:
     /// <c>{ourCallsign} {theirCallsign} {theirGrid|signalReport}</c>.
-    /// The third token may be a Maidenhead grid (first two chars are letters) OR a signal
+    /// The third token may be a 4-character Maidenhead grid (never <c>RR73</c>/<c>RRR</c>) OR a signal
     /// report (<c>+NN</c>, <c>-NN</c>, <c>R+NN</c>, <c>R-NN</c>): some operators skip the
     /// grid exchange and answer a CQ directly with a report, which is valid FT8 behaviour.
     /// Accepts both the full compound callsign (e.g. <c>PD2FZ/P</c>) and the base callsign
@@ -1424,14 +1424,12 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             !parts[0].Equals(baseCallsign, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        // Third token must be either a Maidenhead grid (first two chars are letters)
+        // Third token must be either a 4-char Maidenhead grid (not RR73, #192)
         // or a signal report (+NN / -NN / R+NN / R-NN).
         // Some operators skip the grid-square exchange and respond to a CQ directly
         // with a signal report; this is valid FT8 behaviour.
         var thirdToken = parts[2];
-        var isGrid   = thirdToken.Length >= 2
-                       && char.IsLetter(thirdToken[0])
-                       && char.IsLetter(thirdToken[1]);
+        var isGrid   = IsReplyGrid(thirdToken);
         var isReport = IsSignalReport(thirdToken);
         if (!isGrid && !isReport)
             return false;
@@ -1445,6 +1443,19 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
         return true;
     }
+
+    /// <summary>
+    /// Returns <c>true</c> if <paramref name="token"/> is a 4-character Maidenhead field+square
+    /// (<c>[A-R]{2}[0-9]{2}</c>) and not the closing token <c>RR73</c>, which fits that
+    /// pattern but is never a grid (GitHub #192). <c>RRR</c> fails on length.
+    /// </summary>
+    internal static bool IsReplyGrid(string token) =>
+        token.Length == 4
+        && !token.Equals("RR73", StringComparison.OrdinalIgnoreCase)
+        && char.ToUpperInvariant(token[0]) is >= 'A' and <= 'R'
+        && char.ToUpperInvariant(token[1]) is >= 'A' and <= 'R'
+        && char.IsAsciiDigit(token[2])
+        && char.IsAsciiDigit(token[3]);
 
     /// <summary>
     /// Returns <c>true</c> if <paramref name="payload"/> looks like an FT8 signal

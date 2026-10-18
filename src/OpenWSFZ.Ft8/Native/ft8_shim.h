@@ -872,6 +872,21 @@ extern "C" {
  *              decode nhard, corr/norm, depth and batch, plus per-pass gate-reject counts by reason; numbers only, no
  *              decode output changes.
  *
+ *   20260059 — sub-feas-speed-redesign Stage B item B2 (a pruned frequency search in the fit). NUMERICS-CHANGING, so the
+ *              Stage A bit-identity (E1) no longer applies; the acceptance is E2 (per-signal Δt, Δf, ḟ equivalence) and E3
+ *              (no loss of residual decodes), design.md D11. Changes ONLY subfeas_fit.c's freq_search: the 262 144-point
+ *              FFT of the Δt (step 1, 201 candidates) and ḟ (step 2, 41 candidates) searches, of which only the bins with
+ *              |f| <= 2.0 Hz (87) are used, is replaced by a decimation by 64 with linear-interpolation weights and a
+ *              4 096-point FFT (the bin spacing is unchanged), the magnitudes divided by the kernel's droop, scanned in the
+ *              reference's index order with its first-strictly-greater tie-break. The result is always a bin centre, as
+ *              before. Each workspace gains one 4 096-point FFT plan (the pool's bytes-per-workspace stat grows by it). NO
+ *              new or changed export, no ABI change, no change to ft8_decode_all or any other function.
+ *
+ *   20260062 — sub-feas-stage-b B2 merged with main (origin/main 76aa48cd, shim 20260060; B2 branch aab18b75, shim 20260059).
+ *              NO new export, NO ABI change, no change to any decode path: the merge brings B2's subfeas_fit.c freq_search
+ *              change onto the 20260060 line (OSD sign fix, hash-state exports). 20260059 and
+ *              20260060 are both history; 20260061 is held by origin/decoding_improvement, so the merged build takes 20260062.
+
  *   20260061 — decoding_improvement sync 5 (2026-10-09): the UNION of both lines of native work, NO new native
  *              behaviour. decoding_improvement's exports (20260053 pass-1 probe: ft8_set_probe, ft8_clear_probe,
  *              ft8_get_probe_llrs, ft8_get_last_suppression; 20260054 decoder-param-readout: ft8_get_decoder_params,
@@ -881,8 +896,14 @@ extern "C" {
  *              decode.c's OSD call: osd_prepare_llr() then osd_decode(llr, OSD_DEPTH, ...) with OSD_DEPTH == 2 (the
  *              literal main had). Flag-OFF decode output is as each side had it. The number is new so a merged DLL
  *              cannot be mistaken for either parent's (it identifies nothing; pin the DLL SHA-256).
+
+ *   20260063 � decoding_improvement sync 6 (2026-10-18): main's B2 (20260059 / 20260062: the pruned freq_search in
+ *              subfeas_fit.c, shim 20260062) merged into decoding_improvement (20260061: decoder-param-readout, runtime
+ *              suppression state, pass-1 probe tap). The UNION of both lines of native work, NO new native behaviour, NO new
+ *              export. subfeas_fit.c is byte-identical to main's. 20260062 is held by origin/main; 20260061 by
+ *              decoding_improvement, so the merged build takes 20260063 (it identifies nothing; pin the DLL SHA-256).
  */
-#define FT8_SHIM_VERSION 20260061
+#define FT8_SHIM_VERSION 20260063
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

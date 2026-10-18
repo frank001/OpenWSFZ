@@ -198,3 +198,23 @@ FR-062  # TX panel — QSO Transcript section — JS/HTML unified sent/received/
         # holds throughout.
         # Remove when a committed browser-automation test (e.g. Playwright, mirroring the
         # precedent for SEC-003/FR-055 above) exercises the DOM wiring programmatically.
+
+## Pending — gui-state-preservation (waterfall history and Settings panel, #212)
+
+FR-086  # The waterfall keeps its history through a window resize — JS/canvas; UI-layer only,
+        # same class of gap as FR-062/FR-055 above. The pure logic (ring buffer, repaint,
+        # zero-size paint, mixed line lengths) IS covered by node --test cases in
+        # web/js/waterfallHistory.test.js (U1-U6), but node --test names are structurally
+        # invisible to TraceabilityCheck (it scans compiled xUnit DisplayNames only), so this
+        # ID needs a debt entry despite real automated coverage. The canvas wiring (resize,
+        # collapse to zero height and restore, byte-identical readback) is exercised by the
+        # COMMITTED Playwright script tests/web-ui/gui-state.playwright.mjs (A1, A2).
+        # Remove when the Playwright script runs in CI and a mapped test can name FR-086.
+FR-087  # Settings opens over the live main page (modal iframe panel, one guarded close path,
+        # config refresh on close and on reconnect, 401 to the top window) — JS/HTML; UI-layer
+        # only, same class of gap as FR-041/FR-062 above. The idempotent countdown timer is
+        # covered by web/js/cycleTimer.test.js (U7), invisible to TraceabilityCheck for the same
+        # reason as FR-062. The panel behaviour is exercised by the COMMITTED Playwright script
+        # tests/web-ui/gui-state.playwright.mjs (A3-A9: close paths, dirty guard, config refresh,
+        # daemon restart, direct visit, Ctrl-click, 401).
+        # Remove when the Playwright script runs in CI and a mapped test can name FR-087.

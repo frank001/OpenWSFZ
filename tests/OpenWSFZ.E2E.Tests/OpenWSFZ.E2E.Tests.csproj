@@ -15,6 +15,10 @@
     <PackageReference Include="FluentAssertions" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\OpenWSFZ.TestSupport\OpenWSFZ.TestSupport.csproj" />
+  </ItemGroup>
+
   <!-- E2E precondition auto-publish (2026-09-12, QA). TESTING_STRATEGY.md section 8.2
        bans [Fact(Skip = "...")] as a code smell, and this category is not the same
        shape as the AwgnFpReplay measurement-arm exclusion in section 4.7: that

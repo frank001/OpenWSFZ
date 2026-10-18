@@ -11,36 +11,10 @@
  * @module spectrum
  */
 
+import { WaterfallHistory, paintRow } from './waterfallHistory.js';
+
 const MAX_FREQ_HZ = 3000;
 const TICK_FREQS  = [500, 1000, 1500, 2000, 2500, 3000];
-
-/**
- * Maps an intensity value [0, 255] to an RGB triple using a 4-stop gradient:
- *   0   → black   [0,   0,   0  ]
- *   64  → blue    [0,   0,   255]
- *   128 → cyan    [0,   255, 255]
- *   192 → yellow  [255, 255, 0  ]
- *   255 → white   [255, 255, 255]
- *
- * @param {number} v  Integer in [0, 255]
- * @returns {[number, number, number]}  [R, G, B] each in [0, 255]
- */
-function colormap(v) {
-  if (v < 64) {
-    const t = v / 64;
-    return [0, 0, Math.round(t * 255)];
-  }
-  if (v < 128) {
-    const t = (v - 64) / 64;
-    return [0, Math.round(t * 255), 255];
-  }
-  if (v < 192) {
-    const t = (v - 128) / 64;
-    return [Math.round(t * 255), 255, Math.round((1 - t) * 255)];
-  }
-  const t = (v - 192) / 63;
-  return [255, 255, Math.round(t * 255)];
-}
 
 /**
  * Scrolling waterfall renderer backed by a raw ImageData pixel buffer.
@@ -54,6 +28,9 @@ export class WaterfallRenderer {
     this._canvas    = canvas;
     this._ctx       = canvas.getContext('2d');
     this._imageData = null;
+    // Raw spectrum lines (FR-086): the pixel buffer is derived from these, so a resize repaints
+    // them exactly instead of losing them with the buffer.
+    this._history   = new WaterfallHistory();
     // Back buffer — all compositing happens here; visible canvas receives one
     // atomic drawImage() per logical frame, eliminating intermediate states.
     this._offscreen = null;
@@ -101,6 +78,8 @@ export class WaterfallRenderer {
    * @param {number[]} bins  Array of OutputBinCount integers, each in [0, 255].
    */
   render(bins) {
+    // Remember the line first, even while the pixel buffer is unavailable (zero-size panel).
+    this._history.push(bins);
     if (!this._imageData) return;
 
     const w    = this._canvas.width;
@@ -112,18 +91,8 @@ export class WaterfallRenderer {
     const rowBytes = w * 4;
     data.copyWithin(rowBytes, 0);
 
-    // Write the new spectrum line into row 0.
-    const binCount = bins.length;
-    for (let x = 0; x < w; x++) {
-      const binIdx    = Math.min(Math.floor(x * binCount / w), binCount - 1);
-      const intensity = bins[binIdx];
-      const [r, g, b] = colormap(intensity);
-      const px        = x * 4;
-      data[px]     = r;
-      data[px + 1] = g;
-      data[px + 2] = b;
-      // Alpha channel (data[px + 3]) is pre-set to 255 in _resize().
-    }
+    // Write the new spectrum line into row 0 with the same painter the resize repaint uses.
+    paintRow(bins, w, data, 0);
 
     // Composite onto back buffer then blit — single write to the visible canvas.
     this._flushToCanvas();
@@ -134,24 +103,29 @@ export class WaterfallRenderer {
   _resize() {
     const { width, height } = this._canvas.getBoundingClientRect();
     const dpr = devicePixelRatio;
-    const w   = Math.max(1, Math.round(width  * dpr));
-    const h   = Math.max(1, Math.round(height * dpr));
+    const w   = Math.round(width  * dpr);
+    const h   = Math.round(height * dpr);
+
+    // A collapsed panel (zero width or height) is ignored: assigning canvas.width/height clears the
+    // canvas, so touching anything here would lose the history. The buffers stay as they are and the
+    // next real size repaints (FR-086).
+    if (w === 0 || h === 0) return;
+
+    // Unchanged size: nothing to rebuild.
+    if (this._imageData && w === this._canvas.width && h === this._canvas.height) return;
 
     this._canvas.width  = w;
     this._canvas.height = h;
 
+    // Rebuild the pixel buffer from the stored lines (newest at the top, black below them).
     this._imageData = this._ctx.createImageData(w, h);
-
-    // Fill entirely black (RGB = 0) with full opacity (A = 255).
-    const data = this._imageData.data;
-    for (let i = 3; i < data.length; i += 4)
-      data[i] = 255;
+    this._imageData.data.set(this._history.paint(w, h));
 
     // Back buffer — always matches visible canvas dimensions.
     this._offscreen = new OffscreenCanvas(w, h);
     this._offCtx    = this._offscreen.getContext('2d');
 
-    // Task 5.5 — flush the blank canvas (with cursors) immediately after resize
+    // Task 5.5 — flush the repainted canvas (with cursors) immediately after resize
     // so the correct state appears before the next spectrum render() call arrives.
     this._flushToCanvas();
   }

@@ -64,6 +64,26 @@ public sealed class CatPollingServiceTests
         sw.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
     }
 
+    [Fact(DisplayName = "#181: CatPollingService StopAsync and DisposeAsync race without throwing")]
+    public async Task StopAsync_ConcurrentWithDisposeAsync_NeverThrows()
+    {
+        const int Iterations = 200;
+
+        for (var i = 0; i < Iterations; i++)
+        {
+            var (svc, _, _) = MakeService(new CatConfig { Enabled = false });
+            await svc.StartAsync(CancellationToken.None);
+
+            using var gate = new ManualResetEventSlim(false);
+            var stop    = Task.Run(() => { gate.Wait(); return svc.StopAsync(CancellationToken.None); });
+            var dispose = Task.Run(() => { gate.Wait(); return svc.DisposeAsync().AsTask(); });
+            gate.Set();
+
+            Func<Task> both = () => Task.WhenAll(stop, dispose);
+            await both.Should().NotThrowAsync();
+        }
+    }
+
     // ── Unknown rigModel ──────────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-034: CatPollingService sets Disabled for unrecognised rigModel")]
