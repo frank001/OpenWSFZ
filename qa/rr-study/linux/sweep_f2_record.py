@@ -3,7 +3,7 @@
 
     python3 sweep_f2_record.py --run-dir <results/..-sweepN> --scratch <qa-scratch/s6-..-sweepN> --daemon-log <rr-run/<name>/daemon.stdout.log> [--statuspoll FILE.jsonl] [--out DIR]
 
-Per PLAY of S6 pass O (the OpenWSFZ pass), from the LAST daemon's log (the S6 pass-O daemon):
+Per PLAY of S6 pass O (any tier) (the OpenWSFZ pass), from the LAST daemon's log (the S6 pass-O daemon):
   - residual pass: wall ms and deadlineAbandoned, mapped to the play by its adjacent 'Cycle HH:MM:SS' line (the same rule as s6_analyse.read_pass_lines);
   - third pass: outcome, wall ms, new decodes, mapped the SAME way, kept as ITS OWN field beside the residual pass's, never folded into it (Architect);
   - clamped: 1 if a 'Cycle-grid realignment clamped' line immediately precedes that play's Cycle line (the clamp applies to the cycle that follows it, as traced by hand for B2CAPR);
@@ -54,7 +54,7 @@ def main():
     out = a.out or a.run_dir
     rows = [json.loads(x) for x in open(os.path.join(a.run_dir, "s6", "s6_playlog.jsonl"), encoding="utf8")]
     plays = [r for r in rows if r["kind"] == "play"]
-    assert len(plays) == 180, len(plays)
+    assert plays, "no plays in s6_playlog.jsonl"      # 180 at the standard tier, 72 at the quick tier (the dry run), 36 at the smallest: no hard-coded count
     lines = open(a.daemon_log, encoding="utf-8", errors="replace").read().splitlines()
     starts = [i for i, x in enumerate(lines) if START in x]
     lines = lines[starts[-1]:] if starts else lines
