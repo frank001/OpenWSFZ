@@ -1,0 +1,95 @@
+{
+ "pins": [
+  {
+   "arm": "MAIN",
+   "commit": "f52f8c4b",
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "SYNC",
+   "commit": "61a480cd",
+   "libft8_sha256": "8237e9b818245ad70b4a46f4de4b8b27665db74e3bba6cbcb9566c583246da8e"
+  },
+  {
+   "arm": "CTRL",
+   "commit": "f52f8c4b",
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "CTRL2",
+   "commit": "f52f8c4b",
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  }
+ ],
+ "pairs": [
+  {
+   "pair": "MAIN vs SYNC",
+   "mode": "two0",
+   "cycles_in_files": 430,
+   "excluded_abandoned": 0,
+   "compared": 430,
+   "cycles_differing": 0,
+   "differing_stamps_first10": [],
+   "decodes_a": 8128,
+   "decodes_b": 8128
+  },
+  {
+   "pair": "MAIN vs SYNC",
+   "mode": "two1",
+   "cycles_in_files": 108,
+   "excluded_abandoned": 0,
+   "compared": 108,
+   "cycles_differing": 0,
+   "differing_stamps_first10": [],
+   "decodes_a": 2452,
+   "decodes_b": 2452
+  },
+  {
+   "pair": "MAIN vs CTRL",
+   "mode": "two0",
+   "cycles_in_files": 430,
+   "excluded_abandoned": 0,
+   "compared": 430,
+   "cycles_differing": 2,
+   "differing_stamps_first10": [
+    "261001_072830",
+    "261001_122100"
+   ],
+   "decodes_a": 8128,
+   "decodes_b": 8130
+  },
+  {
+   "pair": "MAIN vs CTRL",
+   "mode": "two1",
+   "cycles_in_files": 108,
+   "excluded_abandoned": 0,
+   "compared": 108,
+   "cycles_differing": 1,
+   "differing_stamps_first10": [
+    "261001_122100"
+   ],
+   "decodes_a": 2452,
+   "decodes_b": 2453
+  },
+  {
+   "pair": "MAIN vs CTRL2",
+   "mode": "two0",
+   "cycles_in_files": 430,
+   "excluded_abandoned": 0,
+   "compared": 430,
+   "cycles_differing": 5,
+   "differing_stamps_first10": [
+    "261001_014100",
+    "261001_023600",
+    "261001_065100",
+    "261001_074600",
+    "261001_094330"
+   ],
+   "decodes_a": 8128,
+   "decodes_b": 8123
+  }
+ ],
+ "identical_main_sync": true,
+ "control_detects_difference": true,
+ "valid": true
+}

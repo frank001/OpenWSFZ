@@ -29,14 +29,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 ART = os.path.join(REPO, "artefacts")
 RUN = "20260930_1930"
-SCR = r"D:\Projects\claude\_qa-scratch\di-sync-verify"
+SCR = r"D:\Projects\claude\_qa-scratch\di-sync-verify-6"      # sync 5 used ...\di-sync-verify (its checkouts are at the old commits)
 SEL10 = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-09-density-sub", "selection.json")
 SEL10_SHA = "04bb0818aed05142beb7c1cad1a365d01e3f77705573c1e91a201c16dfe58e5f"
 WAV_DIR = os.path.join(ART, f"{RUN}_endurance_run-gathered", "owsfz", "wav")
 WS_ALLTXT = os.path.join(ART, f"{RUN}_endurance_run-gathered", "wsjt-x", "ALL.TXT")
 CSPROJ = os.path.join(REPO, "qa", "rr-study", "sub-feas", "replay81", "Replay81.csproj")
-OUT = os.path.join(ART, "rr_2026-10-09_di_sync_identity")
-BUILDS = {"MAIN": "9fe32e8d", "SYNC": "421e3ce2", "CTRL": "9fe32e8d", "CTRL2": "9fe32e8d"}
+OUT = os.path.join(ART, "rr_2026-10-18_di_sync6_identity")
+# DI sync 6 (2026-10-18): MAIN = origin/main f52f8c4b (B2, shim 20260062); SYNC = the Developer's merge 61a480cd (shim 20260063). (Sync 5: 9fe32e8d / 421e3ce2.)
+BUILDS = {"MAIN": "f52f8c4b", "SYNC": "61a480cd", "CTRL": "f52f8c4b", "CTRL2": "f52f8c4b"}
 NHARD = {"MAIN": 24, "SYNC": 24, "CTRL": 30, "CTRL2": 24}
 SIGN = {"MAIN": 1, "SYNC": 1, "CTRL": 1, "CTRL2": 0}   # CTRL2: the OSD sign switch OFF (the old inverted behaviour): a LARGE, known difference
 CELLS = [("two0", "S10"), ("two1", "S40")]
@@ -95,7 +96,7 @@ def run_all():
             cmd = ["dotnet", os.path.join(hout, "Replay81.dll"), "--selection", sel, "--run", RUN, "--stratum", stratum,
                    "--wav-root", ART, "--wav-dir", WAV_DIR, "--out", f["run"], "--log", os.path.join(OUT, f"log_{tag}.log"),
                    "--mode", mode, "--threads", "8", "--nhard", str(NHARD[label]), "--osd-sign-fix", str(SIGN[label]),
-                   "--label", f"disync5:{tag}", "--wsjtx-alltxt", WS_ALLTXT, "--outcomes", f["outcomes"],
+                   "--label", f"disync6:{tag}", "--wsjtx-alltxt", WS_ALLTXT, "--outcomes", f["outcomes"],
                    "--abandon-out", f["abandon"], "--matched-out", f["matched"], "--testb-out", f["testb"]]
             r = subprocess.run(cmd, capture_output=True, text=True)
             print(tag, "rc", r.returncode, r.stderr[-200:], flush=True)
@@ -155,7 +156,7 @@ def compare():
     rep["identical_main_sync"] = all(p["cycles_differing"] == 0 and p["compared"] > 0 for p in main_sync)
     rep["control_detects_difference"] = all(p["cycles_differing"] > 0 for p in ctrl)
     rep["valid"] = rep["control_detects_difference"]            # an identity reading means nothing unless the control fires
-    d = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-09-di-sync-5")
+    d = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-18-di-sync-6")
     os.makedirs(d, exist_ok=True)
     json.dump(rep, open(os.path.join(d, "report.json"), "w"), indent=1)
     print(json.dumps(rep, indent=1))
