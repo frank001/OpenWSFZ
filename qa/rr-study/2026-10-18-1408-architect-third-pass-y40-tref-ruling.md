@@ -80,3 +80,25 @@ upper bound on the abandon share is about 7 %, so the HIT does not show the shar
 3. After both: the acceptance ruling. **No ship bar was set (HK-038).** Whether a +0.5 pp gain for about 1 s of decode
    time (more on sol) is worth shipping as an opt-in Deep setting is the Captain's call, and that ruling will set out the
    data for it.
+
+## Addendum 1: Y-2 and the sol dry run (2026-10-18 15:14Z, `date -u`)
+
+Figures as QA reported them (message stamped 15:18Z by QA, received 15:14Z by the Architect's `date -u`). Not recomputed.
+
+- **Y-2 (17 m, 2026-08-08, every 8th WAV = 232 cycles): VALID.** V0–V4 PASS. V1 control moved 5 of 232.
+  NET_3 **+0.482 pp [0.293, 0.679]** (4,568 WSJT-X decodes). 22 batch-3 decodes, all 22 matched, 0 OWS-only. Third pass on the
+  PC: median 0.62 s, max 0.94 s. Ran 173, skipped 59, 0 abandoned. **Descriptive only:** the WSJT-X settings of that
+  August session (depth, AP) are not on record, so its matched counts are against an unknown reference. It agrees with
+  Y-40, and the two CIs overlap almost completely. Cite it as "a second band, same size, reference unknown", never pooled
+  with Y-40.
+- **The yield part of the spec is complete.** Two bands, two nights, both about +0.5 pp, 82 of 84 batch-3 decodes matched.
+- **The sol dry run** (S6 quick tier, 72 plays, Deep, third-pass build): the chain works end to end. Depth read-back was VALID
+  on 1,361 polls; 0 clamps, 0 drops, 0 overruns, 0 third-pass abandons. Two aborted attempts caught real faults (missing
+  build provenance; the rig config changed through the Settings page, restored byte-exactly to pin `661de047`).
+  `callsign-regions.json` was refreshed and can't be restored. It affects region labels only, with noise suppression off,
+  so it does not touch decodes.
+- **One open item before reading per-play data from the sweeps:** 3 of 72 plays have no third-pass line (47 ran,
+  22 skipped, 3 no-line). The build logs every outcome, including `skipped-abandoned`, so a play with no line means either
+  no residual pass ran or the line-to-play mapping missed it. QA explains the 3 before TPDEEP's per-play F2 rows are read.
+  The sweeps themselves need not wait for this.
+
