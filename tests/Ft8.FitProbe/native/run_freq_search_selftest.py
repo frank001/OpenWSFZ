@@ -24,7 +24,21 @@ inc = os.path.join(root, 'native', 'ft8_lib_vendor')
 
 
 def find_vcvars():
-    """vcvars64.bat of any installed Visual Studio edition (the shipped build script names Community)."""
+    """vcvars64.bat of any installed Visual Studio edition (the shipped build script names Community).
+
+    vswhere first (finds any version, e.g. VS 2026 on the windows-2025-vs2026 runner); the 2022/2019 edition list is the fallback.
+    """
+    vswhere = os.path.join(os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)'), 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
+    if os.path.exists(vswhere):
+        try:
+            found = subprocess.run([vswhere, '-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+                                    '-find', r'VC\Auxiliary\Build\vcvars64.bat'], capture_output=True, text=True, timeout=60)
+            if found.returncode == 0:
+                lines = found.stdout.splitlines()
+                if lines and os.path.exists(lines[0].strip()):
+                    return lines[0].strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
     bases = [os.environ.get('ProgramFiles', r'C:\Program Files'), os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)')]
     for base in bases:
         for year in ('2022', '2019'):
@@ -40,6 +54,7 @@ if os.name == 'nt':
     if vcvars is None:
         print('no Visual Studio vcvars64.bat found')
         sys.exit(3)
+    print(f'using vcvars: {vcvars}')
     exe = os.path.join(out, 'freq_search_selftest.exe')
     bat = os.path.join(out, 'build_selftest.bat')
     lines = [
