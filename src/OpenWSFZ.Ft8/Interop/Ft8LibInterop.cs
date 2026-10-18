@@ -457,7 +457,17 @@ internal static class Ft8LibInterop
     /// positive = bit 1; the LLRs are now negated in place before OSD and its acceptance gate (which read the same array).
     /// Adds <c>ft8_set_osd_sign_fix</c> / <c>ft8_get_osd_sign_fix</c> (bound as <see cref="SetOsdSignFix"/> / <see cref="GetOsdSignFix"/>).
     /// </remarks>
-    private const int ExpectedShimVersion = 20260060;
+    /// <remarks>
+    /// sub-feas-speed-redesign Stage B item B2, shim 20260059: a pruned frequency search inside the native fit
+    /// (<c>subfeas_fit.c</c>'s <c>freq_search</c>). Numerics-changing (accepted by E2 and E3, not by bit-identity); no new or
+    /// changed export, so this binding file changes only the expected version.
+    /// </remarks>
+    /// <remarks>
+    /// sub-feas-stage-b B2 merged with main (origin/main 76aa48cd, shim 20260060; B2 branch aab18b75, shim 20260059), shim 20260062:
+    /// brings the pruned frequency search onto the 20260060 line. No new or changed export and no ABI change, so this binding
+    /// file changes only the expected version. 20260061 is held by <c>decoding_improvement</c>.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260062;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

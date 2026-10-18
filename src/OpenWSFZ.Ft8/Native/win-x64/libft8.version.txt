@@ -1,4 +1,31 @@
-=== CURRENT: osd-sign-fix, #215 (FT8_SHIM_VERSION 20260060) ===
+=== CURRENT: sub-feas-stage-b B2 merged with main (FT8_SHIM_VERSION 20260062) ===
+
+Built 2026-10-14 from branch feat/sub-feas-stage-b: B2 (origin/feat/sub-feas-stage-b aab18b75, shim 20260059, accepted 2026-10-04,
+never merged) merged with origin/main 76aa48cd (shim 20260060, the osd-sign-fix line), locally, not pushed. QA handoff
+dev-tasks/2026-10-14-merge-sub-feas-stage-b-b2-into-main.md (Architect arch-9f; the Captain: "skip all the testing and go straight
+for a merge with main locally"). Developer session. T' and SB3 waived by the Captain/Architect.
+
+Version literal: highest FT8_SHIM_VERSION on any origin/* ref on 2026-10-14 (git show <ref>:src/OpenWSFZ.Ft8/Native/ft8_shim.h over
+every ref of refs/remotes/origin) was 20260061, on origin/decoding_improvement and origin/qa/plausibility-fix-di (main and the
+rest 20260060 or lower); 20260061 + 1 = 20260062.
+
+Conflicts (exactly five, as predicted): Ft8LibInterop.cs, ft8_shim.h, this file, libft8.dll, libft8.so. The three text files keep
+BOTH histories (main's 20260058 and 20260060 entries and B2's 20260059 entry, plus this one). Neither side's binary was taken: both
+were rebuilt from the merged tree. native/ft8_lib_vendor/subfeas/ is byte-identical to B2's (subfeas_fit.c is unchanged on main).
+NO new or changed export, no ABI change, no change to any decode path beyond B2's freq_search. The Linux .so exports the union of
+both lines (ft8_set/get_osd_sign_fix, ft8_get_last_osd_diag, ft8_hash_state_*, ft8_subfeas_*), checked with nm -D.
+
+  Windows x64 (rebuild_shim.bat, MSVC): SHA256
+    06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a
+    tools/check_native_version.py reports shim 20260062 for both files built here.
+  Second commit (on a5b509e6): a COMMENT-ONLY fix of the nine HSM-NOWRITE g_pool_* citations in ft8_shim.c (subfeas_fit.c:600..612 ->
+  :689..705, moved by B2's added lines); both binaries rebuilt. The first-commit DLL (4a2cf96d...) is superseded; the .so is byte-identical (873287b1...).
+  macOS ARM64: NOT rebuilt here (the .dylib stays as it is on main). CI owns it.
+
+=== Previous: osd-sign-fix, #215 (FT8_SHIM_VERSION 20260060) ===
 
 Built 2026-10-08 from branch feat/osd-sign-fix, off origin/main be3cc5ac (shim 20260058), via OpenSpec change
 osd-sign-fix (QA handoff dev-tasks/2026-10-08-osd-sign-fix.md; Architect spec 2026-10-07-1545 as amended by the ruling
@@ -51,6 +78,31 @@ ft8_shim.c, checked mechanically by HashStateCompletenessTests.
     tools/check_native_version.py reports shim 20260058 for both files built here.
   macOS ARM64: NOT rebuilt here -- no Mac available locally (the same limitation every prior native change recorded).
     CI owns it.
+
+=== Previous: sub-feas-speed-redesign Stage B item B2, pruned frequency search (FT8_SHIM_VERSION 20260059) ===
+
+Built 2026-10-03 from branch feat/sub-feas-stage-b (merged with origin/main e2fdd446, shim 20260056), via OpenSpec change
+openspec/changes/sub-feas-speed-redesign/ (tasks 15.3/15.4, design.md D11; QA handoff dev-tasks/2026-10-03-sub-feas-stage-b-b2-
+pruned-freq-search.md; Architect spec section 5h; the Captain's "yes, proceed" 2026-10-03). Developer session. Version literal chosen
+by checking every local and remote ref on 2026-10-03: main 20260056, decoding_improvement 20260057 (DI sync 4), #122 step 4
+(feat/122-step4-early-decode-panel, local) 20260058, nothing at 20260059 or above. This branch is NOT stacked on step 4; whichever
+of the two merges second rebases its number.
+
+NUMERICS-CHANGING (so Stage A's bit-identity E1 does not apply; acceptance is E2 and E3): ONLY subfeas_fit.c's freq_search changes.
+The 262 144-point FFT of the dt search (201 candidates) and the fdot search (41 candidates), of which only the 87 bins with
+|f| <= 2.0 Hz are used, becomes a decimation by 64 with linear-interpolation weights, a 4 096-point FFT (same 0.0458 Hz bin spacing),
+the magnitudes divided by the kernel droop, scanned in the reference's index order with its first-strictly-greater tie-break. One
+more 4 096-point FFT plan per workspace (the pool's bytes-per-workspace stat grows by it). NO new or changed export, no ABI change,
+no change to ft8_decode_all or any other function. The Stage A fit's outputs are reproduced bit-for-bit on the recorded golden
+(SubfeasNativeSpeedTests 8.1, not re-recorded) and on 111/111 real fits of the fit profile.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44.35223): SHA256
+    2535dec1b08d08302df721df81b74439af8adf486e53562aa1f8400755216696
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): built, exports checked with nm, committed. SHA256
+    42fad0511bf0d4cc7877625f2942e227cddb8b6b70e1db58559e5ab2ea57dcee
+    tools/check_native_version.py reports shim 20260059 for both files built here.
+  macOS ARM64: NOT rebuilt here -- no Mac available locally (the same limitation every prior native change recorded). CI owns it.
 
 === Previous: sub-feas-speed-redesign, Stage A (FT8_SHIM_VERSION 20260056) ===
 

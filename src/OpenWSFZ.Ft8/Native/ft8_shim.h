@@ -789,8 +789,23 @@ extern "C" {
  *              origin/feat/sub-feas-stage-b (B2), not merged. Same change adds ft8_get_last_osd_diag (R6): per accepted OSD
  *              decode nhard, corr/norm, depth and batch, plus per-pass gate-reject counts by reason; numbers only, no
  *              decode output changes.
+ *
+ *   20260059 — sub-feas-speed-redesign Stage B item B2 (a pruned frequency search in the fit). NUMERICS-CHANGING, so the
+ *              Stage A bit-identity (E1) no longer applies; the acceptance is E2 (per-signal Δt, Δf, ḟ equivalence) and E3
+ *              (no loss of residual decodes), design.md D11. Changes ONLY subfeas_fit.c's freq_search: the 262 144-point
+ *              FFT of the Δt (step 1, 201 candidates) and ḟ (step 2, 41 candidates) searches, of which only the bins with
+ *              |f| <= 2.0 Hz (87) are used, is replaced by a decimation by 64 with linear-interpolation weights and a
+ *              4 096-point FFT (the bin spacing is unchanged), the magnitudes divided by the kernel's droop, scanned in the
+ *              reference's index order with its first-strictly-greater tie-break. The result is always a bin centre, as
+ *              before. Each workspace gains one 4 096-point FFT plan (the pool's bytes-per-workspace stat grows by it). NO
+ *              new or changed export, no ABI change, no change to ft8_decode_all or any other function.
+ *
+ *   20260062 — sub-feas-stage-b B2 merged with main (origin/main 76aa48cd, shim 20260060; B2 branch aab18b75, shim 20260059).
+ *              NO new export, NO ABI change, no change to any decode path: the merge brings B2's subfeas_fit.c freq_search
+ *              change onto the 20260060 line (OSD sign fix, hash-state exports). 20260059 and
+ *              20260060 are both history; 20260061 is held by origin/decoding_improvement, so the merged build takes 20260062.
  */
-#define FT8_SHIM_VERSION 20260060
+#define FT8_SHIM_VERSION 20260062
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
