@@ -48,6 +48,10 @@ for d in $DIRS; do
           awk '{a[NR]=\$1; if(\$2!=\"False\")ab++} END{ if(NR==0){print \"  none\"} else printf \"  n=%d median=%d ms p90=%d ms max=%d ms abandoned=%d (bar: median <= 4000 ms, 0 abandoned)\n\",NR,a[int((NR+1)/2)],a[int(NR*0.9)],a[NR],ab+0}'" > "$DEST/$d/capture_counters.txt"
   # third pass (#240, 2026-10-18): outcome counts, abandon share over STARTED passes and wall time, from the same daemon log (feeds the script over ssh; nothing is deployed on sol)
   $SOL "python3 - /home/claude/rr-run/$LC-$n/daemon.stdout.log" < "$(dirname "$0")/third_pass_counters.py" >> "$DEST/$d/capture_counters.txt" 2>/dev/null
+  # F2 record per play + the Amendment-1 clamp check (third pass, 2026-10-18): computed on sol (the S6 slices hold message text and never leave), numeric files fetched
+  $SOL "rm -rf /tmp/f2rec-$n && mkdir -p /tmp/f2rec-$n && python3 - --run-dir $RES/$d --scratch /home/claude/qa-scratch/s6-$d --daemon-log /home/claude/rr-run/$LC-$n/daemon.stdout.log --statuspoll $RES/$d/statuspoll.jsonl --out /tmp/f2rec-$n > /tmp/f2rec-$n/summary.txt 2>&1" < "$(dirname "$0")/sweep_f2_record.py"
+  $SOL "tar -C /tmp/f2rec-$n -cf - ." | tar -C "$DEST/$d" -xf - 2>/dev/null
+  [ -f "$DEST/$d/f2_record.json" ] && echo "   F2 record: $DEST/$d/f2_record.json, f2_per_play.csv" || echo "   F2 record could not be computed (see summary.txt)"
   cat "$DEST/$d/capture_counters.txt"
   # the S6 row + the tripwire
   R="$DEST/$d/report.md"

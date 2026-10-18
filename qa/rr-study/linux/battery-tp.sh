@@ -52,6 +52,13 @@ rm -rf "$ARCH"/* 2>/dev/null
 setsid nohup "$PY" "$WORK/linux/wsjtx_monitor.py" --save-dir "$SAVE" --out-dir "$SUP" --owsfz-archive "$ARCH" >> "$SUP/monitor.out" 2>&1 < /dev/null &
 sleep 3
 log "monitor started (pid $(pgrep -f wsjtx_monitor.py | head -1)); supervisor folder $SUP"
+# THIRD PASS (#240): the 1 Hz status poll (arecord overruns, channel drops, restarts + the live decoding depth and third-pass counters) runs for the whole sweep, so overruns and
+# drops are per PLAY and not only per sweep, and the depth read-back below can void a sweep. The poller tolerates a daemon that is down between scenarios (null samples).
+POLL=$HOME/status_poller_tp.py
+[ -f "$POLL" ] || halt "status_poller_tp.py is not in $HOME (copy qa/rr-study/linux/status_poller.py there)"
+rm -f "$SUP/poller.stop"
+setsid nohup "$PY" "$POLL" --port 8080 --out "$SUP/statuspoll.jsonl" --stop-file "$SUP/poller.stop" >> "$SUP/poller.out" 2>&1 < /dev/null &
+log "status poller started (pid $(pgrep -f status_poller_tp.py | head -1))"
 # CPU scheduling of the daemon (sched-helper.sh; QA 2026-10-15): DAEMON_SCHED=none (default) | nice | pin. The daemon's residual pass can starve WSJT-X's Qt ALSA capture thread (WSJT-X then
 # silently stops saving WAVs); 'nice' lowers the daemon's threads so WSJT-X and the daemon's own arecord pre-empt them. Whatever is chosen is recorded in this sweep's log.
 SCHED=${DAEMON_SCHED:-none}
@@ -72,7 +79,7 @@ touch "$SUP/sched.stop"
 rm -f "$SUP/wsjtx.expected_off"
 PH=$("$PY" -c "import json;print(json.load(open('$SUP/status.json'))['phase'])" 2>/dev/null)
 log "battery ended rc=$rc phase=$PH"
-touch "$SUP/monitor.stop"; sleep 20
+touch "$SUP/monitor.stop"; touch "$SUP/poller.stop"; sleep 20
 pkill -x OpenWSFZ.Daemon 2>/dev/null     # a sequential S6 restarts the daemon outside the supervisor's pid record: make sure none is left
 sh "$HOME/stop-wsjtx.sh" > /dev/null 2>&1; pkill -CONT -x wsjtx 2>/dev/null; sleep 1; pkill -9 -x wsjtx 2>/dev/null; pkill -9 -x jt9 2>/dev/null; pkill -9 -x Xvfb 2>/dev/null
 # the run folder of this sweep: the newest results folder touched since T0 (captured-audio and INVALID folders are not it)
@@ -89,6 +96,14 @@ log "stall events (M1): $(wc -l < "$SUP/stall_events.jsonl" 2>/dev/null || echo 
 # the per-sweep monitoring summary (aggregates only) goes into the run folder for the report
 [ -n "$RUN" ] && "$PY" "$WORK/linux/monitoring_summary.py" --sup-dir "$SUP" --run-dir "$RUN" --core-dir "$HOME" > "$SUP/monitoring_summary.out" 2>&1 && log "monitoring_summary.json written in the run folder"
 log "orphans: $(pgrep -af 'bin/wsjtx|bin/jt9|aplay|Xvfb|OpenWSFZ.Daemon|wsjtx_monitor' | grep -v pgrep | wc -l)"
+# THIRD PASS validity row (Architect 2026-10-18): the depth read back from the LIVE daemon must equal the config's at the start and at the end of the sweep; a mismatch VOIDS the sweep.
+if [ -n "$RUN" ]; then
+  cp "$SUP/statuspoll.jsonl" "$RUN/statuspoll.jsonl" 2>/dev/null
+  [ -f "$HOME/depth_readback.py" ] || halt "depth_readback.py is not in $HOME (copy qa/rr-study/linux/depth_readback.py there)"
+  DR=$("$PY" "$HOME/depth_readback.py" --config "$CFG" --statuspoll "$SUP/statuspoll.jsonl" --out "$RUN/depth_readback.json" 2>&1); DRC=$?
+  log "depth read-back: $DR"
+  [ $DRC -eq 0 ] || halt "VOID: the decoding depth read back from the live daemon does not match the config ($DR); this sweep is void (depth_readback.json in the run folder)"
+fi
 case $rc in
   0) [ "$PH" = "DONE" ] || halt "battery ended $PH (rc=$rc)";;
   21) halt "WSJT-X stalled and no retry was allowed (rc 21)";;

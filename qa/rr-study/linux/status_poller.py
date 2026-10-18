@@ -28,6 +28,12 @@ def main() -> None:
                 with urllib.request.urlopen("http://127.0.0.1:%d/api/v1/status" % a.port, timeout=2) as r:
                     s = json.loads(r.read().decode("utf-8"))
                 rec.update(overruns=s.get("captureOverrunCount"), drops=s.get("captureChannelDroppedChunks"), restarts=s.get("watchdogRestartCount"))
+                # third pass (#240, 2026-10-18): the depth the LIVE decoder uses and its counters, when the build has them (other builds simply omit the keys)
+                tp = s.get("thirdPass")
+                if isinstance(tp, dict):
+                    rec.update(depth=tp.get("decodingDepth"), tp_runs=tp.get("runs"), tp_skipped_no_new=tp.get("skippedNoNew"),
+                               tp_skipped_abandoned=tp.get("skippedAbandoned"), tp_abandoned=tp.get("abandoned"), tp_failed=tp.get("failed"),
+                               tp_decodes=tp.get("decodes"))
             except Exception:
                 pass
             out.write(json.dumps(rec) + "\n")
