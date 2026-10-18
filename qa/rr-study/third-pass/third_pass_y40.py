@@ -232,6 +232,18 @@ def compare():
     v1["control_cycles_differing"] = ctrl["cycles_differing"]
     v1["result"] = "PASS" if v1["cycles_differing"] == 0 and v1["matched_cycles_differing"] == 0 and ctrl["cycles_differing"] >= 1 else "FAIL"
     v2 = pair("NORMAL", "DEEP", {"b1", "b2"}, "V2 DEEP batches 1+2 == NORMAL")
+    # The matched-out files of DEEP include the WSJT-X lines matched by BATCH 3 by construction, so comparing them whole against NORMAL's is not a test of "batches 1+2 are
+    # untouched" (QA error in the first compare, 2026-10-18 14:07Z: it reported 53 differing cycles). The matched component of V2 compares only the matches attributed to
+    # batch 1 or 2 (matched-batch-out, idx:batch); the decode-set component (outcomes) is the spec's V2 as written.
+    def m12(arm):
+        d = {}
+        for s_, r_ in rows(os.path.join(OUT, f"matchedbatch_{arm}.csv")).items():
+            cells = r_[0][1].split(";") if len(r_[0]) > 1 and r_[0][1] else []
+            d[s_] = sorted(c for c in cells if c.endswith(":1") or c.endswith(":2"))
+        return d
+    mN12, mD12 = m12("NORMAL"), m12("DEEP")
+    v2["matched_cycles_differing_whole_file_NOT_a_valid_test"] = v2["matched_cycles_differing"]
+    v2["matched_cycles_differing"] = len([s_ for s_ in stamps if s_ not in (AB["NORMAL"] | AB["DEEP"]) and mN12.get(s_, []) != mD12.get(s_, [])])
     v2["result"] = "PASS" if v2["cycles_differing"] == 0 and v2["matched_cycles_differing"] == 0 else "FAIL"
     v3 = pair("DEEP", "DEEP2", {"b1", "b2", "b3"}, "V3 DEEP == DEEP2 (cycles with no abandon in either)")
     v3["result"] = "PASS" if v3["cycles_differing"] == 0 and v3["matched_cycles_differing"] == 0 else "FAIL"
