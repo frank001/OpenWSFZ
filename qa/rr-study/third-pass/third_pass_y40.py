@@ -31,16 +31,24 @@ from collections import Counter
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 ART = r"D:\Projects\claude\OpenWSFZ\artefacts"
-RUN = "20261009_1752"
-GATH = os.path.join(ART, f"{RUN}_endurance_run-gathered")
+# Corpus: `python third_pass_y40.py <prep|run|compare> [y40|y2]` (default y40). Y-2 (spec 3.1, descriptive M6): the 17 m live run of 2026-08-08, every 8th WAV = 232 cycles; same arms,
+# same rows, its own scratch/results folders. The WSJT-X settings of that August session (Decode depth, version) are NOT on record.
+CORPUS = sys.argv[2] if len(sys.argv) > 2 else "y40"
+assert CORPUS in ("y40", "y2"), CORPUS
+if CORPUS == "y40":
+    RUN = "20261009_1752"
+    GATH = os.path.join(ART, f"{RUN}_endurance_run-gathered")
+    STRATUM, EXPECTED_CYCLES, TAG = "Y40", 455, "y40"       # asserted: ceil(3634 / 8)
+else:
+    RUN = "20260808_1154"
+    GATH = os.path.join(ART, "20260808_live_run_1154-8080-17m")
+    STRATUM, EXPECTED_CYCLES, TAG = "Y2", 232, "y2"         # asserted: ceil(1856 / 8)
 WAV_DIR = os.path.join(GATH, "owsfz", "wav")
 WS_ALLTXT = os.path.join(GATH, "wsjt-x", "ALL.TXT")
 CSPROJ = os.path.join(REPO, "qa", "rr-study", "sub-feas", "replay81", "Replay81.csproj")
 SCR = r"D:\Projects\claude\_qa-scratch\third-pass-verify"
-OUT = os.path.join(SCR, "y40")
-STRATUM = "Y40"
+OUT = os.path.join(SCR, TAG)
 EVERY = 8                                            # the pre-registered subsample rule
-EXPECTED_CYCLES = 455                                # asserted: ceil(3634 / 8)
 BUILD = {"MAIN": "535661a2", "NORMAL": "a329cea9", "DEEP": "a329cea9", "DEEP2": "a329cea9", "CTRL": "535661a2"}
 MODE = {"MAIN": "two1", "NORMAL": "three0", "DEEP": "three1", "DEEP2": "three1", "CTRL": "two1"}
 SIGN = {"MAIN": 1, "NORMAL": 1, "DEEP": 1, "DEEP2": 1, "CTRL": 0}
@@ -59,7 +67,7 @@ def prep():
     assert len(stamps) == EXPECTED_CYCLES, len(stamps)
     warm = sorted(set(wavs) - set(stamps))[0]
     os.makedirs(SCR, exist_ok=True)
-    sel = os.path.join(SCR, "selection_y40.json")
+    sel = os.path.join(SCR, "selection_%s.json" % TAG)
     json.dump({"runs": {RUN: {"warmup": warm, STRATUM: stamps}}}, open(sel, "w"))
     print("selected", len(stamps), "cycles of", len(wavs), "| first", stamps[0], "last", stamps[-1], "| selection sha256",
           hashlib.sha256(open(sel, "rb").read()).hexdigest()[:16])
@@ -92,7 +100,7 @@ def procs_running():
 
 def run_all():
     os.makedirs(OUT, exist_ok=True)
-    sel = os.path.join(SCR, "selection_y40.json")
+    sel = os.path.join(SCR, "selection_%s.json" % TAG)
     assert os.path.exists(sel), "run prep first"
     env = {"cpu": platform.processor(), "cores": os.cpu_count(), "threads_arg": 8, "daemon_or_wsjtx_processes_at_start": procs_running()}
     pins = []
@@ -189,7 +197,7 @@ def bootstrap(per_cycle, stamps, num, den, seed=BOOT_SEED, n=BOOT_N):
 
 
 def compare():
-    sel = json.load(open(os.path.join(SCR, "selection_y40.json")))["runs"][RUN][STRATUM]
+    sel = json.load(open(os.path.join(SCR, "selection_%s.json" % TAG)))["runs"][RUN][STRATUM]
     stamps = sorted(sel)
     n = len(stamps)
     O = {a: outcomes(a) for a in ARMS}
@@ -254,7 +262,7 @@ def compare():
           "fail_above": ABANDON_FAIL_SHARE, "result": "PASS" if len(anyab) / n <= ABANDON_FAIL_SHARE else "FAIL"}
     valid = all(r["result"] == "PASS" for r in (v0, v1, v2, v3, v4))
 
-    rep = {"corpus": f"{RUN} (40 m), every {EVERY}th WAV = {n} cycles", "pins": pins, "env": meta["env"], "rows": [v0, v1, ctrl, v2, v3, v4],
+    rep = {"corpus": f"{RUN} ({CORPUS}), every {EVERY}th WAV = {n} cycles", "pins": pins, "env": meta["env"], "rows": [v0, v1, ctrl, v2, v3, v4],
            "all_validity_rows_pass": valid}
 
     # Measurement rows (reported whatever the validity result, but flagged WITHHELD when a V-row failed: Amendment 1 stop scope)
@@ -292,9 +300,9 @@ def compare():
         "M3_cycle_wall_ms_mean_normal_deep_PC": [round(statistics.mean(cyc_n)), round(statistics.mean(cyc_d))] if cyc_n and cyc_d else None,
         "M4_outcomes_all_cycles": dict(oc_all),
         "M4_started": started, "M4_abandon_share_over_started": round((oc_all["abandoned"] + oc_all["failed"]) / started, 4) if started else None,
-        "citation_guard": "NET_3 only with this corpus (Y-40, PC, production 13 s budget, abandoned cycles excluded pairwise) and its CI; never add to or difference from SUB-FEAS +8.89 / +11.73 pp; PC timings are the PC's, not sol's or the station's",
+        "citation_guard": "NET_3 only with this corpus (" + STRATUM + ", PC, production 13 s budget, abandoned cycles excluded pairwise) and its CI; never add to or difference from SUB-FEAS +8.89 / +11.73 pp; PC timings are the PC's, not sol's or the station's",
     }
-    d = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-18-third-pass-y40")
+    d = os.path.join(REPO, "qa", "rr-study", "results", "2026-10-18-third-pass-" + TAG)
     os.makedirs(d, exist_ok=True)
     json.dump(rep, open(os.path.join(d, "report.json"), "w"), indent=1)
     print(json.dumps(rep, indent=1))

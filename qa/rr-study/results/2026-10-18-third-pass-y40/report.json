@@ -1,5 +1,5 @@
 {
- "corpus": "20261009_1752 (40 m), every 8th WAV = 455 cycles",
+ "corpus": "20261009_1752 (y40), every 8th WAV = 455 cycles",
  "pins": [
   {
    "arm": "MAIN",
@@ -195,6 +195,6 @@
   },
   "M4_started": 363,
   "M4_abandon_share_over_started": 0.0,
-  "citation_guard": "NET_3 only with this corpus (Y-40, PC, production 13 s budget, abandoned cycles excluded pairwise) and its CI; never add to or difference from SUB-FEAS +8.89 / +11.73 pp; PC timings are the PC's, not sol's or the station's"
+  "citation_guard": "NET_3 only with this corpus (Y40, PC, production 13 s budget, abandoned cycles excluded pairwise) and its CI; never add to or difference from SUB-FEAS +8.89 / +11.73 pp; PC timings are the PC's, not sol's or the station's"
  }
 }
