@@ -110,6 +110,14 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
     private bool     _skipNextRetry = false;
     private DateTime _qsoStartUtc   = DateTime.MinValue;
 
+    // ── late-batches-in-qso (batch 2 / 3 decodes used in a QSO) ───────────────
+    // Only a batch 1 is a cycle. A supplementary batch counts as heard: it may cause a message-driven transition and
+    // its reply goes out at once only if it can still start whole (<= S + 2.36 s); otherwise it is held and sent by the
+    // first later batch 1 of the reply's parity. Touched only on the service loop's thread.
+    private DateTimeOffset _lastBatch1Cycle = DateTimeOffset.MinValue; // newest cycle whose batch 1 was processed (stale guard)
+    private DateTimeOffset _transitionCycle = DateTimeOffset.MinValue; // cycle in which a message-driven transition was made (already-answered guard)
+    private DeferredTx?    _deferred;                                  // the held reply, if any
+
     // Phase-aware pending-responder for SelectResponderAsync (None mode).
     // Mirrors _pendingTargetCallsign in QsoAnswererService.
     private readonly object  _stateLock                   = new();
@@ -633,6 +641,15 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
         var tx = _configStore.Current.Tx ?? new TxConfig();
 
+        // late-batches-in-qso: a supplementary batch never takes the cycle paths below (no retry, no skip guard,
+        // no CQ repeat, no pending responder).
+        if (batch.BatchNumber > 1)
+        {
+            await ProcessLateBatchAsync(batch, tx, stoppingToken).ConfigureAwait(false);
+            return;
+        }
+        if (batch.CycleStart > _lastBatch1Cycle) _lastBatch1Cycle = batch.CycleStart;
+
         switch (_callerState)
         {
             case CallerState.Idle:
@@ -777,6 +794,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 }
 
                 _skipNextRetry = false; // responding — clear skip guard
+                MarkTransition(batch);
                 // TX-D04: pendingSnr is null only if the responder's decode was somehow never
                 // recorded in _recentResponderDecodes; 0 dB is a safe, honest fallback (formats
                 // to "+00" — the same value this path always sent before this fix).
@@ -820,6 +838,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                     responder, (int)Math.Round(freqHz > 0 ? freqHz : r.FreqHz));
 
                 _skipNextRetry = false; // matched — clear skip guard
+                MarkTransition(batch);
                 var effectiveFreq = freqHz > 0 ? freqHz : r.FreqHz;
                 await ExecuteTxReportAsync(responder, effectiveFreq, grid, r.Snr, tx, stoppingToken)
                     .ConfigureAwait(false);
@@ -862,7 +881,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         string?           partnerGrid,
         int               snr,
         TxConfig          tx,
-        CancellationToken stoppingToken)
+        CancellationToken stoppingToken,
+        bool              deferTx = false,
+        DecodeBatch?      batch   = null)
     {
         if (string.IsNullOrWhiteSpace(tx.Callsign))
         {
@@ -911,12 +932,17 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _rstSent = FormatSnrReport(snr);
         var reportMessage = $"{partner} {tx.Callsign} {_rstSent}";
         _lastTxMessage = reportMessage; // fix-tx-transcript-real-message (TX-D05)
-        SetStateAndNotify(CallerState.TxReport);
-        await TransmitAsync(reportMessage, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
 
-        ResetWatchdog(tx);
-        _skipNextRetry = true; // A-01
-        SetStateAndNotify(CallerState.WaitRr73);
+        // late-batches-in-qso: the responder was found in a batch 2/3 too late to start whole. The transition is made now
+        // (partner, report, WaitRr73); the report is held and sent by the first batch 1 of its parity.
+        if (deferTx && batch is not null)
+        {
+            _deferred = new DeferredTx(DeferredKind.Report, batch.CycleStart, batch.BatchNumber);
+            SetStateAndNotify(CallerState.WaitRr73);
+            return;
+        }
+
+        await SendReportReplyAsync(tx, stoppingToken).ConfigureAwait(false);
     }
 
     // ── WaitRr73 handler ─────────────────────────────────────────────────────
@@ -951,6 +977,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                         "QsoCallerService: roger report {Report} from {Partner} — sending RR73.",
                         payload, partner);
                     _skipNextRetry = false;
+                    MarkTransition(batch);
                     await ExecuteTxRr73Async(tx, stoppingToken).ConfigureAwait(false);
                     return;
                 }
@@ -963,15 +990,199 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 _logger.LogInformation(
                     "QsoCallerService: {Partner} is working {OtherDest} — aborting.",
                     partner, dest);
+                MarkTransition(batch);
                 await SafeAbortToIdleAsync(stoppingToken, $"Partner {partner} is working another station")
                     .ConfigureAwait(false);
                 return;
             }
         }
 
+        // late-batches-in-qso: a reply held by a late batch is sent by the first batch 1 of its parity (not a retry);
+        // a batch 1 of the other parity (our own slot) is not a missed response while a reply is held.
+        if (_deferred is not null) { await SendDeferredIfDueAsync(batch, tx, stoppingToken).ConfigureAwait(false); return; }
+
         // No matching message.
         if (_skipNextRetry) { _skipNextRetry = false; return; }
         await RetryOrAbortAsync(tx, stoppingToken).ConfigureAwait(false);
+    }
+
+    // ── late-batches-in-qso ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Records that a message-driven transition was made in <paramref name="batch"/>'s cycle (the already-answered guard)
+    /// and drops any held reply: a newer message-driven transition, or the operator's, wins.
+    /// </summary>
+    private void MarkTransition(DecodeBatch batch)
+    {
+        _transitionCycle = batch.CycleStart;
+        if (_deferred is not null) SupersedeDeferred();
+    }
+
+    /// <summary>Drops the held reply and logs the <c>superseded</c> outcome against the batch that created it.</summary>
+    private void SupersedeDeferred()
+    {
+        var d = _deferred;
+        _deferred = null;
+        if (d is not null) LogLate(d.BatchNumber, LateOutcome.Superseded);
+    }
+
+    /// <summary>One AC10 line: the batch number and exactly one outcome token; no message text, no callsigns.</summary>
+    private void LogLate(int batchNumber, LateOutcome outcome)
+        => _logger.LogInformation(
+            "QsoCallerService: late batch {BatchNumber} {Outcome}.", batchNumber, LateBatch.Token(outcome));
+
+    /// <summary>
+    /// Handles a supplementary batch (2 or 3). It counts as heard, never as a cycle: nothing here calls the retry path,
+    /// touches the skip guard or any repeat counter, or fires an operator-armed pending responder.
+    /// </summary>
+    private async Task ProcessLateBatchAsync(DecodeBatch batch, TxConfig tx, CancellationToken stoppingToken)
+    {
+        LateOutcome outcome;
+        if (batch.CycleStart < _lastBatch1Cycle)
+            outcome = LateOutcome.IgnoredStale;
+        else if (batch.CycleStart == _transitionCycle)
+            outcome = LateOutcome.IgnoredAnswered;
+        else
+            outcome = _callerState switch
+            {
+                CallerState.WaitAnswer => await HandleLateWaitAnswerAsync(batch, tx, stoppingToken).ConfigureAwait(false),
+                CallerState.WaitRr73   => await HandleLateWaitRr73Async(batch, tx, stoppingToken).ConfigureAwait(false),
+                _                      => LateOutcome.NoMatch,   // Idle: the caller starts a CQ by itself, not from a decode
+            };
+
+        LogLate(batch.BatchNumber, outcome);
+    }
+
+    /// <summary>WaitAnswer: a station that answered our CQ, found only in a late batch (First mode engages it).</summary>
+    private async Task<LateOutcome> HandleLateWaitAnswerAsync(DecodeBatch batch, TxConfig tx, CancellationToken stoppingToken)
+    {
+        var ours = tx.Callsign;
+
+        if (tx.CallerPartnerSelect == CallerPartnerSelectMode.First)
+        {
+            var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+
+            foreach (var r in batch.Results)
+            {
+                if (!TryParseResponder(r.Message, ours, out var responder, out var freqHz, out var grid, _logger))
+                    continue;
+                if (!DecodeFilterEvaluator.IsVisible(r, filterState))
+                    continue;
+                var validation = _engagementValidator?.Validate(responder) ?? EngagementValidationResult.Allowed;
+                if (!validation.IsAllowed)
+                    continue;
+
+                _logger.LogInformation(
+                    "QsoCallerService: {Responder} answered our CQ at {FreqHz} Hz — sending report.",
+                    responder, (int)Math.Round(freqHz > 0 ? freqHz : r.FreqHz));
+
+                var immediate = LateBatch.CanStartWhole(_timeProvider.GetUtcNow(), batch.CycleStart);
+                MarkTransition(batch);
+                var effectiveFreq = freqHz > 0 ? freqHz : r.FreqHz;
+                await ExecuteTxReportAsync(responder, effectiveFreq, grid, r.Snr, tx, stoppingToken,
+                    deferTx: !immediate, batch: batch).ConfigureAwait(false);
+                return immediate ? LateOutcome.AppliedImmediate : LateOutcome.AppliedDeferred;
+            }
+        }
+        else if (tx.CallerPartnerSelect == CallerPartnerSelectMode.None)
+        {
+            // None mode: the operator picks the responder. A late response is still a valid decode, so record it for
+            // SelectResponderAsync; nothing is armed or transmitted from here.
+            foreach (var r in batch.Results)
+            {
+                if (!TryParseResponder(r.Message, ours, out var responder, out _, out _, _logger))
+                    continue;
+                lock (_stateLock) { _recentResponderDecodes[responder] = r; }
+            }
+        }
+        return LateOutcome.NoMatch;
+    }
+
+    /// <summary>WaitRr73: the partner's roger report found only in a late batch (we answer RR73), or the partner busy.</summary>
+    private async Task<LateOutcome> HandleLateWaitRr73Async(DecodeBatch batch, TxConfig tx, CancellationToken stoppingToken)
+    {
+        var ours    = tx.Callsign;
+        var partner = _partner!;
+
+        foreach (var r in batch.Results)
+        {
+            if (!TryParseMessage(r.Message, out var dest, out var src, out var payload))
+                continue;
+
+            bool fromPartner = src.Equals(partner, StringComparison.OrdinalIgnoreCase);
+            bool toUs        = QsoMessageParsing.DestMatchesOwnCallsign(dest, ours);
+
+            if (fromPartner && toUs && IsRogerReport(payload))
+            {
+                _rstRcvd = payload.StartsWith("R", StringComparison.OrdinalIgnoreCase)
+                    ? payload[1..]
+                    : payload;
+                _logger.LogInformation(
+                    "QsoCallerService: roger report {Report} from {Partner} — sending RR73.",
+                    payload, partner);
+
+                var immediate = LateBatch.CanStartWhole(_timeProvider.GetUtcNow(), batch.CycleStart);
+                MarkTransition(batch);
+                if (immediate)
+                {
+                    await ExecuteTxRr73Async(tx, stoppingToken).ConfigureAwait(false);
+                    return LateOutcome.AppliedImmediate;
+                }
+
+                _retryCount    = 0;
+                _lastTxMessage = $"{partner} {ours} RR73";
+                _deferred      = new DeferredTx(DeferredKind.Closing, batch.CycleStart, batch.BatchNumber);
+                return LateOutcome.AppliedDeferred;
+            }
+
+            if (fromPartner && !toUs && !dest.Equals("CQ", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation(
+                    "QsoCallerService: {Partner} is working {OtherDest} — aborting.", partner, dest);
+                MarkTransition(batch);
+                await SafeAbortToIdleAsync(stoppingToken, $"Partner {partner} is working another station")
+                    .ConfigureAwait(false);
+                return LateOutcome.AppliedImmediate;
+            }
+        }
+        return LateOutcome.NoMatch;
+    }
+
+    /// <summary>
+    /// Sends the held reply if <paramref name="batch"/> (a batch 1) is the first of a later cycle whose next slot has the
+    /// reply's parity. Not a retry: no retry increment; the transmit paths set the skip guard as after any transmission.
+    /// A batch 1 of the other parity (our own slot) changes nothing.
+    /// </summary>
+    private async Task SendDeferredIfDueAsync(DecodeBatch batch, TxConfig tx, CancellationToken stoppingToken)
+    {
+        var d = _deferred!;
+        if (batch.CycleStart <= d.CycleStart
+            || LateBatch.ReplySlotIsAPhase(batch.CycleStart) != LateBatch.ReplySlotIsAPhase(d.CycleStart))
+            return;
+
+        _deferred = null;
+        _logger.LogInformation(
+            "QsoCallerService: sending the reply held since batch {BatchNumber}.", d.BatchNumber);
+        switch (d.Kind)
+        {
+            case DeferredKind.Report:
+                await SendReportReplyAsync(tx, stoppingToken).ConfigureAwait(false);
+                break;
+            case DeferredKind.Closing:
+                await ExecuteTxRr73Async(tx, stoppingToken).ConfigureAwait(false);
+                break;
+        }
+    }
+
+    /// <summary>Transmits the report held in <see cref="_lastTxMessage"/> and settles in WaitRr73.</summary>
+    private async Task SendReportReplyAsync(TxConfig tx, CancellationToken stoppingToken)
+    {
+        SetStateAndNotify(CallerState.TxReport);
+        await TransmitAsync(_lastTxMessage!, _lastTxFreqHz, stoppingToken).ConfigureAwait(false);
+
+        ResetWatchdog(tx);
+        _skipNextRetry = true; // A-01
+        SetStateAndNotify(CallerState.WaitRr73);
     }
 
     // ── ExecuteTxRr73Async ────────────────────────────────────────────────────
@@ -1227,6 +1438,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         _partner       = null;
         _partnerGrid   = null;
         _skipNextRetry = false;
+        _deferred      = null; // late-batches-in-qso: a held reply never outlives its session
 
         // Clear H6 AP constraints.
         _decoder?.SetApConstraints(null);

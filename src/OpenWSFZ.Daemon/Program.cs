@@ -342,18 +342,10 @@ var allTxtWriter = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllT
 //   Both channels carry DecodeBatch so the authoritative UTC cycle-start is always available;
 //   avoids the fallback-to-UtcNow bug (D-TX-UI-004).  The decode pump fan-outs to both channels;
 //   QsoControllerRouter activates the appropriate service via IsActive flags.
-var qsoAnswererChannel = Channel.CreateBounded<DecodeBatch>(new BoundedChannelOptions(2)
-{
-    FullMode     = BoundedChannelFullMode.DropOldest,
-    SingleWriter = true,
-    SingleReader = true,
-});
-var qsoCallerChannel = Channel.CreateBounded<DecodeBatch>(new BoundedChannelOptions(2)
-{
-    FullMode     = BoundedChannelFullMode.DropOldest,
-    SingleWriter = true,
-    SingleReader = true,
-});
+// late-batches-in-qso (D1): up to 3 batches per cycle reach each QSO service, so the capacity is 8, not 2 (see LateBatch).
+// DropOldest and the single writer / single reader are unchanged.
+var qsoAnswererChannel = LateBatch.CreateQsoChannel();
+var qsoCallerChannel   = LateBatch.CreateQsoChannel();
 
 // Channel 3c: decode pump → ExternalReportingService (bounded, DropOldest — same rationale as
 // the two channels above). Dedicated rather than a DecodeEventBus subscription (design.md
