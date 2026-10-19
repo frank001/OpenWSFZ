@@ -25,6 +25,8 @@
     <DefineConstants Condition="'$(HasOsdSignFix)' == 'true'">$(DefineConstants);HAS_OSDSIGNFIX</DefineConstants>
     <!-- third-pass-deep (#240): only the build with Ft8Decoder.SetDecodingDepth / DecodeStagedAsync (feat/third-pass-deep a329cea9). Needs HasTwoStage and HasSubfeas too (modes three0 / three1). -->
     <DefineConstants Condition="'$(HasThirdPass)' == 'true'">$(DefineConstants);HAS_THIRDPASS</DefineConstants>
+    <!-- #225 phase 2 (shim 20260064): only the build with Ft8Decoder.GetUnsupportedTypeCounts (feat/dxpedition-decode-225). -->
+    <DefineConstants Condition="'$(HasDxped)' == 'true'">$(DefineConstants);HAS_DXPED</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

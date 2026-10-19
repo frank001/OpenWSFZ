@@ -177,6 +177,16 @@ internal static class Program
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outcomesPath))!);
             _outcomes = new StreamWriter(outcomesPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
         }
+        // #225 phase 2 (QA, 2026-10-19): optional working file with the TEXT of every type-0.1 DXpedition decode (5 tokens, token 1 "RR73;").
+        // HK-037 as amended 2026-10-10: a per-message working file is allowed ONLY in D:\Projects\claude\_qa-scratch\<job>\ (outside git),
+        // read by code only and deleted at job close; the analysis that reads it publishes aggregates only. Off unless --dxped-dump is given.
+        if (a.TryGetValue("dxped-dump", out var dxpedPath))
+        {
+            if (!Path.GetFullPath(dxpedPath).StartsWith(@"D:\Projects\claude\_qa-scratch\", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("--dxped-dump must be inside the _qa-scratch folder (HK-037)");
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dxpedPath))!);
+            _dxped = new StreamWriter(dxpedPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+        }
 
         // ---- warm-up: one discarded cycle per process start, through the full path ----
         string warm = root.GetProperty("runs").GetProperty(run).GetProperty("warmup").GetString()!;
@@ -310,6 +320,16 @@ internal static class Program
         // V2' second probe point: after the last cycle. Recorded; row V2' is judged afterwards by nhard_rep_rows.py.
         if (_probe is not null && !RunProbe("end", log))
             log.Raw("# V2-prime FAIL at the end probe");
+#if HAS_DXPED
+        // #225 phase 2 (shim 20260064): the measure-only (i3, n3) counts of CRC-passing candidates dropped as an unsupported type,
+        // process-lifetime cumulative, cell = i3 * 8 + n3. Counted per decode ATTEMPT (a payload seen again in a later pass counts again).
+        // Numeric only. Written next to --out.
+        {
+            var cells = decoder.GetUnsupportedTypeCounts();
+            File.WriteAllText(Path.ChangeExtension(Path.GetFullPath(outCsv), ".unsupported.json"),
+                "{\"cells_i3_times_8_plus_n3\":[" + string.Join(",", cells) + "],\"total\":" + cells.Sum() + ",\"i0n3_7\":" + cells[7] + "}");
+        }
+#endif
         return 0;
     }
 
@@ -426,6 +446,7 @@ internal static class Program
     private static bool _wide3;                    // three0 / three1: 12-column CSV with b3_n
     private static StreamWriter? _third;           // --third-out: stamp,outcome,newDecodes,elapsedMs,fittedSignals
     private static StreamWriter? _outcomes;
+    private static StreamWriter? _dxped;   // #225 phase 2: type-0.1 texts, scratch only (see --dxped-dump)
     private static bool _outcomeTextHash;   // default OFF (HK-037: a text-derived hash is message identity)
 
     // ---- Test B: in-process WSJT-X corroboration (counts only) -----------------------------------------------
@@ -526,6 +547,14 @@ internal static class Program
             if (_outcomeTextHash)
                 fields.Add(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(r.Message.TrimEnd())))[..8]);
             _outcomes.WriteLine(string.Join(",", fields));
+            if (_dxped is not null)
+            {
+                var t = r.Message.TrimEnd();
+                var tk = t.Split(' ');
+                if (tk.Length == 5 && tk[1] == "RR73;")
+                    _dxped.WriteLine(string.Join("	", stamp, kind, r.FreqHz.ToString(CultureInfo.InvariantCulture),
+                        r.Dt.ToString("F1", CultureInfo.InvariantCulture), r.Snr.ToString(CultureInfo.InvariantCulture), t));
+            }
         }
     }
 
