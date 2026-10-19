@@ -109,6 +109,14 @@ KNOWN_SHAPE_FALSE_POSITIVES = {
     # callsign shape. Confirmed non-callsign by masked-context inspection of all three hits
     # (dev-task, OpenSpec proposal, driver comment), 2026-10-11 (fingerprint CS-a860f1 -- DO NOT REDACT).
     "V2P",
+    # R&R series identifiers "B2BASE" and "B2CAPR" (the sol B2 baseline and capture-fix series) and the
+    # WSJT-X ini setting name "FT8AP" (AP decoding on/off): none is a callsign; the scanner's regex reads the
+    # letter-digit-letter shape. Confirmed non-callsign by masked-context inspection of every file and
+    # occurrence in the qa/refset merge scan, 2026-10-19 (fingerprints CS-81607c, CS-27ac76, CS-b3319b --
+    # DO NOT REDACT).
+    "B2BASE",
+    "B2CAPR",
+    "FT8AP",
 }
 
 # Common false positives in reports/logs: mode/band labels, protocol names.
