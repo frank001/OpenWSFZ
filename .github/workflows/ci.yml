@@ -87,6 +87,13 @@ jobs:
           # Overlay the repo's patched decode.c (adds ftx_compute_candidate_llr_mean_abs
           # and any future non-static diagnostic probes) before compiling.
           cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/ft8/decode.c" ft8/decode.c
+          # Overlay the repo's vendored message.c / message.h too: they carry the type 0.1 (DXpedition)
+          # unpacker (#225 phase 2) that the msvc-compat clone does not have. Without this the CI-built
+          # .so/.dylib (which commit-native-binaries pushes) silently lacks the feature.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.c" ft8/message.c
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.h" ft8/message.h
+          # common/monitor.c: the repo's copy differs from the clone's only in a LOG_LEVEL line (the clone's prints four INFO lines to stderr on every ft8_decode_all) and comments; it is what Windows and build_linux.sh compile.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/common/monitor.c" common/monitor.c
           clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -target arm64-apple-macos11.0 -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
@@ -219,6 +226,13 @@ jobs:
           # Overlay the repo's patched decode.c (adds ftx_compute_candidate_llr_mean_abs
           # and any future non-static diagnostic probes) before compiling.
           cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/ft8/decode.c" ft8/decode.c
+          # Overlay the repo's vendored message.c / message.h too: they carry the type 0.1 (DXpedition)
+          # unpacker (#225 phase 2) that the msvc-compat clone does not have. Without this the CI-built
+          # .so/.dylib (which commit-native-binaries pushes) silently lacks the feature.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.c" ft8/message.c
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.h" ft8/message.h
+          # common/monitor.c: the repo's copy differs from the clone's only in a LOG_LEVEL line (the clone's prints four INFO lines to stderr on every ft8_decode_all) and comments; it is what Windows and build_linux.sh compile.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/common/monitor.c" common/monitor.c
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
             ft8/message.c ft8/text.c \
