@@ -108,3 +108,14 @@ is on the slowest machine, and it is opt-in there. **What A does not settle:** w
 default. That would need a bar set from this data, and a decision on F2 for slow machines.
 
 **Also waiting on you:** the push of QA's local commits (HK-033), and the sol cleanup go (§4.3).
+
+## Addendum 1: §4.1 closed (2026-10-19, after QA's reply)
+
+- **777 vs 717 is not a defect.** QA traced it, and the Architect checked the same lines in `a329cea9`.
+- **The log line counts raw results.** `SubtractionPass.RunThirdPassAsync` logs `result.Length`, the raw native results.
+- **The status counter counts delivered decodes.** `Ft8Decoder` adds `batch3.Count` only after `MapNative`, the same
+  per-cycle text de-duplication that batch 2 goes through. The B5 requirement (batch 3 mapped exactly like batch 2) holds.
+- **So 60 of 777 raw results (7.7 %) were text duplicates of decodes already in that cycle.** They were not delivered.
+- **Rule:** cite the delivered (status) count for any live batch-3 figure, never the log sum.
+- **Caveat:** this comes from the code path, not a per-cycle measurement, because no per-cycle counter exists.
+- This changes nothing in §1–§5. The offline figures (NET_3, M2) come from Replay81's per-batch outcome files (A4), not from this log line.
