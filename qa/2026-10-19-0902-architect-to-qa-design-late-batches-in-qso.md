@@ -135,3 +135,42 @@ station cannot arrange.
 - Answering in the slot after the reply's natural one, other than through D3.
 - Any decoder change.
 - The decode-panel display, which already shows batches 2 and 3.
+
+## Amendment 1 (2026-10-19, after QA's (k) review: design accepted, no row refused): R1–R5
+
+Where this amendment conflicts with §2–§3, **it overrides them.**
+
+**R1, the repeat in N+2: accepted, stated as a rule about the new state's handler.**
+- While a transmission is deferred, the batch 1 that would send it is run through the **new** state's handler first.
+  - **It supersedes the deferred transmission only if that handler would make a message-driven transition** (forward,
+    or the partner-busy abort).
+  - **Anything else sends the deferred transmission:** no matching message, or a message that causes no transition in
+    the new state. The partner repeating the message that caused the late transition is the common case (in WaitRr73
+    a repeated report matches nothing, as today).
+- When it is sent: no retry increment, then `_skipNextRetry = true` as after any transmission.
+- **AC11 (new):** late transition on the partner's report in batch 2 of N; the partner repeats the identical report in
+  N+2 ⇒ **exactly one** transmission (the R-report), starting in N+3's slot; retry count 0 afterwards.
+
+**R2, the Idle late-CQ case: accepted. D3.2 and D3.3 are split explicitly.**
+- **Wait states** (the evidence is in, a QSO is under way): **transition now, reply deferred**, as D3.2 says.
+- **Idle auto-answer of a late CQ:** **no state change until the deferred answer is actually sent.**
+  - The service stays Idle and holds only the deferred answer.
+  - The transition (Idle → TxAnswer → WaitReport, as `ExecuteTxAnswerAsync` does today) happens at send time.
+  - **A drop leaves the service in Idle untouched.** It is dropped when the CQ station is seen sending to another station
+    (D3.3), or when an operator-armed pending target or jump-in fires first; the operator's action wins.
+- AC6 reads accordingly. Add: while the late answer is deferred, the broadcast state is Idle.
+
+**R3: accepted.** *t* is the time the service **processes** the batch (its time provider's now), not the time the decode finished.
+
+**R4: accepted, with one addition.**
+- The AC1 input is a scripted fake decode source feeding batch 1 only, run on `0c7124db` and on the new tip. The
+  transmitted message sequence and slot starts are compared as **exact lists**.
+- The script must include CQs, partner answers, reports and RR73, and at least one missed-reply retry, so the lists are
+  not trivial.
+- A second run of the same script also feeds **empty** batches 2 and 3 (subtraction on, nothing found). It must give
+  the same lists.
+
+**R5: agreed, not a defect.**
+- On sol, batch 2 lands around *S* + 4 s, so almost every late reply goes one full round later (N+3).
+- On a faster PC, the immediate path will sometimes apply. How often is not measured.
+- Telling the Captain: yes.
