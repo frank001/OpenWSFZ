@@ -153,10 +153,10 @@ public sealed class ThirdPassDeepTests
 
     // ── B1 / B2: the default, and Normal is inert ───────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "B1: decoder.decodingDepth defaults to Normal (config record and decoder)")]
-    public void Config_DefaultsToNormal()
+    [Fact(DisplayName = "B1: decoder.decodingDepth defaults to Deep in the config record (the 2026-10-19 flip) while a bare decoder stays Normal")]
+    public void Config_DefaultsToDeep_BareDecoderStaysNormal()
     {
-        new DecoderConfig().DecodingDepth.Should().Be(DecodingDepth.Normal);
+        new DecoderConfig().DecodingDepth.Should().Be(DecodingDepth.Deep);
         new Ft8Decoder(new FakeClock(CycleStart), null, interop: new StagedInterop()).DecodingDepth
             .Should().Be(DecodingDepth.Normal, "a decoder that was never told anything is Normal");
 

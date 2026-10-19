@@ -11,7 +11,7 @@ public enum DecodingDepth
 {
     /// <summary>
     /// Pass 0 and, when <c>decoder.subtractionEnabled</c> is on, the residual pass: exactly the decoder as it was before
-    /// the third pass existed (bit-for-bit). The default.
+    /// the third pass existed (bit-for-bit). The explicit opt-out; not the default.
     /// </summary>
     Normal = 0,
 

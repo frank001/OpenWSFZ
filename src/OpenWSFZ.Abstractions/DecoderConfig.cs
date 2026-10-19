@@ -47,7 +47,7 @@ public sealed record DecoderConfig
         bool   earlyDecodeEnabled      = true,
         double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds,
         // third-pass-deep (#240): in the constructor with its default, for the same reason as the fields above.
-        DecodingDepth decodingDepth    = DecodingDepth.Normal)
+        DecodingDepth decodingDepth    = DecodingDepth.Deep)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -216,12 +216,12 @@ public sealed record DecoderConfig
     public double EarlyDecodeCutSeconds { get; init; } = DefaultEarlyDecodeCutSeconds;
 
     /// <summary>
-    /// third-pass-deep (#240, step 1): <see cref="Abstractions.DecodingDepth.Normal"/> (the default) is the decoder as it
-    /// always was; <see cref="Abstractions.DecodingDepth.Deep"/> adds one more incremental subtract-and-decode round after the
-    /// residual pass (published as batch 3, sharing the 13 s cycle budget). It has an effect only while
+    /// third-pass-deep (#240, step 1): <see cref="Abstractions.DecodingDepth.Deep"/> (the default) adds one more incremental subtract-and-decode round after the
+    /// residual pass (published as batch 3, sharing the 13 s cycle budget); <see cref="Abstractions.DecodingDepth.Normal"/>,
+    /// the explicit opt-out, is the decoder as it was before the third pass existed. It has an effect only while
     /// <see cref="SubtractionEnabled"/> is on. Config API / file only in step 1 (no Settings-page control). Read once per
     /// window; takes effect on the next window. The value the decoder is actually using is served on
-    /// <c>GET /api/v1/status</c> as <c>thirdPass.decodingDepth</c>. An absent key reads as <c>Normal</c>.
+    /// <c>GET /api/v1/status</c> as <c>thirdPass.decodingDepth</c>. An absent key reads as <c>Deep</c>; an explicit <c>"Normal"</c> stays Normal.
     /// </summary>
-    public DecodingDepth DecodingDepth { get; init; } = DecodingDepth.Normal;
+    public DecodingDepth DecodingDepth { get; init; } = DecodingDepth.Deep;
 }
