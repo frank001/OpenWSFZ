@@ -41,15 +41,20 @@ log "decoding depth (config $CFG): $DEPTH"
 # that config plus ONLY decoder.decodingDepth (re-serialised in the daemon's own style: indent 2, no trailing newline). Anything else HALTS the sweep before it starts.
 RIGCFG=${TP_RIG_CONFIG:-$HOME/rr-run/config.json}
 PIN=${TP_RIG_CONFIG_SHA:-661de047bc52b833620316c2fe505000584fcde318987f25793a378c37733c9d}
+# 2026-10-19 (PR #248: decoder.decodingDepth now DEFAULTS TO DEEP on main): the pin identifies the rig config MINUS decoder.decodingDepth (661de047..., the config every R&R since B2 ran on, which had
+# no such key), and the rig config must now CARRY the key explicitly, so a key-absent rig config can never silently become Deep. Both files are compared after dropping the key and re-serialising
+# (indent 2, no trailing newline = the daemon's own style); the rig config's own explicit depth is reported beside the result.
 CK=$("$PY" - "$RIGCFG" "$CFG" "$PIN" <<'PYEOF'
 import hashlib, json, sys
 rig, tp, pin = sys.argv[1:4]
-rs = hashlib.sha256(open(rig, "rb").read()).hexdigest()
-c = json.load(open(tp, encoding="utf8"))
-c["decoder"].pop("decodingDepth", None)
-ts = hashlib.sha256(json.dumps(c, indent=2, ensure_ascii=False).encode()).hexdigest()
-ok = rs == pin and ts == pin
-print(("OK" if ok else "FAIL") + " rig=%s tp-minus-depth=%s pin=%s" % (rs[:16], ts[:16], pin[:16]))
+def minus_depth(path):
+    c = json.load(open(path, encoding="utf8"))
+    depth = c["decoder"].pop("decodingDepth", None)
+    return hashlib.sha256(json.dumps(c, indent=2, ensure_ascii=False).encode()).hexdigest(), depth
+rs, rig_depth = minus_depth(rig)
+ts, _ = minus_depth(tp)
+ok = rs == pin and ts == pin and rig_depth in ("Normal", "Deep")
+print(("OK" if ok else "FAIL") + " rig-minus-depth=%s tp-minus-depth=%s pin=%s rig-depth=%s" % (rs[:16], ts[:16], pin[:16], rig_depth))
 PYEOF
 )
 log "config pin: $CK"
