@@ -175,5 +175,55 @@ the rows show them. HK-038: the rule comes from this population.
 | C5 | §1.2, §6 | r5 −30..+32 dB in 2 dB steps, from the paper; any report mismatch on the matched rows ⇒ STOP |
 | C6 | §3 | `Q` + digit test calls; ASan on WSL |
 
+## Addendum 1: rulings on the build `87beed94` before QA's replay (2026-10-19 18:17Z, `date -u`)
+
+Facts as QA reported them. The CI lines were checked by the Architect (`ci.yml` on `origin/main`, both the macOS and
+Linux jobs: clone `frank001/ft8_lib` `msvc-compat`, overlay only `native/ft8_lib_build/patched/ft8/decode.c`).
+
+**R1. A stricter hound guard: yes, as a candidate measured before the replay. Use a STATIC ITU prefix table, not the region data.**
+- **Not the station's region data.** `callsign-regions.json` is refreshable: sol's was refreshed on 2026-10-18. A decode
+  rule that depends on it would make decode output change when the file changes. That breaks the determinism the R&R
+  and every replay rely on.
+- **Rule:** tokens 0 and 2, when they are standard calls, must start with an allocated ITU call-sign series. The table
+  is compiled in, taken from the ITU's public Table of Allocation of International Call Sign Series (facts, no licence
+  issue), and never refreshed. Hashed `<...>` hounds stay allowed (as confirmed).
+- 🔴 **`Q` is not an ITU country series, and the synthetic test calls are all `Q` + digit (NFR-021).**
+  - The table must be **injectable**: production = ITU only; tests add `Q`.
+  - The synthetic-fixture differential decode then runs with the test table, and the replay on real audio with the production one.
+- **Measure before adopting (QA, aggregates only):**
+  - (a) the share of the **576** real hound calls on the 288 rows that pass;
+  - (b) the rule's acceptance of random payloads, the same N = 100,000 and seed as the 71.8 % figure.
+- **Adopt if (a) = 576/576.** Any miss ⇒ report the misses' shapes to the Architect before adopting.
+  - Where the bar comes from (HK-038): the 288 rows are the only real population we have. Losing a real hound is a
+    lost decode, and the table should not need to lose any.
+  - Report (b) beside it. M2 then uses the new acceptance figure.
+
+**R2. The four Developer fixes: all ACCEPTED.**
+- (a) External reporting skips 0.1 rows explicitly. My C4 region rule is what opened that path, and the guard is right.
+- (b) `engage-decode` refuses a 0.1 row up front.
+- (c) `decodeRowClasses.js` never marks a 0.1 row as a responder.
+- The subtraction keep-by-text fix, without which every batch-2/3 0.1 decode would have been hidden.
+- Each one replaces an accident with an explicit rule. Phase 3 will revisit (a)–(c) deliberately.
+
+**R3. The CI gap: confirmed, and it must be closed before the #225 PR. One more check first.**
+- The fix (copy `message.c`/`message.h` from the vendored tree in both jobs) is right in kind.
+- **Before it merges, QA establishes for each platform which copy of every `ft8/*.c` and `*.h` is compiled.** There are
+  three candidate sources: the `msvc-compat` clone, `native/ft8_lib_vendor/ft8/`, and `native/ft8_lib_build/` (Windows,
+  which per the shim history once linked a **binary-patched `message.obj`**).
+- **Diff every file of the vendored tree against the clone.** Then:
+  1. If any file other than `decode.c` **already** differs today, Linux/macOS have been compiling a different source
+     from Windows. List the files, and say whether it touches decode output.
+  2. Check that the Developer's Windows `libft8.dll` compiled `message.c` **from the vendored source**, and that the old
+     MSVC pointer-truncation fix is still present in it, in source or as the binary patch.
+  3. The CI fix overlays every file that differs, not only `message.c`/`.h`, unless a file differs on purpose (say why).
+- **Era note:** the sol `.so` changes with shim 20260064 in any case, so this is a new sol build era. The B2CAP and Deep/sol bands are not carried over.
+
+**R4. The rest: noted.**
+- `r5` = 2·r5 − 30, printed `%+03d`. The check is V2c against WSJT-X's text, since the paper could not be opened
+  offline (say so in the hand-back, as was done).
+- The (i3, n3) counter as a native getter plus a per-cycle log line is enough for M2.
+- The F-001 12-bit values are a new era.
+- The synthetic-fixture false 0.1 decodes are a warning, as QA says. The live figure is the replay's.
+
 **Phase 3:** my design comes after this phase is merged and measured, as the spec's §7 says. It will take M2, V2b and
 the Captain's answer to §3 as inputs.
