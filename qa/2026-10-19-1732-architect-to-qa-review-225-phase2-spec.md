@@ -246,5 +246,90 @@ Linux jobs: clone `frank001/ft8_lib` `msvc-compat`, overlay only `native/ft8_lib
   - If one does, it must be changed in the same step.
 - It must merge before the #225 PR, on the Captain's go.
 
+## Addendum 3: the quick-check replay, and the ruling on the 10-bit Fox name (2026-10-19 18:59Z, `date -u`)
+
+Figures as QA reported them: 455 cycles of `20261009_1752`, Deep both arms, OLD `5229beec` vs NEW `87beed94`.
+
+**Results:**
+- **V1 PASS:** 0 of 455 cycles differ, 0 abandoned.
+- **V2:** 64 new 0.1 decodes, 63 matched, **0 OWS-only**.
+- **V2c:** 0 report mismatches.
+- **M1:** 63 of 77 WSJT-X 0.1 rows = **81.8 % [71.8, 88.9]** (one 40 m night, offline, every 8th cycle).
+- **V2b:**
+
+  | class | count |
+  |---|---|
+  | same call | 7 |
+  | OWS `<...>`, WSJT-X a call | 56 |
+  | OWS a call, WSJT-X `<...>` | 0 |
+  | **different calls** | **1** ⇒ **STOP fired, as ruled** |
+
+**The STOP case.** It is exactly the K2 collision:
+- OWS's name shares the Fox's 10-bit hash but not its 22-bit hash;
+- it is a real station heard that night;
+- the unique-match rule took the only call in the bucket, and it was not the Fox.
+
+That is **1 wrong of 8 resolved.** The sample is tiny, but the full night fills the table about 8× more, so the
+rate there will be higher (the K2 table).
+
+**RULING: option (a). Never resolve the 10-bit hash in this phase: `call3` is always `<...>`.**
+- **Why:**
+  - The standing F-001 policy is "no name beats a wrong name".
+  - A wrong name was observed in this phase's own replay, and the rate grows with session length.
+  - A wrong Fox name also gives a wrong region (C4).
+  - The cost is the 7 correct names in this sample, about 11 % of the 0.1 rows, which are display-only in this phase.
+- **(b) is rejected.** It knowingly displays wrong names.
+- **(c) (heard recently as a sender) is not rejected, but it is not for this phase.** It is new state with its own
+  failure modes, and it needs a design.
+- **Phase 3 has a safe form of resolution anyway.** A Hound that is calling a chosen Fox knows the Fox's full call, so it
+  can **check** the 10-bit hash against that one call. That is verification, not a table lookup, and it cannot pick a
+  stranger. The phase 3 design takes this up.
+
+**What changes in the build (QA → Developer, a small amendment to `87beed94`):**
+1. The 0.1 path renders `call3` as `<...>` unconditionally. The 10-bit lookup is not called for 0.1. The 12-bit and
+   22-bit paths are untouched.
+2. C1's degradation step 1 is therefore always in effect, and the bound test still runs.
+3. V2b becomes "OWS `<...>` in every row" by construction. **Keep it as a check:** any resolved `call3` ⇒ FAIL.
+4. C4: a 0.1 row is now **always** a region-lookup miss.
+
+**The suppression question for the Captain changes with this (it replaces §3's A/B/C):**
+- With (a), option A would hide **every** Fox row from noise-suppression users, not most.
+- The false-row data so far:
+  - 0 OWS-only of 64 in the replay;
+  - the (i3, n3) counter read 0 in every cell over 455 cycles. That is **not yet validated** (see below).
+
+| option | leads to |
+|---|---|
+| A. Suppression applies to 0.1 rows | Users with suppression on never see a Fox row |
+| **B. 0.1 rows exempt from suppression** | Fox rows always shown. False rows would be shown too, at a rate the live night must confirm (counter + V2 OWS-only) |
+| C. Decide after the live night | Build B or A meanwhile. The night supplies the validated counter and a full-night OWS-only count |
+
+**Architect's view: B,** once the live night confirms the false-row rate is as low as the replay suggests. Until then, C.
+The Captain decides.
+
+**M2, the zero counter: validate it before anyone reads it.**
+- The Developer's raw-DLL test counted 33 drops in 24 synthetic windows. The managed replay read 0 in every cell over
+  455 real cycles. Before 0 is a result, the managed path needs a **positive control**: feed the same synthetic window that
+  produced drops in the raw-DLL test through the managed replay path, and the counter must read non-zero.
+- If it does, the 455-cycle zero stands as "no chance CRC passes in an unsupported type" (one-sided 95 % bound about
+  3 / 455 cycles). That puts expected false 0.1 rows at well under one per night.
+- If it doesn't, the counter is broken. Fix it before the live night is read.
+
+**The live endurance run tonight on `87beed94`: yes, as QA plans, with these conditions:**
+- **Build:** `87beed94` as is (the change above cannot be made before the run). So the run measures the full-night
+  wrong-name rate of the unique-match rule. That is useful evidence for this ruling's record, never for shipping it.
+- **Config:** the station's own. Record the depth **read back** from status (Deep is the default on this base). Make no
+  other change.
+- **New era:** shim 20260064 on the station. Never pool it with DI or `main`-era runs.
+- **Read on close:**
+  - HK-036 Section 4;
+  - V2 OWS-only 0.1 count;
+  - V2b, all four classes, full night;
+  - M1 by SNR band;
+  - the live `unsupportedType total=` line: does it move? That doubles as the counter's validation;
+  - 0 external spots of 0.1 rows (R2a).
+- On air, the station will show bracketed Fox names, some wrong, during the run. That is display only: no spots, no QSO
+  use. Acceptable for one night.
+
 **Phase 3:** my design comes after this phase is merged and measured, as the spec's §7 says. It will take M2, V2b and
 the Captain's answer to §3 as inputs.
