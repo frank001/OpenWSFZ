@@ -8,6 +8,12 @@ namespace OpenWSFZ.Daemon;
 /// </summary>
 /// <param name="CycleStart">UTC instant at which the CycleFramer began accumulating this window.</param>
 /// <param name="Results">Decoded messages; empty when the RMS silence guard fired.</param>
+/// <param name="BatchNumber">
+/// late-batches-in-qso: 1 for a cycle's first (or only) batch; 2 or 3 for a supplementary batch of the SAME cycle
+/// (residual pass, third pass). Only a batch 1 is a cycle for the QSO services; a supplementary batch counts as heard
+/// but never as a missed response. Defaults to 1 so every existing constructor call stays valid.
+/// </param>
 public sealed record DecodeBatch(
     DateTimeOffset              CycleStart,
-    IReadOnlyList<DecodeResult> Results);
+    IReadOnlyList<DecodeResult> Results,
+    int                         BatchNumber = 1);
