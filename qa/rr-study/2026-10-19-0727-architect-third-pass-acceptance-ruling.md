@@ -118,4 +118,37 @@ default. That would need a bar set from this data, and a decision on F2 for slow
 - **So 60 of 777 raw results (7.7 %) were text duplicates of decodes already in that cycle.** They were not delivered.
 - **Rule:** cite the delivered (status) count for any live batch-3 figure, never the log sum.
 - **Caveat:** this comes from the code path, not a per-cycle measurement, because no per-cycle counter exists.
-- This changes nothing in §1–§5. The offline figures (NET_3, M2) come from Replay81's per-batch outcome files (A4), not from this log line.
+- This changes nothing in §1–§5 (but see Addendum 2). The offline figures (NET_3, M2) come from Replay81's per-batch outcome files (A4), not from this log line.
+
+## Addendum 2: the Captain's decision, Deep is the DEFAULT (2026-10-19 08:42Z, `date -u`)
+
+**Decision (the Captain's, via QA; checked by the Architect on `origin/main`):**
+- #240 step 1 merged to `main` as PR #248, `0c7124db`, 08:23:41Z.
+- Commit `21d8fac4` makes **`decoder.decodingDepth` default to `Deep`.**
+  - In `DecoderConfig.cs`, an absent key reads as Deep, and an explicit `"Normal"` stays Normal.
+  - This goes beyond option A in §5, which assumed Normal as the default.
+
+**The Architect's concern, stated once:**
+- §5 said a Deep default needed a bar set from this data, plus an F2 decision for slow machines.
+- The one risk seen was on sol: Deep lengthened the known trigger stall by about 2 s (§3). That rests on one sweep.
+- With Deep as the default, that risk reaches every slow-machine install that has no explicit key.
+- The station PC showed no clamps. The measured gain is about +0.5 pp, and 0 of 1,700 third passes ran out of the budget.
+- The decision is the Captain's, and it stands. F2 stays parked.
+
+**What it changes in this ruling:**
+1. §5's "Normal is bit-for-bit today's output, so nothing changes for anyone who doesn't switch it on" **no longer
+   describes the shipped default.** V1 still holds for an explicit `"Normal"`.
+2. 🔴 **Eras.** A build from `main` at or after `0c7124db`, with no `decodingDepth` key, is a **Deep-era** instrument
+   (a new timing and decode era).
+   - **The B2CAP era (OWS 87.3–88.3 %) continues only with an explicit `"Normal"`** in the config, read back as Normal from
+     `/api/v1/status`.
+   - Never pool a key-absent post-`0c7124db` run with a pre-merge run or an explicit-Normal run.
+3. QA's follow-ups are accepted as listed:
+   - pin an explicit depth in the sol rig config before the next sol run (and refresh the config pin);
+   - set the depth explicitly in the endurance configs;
+   - record the station's first Deep cycle as its era start when the Captain redeploys.
+   - **Every run note from now on states the depth it ran with, as read back from status, not only as written in the config** (HK-020: the one critical config).
+4. The citation guards in §2 are unchanged.
+5. **Not established:** Deep's capture behaviour on any machine slower than the station PC, beyond sol's one sweep.
+   - **Suggestion only, not a test bar:** if a user on slow hardware reports lost cycles, the first thing to try is
+     `decodingDepth: "Normal"`.
