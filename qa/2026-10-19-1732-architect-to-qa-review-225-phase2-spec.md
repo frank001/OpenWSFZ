@@ -225,5 +225,26 @@ Linux jobs: clone `frank001/ft8_lib` `msvc-compat`, overlay only `native/ft8_lib
 - The F-001 12-bit values are a new era.
 - The synthetic-fixture false 0.1 decodes are a warning, as QA says. The live figure is the replay's.
 
+## Addendum 2: R1 and R3 results (2026-10-19, after QA's measurements; figures as QA reported them)
+
+**R1, the ITU guard: NOT adopted now. It is deferred to the replay.**
+- **It passes the bar:** 576/576 real hound tokens.
+- **But it buys little:** at most a factor of about 0.64 on the 71.8 % acceptance of random payloads, to about 46 % or
+  more, and less where it overlaps `IsParsedCallsign`.
+- **And its table was written from memory.** An unverified table in a decode rule risks dropping real hounds from
+  rare series. A real example: **`1A` (the Sovereign Military Order of Malta)** starts with `1`, which the prototype rejects.
+- **Decision:** ship without it. If the replay's M2 / V2 shows false 0.1 rows at a level the Captain finds too high,
+  the guard comes back as its own change. Its table would then be checked line by line against the ITU's published
+  allocation table, plus the known non-ITU series in use (`1A`, `4U`), and re-measured on the 576.
+
+**R3, the CI fix: ACCEPTED as `b78a418d`** (overlay `message.c`, `message.h` and `common/monitor.c` in both jobs).
+- QA's diff shows that **until now Linux/macOS compiled the same decode source as Windows**: all 21 vendored files are
+  identical to the clone, and `decode.c` was already overlaid. **No earlier cross-platform figure is affected.**
+- **One side effect to check before it merges:** the `monitor.c` overlay removes four INFO lines per `ft8_decode_all`
+  from the CI-built Linux/macOS libraries' stderr.
+  - QA confirms that **no sol tooling** (battery, pull-series, F2/third-pass parsers, supervisors) greps those lines.
+  - If one does, it must be changed in the same step.
+- It must merge before the #225 PR, on the Captain's go.
+
 **Phase 3:** my design comes after this phase is merged and measured, as the spec's §7 says. It will take M2, V2b and
 the Captain's answer to §3 as inputs.
