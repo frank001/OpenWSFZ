@@ -1,0 +1,3 @@
+CT1 attempt 1: PASS (overrun counter 0 -> 0, next-window wanted 574 samples, bar < 2400)
+CT2 attempt 1: PASS (overrun counter 0 -> 1; stop 5.0 s; next-window wanted 62233)
+counters at hand-over: overruns 1; channel drops 0; watchdog restarts 0

@@ -1,0 +1,260 @@
+{
+ "tag": "sweep2",
+ "plays": 180,
+ "wavs": 60,
+ "rows": {
+  "X0": {
+   "A": 0.6325802615933412,
+   "L": 0.6325802615933412,
+   "A_minus_L": {
+    "point": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "resamples": 2000
+   },
+   "CI_excludes_0": false,
+   "live_rows_reproduced_share": 1.0,
+   "extra_row_share_of_replay": 0.0,
+   "label": "replay consistent with live (CI of A - L contains 0)"
+  },
+  "X3": {
+   "W": 0.9115646258503401,
+   "A": 0.6325802615933412,
+   "W_minus_A": {
+    "point": 0.2789843642569989,
+    "lo": 0.1930414182888668,
+    "hi": 0.3685891928204948,
+    "resamples": 2000
+   },
+   "fires": true,
+   "reading": "OpenWSFZ more consistent on WSJT-X's captures than on its own (capture or framing side)"
+  },
+  "X4": {
+   "W": 0.9115646258503401,
+   "C_w": 0.9372384937238494,
+   "W_minus_C_w": {
+    "point": -0.025673867873509226,
+    "lo": -0.05539378788474317,
+    "hi": 0.0018935421068624822,
+    "resamples": 2000
+   },
+   "fires": false,
+   "label": "sensitivity or threshold density, not separated"
+  }
+ },
+ "validity": {
+  "V1_runs": {
+   "R-A": {
+    "sha_equal_start_end": true,
+    "sha": "873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a",
+    "readback": {
+     "cores": 8,
+     "kMinScorePass2": 10,
+     "nhard": 24,
+     "osdCorrThreshold": 0.1,
+     "osdSignFixRead": 1,
+     "osdSignFixSet": 1,
+     "shim": 20260062,
+     "subtractionEnabled": true,
+     "threadsConfigured": 8
+    },
+    "items": 180,
+    "abandoned": 0,
+    "ran": 174,
+    "wall_s": 633.89,
+    "cpu_s": 2216.29,
+    "contained": 0
+   },
+   "R-W": {
+    "sha_equal_start_end": true,
+    "sha": "873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a",
+    "readback": {
+     "cores": 8,
+     "kMinScorePass2": 10,
+     "nhard": 24,
+     "osdCorrThreshold": 0.1,
+     "osdSignFixRead": 1,
+     "osdSignFixSet": 1,
+     "shim": 20260062,
+     "subtractionEnabled": true,
+     "threadsConfigured": 8
+    },
+    "items": 180,
+    "abandoned": 0,
+    "ran": 177,
+    "wall_s": 719.42,
+    "cpu_s": 2878.98,
+    "contained": 0
+   }
+  },
+  "V3": {
+   "R-A": true,
+   "R-W": true
+  },
+  "V5_untagged": {
+   "R-A": 0,
+   "R-W": 0
+  },
+  "V4": {
+   "L_recomputed": 0.6325802615933412,
+   "L_report": 0.6325802615933412,
+   "C_w_recomputed": 0.9372384937238494,
+   "C_w_report": 0.9372384937238494,
+   "result": "PASS"
+  }
+ },
+ "descriptive": {
+  "L_live_owsfz": 0.6325802615933412,
+  "C_w_live_wsjtx": 0.9372384937238494,
+  "by_batch_A": {
+   "1": 0.6725304465493911,
+   "2": 0.24778761061946902
+  },
+  "by_batch_W": {
+   "1": 0.9248704663212435,
+   "2": 0.7391304347826086
+  },
+  "by_own_snr": {
+   "A": [
+    {
+     "bin": "<= -18 dB",
+     "n_signals": 68,
+     "consistency": {
+      "point": 0.2647058823529412,
+      "lo": 0.15251669234720083,
+      "hi": 0.396564401622718,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": "-17 to -10 dB",
+     "n_signals": 301,
+     "consistency": {
+      "point": 0.6013289036544851,
+      "lo": 0.5096473482777474,
+      "hi": 0.6907894736842105,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": ">= -9 dB",
+     "n_signals": 472,
+     "consistency": {
+      "point": 0.7055084745762712,
+      "lo": 0.6086956521739131,
+      "hi": 0.7961199154180214,
+      "resamples": 2000
+     }
+    }
+   ],
+   "W": [
+    {
+     "bin": "<= -18 dB",
+     "n_signals": 60,
+     "consistency": {
+      "point": 0.7,
+      "lo": 0.5862068965517241,
+      "hi": 0.8125,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": "-17 to -10 dB",
+     "n_signals": 310,
+     "consistency": {
+      "point": 0.8612903225806452,
+      "lo": 0.8057280608634112,
+      "hi": 0.909757233296709,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": ">= -9 dB",
+     "n_signals": 512,
+     "consistency": {
+      "point": 0.966796875,
+      "lo": 0.9482758620689655,
+      "hi": 0.9844801151106288,
+      "resamples": 2000
+     }
+    }
+   ],
+   "C_w": [
+    {
+     "bin": "<= -18 dB",
+     "n_signals": 149,
+     "consistency": {
+      "point": 0.7449664429530202,
+      "lo": 0.664179104477612,
+      "hi": 0.8120910234899329,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": "-17 to -10 dB",
+     "n_signals": 384,
+     "consistency": {
+      "point": 0.9322916666666666,
+      "lo": 0.9045222798341842,
+      "hi": 0.957608621481123,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": ">= -9 dB",
+     "n_signals": 662,
+     "consistency": {
+      "point": 0.9833836858006042,
+      "lo": 0.9728892771084338,
+      "hi": 0.9923085758039817,
+      "resamples": 2000
+     }
+    }
+   ]
+  },
+  "common_set_W_vs_C_w": [
+   {
+    "bin": "<= -18 dB",
+    "n_common": 45,
+    "W": 0.8,
+    "C_w": 0.9777777777777777,
+    "W_minus_C_w": {
+     "point": -0.17777777777777778,
+     "lo": -0.3125,
+     "hi": -0.045454545454545456,
+     "resamples": 2000
+    }
+   },
+   {
+    "bin": "-17 to -10 dB",
+    "n_common": 247,
+    "W": 0.8340080971659919,
+    "C_w": 0.9959514170040485,
+    "W_minus_C_w": {
+     "point": -0.16194331983805668,
+     "lo": -0.225531914893617,
+     "hi": -0.10202885841836741,
+     "resamples": 2000
+    }
+   },
+   {
+    "bin": ">= -9 dB",
+    "n_common": 587,
+    "W": 0.9557069846678024,
+    "C_w": 0.9948892674616695,
+    "W_minus_C_w": {
+     "point": -0.039182282793867124,
+     "lo": -0.06491340530814214,
+     "hi": -0.015036888656914334,
+     "resamples": 2000
+    }
+   }
+  ],
+  "archive_health": {
+   "cycles": 180,
+   "with_clipped": 0,
+   "with_dropped_before": 0
+  },
+  "input_difference_archive_xcorr": "not computed: needs the played corpus audio and a cross-correlation pass (s6/archive_xcorr.py); a separate step"
+ }
+}

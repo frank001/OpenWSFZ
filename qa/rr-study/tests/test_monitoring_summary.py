@@ -1,0 +1,147 @@
+"""Per-sweep monitoring summary (2026-10-14). Synthetic folders only, no message text."""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "linux"))
+sys.path.insert(0, str(ROOT / "s6"))
+
+import monitoring_summary as MS  # noqa: E402
+
+
+def smp(t, ok=True, age=5.0, wpid=100, rss="200000 kB", susp=1000.0, alsa="state: RUNNING", load=1.2, aplay=0):
+    return {"t": t, "ok": ok, "reason": "ok" if ok else "no new save WAV for 60 s", "wav_age_s": age, "wav_count": 10, "wsjtx": [{"pid": wpid, "state": "S", "rss_kb": rss, "threads": "10"}],
+            "jt9": [{"pid": 101, "state": "S", "rss_kb": "1 kB", "threads": "1"}], "aplay": {"count": aplay, "oldest_s": 3.0 if aplay else None}, "alsa": {"card0/pcm0c/sub0/status": alsa},
+            "suspended_s": susp, "load1": load, "owsfz_archive_age_s": 4.0}
+
+
+def test_monitor_summary_counts_stalls_restarts_and_sleep():
+    ss = [smp("2026-10-14T10:00:00Z"), smp("2026-10-14T10:00:15Z", age=40.0), smp("2026-10-14T10:00:30Z", ok=False, age=61.0, alsa="state: XRUN"),
+          smp("2026-10-14T10:01:00Z", wpid=200, rss="150000 kB", susp=1030.5, aplay=1)]
+    ev = [{"t": "2026-10-14T10:00:30Z", "reason": "no new save WAV for 61 s", "snapshot": "/x/stall-2026-10-14T100030Z"}]
+    r = MS.summarise_monitor(ss, ev)
+    assert r["samples"] == 4 and r["samples_not_ok"] == 1 and r["stall_episodes"] == 1 and r["stalls"][0]["snapshot"] == "stall-2026-10-14T100030Z"
+    assert r["wsjtx_pids"] == [100, 200] and r["wsjtx_restarts_during_monitoring"] == 1 and r["wsjtx_rss_kb"] == {"first": 200000, "last": 150000, "max": 200000}
+    assert r["wav_age_s"]["max"] == 61.0 and r["max_gap_s"] == 30.0 and r["gaps_over_2x_interval"] == 0
+    assert r["suspended_s"] == {"first": 1000.0, "last": 1030.5, "delta": 30.5}                 # a sleep during the run shows as a delta
+    assert r["alsa_states"]["card0/pcm0c/sub0/status"] == {"state: RUNNING": 3, "state: XRUN": 1}
+    assert r["aplay"]["max_count"] == 1 and r["host_load1"]["max"] == 1.2 and r["owsfz_archive_age_s_max"] == 4.0
+
+
+def test_monitor_summary_without_a_log_says_so():
+    assert MS.summarise_monitor([], [])["samples"] == 0
+
+
+def test_coverage_rows_are_read_from_the_report():
+    md = "| Coverage (validity) | S1/WSJT-X | 30 of 30 cycles with data (needs >= 29) | PASS |\n| Coverage (validity) | S4/WSJT-X | 7 of 15 cycles with data (needs >= 14) | INVALID |\n| other | x | y | PASS |\n"
+    rows = MS.coverage_rows_from_report(md)
+    assert [r["verdict"] for r in rows] == ["PASS", "INVALID"] and rows[1]["scope"] == "S4/WSJT-X"
+
+
+def test_summarise_run_reads_gate_stall_pins_and_replacement(tmp_path):
+    sup, run = tmp_path / "sup", tmp_path / "run"
+    sup.mkdir(); run.mkdir()
+    (sup / "monitor.jsonl").write_text(json.dumps(smp("2026-10-14T10:00:00Z")) + "\n")
+    (run / "liveness_gate.json").write_text(json.dumps({"first_reading_ok": True}))
+    (run / "STALLED.json").write_text(json.dumps({"scenario": "S4", "reason": "no new save WAV"}))
+    (run / "REPLACEMENT.json").write_text(json.dumps({"attempt": 2, "replaces": "x-INVALID-stall-attempt1"}))
+    (run / "arm_config.json").write_text(json.dumps({"build": {"commit": "abc", "build_dirty": False}, "daemon": {"shim_version": 20260062, "dll_sha256": "dead", "decoder_readback": {"osdNhardMax": 24}}, "wsjtx": {"NDepth": 3}}))
+    (run / "report.md").write_text("| Coverage (validity) | S1/OpenWSFZ | 30 of 30 cycles with data (needs >= 29) | PASS |\n")
+    r = MS.summarise_run(str(sup), str(run), 2.0)
+    assert r["M2_gate"]["stalled"] and r["M2_gate"]["gate_record"]["first_reading_ok"] and r["M3_coverage"]["rows_pass"] == 1
+    assert r["build_pins"]["shim"] == 20260062 and r["build_pins"]["commit"] == "abc" and r["replacement"]["attempt"] == 2
+    assert r["daemon_log"]["note"].startswith("no daemon") and r["S6_validity"] is None
+
+
+def test_daemon_log_aggregates_counts_only(tmp_path):
+    log = tmp_path / "daemon.stdout.log"
+    log.write_text("\n".join([
+        "[12:00:16 INF] Cycle 10:00:00: 12 decode(s) found, elapsed=900 ms.",
+        "[12:00:21 INF] Sub-feas residual pass: residualDecodes=2 elapsedMs=3100 deadlineAbandoned=False containedException=False fittedSignals=9",
+        "[12:00:50 INF] Cycle 10:00:15: 3 decode(s) found, elapsed=800 ms.",
+        "[12:00:51 INF] Sub-feas residual pass: residualDecodes=0 elapsedMs=10400 deadlineAbandoned=True containedException=False fittedSignals=11",
+        "[12:01:05 WRN] Cycle-grid realignment clamped: wanted 15000 samples (1.250 s), applied 3000 (0.250 s)"]) + "\n")
+    r = MS.summarise_daemon_log(str(log), 2.0)
+    assert r["cycles_logged"] == 2 and r["residual_passes"] == 2 and r["residual_abandoned"] == 1 and r["clamp_warnings"] == 1 and r["clamp_positive"] == 1
+    assert r["late_cycles"] == 1 and r["residual_elapsed_ms"]["max"] == 10400
+    assert "episodes" in r and "examples" not in json.dumps(r)
+
+
+# ---- the two M1 fields added 2026-10-14: capture hw_ptr and per-thread CPU ticks -------------------------------------------------------------
+
+def _stall_samples(hw_step, ticks_step):
+    out = []
+    for i in range(5):
+        s = smp("2026-10-14T10:00:%02dZ" % (i * 15) if i < 4 else "2026-10-14T10:01:00Z", ok=(i == 0), age=10.0 + 15 * i)
+        s["capture_hw_ptr"] = {"card0/pcm0c/sub0/status": 1_000_000 + i * hw_step}
+        s["wsjtx_cpu_ticks"] = {"100": {"100": ["wsjtx", 50 + i * ticks_step], "101": ["QThread", 10]}}
+        out.append(s)
+    return out
+
+
+def test_stall_diagnosis_device_delivering_and_all_threads_idle():
+    r = MS.diagnose_stall(_stall_samples(hw_step=720_000, ticks_step=0)[:5] if False else [dict(x, ok=(i < 1)) for i, x in enumerate(_stall_samples(720_000, 0))])
+    assert r["capture_hw_ptr_advance_ratio"]["card0/pcm0c/sub0/status"] == 1.0
+    assert r["wsjtx_thread_cpu_in_window"]["100"]["threads_whose_cpu_advanced"] == 0 and "application stopped reading" in r["reading"]
+
+
+def test_stall_diagnosis_device_stopped_and_unreadable_fields():
+    rows = [dict(x, ok=(i < 1)) for i, x in enumerate(_stall_samples(0, 3))]
+    r = MS.diagnose_stall(rows)
+    assert r["capture_hw_ptr_advance_ratio"]["card0/pcm0c/sub0/status"] == 0.0 and "sound hardware itself stopped" in r["reading"]
+    assert r["wsjtx_thread_cpu_in_window"]["100"]["advanced"]["100"][0] == "wsjtx"
+    old = [smp("2026-10-14T10:00:%02dZ" % (i * 15), ok=(i < 1)) for i in range(4)]
+    assert "not decidable" in MS.diagnose_stall(old)["reading"]
+    assert MS.diagnose_stall([smp("2026-10-14T10:00:00Z")]) is None            # no stall, no diagnosis
+
+
+# ---- sequential S6 (Captain 2026-10-15): WSJT-X is OFF on purpose while OpenWSFZ plays its pass --------------------------------------------------
+
+def _off(t):
+    s = smp(t, ok=False, age=None)
+    s.update(wsjtx=[], reason="no wsjtx process", expected_off=True)
+    return s
+
+
+def test_samples_taken_while_wsjtx_is_off_on_purpose_are_counted_apart_and_are_no_stall_or_gap():
+    ss = [smp("2026-10-14T10:00:00Z"), smp("2026-10-14T10:00:15Z"), _off("2026-10-14T10:00:30Z"), _off("2026-10-14T10:00:45Z"), _off("2026-10-14T10:01:00Z"),
+          smp("2026-10-14T10:01:15Z"), smp("2026-10-14T10:01:30Z")]
+    r = MS.summarise_monitor(ss, [])
+    assert r["samples"] == 4 and r["samples_expected_off"] == 3 and r["samples_not_ok"] == 0 and r["ok_share"] == 1.0 and r["stall_episodes"] == 0
+    assert r["first_utc"] == "2026-10-14T10:00:00Z" and r["last_utc"] == "2026-10-14T10:01:30Z"       # the window is the whole battery
+    assert r["gaps_over_2x_interval"] == 0 and r["max_gap_s"] == 15.0                                 # the gap statistics use every sample
+    assert r["wsjtx_restarts_during_monitoring"] == 0
+    assert MS.summarise_monitor([_off("2026-10-14T10:00:00Z")], [])["samples"] == 0
+
+
+def _run_monitor(tmp_path, monkeypatch, flag):
+    import threading
+    import wsjtx_monitor as WM
+    sup = tmp_path / "sup"
+    sup.mkdir()
+    if flag:
+        (sup / "wsjtx.expected_off").write_text("")
+    snaps = []
+    bad = {"ok": False, "reason": "no wsjtx process", "wav_age_s": None, "wav_count": 0, "wsjtx": [], "jt9": [], "aplay": {}, "alsa": {}, "suspended_s": 1.0}
+    monkeypatch.setattr(WM, "sample", lambda *a, **k: dict(bad, t=WM.utc_now()))
+    monkeypatch.setattr(WM, "snapshot", lambda out_dir, tail, *a, **k: snaps.append(1) or str(sup / "stall-x"))
+    threading.Timer(0.7, lambda: (sup / "monitor.stop").write_text("")).start()
+    monkeypatch.setattr(sys, "argv", ["wsjtx_monitor", "--save-dir", str(tmp_path), "--out-dir", str(sup), "--interval", "0.2"])
+    assert WM.main() == 0
+    return sup, snaps
+
+
+def test_the_monitor_takes_no_snapshot_while_the_expected_off_flag_exists(tmp_path, monkeypatch):
+    sup, snaps = _run_monitor(tmp_path, monkeypatch, flag=True)
+    rows = [json.loads(x) for x in open(sup / "monitor.jsonl", encoding="utf-8")]
+    assert rows and all(r["expected_off"] for r in rows) and snaps == [] and not (sup / "stall_events.jsonl").exists()
+
+
+def test_without_the_flag_the_same_silence_is_a_stall_with_a_snapshot(tmp_path, monkeypatch):
+    sup, snaps = _run_monitor(tmp_path, monkeypatch, flag=False)
+    rows = [json.loads(x) for x in open(sup / "monitor.jsonl", encoding="utf-8")]
+    assert rows and not any("expected_off" in r for r in rows) and snaps == [1] and (sup / "stall_events.jsonl").is_file()

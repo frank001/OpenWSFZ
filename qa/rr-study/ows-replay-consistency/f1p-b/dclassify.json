@@ -1,0 +1,34 @@
+{
+ "overruns": 3,
+ "classes": {
+  "unclassified": 2,
+  "L2": 1
+ },
+ "items": [
+  {
+   "t": 1792249833.953,
+   "class": "unclassified",
+   "samples": 30,
+   "share_blocked_on_pipe": 0.4,
+   "share_runnable": 0.067,
+   "run_delay_share_of_window": 0.034
+  },
+  {
+   "t": 1792249909.863,
+   "class": "L2",
+   "samples": 30,
+   "share_blocked_on_pipe": 0.6,
+   "share_runnable": 0.1,
+   "run_delay_share_of_window": 0.039
+  },
+  {
+   "t": 1792250045.88,
+   "class": "unclassified",
+   "samples": 30,
+   "share_blocked_on_pipe": 0.2,
+   "share_runnable": 0.2,
+   "run_delay_share_of_window": 0.066
+  }
+ ],
+ "rule": "3 s before each overrun; L2 >= 50 % blocked on a pipe; L1 >= 50 % runnable and run delay >= 50 % of the window; else unclassified"
+}

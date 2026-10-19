@@ -1,0 +1,12 @@
+2026-10-17T16:24:17Z pipe-wrapper check block f2-check start
+2026-10-17T16:24:17Z V0: fuser on /dev/snd/pcmC0D0c: []; wsjtx/jt9/daemon/aplay/arecord not running
+2026-10-17T16:24:18Z pins at start: build 96dc583746a7ba0974239b8ff75c2b2b4b3759b3; libft8.so e8132650310e0fbb427540351d7d01b1ca258741e87771ec9cc24e3840c64ed0; config.json 661de047bc52b833620316c2fe505000584fcde318987f25793a378c37733c9d; .asoundrc 8fab827058509a282babef7097f911fc6387da22d75b49dc1d8a871a3e9391e2; wrapper 023f603120c18a56d7a17f84e5559a30f666f8da39243e1aea7b9972b9b1dea9
+2026-10-17T16:24:18Z V1a: /proc/sys/fs/pipe-max-size = 1048576
+2026-10-17T16:24:21Z daemon up (pid 1013235) after about 3 s
+2026-10-17T16:24:21Z V1b: log [[18:24:19 INF] arecord stderr [1]: pipe size 1048576|] fd1 [pipe:[103388951]]; V2: args [arecord -D rr_in -f FLOAT_LE -r 12000 -c 1 -t raw -] exe [/usr/bin/aplay] children of the daemon [1013263 1013235 arecord|]
+2026-10-17T16:31:01Z counters before the plays (overruns, channel drops, watchdog restarts): 1 0 0
+2026-10-17T16:49:15Z s6_play exited rc=0
+2026-10-17T16:49:35Z counters after the plays: 2 95 0
+2026-10-17T16:49:35Z end pin: libft8.so e8132650310e0fbb427540351d7d01b1ca258741e87771ec9cc24e3840c64ed0
+2026-10-17T16:49:36Z daemon stopped; the wrapper dir was on that daemon's PATH only (nothing else was changed; ~/.asoundrc untouched)
+2026-10-17T16:49:36Z DONE

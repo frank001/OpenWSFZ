@@ -1,0 +1,30 @@
+2026-10-17T17:06:48.906Z CT1 attempt 1: begin
+2026-10-17T17:07:07.335Z CT1 attempt 1: STOP at 2026-10-17T17:07:04.327Z, CONT at 2026-10-17T17:07:07.332Z; counter before=0 watchdog before=0
+---- CT1 attempt 1: verbatim overrun line(s) ----
+
+---- the framer lines after the stop, verbatim (the first is the window the stop fell in) ----
+[19:07:15 INF] Window emitted (180000 samples, cycle 17:07:00); wanted 1093, applied 1093 samples; consumed 178907 source samples (+1093 grid realignment).
+[19:07:30 INF] Window emitted (180000 samples, cycle 17:07:15); wanted -116, applied -116 samples; consumed 180116 source samples (-116 grid realignment).
+[19:07:45 INF] Window emitted (180000 samples, cycle 17:07:30); wanted -172, applied -172 samples; consumed 180172 source samples (-172 grid realignment).
+[19:08:00 INF] Window emitted (180000 samples, cycle 17:07:45); wanted 212, applied 212 samples; consumed 179788 source samples (+212 grid realignment).
+2026-10-17T17:08:01.123Z CT1 attempt 1: counter 0 -> 0; watchdog 0 -> 0; unexpected-end lines 0
+2026-10-17T17:08:01.150Z RESULT CT1 attempt 1: PASS (overrun counter 0 -> 0; net applied over the 3 windows after -CONT -76 samples (bar +-600); third window wanted 212 (bar |.| <= 600); windows: [-116/-116] [-172/-172] [212/212])
+2026-10-17T17:08:15.246Z settle: wanted=-193 ok=1
+2026-10-17T17:08:31.343Z settle: wanted=209 ok=2
+2026-10-17T17:09:01.348Z CT2 attempt 1: begin
+2026-10-17T17:09:19.806Z CT2 attempt 1: STOP at 2026-10-17T17:09:18.798Z, CONT at 2026-10-17T17:09:19.802Z; counter before=0 watchdog before=0
+---- CT2 attempt 1: verbatim overrun line(s) ----
+[19:09:19 WRN] arecord overrun at 17:09:19.804 UTC: reported 0.341 ms (overrun #1, 0 ms reported in total): overrun!!! (at least 0.341 ms long)
+---- the framer lines after the stop, verbatim (the first is the window the stop fell in) ----
+[19:09:31 INF] Window emitted (180000 samples, cycle 17:09:15); wanted -224, applied -224 samples; consumed 180224 source samples (-224 grid realignment).
+[19:09:45 INF] Window emitted (180000 samples, cycle 17:09:30); wanted 12443, applied 3000 samples; consumed 177000 source samples (+3000 grid realignment).
+[19:10:00 INF] Window emitted (180000 samples, cycle 17:09:45); wanted 9590, applied 3000 samples; consumed 177000 source samples (+3000 grid realignment).
+[19:10:15 INF] Window emitted (180000 samples, cycle 17:10:00); wanted 6612, applied 3000 samples; consumed 177000 source samples (+3000 grid realignment).
+2026-10-17T17:10:16.641Z CT2 attempt 1: counter 0 -> 1; watchdog 0 -> 0; unexpected-end lines 0
+2026-10-17T17:10:16.643Z RESULT CT2 attempt 1: PASS (overrun counter 0 -> 1; arecord stopped 1.0 s)
+2026-10-17T17:10:30.737Z settle: wanted=3508 ok=0
+2026-10-17T17:10:46.840Z settle: wanted=532 ok=1
+2026-10-17T17:11:00.929Z settle: wanted=12 ok=2
+2026-10-17T17:11:00.933Z quiet gap: 10 cycles
+2026-10-17T17:13:31.233Z RESULT counters at hand-over: overruns 1; channel drops 0; watchdog restarts 0
+2026-10-17T17:13:31.236Z controls done

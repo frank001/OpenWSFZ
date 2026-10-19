@@ -1,0 +1,92 @@
+{
+ "pins": [
+  {
+   "arm": "MAIN",
+   "commit": "9fe32e8d",
+   "libft8_sha256": "2029b0804a9abcc378fa037893b28236e4e5dec4459ba443d31c2027a58d82bb"
+  },
+  {
+   "arm": "SYNC",
+   "commit": "421e3ce2",
+   "libft8_sha256": "a14fe354b88dbc30c4c13fb2610a8d16769684afec70b826bc30756591fd7610"
+  },
+  {
+   "arm": "CTRL",
+   "commit": "9fe32e8d",
+   "libft8_sha256": "2029b0804a9abcc378fa037893b28236e4e5dec4459ba443d31c2027a58d82bb"
+  },
+  {
+   "arm": "CTRL2",
+   "commit": "9fe32e8d",
+   "libft8_sha256": "2029b0804a9abcc378fa037893b28236e4e5dec4459ba443d31c2027a58d82bb"
+  }
+ ],
+ "pairs": [
+  {
+   "pair": "MAIN vs SYNC",
+   "mode": "two0",
+   "cycles_in_files": 430,
+   "excluded_abandoned": 0,
+   "compared": 430,
+   "cycles_differing": 0,
+   "differing_stamps_first10": [],
+   "decodes_a": 8111,
+   "decodes_b": 8111
+  },
+  {
+   "pair": "MAIN vs SYNC",
+   "mode": "two1",
+   "cycles_in_files": 108,
+   "excluded_abandoned": 1,
+   "compared": 107,
+   "cycles_differing": 0,
+   "differing_stamps_first10": [],
+   "decodes_a": 2437,
+   "decodes_b": 2437
+  },
+  {
+   "pair": "MAIN vs CTRL",
+   "mode": "two0",
+   "cycles_in_files": 430,
+   "excluded_abandoned": 0,
+   "compared": 430,
+   "cycles_differing": 1,
+   "differing_stamps_first10": [
+    "261001_072830"
+   ],
+   "decodes_a": 8111,
+   "decodes_b": 8112
+  },
+  {
+   "pair": "MAIN vs CTRL",
+   "mode": "two1",
+   "cycles_in_files": 108,
+   "excluded_abandoned": 1,
+   "compared": 107,
+   "cycles_differing": 0,
+   "differing_stamps_first10": [],
+   "decodes_a": 2437,
+   "decodes_b": 2437
+  },
+  {
+   "pair": "MAIN vs CTRL2",
+   "mode": "two0",
+   "cycles_in_files": 430,
+   "excluded_abandoned": 0,
+   "compared": 430,
+   "cycles_differing": 5,
+   "differing_stamps_first10": [
+    "261001_014100",
+    "261001_023600",
+    "261001_065100",
+    "261001_074600",
+    "261001_094330"
+   ],
+   "decodes_a": 8111,
+   "decodes_b": 8106
+  }
+ ],
+ "identical_main_sync": true,
+ "control_detects_difference": true,
+ "valid": true
+}

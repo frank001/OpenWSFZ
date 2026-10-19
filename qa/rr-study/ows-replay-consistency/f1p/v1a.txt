@@ -1,0 +1,122 @@
+Plug PCM: Linear Integer <-> Linear Float conversion PCM (S16_LE)
+Its setup is:
+  stream       : CAPTURE
+  access       : RW_INTERLEAVED
+  format       : FLOAT_LE
+  subformat    : STD
+  channels     : 1
+  rate         : 12000
+  exact rate   : 12000 (12000/1)
+  msbits       : 32
+  buffer_size  : 48000
+  period_size  : 1600
+  period_time  : 133333
+  tstamp_mode  : ENABLE
+  tstamp_type  : MONOTONIC
+  period_step  : 1
+  avail_min    : 1600
+  period_event : 0
+  start_threshold  : 1
+  stop_threshold   : 48000
+  silence_threshold: 0
+  silence_size : 0
+  boundary     : 1688849860263936000
+Slave: Rate conversion PCM (48000, sformat=S16_LE)
+Converter: libsamplerate
+Protocol version: 10003
+Its setup is:
+  stream       : CAPTURE
+  access       : MMAP_INTERLEAVED
+  format       : S16_LE
+  subformat    : STD
+  channels     : 1
+  rate         : 12000
+  exact rate   : 12000 (12000/1)
+  msbits       : 16
+  buffer_size  : 48000
+  period_size  : 1600
+  period_time  : 133333
+  tstamp_mode  : ENABLE
+  tstamp_type  : MONOTONIC
+  period_step  : 1
+  avail_min    : 1600
+  period_event : 0
+  start_threshold  : 1
+  stop_threshold   : 48000
+  silence_threshold: 0
+  silence_size : 0
+  boundary     : 1688849860263936000
+Slave: Route conversion PCM (sformat=S16_LE)
+  Transformation table:
+    0 <- 0*0.5 + 1*0.5
+Its setup is:
+  stream       : CAPTURE
+  access       : MMAP_INTERLEAVED
+  format       : S16_LE
+  subformat    : STD
+  channels     : 1
+  rate         : 48000
+  exact rate   : 48000 (48000/1)
+  msbits       : 16
+  buffer_size  : 192000
+  period_size  : 6400
+  period_time  : 133333
+  tstamp_mode  : ENABLE
+  tstamp_type  : MONOTONIC
+  period_step  : 1
+  avail_min    : 6400
+  period_event : 0
+  start_threshold  : 4
+  stop_threshold   : 192000
+  silence_threshold: 0
+  silence_size : 0
+  boundary     : 6755399441055744000
+Slave: Direct Snoop PCM
+Its setup is:
+  stream       : CAPTURE
+  access       : MMAP_INTERLEAVED
+  format       : S16_LE
+  subformat    : STD
+  channels     : 2
+  rate         : 48000
+  exact rate   : 48000 (48000/1)
+  msbits       : 16
+  buffer_size  : 192000
+  period_size  : 6400
+  period_time  : 133333
+  tstamp_mode  : ENABLE
+  tstamp_type  : MONOTONIC
+  period_step  : 1
+  avail_min    : 6400
+  period_event : 0
+  start_threshold  : 4
+  stop_threshold   : 192000
+  silence_threshold: 0
+  silence_size : 0
+  boundary     : 6755399441055744000
+Hardware PCM card 0 'HDA ATI SB' device 0 subdevice 0
+Its setup is:
+  stream       : CAPTURE
+  access       : MMAP_INTERLEAVED
+  format       : S16_LE
+  subformat    : STD
+  channels     : 2
+  rate         : 48000
+  exact rate   : 48000 (48000/1)
+  msbits       : 16
+  buffer_size  : 192000
+  period_size  : 6400
+  period_time  : 133333
+  tstamp_mode  : ENABLE
+  tstamp_type  : MONOTONIC
+  period_step  : 1
+  avail_min    : 6400
+  period_event : 0
+  start_threshold  : 1
+  stop_threshold   : 6755399441055744000
+  silence_threshold: 0
+  silence_size : 0
+  boundary     : 6755399441055744000
+  appl_ptr     : 0
+  hw_ptr       : 0
+Recording raw data '/dev/null' : Float 32 bit Little Endian, Rate 12000 Hz, Mono

@@ -1,0 +1,593 @@
+{
+ "protocol": "qa/rr-study/refset/wpilot/PROTOCOL.md",
+ "blocks_complete": 12,
+ "blocks_total": 12,
+ "P-V1_same_live_reference_in_all_W": true,
+ "P-V2_abandoned_cells": [
+  "b00_w16",
+  "b00_w40",
+  "b09_w00",
+  "b09_w04",
+  "b09_w08",
+  "b09_w16",
+  "b09_w40"
+ ],
+ "abandoned_total": 12,
+ "contained_exceptions_total": 0,
+ "elapsed_s_per_cell_mean": 306.9,
+ "primary": {
+  "label": "all complete blocks",
+  "blocks": 12,
+  "per_W": {
+   "0": {
+    "A_all": 0.99837,
+    "A_nonhashed": 0.99826,
+    "A_hashed_exact": 0.67703,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00133,
+    "extra_nonhashed": 0.00133,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 418,
+    "live_rows": 6755
+   },
+   "4": {
+    "A_all": 0.99837,
+    "A_nonhashed": 0.99826,
+    "A_hashed_exact": 0.76794,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00133,
+    "extra_nonhashed": 0.00133,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 418,
+    "live_rows": 6755
+   },
+   "8": {
+    "A_all": 0.99867,
+    "A_nonhashed": 0.99858,
+    "A_hashed_exact": 0.80144,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00133,
+    "extra_nonhashed": 0.00133,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 418,
+    "live_rows": 6755
+   },
+   "16": {
+    "A_all": 0.99837,
+    "A_nonhashed": 0.99826,
+    "A_hashed_exact": 0.83732,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00133,
+    "extra_nonhashed": 0.00133,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 418,
+    "live_rows": 6755
+   },
+   "40": {
+    "A_all": 0.99867,
+    "A_nonhashed": 0.99858,
+    "A_hashed_exact": 0.89713,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00133,
+    "extra_nonhashed": 0.00133,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 418,
+    "live_rows": 6755
+   }
+  },
+  "diff_vs_W40": {
+   "0": {
+    "A_hashed_exact": {
+     "diff": -0.2201,
+     "ci95": [
+      -0.325,
+      -0.12882
+     ]
+    },
+    "A_nonhashed": {
+     "diff": -0.00032,
+     "ci95": [
+      -0.00097,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": -0.0003,
+     "ci95": [
+      -0.0009,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "4": {
+    "A_hashed_exact": {
+     "diff": -0.12919,
+     "ci95": [
+      -0.22812,
+      -0.06005
+     ]
+    },
+    "A_nonhashed": {
+     "diff": -0.00032,
+     "ci95": [
+      -0.00097,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": -0.0003,
+     "ci95": [
+      -0.0009,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "8": {
+    "A_hashed_exact": {
+     "diff": -0.09569,
+     "ci95": [
+      -0.19512,
+      -0.02899
+     ]
+    },
+    "A_nonhashed": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "16": {
+    "A_hashed_exact": {
+     "diff": -0.05981,
+     "ci95": [
+      -0.16377,
+      0.0
+     ]
+    },
+    "A_nonhashed": {
+     "diff": -0.00032,
+     "ci95": [
+      -0.00097,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": -0.0003,
+     "ci95": [
+      -0.0009,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   }
+  },
+  "rule_W_star": 40,
+  "rule_none_within_1pp": false,
+  "W_within_1pp_of_W40": [
+   40
+  ],
+  "flag_nonhashed_depends_on_W": false,
+  "resolution_at_1pp": "n/a (W*=40)"
+ },
+ "sensitivity_age_ge_6h": {
+  "label": "blocks with first scored cycle >= 6.0 h after the live start",
+  "blocks": 9,
+  "per_W": {
+   "0": {
+    "A_all": 0.99816,
+    "A_nonhashed": 0.99803,
+    "A_hashed_exact": 0.66559,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00123,
+    "extra_nonhashed": 0.00123,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 311,
+    "live_rows": 4887
+   },
+   "4": {
+    "A_all": 0.99816,
+    "A_nonhashed": 0.99803,
+    "A_hashed_exact": 0.76527,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00123,
+    "extra_nonhashed": 0.00123,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 311,
+    "live_rows": 4887
+   },
+   "8": {
+    "A_all": 0.99857,
+    "A_nonhashed": 0.99847,
+    "A_hashed_exact": 0.78778,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00123,
+    "extra_nonhashed": 0.00123,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 311,
+    "live_rows": 4887
+   },
+   "16": {
+    "A_all": 0.99816,
+    "A_nonhashed": 0.99803,
+    "A_hashed_exact": 0.8328,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00123,
+    "extra_nonhashed": 0.00123,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 311,
+    "live_rows": 4887
+   },
+   "40": {
+    "A_all": 0.99857,
+    "A_nonhashed": 0.99847,
+    "A_hashed_exact": 0.89711,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00123,
+    "extra_nonhashed": 0.00123,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 311,
+    "live_rows": 4887
+   }
+  },
+  "diff_vs_W40": {
+   "0": {
+    "A_hashed_exact": {
+     "diff": -0.23151,
+     "ci95": [
+      -0.36599,
+      -0.11551
+     ]
+    },
+    "A_nonhashed": {
+     "diff": -0.00044,
+     "ci95": [
+      -0.00131,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": -0.00041,
+     "ci95": [
+      -0.00121,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "4": {
+    "A_hashed_exact": {
+     "diff": -0.13183,
+     "ci95": [
+      -0.25714,
+      -0.05137
+     ]
+    },
+    "A_nonhashed": {
+     "diff": -0.00044,
+     "ci95": [
+      -0.00131,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": -0.00041,
+     "ci95": [
+      -0.00121,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "8": {
+    "A_hashed_exact": {
+     "diff": -0.10932,
+     "ci95": [
+      -0.23907,
+      -0.02258
+     ]
+    },
+    "A_nonhashed": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "16": {
+    "A_hashed_exact": {
+     "diff": -0.06431,
+     "ci95": [
+      -0.20377,
+      0.0
+     ]
+    },
+    "A_nonhashed": {
+     "diff": -0.00044,
+     "ci95": [
+      -0.00131,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": -0.00041,
+     "ci95": [
+      -0.00121,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   }
+  },
+  "rule_W_star": 40,
+  "rule_none_within_1pp": false,
+  "W_within_1pp_of_W40": [
+   40
+  ],
+  "flag_nonhashed_depends_on_W": false,
+  "resolution_at_1pp": "n/a (W*=40)"
+ },
+ "sensitivity_no_abandonment": {
+  "label": "blocks with no abandonment in any cell",
+  "blocks": 10,
+  "per_W": {
+   "0": {
+    "A_all": 0.99924,
+    "A_nonhashed": 0.99919,
+    "A_hashed_exact": 0.64583,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00152,
+    "extra_nonhashed": 0.00152,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 336,
+    "live_rows": 5259
+   },
+   "4": {
+    "A_all": 0.99924,
+    "A_nonhashed": 0.99919,
+    "A_hashed_exact": 0.7619,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00152,
+    "extra_nonhashed": 0.00152,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 336,
+    "live_rows": 5259
+   },
+   "8": {
+    "A_all": 0.99924,
+    "A_nonhashed": 0.99919,
+    "A_hashed_exact": 0.79762,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00152,
+    "extra_nonhashed": 0.00152,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 336,
+    "live_rows": 5259
+   },
+   "16": {
+    "A_all": 0.99924,
+    "A_nonhashed": 0.99919,
+    "A_hashed_exact": 0.81845,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00152,
+    "extra_nonhashed": 0.00152,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 336,
+    "live_rows": 5259
+   },
+   "40": {
+    "A_all": 0.99924,
+    "A_nonhashed": 0.99919,
+    "A_hashed_exact": 0.89286,
+    "A_hashed_key": 1.0,
+    "extra_all": 0.00152,
+    "extra_nonhashed": 0.00152,
+    "extra_hashed": 0.0,
+    "live_hashed_rows": 336,
+    "live_rows": 5259
+   }
+  },
+  "diff_vs_W40": {
+   "0": {
+    "A_hashed_exact": {
+     "diff": -0.24702,
+     "ci95": [
+      -0.3705,
+      -0.13704
+     ]
+    },
+    "A_nonhashed": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "4": {
+    "A_hashed_exact": {
+     "diff": -0.13095,
+     "ci95": [
+      -0.25705,
+      -0.04484
+     ]
+    },
+    "A_nonhashed": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "8": {
+    "A_hashed_exact": {
+     "diff": -0.09524,
+     "ci95": [
+      -0.22254,
+      -0.01587
+     ]
+    },
+    "A_nonhashed": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "16": {
+    "A_hashed_exact": {
+     "diff": -0.0744,
+     "ci95": [
+      -0.20567,
+      0.0
+     ]
+    },
+    "A_nonhashed": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_all": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "A_hashed_key": {
+     "diff": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    }
+   }
+  },
+  "rule_W_star": 40,
+  "rule_none_within_1pp": false,
+  "W_within_1pp_of_W40": [
+   40
+  ],
+  "flag_nonhashed_depends_on_W": false,
+  "resolution_at_1pp": "n/a (W*=40)"
+ },
+ "RS-V2_reading_at_W40_nonhashed": {
+  "reproduced": 0.99858,
+  "extra_nonhashed_of_live_rows": 0.00133,
+  "bar": "reproduced >= 0.99 and extra <= 0.01 (2f item 4)"
+ }
+}

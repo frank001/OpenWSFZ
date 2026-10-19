@@ -1,0 +1,10 @@
+self-check: OpenWSFZ rows failing the token rules (expect 0): 0
+wsjt_only | 3-token unknown last field: 518
+wsjt_only | 3-token unknown last field | CQ first, last token callsign-like: 513
+wsjt_only | 3-token unknown last field | non-CQ first, last token callsign-like: 2
+wsjt_only | 3-token unknown last field | non-CQ first, last token letters only: 3
+wsjt_only | 3-token unknown last field | snr>0: 17
+wsjt_only | 4-token non-CQ: 30
+wsjt_only | 4-token non-CQ | of which CALL CALL R GRID: 14
+wsjt_only | 4-token non-CQ | snr>0: 3
+wsjt_only | 5+ tokens: 12

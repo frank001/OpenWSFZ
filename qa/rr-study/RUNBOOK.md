@@ -337,8 +337,12 @@ The harness is built; this is the procedure the flag-ON `main` baseline (`2026-1
    Stop that daemon: the launcher refuses while another daemon runs.
 4. **Launch (detached, HK-023):** from `qa/rr-study/`
    `python run_study_detached.py --daemon-exe <exe> --config <config> --port 8080 --wsjtx-ini <ini> -- --scenarios S1,S1b,S2,S3,S4,S5,S7,S8,S3c --skip-warmup --device "Voicemeeter AUX Input"`.
-   It runs PRECHECK, copies `arm_config.json` into the run dir (the analyser names the build from it, and REFUSES a run without
-   one unless `--legacy-no-arm-config`), plays the battery, then S3c (last, additive, never blocks S1–S8), scores it, runs
+   It runs PRECHECK (**new 2026-10-13: row `wsjtx_running`: the battery refuses before it starts the daemon if no WSJT-X process exists**),
+   copies `arm_config.json` into the run dir (the analyser names the build from it, and REFUSES a run without
+   one unless `--legacy-no-arm-config`), then **plays a MECHANICAL warm-up before scenario 1 (new 2026-10-13: a synthetic Q-prefix cycle that BOTH
+   `ALL.TXT` must show, three attempts; the battery STOPS and names the silent appraiser otherwise; `warmup_check.json` in the run folder;
+   `--no-warmup-check` bypasses it and is recorded)**: the three Linux repeats of 2026-10-11 ran with WSJT-X silent because `--skip-warmup` left nothing
+   in its place. Then it plays the battery, then S3c (last, additive, never blocks S1–S8), scores it, runs
    the analyser, stops the daemon and gathers the captured audio. Start `qa/config_drift.py` beside it and a watchdog whose
    silence limit exceeds **S5's runtime (over an hour without log output)**. A full battery is about 1 h 55 min.
 5. **After the run, in this order (§5.4):** analyser (done by the launcher) -> gather (done) -> captured-audio scan
@@ -387,7 +391,14 @@ A start or restart snapshot is `unverified` until two ticks agree; its differenc
 
 ## 4. Running the S6 corpus replay study
 
-S6 plays the local off-air WAV corpus through VB-CABLE K=3 times in randomised order and
+> **2026-10-13: S6 is now a routine scenario of the battery (`STUDY-SPEC.md` §6.1a).** It runs after S3c in the default battery wherever the
+> frozen corpus exists (`artefacts/rr-s6-refset-corpus`, or `~/rr-s6-refset-corpus` on `sol`), or alone with
+> `python run_study.py --scenarios S6 --s6-tier quick|standard|extended` (through the detached launcher on a real run). `--skip-s6` leaves it out;
+> a default battery without the corpus says so and names the scenarios that ran. There is no interactive prompt: the warm-up is mechanical.
+> Its log lines (real callsigns) are split into `~/qa-scratch/s6-<run>/` (or `D:\Projects\claude\_qa-scratch\s6-<run>\`) outside git: delete
+> that folder at job close. The sections below describe the **one-off** harness (`harness/corpus_replay.py`), kept for reference.
+
+S6 (one-off harness) plays the local off-air WAV corpus through VB-CABLE K=3 times in randomised order and
 measures within-appraiser consistency, between-appraiser agreement, SNR delta, and order effects.
 See `STUDY-SPEC.md` §6.1 for full specification.
 

@@ -1,0 +1,193 @@
+{
+  "C": 1671,
+  "classes": {
+    "SM-CAPTURE": {
+      "k": 33,
+      "n": 504,
+      "pct": 6.5476190476190474,
+      "ci95_lo_pct": 4.699943455162317,
+      "ci95_hi_pct": 9.05266725825738
+    },
+    "SM-DECODER": {
+      "k": 471,
+      "n": 504,
+      "pct": 93.45238095238095,
+      "ci95_lo_pct": 90.94733274174263,
+      "ci95_hi_pct": 95.30005654483769
+    },
+    "SM-LIVE": {
+      "k": 0,
+      "n": 504,
+      "pct": 0,
+      "ci95_lo_pct": 0,
+      "ci95_hi_pct": 0.7564287661267749
+    }
+  },
+  "classes_by_form": {
+    "compound \u0027/\u0027": {
+      "n": 48,
+      "SM-CAPTURE": {
+        "k": 4,
+        "n": 48,
+        "pct": 8.333333333333334,
+        "ci95_lo_pct": 3.2883756589523014,
+        "ci95_hi_pct": 19.553301903421062
+      },
+      "SM-DECODER": {
+        "k": 44,
+        "n": 48,
+        "pct": 91.66666666666667,
+        "ci95_lo_pct": 80.44669809657894,
+        "ci95_hi_pct": 96.7116243410477
+      },
+      "SM-LIVE": {
+        "k": 0,
+        "n": 48,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 7.410013074848034
+      }
+    },
+    "CQ": {
+      "n": 72,
+      "SM-CAPTURE": {
+        "k": 6,
+        "n": 72,
+        "pct": 8.333333333333334,
+        "ci95_lo_pct": 3.8752424730373827,
+        "ci95_hi_pct": 17.012355306549654
+      },
+      "SM-DECODER": {
+        "k": 66,
+        "n": 72,
+        "pct": 91.66666666666667,
+        "ci95_lo_pct": 82.98764469345035,
+        "ci95_hi_pct": 96.12475752696261
+      },
+      "SM-LIVE": {
+        "k": 0,
+        "n": 72,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 5.065117335504446
+      }
+    },
+    "hashed": {
+      "n": 66,
+      "SM-CAPTURE": {
+        "k": 3,
+        "n": 66,
+        "pct": 4.545454545454546,
+        "ci95_lo_pct": 1.5578274213192516,
+        "ci95_hi_pct": 12.533314199909979
+      },
+      "SM-DECODER": {
+        "k": 63,
+        "n": 66,
+        "pct": 95.45454545454545,
+        "ci95_lo_pct": 87.46668580009003,
+        "ci95_hi_pct": 98.44217257868075
+      },
+      "SM-LIVE": {
+        "k": 0,
+        "n": 66,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 5.500255783352154
+      }
+    },
+    "two-call": {
+      "n": 318,
+      "SM-CAPTURE": {
+        "k": 20,
+        "n": 318,
+        "pct": 6.289308176100629,
+        "ci95_lo_pct": 4.107904228822664,
+        "ci95_hi_pct": 9.514162683776664
+      },
+      "SM-DECODER": {
+        "k": 298,
+        "n": 318,
+        "pct": 93.71069182389937,
+        "ci95_lo_pct": 90.48583731622334,
+        "ci95_hi_pct": 95.89209577117734
+      },
+      "SM-LIVE": {
+        "k": 0,
+        "n": 318,
+        "pct": 0,
+        "ci95_lo_pct": 0,
+        "ci95_hi_pct": 1.19358733167837
+      }
+    }
+  },
+  "cycles_where_R-OWN_and_R-WSJ_outputs_differ": 262,
+  "elapsed_s": 4844.1014517,
+  "generated_utc": "2026-10-10T11:53:48.4129748Z",
+  "label": "STRONG-MISS-20261009_1752",
+  "residual_pass": {
+    "abandoned_OWN": 0,
+    "abandoned_WSJ": 0,
+    "contained_OWN": 0,
+    "contained_WSJ": 0,
+    "ran_OWN": 433,
+    "ran_WSJ": 433
+  },
+  "settings": {
+    "nhard": 24,
+    "osd_sign_fix": 1,
+    "shim": 20260061,
+    "subtraction": "ON",
+    "threads": 8
+  },
+  "SM-DECODER_by_wsjt_dt": {
+    "1: \u003C=0 s": 86,
+    "2: (0,0.5] s": 345,
+    "3: (0.5,1] s": 26,
+    "4: \u003E1 s": 14
+  },
+  "SM-DECODER_by_wsjt_snr": {
+    "1: (0,5] dB": 340,
+    "2: (5,10] dB": 101,
+    "3: \u003E10 dB": 30
+  },
+  "SM-V2": {
+    "cycles": 433,
+    "cycles_equal_row_count": 423,
+    "live_rows_in_T_cycles": 8064,
+    "live_rows_reproduced": {
+      "k": 8057,
+      "n": 8064,
+      "pct": 99.91319444444444,
+      "ci95_lo_pct": 99.8209126422236,
+      "ci95_hi_pct": 99.9579444539126
+    },
+    "net_row_count_diff": -2,
+    "pass_as_frozen_99_1": true,
+    "R-OWN_rows": 8062,
+    "R-OWN_rows_not_in_live": {
+      "k": 5,
+      "n": 8064,
+      "pct": 0.062003968253968256,
+      "ci95_lo_pct": 0.026487205144051947,
+      "ci95_hi_pct": 0.14507614239866595
+    },
+    "sum_abs_diff_pct_of_live_rows": 0.1488095238095238,
+    "sum_abs_row_count_diff": 12
+  },
+  "SM-V3_controls_recovered_in_R-OWN": {
+    "k": 1671,
+    "n": 1671,
+    "pct": 100,
+    "ci95_lo_pct": 99.7706374617773,
+    "ci95_hi_pct": 99.99999999999997
+  },
+  "T": 504,
+  "T_by_form": {
+    "compound \u0027/\u0027": 48,
+    "CQ": 72,
+    "hashed": 66,
+    "two-call": 318
+  },
+  "T_cycles": 433
+}

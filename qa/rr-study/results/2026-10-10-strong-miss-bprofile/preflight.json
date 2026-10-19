@@ -1,0 +1,15 @@
+{
+ "utc": "2026-10-10T14:08:08Z",
+ "repo_head": "e36c60972d8e6befce54fdb39320302af79ed055",
+ "build_commit": "421e3ce2af84dff57db9e26250f371e6f9cc029b",
+ "libft8_sha256": "a14fe354b88dbc30c4c13fb2610a8d16769684afec70b826bc30756591fd7610",
+ "harness_dll_sha256": "2f84ee85b5e51cc7ac85d643dabfde189420a136f877219993ce8407d03077fe",
+ "nhard": "24",
+ "osd_sign_fix": "1",
+ "threads": "8",
+ "gathered": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\artefacts\\20261009_1752_endurance_run-gathered",
+ "competitors_at_start": [
+  "dotnet,35820",
+  "VBCSCompiler,34996"
+ ]
+}

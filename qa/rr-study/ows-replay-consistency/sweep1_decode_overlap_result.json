@@ -1,0 +1,206 @@
+{
+ "J_s": 0.01703520000000426,
+ "plays": 180,
+ "step_windows": 21,
+ "step_free_windows": 159,
+ "seeded_step_free": 21,
+ "windows_without_prev_cycle_line": 0,
+ "residual_line_missing": 11,
+ "resolution": "step interval [c-0.5, c+0.5] s about 1 s; overlap at that resolution; pass starts anchored on the Cycle line's elapsed",
+ "rows_a": {
+  "active": {
+   "steps": {
+    "n": 21,
+    "overlap": 21,
+    "share": 1.0
+   },
+   "position_matched_seeded": {
+    "n": 21,
+    "overlap": 14,
+    "share": 0.6666666666666666
+   },
+   "position_matched_all_step_free_by_c": {
+    "2": {
+     "n": 159,
+     "overlap": 133,
+     "share": 0.8364779874213837
+    },
+    "3": {
+     "n": 159,
+     "overlap": 111,
+     "share": 0.6981132075471698
+    },
+    "4": {
+     "n": 159,
+     "overlap": 81,
+     "share": 0.5094339622641509
+    }
+   },
+   "random_instant_seeded": {
+    "n": 21,
+    "overlap": 3,
+    "share": 0.14285714285714285
+   }
+  },
+  "residual": {
+   "steps": {
+    "n": 21,
+    "overlap": 21,
+    "share": 1.0
+   },
+   "position_matched_seeded": {
+    "n": 20,
+    "overlap": 14,
+    "share": 0.7
+   },
+   "position_matched_all_step_free_by_c": {
+    "2": {
+     "n": 148,
+     "overlap": 133,
+     "share": 0.8986486486486487
+    },
+    "3": {
+     "n": 148,
+     "overlap": 111,
+     "share": 0.75
+    },
+    "4": {
+     "n": 148,
+     "overlap": 81,
+     "share": 0.5472972972972973
+    }
+   },
+   "random_instant_seeded": {
+    "n": 20,
+    "overlap": 2,
+    "share": 0.1
+   }
+  },
+  "pass0": {
+   "steps": {
+    "n": 21,
+    "overlap": 0,
+    "share": 0.0
+   },
+   "position_matched_seeded": {
+    "n": 21,
+    "overlap": 0,
+    "share": 0.0
+   },
+   "position_matched_all_step_free_by_c": {
+    "2": {
+     "n": 159,
+     "overlap": 2,
+     "share": 0.012578616352201259
+    },
+    "3": {
+     "n": 159,
+     "overlap": 0,
+     "share": 0.0
+    },
+    "4": {
+     "n": 159,
+     "overlap": 0,
+     "share": 0.0
+    }
+   },
+   "random_instant_seeded": {
+    "n": 21,
+    "overlap": 0,
+    "share": 0.0
+   }
+  }
+ },
+ "durations_s": {
+  "pass0_C": {
+   "step_windows": {
+    "n": 21,
+    "median": 1.256,
+    "p90": 1.487,
+    "max": 1.497
+   },
+   "step_free_windows": {
+    "n": 159,
+    "median": 1.047,
+    "p90": 1.38,
+    "max": 1.602
+   }
+  },
+  "residual_R": {
+   "step_windows": {
+    "n": 21,
+    "median": 3.523,
+    "p90": 5.536,
+    "max": 5.868
+   },
+   "step_free_windows": {
+    "n": 148,
+    "median": 2.7649999999999997,
+    "p90": 3.871300000000001,
+    "max": 7.954
+   }
+  },
+  "active_C_plus_R": {
+   "step_windows": {
+    "n": 21,
+    "median": 4.962,
+    "p90": 6.792,
+    "max": 7.194
+   },
+   "step_free_windows": {
+    "n": 148,
+    "median": 3.7785,
+    "p90": 5.2317,
+    "max": 9.091
+   }
+  }
+ },
+ "rows_b_framer_clamp_lines": {
+  "step_windows": {
+   "same_window": {
+    "n": 21,
+    "median": 0.0,
+    "p90": 0.0,
+    "max": 1.0
+   },
+   "preceding_cycle": {
+    "n": 21,
+    "median": 0.0,
+    "p90": 1.0,
+    "max": 1.0
+   },
+   "with_any_same_or_prev": 5
+  },
+  "step_free_windows": {
+   "same_window": {
+    "n": 159,
+    "median": 0.0,
+    "p90": 1.0,
+    "max": 1.0
+   },
+   "preceding_cycle": {
+    "n": 159,
+    "median": 0.0,
+    "p90": 1.0,
+    "max": 1.0
+   },
+   "with_any_same_or_prev": 58
+  }
+ },
+ "step_positions_c": {
+  "3": 18,
+  "2": 2,
+  "4": 1
+ },
+ "dropish_lines_in_daemon_log": {
+  "count": 0,
+  "note": "lines matching overflow|dropp|xrun|overrun|backlog|discard|underrun|DropOldest|stall in the whole daemon log (counts only)"
+ },
+ "arecord_stderr_check_mentions_of_overrun_or_arecord": {
+  "b2base-1/daemon.stdout.log": 0,
+  "b2base-1/gatherer.stdout.log": 0,
+  "b2base-1/monitor.out": 0,
+  "2026-10-15-b71863a-B2BASE-sweep1/launcher.log": 0,
+  "pass-o/daemon_lib.json": 0
+ }
+}

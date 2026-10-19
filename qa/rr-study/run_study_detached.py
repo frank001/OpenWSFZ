@@ -247,6 +247,12 @@ def main():
             extra += ["--wsjt-all-txt", wsjtx_all_txt]
         if "--owsfz-all-txt" not in forwarded and owsfz_all_txt:
             extra += ["--owsfz-all-txt", owsfz_all_txt]
+        # S6 (spec 2026-10-13, amendment 1): the daemon's stdout log (per-play deadlineAbandoned) and the native library it loaded (S6-V5 pin).
+        _dlog = os.path.join(sup_dir, "daemon.stdout.log")
+        if "--daemon-log" not in forwarded and os.path.isfile(_dlog):
+            extra += ["--daemon-log", _dlog]
+        if "--s6-ows-lib" not in forwarded and d.get("dll_path"):
+            extra += ["--s6-ows-lib", d["dll_path"]]
 
         battery_start = ES.utcnow()
         status.update(phase="RUNNING", predicted_run_dir=str(predicted_run_dir),

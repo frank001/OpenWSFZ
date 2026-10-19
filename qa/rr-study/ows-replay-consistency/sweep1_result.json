@@ -1,0 +1,364 @@
+{
+ "tag": "sweep1",
+ "plays": 180,
+ "wavs": 60,
+ "rows": {
+  "X0": {
+   "A": 0.7154761904761905,
+   "L": 0.7154761904761905,
+   "A_minus_L": {
+    "point": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "resamples": 2000
+   },
+   "CI_excludes_0": false,
+   "live_rows_reproduced_share": 1.0,
+   "extra_row_share_of_replay": 0.0,
+   "label": "replay consistent with live (CI of A - L contains 0)"
+  },
+  "X1": {
+   "D8_identity": {
+    "plays": 180,
+    "identical_full": 180,
+    "share_full": 1.0,
+    "plays_excluded_abandoned": 0,
+    "identical_kept": 180,
+    "share_kept": 1.0,
+    "identical_incl_snr_full": 180
+   },
+   "D8_ii": {
+    "point": 1.0,
+    "lo": 1.0,
+    "hi": 1.0,
+    "resamples": 2000
+   },
+   "D8_ii_full_incl_abandoned": 1.0,
+   "fires": false,
+   "size_lost_with_no_input_change": 0.0,
+   "reading": "decoder deterministic on identical audio (R-D1 not run)"
+  },
+  "X2": {
+   "D8_ii_minus_A": {
+    "point": 0.2845238095238095,
+    "lo": 0.21208430459008015,
+    "hi": 0.3601112652960171,
+    "resamples": 2000
+   },
+   "fires": true,
+   "label": "100 % - A: derived, not a finding"
+  },
+  "X3": {
+   "W": 0.9032620922384702,
+   "A": 0.7154761904761905,
+   "W_minus_A": {
+    "point": 0.18778590176227972,
+    "lo": 0.1237711969330702,
+    "hi": 0.25444115589317406,
+    "resamples": 2000
+   },
+   "fires": true,
+   "reading": "OpenWSFZ more consistent on WSJT-X's captures than on its own (capture or framing side)"
+  },
+  "X4": {
+   "W": 0.9032620922384702,
+   "C_w": 0.9389121338912134,
+   "W_minus_C_w": {
+    "point": -0.035650041652743214,
+    "lo": -0.06282843483795317,
+    "hi": -0.007917606254486316,
+    "resamples": 2000
+   },
+   "fires": true,
+   "label": "sensitivity or threshold density, not separated"
+  }
+ },
+ "validity": {
+  "V1_runs": {
+   "R-A": {
+    "sha_equal_start_end": true,
+    "sha": "873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a",
+    "readback": {
+     "cores": 8,
+     "kMinScorePass2": 10,
+     "nhard": 24,
+     "osdCorrThreshold": 0.1,
+     "osdSignFixRead": 1,
+     "osdSignFixSet": 1,
+     "shim": 20260062,
+     "subtractionEnabled": true,
+     "threadsConfigured": 8
+    },
+    "items": 180,
+    "abandoned": 0,
+    "ran": 177,
+    "wall_s": 651.52,
+    "cpu_s": 2317.93,
+    "contained": 0
+   },
+   "R-D8-1": {
+    "sha_equal_start_end": true,
+    "sha": "873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a",
+    "readback": {
+     "cores": 8,
+     "kMinScorePass2": 10,
+     "nhard": 24,
+     "osdCorrThreshold": 0.1,
+     "osdSignFixRead": 1,
+     "osdSignFixSet": 1,
+     "shim": 20260062,
+     "subtractionEnabled": true,
+     "threadsConfigured": 8
+    },
+    "items": 180,
+    "abandoned": 0,
+    "ran": 177,
+    "wall_s": 653.86,
+    "cpu_s": 2328.12,
+    "contained": 0
+   },
+   "R-D8-2": {
+    "sha_equal_start_end": true,
+    "sha": "873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a",
+    "readback": {
+     "cores": 8,
+     "kMinScorePass2": 10,
+     "nhard": 24,
+     "osdCorrThreshold": 0.1,
+     "osdSignFixRead": 1,
+     "osdSignFixSet": 1,
+     "shim": 20260062,
+     "subtractionEnabled": true,
+     "threadsConfigured": 8
+    },
+    "items": 180,
+    "abandoned": 0,
+    "ran": 177,
+    "wall_s": 652.46,
+    "cpu_s": 2329.68,
+    "contained": 0
+   },
+   "R-D8-3": {
+    "sha_equal_start_end": true,
+    "sha": "873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a",
+    "readback": {
+     "cores": 8,
+     "kMinScorePass2": 10,
+     "nhard": 24,
+     "osdCorrThreshold": 0.1,
+     "osdSignFixRead": 1,
+     "osdSignFixSet": 1,
+     "shim": 20260062,
+     "subtractionEnabled": true,
+     "threadsConfigured": 8
+    },
+    "items": 180,
+    "abandoned": 0,
+    "ran": 177,
+    "wall_s": 652.49,
+    "cpu_s": 2325.62,
+    "contained": 0
+   },
+   "R-W": {
+    "sha_equal_start_end": true,
+    "sha": "873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a",
+    "readback": {
+     "cores": 8,
+     "kMinScorePass2": 10,
+     "nhard": 24,
+     "osdCorrThreshold": 0.1,
+     "osdSignFixRead": 1,
+     "osdSignFixSet": 1,
+     "shim": 20260062,
+     "subtractionEnabled": true,
+     "threadsConfigured": 8
+    },
+    "items": 180,
+    "abandoned": 0,
+    "ran": 177,
+    "wall_s": 722.84,
+    "cpu_s": 2889.09,
+    "contained": 0
+   }
+  },
+  "V3": {
+   "R-A": true,
+   "R-D8-1": true,
+   "R-D8-2": true,
+   "R-D8-3": true,
+   "R-W": true
+  },
+  "V5_untagged": {
+   "R-A": 0,
+   "R-D8-1": 0,
+   "R-D8-2": 0,
+   "R-D8-3": 0,
+   "R-W": 0
+  },
+  "V4": {
+   "L_recomputed": 0.7154761904761905,
+   "L_report": 0.7154761904761905,
+   "C_w_recomputed": 0.9389121338912134,
+   "C_w_report": 0.9389121338912134,
+   "result": "PASS"
+  }
+ },
+ "descriptive": {
+  "L_live_owsfz": 0.7154761904761905,
+  "C_w_live_wsjtx": 0.9389121338912134,
+  "by_batch_A": {
+   "1": 0.7667121418826739,
+   "2": 0.27350427350427353
+  },
+  "by_batch_W": {
+   "1": 0.92496765847348,
+   "2": 0.7142857142857143
+  },
+  "by_batch_D8_ii": {
+   "1": 1.0,
+   "2": 1.0
+  },
+  "by_own_snr": {
+   "A": [
+    {
+     "bin": "<= -18 dB",
+     "n_signals": 67,
+     "consistency": {
+      "point": 0.3582089552238806,
+      "lo": 0.25,
+      "hi": 0.47368421052631576,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": "-17 to -10 dB",
+     "n_signals": 308,
+     "consistency": {
+      "point": 0.6525974025974026,
+      "lo": 0.5616378274453256,
+      "hi": 0.7403574636249326,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": ">= -9 dB",
+     "n_signals": 465,
+     "consistency": {
+      "point": 0.8086021505376344,
+      "lo": 0.727452380952381,
+      "hi": 0.8853519771762208,
+      "resamples": 2000
+     }
+    }
+   ],
+   "W": [
+    {
+     "bin": "<= -18 dB",
+     "n_signals": 61,
+     "consistency": {
+      "point": 0.6557377049180327,
+      "lo": 0.5490037950664137,
+      "hi": 0.7612117981520965,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": "-17 to -10 dB",
+     "n_signals": 324,
+     "consistency": {
+      "point": 0.8518518518518519,
+      "lo": 0.8133632349653477,
+      "hi": 0.8918939773106439,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": ">= -9 dB",
+     "n_signals": 504,
+     "consistency": {
+      "point": 0.9662698412698413,
+      "lo": 0.9453098244863014,
+      "hi": 0.9853272405660377,
+      "resamples": 2000
+     }
+    }
+   ],
+   "C_w": [
+    {
+     "bin": "<= -18 dB",
+     "n_signals": 144,
+     "consistency": {
+      "point": 0.7569444444444444,
+      "lo": 0.671872018129771,
+      "hi": 0.8258134642356241,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": "-17 to -10 dB",
+     "n_signals": 387,
+     "consistency": {
+      "point": 0.9276485788113695,
+      "lo": 0.9043644122591491,
+      "hi": 0.9512923295641914,
+      "resamples": 2000
+     }
+    },
+    {
+     "bin": ">= -9 dB",
+     "n_signals": 664,
+     "consistency": {
+      "point": 0.9849397590361446,
+      "lo": 0.9735987055460892,
+      "hi": 0.9945369960124059,
+      "resamples": 2000
+     }
+    }
+   ]
+  },
+  "common_set_W_vs_C_w": [
+   {
+    "bin": "<= -18 dB",
+    "n_common": 48,
+    "W": 0.6041666666666666,
+    "C_w": 0.9791666666666666,
+    "W_minus_C_w": {
+     "point": -0.375,
+     "lo": -0.5319891142998515,
+     "hi": -0.20511363636363644,
+     "resamples": 2000
+    }
+   },
+   {
+    "bin": "-17 to -10 dB",
+    "n_common": 253,
+    "W": 0.8300395256916996,
+    "C_w": 0.9960474308300395,
+    "W_minus_C_w": {
+     "point": -0.16600790513833993,
+     "lo": -0.2161104079536283,
+     "hi": -0.11946864900782266,
+     "resamples": 2000
+    }
+   },
+   {
+    "bin": ">= -9 dB",
+    "n_common": 586,
+    "W": 0.962457337883959,
+    "C_w": 0.9965870307167235,
+    "W_minus_C_w": {
+     "point": -0.034129692832764506,
+     "lo": -0.05263381668456856,
+     "hi": -0.015926230368323496,
+     "resamples": 2000
+    }
+   }
+  ],
+  "archive_health": {
+   "cycles": 180,
+   "with_clipped": 0,
+   "with_dropped_before": 0
+  },
+  "input_difference_archive_xcorr": "not computed: needs the played corpus audio and a cross-correlation pass (s6/archive_xcorr.py); a separate step"
+ }
+}
