@@ -814,8 +814,14 @@ extern "C" {
  *              ft8_decode_all gains only the retention of its candidate list and decoded payloads in thread-local arrays (R2),
  *              reset at the top of every call; its output, its control flow and every existing export and struct are unchanged.
  *              20260063 is origin/decoding_improvement's; 20260064 and 20260065 are the #225 branch's (not merged).
+ *
+ *   20260067 — COH-FALLBACK Stage 1, Amendment 3 (Architect R4' / R12'): ft8_coherent_fallback_cycle's DEFAULT order is now output-first
+ *              (estimate + C3 + BP on every eligible candidate; F1b only for a CRC-valid output with a payload not yet decoded in the
+ *              call); the old order is the harness-only FT8_COH_FLAG_GATE_FIRST. FT8CohFallbackCycleStats is 96 bytes (was 80) and
+ *              FT8CohFallbackRow 144 (was 136). ft8_coherent_fallback_at, the F1b code and every other export are unchanged.
+ *              20260066 was the first build of Stage 1 (44f0df4e) and is history.
  */
-#define FT8_SHIM_VERSION 20260066
+#define FT8_SHIM_VERSION 20260067
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1464,6 +1470,9 @@ int ft8_hash_state_restore(const void* buf, int len);
 #define FT8_COH_FLAG_SKIP_F1B        2  /* do not compute F1b (no 24 reference surfaces); C3 + BP then run unconditionally */
 #define FT8_COH_FLAG_ESTIMATE_ONLY   4  /* the fine-sync estimate only: no F1b, no C3, no BP */
 #define FT8_COH_FLAG_INCLUDE_DECODED 8  /* cycle export: also run the ESTIMATE on candidates the ordinary decode DID decode (A2(d)) */
+#define FT8_COH_FLAG_GATE_FIRST     16  /* cycle export, HARNESS ONLY: the old order (F1b on every eligible candidate, C3 + BP only where F1b <= T1).
+                                         * The default is output-first: C3 + BP on every eligible candidate, F1b only for a CRC-valid output with
+                                         * a payload not yet decoded in the call (Amendment 3). Both publish the same payloads. */
 #define FT8_COH_BP_NOT_RUN          99  /* FT8CohFallbackResult.bp_rc when C3/BP did not run */
 
 /* sizeof == 112. Every field is written by every call (zeroed first). */
@@ -1498,42 +1507,48 @@ int ft8_coherent_fallback_at(
     FT8CohFallbackResult* res,
     float* out_llr174);
 
-/* sizeof == 80. Counts and times of one ft8_coherent_fallback_cycle call. */
+/* sizeof == 96. Counts and times of one ft8_coherent_fallback_cycle call (the spec's R12' log line: eligible, attempted, crcOk,
+ * f1bComputed, gated, published, abandoned, elapsedMs). */
 typedef struct
 {
     int32_t n_candidates;        /* every candidate the last ft8_decode_all call on this thread found, all passes */
     int32_t n_decoded;           /* ... of which the ordinary decode decoded (CRC-valid) */
     int32_t n_dup_position;      /* not-decoded candidates at a lattice position an earlier entry already had (not re-attempted) */
     int32_t n_eligible;          /* not decoded, distinct position: the R2 population */
-    int32_t n_gated;             /* ... with F1b <= T1 */
-    int32_t n_attempted;         /* ... for which C3 + BP ran */
-    int32_t n_crc_ok;            /* ... CRC-valid */
-    int32_t n_crc_new;           /* ... CRC-valid with a payload neither decoded in the call nor produced earlier by the fallback */
+    int32_t n_attempted;         /* ... for which C3 + BP ran (output-first: all of them) */
+    int32_t n_crc_ok;            /* ... with a CRC-valid BP output */
+    int32_t n_crc_new;           /* ... CRC-valid with a payload not decoded in the call and not already published by the fallback */
+    int32_t n_f1b_computed;      /* ... for which F1b was computed (output-first: only the n_crc_new ones) */
+    int32_t n_gated;             /* ... F1b computed and <= T1 */
+    int32_t n_published;         /* ... CRC-valid, new payload, F1b <= T1 (with SKIP_F1B: every new CRC-valid output) */
+    int32_t n_abandoned;         /* 0 in Stage 1: there is no deadline yet (Stage 2, R7) */
     int32_t n_edge;              /* ... whose estimate sits on a window edge */
     int32_t n_decoded_estimated; /* INCLUDE_DECODED: decoded candidates whose estimate was run */
     int32_t n_rows;              /* rows produced (may exceed rows_cap) */
-    int32_t reserved;
+    int32_t reserved0, reserved1;
     double  estimate_ms;         /* summed over the eligible candidates */
     double  f1b_ms;
     double  c3_bp_ms;
-    double  total_ms;            /* wall time of the whole call */
+    double  total_ms;            /* wall time of the whole call (elapsedMs) */
 } FT8CohFallbackCycleStats;
 
-/* sizeof == 136. One row per eligible candidate (and per decoded one with INCLUDE_DECODED). */
+/* sizeof == 144. One row per eligible candidate (and per decoded one with INCLUDE_DECODED). */
 typedef struct
 {
     float   freq_hz;             /* the candidate's lattice position (the anchor) */
     float   dt_s;
     int32_t pass;                /* 0 or 1: the ft8_decode_all pass that found it */
     int32_t decoded;             /* 1 for an INCLUDE_DECODED row */
-    int32_t crc_new;             /* 1 iff CRC-valid and a new payload (see n_crc_new) */
+    int32_t crc_new;             /* 1 iff CRC-valid and a new payload */
+    int32_t f1b_computed;        /* 1 iff F1b was computed for this row (r.f1b_db, r.n_refs, r.gated, r.f1b_ms are then valid) */
+    int32_t published;           /* 1 iff this row would publish: CRC-valid, new payload, F1b <= T1 */
     int32_t reserved;
     FT8CohFallbackResult r;
 } FT8CohFallbackRow;
 
 /* Applies the fallback to every eligible candidate of the LAST ft8_decode_all call on the calling thread (R2): the candidates
  * ftx_find_candidates returned in any pass that no pass decoded, each lattice position once. Pass the SAME pcm. Candidate
- * order is the decode's (pass 0 then pass 1, score order). rows (may be NULL) receives up to rows_cap rows. Returns the number
+ * order is the decode's (pass 0 then pass 1, score order). Default order is output-first (see FT8_COH_FLAG_GATE_FIRST). rows (may be NULL) receives up to rows_cap rows. Returns the number
  * of rows written; -1 bad arguments; -2 contained access violation; -3 out of memory. With no ft8_decode_all call on this
  * thread (or one that failed) the list is empty: 0 rows, all counts 0. */
 int ft8_coherent_fallback_cycle(

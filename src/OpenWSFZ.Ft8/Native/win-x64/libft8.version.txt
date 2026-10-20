@@ -1,4 +1,20 @@
-=== CURRENT: COH-FALLBACK (A' step 3) Stage 1, native core + diagnostic export (FT8_SHIM_VERSION 20260066) ===
+=== CURRENT: COH-FALLBACK Stage 1 Amendment 3, output-first cycle export (FT8_SHIM_VERSION 20260067) ===
+
+Built 2026-10-20 on feat/coh-fallback-stage1 after 44f0df4e (shim 20260066), local, not pushed. QA handoff
+dev-tasks/2026-10-20-coh-fallback-step3-stage1-amendment-3.md (qa/refset 19d54fd8); the Architect's spec section 10, Amendment 3.
+Version: bumped (20260066 was the first Stage 1 build, which QA is testing; a changed binary must not share its label).
+What changed: ft8_coherent_fallback_cycle runs estimate + C3 + BP on every eligible candidate and computes F1b only for a CRC-valid
+output with a payload not yet decoded in the call (default); the old order is FT8_COH_FLAG_GATE_FIRST (harness only). Stats struct 96
+bytes, row struct 144. ft8_coherent_fallback_at, cf_f1b_db and coherent_fallback.c are byte-identical to 44f0df4e.
+
+  Windows x64 (rebuild_shim.bat, MSVC): SHA256
+    60963686bf5264619b445af95f8fafca32d601587e9e1399ad907702f567c3db
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    761c3c0f71eea0c8df2c32c2f1496145398b8405beea7866f2b522e8bb150e63
+    tools/check_native_version.py reports shim 20260067 for both files built here.
+
+
+=== Previous: COH-FALLBACK (A' step 3) Stage 1, native core + diagnostic export (FT8_SHIM_VERSION 20260066) ===
 
 Built 2026-10-20 from branch feat/coh-fallback-stage1, off origin/main 9d5ba635 (shim 20260062), local, not pushed. QA handoff
 dev-tasks/2026-10-20-coh-fallback-step3-stage1.md (qa/refset 0a0f47a2); design: the Architect's spec R1-R13, sections 3 and 5.1

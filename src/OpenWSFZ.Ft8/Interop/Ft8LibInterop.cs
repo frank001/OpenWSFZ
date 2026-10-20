@@ -472,7 +472,11 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_cycle</c>) and a thread-local retention of the last decode's candidate list. No managed binding
     /// yet (Stage 2 wires the product), no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260066;
+    /// <remarks>
+    /// COH-FALLBACK Stage 1 Amendment 3, shim 20260067: the diagnostic cycle export defaults to the output-first order and its
+    /// stats/row structs grew. Still no managed binding and no change to any existing export or struct.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260067;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

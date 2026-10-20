@@ -96,8 +96,8 @@ static FT8CohFallbackResult run_at(const float* pcm, double f0, double t0, int f
 static void sizes(void)
 {
     CHECK(sizeof(FT8CohFallbackResult) == 112, "FT8CohFallbackResult is %zu bytes", sizeof(FT8CohFallbackResult));
-    CHECK(sizeof(FT8CohFallbackCycleStats) == 80, "FT8CohFallbackCycleStats is %zu bytes", sizeof(FT8CohFallbackCycleStats));
-    CHECK(sizeof(FT8CohFallbackRow) == 136, "FT8CohFallbackRow is %zu bytes", sizeof(FT8CohFallbackRow));
+    CHECK(sizeof(FT8CohFallbackCycleStats) == 96, "FT8CohFallbackCycleStats is %zu bytes", sizeof(FT8CohFallbackCycleStats));
+    CHECK(sizeof(FT8CohFallbackRow) == 144, "FT8CohFallbackRow is %zu bytes", sizeof(FT8CohFallbackRow));
     CHECK(sizeof(FT8Result) == 48, "FT8Result is unchanged at %zu bytes", sizeof(FT8Result));
     CHECK(ft8_lib_version_check() == FT8_SHIM_VERSION, "shim version");
     CHECK(fabs(CF_T1_DB - 17.552446) < 1e-12, "T1 constant");
@@ -273,10 +273,11 @@ static void cycle_export(void)
     CHECK(st.n_candidates == tls_cf_ncands && st.n_decoded == ndec_rec, "counts: cand %d decoded %d", st.n_candidates, st.n_decoded);
     CHECK(st.n_eligible + st.n_dup_position + st.n_decoded == st.n_candidates, "eligible %d + dup %d + decoded %d != candidates %d",
           st.n_eligible, st.n_dup_position, st.n_decoded, st.n_candidates);
-    CHECK(st.n_attempted <= st.n_gated + 0 || st.n_attempted <= st.n_eligible, "attempted %d", st.n_attempted);
-    CHECK(st.n_gated <= st.n_eligible && st.n_attempted == st.n_gated, "gated %d attempted %d eligible %d (no FORCE_C3: attempted == gated)",
-          st.n_gated, st.n_attempted, st.n_eligible);
-    CHECK(st.n_crc_new <= st.n_crc_ok && st.n_crc_ok <= st.n_attempted, "crc %d new %d attempted %d", st.n_crc_ok, st.n_crc_new, st.n_attempted);
+    /* R12' chain, output-first (the default): C3 + BP on every eligible candidate, F1b only on a new CRC-valid output */
+    CHECK(st.n_gated <= st.n_f1b_computed && st.n_f1b_computed == st.n_crc_new && st.n_crc_new <= st.n_crc_ok &&
+          st.n_crc_ok <= st.n_attempted && st.n_attempted == st.n_eligible && st.n_published <= st.n_gated && st.n_abandoned == 0,
+          "chain: eligible %d attempted %d crcOk %d new %d f1b %d gated %d published %d abandoned %d",
+          st.n_eligible, st.n_attempted, st.n_crc_ok, st.n_crc_new, st.n_f1b_computed, st.n_gated, st.n_published, st.n_abandoned);
     int decoded_rows = 0, eligible_rows = 0;
     for (int i = 0; i < n; i++) { if (rows[i].decoded) decoded_rows++; else eligible_rows++; }
     CHECK(eligible_rows == st.n_eligible && decoded_rows == st.n_decoded_estimated, "rows eligible %d/%d decoded %d/%d",
@@ -300,16 +301,19 @@ static void cycle_export(void)
     tls_cf_ncands = 1;
     tls_cf_cands[0].freq_hz = 1000.0f; tls_cf_cands[0].dt = (float)ANCHOR_OF(0.5); tls_cf_cands[0].pass = 0; tls_cf_cands[0].decoded = 0;
     tls_cf_npayloads = 1; memcpy(tls_cf_payloads[0], m.payload, FTX_PAYLOAD_LENGTH_BYTES);
-    n = ft8_coherent_fallback_cycle(g_pcm, 180000, FT8_COH_FLAG_FORCE_C3, &st, rows, 400);
-    CHECK(n == 1 && st.n_eligible == 1 && st.n_attempted == 1 && st.n_crc_ok == 1 && st.n_crc_new == 0 && rows[0].crc_new == 0,
-          "already-decoded payload: n=%d ok=%d new=%d", n, st.n_crc_ok, st.n_crc_new);
+    n = ft8_coherent_fallback_cycle(g_pcm, 180000, 0, &st, rows, 400);
+    CHECK(n == 1 && st.n_eligible == 1 && st.n_attempted == 1 && st.n_crc_ok == 1 && st.n_crc_new == 0 && rows[0].crc_new == 0 &&
+          st.n_f1b_computed == 0 && rows[0].f1b_computed == 0 && st.n_published == 0 && rows[0].published == 0,
+          "already-decoded payload: n=%d ok=%d new=%d f1b=%d (F1b must NOT be computed)", n, st.n_crc_ok, st.n_crc_new, st.n_f1b_computed);
     tls_cf_npayloads = 0;
-    n = ft8_coherent_fallback_cycle(g_pcm, 180000, FT8_COH_FLAG_FORCE_C3, &st, rows, 400);
+    n = ft8_coherent_fallback_cycle(g_pcm, 180000, 0, &st, rows, 400);
     CHECK(n == 1 && st.n_crc_ok == 1 && st.n_crc_new == 1 && rows[0].crc_new == 1 && memcmp(rows[0].r.a91, m.payload, 10) == 0,
           "new payload: ok=%d new=%d", st.n_crc_ok, st.n_crc_new);
+    CHECK(st.n_f1b_computed == 1 && rows[0].f1b_computed == 1 && rows[0].r.n_refs == 24 && rows[0].r.gated == 0 && st.n_gated == 0 &&
+          rows[0].published == 0 && st.n_published == 0, "strong signal: F1b computed on demand, gate closed, not published");
     /* the same lattice position twice in the list is attempted once */
     tls_cf_ncands = 2; tls_cf_cands[1] = tls_cf_cands[0]; tls_cf_cands[1].pass = 1;
-    n = ft8_coherent_fallback_cycle(g_pcm, 180000, FT8_COH_FLAG_FORCE_C3, &st, rows, 400);
+    n = ft8_coherent_fallback_cycle(g_pcm, 180000, 0, &st, rows, 400);
     CHECK(n == 1 && st.n_eligible == 1 && st.n_dup_position == 1, "duplicate position: n=%d eligible=%d dup=%d", n, st.n_eligible, st.n_dup_position);
     /* rows_cap smaller than the rows: counts stay complete, rows are capped */
     tls_cf_ncands = 3; tls_cf_cands[0].freq_hz = 1000.0f; tls_cf_cands[1].freq_hz = 1200.0f; tls_cf_cands[2].freq_hz = 1400.0f;
@@ -320,6 +324,60 @@ static void cycle_export(void)
     printf("D/E: cycle export and candidate retention, %d failures so far\n", g_failures);
 }
 
+/* Amendment 3: output-first (default) and gate-first (harness) publish the SAME payloads, on a planted cycle with signals above and
+ * below T1, a duplicate payload, a payload already decoded in the call, and noise-only candidates. */
+static void order_equivalence(void)
+{
+    static const struct { const char* msg; double f; double amp; } sig[] = {
+        { "CQ Q1AAA FN20", 800.0,  3.0 },    /* strong: F1b above T1 */
+        { "CQ Q1BBB FN21", 1200.0, 0.30 },   /* weak */
+        { "CQ Q1CCC FN22", 1600.0, 0.30 },   /* weak */
+        { "CQ Q1BBB FN21", 2000.0, 0.30 },   /* the weak one's payload again */
+        { "CQ Q1DDD FN23", 2400.0, 0.30 },   /* its payload is preloaded as "already decoded" */
+    };
+    uint8_t tones[FT8_NN]; ftx_message_t ms[5];
+    memset(g_pcm, 0, sizeof(g_pcm));
+    for (int i = 0; i < 5; i++) {
+        CHECK(tones_for(sig[i].msg, tones, &ms[i]) == 0, "encode %d", i);
+        add_signal(g_pcm, tones, sig[i].f, 0.5, sig[i].amp);
+    }
+    add_noise(g_pcm, sigma_for_snr(0.30, -15.0));
+    const double freqs[] = { 800.0, 1200.0, 1600.0, 2000.0, 2400.0, 2800.0, 600.0 };   /* the last two: noise only */
+    tls_cf_ncands = 7;
+    for (int i = 0; i < 7; i++) {
+        tls_cf_cands[i].freq_hz = (float)freqs[i]; tls_cf_cands[i].dt = (float)ANCHOR_OF(0.5); tls_cf_cands[i].pass = 0; tls_cf_cands[i].decoded = 0;
+    }
+    tls_cf_npayloads = 1; memcpy(tls_cf_payloads[0], ms[4].payload, FTX_PAYLOAD_LENGTH_BYTES);
+
+    FT8CohFallbackCycleStats so, sg; static FT8CohFallbackRow ro[16], rg[16];
+    int no = ft8_coherent_fallback_cycle(g_pcm, 180000, 0, &so, ro, 16);
+    int ng = ft8_coherent_fallback_cycle(g_pcm, 180000, FT8_COH_FLAG_GATE_FIRST, &sg, rg, 16);
+    CHECK(no == 7 && ng == 7, "rows %d / %d", no, ng);
+    int same = 1, pubs = 0;
+    for (int i = 0; i < 7; i++) {
+        if (ro[i].published != rg[i].published) same = 0;
+        if (ro[i].published && memcmp(ro[i].r.a91, rg[i].r.a91, FTX_PAYLOAD_LENGTH_BYTES)) same = 0;
+        pubs += ro[i].published;
+    }
+    CHECK(same, "the two orders disagree on what publishes");
+    CHECK(so.n_published == sg.n_published && so.n_published == pubs, "published %d / %d / %d", so.n_published, sg.n_published, pubs);
+    CHECK(pubs >= 1, "nothing published: the weak signals should decode");
+    CHECK(so.n_published <= 2, "the duplicate payload must publish once (published %d)", so.n_published);
+    CHECK(ro[4].published == 0 && ro[4].crc_new == 0, "the already-decoded payload is not published");
+    CHECK(ro[0].published == 0, "the strong signal is above T1 and is not published");
+    CHECK(so.n_eligible == 7 && so.n_attempted == 7, "output-first attempts every eligible candidate: %d / %d", so.n_attempted, so.n_eligible);
+    CHECK(sg.n_f1b_computed == 7 && sg.n_attempted == sg.n_gated, "gate-first computes F1b on every eligible: %d, attempts only the gated: %d vs %d",
+          sg.n_f1b_computed, sg.n_attempted, sg.n_gated);
+    CHECK(so.n_f1b_computed < sg.n_f1b_computed, "output-first computes F1b less often (%d vs %d)", so.n_f1b_computed, sg.n_f1b_computed);
+    CHECK(so.n_gated <= so.n_f1b_computed && so.n_f1b_computed <= so.n_crc_ok && so.n_crc_ok <= so.n_attempted && so.n_attempted <= so.n_eligible,
+          "output-first chain");
+    CHECK(sg.n_gated <= sg.n_f1b_computed && sg.n_published <= sg.n_gated && sg.n_crc_ok <= sg.n_attempted && sg.n_attempted <= sg.n_eligible,
+          "gate-first chain");
+    for (int i = 0; i < 7; i++) CHECK(ro[i].published == 0 || (ro[i].f1b_computed && ro[i].r.gated && ro[i].crc_new), "row %d published without its predicates", i);
+    tls_cf_ncands = 0; tls_cf_npayloads = 0;
+    printf("F: order equivalence (published %d of 7; F1b computed %d vs %d), %d failures so far\n", so.n_published, so.n_f1b_computed, sg.n_f1b_computed, g_failures);
+}
+
 int main(void)
 {
     sizes();
@@ -327,6 +385,7 @@ int main(void)
     f1b_and_gate();
     bp_decode();
     cycle_export();
+    order_equivalence();
     printf("%d checks, %d failures\nRESULT: %s\n", g_checks, g_failures, g_failures == 0 ? "PASS" : "FAIL");
     return g_failures == 0 ? 0 : 1;
 }

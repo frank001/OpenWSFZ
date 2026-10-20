@@ -8,7 +8,7 @@ using Xunit;
 namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
-/// COH-FALLBACK (A' step 3) Stage 1 (shim 20260066): a managed P/Invoke smoke test of the two new DIAGNOSTIC-ONLY exports
+/// COH-FALLBACK (A' step 3) Stage 1 (shim 20260067): a managed P/Invoke smoke test of the two new DIAGNOSTIC-ONLY exports
 /// <c>ft8_coherent_fallback_at</c> and <c>ft8_coherent_fallback_cycle</c>. They have no managed binding in Stage 1 (Stage 2
 /// wires the product), so the test binds them here, test-locally, the way <c>OsdSignFixTests</c> binds <c>ft8_ldpc_decode_llrs</c>.
 /// The numerical work (estimator, F1b, gate, BP-only decode, the retained candidate list) is covered by
@@ -38,7 +38,7 @@ public sealed class CoherentFallbackNativeTests
     [StructLayout(LayoutKind.Sequential, Pack = 8)]
     private struct CohCycleStats
     {
-        public int NCandidates, NDecoded, NDupPosition, NEligible, NGated, NAttempted, NCrcOk, NCrcNew, NEdge, NDecodedEstimated, NRows, Reserved;
+        public int NCandidates, NDecoded, NDupPosition, NEligible, NAttempted, NCrcOk, NCrcNew, NF1bComputed, NGated, NPublished, NAbandoned, NEdge, NDecodedEstimated, NRows, Reserved0, Reserved1;
         public double EstimateMs, F1bMs, C3BpMs, TotalMs;
     }
 
@@ -87,7 +87,7 @@ public sealed class CoherentFallbackNativeTests
     public void StructSizes_MatchTheHeader()
     {
         Marshal.SizeOf<CohResult>().Should().Be(112, "FT8CohFallbackResult is 112 bytes in ft8_shim.h");
-        Marshal.SizeOf<CohCycleStats>().Should().Be(80, "FT8CohFallbackCycleStats is 80 bytes in ft8_shim.h");
+        Marshal.SizeOf<CohCycleStats>().Should().Be(96, "FT8CohFallbackCycleStats is 96 bytes in ft8_shim.h");
         Marshal.OffsetOf<CohResult>(nameof(CohResult.DtStep)).ToInt32().Should().Be(64);
         Marshal.OffsetOf<CohResult>(nameof(CohResult.A91)).ToInt32().Should().Be(100);
     }

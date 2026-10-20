@@ -2319,12 +2319,18 @@ int ft8_coherent_fallback_cycle(
     ctx = cf_ctx_new(pcm_len);
     if (!ctx) return -3;
 
-    /* payloads of the CRC-valid decodes of this call (retained by ft8_decode_all), plus the fallback's own new ones */
+    /* payloads the ordinary call decoded (retained by ft8_decode_all) plus the ones the fallback has PUBLISHED so far */
     const int kSeenCap = 2 * K_MAX_DECODED;
     uint8_t (*seen)[FTX_PAYLOAD_LENGTH_BYTES] = (uint8_t (*)[FTX_PAYLOAD_LENGTH_BYTES])malloc((size_t)kSeenCap * FTX_PAYLOAD_LENGTH_BYTES);
     if (!seen) { cf_ctx_free(ctx); return -3; }
     int nseen = 0;
     for (int i = 0; i < tls_cf_npayloads && nseen < kSeenCap; i++) memcpy(seen[nseen++], tls_cf_payloads[i], FTX_PAYLOAD_LENGTH_BYTES);
+
+    /* Amendment 3 (R4' / R12'): the DEFAULT order is output-first (estimate, C3, BP for every eligible candidate; F1b only for a
+     * CRC-valid output whose payload is new). FT8_COH_FLAG_GATE_FIRST is the OLD order (F1b on every eligible candidate, C3 + BP
+     * only where F1b <= T1), kept for the harness comparison only. A candidate publishes iff CRC-valid AND F1b <= T1 AND its
+     * payload is new, so both orders publish the same payloads. */
+    const int gate_first = (flags & FT8_COH_FLAG_GATE_FIRST) != 0;
 
     int nrows = 0;
     stats->n_candidates = tls_cf_ncands;
@@ -2346,32 +2352,56 @@ int ft8_coherent_fallback_cycle(
         FT8CohFallbackResult local;
         FT8CohFallbackResult* r = &local;
         if (rows && nrows < rows_cap) r = &rows[nrows].r;
-        cf_process_one(ctx, pcm, (double)cr->freq_hz, (double)cr->dt,
-                       estimate_only_row ? (flags | FT8_COH_FLAG_ESTIMATE_ONLY) : flags, r, NULL);
 
-        int crc_new = 0;
+        /* output-first runs C3 unconditionally, so F1b is skipped inside cf_process_one and computed below on demand */
+        int pflags = estimate_only_row ? (flags | FT8_COH_FLAG_ESTIMATE_ONLY)
+                   : gate_first        ? flags
+                                       : (flags | FT8_COH_FLAG_SKIP_F1B);
+        const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
+        cf_process_one(ctx, pcm, f0, t0, pflags, r, NULL);
+
+        int crc_new = 0, f1b_computed = 0, published = 0;
         if (eligible) {
-            if (r->gated) stats->n_gated++;
-            if (r->c3_ran) stats->n_attempted++;
             if (r->edge) stats->n_edge++;
-            stats->estimate_ms += r->estimate_ms; stats->f1b_ms += r->f1b_ms; stats->c3_bp_ms += r->c3_bp_ms;
-            if (r->c3_ran && r->bp_rc == 0 && r->bp_crc_ok) {
+            if (r->c3_ran) stats->n_attempted++;
+            int crc_ok = (r->c3_ran && r->bp_rc == 0 && r->bp_crc_ok);
+            int known = 0;
+            if (crc_ok) {
                 stats->n_crc_ok++;
-                int known = 0;
                 for (int k = 0; k < nseen; k++)
                     if (!memcmp(seen[k], r->a91, FTX_PAYLOAD_LENGTH_BYTES)) { known = 1; break; }
-                if (!known) {
-                    crc_new = 1;
-                    stats->n_crc_new++;
-                    if (nseen < kSeenCap) memcpy(seen[nseen++], r->a91, FTX_PAYLOAD_LENGTH_BYTES);
-                }
+                if (!known) { crc_new = 1; stats->n_crc_new++; }
             }
+            if (gate_first) {
+                f1b_computed = !(flags & FT8_COH_FLAG_SKIP_F1B) && !(flags & FT8_COH_FLAG_ESTIMATE_ONLY);
+                if (f1b_computed) stats->n_f1b_computed++;
+            } else if (crc_new && !(flags & FT8_COH_FLAG_ESTIMATE_ONLY) && !(flags & FT8_COH_FLAG_SKIP_F1B)) {
+                /* the on-demand F1b: only for a CRC-valid output with a new payload; cf_f1b_db / the gate are the per-anchor code */
+                const double t_f = cf_monotonic_ms();
+                int nrefs = 0;
+                r->f1b_db = cf_f1b_db(ctx, pcm, f0, t0, r->peak, &nrefs);
+                r->n_refs = nrefs;
+                r->gated = (r->f1b_db <= CF_T1_DB) ? 1 : 0;
+                r->f1b_ms = cf_monotonic_ms() - t_f;
+                r->elapsed_ms += r->f1b_ms;
+                f1b_computed = 1;
+                stats->n_f1b_computed++;
+            }
+            if (f1b_computed && r->gated) stats->n_gated++;
+            /* published: CRC-valid, new payload, and (F1b <= T1; with SKIP_F1B there is no gate, so every new CRC-valid output) */
+            if (crc_new && (r->gated || (flags & FT8_COH_FLAG_SKIP_F1B))) {
+                published = 1;
+                stats->n_published++;
+                if (nseen < kSeenCap) memcpy(seen[nseen++], r->a91, FTX_PAYLOAD_LENGTH_BYTES);
+            }
+            stats->estimate_ms += r->estimate_ms; stats->f1b_ms += r->f1b_ms; stats->c3_bp_ms += r->c3_bp_ms;
         } else {
             stats->n_decoded_estimated++;
         }
         if (rows && nrows < rows_cap) {
             rows[nrows].freq_hz = cr->freq_hz; rows[nrows].dt_s = cr->dt; rows[nrows].pass = cr->pass;
-            rows[nrows].decoded = cr->decoded; rows[nrows].crc_new = crc_new; rows[nrows].reserved = 0;
+            rows[nrows].decoded = cr->decoded; rows[nrows].crc_new = crc_new;
+            rows[nrows].f1b_computed = f1b_computed; rows[nrows].published = published; rows[nrows].reserved = 0;
         }
         nrows++;
     }
