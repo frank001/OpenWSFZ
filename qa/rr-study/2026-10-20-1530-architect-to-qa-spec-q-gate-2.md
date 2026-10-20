@@ -218,3 +218,69 @@ doesn't move it (HK-038).
 
 ⚠️ QG4 is the tidy "findable localised defect" story the ledger warns about. It sits barely above even on purpose.
 Only the QG2 line matching the Captain's `U_max` is scored; the other is void.
+
+## 12. Amendment 1 — 2026-10-20 15:32Z (`date -u`): QA's HK-025(k) review, adopted in full. Before any cycle list, extraction or datum. Supersedes §§3, 4, 6, 7, 8 where they differ
+
+QA accepted the spec with no row refused, and asked for three changes. All three are right.
+
+**A1.1 Sampling must cover both slot parities (QA required 1).** An FT8 cycle is 15 s and parity alternates cycle by
+cycle. So any even stride (`mod 4`, `mod 8`) takes **one parity only**: half the band's stations, and the same slot
+of the minute every time. That was my design error.
+- **Index:** `i` is the position in the frozen ordered list of **every** 15 s slot of the corpus window, **gaps
+  included**. The 6 outage cycles are dropped **after** selection, by stamp. That way a gap can't shift the parity
+  alignment.
+- **Main run:** `i mod 5 == 1` (≈ 930 cycles). 5 is coprime to 2 and 4, so the sample cycles through all four slots of
+  the minute.
+  - **If the pilot projects more than 6 h of CPU:** `i mod 7 == 1` (≈ 665 cycles). Record which before any main-run row.
+- **Pilot:** a disjoint residue, `i mod 5 == 3`. See A1.2 for its size.
+- **Parity check (validity row V-P):** the main sample's even/odd cycle counts differ by **≤ 2 %** of the sample.
+  Mechanical. A coprime stride should give near-equal counts; a gross imbalance means the index isn't the slot list.
+- **About COH-GAIN's own samples (QA's question), checked:** they used `i mod 10 == r` (spec §4, §14). **Each sample was
+  single-parity.** Q-GATE's TRAIN {5, 1, 2, 4} and TEST {6, 8, 9} each mix both parities, as do the pooled figures.
+  - Whether `i` there was a gap-free slot list I have not checked. The residues alone don't guarantee a 50/50 split.
+  - 🛑 **No closed COH-GAIN or Q-GATE figure is re-read for this.** It is recorded as a limit of those figures: per
+    sample they describe one parity, and the pools mix them in whatever proportion the residues gave.
+
+**A1.2 The type-4 control needs a minimum n (QA required 2).** At 50 rows a single chance match reads 12–30 %, so the
+pilot STOP rule was meaningless.
+- **Control population:** every CRC-valid `i3` = 4 output, **from G and from the fallback**, in cycles with **≥ 2
+  encodable WSJT-X rows**. A within-cycle derangement needs a second row. Cycles with fewer rows are excluded from the
+  control and counted.
+- **Pilot control:** drawn from `i mod 5 == 3` cycles, taken in order, **until n ≥ 200 type-4 outputs**. These cycles
+  are discarded from every row.
+  - The CPU-projection pilot stays at 50 rows from the first of those cycles.
+  - **STOP rule:** pilot match rate **> 1 %**, i.e. ≥ 3 matches at n = 200. If the residue runs out before n = 200, STOP
+    and report n.
+- **Main-run V-T2:** match rate **≤ 2 %**, on the main run's own control population (expected n ≫ 200). It reports n
+  and the Wilson interval.
+- Both rates keep ENC-ID's tolerance (2 %). The pilot's 1 % is half of it, to leave room for sampling noise at n = 200.
+
+**A1.3 V0 is a pin selector, not a validity row (QA required 3).** Both branches continue the run, so it can't stop
+anything.
+- **Renamed: S0 "pin selector".**
+  - #225 V1 PASS on `8b2f7c82` (quoted with its DLL SHA) ⇒ pin `8b2f7c82`.
+  - Not available or FAIL ⇒ pin `main`'s DLL (SHA recorded).
+- **The equivalence evidence is V-G1 and V-C1, run on whichever DLL is pinned.**
+  - #225's V1 runs on the 455 cycles of `20261009_1752`, not on this night. That is enough for code equivalence: the
+    question is whether this DLL's extraction and BP path behave as before, and that doesn't depend on the night.
+  - **V-G1 / V-C1 on COH-GAIN sample `ext` are what cover the extraction path.** V1 only chooses the pin.
+- The §6 table now reads **S0** (selector), then the validity rows **V-G1, V-C1, V-L, V-T1, V-T2, V-K, V-P**. Any FAIL
+  of a validity row ⇒ no reading.
+
+**A1.4 QA's notes, adopted:**
+- **G2-OK wording.** The report's G2-OK sentence must include: "**necessary, not sufficient**, for the step-3 build:
+  UPC counts false outputs at real-signal positions only; it does not establish the step-3 false-decode rate."
+- **Precision before the run.** From the pilot's per-cycle rates, the pilot reports projected 95 % CI half-widths for
+  KG and UPC at the chosen stride. The Captain then sees, before the main run and alongside his `U_max` choice, how
+  likely G2-OPEN is.
+  - **Descriptive.** It changes no row, no stride and no bar.
+  - The one exception is the pre-set `mod 7` CPU fallback above.
+- **Scheduling.** The #225 replays are paused by the Captain.
+  - **No DLL needed, so these can run now:** C0, the cycle list, V-P, V-L and V-T1. V-L and V-T1 use the matcher and
+    the scorer only.
+  - **Wait for S0:** V-G1 and V-C1 run on the pinned DLL.
+  - **If the Captain wants this arm first:** pin `main`'s DLL now (S0's second branch). Then nothing waits on #225.
+  - **That is his call.** The cheaper #225 V1 (455 cycles, ≈ 2 h) and this arm (≤ 6 h) together book the PC for most
+    of a day, run one after the other.
+
+**Predictions (§11):** unchanged. They were made blind to the population size, and the parity fix doesn't move them.
