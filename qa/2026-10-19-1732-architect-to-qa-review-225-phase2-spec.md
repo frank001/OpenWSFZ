@@ -398,6 +398,11 @@ What each option leads to, after ruling (a) (every 0.1 row is a region-lookup mi
 
 **If the Captain prefers A or C:** the Developer builds A (C4.2 as written). Nothing else in phase 2 changes.
 
+✅ **CAPTAIN'S DECISION, 2026-10-20 14:54Z (`date -u`): option B.** Type 0.1 rows are exempt from noise suppression.
+This replaces C4.2's "existing rule applies unchanged" for 0.1 rows only. It goes into the Addendum-3 amendment:
+- **One test per batch number:** with suppression ON, a 0.1 row is shown.
+- **Unchanged:** an ordinary region-miss row is still hidden.
+
 ### R4d. Optional, not blocking: are the 3 OWS-only rows real?
 
 A real Fox transmits on one frequency for many cycles. A false decode lands at random. A mechanical check, done inside
