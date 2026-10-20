@@ -126,3 +126,121 @@ One night, one band, replay not live. Test B's not-confirmed count is an upper b
 | SF5 | NET point estimate in [1.0, 4.0] pp | 0.50 | H |
 
 ⚠️ My HYPOTHESISED calls today ran toward the tidy explanation (CW3). SF2 and SF4 are deliberately below even: the product runs the fallback on noise candidates the offline work never saw, and 25 coherent searches per candidate for F1b is expensive as specified.
+
+---
+
+## §8 Amendment 1: the era refresh (Architect, 2026-10-20 17:10Z by `date -u`; before any Stage 1 code or timing)
+
+**Why.** Q-GATE-2 ruled G2-OK (ruling `2026-10-20-1710`, `d1c13992`). The Captain then gave "go on both, step-3 build and stage 2" in QA's window on 2026-10-20. That go was relayed by QA: it is the Captain's go, not a peer's. QA's first (k) review of this spec found stale points, and this amendment folds them in.
+- Several things changed after 10-07: the product now has a third pass (Deep is the default), late batches reach the QSO services, `nhard` is 24 with the OSD fix, and a new night is on disk.
+- **Nothing here touches R1, R3–R5 or R8–R13, or A1, A2 and its tolerances, or D-GO's 1.0 pp.**
+- Stage 1 may start on this amendment as written. A0's slack definition (A1.3) and the corpus (A1.4) are the only Stage 1 items it changes.
+
+**A1.1 Base branch: `origin/main` (QA's choice, confirmed).** `decoding_improvement` is 195 commits behind `main`. It
+lacks the third pass, the Deep default, late batches and B2, so a build there could not be accepted against today's
+product.
+- The change lands on `main` by PR (HK-010). `decoding_improvement` picks it up at its next sync.
+- Shim **20260066**, as QA assigned. The expected version-file conflict with #225 is resolved at whichever merge lands second.
+
+**A1.2 Where the fallback publishes, and its deadline (replaces R6's "batch 2 only" and R7's "batch-2 deadline").**
+- **R6′ publish slot.** Fallback decodes are published in the cycle's **last supplementary batch**: batch 3 on the Deep
+  path, batch 2 on Normal.
+  - **There is no new batch number.** So `LateBatch`, the QSO channel capacity (`Program.cs:345`, "up to 3 batches per
+    cycle") and the panel's batch handling are unchanged.
+  - The same per-cycle `seen` text dedup, `IsPlausibleMessage` and noise-suppression filter apply.
+  - A fallback text already published in any earlier batch of the cycle is not published again.
+  - Batch 1 is untouched (A3). With the flag OFF, everything is as R13 says.
+- **R7′ deadline.** The fallback shares the **13 s cycle budget** (`SubtractionCycleBudget`, `Ft8Decoder.cs:108`) with
+  the residual pass and the third pass.
+  - **Order and parallelism are the Developer's design (FILE:LINE).** The one constraint: the fallback must not delay
+    batch 2's publish on the Deep path, so it may hold back only the last batch.
+  - When the deadline arrives, unfinished fallback work is **abandoned, never queued**. The R12 log line counts it.
+- **R2′ eligibility, made explicit.** Eligible: candidates of the ordinary `ft8_decode_all` call that were not decoded
+  by it. A candidate whose text the residual or third pass has already published may still be attempted, but its
+  output is dropped by dedup. Whether to skip such candidates early, to save CPU, is the Developer's choice (FILE:LINE).
+  It must not change what is published.
+
+**A1.3 A0 cost gate, restated per cycle (replaces A0's `S`).** Summing p95s of three passes overstates the time they
+use together. It also ignored the third pass, which ran at a median of 0.78 s and a maximum of 1.4 s on the 10-19 live
+night (QA).
+- **Per-cycle slack** on the OFF build (today's `main`, Deep, read back): `s_i` = 13.0 s − the elapsed time from
+  decode start to the end of the cycle's last ordinary pass (pass 0, residual and third), from the build's own timing
+  (FILE:LINE).
+  - QA measures it on A0's 100 cycles and commits it as a dated note **before any Stage 1 timing is seen**.
+- **A0 predicate (paired):** on the same 100 cycles, take `f_i`, the Stage 1 diagnostic export's per-cycle fallback
+  wall time. **PASS iff #(`f_i` > `s_i`) ≤ 5** (5 %).
+  - This assumes the fallback runs **serially after the last pass**, the worst case. A parallel design can only do
+    better, so A0 PASS stands for it too.
+  - **Conditions:** the station PC, 8 threads, OFF slack and Stage 1 timing measured in one session, one after the
+    other, with no other heavy job running.
+- **Where the 5 % comes from:** V5's abandonment ceiling (sub-feas replay design, 2026-10-01), so the cost gate and the
+  replay's abandonment row use the same tolerance.
+- **FAIL ⇒** unchanged (no Stage 2; the Architect drafts a design amendment for the Captain).
+
+**A1.4 Corpus: `20261009_1752_endurance_run-gathered` (40 m), not `20261019_1905`.**
+- **Why another night.** QA proposed 10-19. But Q-GATE-2's G2-OK rests on 10-19, and `T1` was trained on 10-04. A
+  third night makes the build's decision independent of both.
+- **Why the product era doesn't decide it.** The night's product era is not what matters for a replay. `nhard`, the OSD
+  fix and Deep are decoder settings that the replay sets itself (rule 2026-10-03: never pre-filter recorded audio by
+  them).
+- **What a night must have:** full-cycle WAVs from the Windows capture (not tainted, per the 10-16 ruling) and WSJT-X's
+  `ALL.TXT`. 10-09 has 7,264 WAVs, about 30 h, under `owsfz/wav/`, plus `wsjt-x/ALL.TXT`.
+- #225 V1 used 455 of its cycles, but nothing was tuned on them.
+- **QA still lists every `artefacts/` folder (rule 2026-10-03)** and confirms 10-09 meets §5.3. If it fails that check,
+  QA falls back to `20261019_1905` and records why, before any decode.
+- **Sample.** Use the whole night, or a systematic 1-in-*k* sample over the gap-inclusive slot list if the projection
+  exceeds 8 h, as before. ***k* must be odd** so that both slot parities are sampled (Q-GATE-2 A1.1), and V-P from
+  Q-GATE-2 applies: even and odd counts within 2 % of each other. The choice of *k* is recorded before any decode.
+- **A0 and A2(d)** use the first 100 selected cycles of this corpus.
+
+**A1.5 Fixed configuration (replaces §5.3 "Fixed").** One Stage 2 build, with its DLL SHA pinned at the start and end
+of every arm, and harness mode `two1`.
+- **Decoder settings, as shipped on the base:** subtraction ON, **Deep** (the third pass), **`nhard` 24, OSD sign fix
+  ON**, threads 8.
+  - **Every one is read back in every run:** the third pass via `thirdPass.decodingDepth`, `nhard` and the OSD fix as
+    #225 S0 read them.
+- **Arms:** OFF and ON, each in a fresh process. The early decode is not involved.
+- **NET and Test B:** `M` is the union of **all batches** (1, 2 and 3) matched as one set, so NET counts only what the
+  fallback adds beyond the third pass.
+
+**A1.6 The U budget, rebased on today's build (HK-038; replaces U-OK/U-FAIL's 0.15 and the [0.30, 0.65] guard).**
+- **Why 0.15 no longer stands.** It was +30 % on 0.47 Test-B not-confirmed decodes per cycle, from `be3cc5ac` (`nhard`
+  40, OSD OFF, no third pass). None of those holds today. No Test-B not-confirmed rate from today's build is on file,
+  and the live 0.170 OWS-only rate is a different instrument.
+- **Rule: the OFF arm runs first.** QA computes `U0` = the OFF arm's not-confirmed decodes per cycle (point), then
+  freezes `U_max` = **0.30 × `U0`**, rounded to 3 decimals, in a dated note **before any ON-arm decode**. The OFF arm
+  contains no fallback output, so this sees nothing of the result.
+- **Rows:** U-OK `CI_hi(ΔU)` ≤ `U_max`; U-FAIL `CI_lo(ΔU)` > `U_max`; U-OPEN otherwise.
+- **Where the 30 % comes from:** it is the rule behind both of the Captain's budgets. 0.15 was about +30 % on 0.47
+  (10-07), and 0.05 was about +30 % on 0.17 (Q-GATE-2, today).
+- ⏳ **The Captain confirms the rule before the OFF arm runs** (§8 end). It is his decision value. QA's (k) review can
+  go ahead meanwhile.
+
+**A1.7 V5 and V6, restated (QA's (k) note 4).**
+- **V5:** cycles with residual, third-pass **or** fallback work abandoned ≤ 5 % of the ON arm's cycles. Report n and
+  the Wilson interval.
+- **V6 (repeat):** the ON-repeat runs on **every 3rd selected cycle**, not on the first 160. 160 consecutive cycles
+  are one stretch of one evening; a stride spreads the check across the night.
+  - **Bar:** unexplained differences = **0**, and cycles explained by abandonment in exactly one run ≤ 5 % of the
+    repeated cycles.
+  - **Precision, stated:** with n ≈ 300 or more repeated cycles, 0 unexplained bounds the non-determinism rate at
+    Wilson upper ≤ 1.2 %. QA reports n and that bound.
+- **Bootstrap:** blocks of 40 consecutive **selected** cycles. B and the seed are unchanged.
+
+**A1.8 Predictions.**
+- **SF1, SF3 and SF5 stand as written** (their rows are unchanged).
+- **SF2 and SF4 are VOID by design change** (A0's predicate and U's bar changed after registration; precedent S6P3,
+  2026-10-15). They are not scored.
+- **Registered now, before any Stage 1 code or timing, and before the OFF arm:**
+
+| # | prediction | P | class |
+|---|---|---:|:---:|
+| SF2′ | A0 (A1.3) passes without a design amendment | 0.40 | H |
+| SF4′ | U-OK at `U_max` = 0.30 × `U0` | 0.55 | H |
+| SF6 | `U0` (OFF-arm not-confirmed per cycle) in [0.25, 0.60] | 0.50 | H |
+
+⚠️ **SF4′ is priced with Q-GATE-2's UPC 0.014 in view.** That figure covers real-signal positions only. The noise-only
+candidates, the thing it can't see, are the risk, so I've kept the price near even.
+
+**Waiting on the Captain:** confirm the A1.6 rule (`U_max` = 0.30 × the OFF arm's not-confirmed rate, frozen before
+any ON decode), or name a fixed value. **Waiting on QA:** the (k) review of this amendment, and the A1.4 inventory check.
