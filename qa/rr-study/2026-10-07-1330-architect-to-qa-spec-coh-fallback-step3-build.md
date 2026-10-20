@@ -312,3 +312,84 @@ QSO late-batch logic: a reply is immediate only if it is ready by slot + 2.36 s,
 
 **Order:** QA freezes the *k* = 3 selection and measures the OFF slack `s_i` on the first 100 selected cycles before
 any Stage 1 timing. Neither needs the Captain's A1.6 answer. The full OFF arm (U0) waits for that answer.
+
+---
+
+## §10 Amendment 3: Stage 1 cost: the gate runs after BP, not before (Architect, 2026-10-20 17:35Z by `date -u`; before any clean A0 or A2 run)
+
+**What QA saw (a smoke test, not a result).** The Stage 1 build is `feat/coh-fallback-stage1` `44f0df4e` (shim
+20260066, `libft8.dll` `7af6f893…a4d3`). QA ran it on 2 of A0's 100 cycles **while the OFF arm was loading the CPU**.
+- **Wall time:** `f_i` = 17.9 s and 18.2 s, against `s_i` = 9.0 s and 9.3 s.
+- **Split per cycle (median):** estimate 0.71 s, **F1b 16.8 s (≈ 94 %)**, C3 + BP 0.35 s.
+- **Counts per cycle:** 165 eligible, 141 gated, ≈ 34 CRC-valid, ≈ 4 CRC-valid with a payload not already decoded.
+- **Fidelity:** A2 on 3 cycles (53 rows) agrees with the Python reference (max F1b difference 0.0 dB).
+- The timings are inflated by contention. But even halved, the gate-first order overruns the slack on both cycles.
+  **The problem is the cost of F1b, not the port.**
+
+**A3.1 Ruling: the gate order may be reversed. It is an "equivalent but faster computation" under R1, not a design
+change.**
+- **Why it publishes the same thing.** A candidate publishes iff (CRC-valid BP output) AND (F1b ≤ T1) AND (its text is
+  new to the cycle).
+  - These are three per-candidate predicates. None of them depends on the order in which they are evaluated, or on any
+    other candidate.
+  - So F1b is needed **only where the other two can still hold**: on CRC-valid outputs whose payload the ordinary
+    `ft8_decode_all` call has not already decoded.
+- **It is also what Q-GATE-2 measured.** "Kept" there was a C3 BP output with F1b ≤ T1: 822 of 1,111 outputs.
+- **R4′.** The fallback runs the estimate, C3 and BP (no OSD) on every eligible candidate (R2′). It computes F1b only
+  for CRC-valid outputs whose payload is not among the ordinary call's decodes. It publishes iff F1b ≤ T1, under the
+  same dedup as R6′.
+  - The final dedup at publish is unchanged: texts from the residual or third pass still drop there.
+  - T1, the F1b definition and BP-only are unchanged.
+- **The cost, projected:** the estimate on 165 candidates is ≈ 0.8 s, C3 + BP is ≈ 0.4 s, and F1b on ≈ 4 to 34 outputs
+  is ≈ 0.4 to 3.5 s. Under the same contention that is ≈ 1.6 to 4.7 s a cycle, roughly a quarter to a tenth of the 17.9–18.2 s QA measured, against a slack of at least 8.7 s.
+  - **This is my arithmetic from QA's smoke split, not a measurement.** A0 measures it.
+- **R12′ counters, restated:** `eligible`, `attempted` (estimate + C3 + BP run), `crcOk`, `f1bComputed`, `gated`
+  (F1b ≤ T1 among those), `published`, `abandoned`, `elapsedMs`.
+- **Under the deadline,** reversing the order changes which candidates finish before abandonment. A0 and V5 cover that,
+  as they did before. A cheaper order can only abandon less.
+
+**A3.2 A new check that the reordering really is equivalent: A2(e), mechanical.**
+- **Where:** on A0's first 100 cycles, at the product's own candidates.
+- **How:** the cycle-level export runs twice, in **gate-first mode** (harness only; R4 already allows a harness
+  override) and in the shipped **output-first** order, both with **no deadline**.
+- **Predicate:** the multiset of published payloads per cycle is identical, **N/N cycles**. Any difference ⇒ A2 FAILS.
+- **A2(a)–(c) are unchanged.** The per-row harness still computes F1b for **every** row, whatever the product order,
+  so A2(c) is still read on all 4,949 F1b rows.
+
+**A3.3 What runs on which build.**
+- **A2(a)–(c)** may run on `44f0df4e` as soon as the CPU is free. That scores SF1 on the first Stage 1 build.
+- **On the reworked build:** QA diffs the per-candidate functions (`ft8_coherent_fallback_at`, the F1b code) against
+  `44f0df4e`. If they are unchanged, A2(a)–(c) carry over. If not, they are re-run.
+- **A2(d), A2(e) and A0 run on the reworked build only.**
+- 🛑 **A0 is NOT spent on `44f0df4e`.**
+  - The smoke already shows the gate-first order can't fit. A clean number on it would answer a question nobody is
+    asking.
+  - The predicate, the 100 cycles and the slack note are unchanged, so nothing is being re-tried until it passes.
+  - **QA reports the smoke as descriptive history in the A0 report.**
+
+**A3.4 If A0 still fails on the reworked build, the next steps, in order.**
+1. **The shared per-cycle reference-peak grid (QA's (a)).** This is still inside R1, still "equivalent iff A2 passes",
+   so no design amendment is needed.
+2. **Only then, as a design amendment for the Captain:**
+   - eligibility by top-K or a prefilter (QA's (b)). This changes the attempted set, so it needs its own acceptance row,
+     and Q-GATE-2 never tested it;
+   - or a budget split (QA's (c)). This changes R7′ and A3′.
+
+**A3.5 Predictions, honestly scored.**
+- 🔴 **SF2′ ("A0 passes without a design amendment") is scored ❌ MISS now, on the smoke.** The order as specified
+  (gate first) would overrun on 2 of 2 cycles, at twice the slack even after halving for contention.
+  - The reorder is within R1, so it isn't formally a design amendment. Scoring SF2′ a hit on the reworked build would
+    reward a fix that was prompted by seeing the data.
+  - SF2′ was about whether **the specified design** fits the budget.
+- **Registered now, before the clean run:**
+
+| # | prediction | P | class |
+|---|---|---:|:---:|
+| SF8 | A0 passes on the reordered build | 0.70 | C |
+| SF9 | A2(e) equivalence N/N on the first run | 0.80 | C |
+
+SF8 is COMPUTED from QA's split. The risk is the estimate's cost, which now runs on all 165 candidates rather than 141.
+
+**Order:** the Developer reworks Stage 1 (R4′, R12′, and the harness gate-first mode) while QA runs A2(a)–(c) on
+`44f0df4e` after the OFF arm ends. Then come A2(d), A2(e) and A0 on the reworked build. The Captain is told, but there
+is nothing to decide: the change is within the spec.
