@@ -333,3 +333,92 @@ The Captain decides.
 
 **Phase 3:** my design comes after this phase is merged and measured, as the spec's §7 says. It will take M2, V2b and
 the Captain's answer to §3 as inputs.
+
+## Addendum 4: the live night, and the suppression recommendation (2026-10-20 14:52Z, `date -u`)
+
+Figures as QA reported them (board entry "#225 LIVE ENDURANCE FINISHED AND ANALYSED"; corpus
+`20261019_1905`, build `87beed94`, Deep read back, nhard 24, Voicemeeter Out B1, 19:05:19Z → 14:30:02Z, 19.41 h).
+**New era (shim 20260064): never pooled.** The Wilson intervals below are mine, computed from QA's counts.
+
+### What the night shows
+
+| check | result | bar | verdict |
+|---|---|---|---|
+| V2 OWS-only 0.1 rows | **3 of 439** = 0.68 % [0.23, 1.99]; SNR −9..+1 | STOP if > 5 and > 3×M2 | not hit |
+| V2b different call | **0** (16 same Fox, 420 `<...>` vs a WSJT-X call) | STOP on any | not hit |
+| V2c report mismatch | 0 | STOP on any | not hit |
+| M1 | 436 / 493 = **88.4 % [85.3, 91.0]**; ≥ −5 dB 402/426, −15..−6 31/54, < −15 3/13 | none (measured) | recorded |
+| native `unsupportedType` | 0 all night | none | type now handled, so M2 can't be measured on this build |
+| external spots of 0.1 rows | 0 log lines, **reporting was off** | 0 | **not tested** (see R4b) |
+
+### R4a. Ruling (a) stands, and the night makes its cost smaller
+
+- Unique-match resolved the Fox's call on only **16 of 436** matched rows (3.7 %), and all 16 were right.
+- Over both runs on this build: **1 wrong of 24** resolved names (4 % [0.7, 20]).
+- **My Addendum 3 said the full night's wrong-name rate "will be higher". It wasn't: 0 of 16.** The sample is too small
+  to show a rate either way, and I registered no probability, so there is nothing to score in the ledger. I note it here.
+- The ruling never rested on the rate. It rests on "no name beats a wrong name". The night shows what the ruling costs:
+  about 4 % of Fox rows lose a name that is display-only in this phase. **Ruling (a) stands. The Developer's
+  amendment goes ahead.** The PC hold ended at 14:30Z.
+
+### R4b. The spots check was not tested. Close it before the PR
+
+- With external reporting off, "0 spots" says nothing about the guard (HK-022).
+- The Developer's guard in `ExternalReportingService` matters more after ruling (a): every 0.1 row is now a region miss.
+- **Before the PR, on the amended build:** a short replay with external reporting **ON**, pointed at a local loopback
+  UDP listener. Count the datagrams that carry a 0.1 row.
+  - The bar is **0**, and the run must also show the listener receiving ordinary rows (the positive control).
+- If the Developer's unit tests already cover this per batch number (C4.1), QA cites them as well. The replay is still
+  needed, because it is the managed path end to end.
+
+### R4c. The suppression recommendation: B, 0.1 rows exempt from noise suppression
+
+**This is the Captain's decision. It is a product choice, not housekeeping.**
+
+What each option leads to, after ruling (a) (every 0.1 row is a region-lookup miss):
+
+| option | what a noise-suppression user sees | false Fox rows shown, from this night |
+|---|---|---|
+| A. Suppression applies | **no Fox row ever**, even a +1 dB Fox | 0 |
+| **B. 0.1 rows exempt** | every decoded Fox row | **at most 3 in 19.4 h** (≈ 0.15 an hour), and only if all 3 OWS-only rows are false |
+| C. Decide later | as A or B, whichever is built | — |
+
+**The data behind B:**
+- **The worst case is small and bounded.** At most 0.68 % [0.23, 1.99] of Fox rows. That is the same as the general
+  OWS-only share for all decodes on this night (0.8 %). So exempting Fox rows doesn't make them less reliable than
+  ordinary rows.
+- **The 3 are probably not all false.** The positive-control bound puts false 0.1 rows at ≤ ~0.5 a night. All 3 lie at
+  −9..+1 dB, where WSJT-X also misses some real rows. This is unproven (see R4d), and the recommendation doesn't need it.
+- **A false Fox row does nothing.** It is display-only. It can't start a QSO, it isn't spotted (once R4b passes) and it
+  isn't subtracted.
+- **A defeats the feature for exactly the users who'd want it.** A suppression user would never see a DXpedition.
+  **Recommendation: B.**
+- **When to revisit:** phase 3. A Hound that verifies the hash against its chosen Fox gets a real region. At that point
+  suppression could apply to verified rows in the normal way.
+
+**If the Captain prefers A or C:** the Developer builds A (C4.2 as written). Nothing else in phase 2 changes.
+
+### R4d. Optional, not blocking: are the 3 OWS-only rows real?
+
+A real Fox transmits on one frequency for many cycles. A false decode lands at random. A mechanical check, done inside
+the function that reads `ALL.TXT`, with aggregates out only (HK-037):
+- for each of the 3 OWS-only rows, is there a WSJT-X 0.1 row within ±10 Hz in the 4 cycles before or after?
+- report the count of 3 that have one.
+- **If a row has one, it is probably a real Fox, and WSJT-X missed that cycle.** This sharpens the false-row figure for
+  phase 3. It doesn't gate anything.
+
+### R4e. Other things from QA's message: noted, no ruling needed
+
+- **Section 4:** this is the first row with Voicemeeter-B1, nhard 24 and Deep. **It is a NEW ROW** (71.9 % matched of
+  WSJT-X). Never compare it with the nhard 40 rows or the 2026-10-09 direct-CODEC row.
+- **sol MAINDEEP:** 90.8 % [88.5, 93.2] reproduces TPDEEP (90.7 %) on merged `main`. It is the second Deep/sol row and
+  confirms that era on `main`. Never pool it with the B2CAP band 87.3–88.3 %.
+- QA's three tooling defects are QA's own.
+
+### Order from here
+
+1. QA nudges the Developer for the Addendum-3 amendment (call3 always `<...>`). The Captain's A/B choice goes into
+   the same amendment if he has made it by then, otherwise A as written.
+2. QA re-runs V1/V2/V2b on the amended build, then the R4b reporting-ON replay, then V3 (sol S5 0/480).
+3. PR, CI, then merge on the Captain's go.
+4. Then my phase 3 (Hound) design.
