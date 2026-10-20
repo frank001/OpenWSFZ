@@ -1,4 +1,27 @@
-=== CURRENT: sub-feas-stage-b B2 merged with main (FT8_SHIM_VERSION 20260062) ===
+=== CURRENT: COH-FALLBACK (A' step 3) Stage 1, native core + diagnostic export (FT8_SHIM_VERSION 20260066) ===
+
+Built 2026-10-20 from branch feat/coh-fallback-stage1, off origin/main 9d5ba635 (shim 20260062), local, not pushed. QA handoff
+dev-tasks/2026-10-20-coh-fallback-step3-stage1.md (qa/refset 0a0f47a2); design: the Architect's spec R1-R13, sections 3 and 5.1
+(arch/coherent-limb2). Developer session.
+Version literal: highest FT8_SHIM_VERSION on any local or origin/* ref on 2026-10-20 was 20260065 (feat/dxpedition-decode-225);
+the handoff assigns 20260066 (20260063 = origin/decoding_improvement, 20260064/20260065 = the #225 branch, not merged).
+
+What changed: NEW file native/ft8_lib_vendor/refine/coherent_fallback.c (+ .h), a C port of our own clean-room Python reference
+(QA commit 44c70ea2): the Costas fine-sync estimator, F1b, the 174 V3 coherent LLRs. NEW exports ft8_coherent_fallback_at and
+ft8_coherent_fallback_cycle with the new structs FT8CohFallbackResult / FT8CohFallbackCycleStats / FT8CohFallbackRow. BP only (no
+OSD), CRC-14. NO product wiring. ft8_decode_all gains only the retention of its candidate list and its decoded payloads in
+thread-local arrays (reset at the top of every call); its output and every existing export and struct are unchanged.
+
+  Windows x64 (rebuild_shim.bat, MSVC): SHA256
+    7af6f893122aae009f60c18920339dc8c4e3882908a7e3d60ab888a83a92a4d3
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    d88b5b4d4ac1d1c72e2e39165c77c0fe29040f30a8cb38f2b73df504e7036290
+    tools/check_native_version.py reports shim 20260066 for both files built here.
+  macOS ARM64: NOT rebuilt here. CI owns it (the macOS/Linux recipes in .github/workflows/ci.yml now compile coherent_fallback.c).
+
+
+=== Previous: sub-feas-stage-b B2 merged with main (FT8_SHIM_VERSION 20260062) ===
 
 Built 2026-10-14 from branch feat/sub-feas-stage-b: B2 (origin/feat/sub-feas-stage-b aab18b75, shim 20260059, accepted 2026-10-04,
 never merged) merged with origin/main 76aa48cd (shim 20260060, the osd-sign-fix line), locally, not pushed. QA handoff

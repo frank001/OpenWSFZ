@@ -467,7 +467,12 @@ internal static class Ft8LibInterop
     /// brings the pruned frequency search onto the 20260060 line. No new or changed export and no ABI change, so this binding
     /// file changes only the expected version. 20260061 is held by <c>decoding_improvement</c>.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260062;
+    /// <remarks>
+    /// COH-FALLBACK (A' step 3) Stage 1, shim 20260066: two new DIAGNOSTIC-ONLY exports (<c>ft8_coherent_fallback_at</c>,
+    /// <c>ft8_coherent_fallback_cycle</c>) and a thread-local retention of the last decode's candidate list. No managed binding
+    /// yet (Stage 2 wires the product), no existing export or struct changes.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260066;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI

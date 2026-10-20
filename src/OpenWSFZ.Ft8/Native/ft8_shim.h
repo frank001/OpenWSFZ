@@ -804,8 +804,18 @@ extern "C" {
  *              NO new export, NO ABI change, no change to any decode path: the merge brings B2's subfeas_fit.c freq_search
  *              change onto the 20260060 line (OSD sign fix, hash-state exports). 20260059 and
  *              20260060 are both history; 20260061 is held by origin/decoding_improvement, so the merged build takes 20260062.
+ *
+ *   20260066 — COH-FALLBACK (A' step 3) Stage 1: the native core of the coherent-extraction fallback and its diagnostic export.
+ *              NEW file native/ft8_lib_vendor/refine/coherent_fallback.c (a C port of our own clean-room Python reference at QA
+ *              commit 44c70ea2: the Costas fine-sync estimator, F1b, the 174 V3 coherent LLRs) and two NEW exports,
+ *              ft8_coherent_fallback_at (one anchor) and ft8_coherent_fallback_cycle (every eligible candidate of the last
+ *              ft8_decode_all call), with the new structs FT8CohFallbackResult / FT8CohFallbackCycleStats / FT8CohFallbackRow.
+ *              BP only (no OSD), CRC-14. NO product wiring: no flag, no config key, nothing in the managed decode path calls them.
+ *              ft8_decode_all gains only the retention of its candidate list and decoded payloads in thread-local arrays (R2),
+ *              reset at the top of every call; its output, its control flow and every existing export and struct are unchanged.
+ *              20260063 is origin/decoding_improvement's; 20260064 and 20260065 are the #225 branch's (not merged).
  */
-#define FT8_SHIM_VERSION 20260062
+#define FT8_SHIM_VERSION 20260066
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1441,6 +1451,95 @@ void ft8_subfeas_pool_get_stats(int* out);
 int ft8_hash_state_size(void);
 int ft8_hash_state_save(void* buf, int cap);
 int ft8_hash_state_restore(const void* buf, int len);
+
+/*
+ * COH-FALLBACK (A' step 3) Stage 1 -- shim 20260066. DIAGNOSTIC-ONLY, NO PRODUCT WIRING: two new exports; nothing in ft8_decode_all's
+ * output, the managed layer or the config calls them. The method is a C port of OpenWSFZ's own clean-room Python reference (no
+ * WSJT-X source): the data-free Costas fine-sync estimate (df +-2.0 Hz x dt +-0.12 s), the F1b strength feature, C3 coherent
+ * extraction (the 174 V3 LLRs), then BP only (osd_depth -1, 50 iterations, production normalisation) and CRC-14. No OSD.
+ * The anchor (freq_hz, time_offset_s) is in the CANDIDATE convention of ft8_extract_llrs_at / ft8_decode_all (a decode's reported
+ * frequency and dt); the search window is centred on it. pcm_len must be 180 000. Both exports are thread-safe (own context).
+ */
+#define FT8_COH_FLAG_FORCE_C3        1  /* run C3 + BP even when F1b > T1 (harness only; the gate decision is still reported) */
+#define FT8_COH_FLAG_SKIP_F1B        2  /* do not compute F1b (no 24 reference surfaces); C3 + BP then run unconditionally */
+#define FT8_COH_FLAG_ESTIMATE_ONLY   4  /* the fine-sync estimate only: no F1b, no C3, no BP */
+#define FT8_COH_FLAG_INCLUDE_DECODED 8  /* cycle export: also run the ESTIMATE on candidates the ordinary decode DID decode (A2(d)) */
+#define FT8_COH_BP_NOT_RUN          99  /* FT8CohFallbackResult.bp_rc when C3/BP did not run */
+
+/* sizeof == 112. Every field is written by every call (zeroed first). */
+typedef struct
+{
+    double  est_df_hz;      /* fine-sync estimate: offset from the anchor frequency (0.1 Hz grid) */
+    double  est_dt_s;       /* ... offset from the anchor time (dt_step x 5 ms) */
+    double  peak;           /* the objective's maximum */
+    double  f1b_db;         /* F1b in dB (NaN when not computed; +inf when there is no usable reference) */
+    double  estimate_ms;    /* wall time of the estimate */
+    double  f1b_ms;         /* ... of F1b (0 when skipped) */
+    double  c3_bp_ms;       /* ... of C3 extraction + BP (0 when not run) */
+    double  elapsed_ms;     /* ... of the whole call */
+    int32_t dt_step;        /* -24 .. +24 */
+    int32_t edge;           /* 1 iff the argmax is on a window edge */
+    int32_t n_refs;         /* usable F1b reference frequencies (0..24) */
+    int32_t gated;          /* 1 iff F1b was computed and F1b <= T1 (17.552446 dB) */
+    int32_t c3_ran;         /* 1 iff C3 + BP ran */
+    int32_t bp_rc;          /* ftx_ldpc_decode_llrs's return (0 ok, -2 degenerate LLR vector), or FT8_COH_BP_NOT_RUN */
+    int32_t bp_path;        /* 0 = BP converged, -1 = no CRC-valid codeword (BP only: never 1) */
+    int32_t bp_crc_ok;      /* 1 iff the CRC-14 of the BP codeword matched */
+    int32_t bp_ldpc_errors; /* bp_decode's own parity-error count */
+    uint8_t a91[12];        /* payload + CRC as ftx_ldpc_decode_llrs packs it (the first 10 bytes are the 77-bit payload) */
+} FT8CohFallbackResult;
+
+/* One anchor. flags: FT8_COH_FLAG_*. out_llr174 (may be NULL) receives the raw V3 LLRs iff C3 ran.
+ * Returns 0; -1 bad arguments or pcm_len; -2 an access violation was contained (MSVC); -3 out of memory. */
+int ft8_coherent_fallback_at(
+    const float* pcm, int pcm_len,
+    double freq_hz, double time_offset_s,
+    int flags,
+    FT8CohFallbackResult* res,
+    float* out_llr174);
+
+/* sizeof == 80. Counts and times of one ft8_coherent_fallback_cycle call. */
+typedef struct
+{
+    int32_t n_candidates;        /* every candidate the last ft8_decode_all call on this thread found, all passes */
+    int32_t n_decoded;           /* ... of which the ordinary decode decoded (CRC-valid) */
+    int32_t n_dup_position;      /* not-decoded candidates at a lattice position an earlier entry already had (not re-attempted) */
+    int32_t n_eligible;          /* not decoded, distinct position: the R2 population */
+    int32_t n_gated;             /* ... with F1b <= T1 */
+    int32_t n_attempted;         /* ... for which C3 + BP ran */
+    int32_t n_crc_ok;            /* ... CRC-valid */
+    int32_t n_crc_new;           /* ... CRC-valid with a payload neither decoded in the call nor produced earlier by the fallback */
+    int32_t n_edge;              /* ... whose estimate sits on a window edge */
+    int32_t n_decoded_estimated; /* INCLUDE_DECODED: decoded candidates whose estimate was run */
+    int32_t n_rows;              /* rows produced (may exceed rows_cap) */
+    int32_t reserved;
+    double  estimate_ms;         /* summed over the eligible candidates */
+    double  f1b_ms;
+    double  c3_bp_ms;
+    double  total_ms;            /* wall time of the whole call */
+} FT8CohFallbackCycleStats;
+
+/* sizeof == 136. One row per eligible candidate (and per decoded one with INCLUDE_DECODED). */
+typedef struct
+{
+    float   freq_hz;             /* the candidate's lattice position (the anchor) */
+    float   dt_s;
+    int32_t pass;                /* 0 or 1: the ft8_decode_all pass that found it */
+    int32_t decoded;             /* 1 for an INCLUDE_DECODED row */
+    int32_t crc_new;             /* 1 iff CRC-valid and a new payload (see n_crc_new) */
+    int32_t reserved;
+    FT8CohFallbackResult r;
+} FT8CohFallbackRow;
+
+/* Applies the fallback to every eligible candidate of the LAST ft8_decode_all call on the calling thread (R2): the candidates
+ * ftx_find_candidates returned in any pass that no pass decoded, each lattice position once. Pass the SAME pcm. Candidate
+ * order is the decode's (pass 0 then pass 1, score order). rows (may be NULL) receives up to rows_cap rows. Returns the number
+ * of rows written; -1 bad arguments; -2 contained access violation; -3 out of memory. With no ft8_decode_all call on this
+ * thread (or one that failed) the list is empty: 0 rows, all counts 0. */
+int ft8_coherent_fallback_cycle(
+    const float* pcm, int pcm_len, int flags,
+    FT8CohFallbackCycleStats* stats,
+    FT8CohFallbackRow* rows, int rows_cap);
 
 #ifdef __cplusplus
 }
