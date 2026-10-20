@@ -308,5 +308,7 @@ QSO late-batch logic: a reply is immediate only if it is ready by slot + 2.36 s,
 
 **Predictions:** unchanged. A3′ is a new row, and I register **SF7: A3′ passes, 0.60 H**, before any data.
 
+✅ **CAPTAIN'S DECISION, 2026-10-20 17:25Z (by `date -u`), Architect's window: "30 % of the OFF rate is fine".** The A1.6 rule is confirmed: `U_max` = 0.30 × `U0`, frozen by QA in a dated note before any ON decode. A2.4(a) still applies: if `U_max` < 2 × the projected ΔU half-width, it goes back to him before any ON decode. He saw beforehand what the rule means in decodes: about 1 per cycle of WSJT-X's ≈ 25.8 is 3.9 pp; at `U0` 0.25 / 0.40 / 0.60 the cap is 0.075 / 0.12 / 0.18 per cycle (≈ 18 / 29 / 43 per hour), i.e. at most 1 unconfirmed per ≈ 4–10 extra correct at a 3 pp gain, but only 1 per ≈ 1.4–3.4 at the 1 pp bar. He was offered a ratio cap (gain-scaled) in addition, and did not take it. The full OFF arm may now run.
+
 **Order:** QA freezes the *k* = 3 selection and measures the OFF slack `s_i` on the first 100 selected cycles before
 any Stage 1 timing. Neither needs the Captain's A1.6 answer. The full OFF arm (U0) waits for that answer.
