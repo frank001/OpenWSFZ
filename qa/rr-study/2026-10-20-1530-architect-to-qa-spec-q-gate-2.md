@@ -284,3 +284,51 @@ anything.
     of a day, run one after the other.
 
 **Predictions (§11):** unchanged. They were made blind to the population size, and the parity fix doesn't move them.
+
+---
+
+## §13 Amendment 2: the type-4 control after the pilot STOP (Architect, 2026-10-20 16:41Z by `date -u`)
+
+**What happened.** QA reported the A1.2 STOP. The pilot residue `i mod 5 == 3` ran out (all 930 cycles, 24,877
+encodable rows) at a control n of **108**: 0 matches, Wilson 95 % [0, 3.4 %]. 0 cycles were excluded for < 2 rows.
+The rate rule (> 1 %) did not fire; the STOP is the n rule. No main-run label has been joined. Every other step before
+the main run PASSED (S0, V-L, V-P, V-T1, V-G1, V-C1; QA's message), and the Captain set **`U_max` = 0.05** today.
+
+**My error (HK-038).** A1.2 expected the main control at "n ≫ 200". I didn't check that against data. The only
+type-4 count I had (795 of 917) came from the 10-07 unexplained outputs on the old build and the old population. On
+this population the type-4 output rate is ≈ 0.12 per cycle, so the main run will also give n ≈ 100–110. At that n, even
+0 matches gives a Wilson upper bound of 3.4 %, so a 2 % bar on the bound could not be met by a perfect result.
+
+**Does it matter for the verdict? Very little, and the ruling says why.** The control protects KG from type-4 outputs
+that the truth rule wrongly calls RIGHT. Suppose the main run's ≈ 108 type-4 outputs were false-matched at the full 2 %
+tolerance. That is ≈ 2 rows out of 24,876 encodable rows, which moves KG by ≈ 0.008 pp. The projected KG half-width is
+±0.33 pp and BAR_G is 1.0 pp. So the control is evidence that the rule isn't broken. It is not a lever on the KG row.
+
+**Ruling: QA's option (c), both (a) and (b), in this form.**
+
+- **A2.1 Extend the pilot control (QA's (a)).** Take the next disjoint residues **in this order: `i mod 5 == 2`, then
+  `i mod 5 == 4` if still needed**. Cycles are taken in order and appended to the 108 already counted, until the pooled
+  pilot n ≥ 200. Use the same control population, DLL, stride and truth rule.
+  - The **STOP rule is unchanged:** pooled pilot match rate **> 1 %** ⇒ STOP and no main run. If both residues run out
+    before n = 200, STOP and report n.
+  - These cycles are discarded from every row, as residue 3's were. None of them is in the main sample (`i mod 5 == 1`).
+- **A2.2 Main-run V-T2, restated (QA's (b), tightened).** The report gives n, matches and the Wilson 95 % interval
+  **twice**: for the main run's own control, and pooled over pilot + main. These are disjoint cycles of one night, with
+  one rule and one DLL. **PASS iff both:**
+  - the **main** point rate is **≤ 2 %**, and
+  - the **pooled** Wilson upper bound is **≤ 2 %**.
+  - Otherwise FAIL ⇒ no reading (§6).
+  - **Can it be met?** At a pooled n ≈ 324 the bound is 1.17 % with 0 matches, 1.73 % with 1 and 2.22 % with 2. So
+    the bar holds with **≤ 1 match** at that n, and with ≤ 2 from n ≈ 432 (1.67 %). The Architect computed these;
+    they are Wilson, z = 1.96.
+- **A2.3 Do not count G's other lattice cells (QA's question): no.** Outputs at the other 8 cells around one anchor are
+  mostly the same decode of the same signal. They aren't independent trials, so counting them would raise n without
+  adding information, and it would make the interval falsely narrow. The control population stays as A1.2 froze it:
+  the first G output per row, plus the fallback.
+- **A2.4 The `mod 7` fallback is void.** QA measured the cost at 0.087 CPU-s per row (≈ 2,168 CPU-s for 930 cycles),
+  far below the 6 h trigger. The main run is `i mod 5 == 1` as frozen (SHA `aed896e4`, 933 cycles).
+- **A2.5 Unchanged:** the rows, the bars (BAR_G 1.0 pp, `U_max` 0.05), B, the seed, and the §11 predictions. The
+  projected half-widths (KG ±0.33 pp, UPC ±0.007) stay descriptive and move nothing.
+
+**Order from here:** A2.1 extension → if no STOP, the main run → V-T2 (A2.2), V-K → rows. The Captain's run go in QA's
+window still applies.
