@@ -1,0 +1,29 @@
+{
+ "cycles_used": 930,
+ "cycles_excluded_lt2": 0,
+ "control_n": 108,
+ "matches": 0,
+ "rate": 0.0,
+ "wilson95": [
+  0.0,
+  0.03435
+ ],
+ "reached_n200": false,
+ "STOP_rule": "STOP if rate > 1 % (>= 3 matches at n = 200) or the residue runs out before n = 200",
+ "pilot_V-T2": "STOP",
+ "pilot_full_residue_DESCRIPTIVE": {
+  "KG_pp_point_lo_hi": [
+   3.2761,
+   2.9488,
+   3.6017
+  ],
+  "UPC_point_lo_hi": [
+   0.01505,
+   0.00855,
+   0.02273
+  ],
+  "pilot_blocks": 117,
+  "projected_main_halfwidth_KG_pp": 0.327,
+  "projected_main_halfwidth_UPC": 0.0071
+ }
+}

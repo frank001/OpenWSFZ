@@ -1,0 +1,225 @@
+{
+ "cycles": 931,
+ "blocks_of_8": 117,
+ "fault_rows": 13,
+ "D_encodable_rows": 24876,
+ "P_rows": 6596,
+ "rows_run": 24876,
+ "g_right_rows": 14833,
+ "g_right_rule_ii_rows": 97,
+ "live_hit_rows_among_run": 18214,
+ "gated_GA_on_P": {
+  "outputs": 1111,
+  "kept": 822,
+  "kept_right": 754,
+  "kept_right_rule_ii": 7,
+  "kept_unexplained": 13,
+  "kept_near": 55,
+  "kept_far": 0,
+  "KG_pp": [
+   3.031,
+   2.7221,
+   3.3458
+  ],
+  "UPC": [
+   0.01396,
+   0.00644,
+   0.02256
+  ],
+  "distinct_cycles_with_kept_right": 452,
+  "share_of_KG_in_top5_blocks": 0.1127,
+  "by_snr_band": {
+   "<=-16": {
+    "kept_right": 266,
+    "kept_unexplained": 6
+   },
+   "-15..-6": {
+    "kept_right": 361,
+    "kept_unexplained": 5
+   },
+   "-5..+4": {
+    "kept_right": 112,
+    "kept_unexplained": 2
+   },
+   ">=+5": {
+    "kept_right": 15,
+    "kept_unexplained": 0
+   }
+  }
+ },
+ "ungated_fallback_on_P": {
+  "outputs": 1111,
+  "kept": 1111,
+  "kept_right": 965,
+  "kept_right_rule_ii": 9,
+  "kept_unexplained": 28,
+  "kept_near": 118,
+  "kept_far": 0,
+  "KG_pp": [
+   3.8792,
+   3.5558,
+   4.2026
+  ],
+  "UPC": [
+   0.03008,
+   0.01709,
+   0.04511
+  ],
+  "distinct_cycles_with_kept_right": 530,
+  "share_of_KG_in_top5_blocks": 0.1005,
+  "by_snr_band": {
+   "<=-16": {
+    "kept_right": 270,
+    "kept_unexplained": 6
+   },
+   "-15..-6": {
+    "kept_right": 396,
+    "kept_unexplained": 10
+   },
+   "-5..+4": {
+    "kept_right": 225,
+    "kept_unexplained": 6
+   },
+   ">=+5": {
+    "kept_right": 74,
+    "kept_unexplained": 6
+   }
+  }
+ },
+ "bridge_Q-GATE_population_gated_DESCRIPTIVE_never_difference_against_Q-GATE_TEST": {
+  "outputs": 1626,
+  "kept": 1141,
+  "kept_right": 990,
+  "kept_right_rule_ii": 8,
+  "kept_unexplained": 54,
+  "kept_near": 97,
+  "kept_far": 0,
+  "KG_pp": [
+   3.9797,
+   3.6337,
+   4.3149
+  ],
+  "UPC": [
+   0.058,
+   0.03974,
+   0.07734
+  ],
+  "distinct_cycles_with_kept_right": 539,
+  "share_of_KG_in_top5_blocks": 0.1051,
+  "by_snr_band": {
+   "<=-16": {
+    "kept_right": 310,
+    "kept_unexplained": 12
+   },
+   "-15..-6": {
+    "kept_right": 472,
+    "kept_unexplained": 31
+   },
+   "-5..+4": {
+    "kept_right": 183,
+    "kept_unexplained": 11
+   },
+   ">=+5": {
+    "kept_right": 25,
+    "kept_unexplained": 0
+   }
+  }
+ },
+ "bridge_ungated": {
+  "outputs": 1626,
+  "kept": 1626,
+  "kept_right": 1301,
+  "kept_right_rule_ii": 11,
+  "kept_unexplained": 102,
+  "kept_near": 223,
+  "kept_far": 0,
+  "KG_pp": [
+   5.2299,
+   4.8705,
+   5.577
+  ],
+  "UPC": [
+   0.10956,
+   0.08271,
+   0.13782
+  ],
+  "distinct_cycles_with_kept_right": 630,
+  "share_of_KG_in_top5_blocks": 0.0922,
+  "by_snr_band": {
+   "<=-16": {
+    "kept_right": 314,
+    "kept_unexplained": 12
+   },
+   "-15..-6": {
+    "kept_right": 525,
+    "kept_unexplained": 42
+   },
+   "-5..+4": {
+    "kept_right": 352,
+    "kept_unexplained": 39
+   },
+   ">=+5": {
+    "kept_right": 110,
+    "kept_unexplained": 9
+   }
+  }
+ },
+ "ROW": {
+  "verdict": "G2-OK",
+  "KG_pp_point_lo_hi": [
+   3.031,
+   2.7221,
+   3.3458
+  ],
+  "BAR_G_pp": 1.0,
+  "UPC_point_lo_hi": [
+   0.01396,
+   0.00644,
+   0.02256
+  ],
+  "U_max": 0.05
+ },
+ "V-K": {
+  "outputs_on_P": 1111,
+  "kept_by_GA": 822,
+  "result": "PASS"
+ },
+ "V-P": {
+  "even": 466,
+  "odd": 467,
+  "diff_pct": 0.107,
+  "result": "PASS"
+ },
+ "V-T2": {
+  "main_n": 124,
+  "main_matches": 0,
+  "main_rate": 0.0,
+  "main_wilson95": [
+   -0.0,
+   0.03005
+  ],
+  "pilot_pool_n": 200,
+  "pilot_pool_matches": 0,
+  "pooled_n": 324,
+  "pooled_matches": 0,
+  "pooled_rate": 0.0,
+  "pooled_wilson95": [
+   -0.0,
+   0.01172
+  ],
+  "cycles_excluded_lt2_rows_main": 0,
+  "rule": "Amendment 2 A2.2: PASS iff main point rate <= 2 % AND pooled Wilson upper <= 2 %",
+  "result": "PASS"
+ },
+ "rule_ii_share_of_old_rule_unexplained_ungated": {
+  "right_ii": 9,
+  "unexplained_now": 28,
+  "share": 0.2432
+ },
+ "live_OWS_only_rows_per_sampled_cycle": {
+  "ows_only_rows": 158,
+  "cycles": 931,
+  "per_cycle": 0.1697
+ },
+ "wording_G2_OK": "necessary, not sufficient, for the step-3 build: UPC counts false outputs at real-signal positions only; it does not establish the step-3 false-decode rate."
+}

@@ -1,0 +1,28 @@
+{
+ "control_n": 200,
+ "matches": 0,
+ "rate": 0.0,
+ "wilson95": [
+  0.0,
+  0.01885
+ ],
+ "reached_n200": true,
+ "per_residue": [
+  {
+   "run": "pilot_full",
+   "cycles_used": 930,
+   "cycles_excluded_lt2": 0,
+   "n_added": 108,
+   "matches_added": 0
+  },
+  {
+   "run": "pilot2",
+   "cycles_used": 651,
+   "cycles_excluded_lt2": 1,
+   "n_added": 92,
+   "matches_added": 0
+  }
+ ],
+ "pilot_pool_result": "PASS",
+ "rule": "STOP if pooled rate > 1 % or n < 200 after all residues"
+}
