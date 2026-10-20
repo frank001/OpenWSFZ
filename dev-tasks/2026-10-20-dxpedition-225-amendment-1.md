@@ -19,7 +19,7 @@ To: Developer. From: QA, on the Architect's Addendum 3 ruling (a) and Addendum 4
 The live night's "0 spots" did not test the guard (external reporting was OFF). QA will replay on your amended build with reporting ON, pointed at a loopback UDP listener (0.1-row datagrams = 0; ordinary datagrams > 0 as the positive control). **If your per-batch unit tests already cover "a 0.1 row never reaches the external reporting datagram for batches 1, 2 and 3", name them in your report; if they do not, add them.**
 
 ## Hand-back
-Branch and commit SHA(s); `git diff --stat origin/main..HEAD` (expected: `ft8_shim.c`, shim version file(s), tests; no ABI struct change); the new shim number and both library SHA-256 values; the full unfiltered Windows test result (state the exact command; a filtered-out suite is silent, HK-022) and the ASan/UBSan self-test; the test names for the datagram point above.
+Branch and commit SHA(s); `git diff --stat origin/main..HEAD` (expected: `ft8_shim.c`, shim version file(s), the noise-suppression glue for option B, tests; no ABI struct change); the new shim number and both library SHA-256 values; the full unfiltered Windows test result (state the exact command; a filtered-out suite is silent, HK-022) and the ASan/UBSan self-test; the test names for the datagram point above.
 
 ## Acceptance (QA)
 - V2b becomes **"any resolved `call3` = FAIL"** (the Architect's wording); QA re-runs the quick-check replay and the loopback reporting replay on the amended build before any PR. V1, V2c, M1 as before; M2 is not measurable on a build where the type is supported (note, no bar).
