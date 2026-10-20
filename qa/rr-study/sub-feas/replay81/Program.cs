@@ -118,6 +118,9 @@ internal static class Program
 #endif
         if (newFile)
             csv.WriteLine(_wide3 ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n,b3_n"
+#if HAS_COHFB
+                                   + ",tb2_ms,tb3_ms"
+#endif
                           : _wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
                                   : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
         // Optional outcome keys (S1): per decode only NUMERIC fields plus an 8-hex-digit hash of the message text; the
@@ -241,6 +244,17 @@ internal static class Program
         {
             SetFlag(decoder, true);
             decoder.SetDecodingDepth(mode == "three1" ? DecodingDepth.Deep : DecodingDepth.Normal);
+#if HAS_COHFB
+            // COH-FALLBACK Stage 2 (spec section 8): the flag is REQUIRED (--cohfb 0|1), set ONCE per process and read back at start and end.
+            _cohfb = Req(a, "cohfb") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohfb must be 0 or 1") };
+            decoder.SetCoherentFallbackEnabled(_cohfb);
+            if (a.TryGetValue("cohfb-out", out var cohPath))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cohPath))!);
+                _cohOut = new StreamWriter(cohPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+                if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge");
+            }
+#endif
             Readback(decoder, log, "start", threadsNote);
         }
 #endif
@@ -443,6 +457,10 @@ internal static class Program
     private static StreamWriter? _abandon;   // --abandon-out: stamp,ran,abandoned,contained (numeric flags, 0/1)
 
     private static bool _wide;
+#if HAS_COHFB
+    private static bool _cohfb;                    // --cohfb 0|1: decoder.coherentFallbackEnabled, read back at start and end
+    private static StreamWriter? _cohOut;          // --cohfb-out: one aggregate line per cycle (the R12' counters)
+#endif
     private static bool _wide3;                    // three0 / three1: 12-column CSV with b3_n
     private static StreamWriter? _third;           // --third-out: stamp,outcome,newDecodes,elapsedMs,fittedSignals
     private static StreamWriter? _outcomes;
@@ -544,6 +562,9 @@ internal static class Program
             var fields = new List<string> { stamp, kind, i.ToString(CultureInfo.InvariantCulture),
                 r.FreqHz.ToString(CultureInfo.InvariantCulture), r.Dt.ToString("F1", CultureInfo.InvariantCulture),
                 r.Snr.ToString(CultureInfo.InvariantCulture) };
+#if HAS_COHFB
+            fields.Add(r.Path.ToString(CultureInfo.InvariantCulture));       // R11 provenance: 0 ordinary, 1 residual + third, 2 fallback (7th field; the text hash, if asked for, is the 8th)
+#endif
             if (_outcomeTextHash)
                 fields.Add(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(r.Message.TrimEnd())))[..8]);
             _outcomes.WriteLine(string.Join(",", fields));
@@ -570,6 +591,10 @@ internal static class Program
         string exc = "";
         int n1 = -1, n2 = 0, n3 = 0;
         double tb1 = -1;
+#if HAS_COHFB
+        double tb2 = -1, tb3 = -1;
+        CohProbe.Reset();
+#endif
         SubfeasProbe.Reset();
         ThirdProbe.Reset();
         var sw = Stopwatch.StartNew();
@@ -579,8 +604,20 @@ internal static class Program
             await d.DecodeStagedAsync(pcm, cycleStart, null, (n, batch) =>
             {
                 if (n == 1) { tb1 = sw.Elapsed.TotalMilliseconds; b1 = batch; }
-                else if (n == 2) b2 = batch;
-                else if (n == 3) b3 = batch;
+                else if (n == 2)
+                {
+                    b2 = batch;
+#if HAS_COHFB
+                    tb2 = sw.Elapsed.TotalMilliseconds;
+#endif
+                }
+                else if (n == 3)
+                {
+                    b3 = batch;
+#if HAS_COHFB
+                    tb3 = sw.Elapsed.TotalMilliseconds;
+#endif
+                }
                 else throw new InvalidOperationException("unexpected batch number");
                 return Task.CompletedTask;
             });
@@ -604,8 +641,35 @@ internal static class Program
             sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
             (n1 < 0 ? -1 : n1 + n2 + n3).ToString(CultureInfo.InvariantCulture), exc,
             tb1.ToString("F1", CultureInfo.InvariantCulture),
-            n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture), n3.ToString(CultureInfo.InvariantCulture)));
+            n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture), n3.ToString(CultureInfo.InvariantCulture)
+#if HAS_COHFB
+            , tb2.ToString("F1", CultureInfo.InvariantCulture), tb3.ToString("F1", CultureInfo.InvariantCulture)
+#endif
+            ));
+#if HAS_COHFB
+        _cohOut?.WriteLine(stamp + "," + CohProbe.Line());
+#endif
     }
+
+#if HAS_COHFB
+    /// <summary>COH-FALLBACK Stage 2: the R12' line the decoder logged for the cycle being decoded (aggregates only: counts and ms, no text).</summary>
+    private static class CohProbe
+    {
+        private static volatile bool _seen;
+        private static string _vals = "";
+        private static readonly System.Text.RegularExpressions.Regex Rx = new(
+            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)\.$");
+        public static void Reset() { _seen = false; _vals = ""; }
+        public static void Set(string rendered)
+        {
+            var m = Rx.Match(rendered);
+            if (!m.Success) return;
+            _vals = string.Join(",", m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value, m.Groups[4].Value, m.Groups[5].Value, m.Groups[6].Value, m.Groups[7].Value, m.Groups[8].Value, m.Groups[9].Value);
+            _seen = true;
+        }
+        public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,";
+    }
+#endif
 
     /// <summary>The third-pass line the decoder logged for the cycle being decoded (one line per cycle in which pass 0 had decodes).</summary>
     private static class ThirdProbe
@@ -766,6 +830,9 @@ internal static class Program
 #if HAS_THIRDPASS
                 + $" decodingDepth={d.DecodingDepth}"
 #endif
+#if HAS_COHFB
+                + $" cohfb={d.CoherentFallbackEnabled}"
+#endif
                 );
     }
 #endif
@@ -886,6 +953,15 @@ internal static class Program
                 string rendered = formatter(state, exception);
                 ThirdProbe.Set(rendered);
                 _log.Line(level.ToString(), rendered);   // aggregate-only template: counts, ms, a fixed outcome word
+                return;
+            }
+#endif
+#if HAS_COHFB
+            if (template.StartsWith("Coherent fallback: eligible=", StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                string rendered = formatter(state, exception);
+                CohProbe.Set(rendered);
+                _log.Line(level.ToString(), rendered);   // aggregate-only template: counts and ms
                 return;
             }
 #endif

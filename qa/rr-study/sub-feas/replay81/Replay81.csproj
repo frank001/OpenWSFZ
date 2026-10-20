@@ -27,6 +27,8 @@
     <DefineConstants Condition="'$(HasThirdPass)' == 'true'">$(DefineConstants);HAS_THIRDPASS</DefineConstants>
     <!-- #225 phase 2 (shim 20260064): only the build with Ft8Decoder.GetUnsupportedTypeCounts (feat/dxpedition-decode-225). -->
     <DefineConstants Condition="'$(HasDxped)' == 'true'">$(DefineConstants);HAS_DXPED</DefineConstants>
+    <!-- COH-FALLBACK step 3 Stage 2 (shim 20260068): only the build with Ft8Decoder.SetCoherentFallbackEnabled and DecodeResult.Path (feat/coh-fallback-stage1 1405ada4). Needs HasThirdPass too. -->
+    <DefineConstants Condition="'$(HasCohFb)' == 'true'">$(DefineConstants);HAS_COHFB</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
