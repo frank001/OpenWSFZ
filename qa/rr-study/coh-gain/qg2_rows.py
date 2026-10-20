@@ -36,6 +36,13 @@ RIGHT = ("right_i", "right_ii")
 POOL_JSON = None
 
 
+def winpath(p):
+    """Git-Bash '/d/...' -> 'D:/...' so a path given by a bash caller opens under the Windows Python (the 2026-10-20 chain slip)."""
+    if len(p) > 2 and p[0] == "/" and p[2] == "/" and p[1].isalpha():
+        return p[1].upper() + ":" + p[2:]
+    return p
+
+
 def phi_ok(upper):
     return upper <= 0.02
 
@@ -51,6 +58,7 @@ def wilson(k, n, z=1.96):
 
 
 def load(rows_json, run_dir):
+    rows_json, run_dir = winpath(rows_json), winpath(run_dir)
     spec = json.load(open(rows_json))
     sample = spec["sample"]
     cols = sample["columns"]
@@ -268,7 +276,7 @@ def analyse_pool(runs):
     n = m = 0
     detail = []
     for spec_ in runs:
-        rows_json, run_dir = spec_.split("::")
+        rows_json, run_dir = (winpath(x) for x in spec_.split("::"))
         ctl = sorted((json.loads(l) for l in open(os.path.join(run_dir, "control.jsonl"))), key=lambda c: c["cycle_index"])
         used = excl = take_n = take_m = 0
         if n >= 200:
@@ -299,7 +307,7 @@ def main():
     ap.add_argument("--run")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    POOL_JSON = a.pool_json
+    POOL_JSON = winpath(a.pool_json) if a.pool_json else None
     res = analyse_pool(a.runs) if a.mode == "pilotpool" else (analyse_main if a.mode == "main" else analyse_pilot)(a.rows, a.run)
     json.dump(res, open(a.out, "w"), indent=1)
     print(json.dumps(res, indent=1))
