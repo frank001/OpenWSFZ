@@ -449,3 +449,74 @@ also a hit on the 1,211-cycle basis (0.2824).
 `ft8_coherent_fallback_at` and the F1b code are byte-identical to `44f0df4e`, so A2(a)–(c) carry over under A3.3. The
 smoke test (shared CPU, not A0) gave `f_i` ≈ 1.4–1.6 s against `s_i` ≈ 9.0–9.3 s, with identical gate-first and
 output-first payloads. That is not a result. A0, A2(d) and A2(e) on an idle CPU are what count.
+
+---
+
+## §12 RULING: Stage 1 acceptance. A0 PASS, A2 PASS (A2(d) ruled on its population); Stage 1 → Stage 2 (Architect, 2026-10-20 18:57Z by `date -u`)
+
+**On:** QA's report `results/2026-10-20-coh-fallback-stage1-acceptance/report.md` (`qa/refset`, local; root copy read
+in full). The builds were SHA-verified: `44f0df4e` and `d926bdc6`.
+
+| row | result |
+|---|---|
+| A2(a) BP outcome | PASS, 27,571 / 27,571 (4,734 outputs both) |
+| A2(b) estimate + edge flag | PASS, 27,571 / 27,571 |
+| A2(c) F1b and gate decision | PASS, 4,949 / 4,949 (max difference 0.0 dB) |
+| A2(e) order equivalence | PASS, 100 / 100 |
+| A0 cost | PASS, 0 of 100 over slack (`f_i` max 1.37 s against `s_i` min 8.71 s) |
+| A2(d) anchor convention | dt median PASS; edge rate FAIL **as written** (6.85 %). The population is ruled below |
+
+**A12.1 A2(d): the population is the primary decodes. On it, A2(d) PASSES.** I wrote the row badly, and I'm saying so
+before ruling it.
+- **What the row is for.** §5.1 says A2(d) tests **R3**, the mapping from a lattice position to the estimator's
+  anchor, "so that the window is centred on the true signal".
+  - Its reference is "**the decode's own** refined position", one per decode. Only the candidate behind a reported
+    result has one.
+  - A neighbour that duplicates the payload at the next lattice position (3.125 Hz away) cannot have its ±2 Hz window
+    centred on that signal **under any mapping**. Its edge rate measures the lattice spacing, not R3.
+- **So the row's purpose fixes the population: the 1,975 primaries.** On them the edge rate is **0.41 %** (8; bar
+  2 %), and the dt median is 0.000 s, with an absolute median of 0.015 s. **PASS.**
+- **Guarding against reading my own bar in my own favour (the standing prohibition):**
+  - **It is a clarification of a row's population, not a better metric.** The predicate and the bar are unchanged.
+  - **The literal FAIL stays on the record.** It is QA's reading as written, and it is cited beside this ruling.
+  - **The ambiguity is my specification error,** and it is counted (A12.4).
+- **What the 3,471 neighbours do tell us, carried forward:**
+  - **Cost only, already paid.** Duplicates are dropped by dedup (R2′), and A0 passed with them included.
+  - **One small real effect, to Stage 2.** If two fallback outputs in a cycle carry the same payload, dedup keeps
+    whichever comes first. That could be an edge neighbour, which publishes a frequency up to about 3 Hz off. Test B's
+    ±10 Hz match is unaffected. **R6″ (new, Stage 2):** among fallback outputs with the same payload in a cycle,
+    publish one whose estimate is **not** at the window edge, and the first in candidate order among those. It is
+    deterministic. A unit test covers it.
+  - **QA's other worry: a neighbour at the edge failing where its centred sibling would succeed.** That doesn't lose a
+    decode: the sibling is eligible too and is attempted once. Whether the product's lattice candidates find the signals
+    at all, compared with Q-GATE-2's WSJT-X positions, is exactly what NET measures in Stage 2.
+  - **Stage 2 descriptive:** the fallback's edge-flag rate per cycle among published outputs.
+
+**A12.2 A0's "one session" condition was not met strictly.** The slack was taken at 17:14Z and the timing at 18:29Z,
+on the same machine and the same day, but not back to back.
+- **Accepted.** The margin is about 6×: `f_i` max 1.37 s against `s_i` min 8.71 s.
+- A shift in machine state between the two can't plausibly close that gap. Recorded as a deviation.
+
+**A12.3 A2's Python reference** is the persisted COH-GAIN result set (DLL `2fa6d993`, `nhard` 40). A2(a) compares
+**BP-only** outcomes, with the Python path-1 rows counted as no output. BP doesn't depend on `nhard` or on the OSD
+defect, so the reference is valid for this row. Recorded, not re-run.
+
+**A12.4 Predictions scored at this ruling.**
+- **SF8** (A0 passes on the reordered build, 0.70 C): ✅ **HIT.**
+- **SF9** (A2(e) N/N, 0.80 C): ✅ **HIT.**
+- **SF1** (A2 passes on the first Stage 1 build, 0.60 H): **VOID, not credited.**
+  - A2(a)–(c) passed on `44f0df4e`. A2(d) ran only on `d926bdc6`, and it passes only under my own ruling on an
+    ambiguity in my own wording.
+  - Crediting a hit there would be scoring my reading of my own row. **It is counted as an Architect specification
+    error** (an ambiguous population), with the RSE2 and S6P2 precedents.
+
+**A12.5 Stage 1 → Stage 2: the condition in §4 is met** (A0 PASS and A2 PASS, the Architect rules). **Stage 2 starts
+on the Stage 1 branch** (`feat/coh-fallback-stage1` at `d926bdc6`), under the Captain's go for both stages.
+- **No separate Stage 1 merge (my recommendation; the merge is the Captain's, HK-010).** Stage 1 adds thread-local
+  candidate retention inside `ft8_decode_all`, the production decode path, with nothing yet proving that it is
+  outcome-neutral. A1, the flag-OFF identity, is the row that proves it, and A1 belongs to Stage 2.
+  - **One merge at the end** has A1, A2, A3 and A3′ all behind it.
+  - **If the Captain wants Stage 1 on `main` sooner,** a flag-free identity check of `ft8_decode_all` (outcome fields,
+    a fixed set of recorded cycles) would have to run first.
+- **Stage 2 carries:** R6′/R7′/R2′ (§8), R4′/R12′ (§10), the new R6″ (A12.1), and V-U0 (§11).
+- **The replay's order:** V-U0, the Stage 2 build's own OFF arm, runs **first**, then ON, then the ON-repeat.
