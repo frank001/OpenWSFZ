@@ -378,6 +378,115 @@ static void order_equivalence(void)
     printf("F: order equivalence (published %d of 7; F1b computed %d vs %d), %d failures so far\n", so.n_published, so.n_f1b_computed, sg.n_f1b_computed, g_failures);
 }
 
+/* Stage 2 (shim 20260068): ft8_coherent_fallback_snapshot / _run / _unpack on the F cycle's planted candidates. */
+static void stage2_exports(void)
+{
+    static const struct { const char* msg; double f; double amp; } sig[] = {
+        { "CQ Q1AAA FN20", 800.0,  3.0 },    /* strong: F1b above T1 */
+        { "CQ Q1BBB FN21", 1200.0, 0.30 },   /* weak */
+        { "CQ Q1CCC FN22", 1600.0, 0.30 },   /* weak */
+        { "CQ Q1BBB FN21", 2000.0, 0.30 },   /* the weak one's payload again */
+        { "CQ Q1DDD FN23", 2400.0, 0.30 },   /* its payload is preloaded as "already decoded" */
+    };
+    uint8_t tones[FT8_NN]; ftx_message_t ms[5];
+    memset(g_pcm, 0, sizeof(g_pcm));
+    for (int i = 0; i < 5; i++) {
+        CHECK(tones_for(sig[i].msg, tones, &ms[i]) == 0, "encode %d", i);
+        add_signal(g_pcm, tones, sig[i].f, 0.5, sig[i].amp);
+    }
+    add_noise(g_pcm, sigma_for_snr(0.30, -15.0));
+    const double freqs[] = { 800.0, 1200.0, 1600.0, 2000.0, 2400.0, 2800.0, 600.0 };
+    tls_cf_ncands = 7;
+    for (int i = 0; i < 7; i++) {
+        tls_cf_cands[i].freq_hz = (float)freqs[i]; tls_cf_cands[i].dt = (float)ANCHOR_OF(0.5); tls_cf_cands[i].pass = 0; tls_cf_cands[i].decoded = 0;
+    }
+    tls_cf_npayloads = 1; memcpy(tls_cf_payloads[0], ms[4].payload, FTX_PAYLOAD_LENGTH_BYTES);
+
+    CHECK(sizeof(FT8CohFallbackOut) == 56, "FT8CohFallbackOut is %zu bytes", sizeof(FT8CohFallbackOut));
+    const int ssz = ft8_coherent_fallback_snapshot_size();
+    CHECK(ssz > 0, "snapshot size %d", ssz);
+    void* snap = malloc((size_t)ssz);
+    CHECK(snap != NULL && ft8_coherent_fallback_snapshot(snap, ssz) == ssz, "snapshot");
+    CHECK(ft8_coherent_fallback_snapshot(snap, ssz - 1) == -1 && ft8_coherent_fallback_snapshot(NULL, ssz) == -1, "snapshot bad arguments");
+
+    /* the run reads only the snapshot: clobber the thread-local retention first */
+    FT8CohFallbackCycleStats sc; static FT8CohFallbackRow rc_rows[16];
+    int nc = ft8_coherent_fallback_cycle(g_pcm, 180000, 0, &sc, rc_rows, 16);
+    tls_cf_ncands = 0; tls_cf_npayloads = 0;
+
+    FT8CohFallbackCycleStats st; static FT8CohFallbackOut out[16];
+    int n = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, &st, out, 16);
+    CHECK(n == 7 && nc == 7 && st.n_rows == 7 && st.n_eligible == 7 && st.n_attempted == 7 && st.n_abandoned == 0, "run rows %d eligible %d attempted %d abandoned %d",
+          n, st.n_eligible, st.n_attempted, st.n_abandoned);
+    CHECK(st.n_published == 0, "the run leaves publication to the caller");
+    /* every payload the cycle export publishes is NEW_GATED in the run (the cycle de-duplicates; the run reports every member) */
+    for (int i = 0; i < 7; i++) {
+        if (rc_rows[i].published) {
+            int hit = 0;
+            for (int j = 0; j < 7; j++) if (out[j].state == FT8_COH_STATE_NEW_GATED && !memcmp(out[j].payload, rc_rows[i].r.a91, FTX_PAYLOAD_LENGTH_BYTES)) hit = 1;
+            CHECK(hit, "payload published by the cycle export (row %d) is NEW_GATED in the run", i);
+        }
+    }
+    int new_gated = 0;
+    for (int j = 0; j < 7; j++) {
+        if (out[j].state == FT8_COH_STATE_NEW_GATED) {
+            new_gated++;
+            char text[64];
+            CHECK(ft8_coherent_fallback_unpack(out[j].payload, text, 64) == 0, "unpack row %d", j);
+            int is_b = !strcmp(text, "CQ Q1BBB FN21"), is_c = !strcmp(text, "CQ Q1CCC FN22");
+            CHECK(is_b || is_c, "row %d text %s", j, text);
+            CHECK(out[j].snr_db >= -20 && out[j].snr_db <= -10, "row %d coherent SNR %d dB (planted -15)", j, out[j].snr_db);
+            CHECK(out[j].f1b_db <= CF_T1_DB && !isnan(out[j].f1b_db), "row %d F1b %.2f", j, out[j].f1b_db);
+            CHECK(fabsf(out[j].out_freq_hz - out[j].freq_hz) <= 2.001f && fabsf(out[j].out_dt_s - out[j].dt_s) <= 0.1201f, "row %d reported position inside the window", j);
+        }
+        if (j == 4) CHECK(out[j].state == FT8_COH_STATE_KNOWN || out[j].state == FT8_COH_STATE_NO_CRC, "the preloaded payload is known (or not decoded): state %d", out[j].state);
+        if (j == 0) CHECK(out[j].state == FT8_COH_STATE_GATED_OUT || out[j].state == FT8_COH_STATE_KNOWN || out[j].state == FT8_COH_STATE_NO_CRC,
+                          "the strong signal is never a candidate for publication: state %d", out[j].state);
+        if (j >= 5) CHECK(out[j].state == FT8_COH_STATE_NO_CRC, "noise-only candidate %d: state %d", j, out[j].state);
+    }
+    CHECK(new_gated >= 2, "both weak signals (and the repeat) recovered: %d NEW_GATED", new_gated);
+    CHECK(st.n_gated == new_gated, "n_gated %d vs NEW_GATED rows %d", st.n_gated, new_gated);
+
+    /* R7': a zero budget and a set cancel flag abandon every eligible candidate, counted, none attempted, nothing computed */
+    FT8CohFallbackCycleStats sz;
+    n = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, 0.0, NULL, &sz, out, 16);
+    CHECK(n == 7 && sz.n_attempted == 0 && sz.n_abandoned == 7 && sz.n_crc_ok == 0 && sz.n_f1b_computed == 0, "zero budget: attempted %d abandoned %d", sz.n_attempted, sz.n_abandoned);
+    for (int j = 0; j < 7; j++) CHECK(out[j].state == FT8_COH_STATE_ABANDONED && out[j].out_freq_hz == out[j].freq_hz, "abandoned row %d", j);
+    volatile int32_t cancel = 1;
+    n = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, &cancel, &sz, out, 16);
+    CHECK(n == 7 && sz.n_attempted == 0 && sz.n_abandoned == 7, "cancel flag: attempted %d abandoned %d", sz.n_attempted, sz.n_abandoned);
+    cancel = 0;
+    n = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, &cancel, &sz, out, 16);
+    CHECK(n == 7 && sz.n_attempted == 7 && sz.n_abandoned == 0, "cancel flag clear: attempted %d", sz.n_attempted);
+    /* a budget that runs out mid-run: attempted + abandoned = eligible, and the abandoned ones are the LAST ones */
+    n = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, st.total_ms / 3.0, NULL, &sz, out, 16);
+    CHECK(n == 7 && sz.n_attempted + sz.n_abandoned == 7, "mid-run budget: attempted %d abandoned %d", sz.n_attempted, sz.n_abandoned);
+    { int seen_abandoned = 0, order_ok = 1;
+      for (int j = 0; j < 7; j++) { if (out[j].state == FT8_COH_STATE_ABANDONED) seen_abandoned = 1; else if (seen_abandoned) order_ok = 0; }
+      CHECK(order_ok, "abandoned candidates are the tail of the list"); }
+    /* rows capped: counts stay complete */
+    n = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, &sz, out, 3);
+    CHECK(n == 3 && sz.n_rows == 7 && sz.n_attempted == 7, "capped rows: n=%d n_rows=%d", n, sz.n_rows);
+
+    /* bad arguments */
+    CHECK(ft8_coherent_fallback_run(NULL, 180000, snap, ssz, 0, -1.0, NULL, &st, out, 16) == -1, "NULL pcm");
+    CHECK(ft8_coherent_fallback_run(g_pcm, 180000, NULL, ssz, 0, -1.0, NULL, &st, out, 16) == -1, "NULL snapshot");
+    CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz - 1, 0, -1.0, NULL, &st, out, 16) == -1, "wrong snapshot length");
+    CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 1, -1.0, NULL, &st, out, 16) == -1, "non-zero flags are reserved");
+    CHECK(ft8_coherent_fallback_run(g_pcm, 179999, snap, ssz, 0, -1.0, NULL, &st, out, 16) == -1, "wrong pcm length");
+    CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, NULL, out, 16) == -1, "NULL stats");
+    CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, &st, NULL, 16) == -1, "NULL rows");
+    { cf_snapshot_t* bad = (cf_snapshot_t*)snap; int32_t keep = bad->n_cands; bad->n_cands = CF_CAND_CAPACITY + 1;
+      CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, &st, out, 16) == -1, "out-of-range candidate count"); bad->n_cands = keep; }
+    { char text[64]; uint8_t ff[12]; memset(ff, 0xFF, sizeof(ff));
+      CHECK(ft8_coherent_fallback_unpack(ff, text, 64) == -2, "an undefined message type does not unpack");
+      CHECK(ft8_coherent_fallback_unpack(NULL, text, 64) == -1 && ft8_coherent_fallback_unpack(ff, NULL, 64) == -1 && ft8_coherent_fallback_unpack(ff, text, 8) == -1, "unpack bad arguments"); }
+
+    free(snap);
+    tls_cf_ncands = 0; tls_cf_npayloads = 0;
+    printf("G: Stage 2 exports (snapshot, run, unpack), %d failures so far\n", g_failures);
+}
+
 int main(void)
 {
     sizes();
@@ -386,6 +495,7 @@ int main(void)
     bp_decode();
     cycle_export();
     order_equivalence();
+    stage2_exports();
     printf("%d checks, %d failures\nRESULT: %s\n", g_checks, g_failures, g_failures == 0 ? "PASS" : "FAIL");
     return g_failures == 0 ? 0 : 1;
 }

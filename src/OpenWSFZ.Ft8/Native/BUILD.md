@@ -237,6 +237,10 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
+COH-FALLBACK Stage 2 (shim 20260068) adds NO new source file and no new recipe line: three new exports (`ft8_coherent_fallback_snapshot_size`,
+`_snapshot`, `_run`, `_unpack`, also in the `rebuild_shim.bat` `/EXPORT` list) in `ft8_shim.c` and one new function (`cf_snr_db`) in
+`refine/coherent_fallback.c`, which every recipe above already compiles. The managed side binds them in `Interop/Ft8LibInterop.cs`.
+
 COH-FALLBACK Stage 1 (shim 20260066) adds the new file `refine/coherent_fallback.c` (compiled in every recipe above, and in the
 hand-duplicated macOS/Linux steps of `.github/workflows/ci.yml`) and two diagnostic-only exports, `ft8_coherent_fallback_at` and
 `ft8_coherent_fallback_cycle` (also in the `rebuild_shim.bat` `/EXPORT` list). No product wiring.

@@ -2417,3 +2417,163 @@ int ft8_coherent_fallback_cycle(
     }
 #endif
 }
+
+/* ── COH-FALLBACK Stage 2 (shim 20260068): the product entry points ─────────────────────────────────────────────────────────
+ * ft8_coherent_fallback_snapshot   copies the calling thread's retained candidate list and decoded payloads (R2) into a flat buffer,
+ *                                  so the fallback can run on ANOTHER thread, concurrently with the residual pass (whose own
+ *                                  ft8_decode_all calls reset the retention of the thread they run on).
+ * ft8_coherent_fallback_run        the deadline-aware, snapshot-driven cycle: estimate + C3 + BP on every eligible candidate (output-
+ *                                  first, R4'), F1b only for a CRC-valid output whose payload the ordinary decode did not produce;
+ *                                  it stops BETWEEN candidates when the deadline passes or the cancel flag is set (R7': abandon, never
+ *                                  queue) and reports the abandoned candidates. It writes NO shared state: no hash table, no counter.
+ * ft8_coherent_fallback_unpack     the text of one payload through the ordinary message decode (the only hash-table access of the
+ *                                  fallback, R9). The caller must make sure no other decode runs at the same time.
+ * ft8_coherent_fallback_at, the F1b code and ft8_coherent_fallback_cycle are unchanged. */
+typedef struct
+{
+    int32_t         n_cands;
+    int32_t         n_payloads;
+    cf_cand_rec_t   cands[CF_CAND_CAPACITY];
+    uint8_t         payloads[K_MAX_DECODED][FTX_PAYLOAD_LENGTH_BYTES];
+} cf_snapshot_t;
+
+int ft8_coherent_fallback_snapshot_size(void) { return (int)sizeof(cf_snapshot_t); }
+
+int ft8_coherent_fallback_snapshot(void* buf, int cap)
+{
+    if (buf == NULL || cap < (int)sizeof(cf_snapshot_t)) return -1;
+    cf_snapshot_t* s = (cf_snapshot_t*)buf;
+    memset(s, 0, sizeof(*s));
+    s->n_cands    = tls_cf_ncands;
+    s->n_payloads = tls_cf_npayloads;
+    for (int i = 0; i < tls_cf_ncands; i++) s->cands[i] = tls_cf_cands[i];
+    for (int i = 0; i < tls_cf_npayloads; i++) memcpy(s->payloads[i], tls_cf_payloads[i], FTX_PAYLOAD_LENGTH_BYTES);
+    return (int)sizeof(cf_snapshot_t);
+}
+
+int ft8_coherent_fallback_run(
+    const float* pcm, int pcm_len, const void* snapshot, int snapshot_len, int flags, double budget_ms,
+    const volatile int32_t* cancel,
+    FT8CohFallbackCycleStats* stats, FT8CohFallbackOut* out, int out_cap)
+{
+    if (pcm == NULL || snapshot == NULL || stats == NULL || out == NULL || out_cap < 0 || flags != 0
+        || pcm_len != FT8_EXPECTED_SAMPLES || snapshot_len != (int)sizeof(cf_snapshot_t)) return -1;
+    memset(stats, 0, sizeof(*stats));
+    const cf_snapshot_t* snap = (const cf_snapshot_t*)snapshot;
+    if (snap->n_cands < 0 || snap->n_cands > CF_CAND_CAPACITY || snap->n_payloads < 0 || snap->n_payloads > K_MAX_DECODED) return -1;
+
+    cf_ctx_t* ctx = NULL;
+#ifdef _MSC_VER
+    __try {
+#endif
+    const double t_begin  = cf_monotonic_ms();
+    const double deadline = (budget_ms < 0.0) ? 0.0 : t_begin + budget_ms;
+    ctx = cf_ctx_new(pcm_len);
+    if (!ctx) return -3;
+
+    int nrows = 0, stop = 0;
+    stats->n_candidates = snap->n_cands;
+    for (int i = 0; i < snap->n_cands; i++) {
+        const cf_cand_rec_t* cr = &snap->cands[i];
+        if (cr->decoded) { stats->n_decoded++; continue; }
+
+        int dup = 0;
+        for (int j = 0; j < i; j++)
+            if (snap->cands[j].freq_hz == cr->freq_hz && snap->cands[j].dt == cr->dt && snap->cands[j].decoded == cr->decoded) { dup = 1; break; }
+        if (dup) { stats->n_dup_position++; continue; }
+        stats->n_eligible++;
+
+        FT8CohFallbackOut  local;
+        FT8CohFallbackOut* o = (nrows < out_cap) ? &out[nrows] : &local;
+        memset(o, 0, sizeof(*o));
+        o->freq_hz = cr->freq_hz; o->dt_s = cr->dt; o->pass = cr->pass;
+        o->out_freq_hz = cr->freq_hz; o->out_dt_s = cr->dt;
+        o->f1b_db = (double)NAN;
+        o->state = FT8_COH_STATE_ABANDONED;
+        nrows++;
+
+        if (!stop && ((cancel != NULL && *cancel != 0) || (budget_ms >= 0.0 && cf_monotonic_ms() >= deadline))) stop = 1;
+        if (stop) { stats->n_abandoned++; continue; }
+
+        FT8CohFallbackResult r;
+        const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
+        cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL);
+        stats->n_attempted++;
+        stats->estimate_ms += r.estimate_ms; stats->c3_bp_ms += r.c3_bp_ms;
+        if (r.edge) stats->n_edge++;
+        o->edge = r.edge;
+        o->out_freq_hz = (float)(f0 + r.est_df_hz);
+        o->out_dt_s    = (float)(t0 + r.est_dt_s);
+        o->state = FT8_COH_STATE_NO_CRC;
+
+        if (!(r.c3_ran && r.bp_rc == 0 && r.bp_crc_ok)) continue;
+        stats->n_crc_ok++;
+        memcpy(o->payload, r.a91, FTX_PAYLOAD_LENGTH_BYTES);
+
+        int known = 0;
+        for (int k = 0; k < snap->n_payloads; k++)
+            if (!memcmp(snap->payloads[k], r.a91, FTX_PAYLOAD_LENGTH_BYTES)) { known = 1; break; }
+        if (known) { o->state = FT8_COH_STATE_KNOWN; continue; }
+        stats->n_crc_new++;
+
+        /* The coherent SNR first (the tone powers are in the context only until the next extraction), then F1b on demand. */
+        uint8_t tones[FT8_NN];
+        ft8_encode(r.a91, tones);
+        const double snr = cf_snr_db(ctx, tones);
+        o->snr_db = (int)lround(isfinite(snr) ? snr : CF_SNR_FLOOR_DB);
+
+        const double t_f = cf_monotonic_ms();
+        int nrefs = 0;
+        o->f1b_db = cf_f1b_db(ctx, pcm, f0, t0, r.peak, &nrefs);
+        stats->f1b_ms += cf_monotonic_ms() - t_f;
+        stats->n_f1b_computed++;
+        if (o->f1b_db <= CF_T1_DB) { o->state = FT8_COH_STATE_NEW_GATED; stats->n_gated++; }
+        else                         o->state = FT8_COH_STATE_GATED_OUT;
+    }
+    stats->n_rows = nrows;
+    cf_ctx_free(ctx);
+    stats->total_ms = cf_monotonic_ms() - t_begin;
+    return nrows > out_cap ? out_cap : nrows;
+#ifdef _MSC_VER
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -2;   /* the context is leaked on purpose: the heap may be damaged (same discipline as ft8_decode_all) */
+    }
+#endif
+}
+
+int ft8_coherent_fallback_unpack(const uint8_t* payload, char* text_out, int cap)
+{
+    if (payload == NULL || text_out == NULL || cap < FTX_MAX_MESSAGE_LENGTH + 1) return -1;
+    text_out[0] = '\0';
+    callsign_table_t* prev = tls_hash_table;
+    int rc = -2;
+#ifdef _MSC_VER
+    __try {
+#endif
+    if (!g_hash_table_initialised) {
+        hash_table_init(&g_session_hash_table);
+        g_hash_table_initialised = true;
+    }
+    tls_hash_table = &g_session_hash_table;
+    ftx_message_t msg;
+    memset(&msg, 0, sizeof(msg));
+    memcpy(msg.payload, payload, FTX_PAYLOAD_LENGTH_BYTES);
+    tls_h12_lookup_performed = false;
+    tls_h12_suppressed       = false;
+    char text[FTX_MAX_MESSAGE_LENGTH + 1];
+    text[0] = '\0';
+    if (ftx_message_decode(&msg, &s_hash_if, text) == FTX_MESSAGE_RC_OK) {
+        memcpy(text_out, text, FTX_MAX_MESSAGE_LENGTH + 1);
+        rc = 0;
+    }
+    tls_hash_table = prev;
+    return rc;
+#ifdef _MSC_VER
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        tls_hash_table = prev;
+        return -3;
+    }
+#endif
+}

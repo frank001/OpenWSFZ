@@ -468,3 +468,27 @@ void cf_v3_llrs(cf_ctx_t* c, const float* pcm, double f0, double t0, const cf_es
         }
     }
 }
+
+/* ---- the coherent SNR (Stage 2, shim 20260068) --------------------------------------------------------------------------- */
+
+double cf_snr_db(const cf_ctx_t* c, const uint8_t tones[CF_NSYM])
+{
+    /* Valid after cf_v3_llrs on the same context: x_re/x_im then hold the 79 x 8 tone amplitudes at the estimate. The selected
+     * tone's mean power is S + N, every other tone's is N (one 6.25 Hz bin of noise), so S/N = (sel - oth) / oth, and the
+     * 2500 Hz reference converts the bin noise bandwidth: SNR = (S/N) x (6.25 / 2500). */
+    double sel = 0.0, oth = 0.0;
+    for (int p = 0; p < CF_NSYM; p++) {
+        for (int t = 0; t < CF_TONES; t++) {
+            const double re = c->x_re[p * CF_TONES + t], im = c->x_im[p * CF_TONES + t];
+            const double pw = re * re + im * im;
+            if (t == (int)tones[p]) sel += pw; else oth += pw;
+        }
+    }
+    sel /= (double)CF_NSYM;
+    oth /= (double)(CF_NSYM * (CF_TONES - 1));
+    if (!(oth > 0.0)) return (double)NAN;
+    const double sig = sel - oth;
+    if (!(sig > 0.0)) return CF_SNR_FLOOR_DB;
+    const double snr = 10.0 * log10(sig / oth) + CF_SNR_BIN_TO_2500_DB;
+    return snr < CF_SNR_FLOOR_DB ? CF_SNR_FLOOR_DB : snr;
+}

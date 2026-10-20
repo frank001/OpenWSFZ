@@ -37,6 +37,9 @@ extern "C" {
  */
 #define CF_T1_DB            17.552446
 
+#define CF_SNR_BIN_TO_2500_DB (-26.0206)   /* 10 log10(6.25 Hz tone bin / 2500 Hz) */
+#define CF_SNR_FLOOR_DB       (-30.0)      /* the lowest SNR the coherent estimate reports */
+
 typedef struct cf_ctx cf_ctx_t;
 
 /* The fine-sync estimate: offsets from the anchor, the argmax's dt step index, whether it sits on a grid edge, the peak. */
@@ -64,6 +67,11 @@ double cf_f1b_db(cf_ctx_t* ctx, const float* pcm, double f0, double t0, double a
 /* The 174 V3 coherent max-log LLRs at the estimate (carrier f0 + est_df, symbol start moved by est->dt_step). Raw, as the
  * reference's extract_variants()["V3"]: no normalisation. */
 void cf_v3_llrs(cf_ctx_t* ctx, const float* pcm, double f0, double t0, const cf_estimate_t* est, double out174[CF_N_LLR]);
+
+/* Stage 2 (shim 20260068): the SNR in dB relative to a 2500 Hz noise bandwidth, from the 79 x 8 tone powers cf_v3_llrs left in the
+ * context (call it right after cf_v3_llrs on the same context). tones[] is the decoded message's 79 FT8 tones. Floored at
+ * CF_SNR_FLOOR_DB. NaN when the context holds no noise power. */
+double cf_snr_db(const cf_ctx_t* ctx, const uint8_t tones[CF_NSYM]);
 
 /* Monotonic wall-clock milliseconds (QueryPerformanceCounter / CLOCK_MONOTONIC). */
 double cf_monotonic_ms(void);

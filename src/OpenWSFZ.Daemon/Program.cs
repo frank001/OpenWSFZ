@@ -800,6 +800,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetSubtractionMaxThreads(initialDecoder.SubtractionMaxThreads);
     // third-pass-deep (#240): Normal unless the config says Deep; read once per cycle.
     ft8Decoder.SetDecodingDepth(initialDecoder.DecodingDepth);
+    // COH-FALLBACK Stage 2 (R10): false unless the config says true; read once per cycle.
+    ft8Decoder.SetCoherentFallbackEnabled(initialDecoder.CoherentFallbackEnabled);
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
     // not the raw pre-DI `configStore` local, so a WebApplicationFactory-hosted test host's
@@ -899,6 +901,7 @@ configStore.OnSaved += newConfig =>
     ft8Decoder.SetSubtractionEnabled(dec.SubtractionEnabled);
     ft8Decoder.SetSubtractionMaxThreads(dec.SubtractionMaxThreads);
     ft8Decoder.SetDecodingDepth(dec.DecodingDepth);   // third-pass-deep (#240): next cycle
+    ft8Decoder.SetCoherentFallbackEnabled(dec.CoherentFallbackEnabled);   // COH-FALLBACK Stage 2 (R10): next cycle
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
     // create a spurious new log file and reset the active sink.

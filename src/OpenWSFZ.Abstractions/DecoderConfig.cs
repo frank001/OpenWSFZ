@@ -47,7 +47,9 @@ public sealed record DecoderConfig
         bool   earlyDecodeEnabled      = true,
         double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds,
         // third-pass-deep (#240): in the constructor with its default, for the same reason as the fields above.
-        DecodingDepth decodingDepth    = DecodingDepth.Deep)
+        DecodingDepth decodingDepth    = DecodingDepth.Deep,
+        // COH-FALLBACK Stage 2 (R10): in the constructor with its default (false), for the same reason as the fields above.
+        bool coherentFallbackEnabled   = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -60,6 +62,7 @@ public sealed record DecoderConfig
         EarlyDecodeEnabled      = earlyDecodeEnabled;
         EarlyDecodeCutSeconds   = earlyDecodeCutSeconds;
         DecodingDepth           = decodingDepth;
+        CoherentFallbackEnabled = coherentFallbackEnabled;
     }
 
     /// <summary>
@@ -224,4 +227,14 @@ public sealed record DecoderConfig
     /// <c>GET /api/v1/status</c> as <c>thirdPass.decodingDepth</c>. An absent key reads as <c>Deep</c>; an explicit <c>"Normal"</c> stays Normal.
     /// </summary>
     public DecodingDepth DecodingDepth { get; init; } = DecodingDepth.Deep;
+
+    /// <summary>
+    /// COH-FALLBACK (A' step 3) Stage 2, R10: when <c>true</c> the coherent-extraction fallback runs on every candidate the ordinary
+    /// decode did not decode, and its decodes are published in the cycle's last supplementary batch (batch 3 on
+    /// <see cref="DecodingDepth.Deep"/>, batch 2 on Normal). <b>Default <c>false</c></b>: an absent key reads as <c>false</c>, and with it
+    /// <c>false</c> the decoder is exactly as it was before the fallback existed. It has an effect only while <see cref="SubtractionEnabled"/>
+    /// is on. Config API / file only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Read
+    /// once per window; takes effect on the next window. The threshold T1 is a constant, not a setting.
+    /// </summary>
+    public bool CoherentFallbackEnabled { get; init; } = false;
 }

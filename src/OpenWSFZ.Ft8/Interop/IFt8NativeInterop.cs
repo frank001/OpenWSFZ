@@ -242,6 +242,26 @@ internal interface IFt8NativeInterop
     /// </summary>
     void HashStateRestore(byte[] buffer) { }
 
+    /// <summary>
+    /// COH-FALLBACK Stage 2 (shim 20260068): snapshots the candidate list and decoded payloads retained by the last
+    /// <see cref="DecodeAll"/> on THIS thread. MUST be called on the thread that ran <see cref="DecodeAll"/>. Default: <c>null</c>
+    /// (a fake does not model the fallback).
+    /// </summary>
+    byte[]? CohFallbackSnapshot() => null;
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2: runs the fallback over a snapshot, on any thread. <paramref name="budgetMs"/> &lt; 0 = no deadline.
+    /// Candidates not started by the deadline (or after <paramref name="ct"/> is cancelled) are counted abandoned, never queued.
+    /// Default: <c>null</c> (no fallback).
+    /// </summary>
+    CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, CancellationToken ct) => null;
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2: the message text of a payload through the ordinary message decode (touches the session hash table: no other
+    /// native decode may run at the same time), or <c>null</c>. Default: <c>null</c>.
+    /// </summary>
+    string? CohFallbackUnpack(byte[] payload) => null;
+
     /// <summary>osd-sign-fix (#215, shim 20260060): sets the OSD sign switch. Default: no-op (a fake does not model it).</summary>
     void SetOsdSignFix(int enabled) { }
 
