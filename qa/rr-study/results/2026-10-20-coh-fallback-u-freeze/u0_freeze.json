@@ -1,0 +1,20 @@
+{
+ "stamped_utc_by_date": "2026-10-20 ~18:3xZ",
+ "selection_sha256_lf": "9c20b921240e51f5b4cb28f751d782f78705f155e121ce74ae314e6875d1f4d6",
+ "cycles_total": 1211,
+ "cycles_used": 1210,
+ "excluded": [
+  "261009_175215 (no WSJT-X reference: ws = 0)"
+ ],
+ "U0": 0.2603,
+ "U_max_frozen": 0.078,
+ "U0_all_cycles": 0.2824,
+ "U_max_all_cycles": 0.085,
+ "rule": "U_max = 0.30 x U0, 3 decimals (A1.6, Captain 2026-10-20)",
+ "halfwidth_projection": {
+  "conservative_mean_of_U_off_block_bootstrap": 0.0613,
+  "paired_count_like_at_U_max": 0.0157,
+  "qgate2_UPC_for_scale": 0.008
+ },
+ "A2_4a_trigger": "literal with the conservative bound: yes; with the paired bound: no; ruling with the Architect"
+}
