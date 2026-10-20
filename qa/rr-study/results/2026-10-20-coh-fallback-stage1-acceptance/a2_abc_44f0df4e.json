@@ -1,0 +1,33 @@
+{
+ "dll_sha256": "7af6f893122aae009f60c18920339dc8c4e3882908a7e3d60ab888a83a92a4d3",
+ "rows": 27571,
+ "seconds": 386,
+ "A2a": {
+  "agree": 27571,
+  "share": 1.0,
+  "bar": 0.995,
+  "native_outputs": 4734,
+  "python_outputs": 4734,
+  "both": 4734,
+  "result": "PASS"
+ },
+ "A2b": {
+  "agree": 27571,
+  "share": 1.0,
+  "bar": 0.99,
+  "result": "PASS",
+  "edge_flag_agree": 27571
+ },
+ "A2c": {
+  "rows": 4949,
+  "within_0.25dB": 4949,
+  "share_within": 1.0,
+  "bar_within": 0.99,
+  "gate_decision_agree": 4949,
+  "share_gate": 1.0,
+  "bar_gate": 0.995,
+  "max_abs_diff_dB": 0.0,
+  "result": "PASS"
+ },
+ "native_rc_nonzero": 0
+}
