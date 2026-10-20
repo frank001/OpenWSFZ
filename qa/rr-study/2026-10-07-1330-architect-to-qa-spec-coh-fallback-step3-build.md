@@ -184,7 +184,9 @@ night (QA).
   fix and Deep are decoder settings that the replay sets itself (rule 2026-10-03: never pre-filter recorded audio by
   them).
 - **What a night must have:** full-cycle WAVs from the Windows capture (not tainted, per the 10-16 ruling) and WSJT-X's
-  `ALL.TXT`. 10-09 has 7,264 WAVs, about 30 h, under `owsfz/wav/`, plus `wsjt-x/ALL.TXT`.
+  `ALL.TXT`. ~~10-09 has 7,264 WAVs, about 30 h~~ 🔴 **CORRECTED (§9 A2.1, QA, checked on disk): 3,634 WAVs under
+`owsfz/wav/`, gap-free, 15.14 h** (7,264 was owsfz + wsjt-x counted together, my error), plus `wsjt-x/ALL.TXT`
+(93,611 rows over 3,628 cycles).
 - #225 V1 used 455 of its cycles, but nothing was tuned on them.
 - **QA still lists every `artefacts/` folder (rule 2026-10-03)** and confirms 10-09 meets §5.3. If it fails that check,
   QA falls back to `20261019_1905` and records why, before any decode.
@@ -244,3 +246,67 @@ candidates, the thing it can't see, are the risk, so I've kept the price near ev
 
 **Waiting on the Captain:** confirm the A1.6 rule (`U_max` = 0.30 × the OFF arm's not-confirmed rate, frozen before
 any ON decode), or name a fixed value. **Waiting on QA:** the (k) review of this amendment, and the A1.4 inventory check.
+
+---
+
+## §9 Amendment 2: QA's (k) review of §8, adopted (Architect, 2026-10-20 17:14Z by `date -u`, after QA's review; before any decode or Stage 1 timing)
+
+QA ACCEPTED §8 with no row refused. It found one factual error and asked for two required changes, plus notes. All are
+adopted here. Stage 1 is unchanged.
+
+**A2.1 Factual error, mine (HK-038): the corpus size.** 10-09 has **3,634 WAVs** (gap-free, 261009_175200 to
+261010_090015, **15.14 h**), not 7,264 or 30 h. I counted the owsfz and wsjt-x folders together. This is corrected in
+place in A1.4.
+- **QA's inventory check: 10-09 MEETS §5.3.** No other night is better. 10-04 is excluded (T1 training), and 10-18 is
+  partial and direct-CODEC.
+- **CPU projection:** ≈ 3.7 h per arm at 3.7 s per cycle. OFF + ON + repeat exceeds 8 h, so the night is sampled.
+- **Adopted: *k* = 3** (odd), giving 1,212 cycles of the 3,634 slots. V-P applies. QA freezes the selection with its
+  SHA before any decode.
+
+**A2.2 Required 1: a row for "must not delay batch 2 / may hold back only the last batch".** That requirement had no
+check. A3 covers batch 1 only. Holding back the last batch delays the **third pass's own** decodes, and those feed the
+QSO late-batch logic: a reply is immediate only if it is ready by slot + 2.36 s, otherwise it is deferred.
+- **Kept: the same-batch design** (R6′), with a new row, **A3′**. Rejected for now: QA's alternative of a batch of
+  its own after batch 3, because a fourth batch changes `LateBatch` and the QSO channel capacity, which were validated
+  live at 3 batches. **If A3′ fails, a separate batch is the design amendment**, for the Captain.
+- **A3′ (the merge and default ON), mechanical, on the acceptance replay, per cycle, ON vs OFF:**
+  - **(a) Content.** Batch 2 is identical N/N. Batch 3 with the fallback's decodes removed (`path` = 2, R11) is
+    identical N/N, except cycles explained by abandonment in one arm (counted, ≤ 5 % as V5).
+  - **(b) Batch 2's publish time is not delayed:** p95 of (ON − OFF) ≤ **50 ms**.
+  - **(c) Batch 3's publish time:** p95 of (ON − OFF) ≤ **250 ms**.
+- **Where the numbers come from (HK-038).** Both are **decision values (the Architect's), not measured**. The Captain
+  may change them before any acceptance decode.
+  - **50 ms** is a scheduling-jitter allowance. Batch 2 must not be held at all, so the bar is "nothing beyond jitter".
+  - **250 ms** is about a third of the third pass's own median run time (0.78 s, the 10-19 live night, QA). Within that
+    allowance, the fallback costs less delay than the third pass itself adds.
+  - **Descriptive, mandatory:** QA reports the ON − OFF delay distributions (p50, p95, max) for batches 2 and 3, and
+    how many OFF batch-3 decodes the ON delay would push across the 2.36 s reply guard. The guard test uses the
+    replay's per-batch time relative to decode start, plus the live decode-start offset. **If that offset isn't
+    recorded, QA says so and the count is not reported** (HK-027: what the instrument records).
+
+**A2.3 Required 2: the precision statement in A1.7, corrected.** 0 of 300 gives a Wilson upper bound of **1.26 %**.
+≤ 1.2 % needs **n ≥ 316**.
+- With *k* = 3 the repeat (every 3rd selected cycle) has **n ≈ 404**, so the upper bound is **0.94 %** at 0 unexplained.
+- QA reports n and the bound.
+
+**A2.4 Notes, adopted.**
+- **(a) U_max can't be smaller than the instrument can resolve.** QA's U-freeze note (A1.6) also gives the **projected
+  ΔU 95 % half-width**, from the OFF arm's per-cycle not-confirmed variability (it uses no ON data). If `U_max` < 2 ×
+  that half-width, U-OPEN is close to certain by construction.
+  - **This goes to the Captain with the freeze note, before any ON decode.** He keeps the 30 % rule and accepts a
+    likely U-OPEN, or sets `U_max` to a value of his choosing.
+  - **What a U-OPEN would mean:** the instrument can't resolve the budget, which is not the same as the budget being
+    breached. Default ON would then be his decision, made on the point estimate and the CI.
+  - 🛑 **The bar is never moved after ΔU is seen.**
+- **(b) A new limit for §6: 10-09 is the direct USB-CODEC chain.** T1 was trained on a Voicemeeter-chain night (10-04)
+  and Q-GATE-2 tested on another (10-19). F1b is a ratio, so it doesn't depend on level. But the gate has never been
+  seen on this chain, so **D-GO/D-STOP on 10-09 also tests transfer** to it. The report states it.
+- **(c) A1.3, cycles with no slack.** A cycle with `s_i` ≤ 0 (the ordinary passes used the whole budget) counts as
+  `f_i` > `s_i` whatever `f_i` is. That is the honest reading. QA reports how many such cycles there are.
+- **(d) Row exclusivity:** confirmed by QA. A3′ is one pass/fail row: PASS iff (a), (b) and (c) all hold. A FAIL ⇒
+  no merge and no default ON, as for A3, and the separate-batch design amendment goes to the Captain.
+
+**Predictions:** unchanged. A3′ is a new row, and I register **SF7: A3′ passes, 0.60 H**, before any data.
+
+**Order:** QA freezes the *k* = 3 selection and measures the OFF slack `s_i` on the first 100 selected cycles before
+any Stage 1 timing. Neither needs the Captain's A1.6 answer. The full OFF arm (U0) waits for that answer.
