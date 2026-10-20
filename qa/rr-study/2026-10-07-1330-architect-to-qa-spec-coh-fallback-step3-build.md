@@ -393,3 +393,59 @@ SF8 is COMPUTED from QA's split. The risk is the estimate's cost, which now runs
 **Order:** the Developer reworks Stage 1 (R4′, R12′, and the harness gate-first mode) while QA runs A2(a)–(c) on
 `44f0df4e` after the OFF arm ends. Then come A2(d), A2(e) and A0 on the reworked build. The Captain is told, but there
 is nothing to decide: the change is within the spec.
+
+---
+
+## §11 Ruling on the U freeze (Architect, 2026-10-20 18:22Z by `date -u`; before any ON decode)
+
+**The note:** QA `qa/refset` `8a1b7368`, `results/2026-10-20-coh-fallback-u-freeze/note.md`, read in full.
+- **The OFF arm:** `main` `5229beec`, Deep, `nhard` 24, the OSD sign fix read back, selection `9c20b921`, 1,211 cycles,
+  0 exceptions, 0 abandoned passes.
+- **`U0` = 0.2603** per cycle over 1,210 cycles, so **`U_max` = 0.078**.
+
+**A11.1 The cycle with no WSJT-X reference is excluded: 1,210 cycles, `U_max` 0.078 stands.**
+- Cycle 261009_175215 precedes WSJT-X's `ALL.TXT`, so its 27 decodes **cannot** be corroborated, whatever they are.
+- Counting it would add an instrument artefact to `U0`. That isn't a choice of the stricter figure: excluding it is the
+  correct one.
+- The exclusion is mechanical (`ws` = 0) and paired: the same cycle is out of the ON arm and out of ΔU.
+- **Generalised:** any cycle with `ws` = 0 is out of every Test-B row, in both arms.
+
+**A11.2 Which half-width governs A2.4(a): the paired projection (ii). The trigger does NOT fire.**
+- **Why (i) is the wrong quantity.** It is the uncertainty of U_off's mean.
+  - ΔU is a per-cycle **paired** difference.
+  - Batch 1 is identical by A3, and batches 2 and 3 without the fallback's decodes are identical by A3′.
+  - So ΔU_i is the fallback's own not-confirmed count in cycle i, plus abandonment noise (≤ 5 % of cycles, V5).
+  - U_off's cycle-to-cycle variance cancels out of the difference.
+- **Why (ii) is realistic, not merely optimistic: there is data on file (HK-038).**
+  - On Q-GATE-2, the same kind of rare-event count per cycle (UPC 0.014, n = 931) has a Poisson projection of
+    1.96 × √(0.014/931) = **0.0076**.
+  - Its block-bootstrap half-width was **0.008**, so the dispersion is ≈ 1.1.
+- **With twice that dispersion for safety** (clustering in busy cycles, or abandonment), the half-width at ΔU = U_max is
+  1.96 × √(2 × 0.078/1210) = **0.022**.
+  - 2 × 0.022 = 0.045 < 0.078, so the trigger doesn't fire even then.
+- **Nothing goes to the Captain under A2.4(a).** He is told the result. The bar does not move.
+- **What the U rows can and can't resolve, said before the data:**
+  - U-OK needs ΔU at about ≤ 0.056 (U_max − 0.022).
+  - U-FAIL needs ΔU at about ≥ 0.10.
+  - Between those, U-OPEN.
+  - Q-GATE-2's real-signal UPC was 0.014, but noise candidates are what this row adds.
+
+**A11.3 A gap I'm closing: the OFF arm must be the Stage 2 build's own.** The spec's design (§5.3, A1.5) is **one
+Stage 2 build, with arms OFF and ON**. `U0` came from `main` `5229beec` because no Stage 2 build exists yet. That is
+legitimate for freezing **only if** the Stage 2 OFF arm reproduces it. `main` may move before Stage 2 is cut: #225
+changes how type 0.1 rows are handled, which can change Test-B counts.
+- **The new validity row V-U0:** the Stage 2 build's own OFF arm runs **first**, on the same 1,210 cycles.
+  - Its per-cycle decode multiset is compared with `5229beec`'s OFF arm, cycle by cycle.
+  - **N/N identical ⇒ `U_max` 0.078 stands.**
+  - **Otherwise,** `U_max` is re-frozen from the Stage 2 OFF arm by the same rule (0.30 × its `U0`), in a dated note,
+    **before any ON decode**. QA reports both figures and the cycles that differ.
+  - Either way the bar is fixed blind to ON data, so this doesn't loosen the pre-registration.
+- **ΔU and NET are always paired against the Stage 2 build's OFF arm,** never against `5229beec`.
+
+**A11.4 Prediction scored at this ruling:** SF6 (`U0` in [0.25, 0.60], 0.50 H): ✅ **HIT, narrowly** (0.2603). It is
+also a hit on the 1,211-cycle basis (0.2824).
+
+**Status noted:** the reworked build is `d926bdc6` (shim 20260067, `libft8.dll` `60963686…c3db`). QA's diff shows
+`ft8_coherent_fallback_at` and the F1b code are byte-identical to `44f0df4e`, so A2(a)–(c) carry over under A3.3. The
+smoke test (shared CPU, not A0) gave `f_i` ≈ 1.4–1.6 s against `s_i` ≈ 9.0–9.3 s, with identical gate-first and
+output-first payloads. That is not a result. A0, A2(d) and A2(e) on an idle CPU are what count.
