@@ -129,6 +129,8 @@ internal static class Program
         // text hash is OFF by default and only written when the explicit flag --outcome-text-hash true is given, which no
         // standard run sets. Default outcome lines are numeric only: stamp,kind,idx,freqHz,dt,snr.
         _outcomeTextHash = a.TryGetValue("outcome-text-hash", out var oth) && oth == "true";
+        if (a.TryGetValue("fb-dump", out var fbd) && !fbd.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--fb-dump must be under _qa-scratch (HK-037)");
+        if (a.TryGetValue("fb-dump", out var fbd2)) _fbDump = new StreamWriter(fbd2, false, new UTF8Encoding(false)) { AutoFlush = true };
         // Test B (WSJT-X corroboration, Architect's HK-037 ruling): the match is done INSIDE this process, where the decoded
         // text lives in memory, against WSJT-X's ALL.TXT read here; only COUNTS and stamps are written. Needs mode two1.
         if (a.TryGetValue("wsjtx-alltxt", out var wsPath))
@@ -465,6 +467,15 @@ internal static class Program
     private static StreamWriter? _third;           // --third-out: stamp,outcome,newDecodes,elapsedMs,fittedSignals
     private static StreamWriter? _outcomes;
     private static StreamWriter? _dxped;   // #225 phase 2: type-0.1 texts, scratch only (see --dxped-dump)
+    private static StreamWriter? _fbDump;   // --fb-dump <path>: working file of fallback outputs with text (scratch only)
+    private static int DecodePath(DecodeResult r)
+    {
+#if HAS_COHFB
+        return r.Path;
+#else
+        return 0;
+#endif
+    }
     private static bool _outcomeTextHash;   // default OFF (HK-037: a text-derived hash is message identity)
 
     // ---- Test B: in-process WSJT-X corroboration (counts only) -----------------------------------------------
@@ -509,11 +520,11 @@ internal static class Program
     {
         if (_testB is null) return;
         var w = _wsjtx.TryGetValue(stamp, out var l) ? l : new List<(int Snr, int Freq, string Msg)>();
-        var ows = new List<(int Kind, int Snr, int Freq, string Msg)>();
-        foreach (var r in b1) ows.Add((1, r.Snr, r.FreqHz, r.Message.TrimEnd()));
-        foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd()));
+        var ows = new List<(int Kind, int Snr, int Freq, string Msg, double Dt, int Path)>();
+        foreach (var r in b1) ows.Add((1, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
         // third-pass-deep (#240): batch 3 is its OWN kind, never folded into 1 or 2. b3 == null (every older mode) leaves the output exactly as it was.
-        if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd()));
+        if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
         var cands = new List<(int Df, int Oi, int Wi)>();
         for (int i = 0; i < ows.Count; i++)
             for (int j = 0; j < w.Count; j++)
@@ -533,6 +544,16 @@ internal static class Program
             usedW[wi] = true;
             matchBatch[wi] = ows[oi].Kind;
         }
+        // WORKING FILE (HK-037 amendment 2026-10-10): per-output message text, ONLY under D:\Projects\claude\_qa-scratch\<job>\, read by code only, deleted at job close. Fallback (path 2) outputs only.
+        if (_fbDump is not null)
+            for (int i = 0; i < ows.Count; i++)
+                if (ows[i].Path == 2)
+                {
+                    bool sameTextAnyFreq = w.Any(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal));
+                    int minDf = w.Where(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal)).Select(x => Math.Abs(x.Freq - ows[i].Freq)).DefaultIfEmpty(-1).Min();
+                    _fbDump.WriteLine(string.Join("	", stamp, ows[i].Kind, usedO[i] ? 1 : 0, ows[i].Freq, ows[i].Dt.ToString("F2", CultureInfo.InvariantCulture), ows[i].Snr,
+                        sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Msg));
+                }
         foreach (int kind in b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
             foreach (var band in new[] { "A", "B", "C", "D" })
             {
@@ -761,7 +782,7 @@ internal static class Program
         }
         finally
         {
-            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose();
+            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose(); _fbDump?.Dispose();
             try { Directory.Delete(dir, true); } catch (IOException) { }
         }
     }
