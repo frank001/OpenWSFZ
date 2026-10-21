@@ -134,6 +134,9 @@ internal static class Program
         _outcomeTextHash = a.TryGetValue("outcome-text-hash", out var oth) && oth == "true";
         if (a.TryGetValue("fb-dump", out var fbd) && !fbd.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--fb-dump must be under _qa-scratch (HK-037)");
         if (a.TryGetValue("fb-dump", out var fbd2)) _fbDump = new StreamWriter(fbd2, false, new UTF8Encoding(false)) { AutoFlush = true };
+        // COH-FALLBACK step 4 (U'): working file of EVERY scored decode (all batches, all paths) with its Test-B match flag and text, for the tone-presence instrument. Scratch only (HK-037 amendment 2026-10-10).
+        if (a.TryGetValue("nc-dump", out var ncd) && !ncd.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--nc-dump must be under _qa-scratch (HK-037)");
+        if (a.TryGetValue("nc-dump", out var ncd2)) _ncDump = new StreamWriter(ncd2, false, new UTF8Encoding(false)) { AutoFlush = true };
         // Test B (WSJT-X corroboration, Architect's HK-037 ruling): the match is done INSIDE this process, where the decoded
         // text lives in memory, against WSJT-X's ALL.TXT read here; only COUNTS and stamps are written. Needs mode two1.
         if (a.TryGetValue("wsjtx-alltxt", out var wsPath))
@@ -474,6 +477,7 @@ internal static class Program
     private static StreamWriter? _third;           // --third-out: stamp,outcome,newDecodes,elapsedMs,fittedSignals
     private static StreamWriter? _outcomes;
     private static StreamWriter? _dxped;   // #225 phase 2: type-0.1 texts, scratch only (see --dxped-dump)
+    private static StreamWriter? _ncDump;   // --nc-dump <path>: stamp,kind,matched,freq,dt,snr,same_any,min_df,wcount,path,text for every scored decode (scratch only)
     private static StreamWriter? _fbDump;   // --fb-dump <path>: working file of fallback outputs with text (scratch only)
     private static int DecodePath(DecodeResult r)
     {
@@ -554,6 +558,14 @@ internal static class Program
             matchBatch[wi] = ows[oi].Kind;
         }
         // WORKING FILE (HK-037 amendment 2026-10-10): per-output message text, ONLY under D:\Projects\claude\_qa-scratch\<job>\, read by code only, deleted at job close. Fallback (path 2) outputs only.
+        if (_ncDump is not null)
+            for (int i = 0; i < ows.Count; i++)
+            {
+                bool sameTextAnyFreq = w.Any(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal));
+                int minDf = w.Where(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal)).Select(x => Math.Abs(x.Freq - ows[i].Freq)).DefaultIfEmpty(-1).Min();
+                _ncDump.WriteLine(string.Join("	", stamp, ows[i].Kind, usedO[i] ? 1 : 0, ows[i].Freq, ows[i].Dt.ToString("F2", CultureInfo.InvariantCulture), ows[i].Snr,
+                    sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Path, ows[i].Msg));
+            }
         if (_fbDump is not null)
             for (int i = 0; i < ows.Count; i++)
                 if (ows[i].Path == 2)
@@ -822,7 +834,7 @@ internal static class Program
         }
         finally
         {
-            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose(); _fbDump?.Dispose();
+            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose(); _fbDump?.Dispose(); _ncDump?.Dispose();
             try { Directory.Delete(dir, true); } catch (IOException) { }
         }
     }
