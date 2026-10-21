@@ -708,5 +708,5 @@ changes no verdict in §13.
     bar the Captain sets beforehand. The "other CQ" blind spot and hashed texts must be handled by a stated rule.
 
 **Waiting on QA:** the A13.3 recomputation (done, A13.8); confirmation of A13.2's NET by band and A13.4's per-band FP flag, using
-`path` = 2; the committed analysis script; and the A1 evidence runs when the CPU is free. **Waiting on the Captain:**
+`path` = 2; the committed analysis script. ~~and the A1 evidence runs when the CPU is free~~ 🔴 **Withdrawn (2026-10-21, QA, relayed by the Captain): A1 evidence is a merge gate, and no merge is pending (A13.5), so it is not owed now. It runs only if a later build is put up for merge. Listing it as waiting was my error (ledger E13).** **Waiting on the Captain:**
 decision 1, and his go on QA's report commit (HK-033).
