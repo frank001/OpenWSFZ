@@ -1028,3 +1028,51 @@ the row is replaced (HK-025(k), HK-038).**
 
 **Order:** A2(e′) → (Captain's go) OFF arm → the U′ note with the class table → the Captain sets U′_max → ON and
 ON-repeat → the ruling.
+
+---
+
+## §17 A2(e′) PASS; the Captain may set the U′ untestable thresholds after the OFF arm, under conditions (Architect, 2026-10-21 by `date -u` at commit; before any step-4 replay decode)
+
+**A17.1 A2(e′): PASS.** Source: QA `qa/refset` `5de1bb47`, `results/2026-10-21-coh-fallback-step4-a2eprime/`.
+- **The run:** build `b8fc732e`, DLL `aaf6b03e…`, the first 100 selected cycles of 10-09, production-normalised input,
+  8 workers, no deadline.
+- **Result:** the published payload list, in order, is identical to the single-thread path on **100 / 100** cycles,
+  with every row field identical as well. 1 and 2 workers also give 100 / 100.
+- **Timing, descriptive:**
+  - single thread: median 1.08 s per cycle;
+  - 8 workers: median **0.26 s**, p95 0.39 s, max 0.49 s.
+  - These are harness figures on 10-09. **SG2 is still scored on the step-4 replay's S4-T.**
+- **Count against the Stage 1 export: 98 / 100 cycles agree.** In the other two, the count is one lower (301 against
+  303). QA's hypothesis is R6″, which Stage 2 added: it collapses a same-payload duplicate that the Stage 1 export
+  counted twice. That is plausible but unverified. QA checks it **descriptively** with the two payloads' estimates; it
+  is not a gate. A difference that is not an R6″ collapse comes back to me.
+- **The raw-audio pass** (89 / 100 against Stage 1, an input-normalisation mismatch in QA's harness) is kept as a
+  record only.
+- **SG5** (A2(e) N/N on the parallel build, first run, 0.85 C): ✅ **HIT**, scored on A2(e′) as §16 said.
+
+**A17.2 The Captain's request: set the U′ untestable rule after the OFF run.**
+- **What the timing protects.** The verdict's blind is **ON data**: the OFF arm holds no fallback output. That is the
+  Captain's own rule from 2026-10-08: "blind only where it protects a verdict".
+- **The one real exposure, and I'm stating it once.** The rule feeds `U0′`, and U′_max = 0.30 × U′0. A rule chosen
+  after seeing the OFF arm's per-class rates could raise or lower the bar.
+  - The direction isn't fixed. Declaring more classes untestable raises U′0, and the bar with it at 0.30 ×. But it
+    also counts the fallback's outputs in those classes against ΔU′, at 1 ×.
+  - The exposure is small, but it is real. §5's clause ("no threshold changes after any acceptance decode") would
+    forbid it as written.
+- **The Captain owns decision values. So this is allowed, under four conditions that keep it visible and keep it blind
+  to ON:**
+  1. **Frozen before the OFF arm (QA scripts it now):** the instrument `cf_fbid.py` @ `ecc4c5e7`, T = 0.276,
+     `shape_class()`, the sampling (up to 50 per class, seed 20261007), and the three-way split of U′0. Only the
+     **two thresholds** (minimum n and minimum present rate) are left open.
+  2. **After the OFF arm, before any ON decode:** QA's U′ note shows the per-class table (n, present rate, Wilson CI).
+     **Beside the Captain's choice it shows U′0 and U′_max under §16's default (n ≥ 10, ≥ 80 %),** so any effect of
+     the choice is on the record.
+  3. **The Captain writes the two values down before any ON decode.** They apply to both arms and are never changed
+     afterwards.
+  4. **The U′ note records this as a deviation from §5's clause,** with today's date and his words.
+- **My recommendation:** keep §16's default unless the table shows a class sitting right at a threshold. Two
+  reasons: it was set without data, and on 10-09 it gave the right answer (only the class the instrument cannot test
+  was left out).
+
+**Order:** QA freezes A17.2(1) in its script → (Captain's go) OFF arm → the U′ note with the table and the default
+beside it → the Captain sets the thresholds and U′_max → ON and ON-repeat → the ruling.
