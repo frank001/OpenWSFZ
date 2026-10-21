@@ -55,6 +55,8 @@ internal static class A2ep
 
         using var selDoc = JsonDocument.Parse(File.ReadAllBytes(Req("selection")));
         var stamps = selDoc.RootElement.GetProperty("runs").GetProperty(run).GetProperty(stratum).EnumerateArray().Select(e => e.GetString()!).ToList();
+        if (a.TryGetValue("only", out var only)) { var keep = only.Split(',').ToHashSet(); stamps = stamps.Where(keep.Contains).ToList(); }
+        bool dups = a.ContainsKey("dups");
         var stage1 = new Dictionary<string, int>();
         if (a.TryGetValue("stage1-csv", out var s1))
             foreach (var line in File.ReadLines(s1).Skip(1))
@@ -79,6 +81,7 @@ internal static class A2ep
             var single = singleM.Invoke(null, new object[] { pcm, snap, NoDeadline, CancellationToken.None })!;
             double singleMs = sw.Elapsed.TotalMilliseconds;
             var singleList = Published(selectM, single);
+            if (dups) Console.WriteLine($"DUPS {stamp} {DuplicateGroups(single)}");
 
             sw.Restart();
             var par8 = parallelM.Invoke(null, new object[] { backend, pcm, snap, NoDeadline, GateWorkers, CancellationToken.None })!;
@@ -128,6 +131,29 @@ internal static class A2ep
         File.WriteAllText(summaryPath, JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }));
         Console.WriteLine(JsonSerializer.Serialize(summary));
         return identical8 == cycles ? 0 : 1;
+    }
+
+    /// <summary>Descriptive (no payload written): among the NewGated rows, how many share a payload key, and the edge flags / estimates of each group's members.</summary>
+    private static string DuplicateGroups(object result)
+    {
+        var rows = ((IEnumerable)result.GetType().GetProperty("Rows")!.GetValue(result)!).Cast<object>().ToList();
+        var groups = new Dictionary<string, List<(int Idx, bool Edge, double F1b, float OutF, float OutDt)>>();
+        int newGated = 0;
+        var distinct12 = new HashSet<string>();
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var t = rows[i].GetType();
+            if (Convert.ToInt32(t.GetProperty("State")!.GetValue(rows[i])) != 4) continue;     // CohFallbackState.NewGated
+            newGated++;
+            distinct12.Add(Convert.ToHexString((byte[])t.GetProperty("Payload")!.GetValue(rows[i])!));
+            string key = Convert.ToHexString((byte[])t.GetProperty("Payload")!.GetValue(rows[i])!, 0, PayloadKeyBytes);
+            if (!groups.TryGetValue(key, out var g)) groups[key] = g = new();
+            g.Add((i, (bool)t.GetProperty("Edge")!.GetValue(rows[i])!, (double)t.GetProperty("F1bDb")!.GetValue(rows[i])!,
+                   (float)t.GetProperty("OutFreqHz")!.GetValue(rows[i])!, (float)t.GetProperty("OutDtS")!.GetValue(rows[i])!));
+        }
+        var multi = groups.Values.Where(g => g.Count > 1).Select(g => "[" + string.Join(";", g.Select(m =>
+            $"cand{m.Idx} edge={(m.Edge ? 1 : 0)} f1b={m.F1b.ToString("F2", CultureInfo.InvariantCulture)} df={m.OutF.ToString("F2", CultureInfo.InvariantCulture)} dt={m.OutDt.ToString("F2", CultureInfo.InvariantCulture)}")) + "]");
+        return $"newGated={newGated} distinct10={groups.Count} distinct12={distinct12.Count} collapsed={newGated - groups.Count} multiGroups={string.Join(" ", multi)}";
     }
 
     private static string F(double x) => x.ToString("F1", CultureInfo.InvariantCulture);
