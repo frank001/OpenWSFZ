@@ -1082,5 +1082,18 @@ beside it → the Captain sets the thresholds and U′_max → ON and ON-repeat 
   together with the rest of the procedure. A17.2's after-the-OFF-arm option is **not used**, so there is no deviation
   from §5 to record.
 - **The OFF arm has the go.** Pre-flight as §16 A16.3.
+- **A17.3 The "distinct + 1" in the Stage 1 export, checked descriptively by QA: NOT an R6″ collapse. Not chased.**
+  - **What QA found.** In both cycles the shipped selector publishes exactly the number of distinct payloads, whether
+    keyed on 10 bytes or 12. The edge flag does not separate them either. The Stage 1 export counts one more.
+  - **The code.** I read the export's count (`ft8_shim.c:2362-2396`). It seeds `seen` from the ordinary call's
+    payloads and adds a payload only when it publishes. On that reading, a second copy of a payload is "known".
+    The +1 is not explained by that reading. I did not trace it further.
+  - **Why it is not chased.**
+    - The export is a Stage 1 diagnostic and is not shipped.
+    - Every verdict reads the shipped selector: the Stage 2 replay, the step-4 replay, and A2(e′), whose two sides
+      are both the shipped path.
+    - The direction is the safe one: the shipped path publishes fewer, never more.
+  - **Recorded as an open descriptive item.** It is reopened only if a shipped-path count ever disagrees with its
+    own distinct-payload count.
 - **The Captain's remaining decision is U′_max.** QA proposes 0.30 × U′0 with the half-width and the ≤ 0.042 line,
   and he confirms it or sets his own before any ON decode.
