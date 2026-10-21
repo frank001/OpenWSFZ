@@ -933,3 +933,98 @@ the row is replaced (HK-025(k), HK-038).**
 - **Developer handoff:** `dev-tasks/2026-10-21-coh-fallback-step4.md` (`qa/refset` `d8033b25`).
   - The Architect spot-checked it against §14 + §15 and found it faithful: the start after the last ordinary batch,
     R14 for 4 batches, the gather in candidate order, abandon-never-queue, A2(e), and A3″(b) as the median row.
+
+---
+
+## §16 Pre-OFF-arm analysis (Captain's request): A2(e) on the parallel path, the sol impression, and the U′ instrument made mechanical (Architect, 2026-10-21 18:2xZ by `date -u`; before any step-4 replay decode)
+
+**On:**
+- QA's message of 2026-10-21.
+- QA `qa/refset` `1bc3b5c9` (`results/2026-10-21-coh-fallback-step4-a2e/`): A2(e) 100/100, A0 0/100 (`f_i` median 0.94 s,
+  p95 1.25 s, max 1.40 s), A2(d) the same as Stage 1.
+- The code review `5759895c` (R-1 to R-3 fixed in `b8fc732e`).
+- The two sol impressions.
+- `cf_fbid.py` (`shape_class`, `:91`).
+
+**A16.1 Question 1: the A2(e) run tested the old path. A parallel-path run on the same 100 cycles is required (HK-022).**
+- **What the run shows.** `cf_a0.py` drives `ft8_coherent_fallback_run`, the single-thread entry point. The result
+  shows that the new DLL leaves that path unchanged, which is worth having. But **it never ran the code that ships**:
+  the plan and process exports, and the managed parallel runner with its gather in candidate order.
+- **Why the other evidence isn't the same thing.**
+  - The Developer's real-library test is a unit test on a few inputs.
+  - The sol comparison is 10 cycles and 15 decodes, an impression.
+  - V6 compares ON with ON-repeat. **Both** of those are parallel, so V6 shows that the parallel path is
+    deterministic, **not that it equals the single-thread result**. A gather bug that is stable from run to run would
+    pass V6.
+- **The wording was mine.** "Re-run on the parallel build" could be read as "on the new DLL". I meant the path. That
+  is ledger E17, the same class as E9.
+- **A2(e′), required before the OFF arm.**
+  - **Where:** the same first 100 selected cycles of 10-09.
+  - **How:** through `Run(…)` in Replay81's harness, at 8 workers, with no deadline.
+  - **Predicate:** the published payload list per cycle, **in order**, is identical to the single-thread output-first
+    export of `1bc3b5c9`. **N/N cycles.** Any difference ⇒ FAIL, and there is no step-4 replay until it is explained.
+  - QA estimates ≈ 8 minutes.
+- **SG5** (A2(e) N/N on the parallel build, first run, 0.85 C) is **scored on A2(e′)**, not on `1bc3b5c9`.
+
+**A16.2 Question 2: the sol impression changes no row. It adds one requirement to the live check.**
+- **It confirms the design.**
+  - Batches 1–3 had no systematic delay: medians −0, −51 and −68 ms, against +170 ms in Stage 2.
+  - The scaling was ≈ 7.6× at 8 workers.
+  - The minimum margin to the budget was 3.9 s, with 0 abandoned.
+- **The PC figures fit that.** A0's single-thread median of 0.94 s on an idle PC is lower than Stage 2's 1.40 s, which
+  was measured under contention. So §13's fallback time was inflated by the contention itself.
+  - At ≈ 7× scaling the PC should give ≈ 0.13–0.2 s, which would make SG2 (≤ 0.5 s) comfortable. That is my
+    arithmetic. The replay's S4-T measures it.
+- **The OFF-arm plan: unchanged.**
+- **The ON rows: unchanged.** A3″(b)'s median row reads timing in the harness. Batch 4's lateness is outside every
+  verdict row by design (A14.4, S4-T descriptive).
+- **The R14 live check (specified by QA after the replay): add one row of measurement.**
+  - On sol, batch 4 arrives a median 7.9 s after the decode starts.
+  - Its decodes therefore reach the QSO services well past the 2.36 s reply guard: any reply to one is deferred, by
+    construction.
+  - **The live check must therefore record, per cycle with a batch 4:**
+    - the batch-4 publish time **from slot start**, using the live decode-start offset (which the live log has in ms);
+    - whether a QSO service acted on a batch-4 decode, and whether it deferred.
+  - This is HK-027: measure what the instrument can record.
+  - **Descriptive.** But if a QSO service acts on a batch-4 decode *without* deferring, that is a defect and it blocks
+    default ON.
+
+**A16.3 Question 3: one thing must be made mechanical before the OFF arm. The U′ "untestable" rule is not yet code
+(HK-021).**
+- **Why it matters now.** A14.3 says "untestable = hashed text, or a shape on which the instrument fails its own
+  confirmed control, e.g. 'other CQ'". "Fails" has no threshold. **U′0 comes from the OFF arm,** so the rule has to be
+  frozen before the OFF arm is read.
+- **U′ test, frozen (a script constant, committed before the OFF arm runs):**
+  - **Instrument:** `cf_fbid.py` @ `ecc4c5e7`, with T = **0.276** frozen from 10-09's null.
+    - The 09-22 null is computed and reported **descriptively**.
+    - If its p99 differs from 0.276 by more than 0.03, QA flags it to the Architect before any ON decode. The ruling
+      comes first, and it is blind to ON data.
+  - **Shape classes:** `shape_class()` (`:91`), as committed.
+  - **Untestable:**
+    - (i) the text is hashed (`<…>`) or cannot be re-encoded; or
+    - (ii) its shape class is **not testable on this night**.
+  - **A shape class is testable iff** the OFF arm's **confirmed** decodes of that class have **n ≥ 10** (a random
+    sample of up to 50 per class, seed 20261007) **and** a present rate ≥ **80 %**.
+  - On 10-09 this rule makes "other CQ" untestable (0 / 7) and keeps the others (≥ 95 %).
+  - **The class list is frozen from the OFF arm alone,** before any ON decode, and applies to both arms.
+- **Where 80 % and n ≥ 10 come from (HK-038):**
+  - The testable classes on 10-09 scored 95–100 % on their confirmed controls.
+  - A class whose own true decodes show their tones less than 80 % of the time cannot evidence absence.
+  - **n ≥ 10 is a minimum sample, a decision value.** At n = 10 the 80 % bar is loose: 8 / 10 has a Wilson lower bound
+    of only 49 % (computed). So QA reports every class's rate with its Wilson CI. A class with n < 10 counts as
+    untestable, the conservative direction.
+  - Both are decision values.
+- **The OFF-arm U′ note (A14.3 + A15.3) also reports:**
+  - the class table: n, the confirmed present rate, testable yes or no;
+  - U′0 split three ways: tested-absent, hashed or unencodable, and an untestable class;
+  - U′_max = 0.30 × U′0, the projected half-width, and the "≤ 0.042" line.
+- **Pre-flight before the OFF arm (HK-020):**
+  - the DLL pin `aaf6b03e…` with a fail-closed re-hash at both ends;
+  - the flag read back as false;
+  - Deep, `nhard` 24 and the OSD fix read back;
+  - the selection SHA `9ce4fbb4…`;
+  - `ws` = 0 cycles excluded, paired;
+  - Replay81 built against `b8fc732e`.
+
+**Order:** A2(e′) → (Captain's go) OFF arm → the U′ note with the class table → the Captain sets U′_max → ON and
+ON-repeat → the ruling.
