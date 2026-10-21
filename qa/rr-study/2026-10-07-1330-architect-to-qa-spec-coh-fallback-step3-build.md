@@ -920,3 +920,16 @@ the row is replaced (HK-025(k), HK-038).**
 - SG2–SG5 are unchanged.
 
 **Order:** QA writes the Developer handoff on §14 + §15 now. The night is frozen once the Captain picks.
+
+**A15.7 Recorded (2026-10-21, from QA): the night and the handoff. No decode has run.**
+- **The Captain chose `20260922_2056`.**
+- **40 m confirmed** by the run's band-correction note: the daemon's live status read `dialFrequencyMHz` 7.074, and the
+  Captain confirmed it directly.
+  - 🛑 The `arm_config` field `dial_freq_hz` = 14074000 is stale. **Never cite it.**
+- **Selection frozen before any decode:** k = 3, 961 of 2,882 gap-free slots.
+  - V-P PASS: even 480 / odd 481.
+  - SHA-256 (LF) `9ce4fbb4…7c28`.
+  - File: `_qa-scratch\coh-fallback\step4\selection.json`.
+- **Developer handoff:** `dev-tasks/2026-10-21-coh-fallback-step4.md` (`qa/refset` `d8033b25`).
+  - The Architect spot-checked it against §14 + §15 and found it faithful: the start after the last ordinary batch,
+    R14 for 4 batches, the gather in candidate order, abandon-never-queue, A2(e), and A3″(b) as the median row.
