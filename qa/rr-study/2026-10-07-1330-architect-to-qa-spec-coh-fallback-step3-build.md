@@ -670,6 +670,43 @@ holding to it.
 - **Test B corroboration in batches 1–2** moves by ±2 matches out of 31,355 while the decodes are unchanged: a
   one-to-one matching reassignment, immaterial.
 
+**A13.9 Option (I), done by QA: the 123 unconfirmed outputs are mostly real signals.** This is descriptive. It
+changes no verdict in §13.
+- **Source:** QA `qa/refset` `ecc4c5e7`, `results/2026-10-20-coh-fallback-stage2-replay/fbid.json` (read in full;
+  numbers only). The text working file has been deleted (HK-037).
+- **The re-run is valid.** QA re-ran the ON arm on 210 cycles: 0 differ from the original ON arm, and the DLL was
+  pinned at the start and the end.
+- **Method.** Each output's text is re-encoded to its 79 tones and located from its Costas symbols only. The score is
+  the share of the 58 data symbols whose strongest bin is the transmitted tone.
+  - The null comes from other messages' tones at the same place: n = 10,040, mean 0.147, max 0.362.
+  - T = 0.276 is its 99th percentile, set from the nulls alone.
+
+| set | n testable | tones present | median score |
+|---|---:|---|---:|
+| unconfirmed (encodable) | 103 | **97 = 94.2 % [87.9, 97.3]** | 0.64 |
+| confirmed control | 399 | 387 = 97.0 % [94.8, 98.3] | 0.72 |
+| confirmed, SNR-matched | 378 | 96.8 % | 0.72 |
+
+- **Upper bound on noise:** at most 26 of the 123 can be noise. Those are the 6 with no tones plus the 20 hashed
+  outputs, which can't be re-encoded.
+  - That is 0.005–0.021 per cycle, against ΔU 0.102.
+  - **Only 6 outputs have positive evidence of being noise, and 2 of those are "other CQ" texts.** The instrument
+    finds tones in 0 of 7 *confirmed* "other CQ" outputs, so it is blind there (HK-026). Positive evidence of noise is
+    therefore **≤ 4 of 2,180** outputs.
+  - For scale: about 10.5 chance CRC passes are expected from 172,385 BP attempts at 2⁻¹⁴, before the F1b gate and
+    dedup cut that further.
+- **What this does not show.**
+  - Tones present proves that a signal with those tones is in the audio, not that every bit of the decoded message is
+    right. The unconfirmed set scores lower than the control (median 0.64 against 0.72).
+  - Batch 1's own unconfirmed decodes were not tested. So the FP-watch comparison (5.6 % against 1.4 %) is now known
+    to be mostly decodes WSJT-X misses, **on the fallback side only**.
+- **What it means for the next step.**
+  - Test B's not-confirmed count (the U instrument) mostly counts **WSJT-X's misses** here. A stricter gate aimed at U
+    would mostly cut real decodes. The (R) U-gate leg of A13.6 is therefore **not recommended**.
+  - 🛑 **U-FAIL stays the record for this night.** A different U instrument (no tones, rather than not confirmed by
+    WSJT-X) may be pre-registered **only for a new night**, with its own OFF-arm baseline on the same instrument and a
+    bar the Captain sets beforehand. The "other CQ" blind spot and hashed texts must be handled by a stated rule.
+
 **Waiting on QA:** the A13.3 recomputation (done, A13.8); confirmation of A13.2's NET by band and A13.4's per-band FP flag, using
 `path` = 2; the committed analysis script; and the A1 evidence runs when the CPU is free. **Waiting on the Captain:**
 decision 1, and his go on QA's report commit (HK-033).
