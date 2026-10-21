@@ -13,7 +13,7 @@ import os
 import sys
 from datetime import datetime as D, timedelta as T
 
-RUN, STRATUM = "20261009_1752", "Y40"
+RUN, STRATUM = os.environ.get("COHFB_RUN", "20261009_1752"), "Y40"   # step 4: COHFB_RUN=20260922_2056 (the Captain, 2026-10-21)
 K, R = 3, 1
 ART = os.environ.get("OPENWSFZ_ARTEFACTS", r"D:\Projects\claude\OpenWSFZ\artefacts")
 GATHERED = os.path.join(ART, f"{RUN}_endurance_run-gathered")
