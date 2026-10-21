@@ -520,3 +520,138 @@ on the Stage 1 branch** (`feat/coh-fallback-stage1` at `d926bdc6`), under the Ca
     a fixed set of recorded cycles) would have to run first.
 - **Stage 2 carries:** R6′/R7′/R2′ (§8), R4′/R12′ (§10), the new R6″ (A12.1), and V-U0 (§11).
 - **The replay's order:** V-U0, the Stage 2 build's own OFF arm, runs **first**, then ON, then the ON-repeat.
+
+---
+
+## §13 RULING: Stage 2 decision replay. D-GO, U-FAIL, A3′ FAIL, FP-watch fires ⇒ no merge, no default ON; three options go to the Captain (Architect, 2026-10-21 16:0xZ by `date -u`)
+
+**On:** QA's message (2026-10-21) and `D:\Projects\claude\_qa-scratch\coh-fallback\analysis\stage2.json`, read in full.
+The script is `qa/rr-study/coh-fallback/cf_stage2_analysis.py` (uncommitted). The raw outputs are in
+`qa/rr-study/results/2026-10-20-coh-fallback-stage2-replay-raw/` (root). I re-checked them where a figure looked odd
+(HK-018). Build `feat/coh-fallback-stage1` `1405ada4` (shim 20260068), `libft8.dll` `581331da…5f5d1`. Selection
+`9c20b921`: 1,211 cycles, 1,210 with a WSJT-X reference. The Stage 2 code was read at `Ft8Decoder.cs:864-935`.
+
+| row | result |
+|---|---|
+| V-U0 | PASS, N/N against `5229beec` ⇒ `U_max` **0.078** stands |
+| V1 | **Deviation, accepted (A13.1)** |
+| V2 | PASS: flags read back (off2 False, on and onrep True) |
+| V3 | PASS: 0 exceptions, 0 access violations, 0 non-zero exits |
+| V4 = A3 | PASS: batch-1 multiset 0 cycles differing |
+| V5 | PASS: 0 of 1,211 cycles abandoned (Wilson upper 0.32 %) |
+| V6 | PASS: 0 of 404 differing (Wilson upper 0.94 %) |
+| **D-GO** | **D-GO**: NET **+6.56 pp [5.95, 7.22]** (2,057 more matches over 31,355 WSJT-X decodes; 67.72 % → 74.28 %) |
+| **U** | **U-FAIL**: ΔU **+0.102 [0.082, 0.124]** per cycle; `CI_lo` 0.082 > `U_max` 0.078 |
+| **A3′** | **FAIL**: (a) PASS; (b) FAIL; (c) FAIL. The populations are ruled in A13.3; the verdict is the same on either one |
+| FP-watch | **FIRES** (A13.4) |
+
+The arithmetic agrees across files. 2,180 fallback decodes were published; 94.36 % confirmed is 2,057, which equals
+ΣΔM. The other 123 are not confirmed: 123 / 1,210 = 0.1017, which equals ΔU. By band, ΔU's increments are
+A +2, B −2, C +7, D +116, total 123.
+
+**A13.1 V1: no end pin per arm, accepted as a deviation.** The chain hashed `libft8.dll` once, at 19:35Z. QA
+re-hashed it after the run and got the same SHA. All three arms loaded that one file, from one folder, one after
+another, while the Developer kept the PC idle. V1's purpose is to show that one build ran in every arm. Three other
+rows show the same thing independently: V-U0 is N/N against `main`, V4 is N/N, and V6 is 0 of 404. Recorded as a
+deviation, with A12.2 as the precedent. **For the next chain: write a pin at the start and end of each arm.**
+
+**A13.2 D-GO stands, and it also passes the transfer question (A2.4(b)).** 10-09 is a direct USB-CODEC night, and
+T1 was trained on a Voicemeeter night. The gain held on this chain. NET is larger than Q-GATE-2's 3.03 pp on 10-19.
+That is a different night, with a lower OFF match share (67.7 %), so there is more to recover. It is not evidence that
+the gain grew.
+- **NET by band, the mandatory descriptive QA could not get from `matched.csv`.** It comes from `testb.csv` instead:
+  the batch-3 corroborated increase, ON − OFF, by the Test-B band of OpenWSFZ's own decode. This is my arithmetic; QA
+  confirms it with `path` = 2.
+  - B: +22 (**+0.07 pp**)
+  - C: +388 (**+1.24 pp**)
+  - D: +1,645 (**+5.25 pp**)
+  - **80 % of the gain is in band D, the same band as 94 % of the unconfirmed outputs.** The gain and the U cost come
+    from the same signals. A cut on band D alone would remove both.
+
+**A13.3 A3′: (b) and (c) fail. The population is undefined where a batch is absent, and that error is mine.**
+- **The defect.** `run.csv` writes `-1` for a batch that was not published. OFF has no batch 3 in **1,057** of 1,211
+  cycles, and ON has one in 868 of those, because the fallback's decodes are its only content. QA's p50 of 2.3 s and
+  p95 of 3.77 s take `ON tb3 − (−1)` as a delay. A3′ said "p95 of (ON − OFF)" and gave no rule for that case. That is
+  an Architect wording error (ledger E10), and the third population ambiguity on this arm.
+- **The population, ruled on the row's purpose (A2.2).** The row is for "the third pass's own decodes" being held
+  back. A cycle with no OFF batch has no decode to delay. So (b) and (c) are read on the cycles where **both arms
+  published that batch**. QA's literal figures stay on record beside these.
+
+| | cycles | p50 | p95 | max | bar | |
+|---|---:|---:|---:|---:|---:|---|
+| (b) batch 2, both arms | 1,005 | 86 ms | **496 ms** | 756 ms | 50 ms | **FAIL** |
+| (c) batch 3, both arms | 154 | 145 ms | **756 ms** | 902 ms | 250 ms | **FAIL** |
+| whole cycle (`elapsed_ms`), descriptive | 1,211 | 87 ms | 677 ms | 958 ms | — | |
+
+- **This does not read my bar in my favour.** It is a defect in a computation, a `-1` taken as a time, and the
+  verdict does not change.
+- **QA, please:** recompute (b), (c) and the noise floor (ON-repeat vs ON) on the both-published population. Report
+  them beside the literal figures, and state the count of cycles where only ON published batch 3.
+- **What the data say about the mechanism (my reading of the code and `run.csv`; not a measurement).** The fallback
+  starts at batch 1 on **one extra thread** and runs **concurrently** with the residual and third passes
+  (`Ft8Decoder.cs:876-886`).
+  - Batch 2 is late by a median of 86 ms. Nothing waits for the fallback before batch 2, so this is the fallback's
+    thread slowing the residual pass through contention.
+  - Batch 3 also waits for the fallback to finish (`:927-928`).
+  - **So a separate batch alone would fix (c) but not (b).** A design that passes both must start the fallback only
+    after batch 3 has been published. With the flag ON, its decodes would then arrive about 1.4 s (median) to 2.3 s
+    (p95) after the third pass, which is well inside the slack (≥ 8.7 s, A0).
+- **Ledger E11, mine:** the 250 ms bar was never checked against the fallback's own cost once A0 measured it.
+
+**A13.4 FP-watch fires. It goes to the Captain with this ruling.**
+- **Overall:** fallback not-confirmed rate **5.6 % [4.7, 6.7]**, against batch 1's **1.4 % [1.3, 1.6]**.
+- **By band** (the spec asks for the flag per band; my arithmetic from `testb.csv` increments, QA confirms):
+
+| band | fallback not-confirmed | batch-1 not-confirmed | flag |
+|---|---|---|---|
+| D | 119 / 1,764 = **6.7 % [5.7, 8.0]** | 50 / 2,391 = 2.1 % [1.6, 2.8] | **fires** |
+| C | 8 / 396 = 2.0 % [1.0, 3.9] | 1.3 % [1.0, 1.7] | does not fire |
+| B | 1 / 23 | 1.5 % | n too small |
+
+- **What it means.** In band D, a fallback output is about 3× as likely as a batch-1 output to go unconfirmed by
+  WSJT-X.
+- **What it does not mean.** Not confirmed is an **upper bound** on false decodes (§6): it also counts real
+  transmissions that WSJT-X missed, and hashed texts. This instrument cannot tell those apart (HK-026).
+- **For scale.** There are 2,057 confirmed decodes per 123 unconfirmed, about **17 : 1**. The Captain was shown a cap of
+  "1 per 4–10 at 3 pp" (§9) and declined a ratio cap. 🛑 **The U row is read as frozen. U-FAIL is the record.**
+
+**A13.5 What the spec now says, mechanically.**
+- A3′ FAIL ⇒ **no merge and no default ON**, and the separate-batch design amendment goes to the Captain (A2.4(d)).
+- U-FAIL ⇒ **no default ON** (§4: default ON needs D-GO **and** U-OK).
+- **Neither fix covers the other.** A timing redesign does nothing for U, and nothing done about U fixes the timing.
+- 10-09 is now **seen data**. It may train a U remedy, but it cannot test one.
+
+**A13.6 The Captain's options (decision 1 of 2 matters; decision 2 is mostly housekeeping).**
+
+**Decision 1: what happens to COH-FALLBACK next.**
+
+| option | what it costs | what it leads to |
+|---|---|---|
+| **(P) Park it.** Record the result; the branch stays local | nothing | +6.56 pp on this night is not delivered. It can be reopened later from this record |
+| **(I) Identify first (offline, my recommendation).** Tone-match the 123 not-confirmed fallback outputs against the audio, with a confirmed sample as the control (the FIELD-ID method; per-message working files only in `_qa-scratch`, HK-037) | QA CPU time; no build | Tells us whether U-FAIL is mostly false decodes or mostly WSJT-X misses. **It does not change the verdict.** It decides whether (R) is worth doing, and what a U remedy should target |
+| **(R) Redesign (step 4).** (1) Timing: the fallback starts **after batch 3** in a **batch of its own** (a design amendment, because `LateBatch` and the QSO capacity were validated live at 3 batches and would need a live check). (2) U: a stricter gate for weak outputs, trained on 10-04 + 10-09, tested on a **fresh** 40 m night (QA lists the candidates). A new U bar, set by the Captain **before** that replay | a Developer build (HK-011), a live late-batch check, about 2.5 h of replay | Could pass every row. The risk is in A13.2: the gain and the U cost sit in the same band, so a U gate may cost most of the gain |
+
+- **Why I recommend (I) before (R).** (R) needs a build, a live check and a fresh replay, and its value depends on a question (I) answers offline, with no build.
+  - If most of the 123 are real signals, the U remedy should be light, or the Captain may want a different
+    U instrument for the next arm.
+  - If most are noise, a gate trained on 10-09's band D is the target.
+- ⚠️ **A new U bar for a new night (R) is legitimate. Reading this night's U row differently is not.** I recommend
+  against a default-ON override on this data: A3′ has failed too, so the code that would ship is not the code that
+  would pass.
+
+**Decision 2: the merge (housekeeping, unless he wants the code on `main`).** The spec says no merge, and I recommend
+holding to it.
+- The scheduling code would be rewritten by (R).
+- A flag-OFF merge would put dormant code and the TLS retention in `ft8_decode_all` on `main` before A1's evidence
+  is complete. QA's re-run of the unfiltered test suite and the ASan run on `1405ada4` are still to do.
+
+**A13.7 Predictions scored at this ruling.**
+- **SF3** (D-GO, 0.45 H): ✅ **HIT.**
+- **SF5** (NET point in [1.0, 4.0], 0.50 H): ❌ **MISS** (6.56).
+- **SF4′** (U-OK at 0.30 × `U0`, 0.55 H): ❌ **MISS.**
+- **SF7** (A3′ passes, 0.60 H): ❌ **MISS** (on either population).
+- **Architect errors E10 and E11** are recorded in the ledger.
+
+**Waiting on QA:** the A13.3 recomputation; confirmation of A13.2's NET by band and A13.4's per-band FP flag, using
+`path` = 2; the committed analysis script; and the A1 evidence runs when the CPU is free. **Waiting on the Captain:**
+decision 1, and his go on QA's report commit (HK-033).
