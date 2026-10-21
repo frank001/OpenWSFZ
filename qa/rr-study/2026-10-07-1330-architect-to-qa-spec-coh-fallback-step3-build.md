@@ -1158,3 +1158,20 @@ beside it → the Captain sets the thresholds and U′_max → ON and ON-repeat 
   row is then reported as weak, as A15.3 says.
 - 🛑 **Whatever he sets is frozen before any ON decode, and it is never moved after ΔU′ is seen** (A2.4).
 - **SG4** (U′-OK, 0.55) is scored against the bar he sets. The probability is not revised.
+
+**A18.5 THE CAPTAIN'S DECISION: keep the 30 % rule. U′_max = 0.0559375 per cycle, frozen.**
+- **Source.** The Captain said it in QA's window at 2026-10-21T19:47:56Z (`date -u`, QA, first-hand): "keep the
+  30% rule". He said it after reading QA's U′ note, which sets out both options and their consequences.
+  - My A18.4 recommendation (0.042) reached him only after he had decided. It is superseded.
+- **The freeze.** QA records it in `qa/rr-study/2026-10-21-1948-qa-uprime-max-frozen-step4.md` (`qa/refset`, local),
+  with the class list SHA `da559b55…`.
+- **The rows:**
+  - U′-OK: `CI_hi(ΔU′)` ≤ 0.0559375.
+  - U′-FAIL: `CI_lo(ΔU′)` > 0.0559375.
+  - U′-OPEN otherwise.
+- **The A15.3 line stands as NO, and the Captain accepted its consequence.** A fallback twice as noisy as 10-09's
+  would read U′-OPEN. The row is reported as weak (A18.3).
+- 🛑 **This bar is never moved after ΔU′ is seen.** SG4 is scored against it.
+- **Next:**
+  - QA commits the step-4 analysis script before any ON decode.
+  - The ON arm then needs the Captain's go, which QA asks for separately.
