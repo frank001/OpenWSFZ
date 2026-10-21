@@ -1076,3 +1076,11 @@ ON-repeat → the ruling.
 
 **Order:** QA freezes A17.2(1) in its script → (Captain's go) OFF arm → the U′ note with the table and the default
 beside it → the Captain sets the thresholds and U′_max → ON and ON-repeat → the ruling.
+
+✅ **CAPTAIN'S DECISION, 2026-10-21 18:45Z (`date -u`), Architect's window: "go with your recommendations".**
+- **The thresholds are §16's default, n ≥ 10 and present rate ≥ 80 %.** They are frozen **now, before the OFF arm**,
+  together with the rest of the procedure. A17.2's after-the-OFF-arm option is **not used**, so there is no deviation
+  from §5 to record.
+- **The OFF arm has the go.** Pre-flight as §16 A16.3.
+- **The Captain's remaining decision is U′_max.** QA proposes 0.30 × U′0 with the half-width and the ≤ 0.042 line,
+  and he confirms it or sets his own before any ON decode.
