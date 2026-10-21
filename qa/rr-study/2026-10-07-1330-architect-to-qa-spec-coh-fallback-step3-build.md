@@ -1097,3 +1097,64 @@ beside it → the Captain sets the thresholds and U′_max → ON and ON-repeat 
     own distinct-payload count.
 - **The Captain's remaining decision is U′_max.** QA proposes 0.30 × U′0 with the half-width and the ≤ 0.042 line,
   and he confirms it or sets his own before any ON decode.
+
+## 18. The step-4 OFF arm and the U′ note, reviewed (Architect, 2026-10-21 ~19:5xZ by `date -u`)
+
+**Read:** QA's note `qa/rr-study/2026-10-21-1950-qa-uprime-note-step4-off-arm.md` (`qa/refset`, local) and
+`results/2026-10-21-coh-fallback-step4-off/{uprime_off.json, status.txt}`. No ON decode has run.
+
+**A18.1 The OFF arm is valid.**
+- The night was `20260922_2056`, 961 cycles, 18:51:24Z to 19:41:13Z.
+- Build `b8fc732e`. The DLL `aaf6b03e…` was hashed at both ends of the arm (V1 as amended). The selection SHA
+  `9ce4fbb4…7c28` was checked at launch.
+- Read back at both ends: flag false, Deep, nhard 24, OSD fix 1, shim 20260069.
+- 0 exceptions and 0 abandoned cycles. One cycle has `ws` = 0 and is excluded, paired, which leaves 960.
+- The procedure (`cf_uprime.py`, `93fa9d2b`) was committed before the arm ran. The `cf_fbid.py` blob was asserted
+  equal to `ecc4c5e7`. Every §16 pre-flight item is met.
+
+**A18.2 The class table and U′0 are as reported. I re-added them from `uprime_off.json`.**
+- **Testable classes:** RR73/73/RRR 47/50, grid 48/50, grid CQ 48/50, report 47/50. The lowest is 94 %, so no class
+  is near the 80 % line and A17.2's reopen condition does not arise.
+- **Untestable classes:** other CQ 2/50 (by rate) and other 8 (n < 10).
+- **The night's null p99** is 0.2759, against the frozen T of 0.276. There is no flag.
+- **U′0 = 179 / 960 = 0.1865**:
+  - tested-absent 36 (0.0375);
+  - hashed or unencodable 135 (0.1406);
+  - untestable class 8 (0.0083).
+- Of the 147 unconfirmed decodes in testable classes, 111 (76 %) show their tones.
+- **The proposal arithmetic checks.** U′_max = 0.0559. The A11.2 half-width at that level,
+  1.96 × √(2 × 0.0559 / 960), is 0.0212, and twice that is 0.0423 ≤ 0.0559, so A2.4(a) does not fire. The
+  A15.3 line reads **NO**.
+- The OK and FAIL thresholds QA solved for (0.038 / 0.082 at 0.0559; 0.027 / 0.065 at 0.042) use the same
+  A11.2 form at ΔU′ = the value. I re-solved them and they agree.
+
+**A18.3 What the A15.3 line could not say, and my error in writing it (ledger E21).**
+- The line asked whether the bar "would catch a fallback twice as noisy as 10-09's" by testing U′_max ≤ 0.042.
+- **That test is wrong.** A bar of 0.042 does not catch a true ΔU′ of 0.042: the estimate sits on the bar and the
+  row reads OPEN. QA's note shows this. To fail a fallback at 0.042, the bar must lie below
+  0.042 − 1.96 × √(2 × 0.042 / 960) = 0.024.
+- **At 960 cycles, no bar does both jobs.**
+  - Passing a 10-09-like fallback (0.021) needs a bar ≥ 0.021 + 0.013 = 0.034.
+  - Failing one twice as noisy needs a bar < 0.024.
+  - These conflict. With this sample the row cannot separate 1× from 2×, whatever the bar.
+- **What the bar chooses** is therefore where the OPEN band sits, i.e. which fallbacks pass as OK without coming
+  back to the Captain:
+  - **0.0559 (the 30 % rule):** OK up to about 0.038, i.e. up to about 1.8 × 10-09. FAIL from 0.082 (3.9 ×).
+  - **0.042 (fixed):** OK up to about 0.027 (1.3 ×). OPEN from 0.027 to 0.065. FAIL from 0.065 (3.1 ×).
+- **Scale, from the Stage 2 replay (HK-038, 10-09, not this night):**
+  - The fallback added about 1.7 confirmed decodes per cycle (2,057 over 1,211).
+  - ΔU′ = 0.042 would be about one counted decode per 25 cycles, roughly every 6 minutes of FT8. That is about
+    2.5 % of the fallback's confirmed yield.
+  - This is for scale only, not a bar: a ratio rule would read ON data and is not offered.
+
+**A18.4 My recommendation to the Captain: a fixed U′_max = 0.042. He decides.**
+- **Why:**
+  - It is the value my own A15.3 line was written to test against.
+  - A fallback like 10-09's still reads OK: at 0.021 the CI upper bound is about 0.034.
+  - A fallback 1.3–3 × noisier comes back to him as OPEN instead of passing silently as OK.
+- **The cost:** a higher chance of U′-OPEN from night-to-night variation, i.e. one more decision for him later. It is
+  not a block, because OPEN is not a breach. There is no merge pending either way.
+- **Keeping the 30 % rule** is also defensible. It is the rule he confirmed for U, and it was set before any data. The
+  row is then reported as weak, as A15.3 says.
+- 🛑 **Whatever he sets is frozen before any ON decode, and it is never moved after ΔU′ is seen** (A2.4).
+- **SG4** (U′-OK, 0.55) is scored against the bar he sets. The probability is not revised.
