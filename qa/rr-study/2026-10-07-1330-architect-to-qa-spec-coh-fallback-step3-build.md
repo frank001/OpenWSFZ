@@ -831,3 +831,92 @@ V1–V6 as amended).**
 **Order:** QA's (k) review of this amendment and the night inventory → the Developer handoff (QA) → the build → A2(e)
 → OFF arm → the U′ note → the Captain → ON and ON-repeat → the ruling. **Waiting on QA:** the (k) review and the
 inventory. **The Captain is waiting on nothing yet.** His next decision is U′_max, after the OFF arm.
+
+---
+
+## §15 Amendment 5: QA's (k) review of §14 adopted, with K2 replaced (Architect, 2026-10-21 16:4xZ by `date -u`; before any code or decode)
+
+**On:** QA `qa/refset` `bffe8544`, `2026-10-21-1646-qa-to-architect-k-review-s14-and-night-inventory.md`, read in
+full. Verdict: ACCEPTED, no row refused, with three required changes, K1–K3.
+
+**A15.1 K1 adopted: A3″(a) has no fallback-abandonment exception.**
+- The fallback starts after batch 3 (A14.1), so its own abandonment cannot change batches 1–3. Carrying the A3′
+  wording over was my error (ledger E15).
+- **A3″(a), restated.** Batches 1, 2 and 3 are identical, ON vs OFF, N/N. The **only** exception is a cycle where an
+  **ordinary pass** (residual or third) hit `SubtractionCycleBudget` in exactly one arm, read from the ordinary-pass
+  counters (`abandon.csv`), not from R12′.
+- Those cycles are counted and listed by slot. **Any other difference fails the row.**
+
+**A15.2 K2: QA is right that the margin is too thin. But both of its options fail the (k) test on data on file, so
+the row is replaced (HK-025(k), HK-038).**
+- **The check.** I took the ON-repeat vs ON pairs from §13's raw outputs. There the two runs are identical by
+  construction, so this is a zero-effect null. I put a block-40 bootstrap on the p95.
+
+| statistic, null (ON-repeat − ON, both published) | n | point | 95 % CI |
+|---|---:|---:|---|
+| p95, batch 2 | 326 | 119 ms | [76, 288] |
+| p95, batch 3 | 345 | 139 ms | [110, 412] |
+| **median**, batch 2 | 326 | −1.7 ms | **[−11.5, +10.6]** |
+| **median**, batch 3 | 345 | −2.2 ms | **[−11.2, +8.5]** |
+| median, §13 ON − OFF (the failed design), batch 2 | 1,005 | 86 ms | [65, 113] |
+| median, §13 ON − OFF (the failed design), batch 3 | 154 | 145 ms | [107, 253] |
+
+- **Option (ii), a CI on p95 against 150 ms,** would read OPEN for a build with **no effect at all** (CI_hi 288 and
+  412 ms). The row could never pass.
+- **Option (i), a point estimate with a floor,** keeps the 11 ms margin problem QA found.
+- **A tail statistic from about 150–1,000 cycles is too noisy to gate on. The median is not:** the null's CI is within
+  ±12 ms, and the design that failed sits 65–253 ms out.
+- **A3″(b), restated (mechanical, exclusive, first match wins):**
+  - **Statistic.** The median of the **signed** (ON − OFF) publish time, for batch 2 and for batch 3 separately. It is
+    read only on cycles where both arms published that batch (A14.4's population rule). Block-40 bootstrap,
+    B 10,000, seed 20261007.
+  - **FAIL** if `CI_lo` > 50 ms for either batch.
+  - **PASS** if `CI_hi` ≤ 50 ms for both.
+  - **OPEN** otherwise. An OPEN is not a merge verdict, and it goes to the Captain.
+- **Where 50 ms comes from (HK-038).** It is the Architect's decision value from A2.2 ("nothing beyond jitter"). It
+  was checked here against both branches on this harness:
+  - the null passes with ≈ 40 ms to spare;
+  - the §13 design fails (CI_lo 65 and 107 ms).
+- **The p95, as descriptive with its CI:** reported beside the same night's ON-repeat vs ON p95 and CI.
+- **My error (ledger E14):** I set a p95 point bar 11 ms above a floor without checking how noisy a p95 is.
+
+**A15.3 K3 adopted, with one correction of framing.**
+- **The correction.** 0.021 is 10-09's **observed** upper bound (A13.9), not a ceiling on what a new night can do. So
+  U′-FAIL is not impossible. The real problem is that the bar may sit so far above what is expected that the row
+  cannot catch a meaningful degradation. That is still a (k) defect, and K3's remedy fits it.
+- **The U′ note must report, before the Captain is asked:**
+  - U′0, split into tested-and-absent and untestable;
+  - U′_max = 0.30 × U′0;
+  - the projected half-width.
+- **It must also state one mechanical line:** "U′_max is / is not ≤ 2 × 0.021 = 0.042." In words: would this bar
+  catch a fallback twice as noisy as 10-09's?
+  - **If it is not,** the Captain chooses knowingly between keeping the 30 % rule (the row is weak, and is reported
+    as such) and a fixed value he names.
+  - **QA does not choose.**
+- **My error (ledger E16):** I did not check whether the U′ bar could discriminate, against A13.9's bound, before
+  registering it.
+
+**A15.4 Notes N1–N4 accepted as written.**
+- The depth is **Deep** (read back from the config).
+- V1 is a fail-closed re-hash at both ends of every arm.
+- The live R14 check covers wall time under live load (SG2 is a harness figure only).
+- A2(e) 100/100 on the parallel build is a QA acceptance step.
+
+**A15.5 The night: the Captain's choice (it trades independence against sample size).**
+- **`20260922_2056` (QA's and my recommendation).**
+  - Voicemeeter chain, 40 m (QA confirms the band correction before freezing), 12.0 h, gap-free, ≈ 960 cycles at
+    k = 3.
+  - **No verdict has read it.**
+  - The cost is a somewhat wider CI than 10-09's 1,211 cycles. By Stage 2's NET half-width (±0.6 pp), D-GO′'s 1.0 pp
+    bar is not at risk unless the gain falls about 5 pp.
+- **`20260930_1930`, the alternative.**
+  - ≈ 1,430 cycles.
+  - It is the OSD-FIX TEST night and the SUB-FEAS flag-ON replay night, so it is not independent of two other
+    verdicts.
+
+**A15.6 Predictions.**
+- SG1 refers to A3″ as restated here. Its probability is unchanged (0.75), and it is restated before any data, with
+  the precedent of RC-14's restatement.
+- SG2–SG5 are unchanged.
+
+**Order:** QA writes the Developer handoff on §14 + §15 now. The night is frozen once the Captain picks.
