@@ -1,6 +1,6 @@
 # QA: the U′ note for COH-FALLBACK step 4 (OFF arm read; U′_max for the Captain; no ON decode has run)
 
-**From:** QA. **To:** the Captain (decides U′_max), Architect. **Stamped:** 2026-10-21 ~19:50Z by `date -u`.
+**From:** QA. **To:** the Captain (decides U′_max), Architect. **Stamped:** 2026-10-21 ~19:45Z by `date -u` (the file name's 1950 was a guess made before the stamp; the freeze note below carries the checked time).
 **Spec:** `arch/coherent-limb2` step3-build.md §14 A14.3, §15 A15.3, §16 A16.3, §17 A17.2 and the Captain's decision of 2026-10-21 18:45Z ("go with your recommendations": the §16 default thresholds, frozen before the OFF arm).
 
 ## What was run (pre-flight, HK-020)
