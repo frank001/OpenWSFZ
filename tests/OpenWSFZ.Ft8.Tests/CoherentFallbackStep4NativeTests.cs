@@ -57,6 +57,7 @@ public sealed class CoherentFallbackStep4NativeTests
     [InlineData(8)]
     public void ParallelRows_EqualTheSingleThreadRun(int workers)
     {
+        int crcNewSeen = 0;
         foreach (int seed in Seeds)
         {
             var pcm = Synthesise(seed);
@@ -65,6 +66,7 @@ public sealed class CoherentFallbackStep4NativeTests
             var reference = Ft8LibInterop.CohFallbackRun(pcm, snap, -1, CancellationToken.None);
             var parallel = CohFallbackParallelRunner.Run(CohFallbackLibBackend.Instance, pcm, snap, -1, workers, CancellationToken.None)!;
 
+            crcNewSeen += reference.Stats.CrcNew;
             reference.Stats.Eligible.Should().BeGreaterThan(8, "seed {0}: enough candidates to share between workers", seed);
             parallel.Rows.Select(Key).Should().Equal(reference.Rows.Select(Key), "seed {0}, {1} workers", seed, workers);
             parallel.Workers.Should().Be(workers);
@@ -74,6 +76,7 @@ public sealed class CoherentFallbackStep4NativeTests
                 .Should().Be((r.Candidates, r.Decoded, r.DupPosition, r.Eligible, r.Attempted, r.CrcOk, r.CrcNew, r.F1bComputed, r.Gated, r.Abandoned, r.Edge),
                               "seed {0}, {1} workers", seed, workers);
         }
+        crcNewSeen.Should().BeGreaterThan(0, "at least one seed reaches a CRC-valid new output, so the equality covers the SNR / F1b path and context reuse, not just empty rows");
     }
 
     [Fact(DisplayName = "R15: the plan is the single-thread run's candidate list - the same eligible count, ordinals in increasing snapshot order, every row pre-filled as abandoned")]

@@ -455,6 +455,20 @@ public sealed class CoherentFallbackWiringTests
         line.Should().Contain("published=0,").And.Contain("batch=4, batch4Published=0, batch4PublishMs=-1.");
     }
 
+    [Fact(DisplayName = "R12': a publish callback that throws still leaves the cycle's line (written in a finally), with batch4Published=1")]
+    public async Task Log_WrittenEvenWhenThePublishThrows()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var d = Build(interop, DecodingDepth.Deep, true, log);
+
+        Func<Task> act = () => d.DecodeStagedAsync(LoudPcm(), CycleStart, null,
+            (n, _) => n == 4 ? throw new InvalidOperationException("sink failed") : Task.CompletedTask);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        log.Lines.Single(l => l.StartsWith("Coherent fallback:")).Should().Contain("batch=4, batch4Published=1,");
+    }
+
     [Fact(DisplayName = "R12': on Normal the line names batch=3")]
     public async Task Log_Normal_NamesBatch3()
     {

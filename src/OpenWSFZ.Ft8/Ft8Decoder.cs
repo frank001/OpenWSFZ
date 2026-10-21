@@ -446,7 +446,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     ///   <item><b>1</b> = pass 0, delivered exactly once, always (an empty batch 1 is a real cycle), as in <see cref="DecodeTwoStageAsync"/>;</item>
     ///   <item><b>2</b> = the residual pass's new decodes, delivered only when non-empty, mapped exactly like batch 1;</item>
     ///   <item><b>3</b> = the third pass's new decodes (decoding depth <see cref="DecodingDepth.Deep"/> only), delivered
-    ///   only when non-empty, mapped exactly like batch 2 with the same per-cycle text de-duplication set.</item>
+    ///   only when non-empty, mapped exactly like batch 2 with the same per-cycle text de-duplication set;</item>
+    ///   <item><b>4</b> (step 4) = the coherent fallback's own batch with <c>decoder.coherentFallbackEnabled</c> ON: batch 4 on Deep, batch 3 on
+    ///   Normal (where there is no third pass), delivered only when non-empty and after every ordinary batch.</item>
     /// </list>
     /// With the depth <see cref="DecodingDepth.Normal"/> this delivers exactly what <see cref="DecodeTwoStageAsync"/>
     /// would (batch 1, then batch 2), and the third pass code is not reached. The third pass is all-or-nothing: if it
@@ -455,7 +457,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <param name="pcm">15 s x 12 000 Hz mono PCM samples.</param>
     /// <param name="cycleStart">UTC instant the capture window began accumulating.</param>
     /// <param name="currentBand">The session's current band, or <c>null</c>.</param>
-    /// <param name="publishBatch">Called with the batch number (1, 2 or 3) and the batch. Awaited before the next stage begins.</param>
+    /// <param name="publishBatch">Called with the batch number (1, 2, 3 or 4) and the batch. Awaited before the next stage begins.</param>
     /// <param name="ct">Cancellation token.</param>
     public async Task DecodeStagedAsync(
         float[]                                              pcm,
@@ -1020,19 +1022,25 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             // same clock as batch 1's hand-off). -1 with batch4Published=0 when there is no fallback batch: never average the -1.
             double publishMs = -1.0;
             bool batchPublished = batch.Count > 0;
-            if (batchPublished)
-            {
-                publishMs = sw.Elapsed.TotalMilliseconds;
-                await onFallbackBatch!(batchNumber, batch).ConfigureAwait(false);
-            }
-
             var st = outcome.Stats;
-            _logger?.LogInformation(
-                "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
-                "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
-                "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}.",
-                st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
-                outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs);
+            try
+            {
+                if (batchPublished)
+                {
+                    publishMs = sw.Elapsed.TotalMilliseconds;
+                    await onFallbackBatch!(batchNumber, batch).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                // The R12' line is written even when the caller's publish throws (batch4Published=1: the hand-off was attempted).
+                _logger?.LogInformation(
+                    "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
+                    "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
+                    "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}.",
+                    st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
+                    outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs);
+            }
         }
     }
 
