@@ -6,6 +6,19 @@
 
 **Verdict: APPROVED to proceed to acceptance. No blocking defect. Four non-blocking notes (R-1 to R-4), one of which I ask the Developer to take before the Captain's merge decision.**
 
+Reviewed-commit: db3d7df5a943f4c9e5b51b0e9aa1fa4ffee509bd
+Reviewed-commit: b8fc732ec679744ca8340612c7203b6d0c6411f4
+(These lines are what the HK-039 hook reads. A record covers a commit only if its full 40-hex hash appears here with a `Verdict:` line.)
+
+## Addendum, same day: the follow-up commit `b8fc732e` (R-1, R-2, R-3)
+
+Read in full: `git diff db3d7df5 b8fc732e` (3 files, +38 / −13), managed code and tests only. Verdict: **APPROVED**.
+- **R-2 fixed correctly.** The batch callback is now inside `try { … } finally { log }`. The line is written whether the publish returns or throws, `batch4Published=1` records that the hand-off was attempted, and `st` is read before the `try` so the `finally` cannot fail on it. A test covers the throwing publish. The exception still propagates to the caller, as before.
+- **R-1 fixed.** `crcNewSeen` is summed across the seeds and asserted greater than zero, so the 1/2/8-worker equality now covers the SNR/F1b path.
+- **R-3 fixed.** The `DecodeStagedAsync` XML doc lists batch 4 and the parameter text says 1, 2, 3 or 4.
+- No native change: the DLL and SO blobs are the same as at `db3d7df5` (SHA-256 `aaf6b03e…` and `0197f9ce…`).
+- The Developer's full unfiltered `dotnet test OpenWSFZ.slnx` on `b8fc732e` is reported as exit 0 with 0 failures (their figure; QA did not re-run it).
+
 Mistake of mine, recorded: I told the Developer and Architect I would wait for the commit and run acceptance, and I started the A2(e) run **before** reviewing the code. Review precedes acceptance. The run was stopped by the Captain before it executed; nothing ran.
 
 ## What I checked against the handoff
