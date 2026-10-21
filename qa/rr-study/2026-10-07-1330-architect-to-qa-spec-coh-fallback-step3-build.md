@@ -1175,3 +1175,20 @@ beside it → the Captain sets the thresholds and U′_max → ON and ON-repeat 
 - **Next:**
   - QA commits the step-4 analysis script before any ON decode.
   - The ON arm then needs the Captain's go, which QA asks for separately.
+
+**A18.6 SUPERSEDES A18.5: the Captain changed his decision before any ON decode. U′_max = 0.042 per cycle (fixed),
+frozen.**
+- **Source.** In the Architect's window at 2026-10-21T19:49:24Z (`date -u`, first-hand), after reading the A18.4
+  recommendation with both options and their consequences, he said: "alright, go with your recommendations."
+  - The only open recommendation was the fixed 0.042.
+  - No ON decode had run, so this is still the before-ON setting that A14.3 and A15.3 allow.
+  - A18.5 (0.0559375, 19:47:56Z) is kept as the record of the earlier choice.
+- **The rows:**
+  - U′-OK: `CI_hi(ΔU′)` ≤ 0.042.
+  - U′-FAIL: `CI_lo(ΔU′)` > 0.042.
+  - U′-OPEN otherwise.
+- **What the rows can resolve (A11.2):** OK needs ΔU′ ≤ about 0.027, FAIL needs ΔU′ ≥ about 0.065. A2.4(a) does
+  not fire: 2 × 0.0183 = 0.0367 ≤ 0.042.
+- **The weakness is the same as in A18.3.** A fallback twice as noisy as 10-09's sits on the bar and reads OPEN.
+- 🛑 **Never moved after ΔU′ is seen.** SG4 is scored against 0.042.
+- QA re-freezes its note and puts 0.042 into the analysis script before any ON decode.
