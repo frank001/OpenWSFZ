@@ -710,3 +710,124 @@ changes no verdict in §13.
 **Waiting on QA:** the A13.3 recomputation (done, A13.8); confirmation of A13.2's NET by band and A13.4's per-band FP flag, using
 `path` = 2; the committed analysis script. ~~and the A1 evidence runs when the CPU is free~~ 🔴 **Withdrawn (2026-10-21, QA, relayed by the Captain): A1 evidence is a merge gate, and no merge is pending (A13.5), so it is not owed now. It runs only if a later build is put up for merge. Listing it as waiting was my error (ledger E13).** **Waiting on the Captain:**
 decision 1, and his go on QA's report commit (HK-033).
+
+---
+
+## §14 Amendment 4 (step 4, R′): the timing-only redesign. The fallback runs after batch 3, in parallel, and publishes in batch 4; tested on a fresh night (Architect, 2026-10-21 16:37Z by `date -u`; before any code)
+
+**Authorised:** the Captain, Architect's window, 2026-10-21: *"go with the timing-only redesign"*. He also asked
+*"can we even speed it up more, like using c/c++?"*, which A14.2 answers. **This amendment authorises a build and a
+replay. Merge (HK-010) and default ON stay the Captain's.** It goes `To: QA`. QA writes the Developer handoff (HK-015).
+`src/` and `native/` need a separate Developer session (HK-011).
+
+**What stays.** The fallback's method stays as it is: R1, R2′, R3, R4′, R5, R6″, R8, R9, R10, R11, R12′ and R13. Its
+per-candidate native code (`coherent_fallback.c`, A2 PASS) is **not touched**, except for the threading in A14.2.
+**Rejected:** a stricter gate aimed at U (A13.9: it would mostly cut real decodes).
+
+**A14.1 R6‴ / R7‴: when the fallback runs and where it publishes (replaces R6′ and R7′).**
+- **Start.** The fallback starts only **after the cycle's last ordinary batch has been handed off**: batch 3 on Deep,
+  batch 2 on Normal. On Deep, that is after the third pass, whether or not batch 3 had any decodes. **Nothing in the
+  fallback may run concurrently with pass 0, the residual pass or the third pass.** That is what removes the
+  contention behind A3′(b) (A13.3).
+- **Publish.** The fallback's decodes go out as a **batch of their own**, after every ordinary batch: batch 4 on Deep,
+  batch 3 on Normal. It is delivered only if it is non-empty.
+  - The same per-cycle `seen` dedup, `IsPlausibleMessage`, noise-suppression filter and R6″ apply.
+- **Deadline.** It shares the 13 s cycle budget (`SubtractionCycleBudget`, `Ft8Decoder.cs:108`). Unfinished work is
+  abandoned, never queued, and counted (R12′).
+- **R14 (new): the extra batch reaches the QSO services and the panel.** `LateBatch` and the QSO channels
+  (`Program.cs:345-348`, "up to 3 batches per cycle", capacity 8) must carry **up to 4 batches per cycle** with the
+  flag ON.
+  - The Developer recomputes the capacity and records the arithmetic with FILE:LINE.
+  - **With the flag OFF, the capacity and the behaviour are unchanged** (R13).
+  - Unit tests cover the 4-batch case: no drop, the order kept, and the reply-deferral logic applied to batch 4
+    exactly as to any late batch.
+
+**A14.2 Speed: the Captain's question, answered.**
+- **The fallback is already C.** `ft8_coherent_fallback_at` and the cycle loop live in `libft8`
+  (`native/ft8_lib_vendor/refine/coherent_fallback.c`, `ft8_shim.c`). C# only calls them. Rewriting it in C or C++
+  would gain nothing.
+- **Where the time goes.** The loop runs over about 140–170 eligible candidates per cycle, **on one thread**. It took a
+  median of 1.40 s, p95 2.31 s and max 3.32 s on the ON arm (`coh.csv`, 1,211 cycles), and that was while it competed
+  with the ordinary passes.
+- **R15 (new): parallel over candidates.**
+  - The cycle loop splits the eligible candidates across `EffectiveSubtractionThreads` worker threads
+    (`Ft8Decoder.cs:93`, 8 on the station). After batch 3, those threads have nothing else to run.
+  - The per-candidate code has no mutable global state (`coherent_fallback.c:31`), so each candidate is independent.
+  - **Determinism is required.** Results are gathered **in candidate order** before F1b, dedup and R6″, so the
+    published set and its order do not depend on scheduling. V6 checks this. A2(e)'s mode switch stays in the harness.
+  - **Projected: about 0.2–0.4 s median.** That is 1.40 s ÷ 8 with an allowance for imperfect scaling. **This is my
+    arithmetic, not a measurement.** S4-T (A14.4) measures it.
+- **Not now: the shared per-cycle downconversion and SIMD.** R1 already allows both as "equivalent iff A2 passes".
+  They are worth doing only if S4-T or the old-CPU station shows the parallel version is still too slow. Each would
+  need A2 re-run.
+- **Why speed still matters once nothing waits for it.** Batch 4 arrives later than batch 3, so these decodes show up
+  later in the panel. A reply to one of them is more likely to be deferred (A14.4 reports this). On a slower CPU (the
+  `sol` class) the budget is tighter.
+
+**A14.3 The fresh night, and a U instrument the fallback cannot fool (replaces U for this replay only; HK-038).**
+- **Corpus.** QA lists every `artefacts/` folder (rule 2026-10-03) and picks **one 40 m night that is none of 10-04
+  (T1 training), 10-09 (§13) and 10-19 (Q-GATE-2)**. It needs full-cycle WAVs and WSJT-X's `ALL.TXT`.
+  - The Voicemeeter chain is preferred, since 10-09 already covered direct-CODEC.
+  - Sample with an odd *k*, V-P, a frozen `selection.json` and its SHA, before any decode, as A1.4.
+  - **If no such night exists,** QA says so and the Captain decides between waiting for one and a recorded night that
+    is not independent. No decode runs until he does.
+- **U′, the instrument.** The tone-presence test of A13.9 (`qa/rr-study/coh-fallback/cf_fbid.py` @ `ecc4c5e7`, null
+  and T frozen as committed) is applied to every **Test-B not-confirmed** decode in both arms.
+  - **U′_i** = the cycle's not-confirmed decodes that are **not shown present**.
+  - **Not shown present** = tones below T, **or untestable** (hashed text, or a shape on which the instrument fails
+    its own confirmed control, e.g. "other CQ").
+  - Counting untestable decodes as not shown present is the conservative rule. It makes U′ an upper bound, as U was.
+  - **ΔU′** = the mean over cycles of (U′_on − U′_off), paired, with the same bootstrap as §5.3.
+- **The bar is set before any ON decode.**
+  - QA runs the OFF arm first and computes **U′0** = the OFF arm's U′ per cycle.
+  - QA proposes **U′_max = 0.30 × U′0** (the Captain's 30 % rule, §9) and the projected half-width (A2.4(a)), in a
+    dated note.
+  - **The Captain confirms it or names a value, before any ON decode.**
+  - **Rows:** U′-OK `CI_hi(ΔU′)` ≤ U′_max; U′-FAIL `CI_lo(ΔU′)` > U′_max; U′-OPEN otherwise.
+  - The old Test-B ΔU is reported beside it, descriptive only.
+- ⚠️ **What 10-09 lets me say, and what it doesn't.** On 10-09 the fallback's ΔU′ would have been at most
+  0.005–0.021 per cycle (A13.9). OFF's U′0 is unknown: batch 1's own unconfirmed decodes were never tone-tested. If
+  most of them turn out to be real, U′0 is small and so is the bar. The Captain's confirmation step exists for exactly
+  that.
+
+**A14.4 Acceptance on the step-4 replay (same harness and design as §5.3 with A1.5; arms OFF, ON, ON-repeat; V-rows
+V1–V6 as amended).**
+- **V1 now needs a pin at the start and the end of every arm** (A13.1).
+
+| row | predicate | guards | where the number comes from (HK-038) |
+|---|---|---|---|
+| **A3″ (a) content** | batches 1, 2 and 3 identical ON vs OFF, N/N, except cycles explained by abandonment in one arm (≤ 5 %, V5) | merge, default ON | by construction (A14.1) |
+| **A3″ (b) time** | for batches 2 and 3, on the cycles where **both arms published that batch**: p95 of (ON − OFF) ≤ **150 ms** | merge, default ON | the measured repeat noise floor on this harness, p95 119 ms (batch 2) and 139 ms (batch 3), A13.8, rounded up. "Not delayed beyond what a repeat of itself shows" |
+| **S4-T fallback time** | descriptive, mandatory: the batch-4 publish time from decode start and the fallback's wall time (median, p95, max) | — | — |
+| **D-GO′** | `CI_lo(NET)` ≥ **1.0 pp** (D-STOP and D-OPEN as §5.3) | default ON | `BAR_G`, unchanged |
+| **U′** | A14.3 | default ON | the Captain's bar, set before ON |
+
+- **Population rule, written in this time** (E9, E10): every timing statistic is read **only on cycles where the
+  batch is published in both arms**. The counts for ON-only, OFF-only and neither are reported beside it.
+- **Descriptive, mandatory:**
+  - NET and ΔU′ by band.
+  - The FP-watch per band, on U′.
+  - R12′ counters and the abandonment count.
+  - **How many batch-4 decodes would miss the 2.36 s reply guard.** If the live decode-start offset is not recorded,
+    that is said and the count is not reported (A2.2).
+- **R14 live check before default ON (not a merge gate).** One live session on the station with the flag ON shows
+  batch 4 reaching the panel and both QSO services, with no channel drops (the daemon log). QA specifies it after the
+  replay.
+- **Merge** needs A1, A2 (carried; A2(e) re-run on the parallel build, 100/100), A3″, the unit tests and the
+  Captain's sign-off. **Default ON** needs D-GO′, U′-OK, the R14 live check and the Captain's decision.
+
+**A14.5 Predictions (registered before any code or data).**
+
+| # | prediction | P | class |
+|---|---|---:|:---:|
+| SG1 | A3″ passes, (a) and (b) | 0.75 | H |
+| SG2 | fallback wall time median ≤ 0.5 s on the station (R15) | 0.65 | C |
+| SG3 | D-GO′ on the fresh night | 0.70 | H |
+| SG4 | U′-OK at the bar the Captain confirms | 0.55 | H |
+| SG5 | A2(e) N/N on the parallel build, first run | 0.85 | C |
+
+⚠️ SG4 sits near even on purpose: U′0's size is unknown (A14.3), and so is the bar.
+
+**Order:** QA's (k) review of this amendment and the night inventory → the Developer handoff (QA) → the build → A2(e)
+→ OFF arm → the U′ note → the Captain → ON and ON-repeat → the ruling. **Waiting on QA:** the (k) review and the
+inventory. **The Captain is waiting on nothing yet.** His next decision is U′_max, after the OFF arm.
