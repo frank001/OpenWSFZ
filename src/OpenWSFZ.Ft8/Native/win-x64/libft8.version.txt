@@ -1,4 +1,28 @@
-=== CURRENT: COH-FALLBACK (A' step 3) Stage 2, product wiring (FT8_SHIM_VERSION 20260068) ===
+=== CURRENT: COH-FALLBACK (A' step 4), the parallel cycle (FT8_SHIM_VERSION 20260069) ===
+
+Built 2026-10-21 on feat/coh-fallback-stage1 after 1405ada4 (shim 20260068), local, not pushed. QA handoff
+dev-tasks/2026-10-21-coh-fallback-step4.md (qa/refset); the Architect's spec section 14 (Amendment 4) as changed by section 15.
+Version: bumped (20260068 was the Stage 2 build QA measured; a changed binary must not share its label).
+What changed (native): four NEW exports, appended to ft8_shim.c; nothing else.
+  ft8_coherent_fallback_plan     the eligible candidates of a snapshot in candidate order (same dedup rule as _run), one row each
+      pre-filled as ABANDONED exactly as _run starts it;
+  ft8_coherent_fallback_ctx_new / _ctx_free  one scratch context per worker thread;
+  ft8_coherent_fallback_process  ONE eligible candidate into its own row, adding its counts and times to a caller-owned accumulator;
+      _run's per-candidate body statement for statement; it touches only its context, its row, the accumulator and the read-only
+      snapshot and PCM (no hash table, no counter, no thread-local state).
+The worker split, the deadline and the gather in candidate order are managed (CohFallbackParallelRunner); the native side stops nowhere.
+Unchanged, mechanically (git diff 1405ada4 over native/ and the two source files): ft8_coherent_fallback_at, ft8_coherent_fallback_cycle,
+ft8_coherent_fallback_run, _snapshot, _unpack, cf_estimate / cf_f1b_db / cf_v3_llrs / cf_process_one / cf_snr_db, ft8_decode_all and every
+other export and struct; the shim and coherent_fallback.c differ by appended lines only (coherent_fallback.c not touched at all).
+
+  Windows x64 (rebuild_shim.bat, MSVC): SHA256
+    aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    0197f9ce0ac3008d3eba11bb09ec49d35931219e1d5edbb4d83b161ba9b3ea90
+    tools/check_native_version.py reports shim 20260069 for both files built here.
+
+
+=== Previous: COH-FALLBACK (A' step 3) Stage 2, product wiring (FT8_SHIM_VERSION 20260068) ===
 
 Built 2026-10-20 on feat/coh-fallback-stage1 after d926bdc6 (shim 20260067), local, not pushed. QA handoff
 dev-tasks/2026-10-20-coh-fallback-step3-stage2.md (qa/refset); the Architect's spec R6-R13 as amended (A1.2, A3, A12.1).

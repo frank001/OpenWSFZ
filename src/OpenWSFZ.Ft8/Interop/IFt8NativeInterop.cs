@@ -250,11 +250,19 @@ internal interface IFt8NativeInterop
     byte[]? CohFallbackSnapshot() => null;
 
     /// <summary>
-    /// COH-FALLBACK Stage 2: runs the fallback over a snapshot, on any thread. <paramref name="budgetMs"/> &lt; 0 = no deadline.
-    /// Candidates not started by the deadline (or after <paramref name="ct"/> is cancelled) are counted abandoned, never queued.
-    /// Default: <c>null</c> (no fallback).
+    /// COH-FALLBACK step 4 (shim 20260069): the native side of the parallel fallback cycle (plan + one context per worker + one candidate
+    /// at a time). Default: <c>null</c> (a fake does not model the fallback, or overrides <see cref="CohFallbackRun"/> itself).
     /// </summary>
-    CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, CancellationToken ct) => null;
+    ICohFallbackBackend? CohFallbackBackend => null;
+
+    /// <summary>
+    /// COH-FALLBACK step 4 (R15): runs the fallback over a snapshot on up to <paramref name="workers"/> threads and returns the rows in
+    /// candidate order, whatever the scheduling. <paramref name="budgetMs"/> &lt; 0 = no deadline. Candidates not started by the deadline
+    /// (or after <paramref name="ct"/> is cancelled) are counted abandoned, never queued; they are always a suffix of candidate order.
+    /// Default: runs <see cref="CohFallbackBackend"/> through <see cref="CohFallbackParallelRunner"/>, or <c>null</c> when there is none.
+    /// </summary>
+    CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
+        => CohFallbackBackend is { } backend ? CohFallbackParallelRunner.Run(backend, pcm, snapshot, budgetMs, workers, ct) : null;
 
     /// <summary>
     /// COH-FALLBACK Stage 2: the message text of a payload through the ordinary message decode (touches the session hash table: no other

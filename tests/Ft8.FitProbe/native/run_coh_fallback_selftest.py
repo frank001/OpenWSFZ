@@ -7,6 +7,7 @@ set rebuild_shim.bat / build_linux.sh compile), with the shipped flags (MSVC /st
 (default: a temp folder).
 
 AddressSanitizer + UBSan: set COHFB_ASAN=1 on a non-Windows host (gcc/clang) to build with -fsanitize=address,undefined.
+ThreadSanitizer: set COHFB_TSAN=1 (non-Windows) to build with -fsanitize=thread (the multi-thread block of the step 4 exports).
 
 Usage: python run_coh_fallback_selftest.py [<scratch_dir>]
 Exit code: the self-test's (0 = every assertion held), 3 when it could not be built (no compiler found).
@@ -97,8 +98,12 @@ else:
         print('no C compiler found')
         sys.exit(3)
     asan = os.environ.get('COHFB_ASAN') == '1'
+    tsan = os.environ.get('COHFB_TSAN') == '1'
     flags = ['-std=c11', '-D_GNU_SOURCE']
-    if asan:
+    if tsan:
+        flags += ['-O1', '-g', '-fsanitize=thread', '-fno-omit-frame-pointer']
+        print('ThreadSanitizer build')
+    elif asan:
         flags += ['-O1', '-g', '-fsanitize=address,undefined', '-fno-omit-frame-pointer']
         print('AddressSanitizer + UBSan build')
     else:

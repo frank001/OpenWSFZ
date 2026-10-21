@@ -831,8 +831,15 @@ extern "C" {
  *              one payload to text through the ordinary message decode (the fallback's only hash-table access, R9).
  *              ft8_coherent_fallback_at, ft8_coherent_fallback_cycle, cf_estimate / cf_f1b_db / cf_v3_llrs, ft8_decode_all and every
  *              other export and struct are unchanged.
+ *
+ *   20260069 — COH-FALLBACK step 4 (the parallel cycle, R15): four NEW exports, nothing else changes. ft8_coherent_fallback_plan lists the
+ *              eligible candidates of a snapshot (candidate order, each row pre-filled as abandoned); ft8_coherent_fallback_ctx_new /
+ *              _ctx_free give one scratch context per worker thread; ft8_coherent_fallback_process runs ONE eligible candidate into its own
+ *              row, with ft8_coherent_fallback_run's per-candidate body statement for statement. The managed side owns the worker split,
+ *              the deadline and the gather in candidate order. ft8_coherent_fallback_run, _at, _cycle, _snapshot, _unpack, the F1b code
+ *              and every other export and struct are unchanged.
  */
-#define FT8_SHIM_VERSION 20260068
+#define FT8_SHIM_VERSION 20260069
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1615,6 +1622,31 @@ int ft8_coherent_fallback_run(
  * -2 the message did not decode, -3 contained access violation. NOT thread-safe against ft8_decode_all: the caller must hold the
  * decode gate and run no other decode at the same time. */
 int ft8_coherent_fallback_unpack(const uint8_t* payload, char* text_out, int cap);
+
+/* ── COH-FALLBACK step 4 (shim 20260069): the per-candidate exports for the parallel cycle ──────────────────────────────────── */
+
+/* Lists the eligible candidates of a snapshot (not decoded, each lattice position once), in candidate order: cand_index[e] is the
+ * snapshot index of eligible candidate e, out[e] the row for it, pre-filled as ABANDONED exactly as ft8_coherent_fallback_run starts
+ * it. cap must be >= the snapshot's candidate count (the same sizing rule as _run); cand_index and out hold cap entries. stats receives
+ * n_candidates, n_decoded, n_dup_position, n_eligible and n_rows (the rest 0). Returns the number of eligible candidates; -1 bad
+ * arguments. Writes no shared state. */
+int ft8_coherent_fallback_plan(
+    const void* snapshot, int snapshot_len, int32_t* cand_index,
+    FT8CohFallbackOut* out, int cap, FT8CohFallbackCycleStats* stats);
+
+/* One scratch context for ft8_coherent_fallback_process: one per worker thread, never shared between threads. NULL when out of memory. */
+void* ft8_coherent_fallback_ctx_new(void);
+void  ft8_coherent_fallback_ctx_free(void* ctx);
+
+/* Runs ONE eligible candidate (snapshot index cand_index, as ft8_coherent_fallback_plan gave it) into *out and ADDS its counts and
+ * times to *acc (n_attempted, n_edge, n_crc_ok, n_crc_new, n_f1b_computed, n_gated, estimate_ms, f1b_ms, c3_bp_ms). It does not check a
+ * deadline: the caller decides whether to start a candidate. Returns 0; -1 bad arguments (also a decoded candidate); -2 contained
+ * access violation (the context must then be freed, not reused). Thread-safe: it touches only ctx, *out, *acc and reads the snapshot
+ * and PCM. */
+int ft8_coherent_fallback_process(
+    void* ctx, const float* pcm, int pcm_len, const void* snapshot, int snapshot_len, int cand_index,
+    FT8CohFallbackOut* out, FT8CohFallbackCycleStats* acc);
+
 
 #ifdef __cplusplus
 }

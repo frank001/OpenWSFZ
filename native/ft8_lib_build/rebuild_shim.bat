@@ -214,6 +214,10 @@ link /DLL ^
   /EXPORT:ft8_coherent_fallback_snapshot ^
   /EXPORT:ft8_coherent_fallback_run ^
   /EXPORT:ft8_coherent_fallback_unpack ^
+  /EXPORT:ft8_coherent_fallback_plan ^
+  /EXPORT:ft8_coherent_fallback_ctx_new ^
+  /EXPORT:ft8_coherent_fallback_ctx_free ^
+  /EXPORT:ft8_coherent_fallback_process ^
   /EXPORT:ft8_hash_state_restore ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^

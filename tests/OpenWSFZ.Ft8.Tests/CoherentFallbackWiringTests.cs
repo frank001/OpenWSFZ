@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using OpenWSFZ.Abstractions;
@@ -8,11 +9,14 @@ using Xunit;
 namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
-/// COH-FALLBACK (A' step 3) Stage 2: the product wiring, behind <c>decoder.coherentFallbackEnabled</c> (default false).
-/// Requirements R6' (publish slot), R7' (shared budget, abandon never queue, batch 2 never delayed), R6'' (one output per payload,
-/// non-edge first), R4'/R12' (the log line), R11 (the path tag), R13 (flag OFF = nothing changes), R9 (the early decode never runs it).
-/// The native calls are faked (scripted per cycle) exactly as in <see cref="ThirdPassDeepTests"/>; the fallback's own numerical work
-/// is covered by the native self-test and <see cref="CoherentFallbackStage2NativeTests"/>.
+/// COH-FALLBACK (A' step 3) Stage 2 as amended by step 4 (spec section 14): the product wiring, behind
+/// <c>decoder.coherentFallbackEnabled</c> (default false). Requirements R6-triple-prime / R7-triple-prime (the fallback starts only after the
+/// cycle's last ordinary batch has been handed off and publishes as a batch of its own: 4 on Deep, 3 on Normal, only if non-empty; shared
+/// budget; abandon never queue), R6'' (one output per payload, non-edge first), R12' (the log line and its step 4 fields), R11 (the path
+/// tag), R13 (flag OFF = nothing changes), R9 (the early decode never runs it). Order is asserted from a recorded event list, never from
+/// timing. The native calls are faked (scripted per cycle) exactly as in <see cref="ThirdPassDeepTests"/>; the fallback's own numerical work
+/// is covered by the native self-test and <see cref="CoherentFallbackStage2NativeTests"/>, the parallel scheduling by
+/// <see cref="CoherentFallbackParallelRunnerTests"/>.
 ///
 /// <para>🔒 NFR-021 / HK-037: synthetic Q-prefix messages only; assertions on counts, order, identity and aggregates.</para>
 /// </summary>
@@ -44,11 +48,12 @@ public sealed class CoherentFallbackWiringTests
 
     /// <summary>
     /// A scripted native interop. DecodeAll answers by call number (1 = pass 0, 2 = residual, 3 = third pass); the fallback methods are
-    /// scripted per cycle and every call is recorded.
+    /// scripted per cycle and every call is recorded, in order, together with the batches the test's callback receives.
     /// </summary>
     private sealed class FallbackInterop(Ft8NativeResult[][] decodes, CohFallbackRunResult? run) : IFt8NativeInterop
     {
         private readonly object _gate = new();
+        private int _ordinaryActive;
         public int MaxDecodePasses => 2;
         public int DecodeAllCallCount { get; private set; }
         public int AnalyticCallCount { get; private set; }
@@ -57,22 +62,30 @@ public sealed class CoherentFallbackWiringTests
         public int SnapshotCalls, RunCalls, UnpackCalls;
         public int DecodeAllThreadId = -1, SnapshotThreadId = -1;
         public double? RunBudgetMs;
+        public int? RunWorkers;
         public float[]? RunPcm;
 
-        /// <summary>When set, the fallback run blocks until it is released (to prove batch 2 does not wait for it).</summary>
-        public ManualResetEventSlim? RunGate { get; init; }
-        public ManualResetEventSlim RunStarted { get; } = new(false);
+        /// <summary>How many ordinary native calls (decode, analytic, fit) were in flight when the fallback run was called.</summary>
+        public int OrdinaryActiveAtRun = -1;
+
         public Exception? RunThrows { get; init; }
 
         /// <summary>payload id (first byte) to message text for the unpack; a missing id does not decode.</summary>
         public Dictionary<int, string> Texts { get; init; } = new();
 
+        /// <summary>Records a non-native event (a delivered batch) in <see cref="Calls"/>, in order with the native calls.</summary>
+        public void Note(string what) { lock (_gate) Calls.Add(what); }
+
         public Ft8NativeResult[] DecodeAll(float[] pcm)
         {
             int n;
-            lock (_gate) { n = ++DecodeAllCallCount; Calls.Add("decode" + n); }
-            if (n == 1) DecodeAllThreadId = Environment.CurrentManagedThreadId;
-            return n <= decodes.Length ? decodes[n - 1] : [];
+            lock (_gate) { n = ++DecodeAllCallCount; Calls.Add("decode" + n); _ordinaryActive++; }
+            try
+            {
+                if (n == 1) DecodeAllThreadId = Environment.CurrentManagedThreadId;
+                return n <= decodes.Length ? decodes[n - 1] : [];
+            }
+            finally { lock (_gate) _ordinaryActive--; }
         }
 
         public byte[]? CohFallbackSnapshot()
@@ -82,11 +95,9 @@ public sealed class CoherentFallbackWiringTests
             return [1, 2, 3, 4];
         }
 
-        public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, CancellationToken ct)
+        public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
         {
-            lock (_gate) { RunCalls++; Calls.Add("run"); RunBudgetMs = budgetMs; RunPcm = pcm; }
-            RunStarted.Set();
-            if (RunGate is not null) RunGate.Wait(TimeSpan.FromSeconds(30));
+            lock (_gate) { RunCalls++; Calls.Add("run"); RunBudgetMs = budgetMs; RunWorkers = workers; RunPcm = pcm; OrdinaryActiveAtRun = _ordinaryActive; }
             if (RunThrows is not null) throw RunThrows;
             return run;
         }
@@ -106,7 +117,7 @@ public sealed class CoherentFallbackWiringTests
 
         public (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm)
         {
-            lock (_gate) AnalyticCallCount++;
+            lock (_gate) { AnalyticCallCount++; Calls.Add("analytic"); }
             return (new float[pcm.Length], new float[pcm.Length]);
         }
 
@@ -163,12 +174,13 @@ public sealed class CoherentFallbackWiringTests
         public string[] Messages => Results.Select(r => r.Message).ToArray();
     }
 
-    private static async Task<List<Delivered>> RunStaged(Ft8Decoder decoder, Action<int>? onBatch = null)
+    private static async Task<List<Delivered>> RunStaged(Ft8Decoder decoder, FallbackInterop? interop = null, Action<int>? onBatch = null)
     {
         var got = new List<Delivered>();
         await decoder.DecodeStagedAsync(LoudPcm(), CycleStart, null, (n, b) =>
         {
             got.Add(new Delivered(n, b.ToArray()));
+            interop?.Note("batch" + n);
             onBatch?.Invoke(n);
             return Task.CompletedTask;
         });
@@ -179,7 +191,7 @@ public sealed class CoherentFallbackWiringTests
     private static readonly Ft8NativeResult[] Resid = [Msg("Q1DEF Q1UVW EN37", 2100)];
     private static readonly Ft8NativeResult[] Third = [Msg("Q1MNO Q1PQR IO91", 2400)];
 
-    private static CohFallbackRunResult OneNew(int id = 1) => new(Stats(1, 1, 1, 1, 1, 0), [Row(id)]);
+    private static CohFallbackRunResult OneNew(int id = 1) => new(Stats(1, 1, 1, 1, 1, 0), [Row(id)]) { Workers = 4 };
 
     // ── R10: the flag ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -202,71 +214,80 @@ public sealed class CoherentFallbackWiringTests
         d.CoherentFallbackEnabled.Should().BeFalse();
     }
 
-    // ── R6': the slot ─────────────────────────────────────────────────────────────────────────────────────────
+    // ── R6''' : the batch of its own ─────────────────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "R6': Deep - batches 1 and 2 equal flag-OFF's, batch 3 = the third pass's decode then the fallback's, no batch number beyond 3")]
-    public async Task Deep_FallbackJoinsBatch3()
+    [Fact(DisplayName = "R6''': Deep - batches 1, 2 and 3 equal flag-OFF's, the fallback is batch 4 on its own (no text of it in batch 3)")]
+    public async Task Deep_FallbackIsBatch4()
     {
         var off = await RunStaged(Build(new FallbackInterop([Pass0, Resid, Third], null), DecodingDepth.Deep, fallback: false));
         var interop = new FallbackInterop([Pass0, Resid, Third], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
-        var on = await RunStaged(Build(interop, DecodingDepth.Deep, fallback: true));
+        var on = await RunStaged(Build(interop, DecodingDepth.Deep, fallback: true), interop);
 
-        on.Select(b => b.Batch).Should().Equal(1, 2, 3);
-        on[0].Messages.Should().Equal(off[0].Messages, "batch 1 is untouched");
-        on[1].Messages.Should().Equal(off[1].Messages, "batch 2 is untouched");
-        on[2].Messages.Should().Equal("Q1MNO Q1PQR IO91", "Q1AAA Q1BBB RR73");
-        off[2].Messages.Should().Equal("Q1MNO Q1PQR IO91");
+        on.Select(b => b.Batch).Should().Equal(1, 2, 3, 4);
+        for (int i = 0; i < 3; i++)
+            on[i].Messages.Should().Equal(off[i].Messages, "batch {0} is untouched by the flag", i + 1);
+        on[3].Messages.Should().Equal("Q1AAA Q1BBB RR73");
+        off.Select(b => b.Batch).Should().Equal(1, 2, 3);
     }
 
-    [Fact(DisplayName = "R6': Normal - batch 2 = the residual pass's decodes then the fallback's; no batch 3")]
-    public async Task Normal_FallbackJoinsBatch2()
+    [Fact(DisplayName = "R6''': Normal - batch 2 is the residual pass's decodes alone, the fallback is batch 3 on its own")]
+    public async Task Normal_FallbackIsBatch3()
     {
         var interop = new FallbackInterop([Pass0, Resid, Third], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
-        var on = await RunStaged(Build(interop, DecodingDepth.Normal, fallback: true));
+        var on = await RunStaged(Build(interop, DecodingDepth.Normal, fallback: true), interop);
 
-        on.Select(b => b.Batch).Should().Equal(1, 2);
-        on[1].Messages.Should().Equal("Q1DEF Q1UVW EN37", "Q1AAA Q1BBB RR73");
+        on.Select(b => b.Batch).Should().Equal(1, 2, 3);
+        on[1].Messages.Should().Equal("Q1DEF Q1UVW EN37");
+        on[2].Messages.Should().Equal("Q1AAA Q1BBB RR73");
         interop.DecodeAllCallCount.Should().Be(2, "Normal never runs the third pass");
     }
 
-    [Fact(DisplayName = "R6': Normal, residual pass found nothing - batch 2 is the fallback alone; the two-stage entry returns it the same way")]
-    public async Task Normal_NoResidual_FallbackAloneIsBatch2()
+    [Fact(DisplayName = "R6''': Normal, residual pass found nothing - the fallback is batch 3 and there is no batch 2")]
+    public async Task Normal_NoResidual_FallbackIsBatch3()
     {
         var interop = new FallbackInterop([Pass0], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
-        var on = await RunStaged(Build(interop, DecodingDepth.Normal, fallback: true));
-        on.Select(b => b.Batch).Should().Equal(1, 2);
-        on[1].Messages.Should().Equal("Q1AAA Q1BBB RR73");
-
-        var interop2 = new FallbackInterop([Pass0], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
-        var second = await Build(interop2, DecodingDepth.Normal, fallback: true)
-            .DecodeTwoStageAsync(LoudPcm(), CycleStart, null, _ => Task.CompletedTask);
-        second.Select(r => r.Message).Should().Equal("Q1AAA Q1BBB RR73");
-    }
-
-    [Fact(DisplayName = "R6': Deep, the third pass is skipped (the residual pass found nothing) - the fallback is still batch 3")]
-    public async Task Deep_ThirdPassSkipped_FallbackStillBatch3()
-    {
-        var interop = new FallbackInterop([Pass0], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
-        var on = await RunStaged(Build(interop, DecodingDepth.Deep, fallback: true));
-
+        var on = await RunStaged(Build(interop, DecodingDepth.Normal, fallback: true), interop);
         on.Select(b => b.Batch).Should().Equal(1, 3);
         on[1].Messages.Should().Equal("Q1AAA Q1BBB RR73");
     }
 
-    [Fact(DisplayName = "R6': pass 0 decoded nothing - the fallback still runs, as batch 3 on Deep and batch 2 on Normal; batch 1 stays the (empty) pass-0 batch")]
-    public async Task NothingDecoded_FallbackStillHasItsSlot()
+    [Fact(DisplayName = "R6''': the two-stage entry has no callback for a batch of its own, so the flag has no effect there: the pre-change batch 2, no fallback call")]
+    public async Task TwoStageEntry_FlagHasNoEffect()
     {
-        var deep = await RunStaged(Build(new FallbackInterop([[]], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } }, DecodingDepth.Deep, true));
-        deep.Select(b => b.Batch).Should().Equal(1, 3);
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var second = await Build(interop, DecodingDepth.Normal, fallback: true)
+            .DecodeTwoStageAsync(LoudPcm(), CycleStart, null, _ => Task.CompletedTask);
+
+        second.Select(r => r.Message).Should().Equal("Q1DEF Q1UVW EN37");
+        (interop.SnapshotCalls, interop.RunCalls, interop.UnpackCalls).Should().Be((0, 0, 0));
+    }
+
+    [Fact(DisplayName = "R6''': Deep, the residual pass found nothing (third pass skipped) - the fallback is still batch 4, after batch 1 only")]
+    public async Task Deep_ThirdPassSkipped_FallbackStillBatch4()
+    {
+        var interop = new FallbackInterop([Pass0], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var on = await RunStaged(Build(interop, DecodingDepth.Deep, fallback: true), interop);
+
+        on.Select(b => b.Batch).Should().Equal(1, 4);
+        on[1].Messages.Should().Equal("Q1AAA Q1BBB RR73");
+    }
+
+    [Fact(DisplayName = "R6''': pass 0 decoded nothing - the fallback still runs, as batch 4 on Deep and batch 3 on Normal; batch 1 stays the (empty) pass-0 batch")]
+    public async Task NothingDecoded_FallbackStillHasItsBatch()
+    {
+        var deepInterop = new FallbackInterop([[]], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var deep = await RunStaged(Build(deepInterop, DecodingDepth.Deep, true), deepInterop);
+        deep.Select(b => b.Batch).Should().Equal(1, 4);
         deep[0].Messages.Should().BeEmpty();
         deep[1].Messages.Should().Equal("Q1AAA Q1BBB RR73");
 
-        var normal = await RunStaged(Build(new FallbackInterop([[]], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } }, DecodingDepth.Normal, true));
-        normal.Select(b => b.Batch).Should().Equal(1, 2);
+        var normalInterop = new FallbackInterop([[]], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var normal = await RunStaged(Build(normalInterop, DecodingDepth.Normal, true), normalInterop);
+        normal.Select(b => b.Batch).Should().Equal(1, 3);
         normal[1].Messages.Should().Equal("Q1AAA Q1BBB RR73");
     }
 
-    [Fact(DisplayName = "R6': a fallback text already published in ANY earlier batch of the cycle is not published again (pass 0, residual, third pass)")]
+    [Fact(DisplayName = "R6''': a fallback text already published in ANY earlier batch of the cycle is not published again; batch 4 carries only the genuinely new text")]
     public async Task Dedup_AgainstEveryEarlierBatch()
     {
         var run = new CohFallbackRunResult(Stats(4, 4, 4, 4, 4, 0), [Row(1), Row(2), Row(3), Row(4)]);
@@ -274,58 +295,72 @@ public sealed class CoherentFallbackWiringTests
         {
             Texts = { [1] = "Q1ABC Q1XYZ JO33", [2] = "Q1DEF Q1UVW EN37", [3] = "Q1MNO Q1PQR IO91", [4] = "Q1NEW Q1ONE RR73" },
         };
-        var on = await RunStaged(Build(interop, DecodingDepth.Deep, true));
+        var on = await RunStaged(Build(interop, DecodingDepth.Deep, true), interop);
 
-        on.Select(b => b.Batch).Should().Equal(1, 2, 3);
-        on[2].Messages.Should().Equal("Q1MNO Q1PQR IO91", "Q1NEW Q1ONE RR73");   // only the genuinely new text is added to batch 3
+        on.Select(b => b.Batch).Should().Equal(1, 2, 3, 4);
+        on[2].Messages.Should().Equal("Q1MNO Q1PQR IO91");
+        on[3].Messages.Should().Equal("Q1NEW Q1ONE RR73");   // texts of batches 1, 2 and 3 are not repeated
 
-        // nothing new at all: batch 3 is not delivered
+        // nothing new at all: batch 4 is not delivered
         var run2 = new CohFallbackRunResult(Stats(1, 1, 1, 1, 1, 0), [Row(1)]);
-        var on2 = await RunStaged(Build(new FallbackInterop([Pass0, Resid], run2) { Texts = { [1] = "Q1DEF Q1UVW EN37" } }, DecodingDepth.Deep, true));
+        var interop2 = new FallbackInterop([Pass0, Resid], run2) { Texts = { [1] = "Q1DEF Q1UVW EN37" } };
+        var on2 = await RunStaged(Build(interop2, DecodingDepth.Deep, true), interop2);
         on2.Select(b => b.Batch).Should().Equal(1, 2);
     }
 
-    [Fact(DisplayName = "R6': the fallback's output goes through the same plausibility filter (an implausible text is dropped)")]
+    [Fact(DisplayName = "R6''': the fallback's output goes through the same plausibility filter (an implausible text is dropped)")]
     public async Task PlausibilityFilter_Applies()
     {
         var run = new CohFallbackRunResult(Stats(2, 2, 2, 2, 2, 0), [Row(1), Row(2)]);
         var interop = new FallbackInterop([Pass0], run) { Texts = { [1] = "Q1AAA Q1BBB ZA99", [2] = "Q1CCC Q1DDD RR73" } };
-        var on = await RunStaged(Build(interop, DecodingDepth.Normal, true));
-        on[1].Messages.Should().Equal("Q1CCC Q1DDD RR73");
+        var on = await RunStaged(Build(interop, DecodingDepth.Normal, true), interop);
+        on.Single(b => b.Batch == 3).Messages.Should().Equal("Q1CCC Q1DDD RR73");
     }
 
-    // ── R7': the budget; batch 2 is never delayed; abandon, never queue ───────────────────────────────────────────
+    // ── R7''': when it starts (recorded order, no timing) ──────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "R7': batch 1 leaves BEFORE the fallback starts, and batch 2 leaves while the fallback is still running")]
-    public async Task Batch1BeforeFallback_Batch2NotDelayed()
+    [Fact(DisplayName = "R7''': Deep - the fallback starts only after batch 3 has been handed off, and nothing of it ran during the ordinary passes")]
+    public async Task Deep_StartsAfterBatch3_RecordedOrder()
     {
-        using var gate = new ManualResetEventSlim(false);
-        var interop = new FallbackInterop([Pass0, Resid, Third], OneNew()) { RunGate = gate, Texts = { [1] = "Q1AAA Q1BBB RR73" } };
-        var deep = Build(interop, DecodingDepth.Deep, true);
+        var interop = new FallbackInterop([Pass0, Resid, Third], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        await RunStaged(Build(interop, DecodingDepth.Deep, true), interop);
 
-        bool fallbackStartedAtBatch1 = true, fallbackRunningAtBatch2 = false, fallbackFinishedAtBatch2 = true;
-        var task = RunStaged(deep, n =>
-        {
-            if (n == 1) fallbackStartedAtBatch1 = interop.RunStarted.IsSet;
-            if (n == 2)
-            {
-                interop.RunStarted.Wait(TimeSpan.FromSeconds(10));   // it does start (concurrently); it must not have finished
-                fallbackRunningAtBatch2 = interop.RunStarted.IsSet && !gate.IsSet;
-                fallbackFinishedAtBatch2 = gate.IsSet;
-                gate.Set();                                          // let the fallback finish so batch 3 can follow
-            }
-        });
-        var got = await task;
-
-        fallbackStartedAtBatch1.Should().BeFalse("the fallback is started after batch 1 has been handed over");
-        fallbackRunningAtBatch2.Should().BeTrue("batch 2 was delivered while the fallback was still blocked: it does not wait for it");
-        fallbackFinishedAtBatch2.Should().BeFalse();
-        got.Select(b => b.Batch).Should().Equal(1, 2, 3);
-        got[2].Messages.Should().Equal("Q1MNO Q1PQR IO91", "Q1AAA Q1BBB RR73");
+        var order = interop.Calls.Where(c => c != "analytic").ToList();
+        order.Should().Equal("decode1", "snapshot", "batch1", "decode2", "batch2", "decode3", "batch3", "run", "unpack", "batch4");
+        interop.OrdinaryActiveAtRun.Should().Be(0, "no ordinary native call was in flight when the fallback ran");
     }
 
-    [Fact(DisplayName = "R7': the fallback runs on its own thread, and its snapshot was taken on the thread that ran the ordinary decode")]
-    public async Task SnapshotOnDecodeThread_RunOnAnother()
+    [Fact(DisplayName = "R7''': Deep - a third pass that found nothing (no batch 3) still comes before the fallback")]
+    public async Task Deep_NoBatch3_FallbackStillAfterThirdPass()
+    {
+        var interop = new FallbackInterop([Pass0, Resid, []], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var on = await RunStaged(Build(interop, DecodingDepth.Deep, true), interop);
+
+        on.Select(b => b.Batch).Should().Equal(1, 2, 4);
+        interop.Calls.Where(c => c != "analytic").Should().Equal("decode1", "snapshot", "batch1", "decode2", "batch2", "decode3", "run", "unpack", "batch4");
+    }
+
+    [Fact(DisplayName = "R7''': Normal - the fallback starts only after batch 2 has been handed off")]
+    public async Task Normal_StartsAfterBatch2_RecordedOrder()
+    {
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        await RunStaged(Build(interop, DecodingDepth.Normal, true), interop);
+
+        interop.Calls.Where(c => c != "analytic").Should().Equal("decode1", "snapshot", "batch1", "decode2", "batch2", "run", "unpack", "batch3");
+        interop.OrdinaryActiveAtRun.Should().Be(0);
+    }
+
+    [Fact(DisplayName = "R7''': pass 0 decoded nothing - the fallback starts right after batch 1 (there is no later ordinary batch)")]
+    public async Task NothingDecoded_StartsAfterBatch1()
+    {
+        var interop = new FallbackInterop([[]], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        await RunStaged(Build(interop, DecodingDepth.Deep, true), interop);
+
+        interop.Calls.Should().Equal("decode1", "snapshot", "batch1", "run", "unpack", "batch4");
+    }
+
+    [Fact(DisplayName = "R15: the snapshot is taken on the thread that ran the ordinary decode, right after the pass-0 call, and is the array every worker reads")]
+    public async Task SnapshotOnDecodeThread()
     {
         var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
         await RunStaged(Build(interop, DecodingDepth.Normal, true));
@@ -334,18 +369,20 @@ public sealed class CoherentFallbackWiringTests
         interop.Calls.IndexOf("snapshot").Should().Be(interop.Calls.IndexOf("decode1") + 1, "taken right after the pass-0 call, before the residual decode");
     }
 
-    [Fact(DisplayName = "R7': the run gets the remaining shared budget (13 s minus what pass 0 used, minus the publish reserve), on the same normalised buffer as the ordinary decode")]
-    public async Task Budget_IsTheRemainingCycleBudget()
+    [Fact(DisplayName = "R7''': the run gets the shared budget (13 s minus what the ordinary work used, minus the 250 ms reserve), EffectiveSubtractionThreads workers, and the ordinary decode's normalised buffer")]
+    public async Task RunGets_BudgetWorkersAndBuffer()
     {
         var interop = new FallbackInterop([Pass0], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
-        await RunStaged(Build(interop, DecodingDepth.Normal, true));
+        var d = Build(interop, DecodingDepth.Normal, true);
+        await RunStaged(d);
 
         interop.RunBudgetMs.Should().NotBeNull();
-        interop.RunBudgetMs!.Value.Should().BeInRange(1.0, 13_000.0 - 250.0, "13 s less the 250 ms publish reserve, less the time pass 0 took");
+        interop.RunBudgetMs!.Value.Should().BeInRange(1.0, 13_000.0 - 250.0, "13 s less the 250 ms publish reserve, less what the cycle used before the fallback started");
+        interop.RunWorkers.Should().Be(d.EffectiveSubtractionThreads);
         interop.RunPcm.Should().NotBeNull().And.HaveCount(180_000);
     }
 
-    [Fact(DisplayName = "R7': abandoned candidates publish nothing and are counted per cycle; the next cycle starts clean (never queued)")]
+    [Fact(DisplayName = "R7''': abandoned candidates publish nothing and are counted per cycle; the next cycle starts clean (never queued)")]
     public async Task Abandoned_CountedNotPublishedNotQueued()
     {
         var log = new LineLog();
@@ -355,7 +392,7 @@ public sealed class CoherentFallbackWiringTests
         var d = Build(interop, DecodingDepth.Normal, true, log);
 
         var first = await RunStaged(d);
-        first[1].Messages.Should().Equal("Q1AAA Q1BBB RR73");   // an abandoned row (even one carrying a payload) is never published
+        first.Single(b => b.Batch == 3).Messages.Should().Equal("Q1AAA Q1BBB RR73");   // an abandoned row (even one carrying a payload) is never published
         log.Lines.Single(l => l.StartsWith("Coherent fallback:")).Should().Contain("abandoned=2");
 
         interop.RunCalls.Should().Be(1);
@@ -364,7 +401,7 @@ public sealed class CoherentFallbackWiringTests
         interop.UnpackCalls.Should().Be(2, "one selected payload per cycle: the abandoned work left nothing behind");
     }
 
-    [Fact(DisplayName = "R7': a fallback that fails (native exception) loses nothing: batches 1, 2 and 3 are the flag-OFF batches, one warning")]
+    [Fact(DisplayName = "R7''': a fallback that fails (native exception) loses nothing: batches 1, 2 and 3 are the flag-OFF batches, one warning")]
     public async Task FallbackFailure_IsContained()
     {
         var log = new LineLog();
@@ -377,13 +414,17 @@ public sealed class CoherentFallbackWiringTests
         log.Lines.Should().NotContain(l => l.StartsWith("Coherent fallback:"), "no R12' line for a cycle whose fallback faulted");
     }
 
-    // ── R4' / R12' / R6'': the line, the edge preference ─────────────────────────────────────────────────────
+    // ── R12' / R6'': the line, the edge preference ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "R12': ONE aggregates-only line per cycle, with the documented fields and no message text")]
+    private static readonly Regex LineShape = new(
+        @"^Coherent fallback: eligible=7, attempted=6, crcOk=3, f1bComputed=2, gated=1, published=1, abandoned=1, elapsedMs=457, publishedEdge=1, path=2, " +
+        @"workers=4, fbStartMs=(\d+), fbWallMs=(\d+), batch=(\d), batch4Published=([01]), batch4PublishMs=(-?\d+)\.$", RegexOptions.CultureInvariant);
+
+    [Fact(DisplayName = "R12': ONE aggregates-only line per cycle, with the documented fields (workers, fbStartMs, fbWallMs, batch, batch4Published, batch4PublishMs) and no message text")]
     public async Task Log_OneLinePerCycle_WithTheFields()
     {
         var log = new LineLog();
-        var run = new CohFallbackRunResult(Stats(eligible: 7, attempted: 6, crcOk: 3, f1b: 2, gated: 1, abandoned: 1, edge: 1, totalMs: 456.7), [Row(1, edge: true)]);
+        var run = new CohFallbackRunResult(Stats(eligible: 7, attempted: 6, crcOk: 3, f1b: 2, gated: 1, abandoned: 1, edge: 1, totalMs: 456.7), [Row(1, edge: true)]) { Workers = 4 };
         var interop = new FallbackInterop([Pass0, Resid], run) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
         var d = Build(interop, DecodingDepth.Deep, true, log);
 
@@ -392,9 +433,36 @@ public sealed class CoherentFallbackWiringTests
 
         var lines = log.Lines.Where(l => l.StartsWith("Coherent fallback:")).ToList();
         lines.Should().HaveCount(2, "one line per cycle");
-        lines[0].Should().Be(
-            "Coherent fallback: eligible=7, attempted=6, crcOk=3, f1bComputed=2, gated=1, published=1, abandoned=1, elapsedMs=457, publishedEdge=1, path=2.");
+        var m = LineShape.Match(lines[0]);
+        m.Success.Should().BeTrue("the line is: {0}", lines[0]);
+        m.Groups[3].Value.Should().Be("4", "the fallback's batch on Deep");
+        m.Groups[4].Value.Should().Be("1", "a batch was published");
+        int startMs = int.Parse(m.Groups[1].Value), publishMs = int.Parse(m.Groups[5].Value);
+        publishMs.Should().BeGreaterThanOrEqualTo(startMs, "the batch is handed off after the fallback started (same clock, from the decode's start)");
         lines[0].Should().NotContain("Q1AAA");
+    }
+
+    [Fact(DisplayName = "R12': a cycle whose fallback published nothing logs batch4Published=0 and batch4PublishMs=-1 (an explicit flag, never an averaged time)")]
+    public async Task Log_NothingPublished_FlagAndMinusOne()
+    {
+        var log = new LineLog();
+        var run = new CohFallbackRunResult(Stats(eligible: 7, attempted: 6, crcOk: 3, f1b: 2, gated: 1, abandoned: 1, edge: 1, totalMs: 456.7), []) { Workers = 4 };
+        var interop = new FallbackInterop([Pass0, Resid], run);
+        var on = await RunStaged(Build(interop, DecodingDepth.Deep, true, log), interop);
+
+        on.Select(b => b.Batch).Should().Equal(new[] { 1, 2 }, "no batch 4");
+        var line = log.Lines.Single(l => l.StartsWith("Coherent fallback:"));
+        line.Should().Contain("published=0,").And.Contain("batch=4, batch4Published=0, batch4PublishMs=-1.");
+    }
+
+    [Fact(DisplayName = "R12': on Normal the line names batch=3")]
+    public async Task Log_Normal_NamesBatch3()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        await RunStaged(Build(interop, DecodingDepth.Normal, true, log), interop);
+
+        log.Lines.Single(l => l.StartsWith("Coherent fallback:")).Should().Contain("batch=3, batch4Published=1,");
     }
 
     [Fact(DisplayName = "R12': published counts the texts that reach the batch (after the cross-batch dedup), publishedEdge those at the window edge")]
@@ -416,8 +484,9 @@ public sealed class CoherentFallbackWiringTests
         var interop = new FallbackInterop([Pass0], run) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
         var on = await RunStaged(Build(interop, DecodingDepth.Normal, true));
 
-        on[1].Results.Should().ContainSingle();
-        on[1].Results[0].FreqHz.Should().Be(1002, "the first non-edge member (anchor 1002 Hz, estimate +0.3 Hz rounded)");
+        var fb = on.Single(b => b.Batch == 3);
+        fb.Results.Should().ContainSingle();
+        fb.Results[0].FreqHz.Should().Be(1002, "the first non-edge member (anchor 1002 Hz, estimate +0.3 Hz rounded)");
         interop.UnpackCalls.Should().Be(1);
     }
 
@@ -459,7 +528,7 @@ public sealed class CoherentFallbackWiringTests
 
     // ── R11: the path tag ────────────────────────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "R11: every decode carries its path - 0 ordinary, 1 residual and third pass, 2 fallback")]
+    [Fact(DisplayName = "R11: every decode carries its path - 0 ordinary, 1 residual and third pass, 2 fallback (batch 4)")]
     public async Task PathTag()
     {
         var interop = new FallbackInterop([Pass0, Resid, Third], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
@@ -467,7 +536,8 @@ public sealed class CoherentFallbackWiringTests
 
         on[0].Results.Select(r => r.Path).Should().AllBeEquivalentTo(0);
         on[1].Results.Select(r => r.Path).Should().AllBeEquivalentTo(1);
-        on[2].Results.Select(r => r.Path).Should().Equal(1, 2);
+        on[2].Results.Select(r => r.Path).Should().AllBeEquivalentTo(1);
+        on[3].Results.Select(r => r.Path).Should().AllBeEquivalentTo(2);
     }
 
     [Fact(DisplayName = "R11: the tag is not serialised - the decode panel / UDP / ALL.TXT formats are unchanged")]
@@ -479,18 +549,30 @@ public sealed class CoherentFallbackWiringTests
 
     // ── R13: flag OFF changes nothing ─────────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "R13: flag OFF - not one fallback native call (snapshot, run, unpack), and the batches are the pre-change ones")]
+    [Fact(DisplayName = "R13: flag OFF - not one fallback native call (snapshot, run, unpack), and the batches and call order are the pre-change ones")]
     public async Task FlagOff_NoNativeFallbackCalls()
     {
         var log = new LineLog();
         var interop = new FallbackInterop([Pass0, Resid, Third], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
-        var off = await RunStaged(Build(interop, DecodingDepth.Deep, false, log));
+        var off = await RunStaged(Build(interop, DecodingDepth.Deep, false, log), interop);
 
         (interop.SnapshotCalls, interop.RunCalls, interop.UnpackCalls).Should().Be((0, 0, 0));
-        interop.Calls.Should().Equal("decode1", "decode2", "decode3");
+        interop.Calls.Where(c => c != "analytic").Should().Equal("decode1", "batch1", "decode2", "batch2", "decode3", "batch3");
         off.Select(b => b.Batch).Should().Equal(1, 2, 3);
         off[2].Messages.Should().Equal("Q1MNO Q1PQR IO91");
         log.Lines.Should().NotContain(l => l.StartsWith("Coherent fallback:"));
+    }
+
+    [Fact(DisplayName = "R13: flag OFF on Normal - batches 1 and 2 only, as before, and the same native call order")]
+    public async Task FlagOff_Normal_PreChangeBatches()
+    {
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var off = await RunStaged(Build(interop, DecodingDepth.Normal, false), interop);
+
+        off.Select(b => b.Batch).Should().Equal(1, 2);
+        off[1].Messages.Should().Equal("Q1DEF Q1UVW EN37");
+        interop.Calls.Where(c => c != "analytic").Should().Equal("decode1", "batch1", "decode2", "batch2");   // batch 2 is delivered after the core returns
+        (interop.SnapshotCalls, interop.RunCalls, interop.UnpackCalls).Should().Be((0, 0, 0));
     }
 
     [Fact(DisplayName = "R13/R9: the single-batch entry, the early decode and a cycle with the residual pass OFF never touch the fallback, whatever the flag says")]

@@ -22,6 +22,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#ifndef _WIN32
+#  include <pthread.h>
+#endif
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -482,10 +485,107 @@ static void stage2_exports(void)
       CHECK(ft8_coherent_fallback_unpack(ff, text, 64) == -2, "an undefined message type does not unpack");
       CHECK(ft8_coherent_fallback_unpack(NULL, text, 64) == -1 && ft8_coherent_fallback_unpack(ff, NULL, 64) == -1 && ft8_coherent_fallback_unpack(ff, text, 8) == -1, "unpack bad arguments"); }
 
+    /* Step 4 (shim 20260069): plan + ctx + process, one candidate at a time, give the run's rows and counts exactly. */
+    {
+        static FT8CohFallbackOut ref[16], par[16], zero[16];
+        int32_t idx[16];
+        FT8CohFallbackCycleStats sref, spl, sacc, szero;
+        int nr = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, &sref, ref, 16);
+        int ne = ft8_coherent_fallback_plan(snap, ssz, idx, par, 16, &spl);
+        CHECK(nr == 7 && ne == 7 && spl.n_eligible == sref.n_eligible && spl.n_candidates == sref.n_candidates && spl.n_decoded == sref.n_decoded
+              && spl.n_dup_position == sref.n_dup_position && spl.n_rows == 7 && spl.n_attempted == 0, "plan counts: ne %d", ne);
+        /* a plan row is the run's zero-budget row, byte for byte */
+        int nz = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, 0.0, NULL, &szero, zero, 16);
+        CHECK(nz == 7 && memcmp(zero, par, 7 * sizeof(FT8CohFallbackOut)) == 0, "plan rows equal the run's abandoned rows");
+        void* cx = ft8_coherent_fallback_ctx_new();
+        CHECK(cx != NULL, "ctx_new");
+        memset(&sacc, 0, sizeof(sacc));
+        int ok = 1;
+        for (int e = 0; e < ne; e++) ok &= (ft8_coherent_fallback_process(cx, g_pcm, 180000, snap, ssz, idx[e], &par[e], &sacc) == 0);
+        CHECK(ok, "process returned 0 for every eligible candidate");
+        CHECK(memcmp(ref, par, 7 * sizeof(FT8CohFallbackOut)) == 0, "process rows equal the run's rows, byte for byte");
+        CHECK(sacc.n_attempted == sref.n_attempted && sacc.n_crc_ok == sref.n_crc_ok && sacc.n_crc_new == sref.n_crc_new
+              && sacc.n_f1b_computed == sref.n_f1b_computed && sacc.n_gated == sref.n_gated && sacc.n_edge == sref.n_edge,
+              "process counts equal the run's: attempted %d/%d crc_ok %d/%d gated %d/%d", sacc.n_attempted, sref.n_attempted, sacc.n_crc_ok, sref.n_crc_ok, sacc.n_gated, sref.n_gated);
+        /* a context is reusable and order-independent: the same rows again, candidates taken in reverse */
+        static FT8CohFallbackOut rev[16];
+        memcpy(rev, zero, sizeof(rev));
+        memset(&sacc, 0, sizeof(sacc));
+        for (int e = ne - 1; e >= 0; e--) ft8_coherent_fallback_process(cx, g_pcm, 180000, snap, ssz, idx[e], &rev[e], &sacc);
+        CHECK(memcmp(ref, rev, 7 * sizeof(FT8CohFallbackOut)) == 0, "reverse order, same context: the same rows");
+        /* bad arguments */
+        FT8CohFallbackOut o1;
+        CHECK(ft8_coherent_fallback_process(NULL, g_pcm, 180000, snap, ssz, idx[0], &o1, &sacc) == -1, "NULL ctx");
+        CHECK(ft8_coherent_fallback_process(cx, NULL, 180000, snap, ssz, idx[0], &o1, &sacc) == -1, "NULL pcm");
+        CHECK(ft8_coherent_fallback_process(cx, g_pcm, 179999, snap, ssz, idx[0], &o1, &sacc) == -1, "wrong pcm length");
+        CHECK(ft8_coherent_fallback_process(cx, g_pcm, 180000, NULL, ssz, idx[0], &o1, &sacc) == -1, "NULL snapshot");
+        CHECK(ft8_coherent_fallback_process(cx, g_pcm, 180000, snap, ssz - 1, idx[0], &o1, &sacc) == -1, "wrong snapshot length");
+        CHECK(ft8_coherent_fallback_process(cx, g_pcm, 180000, snap, ssz, -1, &o1, &sacc) == -1, "negative index");
+        CHECK(ft8_coherent_fallback_process(cx, g_pcm, 180000, snap, ssz, 7, &o1, &sacc) == -1, "index past the candidate count");
+        CHECK(ft8_coherent_fallback_process(cx, g_pcm, 180000, snap, ssz, idx[0], NULL, &sacc) == -1 && ft8_coherent_fallback_process(cx, g_pcm, 180000, snap, ssz, idx[0], &o1, NULL) == -1, "NULL out / acc");
+        { cf_snapshot_t* sp = (cf_snapshot_t*)snap; int32_t keep = sp->cands[0].decoded; sp->cands[0].decoded = 1;
+          CHECK(ft8_coherent_fallback_process(cx, g_pcm, 180000, snap, ssz, 0, &o1, &sacc) == -1, "a decoded candidate is refused");
+          int np = ft8_coherent_fallback_plan(snap, ssz, idx, par, 16, &spl);
+          CHECK(np == 6 && spl.n_decoded == 1 && idx[0] == 1, "plan skips a decoded candidate: %d", np);
+          sp->cands[0].decoded = keep; }
+        CHECK(ft8_coherent_fallback_plan(snap, ssz, idx, par, 6, &spl) == -1, "plan: cap below the candidate count");
+        CHECK(ft8_coherent_fallback_plan(NULL, ssz, idx, par, 16, &spl) == -1 && ft8_coherent_fallback_plan(snap, ssz - 1, idx, par, 16, &spl) == -1
+              && ft8_coherent_fallback_plan(snap, ssz, NULL, par, 16, &spl) == -1 && ft8_coherent_fallback_plan(snap, ssz, idx, NULL, 16, &spl) == -1
+              && ft8_coherent_fallback_plan(snap, ssz, idx, par, 16, NULL) == -1, "plan bad arguments");
+        ft8_coherent_fallback_ctx_free(cx);
+        ft8_coherent_fallback_ctx_free(NULL);
+    }
+
     free(snap);
     tls_cf_ncands = 0; tls_cf_npayloads = 0;
-    printf("G: Stage 2 exports (snapshot, run, unpack), %d failures so far\n", g_failures);
+    printf("G: Stage 2 exports (snapshot, run, unpack, step 4 plan/process), %d failures so far\n", g_failures);
 }
+
+#ifndef _WIN32
+/* Step 4 (shim 20260069): the per-candidate exports on several threads at once (run it under COHFB_TSAN=1 for ThreadSanitizer): each
+ * thread owns a context and the eligible candidates e with e % NT == its number; the gathered rows equal the single-thread run's. */
+typedef struct { const void* snap; int ssz; const int32_t* idx; int ne; int nt; int t; FT8CohFallbackOut* rows; FT8CohFallbackCycleStats acc; int rc; } step4_job_t;
+static void* step4_worker(void* arg)
+{
+    step4_job_t* j = (step4_job_t*)arg;
+    void* cx = ft8_coherent_fallback_ctx_new();
+    memset(&j->acc, 0, sizeof(j->acc));
+    j->rc = (cx != NULL) ? 0 : -3;
+    for (int e = j->t; cx != NULL && e < j->ne; e += j->nt) {
+        int rc = ft8_coherent_fallback_process(cx, g_pcm, 180000, j->snap, j->ssz, j->idx[e], &j->rows[e], &j->acc);
+        if (rc != 0) j->rc = rc;
+    }
+    ft8_coherent_fallback_ctx_free(cx);
+    return NULL;
+}
+
+static void step4_threads(void)
+{
+    static const double freqs[] = { 800.0, 1200.0, 1600.0, 2000.0, 2400.0, 2800.0, 600.0 };
+    tls_cf_ncands = 7;
+    for (int i = 0; i < 7; i++) { tls_cf_cands[i].freq_hz = (float)freqs[i]; tls_cf_cands[i].dt = (float)ANCHOR_OF(0.5); tls_cf_cands[i].pass = 0; tls_cf_cands[i].decoded = 0; }
+    tls_cf_npayloads = 0;
+    const int ssz = ft8_coherent_fallback_snapshot_size();
+    void* snap = malloc((size_t)ssz);
+    CHECK(snap != NULL && ft8_coherent_fallback_snapshot(snap, ssz) == ssz, "threads: snapshot");
+    tls_cf_ncands = 0;
+    static FT8CohFallbackOut ref[16], par[16];
+    int32_t idx[16];
+    FT8CohFallbackCycleStats sref, spl;
+    int nr = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, &sref, ref, 16);
+    int ne = ft8_coherent_fallback_plan(snap, ssz, idx, par, 16, &spl);
+    CHECK(nr == 7 && ne == 7, "threads: plan/run rows");
+    enum { NT = 4 };
+    pthread_t th[NT]; step4_job_t job[NT];
+    for (int t = 0; t < NT; t++) { job[t].snap = snap; job[t].ssz = ssz; job[t].idx = idx; job[t].ne = ne; job[t].nt = NT; job[t].t = t; job[t].rows = par; pthread_create(&th[t], NULL, step4_worker, &job[t]); }
+    int sum_attempted = 0, bad = 0;
+    for (int t = 0; t < NT; t++) { pthread_join(th[t], NULL); sum_attempted += job[t].acc.n_attempted; bad |= job[t].rc != 0; }
+    CHECK(!bad && sum_attempted == 7, "threads: every candidate processed once (%d)", sum_attempted);
+    CHECK(memcmp(ref, par, 7 * sizeof(FT8CohFallbackOut)) == 0, "threads: gathered rows equal the single-thread run's, byte for byte");
+    free(snap);
+    printf("H: step 4 exports on %d threads, %d failures so far\n", (int)NT, g_failures);
+}
+#endif
 
 int main(void)
 {
@@ -496,6 +596,9 @@ int main(void)
     cycle_export();
     order_equivalence();
     stage2_exports();
+#ifndef _WIN32
+    step4_threads();
+#endif
     printf("%d checks, %d failures\nRESULT: %s\n", g_checks, g_failures, g_failures == 0 ? "PASS" : "FAIL");
     return g_failures == 0 ? 0 : 1;
 }

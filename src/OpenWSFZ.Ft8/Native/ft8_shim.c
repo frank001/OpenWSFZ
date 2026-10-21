@@ -2577,3 +2577,116 @@ int ft8_coherent_fallback_unpack(const uint8_t* payload, char* text_out, int cap
     }
 #endif
 }
+
+/* ── COH-FALLBACK step 4 (shim 20260069): the per-candidate exports for the parallel cycle (R15) ───────────────────────────────
+ * ft8_coherent_fallback_run walks the candidates on ONE thread. The parallel cycle splits that walk into three steps the managed
+ * side drives: ft8_coherent_fallback_plan (the eligible candidates, once, in candidate order, with every row pre-filled as
+ * ABANDONED), ft8_coherent_fallback_ctx_new / _free (one scratch context per worker thread) and ft8_coherent_fallback_process (ONE
+ * eligible candidate, into its own row). Nothing here is shared between calls but the read-only snapshot and PCM: no hash table, no
+ * counter, no static. The per-candidate body is ft8_coherent_fallback_run's, statement for statement; the real-library test
+ * CoherentFallbackStep4NativeTests compares the two on the same snapshot, row by row. ft8_coherent_fallback_run, _at and the F1b code
+ * are not touched. */
+int ft8_coherent_fallback_plan(
+    const void* snapshot, int snapshot_len, int32_t* cand_index,
+    FT8CohFallbackOut* out, int cap, FT8CohFallbackCycleStats* stats)
+{
+    if (snapshot == NULL || cand_index == NULL || out == NULL || stats == NULL || cap < 0
+        || snapshot_len != (int)sizeof(cf_snapshot_t)) return -1;
+    memset(stats, 0, sizeof(*stats));
+    const cf_snapshot_t* snap = (const cf_snapshot_t*)snapshot;
+    if (snap->n_cands < 0 || snap->n_cands > CF_CAND_CAPACITY || snap->n_payloads < 0 || snap->n_payloads > K_MAX_DECODED) return -1;
+    if (cap < snap->n_cands) return -1;
+
+    int ne = 0;
+    stats->n_candidates = snap->n_cands;
+    for (int i = 0; i < snap->n_cands; i++) {
+        const cf_cand_rec_t* cr = &snap->cands[i];
+        if (cr->decoded) { stats->n_decoded++; continue; }
+        int dup = 0;
+        for (int j = 0; j < i; j++)
+            if (snap->cands[j].freq_hz == cr->freq_hz && snap->cands[j].dt == cr->dt && snap->cands[j].decoded == cr->decoded) { dup = 1; break; }
+        if (dup) { stats->n_dup_position++; continue; }
+        stats->n_eligible++;
+
+        FT8CohFallbackOut* o = &out[ne];
+        memset(o, 0, sizeof(*o));
+        o->freq_hz = cr->freq_hz; o->dt_s = cr->dt; o->pass = cr->pass;
+        o->out_freq_hz = cr->freq_hz; o->out_dt_s = cr->dt;
+        o->f1b_db = (double)NAN;
+        o->state = FT8_COH_STATE_ABANDONED;
+        cand_index[ne] = i;
+        ne++;
+    }
+    stats->n_rows = ne;
+    return ne;
+}
+
+void* ft8_coherent_fallback_ctx_new(void)
+{
+    return (void*)cf_ctx_new(FT8_EXPECTED_SAMPLES);
+}
+
+void ft8_coherent_fallback_ctx_free(void* ctx)
+{
+    if (ctx != NULL) cf_ctx_free((cf_ctx_t*)ctx);
+}
+
+int ft8_coherent_fallback_process(
+    void* ctx_in, const float* pcm, int pcm_len, const void* snapshot, int snapshot_len, int cand_index,
+    FT8CohFallbackOut* o, FT8CohFallbackCycleStats* acc)
+{
+    if (ctx_in == NULL || pcm == NULL || snapshot == NULL || o == NULL || acc == NULL
+        || pcm_len != FT8_EXPECTED_SAMPLES || snapshot_len != (int)sizeof(cf_snapshot_t)) return -1;
+    const cf_snapshot_t* snap = (const cf_snapshot_t*)snapshot;
+    if (snap->n_cands < 0 || snap->n_cands > CF_CAND_CAPACITY || snap->n_payloads < 0 || snap->n_payloads > K_MAX_DECODED) return -1;
+    if (cand_index < 0 || cand_index >= snap->n_cands || snap->cands[cand_index].decoded) return -1;
+    cf_ctx_t* ctx = (cf_ctx_t*)ctx_in;
+#ifdef _MSC_VER
+    __try {
+#endif
+    const cf_cand_rec_t* cr = &snap->cands[cand_index];
+    memset(o, 0, sizeof(*o));
+    o->freq_hz = cr->freq_hz; o->dt_s = cr->dt; o->pass = cr->pass;
+    o->out_freq_hz = cr->freq_hz; o->out_dt_s = cr->dt;
+    o->f1b_db = (double)NAN;
+    o->state = FT8_COH_STATE_ABANDONED;
+
+    FT8CohFallbackResult r;
+    const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
+    cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL);
+    acc->n_attempted++;
+    acc->estimate_ms += r.estimate_ms; acc->c3_bp_ms += r.c3_bp_ms;
+    if (r.edge) acc->n_edge++;
+    o->edge = r.edge;
+    o->out_freq_hz = (float)(f0 + r.est_df_hz);
+    o->out_dt_s    = (float)(t0 + r.est_dt_s);
+    o->state = FT8_COH_STATE_NO_CRC;
+
+    if (!(r.c3_ran && r.bp_rc == 0 && r.bp_crc_ok)) return 0;
+    acc->n_crc_ok++;
+    memcpy(o->payload, r.a91, FTX_PAYLOAD_LENGTH_BYTES);
+
+    for (int k = 0; k < snap->n_payloads; k++)
+        if (!memcmp(snap->payloads[k], r.a91, FTX_PAYLOAD_LENGTH_BYTES)) { o->state = FT8_COH_STATE_KNOWN; return 0; }
+    acc->n_crc_new++;
+
+    uint8_t tones[FT8_NN];
+    ft8_encode(r.a91, tones);
+    const double snr = cf_snr_db(ctx, tones);
+    o->snr_db = (int)lround(isfinite(snr) ? snr : CF_SNR_FLOOR_DB);
+
+    const double t_f = cf_monotonic_ms();
+    int nrefs = 0;
+    o->f1b_db = cf_f1b_db(ctx, pcm, f0, t0, r.peak, &nrefs);
+    acc->f1b_ms += cf_monotonic_ms() - t_f;
+    acc->n_f1b_computed++;
+    if (o->f1b_db <= CF_T1_DB) { o->state = FT8_COH_STATE_NEW_GATED; acc->n_gated++; }
+    else                         o->state = FT8_COH_STATE_GATED_OUT;
+    return 0;
+#ifdef _MSC_VER
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -2;   /* the caller must not reuse this context: the heap may be damaged */
+    }
+#endif
+}

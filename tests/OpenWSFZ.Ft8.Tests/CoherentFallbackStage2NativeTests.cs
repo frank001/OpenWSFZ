@@ -191,9 +191,9 @@ public sealed class CoherentFallbackStage2NativeTests
         return d;
     }
 
-    [Theory(DisplayName = "R6'/R11: end to end - the weak cycle's fallback decode appears in the LAST supplementary batch (3 on Deep, 2 on Normal) tagged path 2; flag OFF has it nowhere; batch 1 is identical")]
-    [InlineData(DecodingDepth.Deep, 3)]
-    [InlineData(DecodingDepth.Normal, 2)]
+    [Theory(DisplayName = "step 4 R6/R11: end to end - the weak cycle's fallback decode appears in the fallback's OWN batch (4 on Deep, 3 on Normal) tagged path 2; flag OFF has it nowhere; batch 1 is identical")]
+    [InlineData(DecodingDepth.Deep, 4)]
+    [InlineData(DecodingDepth.Normal, 3)]
     public async Task EndToEnd_WeakSignal_PublishedInTheLastBatch(DecodingDepth depth, int expectedBatch)
     {
         int exercised = 0;
@@ -207,7 +207,8 @@ public sealed class CoherentFallbackStage2NativeTests
             on.SelectMany(b => b.Results).Where(r => r.Path == 2).Select(r => r.Message).Should().Contain(WeakMessage);
             var slot = on.Single(b => b.Results.Any(r => r.Path == 2));
             slot.Batch.Should().Be(expectedBatch);
-            on.Select(b => b.Batch).Should().OnlyContain(n => n <= 3, "no new batch number");
+            on.Select(b => b.Batch).Should().OnlyContain(n => n <= 4, "no batch number beyond the fallback's own");
+            slot.Results.Should().OnlyContain(r => r.Path == 2, "the fallback's batch carries the fallback's decodes only");
             var fb = slot.Results.Single(r => r.Path == 2);
             fb.Snr.Should().BeInRange(-24, -17);
             fb.FreqHz.Should().BeInRange(1499, 1501);

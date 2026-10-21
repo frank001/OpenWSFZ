@@ -230,8 +230,8 @@ public sealed record DecoderConfig
 
     /// <summary>
     /// COH-FALLBACK (A' step 3) Stage 2, R10: when <c>true</c> the coherent-extraction fallback runs on every candidate the ordinary
-    /// decode did not decode, and its decodes are published in the cycle's last supplementary batch (batch 3 on
-    /// <see cref="DecodingDepth.Deep"/>, batch 2 on Normal). <b>Default <c>false</c></b>: an absent key reads as <c>false</c>, and with it
+    /// decode did not decode. Step 4: it starts only after the cycle's last ordinary batch has been handed off, runs in parallel over the
+    /// candidates, and its decodes are published as a batch of their own (batch 4 on <see cref="DecodingDepth.Deep"/>, batch 3 on Normal). <b>Default <c>false</c></b>: an absent key reads as <c>false</c>, and with it
     /// <c>false</c> the decoder is exactly as it was before the fallback existed. It has an effect only while <see cref="SubtractionEnabled"/>
     /// is on. Config API / file only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Read
     /// once per window; takes effect on the next window. The threshold T1 is a constant, not a setting.

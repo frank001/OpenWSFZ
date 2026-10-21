@@ -46,6 +46,14 @@ internal sealed record DecodePumpDependencies(
 
     /// <summary>third-pass-deep (#240): whether the decoding depth is Deep. Used only together with <see cref="DecodeStaged"/>.</summary>
     public Func<bool>? DecodingDeep { get; init; }
+
+    /// <summary>
+    /// COH-FALLBACK step 4: optional. Whether <c>decoder.coherentFallbackEnabled</c> is on. Read once per window, together with
+    /// <see cref="DecodingDeep"/>: when it answers <c>true</c> the window is decoded with <see cref="DecodeStaged"/> even on the Normal
+    /// depth, because the fallback's own batch (batch 3 on Normal, 4 on Deep) can only leave through the staged callback.
+    /// <c>null</c> (the default) means never: the pump is the pre-change pump.
+    /// </summary>
+    public Func<bool>? CoherentFallbackOn { get; init; }
 }
 
 /// <summary>
@@ -65,7 +73,8 @@ internal sealed record DecodePumpDependencies(
 /// published or abandoned.</para>
 ///
 /// <para><b>Who receives batch 2 and 3 (P-4/P-5/P-6, amended by late-batches-in-qso).</b> The decode panel, ALL.TXT,
-/// decode-filter admission, external reporting and, now, the QSO answerer and caller, carrying <c>BatchNumber</c> 2 or 3.
+/// decode-filter admission, external reporting and, now, the QSO answerer and caller, carrying <c>BatchNumber</c> 2, 3 or 4 (4: the
+/// coherent-fallback batch on Deep; on Normal the fallback is batch 3).
 /// The services treat such a batch as <i>heard</i> (it may drive a message-driven transition, and the answerer merges it
 /// into its per-cycle snapshot) but never as a <i>cycle</i> (no retry, no CQ-repeat count). NOT the cycle-audio
 /// archive: it enqueues the window once, at batch 1, with the pass-0 count.</para>
@@ -139,7 +148,8 @@ internal sealed class DecodePump
                         var results = await _d.DecodeSingleBatch(pcmWindow, cycleStart, currentBand, stoppingToken);
                         await PublishFirstAsync(results, pcmWindow, cycleStart, windowClosedUtc, dialFreq);
                     }
-                    else if (_d.DecodeStaged is { } staged && _d.DecodingDeep?.Invoke() == true)
+                    else if (_d.DecodeStaged is { } staged
+                             && (_d.DecodingDeep?.Invoke() == true || _d.CoherentFallbackOn?.Invoke() == true))
                     {
                         // third-pass-deep: batch 1 as ever; batches 2 and 3 go to the same sinks (panel, ALL.TXT, filter
                         // admission, external reporting and, since late-batches-in-qso, the answerer and caller as supplementary
@@ -222,7 +232,7 @@ internal sealed class DecodePump
     }
 
     /// <summary>
-    /// Publishes batch 2 (or, on the Deep path, batch 3) of a flag-ON cycle: the panel (appended, never replacing), ALL.TXT
+    /// Publishes batch 2 (or, on the Deep path, batch 3, or the coherent fallback's batch 4 / Normal batch 3) of a flag-ON cycle: the panel (appended, never replacing), ALL.TXT
     /// (appended, same stamp), decode-filter admission, external reporting and, since late-batches-in-qso, the answerer and
     /// caller channels carrying <paramref name="batchNumber"/> (the services treat it as heard but never as a cycle).
     /// Deliberately NOT the cycle-audio archive (P-6; see the class remarks).

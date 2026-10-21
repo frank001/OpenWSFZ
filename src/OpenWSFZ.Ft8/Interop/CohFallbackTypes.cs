@@ -70,4 +70,38 @@ internal readonly record struct CohFallbackStats(
 }
 
 /// <summary>The rows (candidate order) and counters of one fallback run.</summary>
-internal sealed record CohFallbackRunResult(CohFallbackStats Stats, IReadOnlyList<CohFallbackRow> Rows);
+internal sealed record CohFallbackRunResult(CohFallbackStats Stats, IReadOnlyList<CohFallbackRow> Rows)
+{
+    /// <summary>COH-FALLBACK step 4 (R15): the number of worker threads the run used (1 for the single-thread run).</summary>
+    public int Workers { get; init; } = 1;
+}
+
+/// <summary>
+/// COH-FALLBACK step 4 (shim 20260069): what the native <c>ft8_coherent_fallback_plan</c> says about a snapshot: the counts, the snapshot
+/// index of each eligible candidate in candidate order, and one row per eligible candidate pre-filled as <see cref="CohFallbackState.Abandoned"/>.
+/// </summary>
+internal sealed record CohFallbackPlan(CohFallbackStats Stats, IReadOnlyList<int> CandidateIndex, IReadOnlyList<CohFallbackRow> Rows);
+
+/// <summary>
+/// COH-FALLBACK step 4: one worker thread's native scratch context. NOT thread-safe: one worker object per thread, used by that thread
+/// only. Disposing frees the native context.
+/// </summary>
+internal interface ICohFallbackWorker : IDisposable
+{
+    /// <summary>Runs the eligible candidate at snapshot index <paramref name="candidateIndex"/> and returns its row.</summary>
+    /// <exception cref="Interop.NativeAccessViolationException">An access violation was contained by the native SEH wrapper; the worker must not be used again.</exception>
+    CohFallbackRow Process(float[] pcm, byte[] snapshot, int candidateIndex);
+
+    /// <summary>The counts and times of every candidate this worker has run so far (attempted, crcOk, crcNew, f1bComputed, gated, edge, ms).</summary>
+    CohFallbackStats Accumulated { get; }
+}
+
+/// <summary>COH-FALLBACK step 4: the native side of the parallel cycle, behind a seam so the scheduling can be tested without the library.</summary>
+internal interface ICohFallbackBackend
+{
+    /// <summary>The eligible candidates of a snapshot, in candidate order. <c>null</c> when the plan cannot be made.</summary>
+    CohFallbackPlan? Plan(byte[] snapshot);
+
+    /// <summary>A new worker context (one per worker thread).</summary>
+    ICohFallbackWorker CreateWorker();
+}

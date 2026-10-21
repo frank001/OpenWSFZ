@@ -1,7 +1,7 @@
 namespace OpenWSFZ.Daemon;
 
 /// <summary>
-/// late-batches-in-qso: the outcome of one supplementary (batch 2 or 3) decision in a QSO service. Logged with exactly
+/// late-batches-in-qso: the outcome of one supplementary (batch 2, 3 or 4) decision in a QSO service. Logged with exactly
 /// one token per decision (<see cref="LateBatch.Token"/>); QA counts these lines over an endurance run.
 /// </summary>
 internal enum LateOutcome
@@ -36,7 +36,7 @@ internal enum DeferredKind
 /// </summary>
 /// <param name="Kind">What to do when it is sent.</param>
 /// <param name="CycleStart">Start of the cycle whose decodes caused it (N). It is sent after a batch 1 of a LATER cycle.</param>
-/// <param name="BatchNumber">The supplementary batch number (2 or 3) that created it; used only for the log line.</param>
+/// <param name="BatchNumber">The supplementary batch number (2, 3 or 4) that created it; used only for the log line.</param>
 /// <param name="Partner">The station to answer (<see cref="DeferredKind.Answer"/> only).</param>
 /// <param name="FreqHz">Its audio frequency (<see cref="DeferredKind.Answer"/> only).</param>
 /// <param name="Grid">Its grid, if the CQ carried one (<see cref="DeferredKind.Answer"/> only).</param>
@@ -51,12 +51,30 @@ internal sealed record DeferredTx(
 /// <summary>Timing rules and log tokens shared by the answerer and the caller.</summary>
 internal static class LateBatch
 {
+    /// <summary>Cycles whose batches can queue while a QSO service is blocked in one 12.64 s transmission (the Architect's judgement, HK-038).</summary>
+    public const int QsoCyclesQueued = 2;
+
+    /// <summary>Spare slots on top of the queued cycles (the Architect's judgement, HK-038).</summary>
+    public const int QsoChannelSpare = 2;
+
+    /// <summary>Batches a cycle can deliver to a QSO service with <c>decoder.coherentFallbackEnabled</c> OFF: batch 1, the residual pass, the third pass.</summary>
+    public const int BatchesPerCycleFallbackOff = 3;
+
+    /// <summary>COH-FALLBACK step 4 (R14): batches a cycle can deliver with the flag ON: the three above and the fallback's own batch 4 (Deep).</summary>
+    public const int BatchesPerCycleFallbackOn = 4;
+
+    /// <summary>The channel capacity for a given number of batches per cycle: batches x <see cref="QsoCyclesQueued"/> cycles + <see cref="QsoChannelSpare"/> spare.</summary>
+    public static int QsoCapacityFor(int batchesPerCycle) => batchesPerCycle * QsoCyclesQueued + QsoChannelSpare;
+
     /// <summary>
-    /// Capacity of the answerer and caller decode channels: 3 batches x 2 cycles + 2 spare (the Architect's judgement,
-    /// HK-038). A QSO service is blocked for a whole 12.64 s transmission, so up to two cycles of three batches can queue;
-    /// at the old capacity of 2 a batch 1 was dropped by the batches that followed it.
+    /// Capacity of the answerer and caller decode channels with the fallback flag OFF: 3 batches x 2 cycles + 2 spare = 8 (the
+    /// Architect's judgement, HK-038). A QSO service is blocked for a whole 12.64 s transmission, so up to two cycles of three batches can
+    /// queue; at the old capacity of 2 a batch 1 was dropped by the batches that followed it. Unchanged by the fallback (R13).
     /// </summary>
-    public const int QsoChannelCapacity = 8;
+    public const int QsoChannelCapacity = BatchesPerCycleFallbackOff * QsoCyclesQueued + QsoChannelSpare;
+
+    /// <summary>COH-FALLBACK step 4 (R14): 4 batches x 2 cycles + 2 spare = 10, in force only while the flag is ON.</summary>
+    public const int QsoChannelCapacityFallbackOn = BatchesPerCycleFallbackOn * QsoCyclesQueued + QsoChannelSpare;
 
     /// <summary>The bounded DropOldest channel Program.cs gives each QSO service (one writer: the pump; one reader).</summary>
     public static System.Threading.Channels.Channel<DecodeBatch> CreateQsoChannel()
@@ -67,6 +85,16 @@ internal static class LateBatch
                 SingleWriter = true,
                 SingleReader = true,
             });
+
+    /// <summary>
+    /// COH-FALLBACK step 4 (R14): the queue Program.cs gives each QSO service. The channel is created once, at start-up, but
+    /// <c>decoder.coherentFallbackEnabled</c> can change at run time, so the channel is built for the larger capacity
+    /// (<see cref="QsoChannelCapacityFallbackOn"/>) and the WRITER enforces the effective one: before each write it drops the oldest
+    /// batches until fewer than the effective capacity are queued. With the flag OFF that is exactly a bounded DropOldest channel of
+    /// <see cref="QsoChannelCapacity"/>: a write into a queue holding 8 drops the oldest and leaves 8, as before. Because the writer
+    /// reads (to drop), the inner channel is not SingleReader; the pump remains the only writer and the service the only consumer.
+    /// </summary>
+    public static QsoBatchQueue CreateQsoQueue(Func<bool> fallbackOn) => new(fallbackOn);
 
     /// <summary>One FT8 cycle, in milliseconds (integers, so the 2.36 s guard is exact).</summary>
     public const int CycleMilliseconds = 15_000;
@@ -110,4 +138,50 @@ internal static class LateBatch
         LateOutcome.NoMatch          => "no-match",
         _                            => throw new ArgumentOutOfRangeException(nameof(outcome)),
     };
+}
+
+/// <summary>See <see cref="LateBatch.CreateQsoQueue"/>.</summary>
+internal sealed class QsoBatchQueue
+{
+    private readonly System.Threading.Channels.Channel<DecodeBatch> _inner;
+    private readonly Func<bool> _fallbackOn;
+
+    internal QsoBatchQueue(Func<bool> fallbackOn)
+    {
+        ArgumentNullException.ThrowIfNull(fallbackOn);
+        _fallbackOn = fallbackOn;
+        _inner = System.Threading.Channels.Channel.CreateBounded<DecodeBatch>(
+            new System.Threading.Channels.BoundedChannelOptions(LateBatch.QsoChannelCapacityFallbackOn)
+            {
+                FullMode     = System.Threading.Channels.BoundedChannelFullMode.DropOldest,
+                SingleWriter = true,
+                SingleReader = false,   // the writer trims the queue to the effective capacity
+            });
+        Writer = new TrimmingWriter(this);
+    }
+
+    /// <summary>The service's end of the queue.</summary>
+    public System.Threading.Channels.ChannelReader<DecodeBatch> Reader => _inner.Reader;
+
+    /// <summary>The pump's end of the queue: DropOldest at the effective capacity.</summary>
+    public System.Threading.Channels.ChannelWriter<DecodeBatch> Writer { get; }
+
+    /// <summary>The capacity in force now: 8 with the flag OFF, 10 with it ON.</summary>
+    public int EffectiveCapacity => _fallbackOn() ? LateBatch.QsoChannelCapacityFallbackOn : LateBatch.QsoChannelCapacity;
+
+    private sealed class TrimmingWriter(QsoBatchQueue queue) : System.Threading.Channels.ChannelWriter<DecodeBatch>
+    {
+        public override bool TryWrite(DecodeBatch item)
+        {
+            int capacity = queue.EffectiveCapacity;
+            var reader = queue._inner.Reader;
+            while (reader.Count >= capacity && reader.TryRead(out _)) { }
+            return queue._inner.Writer.TryWrite(item);
+        }
+
+        public override System.Threading.Tasks.ValueTask<bool> WaitToWriteAsync(CancellationToken cancellationToken = default)
+            => queue._inner.Writer.WaitToWriteAsync(cancellationToken);
+
+        public override bool TryComplete(Exception? error = null) => queue._inner.Writer.TryComplete(error);
+    }
 }
