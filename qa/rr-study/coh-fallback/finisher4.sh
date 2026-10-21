@@ -18,6 +18,11 @@ for f in chain4.log chain4.state off_status.txt on_status.txt onrep_status.txt a
 cp -r "$Q"/. "$R"/ 2>/dev/null
 log "raw outputs copied to $Q and $R (nc_dump.tsv stays in $S)"
 echo "$(cat $S/chain4.state)" > $S/finisher4.done
+# Captain's request 2026-10-21 (night): use sol while the PC sleeps. The audio goes over AFTER the timed arms (never during them: it would compete with the ON arm's timing), then sol's own waiting job starts the full OFF and ON replay.
+log "copying the 962 selected WAVs to sol (bounded to 15 min)"
+timeout 900 bash /d/Projects/claude/_qa-scratch/coh-fallback/step4/sol_transfer.sh > /d/Projects/claude/_qa-scratch/coh-fallback/step4/sol_transfer.stdout 2>&1
+log "sol transfer finished: $(tail -2 /d/Projects/claude/_qa-scratch/coh-fallback/step4/sol_transfer.log | tr '
+' ' ')"
 log "hibernating in 120 s"
 sleep 120
 log "hibernate now"
