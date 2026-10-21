@@ -121,6 +121,9 @@ internal static class Program
 #if HAS_COHFB
                                    + ",tb2_ms,tb3_ms"
 #endif
+#if HAS_COHFB4
+                                   + ",b4_n,tb4_ms"
+#endif
                           : _wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
                                   : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
         // Optional outcome keys (S1): per decode only NUMERIC fields plus an 8-hex-digit hash of the message text; the
@@ -254,7 +257,11 @@ internal static class Program
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cohPath))!);
                 _cohOut = new StreamWriter(cohPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+#if HAS_COHFB4
+                if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge,workers,fb_start_ms,fb_wall_ms,batch,batch4_published,batch4_publish_ms");
+#else
                 if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge");
+#endif
             }
 #endif
             Readback(decoder, log, "start", threadsNote);
@@ -516,7 +523,7 @@ internal static class Program
     /// batches (a WSJT-X decode corroborates at most one OpenWSFZ decode). Emits COUNTS per (kind, SNR band); text never leaves.
     /// </summary>
     private static void ScoreTestB(string run, string stamp, IReadOnlyList<DecodeResult> b1, IReadOnlyList<DecodeResult> b2,
-                                   IReadOnlyList<DecodeResult>? b3 = null)
+                                   IReadOnlyList<DecodeResult>? b3 = null, IReadOnlyList<DecodeResult>? b4 = null)
     {
         if (_testB is null) return;
         var w = _wsjtx.TryGetValue(stamp, out var l) ? l : new List<(int Snr, int Freq, string Msg)>();
@@ -525,6 +532,8 @@ internal static class Program
         foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
         // third-pass-deep (#240): batch 3 is its OWN kind, never folded into 1 or 2. b3 == null (every older mode) leaves the output exactly as it was.
         if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        // COH-FALLBACK step 4: the fallback's own batch (4 on Deep) is its OWN kind, never folded into 1-3. b4 == null leaves the output exactly as it was.
+        if (b4 is not null) foreach (var r in b4) ows.Add((4, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
         var cands = new List<(int Df, int Oi, int Wi)>();
         for (int i = 0; i < ows.Count; i++)
             for (int j = 0; j < w.Count; j++)
@@ -554,13 +563,13 @@ internal static class Program
                     _fbDump.WriteLine(string.Join("	", stamp, ows[i].Kind, usedO[i] ? 1 : 0, ows[i].Freq, ows[i].Dt.ToString("F2", CultureInfo.InvariantCulture), ows[i].Snr,
                         sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Msg));
                 }
-        foreach (int kind in b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
+        foreach (int kind in b4 is not null ? new[] { 1, 2, 3, 4 } : b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
             foreach (var band in new[] { "A", "B", "C", "D" })
             {
                 int n = 0, c = 0;
                 for (int i = 0; i < ows.Count; i++)
                     if (ows[i].Kind == kind && BandOf(ows[i].Snr) == band) { n++; if (usedO[i]) c++; }
-                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : "b3", band,
+                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : kind == 3 ? "b3" : "b4", band,
                     n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
             }
         _matched?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j])));
@@ -616,12 +625,16 @@ internal static class Program
         double tb2 = -1, tb3 = -1;
         CohProbe.Reset();
 #endif
+#if HAS_COHFB4
+        int n4 = 0;
+        double tb4 = -1;
+#endif
         SubfeasProbe.Reset();
         ThirdProbe.Reset();
         var sw = Stopwatch.StartNew();
         try
         {
-            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null;
+            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null, b4 = null;
             await d.DecodeStagedAsync(pcm, cycleStart, null, (n, batch) =>
             {
                 if (n == 1) { tb1 = sw.Elapsed.TotalMilliseconds; b1 = batch; }
@@ -639,6 +652,9 @@ internal static class Program
                     tb3 = sw.Elapsed.TotalMilliseconds;
 #endif
                 }
+#if HAS_COHFB4
+                else if (n == 4) { b4 = batch; tb4 = sw.Elapsed.TotalMilliseconds; }   // step 4: the fallback's own batch on Deep
+#endif
                 else throw new InvalidOperationException("unexpected batch number");
                 return Task.CompletedTask;
             });
@@ -646,10 +662,18 @@ internal static class Program
             n1 = b1?.Count ?? -1;
             n2 = b2?.Count ?? 0;
             n3 = b3?.Count ?? 0;
+#if HAS_COHFB4
+            n4 = b4?.Count ?? 0;
+#endif
             if (b1 is not null) WriteOutcomes(stamp, "b1", b1);
             WriteOutcomes(stamp, "b2", b2 ?? none);
             WriteOutcomes(stamp, "b3", b3 ?? none);
+#if HAS_COHFB4
+            WriteOutcomes(stamp, "b4", b4 ?? none);
+            if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none, b4 ?? none);
+#else
             if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none);
+#endif
         }
         catch (Exception ex) { exc = ex.GetType().Name; }
         sw.Stop();
@@ -660,11 +684,18 @@ internal static class Program
             ThirdProbe.Fitted.ToString(CultureInfo.InvariantCulture)));
         csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), flag,
             sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
-            (n1 < 0 ? -1 : n1 + n2 + n3).ToString(CultureInfo.InvariantCulture), exc,
+            (n1 < 0 ? -1 : n1 + n2 + n3
+#if HAS_COHFB4
+                + n4
+#endif
+            ).ToString(CultureInfo.InvariantCulture), exc,
             tb1.ToString("F1", CultureInfo.InvariantCulture),
             n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture), n3.ToString(CultureInfo.InvariantCulture)
 #if HAS_COHFB
             , tb2.ToString("F1", CultureInfo.InvariantCulture), tb3.ToString("F1", CultureInfo.InvariantCulture)
+#endif
+#if HAS_COHFB4
+            , n4.ToString(CultureInfo.InvariantCulture), tb4.ToString("F1", CultureInfo.InvariantCulture)
 #endif
             ));
 #if HAS_COHFB
@@ -679,16 +710,25 @@ internal static class Program
         private static volatile bool _seen;
         private static string _vals = "";
         private static readonly System.Text.RegularExpressions.Regex Rx = new(
-            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)\.$");
+            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)(?:, workers=(\d+), fbStartMs=(-?\d+), fbWallMs=(-?\d+), batch=(\d+), batch4Published=([01]), batch4PublishMs=(-?\d+))?\.$");
         public static void Reset() { _seen = false; _vals = ""; }
         public static void Set(string rendered)
         {
             var m = Rx.Match(rendered);
             if (!m.Success) return;
             _vals = string.Join(",", m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value, m.Groups[4].Value, m.Groups[5].Value, m.Groups[6].Value, m.Groups[7].Value, m.Groups[8].Value, m.Groups[9].Value);
+#if HAS_COHFB4
+            // step 4: the tail is REQUIRED on this build (a line without it is a harness/decoder mismatch, not a cycle to skip silently).
+            if (!m.Groups[11].Success) throw new InvalidOperationException("step-4 build logged a fallback line without the workers/batch tail");
+            _vals += "," + string.Join(",", m.Groups[11].Value, m.Groups[12].Value, m.Groups[13].Value, m.Groups[14].Value, m.Groups[15].Value, m.Groups[16].Value);
+#endif
             _seen = true;
         }
+        #if HAS_COHFB4
+        public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,,,,,,,";
+#else
         public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,";
+#endif
     }
 #endif
 

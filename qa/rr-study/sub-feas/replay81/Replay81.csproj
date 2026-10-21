@@ -29,6 +29,8 @@
     <DefineConstants Condition="'$(HasDxped)' == 'true'">$(DefineConstants);HAS_DXPED</DefineConstants>
     <!-- COH-FALLBACK step 3 Stage 2 (shim 20260068): only the build with Ft8Decoder.SetCoherentFallbackEnabled and DecodeResult.Path (feat/coh-fallback-stage1 1405ada4). Needs HasThirdPass too. -->
     <DefineConstants Condition="'$(HasCohFb)' == 'true'">$(DefineConstants);HAS_COHFB</DefineConstants>
+    <!-- COH-FALLBACK step 4 (shim 20260069): the fallback runs after the last ordinary batch and publishes its OWN batch (4 on Deep); the cycle log line carries workers/fbStartMs/fbWallMs/batch/batch4Published/batch4PublishMs. Needs HasCohFb too. -->
+    <DefineConstants Condition="'$(HasCohFb4)' == 'true'">$(DefineConstants);HAS_COHFB4</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
