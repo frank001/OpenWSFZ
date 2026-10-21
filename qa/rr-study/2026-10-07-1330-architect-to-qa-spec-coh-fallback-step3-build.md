@@ -652,6 +652,24 @@ holding to it.
 - **SF7** (A3′ passes, 0.60 H): ❌ **MISS** (on either population).
 - **Architect errors E10 and E11** are recorded in the ledger.
 
-**Waiting on QA:** the A13.3 recomputation; confirmation of A13.2's NET by band and A13.4's per-band FP flag, using
+**A13.8 QA's confirmation (2026-10-21, after this ruling).**
+- **A3′ on the both-published population: confirmed exactly.**
+  - Batch 2: n 1,005, p95 496 ms. Batch 3: n 154, p95 756 ms.
+  - Cycles that published batch 3 in ON only: 868. In OFF only: 0.
+- **Noise floor** (ON-repeat − ON, both published):
+  - batch 2 p95 **119 ms** (n 326)
+  - batch 3 p95 **139 ms** (n 345)
+  - Both delays are well above it, so they are real.
+- **NET by band: confirmed** (B +0.07, C +1.24, D +5.25, A 0.00 pp).
+- 🔴 **My FP counts by band included the no-reference cycle `261009_175215`, against A11.1's rule that a `ws` = 0
+  cycle is out of every Test-B row (ledger E12, mine).** QA's figures on the 1,210 cycles replace mine in A13.4:
+  - **D** 118 / 1,763 = **6.7 % [5.6, 8.0]** against batch-1 49 / 2,390 = 2.1 % [1.6, 2.7]: **FIRES**
+  - **C** 7 / 395 = 1.8 % [0.9, 3.6] against 54 / 4,398 = 1.2 % [0.9, 1.6]: does not fire
+  - **B** 0 / 22
+  - The flags are unchanged.
+- **Test B corroboration in batches 1–2** moves by ±2 matches out of 31,355 while the decodes are unchanged: a
+  one-to-one matching reassignment, immaterial.
+
+**Waiting on QA:** the A13.3 recomputation (done, A13.8); confirmation of A13.2's NET by band and A13.4's per-band FP flag, using
 `path` = 2; the committed analysis script; and the A1 evidence runs when the CPU is free. **Waiting on the Captain:**
 decision 1, and his go on QA's report commit (HK-033).
