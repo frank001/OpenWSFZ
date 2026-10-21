@@ -1192,3 +1192,12 @@ frozen.**
 - **The weakness is the same as in A18.3.** A fallback twice as noisy as 10-09's sits on the bar and reads OPEN.
 - 🛑 **Never moved after ΔU′ is seen.** SG4 is scored against 0.042.
 - QA re-freezes its note and puts 0.042 into the analysis script before any ON decode.
+- **Confirmed at 2026-10-21T19:53:33Z (`date -u`, Architect's window, first-hand).**
+  - The Captain asked whether 0.042 is too tight, given that the fallback looks like a real improvement and false
+    decodes could be reduced afterwards.
+  - I answered:
+    - only FAIL blocks, and FAIL needs ΔU′ ≥ about 0.065, about 3 × 10-09's largest;
+    - a fallback like 10-09's reads OK;
+    - OPEN goes to him and is not a rejection;
+    - raising the strength gate later is possible, but needs its own test.
+  - He replied: "go with your recommendations". **0.042 stands.**
