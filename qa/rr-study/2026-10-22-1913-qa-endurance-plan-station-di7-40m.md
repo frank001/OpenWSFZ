@@ -15,6 +15,13 @@ One unattended window on the station PC, 40 m (7.074 MHz), the live radio on Voi
 3. **The pin is asserted in code, not in prose:** the arm script carries the published `libft8.dll` SHA-256 and the commit hash as constants and aborts before one decode if either differs (as `dxped225-arm.py` does). They are filled in from the published tree after the merge; I will quote them in the report before starting.
 4. The station state, which the Captain controls: the station daemon (pid 37328, port 8080, CAT, 20 m) **stopped** so port 8080 is free and CAT is released; WSJT-X (FT991A profile) **cleaned and started by the Captain**, tuned to 7.074 MHz on 40 m, `SoundInName` = *Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)* (the script reads the `.ini` and aborts otherwise), and it must **not transmit**. I stop the station daemon only on the Captain's word.
 
+## 1a. After the Architect's (k) review (`arch/di7-era-runs` `dfa31391`, K5 to K9), recorded 2026-10-22T19:46Z by `date -u`
+
+- **K5, the build pin.** PR #255 is **merged** (2026-10-22T19:43:25Z, merge commit `39038171ad84c2f973d522395d4c7d91e4e10b8f`). The merged tip's **tree is identical to `56736264`'s** (`git rev-parse <tip>^{tree}` = `f717a850557d6949…` for both), so `git diff --stat 56736264 origin/decoding_improvement -- src native` is **empty**. The arm script therefore **keeps `COMMIT` = `56736264…` and `DLL_SHA` = `0e180dfc…`** (the published Windows DLL is the committed one; CI rebuilds only the Linux and macOS binaries, in a follow-up PR like #254). If that follow-up PR changes anything but `.so`/`.dylib`, I say so before arming.
+- **K6 (done and tested).** The arm script now exits non-zero **and stops the run** (mutes the radio strip, stops the daemon, the supervisor and the watcher) if the read-back is not flag `true`, depth `Deep` and `subtractionMaxThreads` 8. The stop expression was tested on a decoy process (it stops the decoy and spares itself).
+- **K7** corpus location OK. **K8** the station-daemon stop happens only on the Captain's word; he gave it at 19:19Z ("just close the station daemon") and it was stopped then.
+- **Threads 8** (§2): the Captain's later decision replaces "auto"; K9 is resolved.
+
 ## 2. The configuration: all improvements on, explicit
 
 Built by the arm script from the proven base (`rr-main` config) plus the station's own decoder section, with these **asserted** before launch:
@@ -25,14 +32,14 @@ Built by the arm script from the proven base (`rr-main` config) plus the station
 | `decoder.coherentFallbackEnabled` | **true, written explicitly** | the new default is on, but the station's own config carries an explicit `false` from the R14 teardown, and the read-back is compared with an explicit value |
 | `decoder.osdNhardMax` | 24, migrations applied | the station's decoder section, as in #225 |
 | `decoder.subtractionEnabled`, `earlyDecodeEnabled` | true | the station's decoder section |
-| `decoder.subtractionMaxThreads` | **decision, §7**: 8 (as #225) or 0 = auto (the station's own) | see §7 |
+| `decoder.subtractionMaxThreads` | **8** (asserted `== 8` in the arm script) | the earlier parameter as in #225, the R&R runs and the replays: the Captain's later decision, relayed by the Architect (~19:5xZ), **supersedes his first answer "0 = auto"** (§7a). K9 is resolved: the thread count is like-for-like with #225; the run is still a different build and era, so it is **never pooled** with #225 |
 | `cat.enabled` | false (asserted) | WSJT-X holds the radio |
 | `tx.autoAnswer`, `externalReporting.enabled` | false (asserted) | receive-only; no spots leave the PC |
 | `cycleAudioArchive` | mode `all`, 16 GiB cap, 48 h | so the night can be replayed offline afterwards (the 20 m live run could not be, which cost us requirement 9) |
 | `audioDeviceId` / name | Voicemeeter Out B1 | the usual path |
 | Decode log / daemon logs / ALL.TXT | inside the corpus folder `artefacts\<stamp>_endurance_run` | HK-016 |
 
-Everything else in the decoder section is the station's own (the Architect's rule for #225: no other change). **Validity rows (a sweep-style bar, same idea as the R&R plan):** V-D depth read back Deep at the start and end; **V-F the fallback ran**: the config read back `true` (`GET /api/v1/config`) at the start and end, and the daemon's per-cycle `Coherent fallback:` line present in ≥ 95 % of the cycles (every scored cycle of the 20 m run had one, empty cycles included). A mismatch voids the era row, not the run.
+Everything else in the decoder section is the station's own (the Architect's rule for #225: no other change). **Validity rows (Architect's review, 2026-10-22, K2, K6 and the endurance V-F ruling):** V-D depth read back Deep **at the start** (the arm script exits non-zero and stops the run if it is not Deep, K6). **V-F the fallback ran:** the config read back `true` (`GET /api/v1/config`) **at the start only** (no "end" read-back: the night's per-cycle line count is the end evidence; a start mismatch also stops the run, K6), and the daemon's per-cycle `Coherent fallback:` line present in ≥ 95 % of the `Cycle ...: N decode(s) found` lines (the denominator is the per-cycle Cycle lines; 95 % is the Architect's decision value; the FULL R14 live window had **504 of 504 = 1.000**, counted by QA 2026-10-22 19:41Z from the daemon file log). **Descriptive V-F reading:** the R12′ lines show `workers=8` (the config's `subtractionMaxThreads`); the first line's value is quoted at the arm read-back. A V-F mismatch voids the era row, not the run.
 
 ## 3. Voicemeeter and the run itself
 
@@ -61,7 +68,7 @@ Everything else in the decoder section is the station's own (the Architect's rul
 
 ## 7a. The Captain's answers (QA's window, 2026-10-22, recorded 19:16:05Z by `date -u`)
 
-1. **End time: confirmed** (10:00 local = 08:00Z on 2026-10-23). 2. **`subtractionMaxThreads` = 0 (auto).** 3. **Cycle-audio archive: on.** 4. **The go and the station-daemon stop: he asked for an explanation (given in the reply; his go is still to come).** 5. **After the close: leave the PC up.**
+1. **End time: confirmed** (10:00 local = 08:00Z on 2026-10-23). 2. **`subtractionMaxThreads`: first answer 0 (auto); SUPERSEDED by the Captain's later decision, relayed by the Architect after the (k) review (his words: "tell QA to comply with the earlier 8-thread parameter") = 8.** QA implemented 8 and asks him to confirm it in QA's window, since his own answer here was "auto". 3. **Cycle-audio archive: on.** 4. **The go and the station-daemon stop: he asked for an explanation (given in the reply; his go is still to come).** 5. **After the close: leave the PC up.**
 
 ## 7. Decisions for the Captain (with their data; nothing started)
 

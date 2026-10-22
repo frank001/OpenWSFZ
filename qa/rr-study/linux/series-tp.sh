@@ -38,6 +38,11 @@ while [ $i -le "$N" ]; do
   S6S="$HOME/qa-scratch/s6-$(basename "$RUN")"
   [ -d "$S6S" ] && mv "$S6S" "$HOME/qa-scratch/s6-$(basename "$FINAL")"
   cp "$HOME/rr-run/$NAME.log" "$FINAL/launcher.log" 2>/dev/null
+  # V-F (DI7COH2; Architect K2): was the coherent fallback running in this sweep? Read from the sweep's own daemon log; a VOID is logged here and decided at the close.
+  if [ -f "$HOME/rr-work-b2/qa/rr-study/linux/flag_readback.py" ] && [ "${TP_REQUIRE_FLAG:-}" = "true" ]; then
+    VF=$("$PY" "$HOME/rr-work-b2/qa/rr-study/linux/flag_readback.py" --daemon-log "$HOME/rr-run/$NAME/daemon.stdout.log" --config "${TP_CONFIG:?}" --out "$FINAL/flag_readback.json" 2>&1 | tail -1)
+    slog "sweep $i V-F: $VF"
+  fi
   SUMLINE=$("$PY" - "$FINAL" <<'PYEOF'
 import json, sys
 d = json.load(open(sys.argv[1] + "/scenario_retries.json"))["totals"]

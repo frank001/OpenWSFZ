@@ -64,6 +64,12 @@ PYEOF
 )
 log "config pin: $CK"
 case "$CK" in OK*) ;; *) halt "CONFIG PIN FAILED ($CK): the rig config or the sweep config differs from the pinned one; nothing was run";; esac
+# FLAG PIN (Architect K3, 2026-10-22): for a series that is about the coherent fallback (DI7COH2) the launcher sets TP_REQUIRE_FLAG=true, and the sweep config must then CARRY
+# decoder.coherentFallbackEnabled = true explicitly; printing it is not enough, so any other value HALTS here, before anything is started.
+if [ "${TP_REQUIRE_FLAG:-}" = "true" ]; then
+  case "$CK" in *" tp-flag=True") ;; *) halt "FLAG PIN FAILED ($CK): TP_REQUIRE_FLAG=true but the sweep config does not carry decoder.coherentFallbackEnabled = true; nothing was run";; esac
+  log "flag pin: OK (sweep config carries decoder.coherentFallbackEnabled = true)"
+fi
 log "build under test: $(git -C $TP_REPO rev-parse HEAD); libft8.so $(sha256sum "$(dirname "$DAEMON")/libft8.so" | cut -d' ' -f1); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
 # S6 pins the OpenWSFZ native library the daemon loads: the one in the daemon's publish folder (added here so no caller has to pass the path)
 S6LIB=""; case ",$SCEN," in *,S6,*) S6LIB="--s6-ows-lib $(dirname "$DAEMON")/libft8.so";; esac

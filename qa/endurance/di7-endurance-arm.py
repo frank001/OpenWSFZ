@@ -1,11 +1,12 @@
 """Arm the DI7COH-E 40 m endurance run on the station PC with the synced decoding_improvement daemon (DI sync 7, commit 56736264, shim 20260070), EVERY improvement
 setting on (QA 2026-10-22; Captain: "The same decoding_improvement daemon with all the improvement settings on for an endurance run, 40m. usual B1 audio path. end time
-about 10:00 am tomorrow"; plan qa/rr-study/2026-10-22-1913-qa-endurance-plan-station-di7-40m.md; answers: end 08:00Z, subtractionMaxThreads 0 = auto, archive on).
+about 10:00 am tomorrow"; plan qa/rr-study/2026-10-22-1913-qa-endurance-plan-station-di7-40m.md; answers: end 08:00Z, archive on; subtractionMaxThreads 8, the earlier parameter as in #225, the R&R runs and the replays: the Captain's
+later decision, relayed by the Architect, supersedes his first answer 0 = auto).
 One command; --dry prints the plan and writes nothing.
 
 Build under test: _qa-scratch/endur-di7/tree at 56736264 (decoding_improvement + main 74c75792), published self-contained (non-AOT); libft8.dll SHA-256 0e180dfc...cf56
 (asserted). decoder.decodingDepth = Deep and decoder.coherentFallbackEnabled = true (both asserted; depth read back from /api/v1/status thirdPass.decodingDepth, the flag
-from /api/v1/config). subtractionMaxThreads = 0 (auto), as the station runs it.
+from /api/v1/config). subtractionMaxThreads = 8 (asserted; the R12' lines must then show workers=8).
 AUDIO ROUTE (Captain, 2026-10-19): the radio is on Voicemeeter Stereo Input 1 (Strip[0]) routed to B1; BOTH WSJT-X and the daemon read "Voicemeeter Out B1".
 Strip[0] is UNMUTED here just before the run starts and MUTED again at the end by a detached watcher (qa/endurance/vm_strip.py, every write read back and logged).
 Strip[4] (AUX, the WAV-replay input) stays muted; Strip[2] must not feed B1 (asserted). Decoder section = the station's own plus the explicit improvement settings.
@@ -17,6 +18,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import re
 import shutil
 import socket
 import subprocess
@@ -42,6 +44,7 @@ CFG_DIR = QA_WT / "qa" / "endurance" / "di7-endurance-config"
 PORT = 8080
 DIAL_MHZ = 7.074
 LEAD_S = 75
+SUB_THREADS = 8
 ARCHIVE_MAX_MB = 16384
 ARCHIVE_MAX_AGE_H = 48
 
@@ -52,6 +55,37 @@ def port_free(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) != 0
     finally:
         s.close()
+
+
+def abort_run(reason: str, vmlog: str, pids: list) -> None:
+    """K6: stop everything this script started and exit non-zero. Mutes the radio strip first (the unmute is the first side effect), then stops the daemon,
+    the supervisor, the mute-at watcher and the F2 poller."""
+    print("*** ABORT:", reason, "***")
+    subprocess.run([sys.executable, "-I", str(VM), "mute", "--strip", str(RADIO_STRIP), "--log", vmlog], capture_output=True, text=True)
+    ps = ("Get-CimInstance Win32_Process | Where-Object { ($_.CommandLine -match 'endurance_supervisor|run_endurance' -or $_.Name -eq 'OpenWSFZ.Daemon.exe') -and $_.ProcessId -ne $PID } "
+          "| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }")
+    subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True)
+    for pid in pids:
+        subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, text=True)
+    print("run stopped; radio strip muted; exit 3")
+    sys.exit(3)
+
+
+def first_workers(corpus: str, wait_s: int = 150):
+    """The resolved worker count from the first R12' line (counts only)."""
+    end = time.time() + wait_s
+    rx = re.compile(r"Coherent fallback: .* workers=(\d+),")
+    while time.time() < end:
+        for lf in sorted(Path(corpus, "daemon-logs").glob("*.log")):
+            try:
+                for ln in open(lf, encoding="utf-8", errors="replace"):
+                    m = rx.search(ln)
+                    if m:
+                        return int(m.group(1))
+            except OSError:
+                pass
+        time.sleep(5)
+    return None
 
 
 def main() -> None:
@@ -90,13 +124,13 @@ def main() -> None:
     cfg["decodeLog"]["dialFrequencyMHz"] = DIAL_MHZ
     cfg["cycleAudioArchive"].update(mode="all", directory=f"{corpus}/cycle-audio", maxSizeMb=ARCHIVE_MAX_MB,
                                     maxAgeHours=ARCHIVE_MAX_AGE_H, writeManifest=True)
-    cfg["decoder"]["subtractionMaxThreads"] = 0     # auto, as the station runs it (Captain 2026-10-22)
+    cfg["decoder"]["subtractionMaxThreads"] = SUB_THREADS   # 8, the earlier parameter (Captain, relayed by the Architect 2026-10-22)
     cfg["decoder"]["decodingDepth"] = "Deep"
     cfg["decoder"]["coherentFallbackEnabled"] = True   # EXPLICIT: the station config carries an explicit false from the R14 teardown
     d = cfg["decoder"]
     assert cfg["cat"]["enabled"] is False and cfg["tx"]["autoAnswer"] is False and cfg["externalReporting"]["enabled"] is False
     assert d["osdNhardMax"] == 24 and d["nhard24MigrationApplied"] is True and d["nhard40MigrationApplied"] is True, d
-    assert d["decodingDepth"] == "Deep" and d["coherentFallbackEnabled"] is True and d["subtractionMaxThreads"] == 0
+    assert d["decodingDepth"] == "Deep" and d["coherentFallbackEnabled"] is True and d["subtractionMaxThreads"] == SUB_THREADS == 8
     assert d["subtractionEnabled"] is True and d.get("earlyDecodeEnabled") is True and cfg["audioDeviceFriendlyName"] == B1_NAME
     if a.end_utc:
         end = dt.datetime.fromisoformat(a.end_utc.replace("Z", "+00:00"))
@@ -140,8 +174,16 @@ def main() -> None:
     (Path(corpus) / "arm_readback.json").write_text(json.dumps(rb, indent=1), encoding="utf-8")
     thirdpass = rb.get("status", {}).get("thirdPass") if isinstance(rb.get("status"), dict) else None
     flag_rb = (rb.get("config", {}).get("decoder", {}) or {}).get("coherentFallbackEnabled") if isinstance(rb.get("config"), dict) else None
-    print("FALLBACK FLAG READ-BACK (config API):", flag_rb, "-> OK" if flag_rb is True else "-> *** NOT TRUE: STOP AND LOOK ***")
-    print("THIRD PASS READ-BACK:", json.dumps(thirdpass), "-> OK" if isinstance(thirdpass, dict) and thirdpass.get("decodingDepth") == "Deep" else "-> *** NOT DEEP: STOP AND LOOK ***")
+    thr_rb = (rb.get("config", {}).get("decoder", {}) or {}).get("subtractionMaxThreads") if isinstance(rb.get("config"), dict) else None
+    thirdpass = rb.get("status", {}).get("thirdPass") if isinstance(rb.get("status"), dict) else None
+    depth_rb = thirdpass.get("decodingDepth") if isinstance(thirdpass, dict) else None
+    print("READ-BACK: fallback flag", flag_rb, "| depth", depth_rb, "| subtractionMaxThreads", thr_rb)
+    # K6: no run is left armed on a failed read-back (the F2 poller is not started yet; the mute watcher is)
+    if flag_rb is not True or depth_rb != "Deep" or thr_rb != SUB_THREADS:
+        abort_run(f"read-back mismatch: flag {flag_rb!r} (want True), depth {depth_rb!r} (want 'Deep'), threads {thr_rb!r} (want {SUB_THREADS})", vmlog, [wd.pid])
+    wk = first_workers(corpus)
+    print("FIRST R12' LINE: workers =", wk, "-> OK" if wk == SUB_THREADS else "-> *** NOT 8 (descriptive V-F reading; look at it) ***")
+    (Path(corpus) / "arm_readback_summary.json").write_text(json.dumps({"flag": flag_rb, "depth": depth_rb, "subtractionMaxThreads": thr_rb, "first_r12_workers": wk}), encoding="utf-8")
     # F2 counters: 1 Hz poller, detached, ends itself 10 min after the window closes
     until = (end + dt.timedelta(minutes=10)).timestamp()
     pol = subprocess.Popen([PY, "-X", "utf8", str(QA_WT / "qa" / "endurance" / "f2_station_poller.py"), "--port", str(PORT),
