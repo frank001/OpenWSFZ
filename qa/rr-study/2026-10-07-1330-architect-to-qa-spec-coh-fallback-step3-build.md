@@ -1386,8 +1386,15 @@ predicate is frozen before the scored run (NOT OBSERVABLE if neither source ties
      capacity, not measured). That is most likely while it is waiting to transmit, i.e. under option B.
 2. **TX policy.**
    - **(A) Receive-only:** L1 and L3 are fully scored, and L2 reads NOT EXERCISED.
-   - **(B) Auto-answer on air** for a window the Captain names: L2 is exercised (a batch-4 CQ was present in about
-     25 % of the replay's cycles), and the station transmits on 40 m.
+   - **(B) Auto-answer on air** for a window the Captain names: ~~L2 is exercised (a batch-4 CQ was present in about
+     25 % of the replay's cycles)~~, and the station transmits on 40 m.
+     ⛔ **STRUCK 2026-10-22 ~16:4xZ (Architect, error E28): WRONG.** A batch-4 CQ is not an opportunity for L2. L2 can
+     fire only when, in an armed and Idle cycle, a CQ (or a partner reply) exists **only** in a late batch. On the
+     replay night that was 0 of 961 cycles for batch 4 alone, and 1 of 961 for batches 3–4 with nothing in 1–2 (QA,
+     `nc_dump` aggregates, 2026-10-22). So (B) could not be expected to exercise L2. If a late-only action occurs, it is
+     visible in the daemon log (`applied-*` lines). The opportunity cannot be counted, because the live logs carry no
+     batch per decode and the cycle-audio archive was off. L2 needs a controlled test (inject a late-only CQ), not a
+     live window. The R14 live run (2026-10-22, B, about 1 h armed at 25–50 W) duly read L2 NOT EXERCISED.
    - **If he chooses A,** default ON rests for L2 on the unit tests (batch-4 deferral, R14) and the code review alone.
      He decides that knowingly. The NOT EXERCISED stays on the record.
 
