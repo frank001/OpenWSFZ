@@ -40,6 +40,14 @@ Verdict: APPROVED (R-1 and N-1 fixed; N-2 stays an open risk).
 
 The delta is two files, two lines: `REQUIREMENTS.md:23` now says v0.59, and the `Program.cs:806` comment now says "true unless the config says false". No code changed; `native/` untouched. QA re-ran, at `25d111e4` in `_qa-scratch\coh-merge`: `check_version_docs.py` **OK, all docs cite v0.59**; `check_version_bump.py origin/main` **OK**. **N-2 stays open:** the Developer did not run `tests/web-ui` (it needs a live daemon on :18193 and a Playwright install) and CI does not run it; the checkbox is covered by the six JS tests, the payload-shape fixture and the C# overlay tests. **N-3 (data eras) is QA's.**
 
+## Addendum 2: CI include-path fix `25d111e4` to `2611c6d7` (2026-10-22T18:10Z by `date -u`)
+
+Reviewed-commit: 2611c6d75b0862956c86885b35bfa21a7c85f496
+
+Verdict: APPROVED.
+
+First CI run of the branch (PR #253) failed on macOS and ubuntu in under 50 s: `ft8_shim.c:402: fatal error: refine/coherent_fallback.h: No such file` (the Stage 1 include). Cause: both inline recipes in `.github/workflows/ci.yml` compile `ft8_shim.c` with only `-I.` (the `/tmp/ft8_lib` checkout); the vendored `refine/` headers are in `native/ft8_lib_vendor`. The WSL leg of the local pre-merge check passed because `build_linux.sh` already passes `-I$LIB_SRC`. **Delta:** `.github/workflows/ci.yml` only (5 insertions, 1 deletion; `src/` and `native/` untouched): `-I"$GITHUB_WORKSPACE/native/ft8_lib_vendor"` added to the macOS clang and the Linux gcc `ft8_shim.c` compiles, each with a one-line reason. Checked: the line continuations are well-formed; `-I.` still comes first, so `<ft8/...>` and `<common/...>` keep resolving to the patched `/tmp/ft8_lib` copies; `ci.yml` is the only workflow and the only file that compiles `ft8_shim.c`; the Developer's grep found `<refine/...>` angle includes only at `ft8_shim.c:402`. **Not verifiable locally:** the macOS and Linux GitHub recipes; the push is the test.
+
 ## What this record does and does not clear
 
 This is the HK-039 review of `f684277f`. Verdict **CHANGES REQUIRED**, so no acceptance, merge-gate or CI run on this commit starts until R-1 is fixed and the delta is reviewed. The earlier record for `b8fc732e` still stands for that commit. Nothing is pushed.
