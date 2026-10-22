@@ -25,7 +25,7 @@ Read from the source of the pinned build, not remembered. This decides what L1 c
 | P3 | Deep, `nhard` 24 and the OSD fix read back, at both ends | `Decoder.Depth=Deep`, `nhard=24`, shim 20260069 / OSD fix as in the replay's V2 |
 | P5 (K8) | The flag-ON window overlaps **no endurance or R&R run**, and its data is **never pooled** with flag-OFF data (flag ON is its own era) | the run's start and end times against the board's running jobs |
 | P6 (K8) | At the end of the window the flag is set back to **OFF through the API and read back `false`** | read back from `GET` after the `POST` |
-| P4 | Station: one daemon only, the live audio chain as in the 10-20 Stage 2 live work; the services' state recorded (answerer / caller active or not, auto-answer on or off, TX enabled or not) | recorded, not asserted |
+| P4 | Station: one daemon only, the live audio chain as in the 10-20 Stage 2 live work; the services' state recorded (answerer / caller active or not, auto-answer on or off, TX enabled or not). **WSJT-X not running** (the Captain, first-hand in the Architect's window, relayed 2026-10-22 ~14:45Z, for the CAT check and for the R14 run); if it is found running, stop and ask him, QA does not close it. At 14:43Z no WSJT-X, daemon, replay or endurance process was running on the PC. | recorded, not asserted |
 
 ## 2. Size and duration
 
