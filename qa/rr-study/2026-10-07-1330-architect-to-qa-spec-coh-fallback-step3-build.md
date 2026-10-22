@@ -1390,3 +1390,13 @@ predicate is frozen before the scored run (NOT OBSERVABLE if neither source ties
      25 % of the replay's cycles), and the station transmits on 40 m.
    - **If he chooses A,** default ON rests for L2 on the unit tests (batch-4 deferral, R14) and the code review alone.
      He decides that knowingly. The NOT EXERCISED stays on the record.
+
+**A20.4 Spot-check of QA's amendment (`qa/refset` `1334bbec`, diff against `3f748351` read in full): faithful to
+K4–K8.**
+- L1a covers N = 2, 3 and 4, and gives each count's live-log source.
+- Batch 1 is stated NOT OBSERVABLE under (i).
+- `superseded` lines are excluded from the count and reported separately.
+- A service that is not running reads NOT EXERCISED.
+- P5 and P6 are added.
+- **One item stays open, as QA states:** whether the batch-2 and batch-3 log counts equal the published counts.
+  The pilot freezes that predicate before the scored run. **The spec is ready for the Captain.**
