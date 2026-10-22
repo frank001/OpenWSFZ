@@ -1407,3 +1407,49 @@ K4–K8.**
 - P5 and P6 are added.
 - **One item stays open, as QA states:** whether the batch-2 and batch-3 log counts equal the published counts.
   The pilot freezes that predicate before the scored run. **The spec is ready for the Captain.**
+
+## §21 RULING: the R14 live check. L1a PASS on corrected classification (FAIL as written stays on record); L2 no defect, deferral path NOT EXERCISED; L3 descriptive. Merge recommended (Architect, 2026-10-22 ~17:3xZ by `date -u`)
+
+**Source:** QA report `qa/rr-study/2026-10-22-1723-qa-r14-live-check-report-step4.md` (`qa/refset` `a6529ce4`), numbers in
+`results/2026-10-22-coh-fallback-step4-r14-live/scored_run.json`. Build `b8fc732e`, DLL `aaf6b03e…` (pinned start and
+end, equal). 20 m, flag ON 15:07:28Z to 17:20:50Z (read back `false` at the end). 502 scored cycles, 205 with a
+batch 4 (bar ≥ 200 met on the window; 196 of them in L1a-scored cycles, see A21.1).
+
+**A21.1 L1a: FAIL as frozen, PASS on corrected classification. The corrected reading is the ruling.**
+- As frozen: 0 missing lines on either service in 483 reconciled cycles (coverage 0.962), 6 cycles with an extra
+  line, the same 6 on both services ⇒ FAIL.
+- The 6 cycles are exactly the ones where two subsets of {2, 3, 4} fit the ALL.TXT line count once the pump's dedup
+  shrinks a batch. The frozen rule took nominal sizes and so called them "determined". Its own category for a cycle
+  with two fitting subsets is **ambiguous ⇒ not scored**. Reclassifying those 6 under that rule gives 477 of 502
+  determined (0.950 ≥ 0.90), 0 missing, 0 extra.
+- A delivery fault shows as a **missing** line. An extra line on both services at once, where the arithmetic
+  allows the batch, is the instrument's misclassification and not a drop.
+- This corrects a misclassification inside the frozen categories. It does not swap the metric. The FAIL as written
+  stays on the record next to the ruling, and the Captain sees both.
+- Batch-4 run size: the bar was set on the run (≥ 200 batch-4 cycles), and the window has 205. QA's reading on the
+  window is accepted.
+
+**A21.2 L2: no defect. One legal immediate action on batch 4. The deferral path was NOT EXERCISED live.**
+- The frozen predicate timed the action by the `applied-immediate` line. That line is written after the action,
+  and an immediate action includes the 12.8 s transmission, so the predicate read S + 13.9 s and scored FAIL.
+- The `TX →` line, at the same millisecond as batch 4's publication (S + 1.074 s), shows the action started inside
+  the 2.36 s guard: legal and immediate (§20 K4). QA's error in the predicate; my (k) review did not catch it.
+- `applied-deferred`: 0 over the whole run ⇒ the deferral path stays unseen live. It rests on the unit tests and
+  the review, plus the controlled test after the merge (QA note `2026-10-22-1632-…`, the Captain 16:4xZ).
+- **Correction of my own correction (E29):** the strike at §20 line 1389 said (B) "could not be expected to
+  exercise L2" on the replay's 0/961. Live, with `retryCount` 3 freeing idle time, requirement 9 occurred 3 times in
+  34 attempts (batch 2 twice, batch 4 once). The replay rate was not a good guide to the live rate.
+
+**A21.3 L3 descriptive.** Batch-4 publish from decode start: median 2,556 ms, p95 3,001 ms. Fallback wall median
+125 ms (p95 204). 0 abandoned. Batch 4 in 40.6 % of reconciled cycles. 66 % of batch-4 service lines fall after the
+guard (line time includes the service queue), so most live batch-4 actions would take the deferral path that
+was not seen.
+
+**A21.4 Deviations accepted as recorded** (QA report §5, all Captain-directed): re-arm job and extended window;
+abort 15:59:26Z and resume 16:02:19Z; `retryCount` 200 → 3; external-reporting port 2237 → 2238 (issue #251; 0
+cycle gaps); TX power 25 / 50 / 5 W by his word. None is a decoder setting.
+
+**A21.5 What goes to the Captain.** Every replay row passed (§19), and the live check shows 0 missing deliveries,
+no L2 defect and 0 abandoned. **Recommendation: merge step 4 with the flag default ON**, once the test suite (A1, the
+cost confirmed by QA first) is green. Merge needs the Captain's go (HK-010); QA merges (HK-014). The new data era
+starts at the merge (never pool).
