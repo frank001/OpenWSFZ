@@ -803,7 +803,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetSubtractionMaxThreads(initialDecoder.SubtractionMaxThreads);
     // third-pass-deep (#240): Normal unless the config says Deep; read once per cycle.
     ft8Decoder.SetDecodingDepth(initialDecoder.DecodingDepth);
-    // COH-FALLBACK Stage 2 (R10): false unless the config says true; read once per cycle.
+    // COH-FALLBACK Stage 2 (R10): true unless the config says false (default ON since 2026-10-22); read once per cycle.
     ft8Decoder.SetCoherentFallbackEnabled(initialDecoder.CoherentFallbackEnabled);
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
