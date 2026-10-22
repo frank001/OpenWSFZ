@@ -9,7 +9,7 @@ namespace OpenWSFZ.Web.Tests;
 
 /// <summary>
 /// COH-FALLBACK Stage 2 (R10, HK-035): <c>decoder.coherentFallbackEnabled</c> through the config API. The POST is an OVERLAY: a body that
-/// does not carry the key leaves it as it was; one that carries it changes only it. Default false.
+/// does not carry the key leaves it as it was; one that carries it changes only it. Default true since 2026-10-22.
 /// </summary>
 [Trait("Category", "Integration")]
 public sealed class CoherentFallbackFlagApiTests : IClassFixture<WebTestFactory>
@@ -38,15 +38,15 @@ public sealed class CoherentFallbackFlagApiTests : IClassFixture<WebTestFactory>
         store.Current.Decoder.KMinScorePass2.Should().Be(12, "only the key in the body changed");
     }
 
-    [Fact(DisplayName = "R10: an overlay POST of an unrelated key leaves a stored false false, and one that sets true turns it on without touching the depth")]
+    [Fact(DisplayName = "R10: an overlay POST of an unrelated key leaves a stored explicit false false, and one that sets true turns it on without touching the depth")]
     public async Task PostConfig_Overlay_FalseStaysFalse_TrueTurnsOn()
     {
         var store = _factory.Services.GetRequiredService<IConfigStore>();
-        await store.SaveAsync(new AppConfig() with { Decoder = new DecoderConfig { DecodingDepth = DecodingDepth.Normal } });
+        await store.SaveAsync(new AppConfig() with { Decoder = new DecoderConfig { DecodingDepth = DecodingDepth.Normal, CoherentFallbackEnabled = false } });
         var client = _factory.CreateClient();
 
         (await client.PostAsync("/api/v1/config", Json("""{"decoder":{"kMinScorePass2":13}}"""))).StatusCode.Should().Be(HttpStatusCode.OK);
-        store.Current.Decoder!.CoherentFallbackEnabled.Should().BeFalse("the default does not turn on through an unrelated overlay POST");
+        store.Current.Decoder!.CoherentFallbackEnabled.Should().BeFalse("an explicit false is kept through an unrelated overlay POST");
 
         (await client.PostAsync("/api/v1/config", Json("""{"decoder":{"coherentFallbackEnabled":true}}"""))).StatusCode.Should().Be(HttpStatusCode.OK);
         store.Current.Decoder.CoherentFallbackEnabled.Should().BeTrue();

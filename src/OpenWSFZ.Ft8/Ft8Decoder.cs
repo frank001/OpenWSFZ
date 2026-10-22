@@ -197,7 +197,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     private volatile bool _coherentFallbackEnabled;   // false at construction
 
     /// <summary>
-    /// COH-FALLBACK Stage 2 (R10): sets <c>decoder.coherentFallbackEnabled</c>. <c>false</c> (the default at construction) is the decoder
+    /// COH-FALLBACK Stage 2 (R10): sets <c>decoder.coherentFallbackEnabled</c>. <c>false</c> (the default of a bare decoder at construction; the daemon applies <c>decoder.coherentFallbackEnabled</c>, default <c>true</c>, at start-up) is the decoder
     /// as it was before the fallback existed: no extra native call, the same outputs in the same order. <c>true</c> runs the coherent-
     /// extraction fallback on the candidates the ordinary decode did not decode. Step 4: it STARTS only after the cycle's last ordinary batch
     /// has been handed off (never during pass 0's follow-on work, the residual pass or the third pass), runs on up to

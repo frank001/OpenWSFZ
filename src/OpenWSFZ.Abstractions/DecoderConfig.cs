@@ -48,8 +48,8 @@ public sealed record DecoderConfig
         double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds,
         // third-pass-deep (#240): in the constructor with its default, for the same reason as the fields above.
         DecodingDepth decodingDepth    = DecodingDepth.Deep,
-        // COH-FALLBACK Stage 2 (R10): in the constructor with its default (false), for the same reason as the fields above.
-        bool coherentFallbackEnabled   = false)
+        // COH-FALLBACK Stage 2 (R10): in the constructor with its default (true since 2026-10-22), for the same reason as the fields above.
+        bool coherentFallbackEnabled   = true)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -231,10 +231,11 @@ public sealed record DecoderConfig
     /// <summary>
     /// COH-FALLBACK (A' step 3) Stage 2, R10: when <c>true</c> the coherent-extraction fallback runs on every candidate the ordinary
     /// decode did not decode. Step 4: it starts only after the cycle's last ordinary batch has been handed off, runs in parallel over the
-    /// candidates, and its decodes are published as a batch of their own (batch 4 on <see cref="DecodingDepth.Deep"/>, batch 3 on Normal). <b>Default <c>false</c></b>: an absent key reads as <c>false</c>, and with it
-    /// <c>false</c> the decoder is exactly as it was before the fallback existed. It has an effect only while <see cref="SubtractionEnabled"/>
-    /// is on. Config API / file only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Read
-    /// once per window; takes effect on the next window. The threshold T1 is a constant, not a setting.
+    /// candidates, and its decodes are published as a batch of their own (batch 4 on <see cref="DecodingDepth.Deep"/>, batch 3 on Normal). <b>Default <c>true</c></b> (ON by default, the Captain's decision of 2026-10-22; an absent key therefore reads as <c>true</c>, as does a
+    /// missing <c>decoder</c> section); an explicit <c>false</c> stays <c>false</c>, and with it <c>false</c> the decoder is exactly as it was
+    /// before the fallback existed. It has an effect only while <see cref="SubtractionEnabled"/> is on. Settings page: the "Coherent fallback"
+    /// checkbox in the decoder section; the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes
+    /// effect on the next window. The threshold T1 is a constant, not a setting.
     /// </summary>
-    public bool CoherentFallbackEnabled { get; init; } = false;
+    public bool CoherentFallbackEnabled { get; init; } = true;
 }

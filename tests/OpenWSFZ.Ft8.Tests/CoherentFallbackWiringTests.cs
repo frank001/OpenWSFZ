@@ -10,7 +10,7 @@ namespace OpenWSFZ.Ft8.Tests;
 
 /// <summary>
 /// COH-FALLBACK (A' step 3) Stage 2 as amended by step 4 (spec section 14): the product wiring, behind
-/// <c>decoder.coherentFallbackEnabled</c> (default false). Requirements R6-triple-prime / R7-triple-prime (the fallback starts only after the
+/// <c>decoder.coherentFallbackEnabled</c> (default true since 2026-10-22; a bare Ft8Decoder is still OFF until the daemon sets it). Requirements R6-triple-prime / R7-triple-prime (the fallback starts only after the
 /// cycle's last ordinary batch has been handed off and publishes as a batch of its own: 4 on Deep, 3 on Normal, only if non-empty; shared
 /// budget; abandon never queue), R6'' (one output per payload, non-edge first), R12' (the log line and its step 4 fields), R11 (the path
 /// tag), R13 (flag OFF = nothing changes), R9 (the early decode never runs it). Order is asserted from a recorded event list, never from
@@ -195,13 +195,16 @@ public sealed class CoherentFallbackWiringTests
 
     // ── R10: the flag ─────────────────────────────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "R10: decoder.coherentFallbackEnabled defaults to false in the config record, a bare decoder, and an absent key")]
-    public void Flag_DefaultsToFalse()
+    [Fact(DisplayName = "Default ON: decoder.coherentFallbackEnabled is true in the config record and for an absent key, false stays false; a bare Ft8Decoder is OFF until the daemon sets it")]
+    public void Flag_DefaultsToTrue_InConfig_BareDecoderOff()
     {
-        new DecoderConfig().CoherentFallbackEnabled.Should().BeFalse();
-        new Ft8Decoder(new FakeClock(CycleStart), null, interop: new FallbackInterop([], null)).CoherentFallbackEnabled.Should().BeFalse();
+        new DecoderConfig().CoherentFallbackEnabled.Should().BeTrue();
+        new Ft8Decoder(new FakeClock(CycleStart), null, interop: new FallbackInterop([], null)).CoherentFallbackEnabled.Should().BeFalse(
+            "the decoder class has no config: the daemon applies decoder.coherentFallbackEnabled at start-up and on every save");
         System.Text.Json.JsonSerializer.Deserialize<DecoderConfig>("""{"kMinScorePass2":10}""")!
-            .CoherentFallbackEnabled.Should().BeFalse("a config written before the key existed loads false");
+            .CoherentFallbackEnabled.Should().BeTrue("a config written before the key existed loads true");
+        System.Text.Json.JsonSerializer.Deserialize<DecoderConfig>("""{"coherentFallbackEnabled":false}""", new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!
+            .CoherentFallbackEnabled.Should().BeFalse("an explicit false stays false");
     }
 
     [Fact(DisplayName = "R10: the setter and getter on Ft8Decoder round-trip (the replay harness reads the flag back)")]
