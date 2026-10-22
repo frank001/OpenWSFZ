@@ -2,7 +2,7 @@
 
 **Stamped:** 2026-10-22T19:00:45Z by `date -u`. **Status: PREPARED, NOT STARTED.** The Captain's instruction (QA's window, 2026-10-22): *"prepare a full r&r sweep on sol (3x) with the decoding_improvement build after the developer changes are reviewed and accepted. this should count against the new data era."* Nothing runs until the gate in §1 is met and the Captain gives the go (§7). No push, no `src/` change.
 
-## 0a. After the Architect's (k) review (`arch/di7-era-runs` `dfa31391`, K1 to K4), recorded 2026-10-22T19:46Z by `date -u`
+## 0a. After the Architect's (k) review (`arch/di7-era-runs` `dfa31391`, K1 to K4), recorded 2026-10-22T19:45Z by `date -u`
 
 - **K1: the series ID is `DI7COH2`** (not `DI7COH`). The aborted start of 19:33:49Z (stopped at 19:35:17Z) used `DI7COH`; its folders on `sol` are renamed with `ABORTED` in the name (`~/rr-run/di7coh-1-ABORTED`, `…-ABORTED.log`, `series-DI7COH-ABORTED.*`, and the partial results folder `…/results/2026-10-22-b0e23bb-DI7COH-ABORTED`), so `pull-series.sh` cannot match them; they are never cited or pooled. Every label below that says `DI7COH` reads `DI7COH2`.
 - **K2: V-F denominator and bar.** The denominator is the per-cycle `Cycle …: N decode(s) found` lines of the sweep's daemon log, not the reconciled cycles. The bar's source is the **full R14 window** (15:14:56Z to 17:20:50Z): `Coherent fallback:` lines **504** over Cycle lines **504** = **1.000** (counted 19:41Z from the daemon file log; above the Architect's 99 % trigger, so no return to him). 0.95 is his decision value. The line is written only when the flag is on and the snapshot exists (`Ft8Decoder.cs:529/900/1044` at `56736264`), so it is a flag-effective instrument.
