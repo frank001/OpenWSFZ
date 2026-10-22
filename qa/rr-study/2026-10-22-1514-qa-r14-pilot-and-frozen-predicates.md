@@ -1,6 +1,6 @@
 # QA: R14 pilot result and the predicates frozen before the scored run
 
-**Stamped:** 2026-10-22T15:16Z by `date -u` (checked 15:14:34Z when the pilot was read). **Spec:** `2026-10-22-1430-qa-r14-live-check-spec-step4.md` as amended (`1334bbec`, P4 `376f251b`). **Build:** `b8fc732e`, `libft8.dll` `aaf6b03e…` (the pin), shim 20260069, one daemon (pid 37328), station config untouched except the one value below.
+**Stamped:** 2026-10-22T15:14:56Z by `date -u` (the pilot was read at 15:14:34Z). **Spec:** `2026-10-22-1430-qa-r14-live-check-spec-step4.md` as amended (`1334bbec`, P4 `376f251b`). **Build:** `b8fc732e`, `libft8.dll` `aaf6b03e…` (the pin), shim 20260069, one daemon (pid 37328), station config untouched except the one value below.
 
 ## 1. Pre-flight read-backs
 
