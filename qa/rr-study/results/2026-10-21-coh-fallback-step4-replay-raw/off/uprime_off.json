@@ -1,0 +1,124 @@
+{
+ "stage": "off",
+ "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049",
+ "T_frozen": 0.276,
+ "min_n": 10,
+ "min_present_rate": 0.8,
+ "cycles_ws_gt_0": 960,
+ "decodes": 22264,
+ "confirmed": 21974,
+ "not_confirmed": 290,
+ "calibration": {
+  "controls_used": 80,
+  "with_sync_hit_ge_0.6": 70,
+  "start_minus_dt_median_s": -0.17999999999999983
+ },
+ "class_table": {
+  "RR73/73/RRR": {
+   "confirmed_in_class": 2842,
+   "n_sampled": 50,
+   "present": 47,
+   "present_rate": 0.94,
+   "wilson": [
+    0.8378265662912299,
+    0.9793854036353695
+   ],
+   "testable": true
+  },
+  "grid": {
+   "confirmed_in_class": 6855,
+   "n_sampled": 50,
+   "present": 48,
+   "present_rate": 0.96,
+   "wilson": [
+    0.8653966212204534,
+    0.9889613473391734
+   ],
+   "testable": true
+  },
+  "grid CQ": {
+   "confirmed_in_class": 5254,
+   "n_sampled": 50,
+   "present": 48,
+   "present_rate": 0.96,
+   "wilson": [
+    0.8653966212204534,
+    0.9889613473391734
+   ],
+   "testable": true
+  },
+  "other": {
+   "confirmed_in_class": 8,
+   "n_sampled": 8,
+   "present": 5,
+   "present_rate": 0.625,
+   "wilson": [
+    0.30573785458380187,
+    0.863158240538479
+   ],
+   "testable": false
+  },
+  "other CQ": {
+   "confirmed_in_class": 545,
+   "n_sampled": 50,
+   "present": 2,
+   "present_rate": 0.04,
+   "wilson": [
+    0.011038652660826577,
+    0.13460337877954667
+   ],
+   "testable": false
+  },
+  "report": {
+   "confirmed_in_class": 5462,
+   "n_sampled": 50,
+   "present": 47,
+   "present_rate": 0.94,
+   "wilson": [
+    0.8378265662912299,
+    0.9793854036353695
+   ],
+   "testable": true
+  }
+ },
+ "testable_classes": [
+  "RR73/73/RRR",
+  "grid",
+  "grid CQ",
+  "report"
+ ],
+ "null_this_night": {
+  "n": 5160,
+  "mean": 0.14753408179631117,
+  "p99": 0.27586206896551724,
+  "T_frozen": 0.276,
+  "abs_diff": 0.00013793103448278554,
+  "flag_architect": false
+ },
+ "U_prime": {
+  "cycles": 960,
+  "totals": {
+   "tested_absent": 36,
+   "hashed_or_unencodable": 135,
+   "untestable_class": 8,
+   "tested_present": 111,
+   "not_confirmed": 290
+  },
+  "U_prime_per_cycle": 0.18645833333333334,
+  "split_per_cycle": {
+   "tested_absent": 0.0375,
+   "hashed_or_unencodable": 0.140625,
+   "untestable_class": 0.008333333333333333
+  }
+ },
+ "proposal": {
+  "U_prime_0": 0.18645833333333334,
+  "U_prime_max_0.30x": 0.0559375,
+  "projected_paired_half_width": 0.021158602466451636,
+  "two_x_half_width": 0.04231720493290327,
+  "U_max_ge_2x_half_width": true,
+  "bar_line_0.042": 0.042,
+  "U_prime_max_le_0.042": false,
+  "observed_delta_U_prime_1009": 0.021
+ }
+}

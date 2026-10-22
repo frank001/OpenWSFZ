@@ -1,0 +1,151 @@
+{
+ "bands": "A>=0, B -10..-1, C -15..-11, D<=-16 dB (OpenWSFZ decode SNR)",
+ "cycles": 960,
+ "NET_by_band": {
+  "A": {
+   "gained_matched": 0,
+   "NET_pp": 0.0,
+   "ci_pp": [
+    0.0,
+    0.0
+   ]
+  },
+  "B": {
+   "gained_matched": 27,
+   "NET_pp": 0.0880741127348643,
+   "ci_pp": [
+    0.0573566190357864,
+    0.12066175765279451
+   ]
+  },
+  "C": {
+   "gained_matched": 218,
+   "NET_pp": 0.7111169102296451,
+   "ci_pp": [
+    0.5959977079206837,
+    0.825564142114316
+   ]
+  },
+  "D": {
+   "gained_matched": 925,
+   "NET_pp": 3.0173538622129437,
+   "ci_pp": [
+    2.6635505259813717,
+    3.377071704666633
+   ]
+  }
+ },
+ "dU_prime_by_band": {
+  "A": {
+   "U_prime_on_per_cycle": 0.04375,
+   "U_prime_off_per_cycle": 0.04375,
+   "delta_per_cycle": 0.0,
+   "ci": [
+    -0.003125,
+    0.003125
+   ],
+   "excess_count": 0
+  },
+  "B": {
+   "U_prime_on_per_cycle": 0.06875,
+   "U_prime_off_per_cycle": 0.06875,
+   "delta_per_cycle": 0.0,
+   "ci": [
+    0.0,
+    0.0
+   ],
+   "excess_count": 0
+  },
+  "C": {
+   "U_prime_on_per_cycle": 0.036458333333333336,
+   "U_prime_off_per_cycle": 0.034375,
+   "delta_per_cycle": 0.0020833333333333333,
+   "ci": [
+    0.0,
+    0.005208333333333333
+   ],
+   "excess_count": 2
+  },
+  "D": {
+   "U_prime_on_per_cycle": 0.057291666666666664,
+   "U_prime_off_per_cycle": 0.03958333333333333,
+   "delta_per_cycle": 0.017708333333333333,
+   "ci": [
+    0.010416666666666666,
+    0.025
+   ],
+   "excess_count": 17
+  }
+ },
+ "FP_watch_on_Uprime_by_band": {
+  "A": {
+   "b4_decodes": 0,
+   "excess_Uprime_in_b4": 0,
+   "b4_rate": null,
+   "b4_wilson": null,
+   "off_decodes_all_batches": 5057,
+   "off_Uprime": 42,
+   "off_rate": 0.008305319359303936,
+   "off_wilson": [
+    0.006150439783392834,
+    0.011206673310208044
+   ]
+  },
+  "B": {
+   "b4_decodes": 27,
+   "excess_Uprime_in_b4": 0,
+   "b4_rate": 0.0,
+   "b4_wilson": [
+    6.938893903907228e-18,
+    0.12455903714463581
+   ],
+   "off_decodes_all_batches": 8594,
+   "off_Uprime": 66,
+   "off_rate": 0.0076797765883174305,
+   "off_wilson": [
+    0.006041407956444795,
+    0.009758092234393797
+   ]
+  },
+  "C": {
+   "b4_decodes": 225,
+   "excess_Uprime_in_b4": 2,
+   "b4_rate": 0.008888888888888889,
+   "b4_wilson": [
+    0.002440997100615027,
+    0.03182549989993032
+   ],
+   "off_decodes_all_batches": 4934,
+   "off_Uprime": 33,
+   "off_rate": 0.006688285366842318,
+   "off_wilson": [
+    0.004766448738413883,
+    0.009377706878080577
+   ]
+  },
+  "D": {
+   "b4_decodes": 972,
+   "excess_Uprime_in_b4": 17,
+   "b4_rate": 0.01748971193415638,
+   "b4_wilson": [
+    0.010947901398073622,
+    0.02783052329708183
+   ],
+   "off_decodes_all_batches": 3679,
+   "off_Uprime": 38,
+   "off_rate": 0.010328893721119869,
+   "off_wilson": [
+    0.007534562446328927,
+    0.014144784284195674
+   ]
+  }
+ },
+ "check": {
+  "U_prime_on_total": 198,
+  "U_prime_off_total": 179,
+  "expected_on_off": [
+   198,
+   179
+  ]
+ }
+}

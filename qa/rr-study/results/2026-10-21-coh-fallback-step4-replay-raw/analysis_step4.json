@@ -1,0 +1,235 @@
+{
+ "U_prime_max": 0.042,
+ "block": 40,
+ "B": 10000,
+ "seed": 20261007,
+ "cycles": {
+  "off": 961,
+  "on": 961,
+  "onrep": 321
+ },
+ "cycle_sets_equal_off_on": true,
+ "cycles_with_ws_reference": 960,
+ "V1_pin": {
+  "off": {
+   "preflight_end_ok": true,
+   "dll_at_start_equals_pin": true
+  },
+  "on": {
+   "preflight_end_ok": true,
+   "dll_at_start_equals_pin": true
+  },
+  "onrep": {
+   "preflight_end_ok": true,
+   "dll_at_start_equals_pin": true
+  }
+ },
+ "V2_readbacks": {
+  "off": true,
+  "on": true,
+  "onrep": true
+ },
+ "V3_exceptions": {
+  "off": 0,
+  "on": 0,
+  "onrep": 0
+ },
+ "V5": {
+  "abandoned_cycles": 0,
+  "n": 961,
+  "rate": 0.0,
+  "wilson": [
+   0.0,
+   0.003981586200263338
+  ],
+  "ordinary_abandoned": 0,
+  "fallback_abandoned": 0,
+  "verdict": "PASS"
+ },
+ "A3pp": {
+  "a_differing_cycles": {
+   "b1": 0,
+   "b2": 0,
+   "b3": 0
+  },
+  "a_unexplained": {
+   "b1": 0,
+   "b2": 0,
+   "b3": 0
+  },
+  "ordinary_abandon_exception_cycles": 0,
+  "ordinary_abandon_exception_stamps": [],
+  "a_verdict": "PASS",
+  "b": {
+   "batch2": {
+    "n_both_published": 909,
+    "median_on_minus_off_ms": -0.29999999999972715,
+    "median_ci": [
+     -12.5,
+     10.199999999999818
+    ],
+    "p95_on_minus_off_ms_descriptive": 94.51999999999992,
+    "p95_ci": [
+     79.17924999999963,
+     113.18537499999985
+    ],
+    "p95_onrep_minus_on_ms_descriptive": 296.5200000000001,
+    "p95_noise_ci": [
+     47.589499999999866,
+     423.5
+    ]
+   },
+   "batch3": {
+    "n_both_published": 238,
+    "median_on_minus_off_ms": -3.9500000000000455,
+    "median_ci": [
+     -18.901249999999862,
+     12.099999999999909
+    ],
+    "p95_on_minus_off_ms_descriptive": 111.02999999999997,
+    "p95_ci": [
+     79.32000000000006,
+     142.0
+    ],
+    "p95_onrep_minus_on_ms_descriptive": 233.37499999999824,
+    "p95_noise_ci": [
+     63.099999999999945,
+     495.1999999999998
+    ]
+   }
+  },
+  "b_bar_ms": 50.0,
+  "b_verdict": "PASS",
+  "population": {
+   "batch2": {
+    "both": 909,
+    "on_only": 0,
+    "off_only": 0,
+    "neither": 52
+   },
+   "batch3": {
+    "both": 238,
+    "on_only": 0,
+    "off_only": 0,
+    "neither": 723
+   }
+  },
+  "verdict": "PASS"
+ },
+ "S4T": {
+  "cycles_with_fallback_run": 961,
+  "batch4_published_cycles": 668,
+  "batch4_not_published_cycles": 293,
+  "batch4_publish_ms_from_decode_start": {
+   "median": 3349.0,
+   "p95": 4102.299999999999,
+   "max": 4856.0
+  },
+  "margin_to_budget_ms_min": 8144.0,
+  "fb_wall_ms": {
+   "median": 215.0,
+   "p95": 352.0,
+   "max": 532.0
+  },
+  "fb_start_ms": {
+   "median": 3070.0,
+   "p95": 3824.0
+  },
+  "workers": [
+   "8"
+  ],
+  "SG2_median_wall_le_500ms": true,
+  "reply_guard_misses": "NOT REPORTED: the replay records time from decode start, not the live decode-start offset (A14.4/A2.2)"
+ },
+ "V6": {
+  "n_repeated": 321,
+  "differing": 0,
+  "unexplained": 0,
+  "first": [],
+  "verdict": "PASS"
+ },
+ "NET_pp": {
+  "point": 3.816544885177453,
+  "lo": 3.435484781892168,
+  "hi": 4.211478814753238,
+  "sum_dM": 1170,
+  "sum_W": 30656,
+  "Moff_pct": 71.67927974947808,
+  "Mon_pct": 75.49582463465553,
+  "verdict": "D-GO'"
+ },
+ "U_prime": {
+  "delta_point": 0.019791666666666666,
+  "lo": 0.0125,
+  "hi": 0.027083333333333334,
+  "U_prime_max": 0.042,
+  "verdict": "U'-OK",
+  "U_prime_0_off": 0.18645833333333334,
+  "U_prime_on": 0.20625,
+  "old_testb_delta_U_descriptive": {
+   "point": 0.05625,
+   "lo": 0.040625,
+   "hi": 0.071875
+  }
+ },
+ "delta_notconfirmed_by_band_descriptive": {
+  "A": {
+   "delta_notconfirmed_per_cycle": 0.0,
+   "sum": 0.0
+  },
+  "B": {
+   "delta_notconfirmed_per_cycle": 0.0,
+   "sum": 0.0
+  },
+  "C": {
+   "delta_notconfirmed_per_cycle": 0.007291666666666667,
+   "sum": 7.0
+  },
+  "D": {
+   "delta_notconfirmed_per_cycle": 0.04895833333333333,
+   "sum": 47.0
+  }
+ },
+ "fallback": {
+  "eligible": 168271,
+  "attempted": 168271,
+  "crc_ok": 37141,
+  "gated": 3216,
+  "published": 1224,
+  "published_edge": 23,
+  "abandoned": 0,
+  "batch4_decodes_scored": 1224.0,
+  "batch4_not_confirmed": 54.0,
+  "batch4_by_band": {
+   "A": {
+    "n": 0.0,
+    "nc": 0.0
+   },
+   "B": {
+    "n": 27.0,
+    "nc": 0.0
+   },
+   "C": {
+    "n": 225.0,
+    "nc": 7.0
+   },
+   "D": {
+    "n": 972.0,
+    "nc": 47.0
+   }
+  }
+ },
+ "FP_watch_descriptive": {
+  "batch4_nc_rate": 0.04411764705882353,
+  "batch4_wilson": [
+   0.0339691199759868,
+   0.05711885098052748
+  ],
+  "batch1_nc_rate": 0.011338111027917425,
+  "batch1_wilson": [
+   0.009917744008821542,
+   0.012959232983647479
+  ],
+  "flag": true
+ }
+}

@@ -194,25 +194,38 @@ def main():
 
     # ---- U'_i for this arm: not-confirmed decodes that are not shown present ----
     per_cycle = collections.defaultdict(lambda: {TESTED_ABSENT: 0, HASHED_OR_UNENCODABLE: 0, UNTESTABLE_CLASS: 0, "tested_present": 0, "not_confirmed": 0})
+    per_band = collections.defaultdict(lambda: collections.defaultdict(int))
+    band_of = lambda snr: "A" if snr >= 0 else "B" if snr >= -10 else "C" if snr >= -15 else "D"   # Replay81 BandOf
     for r in rows:
         if r["matched"]:
             continue
         c = per_cycle[r["stamp"]]
+        cb = per_band[(r["stamp"], band_of(r["snr"]))]      # A19.5 descriptive split by SNR band; adds output only, changes no number
         c["not_confirmed"] += 1
+        cb["not_confirmed"] += 1
         if r["hashed"] or r["tones"] is None:
             c[HASHED_OR_UNENCODABLE] += 1
+            cb[HASHED_OR_UNENCODABLE] += 1
         elif r["cls"] not in testable:
             c[UNTESTABLE_CLASS] += 1
+            cb[UNTESTABLE_CLASS] += 1
         else:
             if hit_of(r, {}) >= T_FROZEN:
                 c["tested_present"] += 1
+                cb["tested_present"] += 1
             else:
                 c[TESTED_ABSENT] += 1
+                cb[TESTED_ABSENT] += 1
     n_cyc = len(ws_cycles)
     tot = {k: sum(per_cycle[s][k] for s in per_cycle) for k in (TESTED_ABSENT, HASHED_OR_UNENCODABLE, UNTESTABLE_CLASS, "tested_present", "not_confirmed")}
     u_prime_sum = tot[TESTED_ABSENT] + tot[HASHED_OR_UNENCODABLE] + tot[UNTESTABLE_CLASS]
     res["U_prime"] = {"cycles": n_cyc, "totals": tot, "U_prime_per_cycle": u_prime_sum / n_cyc if n_cyc else None,
                       "split_per_cycle": {k: tot[k] / n_cyc for k in (TESTED_ABSENT, HASHED_OR_UNENCODABLE, UNTESTABLE_CLASS)} if n_cyc else None}
+    with open(out + ".byband.csv", "w") as f:
+        f.write("stamp,band,not_confirmed,tested_absent,hashed_or_unencodable,untestable_class,tested_present\n")
+        for (st, bd) in sorted(per_band):
+            c = per_band[(st, bd)]
+            f.write(",".join([st, bd] + [str(c[k]) for k in ("not_confirmed", TESTED_ABSENT, HASHED_OR_UNENCODABLE, UNTESTABLE_CLASS, "tested_present")]) + "\n")
     with open(out + ".percycle.csv", "w") as f:
         f.write("stamp,not_confirmed,tested_absent,hashed_or_unencodable,untestable_class,tested_present\n")
         for s in sorted(ws_cycles):
