@@ -117,7 +117,8 @@ internal static class SubtractionPass
         ILogger? logger,
         Ft8ApConstraints? ap = null,
         TimeSpan? deadline = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        ResidualPassReport? report = null)
     {
         if (normalisedPcm.Length != PcmLength)
             throw new ArgumentException(
@@ -130,8 +131,17 @@ internal static class SubtractionPass
         var stats = new PassStats();
         var wall = System.Diagnostics.Stopwatch.StartNew();
         Ft8NativeResult[] result = await Task.Run(
-            () => RunCore(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, stats, ct), ct);
+            () => RunCore(interop, normalisedPcm, pass0Results, null, maxDegreeOfParallelism, logger, ap, deadline, stats, ct), ct);
         wall.Stop();
+
+        // third-pass-deep: hand the caller what the Deep pass needs (the residual buffer and how the pass ended).
+        // Observability and hand-off only: nothing here touches the return value.
+        if (report is not null)
+        {
+            report.Residual = stats.Residual;
+            report.DeadlineAbandoned = stats.DeadlineAbandoned;
+            report.ContainedException = stats.ContainedException;
+        }
 
         // HK-037 / NFR-021: aggregates only -- no message text, callsigns or exception text.
         logger?.LogInformation(
@@ -150,12 +160,109 @@ internal static class SubtractionPass
         public int FittedSignals;
         public bool DeadlineAbandoned;
         public bool ContainedException;
+        /// <summary>The buffer after every fitted signal was subtracted, set just before the residual decode (null if the pass ended earlier).</summary>
+        public float[]? Residual;
     }
+
+    /// <summary>
+    /// third-pass-deep (#240): what the residual pass leaves behind for the optional third pass. Passed to
+    /// <see cref="RunAsync"/> only when the decoding depth is Deep; <c>null</c> (Normal) changes nothing.
+    /// </summary>
+    internal sealed class ResidualPassReport
+    {
+        /// <summary>The residual buffer (pass-0 signals subtracted), or <c>null</c> if the pass never built it. Not copied: it is the pass's own array.</summary>
+        public float[]? Residual { get; internal set; }
+
+        /// <summary>The pass was abandoned on the wall-clock budget.</summary>
+        public bool DeadlineAbandoned { get; internal set; }
+
+        /// <summary>The pass failed with a contained exception.</summary>
+        public bool ContainedException { get; internal set; }
+    }
+
+    /// <summary>The outcome strings of the third pass, exactly as they appear in the per-cycle log line and the status counters.</summary>
+    internal static class ThirdPassOutcome
+    {
+        public const string Ran = "ran";
+        public const string SkippedNoNew = "skipped-no-new";
+        public const string SkippedAbandoned = "skipped-abandoned";
+        public const string Abandoned = "abandoned";
+        public const string Failed = "failed";
+    }
+
+    /// <summary>The result of <see cref="RunThirdPassAsync"/>.</summary>
+    /// <param name="NewResults">Only the decodes new against pass 0 AND the residual pass; empty unless <paramref name="Outcome"/> is <c>ran</c>.</param>
+    /// <param name="Outcome">One of <see cref="ThirdPassOutcome"/>: <c>ran</c>, <c>skipped-no-new</c> (nothing re-encodable to subtract), <c>abandoned</c> or <c>failed</c>.</param>
+    /// <param name="ElapsedMs">Wall time of the pass.</param>
+    /// <param name="FittedSignals">How many of the residual pass's new signals were fitted and subtracted.</param>
+    internal sealed record ThirdPassResult(Ft8NativeResult[] NewResults, string Outcome, long ElapsedMs, int FittedSignals);
+
+    /// <summary>
+    /// third-pass-deep (#240, spec section 1): one more subtract-and-decode round, incremental. Starts from the residual
+    /// buffer the residual pass already produced (pass-0 signals subtracted), fits and subtracts ONLY the residual
+    /// pass's new signals from it (pass-0 signals are NOT refitted), decodes that buffer with the same settings, and
+    /// returns only decodes new against pass 0 AND the residual pass (same payload dedup, RR73-aware). It reuses the
+    /// residual pass's fit, subtraction and decode code unchanged; only the buffer, the signals to fit and the dedup
+    /// set differ. All-or-nothing: a deadline abandonment or a contained failure returns no decodes. Never throws except
+    /// for caller cancellation.
+    /// </summary>
+    /// <param name="interop">Native interop abstraction.</param>
+    /// <param name="residualBuffer">The residual pass's buffer (<see cref="ResidualPassReport.Residual"/>). Not modified: the pass works on a copy.</param>
+    /// <param name="residualNewResults">The residual pass's new decodes: the signals to fit and subtract.</param>
+    /// <param name="pass0Results">Pass 0's decodes (also known: a third-pass decode of one of these is not new).</param>
+    /// <param name="maxDegreeOfParallelism">Bound on concurrent fits.</param>
+    /// <param name="logger">Optional logger; the per-cycle <c>Third pass:</c> line is written here.</param>
+    /// <param name="ap">The AP constraints pass 0 was decoded with.</param>
+    /// <param name="deadline">What remains of the shared cycle budget.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public static async Task<ThirdPassResult> RunThirdPassAsync(
+        IFt8NativeInterop interop,
+        float[] residualBuffer,
+        Ft8NativeResult[] residualNewResults,
+        Ft8NativeResult[] pass0Results,
+        int maxDegreeOfParallelism,
+        ILogger? logger,
+        Ft8ApConstraints? ap,
+        TimeSpan? deadline,
+        CancellationToken ct = default)
+    {
+        if (residualBuffer.Length != PcmLength)
+            throw new ArgumentException(
+                $"residualBuffer must be exactly {PcmLength} samples. Got {residualBuffer.Length}.",
+                nameof(residualBuffer));
+
+        var stats = new PassStats();
+        var wall = System.Diagnostics.Stopwatch.StartNew();
+        Ft8NativeResult[] result = await Task.Run(
+            () => RunCore(interop, residualBuffer, residualNewResults, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, stats, ct), ct);
+        wall.Stop();
+
+        string outcome =
+            stats.ContainedException ? ThirdPassOutcome.Failed :
+            stats.DeadlineAbandoned  ? ThirdPassOutcome.Abandoned :
+            stats.FittedSignals == 0 ? ThirdPassOutcome.SkippedNoNew :   // nothing re-encodable to subtract: the buffer would be decoded unchanged
+                                       ThirdPassOutcome.Ran;
+        if (outcome != ThirdPassOutcome.Ran) result = [];
+
+        long ms = (long)wall.Elapsed.TotalMilliseconds;
+        LogThirdPass(logger, result.Length, ms, outcome, stats.FittedSignals);
+        return new ThirdPassResult(result, outcome, ms, stats.FittedSignals);
+    }
+
+    /// <summary>
+    /// The per-cycle third-pass line, one format for every outcome (a skip logs it with <paramref name="elapsedMs"/> 0).
+    /// HK-037 / NFR-021: aggregates only, never message text.
+    /// </summary>
+    internal static void LogThirdPass(ILogger? logger, int newDecodes, long elapsedMs, string outcome, int fittedSignals)
+        => logger?.LogInformation(
+            "Third pass: newDecodes={NewDecodes} elapsedMs={ElapsedMs} outcome={Outcome} fittedSignals={FittedSignals}",
+            newDecodes, elapsedMs, outcome, fittedSignals);
 
     private static Ft8NativeResult[] RunCore(
         IFt8NativeInterop interop,
         float[] normalisedPcm,
         Ft8NativeResult[] pass0Results,
+        Ft8NativeResult[]? alsoKnown,
         int maxDegreeOfParallelism,
         ILogger? logger,
         Ft8ApConstraints? ap,
@@ -165,7 +272,7 @@ internal static class SubtractionPass
     {
         try
         {
-            return RunCoreUnguarded(interop, normalisedPcm, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, stats, ct);
+            return RunCoreUnguarded(interop, normalisedPcm, pass0Results, alsoKnown, maxDegreeOfParallelism, logger, ap, deadline, stats, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -184,10 +291,15 @@ internal static class SubtractionPass
         }
     }
 
+    // pass0Results = the signals to fit and subtract from normalisedPcm. For the residual pass that is pass 0's decodes and
+    // normalisedPcm is the exact normalised PCM; for the Deep third pass (third-pass-deep) it is the residual pass's new
+    // decodes and normalisedPcm is the residual buffer. alsoKnown (third pass only; null for the residual pass, which is
+    // then byte-for-byte what it was) adds results that are already known for the payload dedup but are not refitted.
     private static Ft8NativeResult[] RunCoreUnguarded(
         IFt8NativeInterop interop,
         float[] normalisedPcm,
         Ft8NativeResult[] pass0Results,
+        Ft8NativeResult[]? alsoKnown,
         int maxDegreeOfParallelism,
         ILogger? logger,
         Ft8ApConstraints? ap,
@@ -312,6 +424,7 @@ internal static class SubtractionPass
             float[] shat = shatBuffers[i];
             for (int s = 0; s < PcmLength; s++) residual[s] -= shat[s];
         }
+        stats.Residual = residual;   // third-pass-deep: the caller may start from this buffer (no copy; read-only for it)
 
         // ── Step 4: decode the residual, unmodified existing entry point ────
         // Native AP state is _Thread_local (QA R1): set it on THIS thread, right before DecodeAll,
@@ -338,6 +451,15 @@ internal static class SubtractionPass
 
         // ── Step 5: payload-based merge/dedup, RR73-aware ───────────────────
         var originalPayloads = candidates.Select(c => c.Payload77).ToList();
+        if (alsoKnown is not null)
+        {
+            // third-pass-deep: pass 0's decodes are known too (the fitted signals are the residual pass's new ones).
+            foreach (ref readonly Ft8NativeResult kn in alsoKnown.AsSpan())
+            {
+                try { originalPayloads.Add(SubfeasPayload.ExtractPayload77(interop.EncodeMessage(kn.Message.TrimEnd()))); }
+                catch (InvalidOperationException) { /* not encodable: cannot be payload-compared; the decoder's text de-duplication still applies */ }
+            }
+        }
         var newResults = new List<Ft8NativeResult>();
 
         foreach (ref readonly Ft8NativeResult nr in pass2Results.AsSpan())

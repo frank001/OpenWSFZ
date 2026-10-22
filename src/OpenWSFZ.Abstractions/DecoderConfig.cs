@@ -45,7 +45,11 @@ public sealed record DecoderConfig
         // property outside the [JsonConstructor] is set to the CLR default (false, 0) when its key is ABSENT, which would turn
         // the ON-by-default early decode off (and its cut to 0) for every config file written before the key existed.
         bool   earlyDecodeEnabled      = true,
-        double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds)
+        double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds,
+        // third-pass-deep (#240): in the constructor with its default, for the same reason as the fields above.
+        DecodingDepth decodingDepth    = DecodingDepth.Deep,
+        // COH-FALLBACK Stage 2 (R10): in the constructor with its default (true since 2026-10-22), for the same reason as the fields above.
+        bool coherentFallbackEnabled   = true)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -57,6 +61,8 @@ public sealed record DecoderConfig
         SubtractionOnMigrationApplied = subtractionOnMigrationApplied;
         EarlyDecodeEnabled      = earlyDecodeEnabled;
         EarlyDecodeCutSeconds   = earlyDecodeCutSeconds;
+        DecodingDepth           = decodingDepth;
+        CoherentFallbackEnabled = coherentFallbackEnabled;
     }
 
     /// <summary>
@@ -211,4 +217,25 @@ public sealed record DecoderConfig
     /// <see cref="MaxEarlyDecodeCutSeconds"/>, clamped server-side like the other decoder values. Read once per window.
     /// </summary>
     public double EarlyDecodeCutSeconds { get; init; } = DefaultEarlyDecodeCutSeconds;
+
+    /// <summary>
+    /// third-pass-deep (#240, step 1): <see cref="Abstractions.DecodingDepth.Deep"/> (the default) adds one more incremental subtract-and-decode round after the
+    /// residual pass (published as batch 3, sharing the 13 s cycle budget); <see cref="Abstractions.DecodingDepth.Normal"/>,
+    /// the explicit opt-out, is the decoder as it was before the third pass existed. It has an effect only while
+    /// <see cref="SubtractionEnabled"/> is on. Config API / file only in step 1 (no Settings-page control). Read once per
+    /// window; takes effect on the next window. The value the decoder is actually using is served on
+    /// <c>GET /api/v1/status</c> as <c>thirdPass.decodingDepth</c>. An absent key reads as <c>Deep</c>; an explicit <c>"Normal"</c> stays Normal.
+    /// </summary>
+    public DecodingDepth DecodingDepth { get; init; } = DecodingDepth.Deep;
+
+    /// <summary>
+    /// COH-FALLBACK (A' step 3) Stage 2, R10: when <c>true</c> the coherent-extraction fallback runs on every candidate the ordinary
+    /// decode did not decode. Step 4: it starts only after the cycle's last ordinary batch has been handed off, runs in parallel over the
+    /// candidates, and its decodes are published as a batch of their own (batch 4 on <see cref="DecodingDepth.Deep"/>, batch 3 on Normal). <b>Default <c>true</c></b> (ON by default, the Captain's decision of 2026-10-22; an absent key therefore reads as <c>true</c>, as does a
+    /// missing <c>decoder</c> section); an explicit <c>false</c> stays <c>false</c>, and with it <c>false</c> the decoder is exactly as it was
+    /// before the fallback existed. It has an effect only while <see cref="SubtractionEnabled"/> is on. Settings page: the "Coherent fallback"
+    /// checkbox in the decoder section; the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes
+    /// effect on the next window. The threshold T1 is a constant, not a setting.
+    /// </summary>
+    public bool CoherentFallbackEnabled { get; init; } = true;
 }

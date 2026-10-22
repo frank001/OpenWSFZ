@@ -387,6 +387,19 @@
               </p>
             </div>
 
+            <!-- COH-FALLBACK: coherent fallback (default ON since 2026-10-22) -->
+            <div class="field-group">
+              <label for="decoder-coherent-fallback">
+                <input type="checkbox" id="decoder-coherent-fallback" />
+                Coherent fallback
+              </label>
+              <p class="field-hint">
+                After the ordinary passes, try to decode weak signals the ordinary decode missed; their decodes appear as
+                an extra batch. It has an effect only while subtraction is enabled (<code>decoder.subtractionEnabled</code>).
+                Takes effect on the next decode cycle. Default: <strong>on</strong>; untick this box and save to turn it off.
+              </p>
+            </div>
+
             <div class="field-group">
               <label for="decoder-early-cut">Early decode lead (seconds)</label>
               <input

@@ -131,8 +131,17 @@ REQUIRED_COLUMNS = {
 }
 
 # STUDY-SPEC §10 verdict thresholds
-THRESH_GRR_PASS = 10.0      # %GR&R < 10% → PASS
-THRESH_GRR_MARGINAL = 30.0  # %GR&R 10–30% → MARGINAL; > 30% → FAIL
+# 2026-10-14 (Captain, relayed by the Architect): the %GR&R gate is read on %StudyVar, the standard-deviation ratio (AIAG's convention),
+# NOT on %Contribution as the 2026-08 ratification had it. %Contribution is still printed beside it, labelled, with no verdict.
+# Not retroactive: reports written before this date were graded on %Contribution and stand as written.
+GATE_GRR_METRIC = "%StudyVar"
+# Printed under every future S3 study-metrics table (Architect, 2026-10-14): S3 sits at 9.7-11.1 % %StudyVar on the corrected Linux chain, so it can read MARGINAL;
+# that is the intended outcome of the AIAG reading and the gate is not adjusted for it.
+S3_DT_OFFSET_NOTE = ("S3 reproducibility is dominated by a fixed OpenWSFZ − WSJT-X DT offset (+0.12 s, Section 3.3 of the 2026-10-14 full-ANOVA report), "
+                     "not by run-to-run noise.")
+GATE_CHANGE_NOTE = "%GR&R gate changed to %StudyVar on 2026-10-14 (Captain); rows and reports before this date were graded on %Contribution and are not re-graded."
+THRESH_GRR_PASS = 10.0      # %GR&R (%StudyVar) < 10% → PASS
+THRESH_GRR_MARGINAL = 30.0  # %GR&R (%StudyVar) 10–30% → MARGINAL; > 30% → FAIL
 NDC_FAIL = 2                 # ndc < 2 → FAIL
 NDC_PASS = 5                 # ndc ≥ 5 → PASS
 THRESH_KAPPA_PASS = 0.90
@@ -265,6 +274,7 @@ def _header_sha_rows(run_dir: Path, git_sha: str) -> list[str]:
 
 
 def _verdict_grr(pct: float) -> str:
+    """Verdict for %GR&R. *pct* is %StudyVar (100 * sigma_GRR / sigma_total), the gate metric since 2026-10-14, never %Contribution."""
     if pct < THRESH_GRR_PASS:
         return "PASS"
     if pct <= THRESH_GRR_MARGINAL:
@@ -272,7 +282,10 @@ def _verdict_grr(pct: float) -> str:
     return "FAIL"
 
 
-def _verdict_ndc(ndc: int) -> str:
+def _verdict_ndc(ndc: "int | None") -> str:
+    """ndc is None when it is NOT COMPUTABLE (one appraiser, or sigma_GRR = 0): 'N/A', never FAIL (2026-10-13, the Linux repeats)."""
+    if ndc is None:
+        return "N/A"
     if ndc >= NDC_PASS:
         return "PASS"
     if ndc >= NDC_FAIL:
@@ -676,7 +689,16 @@ def _derived_metrics(anova: dict, tol_half: float) -> dict:
         return 100.0 * math.sqrt(v) / sigma_total if sigma_total > 0 else 0.0
 
     pct_tol = (6.0 * sigma_grr / (2.0 * tol_half) * 100.0) if tol_half > 0 else float("nan")
-    ndc = max(1, math.floor(1.41 * sigma_part / sigma_grr)) if sigma_grr > 0 else 1
+    # ndc = 1.41 * sigma_part / sigma_grr is only defined with a second appraiser and a non-zero sigma_GRR. It used to print 1 (= FAIL) in both
+    # other cases: the three Linux repeats of 2026-10-11 had no WSJT-X data, reproducibility was 0, and the report said "ndc 1 FAIL" for
+    # a missing appraiser. Now it is None ("not computable") with the reason stated.
+    n_appr = int(anova.get("n_appraisers", 2))
+    if n_appr < 2:
+        ndc, ndc_reason = None, "only one appraiser has matched data, so reproducibility is undefined and ndc is not an appraiser R&R figure (%GR&R is repeatability only)"
+    elif sigma_grr <= 0:
+        ndc, ndc_reason = None, "sigma_GRR = 0 (no measurable repeatability or reproducibility variance), so ndc is unbounded, not 1; an exactly zero GRR is not read as a PASS (HK-026)"
+    else:
+        ndc, ndc_reason = max(1, math.floor(1.41 * sigma_part / sigma_grr)), ""
 
     return {
         "pct_contribution_repeat": pct_contribution(vrep),
@@ -689,6 +711,8 @@ def _derived_metrics(anova: dict, tol_half: float) -> dict:
         "pct_study_var_grr": pct_study_var(vgrr),
         "pct_tolerance": pct_tol,
         "ndc": ndc,
+        "ndc_reason": ndc_reason,
+        "n_appraisers": n_appr,
         "sigma_grr": sigma_grr,
         "sigma_part": sigma_part,
         "sigma_total": sigma_total,
@@ -2298,19 +2322,25 @@ def _collect_verdicts(
     marginals: list[str] = []
     notes: list[str] = []
 
+    if any(r is not None for r in continuous_results.values()):
+        notes.append(GATE_CHANGE_NOTE)
     for scen_id, res in continuous_results.items():
         if res is None:
             continue
-        pct_grr = res["metrics"]["pct_contribution_grr"]
+        pct_grr = res["metrics"]["pct_study_var_grr"]            # the gate metric (2026-10-14): %StudyVar
+        pct_contrib = res["metrics"]["pct_contribution_grr"]     # printed beside it, labelled, no verdict
         ndc = res["metrics"]["ndc"]
         v_grr = _verdict_grr(pct_grr)
         v_ndc = _verdict_ndc(ndc)
-        verdict_rows.append(("%GR&R", scen_id, f"{pct_grr:.1f}%", v_grr))
-        verdict_rows.append(("ndc", scen_id, str(ndc), v_ndc))
+        one_appraiser = res["metrics"].get("n_appraisers", 2) < 2
+        verdict_rows.append(("%GR&R (%StudyVar)", scen_id, f"{pct_grr:.1f}% (%Contribution {pct_contrib:.1f}%, no verdict)" + (" (repeatability only, one appraiser)" if one_appraiser else ""), v_grr))
+        verdict_rows.append(("ndc", scen_id, "not computable" if ndc is None else str(ndc), v_ndc))
+        if ndc is None:
+            notes.append(f"ndc ({scen_id}) is not computable: {res['metrics'].get('ndc_reason', '')}")
         if v_grr == "FAIL":
-            fails.append(f"%GR&R ({scen_id}) = {pct_grr:.1f}% (threshold: < {THRESH_GRR_PASS}% Acceptable)")
+            fails.append(f"%GR&R (%StudyVar) ({scen_id}) = {pct_grr:.1f}% (threshold: < {THRESH_GRR_PASS}% Acceptable)")
         elif v_grr == "MARGINAL":
-            marginals.append(f"%GR&R ({scen_id}) = {pct_grr:.1f}%")
+            marginals.append(f"%GR&R (%StudyVar) ({scen_id}) = {pct_grr:.1f}%")
 
     for label, info in kappa_results.items():
         kappa = info.get("kappa", float("nan"))
@@ -2436,6 +2466,39 @@ def _collect_verdicts(
         overall = "PASS"
 
     return verdict_rows, overall, fails, notes
+
+
+# ---------------------------------------------------------------------------
+# M3 (2026-10-14, Architect): per-scenario COVERAGE of each appraiser: a validity row, never a result
+# ---------------------------------------------------------------------------
+
+def _coverage_check(run_dir: Path) -> "tuple[list, list, list] | None":
+    """(rows, invalid_messages, notes) from `coverage_slots_wsjtx.txt` / `coverage_slots_owsfz.txt` (cycle stamps for which the appraiser had audio data,
+    written by run_study.py) against the expected cycles of each scenario in truth.csv. A scenario with fewer cycles with data than (expected - 1)
+    makes the sweep INVALID. Missing slot files = NOT MEASURED (a note, never a PASS). Returns None when truth.csv is absent."""
+    from harness import liveness as _lv
+    truth = run_dir / "truth.csv"
+    if not truth.is_file():
+        return None
+    expected: dict[str, set] = {}
+    with open(truth, newline="", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if r.get("scenario_id") and r.get("cycle_utc"):
+                expected.setdefault(r["scenario_id"], set()).add(r["cycle_utc"])
+    rows: list = []
+    bad: list = []
+    notes: list = []
+    for appr, fname in (("WSJT-X", "coverage_slots_wsjtx.txt"), ("OpenWSFZ", "coverage_slots_owsfz.txt")):
+        slots = _lv.read_slots(str(run_dir / fname))
+        if slots is None:
+            notes.append(f"Coverage ({appr}) NOT MEASURED: no {fname} in the run folder (the battery ran without --liveness-save-dir / --coverage-owsfz-dir)")
+            continue
+        for c in _lv.coverage_rows(expected, slots, appr):
+            ok = c["result"] == "PASS"
+            rows.append(("Coverage (validity)", f"{c['scenario']}/{appr}", f"{c['with_data']} of {c['expected']} cycles with data (needs >= {c['required']})", "PASS" if ok else "INVALID"))
+            if not ok:
+                bad.append(f"INVALID: {appr} has data for only {c['with_data']} of {c['expected']} cycles of {c['scenario']} (needs >= {c['required']}); the appraiser was silent for part of the scenario")
+    return rows, bad, notes
 
 
 # ---------------------------------------------------------------------------
@@ -2592,19 +2655,23 @@ def _write_report(
             "",
             "| Metric | Value | Verdict |",
             "|---|---|---|",
-            # The §10 gate is %Contribution, so %Contribution is the row that
+            # Since 2026-10-14 (Captain) the §10 gate is %StudyVar, so the %StudyVar row carries the
+            # verdict and %Contribution is printed with "—". Before that date the gate was %Contribution
+            # and this comment read: "the §10 gate is %Contribution, so %Contribution is the row that
             # carries the verdict.  %Tolerance and %Study Var are reported for
             # reference with an explicit "—", never beside a verdict computed
             # from a different number: this row previously printed the
             # %Tolerance VALUE next to the %CONTRIBUTION VERDICT, so S3 rendered
             # as "89.79% | PASS" — a figure AIAG would call unacceptable sitting
             # next to the word PASS.  Architect review 2026-08-27 (R4).
-            f"| %Contribution (GR&R) | {_fmt_num(metrics['pct_contribution_grr'])}% | {_verdict_grr(metrics['pct_contribution_grr'])} |",
+            f"| %Contribution (GR&R) | {_fmt_num(metrics['pct_contribution_grr'])}% | — |",
             f"| %Tolerance (GR&R) | {_fmt_num(metrics['pct_tolerance'])}% | — |",
-            f"| %Study Var (GR&R) | {_fmt_num(metrics['pct_study_var_grr'])}% | — |",
-            f"| ndc | {metrics['ndc']} | {_verdict_ndc(metrics['ndc'])} |",
+            f"| %GR&R (%StudyVar) | {_fmt_num(metrics['pct_study_var_grr'])}% | {_verdict_grr(metrics['pct_study_var_grr'])} |",
+            f"| ndc | {'not computable' if metrics['ndc'] is None else metrics['ndc']} | {_verdict_ndc(metrics['ndc'])} |",
             "",
         ]
+        if scen_id == "S3":
+            lines += [f"_{S3_DT_OFFSET_NOTE}_", ""]
         # Embedded PNG
         png_name = f"{scen_id}_grr_panel.png"
         lines += [f"![{scen_id} GR&R panel]({png_name})", ""]
@@ -2778,7 +2845,39 @@ _TREND_COLUMNS = [
     # Header migration for the already-committed file: see the note this
     # supersedes at STUDY-SPEC.md Sec.16, R&R-010 entry.
     _TREND_S5_EVENTS_COL, _TREND_S5_SLOTS_COL,
+    # 2026-10-14 (Captain): the gate metric. `pct_grr_snr` above stays %Contribution (the column's meaning does not change);
+    # for rows written before the gate moved this column is derived from it by the exact identity
+    # %StudyVar = 100 * sqrt(%Contribution / 100) (sigma_GRR / sigma_total with var_total = var_GRR + var_part).
+    "pct_study_var_snr",
 ]
+
+
+def _migrate_trend_header(trend_path: Path, columns: "list[str] | None" = None) -> None:
+    """If trend.csv exists with an older header, rewrite it with `pct_study_var_snr` appended (derived where `pct_grr_snr` is numeric, else empty)."""
+    if not trend_path.exists():
+        return
+    with open(trend_path, newline="", encoding="utf-8") as fh:
+        rows = list(csv.reader(fh))
+    if not rows or rows[0] == (columns if columns is not None else _TREND_COLUMNS):
+        return
+    old = rows[0]
+    if "pct_study_var_snr" in old:
+        return
+    i = old.index("pct_grr_snr") if "pct_grr_snr" in old else None
+    out = [old + ["pct_study_var_snr"]]
+    for r in rows[1:]:
+        r = r + [""] * (len(old) - len(r))
+        v = ""
+        if i is not None and r[i] != "":
+            try:
+                v = str(100.0 * math.sqrt(max(0.0, float(r[i])) / 100.0))
+            except ValueError:
+                v = ""
+        out.append(r + [v])
+    tmp = trend_path.with_suffix(".csv.tmp")
+    with open(tmp, "w", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerows(out)
+    tmp.replace(trend_path)
 
 
 def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
@@ -2786,6 +2885,7 @@ def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
                   fp_results: dict, bias_results: dict,
                   s5_window_result: dict | None = None) -> None:
     trend_path = qa_rr_root / "trend.csv"
+    _migrate_trend_header(trend_path)
     write_header = not trend_path.exists()
 
     run_date = run_dir.name.split("-")[0:3]
@@ -2797,9 +2897,11 @@ def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
         return str(v)
 
     pct_grr_snr = ""
+    pct_sv_snr = ""
     ndc_snr = ""
     if "S1" in continuous_results and continuous_results["S1"] is not None:
         pct_grr_snr = _safe(continuous_results["S1"]["metrics"]["pct_contribution_grr"])
+        pct_sv_snr = _safe(continuous_results["S1"]["metrics"]["pct_study_var_grr"])
         ndc_snr = _safe(continuous_results["S1"]["metrics"]["ndc"])
 
     bias_snr_owsfz = ""
@@ -2846,6 +2948,7 @@ def _append_trend(qa_rr_root: Path, run_dir: Path, git_sha: str,
         "fp_rate_s5": fp_rate_s5,
         _TREND_S5_EVENTS_COL: fp_events_s5,
         _TREND_S5_SLOTS_COL: fp_slots_s5,
+        "pct_study_var_snr": pct_sv_snr,
     }
 
     with open(trend_path, "a", newline="", encoding="utf-8") as fh:
@@ -2951,7 +3054,8 @@ def main() -> None:
             "tol_half": tol_half,
             "s3_correction_applied": s3_correction_applied,
         }
-        print(f"  {scen_id}: %GR&R={metrics['pct_contribution_grr']:.1f}%  ndc={metrics['ndc']}")
+        print(f"  {scen_id}: %GR&R (%StudyVar)={metrics['pct_study_var_grr']:.1f}%  (%Contribution {metrics['pct_contribution_grr']:.1f}%)  ndc={'not computable' if metrics['ndc'] is None else metrics['ndc']}"
+              + ("  [ONE APPRAISER: repeatability only]" if metrics.get("n_appraisers", 2) < 2 else ""))
         # Six-panel chart
         png = _plot_grr_panel(df, response, anova, metrics, scen_id, run_dir)
         print(f"    -> {png.name}")
@@ -3114,6 +3218,19 @@ def main() -> None:
         fp_narrowband_results=fp_narrowband_results,
         s5_window_result=s5_window_result,
     )
+
+    # --- M3: coverage (validity) ---
+    _cov = _coverage_check(run_dir) if not scenario_filter else None
+    if _cov:
+        _cov_rows, _cov_bad, _cov_notes = _cov
+        verdict_rows.extend(_cov_rows)
+        notes.extend(_cov_notes)
+        if _cov_bad:
+            overall = "INVALID"
+            fails = list(_cov_bad) + list(fails)
+            print("  *** COVERAGE FAILED: sweep INVALID ***")
+            for m in _cov_bad:
+                print("    " + m)
 
     # --- Write report ---
     report_path = _write_report(

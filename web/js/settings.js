@@ -140,6 +140,8 @@ const decoderReset = /** @type {HTMLButtonElement} */ (document.getElementById('
 // decode-early-batch-panel (FR-083): the early decode checkbox and its lead.
 const decoderEarlyEnabled = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-early-enabled'));
 const decoderEarlyCut     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-early-cut'));
+// COH-FALLBACK: the coherent fallback checkbox (decoder.coherentFallbackEnabled, ON by default).
+const decoderCoherentFallback = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-coherent-fallback'));
 
 // Remote access controls (lan-remote-access)
 const remoteAccessEnabled         = /** @type {HTMLInputElement}  */ (document.getElementById('remote-access-enabled'));
@@ -406,6 +408,7 @@ function snapshotForm() {
       osdNhardMax:      decoderNhard.value,
       earlyDecodeEnabled:    decoderEarlyEnabled.checked,
       earlyDecodeCutSeconds: decoderEarlyCut.value,
+      coherentFallbackEnabled: decoderCoherentFallback.checked,
     },
     // decode-noise-suppression: include both suppression controls in dirty-state snapshot.
     // suppressUnknownRegion uses the tri-state _suppressUnknownRegionRaw (not the checkbox's
@@ -948,6 +951,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     decoderNhard.value = String(dec.osdNhardMax      ?? 24);
     decoderEarlyEnabled.checked = dec.earlyDecodeEnabled ?? true;   // ON by default: no stored key shows checked (FR-083)
     decoderEarlyCut.value       = String(dec.earlyDecodeCutSeconds ?? 2.0);
+    decoderCoherentFallback.checked = dec.coherentFallbackEnabled ?? true;   // ON by default: no stored key shows checked (COH-FALLBACK, as FR-083)
 
     // Pre-fill decode-noise-suppression controls (task 4.2). suppressSynthetic is a plain
     // persisted boolean (task 4.3 — no live-recompute step). suppressUnknownRegion's checkbox
@@ -1192,6 +1196,7 @@ decoderReset.addEventListener('click', () => {
   decoderNhard.value = '24';
   decoderEarlyEnabled.checked = true;
   decoderEarlyCut.value       = '2';
+  decoderCoherentFallback.checked = true;
   syncDirtyUI();
 });
 
@@ -1432,6 +1437,7 @@ saveBtn.addEventListener('click', async () => {
       osdNhardMax:      Number.isFinite(decoderNhardRaw) ? decoderNhardRaw : 24,
       earlyDecodeEnabled:    decoderEarlyEnabled.checked,
       earlyDecodeCutSeconds: Number.isFinite(decoderEarlyCutRaw) ? decoderEarlyCutRaw : 2.0,
+      coherentFallbackEnabled: decoderCoherentFallback.checked,
     };
 
     // Collect decode-noise-suppression config (decode-noise-suppression, design.md Decision 3).

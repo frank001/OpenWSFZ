@@ -95,6 +95,9 @@ native/ft8_lib_vendor/refine/coherent_llr.c      (r2: diagnostic-only coherent m
                                                    call site — reuses sync_refiner.c's own
                                                    downconvert_decimate/design_lowpass_hann via
                                                    refine_common.h)
+native/ft8_lib_vendor/refine/coherent_fallback.c (COH-FALLBACK Stage 1, shim 20260066: the fine-sync
+                                                   estimator, F1b and the V3 coherent LLRs; OpenWSFZ-original,
+                                                   diagnostic-only, no production call site; no mutable globals)
 ```
 
 r0-reproducible-native-build: every one of these now compiles from tracked source on every
@@ -150,6 +153,10 @@ cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
 cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
    native\ft8_lib_vendor\refine\coherent_llr.c
 
+:: Compile the coherent-extraction fallback core (COH-FALLBACK Stage 1, shim 20260066, diagnostic-only)
+cl /I native\ft8_lib_vendor /I src\OpenWSFZ.Ft8\Native /std:c11 /O2 /W3 /c ^
+   native\ft8_lib_vendor\refine\coherent_fallback.c
+
 :: Compile the sub-feas fit (sub-feas-native-subtraction; sub-feas-speed-redesign adds the workspace pool,
 :: the cancel flag and return code -4). OpenWSFZ-original. It uses a lock (SRWLOCK on Windows, a pthread
 :: mutex elsewhere), so it needs no extra link library.
@@ -193,8 +200,10 @@ link /DLL /OUT:libft8.dll ^
    /EXPORT:ft8_hash_state_size ^
    /EXPORT:ft8_hash_state_save ^
    /EXPORT:ft8_hash_state_restore ^
+   /EXPORT:ft8_coherent_fallback_at ^
+   /EXPORT:ft8_coherent_fallback_cycle ^
    constants.obj crc.obj decode.obj encode.obj ldpc.obj message.obj text.obj ^
-   monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj subfeas_fit.obj
+   monitor.obj kiss_fft.obj kiss_fftr.obj ft8_shim.obj sync_refiner.obj coherent_llr.obj coherent_fallback.obj subfeas_fit.obj
 
 :: Copy to repo location
 copy libft8.dll ..\..\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
@@ -221,11 +230,11 @@ gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
 gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
     ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
 gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
-    refine/sync_refiner.c refine/coherent_llr.c
+    refine/sync_refiner.c refine/coherent_llr.c refine/coherent_fallback.c
 
 gcc -shared -o libft8.so \
     constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o \
+    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o coherent_fallback.o \
     -lm
 
 # Note: ft8_get_last_noise_floor_db is exported automatically (no explicit -Wl,--export-dynamic needed)
@@ -234,6 +243,18 @@ gcc -shared -o libft8.so \
 > **Note:** `-D_GNU_SOURCE` is required. `ft8_lib/ft8/message.c` calls `stpcpy`, which is
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
+
+COH-FALLBACK step 4 (shim 20260069) adds NO new source file and no new recipe line either: four new exports (`ft8_coherent_fallback_plan`,
+`_ctx_new`, `_ctx_free`, `_process`, appended to `ft8_shim.c` and added to the `rebuild_shim.bat` `/EXPORT` list) for the parallel cycle. The
+Linux, macOS and CI builds need no export list (default visibility).
+
+COH-FALLBACK Stage 2 (shim 20260068) adds NO new source file and no new recipe line: three new exports (`ft8_coherent_fallback_snapshot_size`,
+`_snapshot`, `_run`, `_unpack`, also in the `rebuild_shim.bat` `/EXPORT` list) in `ft8_shim.c` and one new function (`cf_snr_db`) in
+`refine/coherent_fallback.c`, which every recipe above already compiles. The managed side binds them in `Interop/Ft8LibInterop.cs`.
+
+COH-FALLBACK Stage 1 (shim 20260066) adds the new file `refine/coherent_fallback.c` (compiled in every recipe above, and in the
+hand-duplicated macOS/Linux steps of `.github/workflows/ci.yml`) and two diagnostic-only exports, `ft8_coherent_fallback_at` and
+`ft8_coherent_fallback_cycle` (also in the `rebuild_shim.bat` `/EXPORT` list). No product wiring.
 
 osd-sign-fix (#215, shim 20260060) adds `ft8_set_osd_sign_fix` and `ft8_get_osd_sign_fix` (also in the `rebuild_shim.bat`
 `/EXPORT` list). The OSD fallback now gets LLRs in its own convention (positive = bit 0, negated in place from the BP
@@ -302,12 +323,12 @@ clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -
 clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -c \
     ../../src/OpenWSFZ.Ft8/Native/ft8_shim.c
 clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -target arm64-apple-macos11.0 -c \
-    refine/sync_refiner.c refine/coherent_llr.c
+    refine/sync_refiner.c refine/coherent_llr.c refine/coherent_fallback.c
 
 clang -dynamiclib -target arm64-apple-macos11.0 \
     -o libft8.dylib \
     constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o
+    monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o coherent_fallback.o
 ```
 
 > **Note:** `-D_GNU_SOURCE` is required for `stpcpy` on macOS as well (same reason as

@@ -1,0 +1,13 @@
+2026-10-17T14:41:14Z F1' run f1p-b start; WRAP=0
+2026-10-17T14:41:14Z V0: fuser on /dev/snd/pcmC0D0c: []; wsjtx/jt9/daemon/aplay/arecord not running
+2026-10-17T14:41:14Z pins at start: build f2beb5590ae7c7deea52666142b0f4575308e4c6; libft8.so 873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a; config.json 661de047bc52b833620316c2fe505000584fcde318987f25793a378c37733c9d; alsa-f1.conf 2a5c060285da9230b899dbb9afbc9764105ab3ff1b59a3205245610992caf1a4; asoundrc-f1 8dad4d05df42a606ca4610a5897b59c3575c25d7616b5232a45f8f9ef46b4efb; rig .asoundrc 8fab827058509a282babef7097f911fc6387da22d75b49dc1d8a871a3e9391e2
+2026-10-17T14:41:16Z V1a: granted G = 0.533 s (client PCM buffer_size / rate; dump in v1a.txt)
+2026-10-17T14:41:20Z daemon up (pid 1001576) after about 3 s
+2026-10-17T14:41:20Z V1b: arecord child args [arecord -D rr_in -f FLOAT_LE -r 12000 -c 1 -t raw -]; wrapper on the daemon's PATH: 0
+2026-10-17T14:41:20Z sampler started (10 Hz) on the arecord child of 1001576
+2026-10-17T14:56:37Z counters before the plays (overruns, channel drops, watchdog restarts): 1 0 0
+2026-10-17T15:14:45Z s6_play exited rc=0
+2026-10-17T15:15:06Z counters after the plays (overruns, channel drops, watchdog restarts): 4 0 0
+2026-10-17T15:15:06Z end pin: libft8.so 873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a
+2026-10-17T15:15:07Z daemon stopped; the wrapper dir was on that daemon's PATH only and is gone with it (nothing else was changed)
+2026-10-17T15:15:07Z DONE

@@ -1,0 +1,2 @@
+ALSA_CONFIG_PATH=/home/claude/qa-scratch/capture-loss/f1/alsa-f1.conf
+ALSA_PLUGIN_DIR=/home/claude/local/lib/alsa-lib

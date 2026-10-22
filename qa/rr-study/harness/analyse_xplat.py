@@ -71,6 +71,7 @@ from harness.analyse import (
     THRESH_GRR_PASS, THRESH_GRR_MARGINAL, NDC_FAIL, NDC_PASS,
     THRESH_KAPPA_PASS, THRESH_KAPPA_MARGINAL, THRESH_BIAS_PASS,
     THRESH_FP_UB95,
+    S3_DT_OFFSET_NOTE, GATE_CHANGE_NOTE, _migrate_trend_header,
 )
 
 # ---------------------------------------------------------------------------
@@ -947,16 +948,17 @@ def _collect_verdicts(
     for scen_id, res in continuous_results.items():
         if res is None:
             continue
-        pct_grr = res["metrics"]["pct_contribution_grr"]
+        pct_grr = res["metrics"]["pct_study_var_grr"]            # the gate metric since 2026-10-14 (Captain): %StudyVar
+        pct_contrib = res["metrics"]["pct_contribution_grr"]     # printed beside it, no verdict
         ndc     = res["metrics"]["ndc"]
         v_grr   = _verdict_grr(pct_grr)
         v_ndc   = _verdict_ndc(ndc)
-        verdict_rows.append(("%GR&R",  scen_id, f"{pct_grr:.1f}%", v_grr))
+        verdict_rows.append(("%GR&R (%StudyVar)",  scen_id, f"{pct_grr:.1f}% (%Contribution {pct_contrib:.1f}%, no verdict)", v_grr))
         verdict_rows.append(("ndc",    scen_id, str(ndc),           v_ndc))
         if v_grr == "FAIL":
-            fails.append(f"%GR&R ({scen_id}) = {pct_grr:.1f}% (threshold < {THRESH_GRR_PASS}%)")
+            fails.append(f"%GR&R (%StudyVar) ({scen_id}) = {pct_grr:.1f}% (threshold < {THRESH_GRR_PASS}%)")
         elif v_grr == "MARGINAL":
-            marginals.append(f"%GR&R ({scen_id}) = {pct_grr:.1f}%")
+            marginals.append(f"%GR&R (%StudyVar) ({scen_id}) = {pct_grr:.1f}%")
 
     # ── Platform bias gates — all pairs (STUDY-SPEC-XPLAT §8.1) ─────────────
     scen_bias_config = {
@@ -1177,11 +1179,16 @@ def _write_report(
             "",
             "| Metric | Value | Verdict |",
             "|---|---|---|",
-            f"| %Tolerance (GR&R) | {_fmt_num(metrics['pct_tolerance'])}% | {_verdict_grr(metrics['pct_contribution_grr'])} |",
-            f"| %Study Var (GR&R) | {_fmt_num(metrics['pct_study_var_grr'])}% | — |",
+            f"| %Contribution (GR&R) | {_fmt_num(metrics['pct_contribution_grr'])}% | — |",
+            f"| %Tolerance (GR&R) | {_fmt_num(metrics['pct_tolerance'])}% | — |",
+            f"| %GR&R (%StudyVar) | {_fmt_num(metrics['pct_study_var_grr'])}% | {_verdict_grr(metrics['pct_study_var_grr'])} |",
             f"| ndc | {metrics['ndc']} | {_verdict_ndc(metrics['ndc'])} |",
             "",
+            f"_{GATE_CHANGE_NOTE}_",
+            "",
         ]
+        if scen_id == "S3":
+            lines += [f"_{S3_DT_OFFSET_NOTE}_", ""]
         png_name = f"{scen_id}_grr_panel.png"
         lines += [f"![{scen_id} GR&R panel]({png_name})", ""]
 
@@ -1336,6 +1343,7 @@ _TREND_COLUMNS_XPLAT = [
     "fp_events_windows", "fp_events_linux", "fp_events_wsjt",
     "mcnemar_p",                 # Windows vs Linux McNemar p-value
     "overall",
+    "pct_study_var_snr",         # 2026-10-14 (Captain): the gate metric; pct_grr_snr stays %Contribution
 ]
 
 
@@ -1352,6 +1360,7 @@ def _append_trend(
 ) -> None:
     import csv as _csv
     trend_path = qa_rr_root / "trend_xplat.csv"
+    _migrate_trend_header(trend_path, _TREND_COLUMNS_XPLAT)
     write_header = not trend_path.exists()
 
     run_date_parts = run_dir.name.split("-")[0:3]
@@ -1362,9 +1371,10 @@ def _append_trend(
             return ""
         return str(round(v, 4) if isinstance(v, float) else v)
 
-    pct_grr_snr = ndc_snr = ""
+    pct_grr_snr = ndc_snr = pct_sv_snr = ""
     if "S1" in continuous_results and continuous_results["S1"] is not None:
         pct_grr_snr = _safe(continuous_results["S1"]["metrics"]["pct_contribution_grr"])
+        pct_sv_snr  = _safe(continuous_results["S1"]["metrics"]["pct_study_var_grr"])
         ndc_snr     = _safe(continuous_results["S1"]["metrics"]["ndc"])
 
     # S1 pairwise biases
@@ -1399,6 +1409,7 @@ def _append_trend(
         "fp_events_wsjt":       wsjt_fp,
         "mcnemar_p":            mc_p,
         "overall":              overall,
+        "pct_study_var_snr":    pct_sv_snr,
     }
 
     with open(trend_path, "a", newline="", encoding="utf-8") as fh:
@@ -1471,7 +1482,7 @@ def main() -> None:
             "anova": anova, "metrics": metrics,
             "response": response, "tol_half": tol_half,
         }
-        print(f"  {scen_id}: %GR&R={metrics['pct_contribution_grr']:.1f}%  ndc={metrics['ndc']}")
+        print(f"  {scen_id}: %GR&R (%StudyVar)={metrics['pct_study_var_grr']:.1f}%  (%Contribution {metrics['pct_contribution_grr']:.1f}%)  ndc={metrics['ndc']}")
         png = _plot_grr_panel(df, response, anova, metrics, scen_id, run_dir)
         print(f"    -> {png.name}")
 

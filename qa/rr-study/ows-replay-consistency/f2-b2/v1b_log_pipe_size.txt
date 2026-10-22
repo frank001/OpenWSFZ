@@ -1,0 +1,1 @@
+[19:06:46 INF] arecord stderr [1]: pipe size 1048576

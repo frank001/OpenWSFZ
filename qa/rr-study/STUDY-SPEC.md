@@ -2,7 +2,7 @@
 
 **Document type:** Study specification & harness blueprint (Architect deliverable)
 **Owner of execution & reporting:** QA
-**Status:** **Ratified** by the Captain 2026-06-05 — §7 tolerances, §10 thresholds, Python analysis, and synthesiser-first build all approved. Harness build underway.
+**Status:** **Ratified** by the Captain 2026-06-05 — §7 tolerances, §10 thresholds, Python analysis, and synthesiser-first build all approved. Harness build underway. **§10 %GR&R gate amended 2026-10-14: read on %StudyVar (Captain).**
 **Applies to:** OpenWSFZ FT8 receive/decode pipeline, measured against WSJT-X as a co-appraiser
 **Last updated:** 2026-06-05
 
@@ -233,6 +233,71 @@ See RUNBOOK §8. A stratified-sub-sample variant of the corpus can be drawn from
 (e.g. an endurance-run capture folder, not only the original p10 bench corpus) via
 `select_endurance_sample.py` — see R&R-008 (§16) for a worked example.
 
+### 6.1a S6 as a routine scenario of the battery (2026-10-13; spec `2026-10-13-1625-architect-to-qa-spec-s6-in-battery.md` + amendment 1)
+
+**Status.** S6 is now part of the default battery (run after S3c, the last playback) wherever the frozen corpus exists, and runs alone
+with `--scenarios S6`. The battery is called "S1–S8" in a report only when S6 ran; otherwise the report lists the scenarios that ran.
+Informational on its first battery (HK-038: no S6 figure exists yet for this corpus, chain and build, so no bar is stated; the Architect
+proposes bars from the first standard-tier row and the Captain approves them before they bind). The 2026-06 and 2026-07 figures above
+come from other corpora, another platform and older builds and are not a baseline for it.
+
+**Source.** The WSJT-X-side WAV of each cycle of the frozen reference-set corpus (`artefacts/rr-s6-refset-corpus`, SHA-256 manifest,
+verified at the start of every S6 run). Cycles with a disqualifying scan class (clipping, error, format, hot, silent) are never drawn.
+
+**Tiers** (`--s6-tier`, default standard; K = 3 in all): quick 24 WAVs (72 plays, about 18 min), standard 60 (180 plays, about 45 min),
+extended 180 (540 plays, about 2 h 15 min). One frozen list, `s6/s6-wavlist.json` (seed 20261013, built once, never regenerated), band-
+stratified 17/20/40/80 m interleaved, a block giving a second cycle only after every block of its band gave one; each tier is a PREFIX of it
+(quick within standard within extended). It holds ids, SHA-256 and the playback gain, never message text. Never pool across tiers or series.
+
+**Playback.** One WAV per 15 s slot, 12 kHz → 48 kHz, peak-normalised to 0.9 as every scenario, in BATCHES of up to 20 consecutive slots,
+each batch one continuous buffer (the battery's own mechanism, `_MAX_BATCH_TRIALS` = 20; back-to-back single plays cannot hold the grid
+because the wait returns just after the next wake-up point and every play would slip a slot, and a much longer buffer once made both appraisers
+hallucinate, 2026-08-30). One idle slot separates two batches (about 5 % of the wall time); a decode line stamped in an idle slot is a stray
+(S6-V2). The next batch is rendered while the current one plays. The sound starts AT the slot boundary (not the synthetic scenes' 0.5 s early): the WAVs are what
+WSJT-X recorded from its slot start, and an early start would shift every DT by about −0.5 s into the negative-DT region where OpenWSFZ is
+known to be weak (basis: leg E step (i) on sol, lead 0.0 read DT 0.0 against the live log). Both appraisers hear each playback at the same time. There is no per-cycle snapshot and no settle
+sleep: a play log (slot, WAV, trial, start offset) is written, and both `ALL.TXT` are parsed ONCE after the last play, every line attributed
+by its slot stamp. The warm-up is mechanical (a synthetic Q-prefix cycle that both `ALL.TXT` must show, 3 attempts).
+
+**Identity of a signal** is (message text, rank among same-text rows by frequency), not the 50 Hz bin of the 2026 runs (a bin edge splits a
+signal whose two reported frequencies differ by a few Hz). **Hashed rows** (`<...>`) are excluded from every figure and counted separately.
+
+**Outputs** (aggregates; every interval is a WAV-clustered bootstrap, 2,000 resamples, seed 20261013):
+
+1. Gage R&R ANOVA on SNR (AIAG crossed, with interaction; parts = signals BOTH appraisers decoded in all 3 trials, so the figures are
+   conditional on detection: repeatability is understated and ndc overstated; the candidate count is reported beside the part count), with
+   CIs for the %StudyVar of EV, AV, INT, RR and PV, and a six-panel figure.
+2. Within-appraiser consistency in two universes (own universe, and the legacy union universe for comparison with the 2026 rows);
+   the **positive-agreement share** (rows both decoded / rows either decoded, per trial) as the readable agreement figure; Cohen's κ on
+   the union universe over trials, reported with the caveat that its both-negative cell exists only through trial-to-trial flicker.
+3. Decodes per WAV per appraiser and their difference.  4. SNR delta over matched pairs.  5. Order effect (Spearman) and trial-index effect.
+6. Per band (standard and extended only; about 15 and 45 WAVs per band).
+
+**Mandatory field:** the per-play OpenWSFZ abandonment (`deadlineAbandoned`) from the daemon log, with the report given in full AND over the
+WAVs with no abandoned play. The battery runs the product as it is, subtraction deadline ON, no budget override.
+
+**Validity rows** (a FAIL withholds the S6 block only; S1–S8 stand): S6-V1 corpus and list verified; S6-V2 (a) "player call time": every play starts
+within 0.25 s of its nominal offset (0.0 s, the boundary; it catches scheduler slips and cannot see the sound's onset, HK-026; the 0.25 s is a design number),
+(b) 0 decode lines stamped in a slot with no play, (c) 0 slots with two plays, and **(d) onset (Architect, 2026-10-13): for every play with at least 3
+matched rows, the per-play median DT shift (WSJT-X's DT in the replay minus its DT in the live log, rows matched by text) lies in [0.0, +0.2] s; plays
+with fewer rows are counted and not read; FAIL if any read play is outside, or if no play can be read when the check can be made (it guards S6's rows
+only, HK-021 (ab)). Source of the bar (HK-038): the S6 dry run on `sol` (66 plays, min +0.1, max +0.2) and the 70 min keep-up run (+0.1), at a DT
+resolution of 0.1 s; to be re-checked against the first standard run before it is frozen; a series on another PC re-derives it.** S6-V3 warm-up decoded
+by both; S6-V4 plays completed = tier × 3; S6-V5 the OpenWSFZ library (and the WSJT-X executable, when its path is known) hash equal at start and end.
+Abandonment is attributed from the daemon's residual-pass lines (a design floor of 90 % of the lines in the S6 window mapping to a play slot; no line
+means no pass ran; dry run: 26 of 26).
+
+**Series and chain.** Linux test PC (`sol`) first: WSJT-X 2.7.0 (Xvfb, profile `rr`), the `rr_in` dsnoop device, the corrected ALSA chain
+(`samplerate_best`), label "non-default chain". The Windows station PC is a separate series later. The block is labelled "sol, FX-8350,
+deadline ON": OpenWSFZ's counts depend on this CPU and on WSJT-X decoding in real time on the same cores.
+
+**NFR-021 / HK-037.** S6 plays real off-air audio, so its log lines carry real callsigns. `s6/s6_split.py` moves every line stamped at or after
+the first S6 slot out of the run folder's `ALL.TXT` copies into `~/qa-scratch/s6-<run>/` (or `_qa-scratch\s6-<run>\`), outside git, deleted at
+job close; the S1–S8 matcher never sees them. Only aggregates are written into the run folder.
+
+**Files.** `qa/rr-study/s6/`: `s6_design.py` (list, verification, rendering), `s6_play.py`, `s6_split.py`, `s6_analyse.py`, `s6_stats.py`,
+`s6_figure.py`, `s6-wavlist.json`, tests `test_s6_*.py`. The one-off `harness/corpus_replay.py` is retained for reference and is no longer the route.
+
 ### 6.2 S7 rationale — compounding / co-channel overlap
 
 S4 stresses *band loading*: N signals spread evenly across 300–2700 Hz, so even at N=30 the
@@ -453,7 +518,7 @@ AIAG conventions, for ratification:
 
 | Metric | Acceptable | Marginal | Unacceptable |
 |---|---|---|---|
-| %GR&R (per response) | < 10% | 10–30% | > 30% |
+| %GR&R (per response), read on **%StudyVar** (σ_GRR / σ_total, the SD ratio) since 2026-10-14 — see the amendment below | < 10% | 10–30% | > 30% |
 | ndc | ≥ 5 | — | < 2 |
 | Attribute Kappa (vs truth, between apps) | ≥ 0.90 | 0.70–0.90 | < 0.70 |
 | Gate A (per-sweep, S5 AWGN, parts 0/1, N=120) — **SUPERSEDED as a gate 2026-09-08, R&R-011** | `INFO` — reported, never gates | — | — |
@@ -463,6 +528,21 @@ AIAG conventions, for ratification:
 | SNR bias (OpenWSFZ vs truth) | ≤ ±2 dB mean AND slope ≤ 0.1 | — | mean > ±2 dB OR slope > 0.1 |
 
 Evaluated every run; a regression past these bands raises a defect for the Developer.
+
+> **AMENDMENT 2026-10-14 — the %GR&R gate reads %StudyVar (Captain's ruling, relayed by the Architect, message `arch-9f` to QA, 2026-10-14).**
+> The 10 / 30 % thresholds are applied to **%StudyVar** (100 · σ_GRR / σ_total, the ratio of standard deviations, AIAG's convention), **not** to
+> %Contribution (the variance share), which the 2026-08 ratification and the Architect's review of 2026-08-27 (R4) had graded. This **replaces** that
+> reading of this section's %GR&R row. The report row is labelled `%GR&R (%StudyVar)`; %Contribution is still printed beside it, labelled, with **no
+> verdict**. ndc stays as is (≥ 5). **Not retroactive:** reports and trend rows written before 2026-10-14 were graded on %Contribution and stand as
+> written; they are not re-run or re-graded. `trend.csv` gains a `pct_study_var_snr` column (`pct_grr_snr` keeps meaning %Contribution; old rows are
+> filled by the exact identity %StudyVar = 100·√(%Contribution/100), rows with no figure stay empty); Section 6 of a report gains a %StudyVar column,
+> "n/a" where the variance components are not on file. Footnote for any table that carries both: *gate changed to %StudyVar 2026-10-14 (Captain);
+> rows before this date were graded on %Contribution.* Implemented in `harness/analyse.py` (`GATE_GRR_METRIC`, `_verdict_grr`, the verdict row and the
+> report table); pinned by `tests/test_analyse.py` (`test_verdict_is_pinned_to_study_var_…`: 11.2 % contribution → 33.5 % study var → FAIL).
+> `harness/analyse_xplat.py` (the Windows/WSL2 cross-platform analyser) follows the same rule (Architect's follow-up, 2026-10-14; `trend_xplat.csv`
+> gains the same column). Every future S3 report carries the sentence: *S3 reproducibility is dominated by a fixed OpenWSFZ − WSJT-X DT offset
+> (+0.12 s, Section 3.3 of the 2026-10-14 full-ANOVA report), not by run-to-run noise.* S3 reading MARGINAL on %StudyVar on the corrected Linux chain
+> is the intended outcome of the AIAG reading; neither the S3 tolerance nor the gate is adjusted for it.
 
 > **False-positive gate definition (ratified 2026-07-04, R&R-004 / GitHub #32).**
 > The FP gate is the **per-slot event rate** — P(a signal-free S5 slot emits ≥ 1

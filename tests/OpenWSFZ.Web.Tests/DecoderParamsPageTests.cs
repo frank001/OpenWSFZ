@@ -239,9 +239,15 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
     /// block" the comment above provides for. The requirement still holds relative to <c>main</c>: this branch adds NOTHING to the
     /// block beyond what <c>main</c> has, so the block's hash equals <c>main</c>'s. The original pre-readout hash is kept above as the
     /// record of the base; it is no longer asserted.
+    /// <para>
+    /// DI sync 7 (2026-10-22): moved from <c>e846d3ae...</c> (main at 9fe32e8d) to <c>b6ad4ca5...</c> (<c>origin/main</c> at 74c75792, the
+    /// same extraction), because main legitimately added the "Coherent fallback" checkbox to the block (PR #253, FR-083 precedent). The
+    /// requirement is unchanged and was checked, not assumed: the merged block's hash equals <c>git show origin/main:web/settings.html</c>'s,
+    /// and this branch still adds nothing to the block.
+    /// </para>
     /// </summary>
-    private const string AdvancedBlockSha256OnMain9fe32e8d =
-        "e846d3aeb42dfc7adac5a3d43a62c2c5c2dc7eb92f9d8d49659e1f687633950f";
+    private const string AdvancedBlockSha256OnMain =
+        "b6ad4ca57f87d980ba0fac40b1decd7311392b522155fb24606359fbb2b5e3e2";
 
     [Fact(DisplayName = "FR-081: settings.html links to the page, and its #advanced-decoder-settings block is byte-for-byte unchanged")]
     public async Task SettingsPage_HasOneLink_AndTheEditableBlockIsUnchanged()
@@ -255,7 +261,7 @@ public sealed class DecoderParamsPageTests : IClassFixture<WebTestFactory>
         Regex.Matches(html, "id=\"advanced-decoder-settings\"").Should().HaveCount(1);
 
         string sha = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(block.Value))).ToLowerInvariant();
-        sha.Should().Be(AdvancedBlockSha256OnMain9fe32e8d,
+        sha.Should().Be(AdvancedBlockSha256OnMain,
             "the read-only page sits BESIDE the editable section; it must not change it (the block equals main's: nothing added here)");
 
         block.Value.Should().NotContain("decoder-params.html", "the link belongs outside the editable block");

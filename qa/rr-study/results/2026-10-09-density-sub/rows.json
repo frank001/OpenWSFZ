@@ -1,0 +1,296 @@
+{
+ "stage": "full",
+ "amendment_2": "V1 as pre-registered FAILED (75/430 OFF), amended after the OFF arm's validity data and before any ON-arm number",
+ "n_cycles": 430,
+ "n_cycles_no_hashed": 163,
+ "n_W_total": 13426,
+ "iv_dll_pin": {
+  "this_run": [
+   "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c"
+  ],
+  "run_10_01": [
+   "ee00d118523ee2160750736225c67d8a056193908d168ed9a6ec3375ff990e4c"
+  ],
+  "equal": true
+ },
+ "V2": {
+  "n_pop": 8151,
+  "by_class": {
+   "EXPOSED": 854,
+   "GAP": 123,
+   "PL": 1283,
+   "PL_TRANS_STRONG": 63,
+   "TRANSITION": 1235,
+   "PF": 1405,
+   "CLEAR": 3188
+  },
+  "pass": true
+ },
+ "V3": {
+  "n_exposed": 854,
+  "min": 200,
+  "pass": true
+ },
+ "V1_OFF": {
+  "n_evaluated": 163,
+  "n_hashed_excluded": 267,
+  "hashed_limit": {
+   "cycles_differing": 75,
+   "sum": -39,
+   "min": -2,
+   "max": 2
+  },
+  "explained": 0,
+  "unexplained": 0,
+  "explained_frac": 0.0,
+  "pass": true,
+  "unexplained_stamps": []
+ },
+ "D_off_point": 0.6838870497253899,
+ "D_off_below_bar": false,
+ "EXPOSED_drop_OFF": [
+  83,
+  854
+ ],
+ "V1_ON": {
+  "n_evaluated": 163,
+  "n_hashed_excluded": 267,
+  "hashed_limit": {
+   "cycles_differing": 58,
+   "sum": -28,
+   "min": -11,
+   "max": 1
+  },
+  "explained": 1,
+  "unexplained": 0,
+  "explained_frac": 0.006134969325153374,
+  "pass": true,
+  "unexplained_stamps": []
+ },
+ "all": {
+  "n_cycles": 430,
+  "n_W_total": 13426,
+  "off": {
+   "row0a": {
+    "ci95": [
+     0.010048477319445172,
+     0.06279193327634396
+    ],
+    "bar": 0.05,
+    "pass": false,
+    "D": 0.03670744200311898
+   },
+   "row0b": {
+    "EXPOSED_dropped": 83,
+    "EXPOSED_total": 854,
+    "PL_0a_dropped": 122,
+    "PL_0a_total": 1283,
+    "pass": false
+   },
+   "D": 0.6838870497253899,
+   "ci95": [
+    0.649072020469684,
+    0.7183763893826755
+   ],
+   "n_exposed": 854,
+   "C_pp": 4.350063611391949,
+   "matched_rate_pct": {
+    "EXPOSED": 9.01639344262295,
+    "GAP": 41.46341463414634,
+    "PL": 83.94388152766952,
+    "PL_TRANS_STRONG": 22.22222222222222,
+    "TRANSITION": 62.02429149797571,
+    "PF": 83.20284697508897,
+    "CLEAR": 90.58971141781682
+   },
+   "n": {
+    "EXPOSED": 854,
+    "GAP": 123,
+    "PL": 1283,
+    "PL_TRANS_STRONG": 63,
+    "TRANSITION": 1235,
+    "PF": 1405,
+    "CLEAR": 3188
+   }
+  },
+  "on": {
+   "row0a": {
+    "ci95": [
+     0.027110494420558066,
+     0.0765963117828852
+    ],
+    "bar": 0.05,
+    "pass": false,
+    "D": 0.052557111833372736
+   },
+   "row0b": {
+    "EXPOSED_dropped": 83,
+    "EXPOSED_total": 854,
+    "PL_0a_dropped": 122,
+    "PL_0a_total": 1283,
+    "pass": false
+   },
+   "D": 0.3298395085921456,
+   "ci95": [
+    0.2864821030458825,
+    0.3741215048220148
+   ],
+   "n_exposed": 854,
+   "C_pp": 2.0980406698770473,
+   "matched_rate_pct": {
+    "EXPOSED": 50.35128805620609,
+    "GAP": 53.65853658536585,
+    "PL": 87.21745908028059,
+    "PL_TRANS_STRONG": 57.142857142857146,
+    "TRANSITION": 79.19028340080972,
+    "PF": 89.60854092526691,
+    "CLEAR": 93.13048933500627
+   },
+   "n": {
+    "EXPOSED": 854,
+    "GAP": 123,
+    "PL": 1283,
+    "PL_TRANS_STRONG": 63,
+    "TRANSITION": 1235,
+    "PF": 1405,
+    "CLEAR": 3188
+   }
+  },
+  "net_pp_per_stratum": {
+   "EXPOSED": 41.33489461358314,
+   "GAP": 12.195121951219512,
+   "PL": 3.273577552611068,
+   "PL_TRANS_STRONG": 34.92063492063492,
+   "TRANSITION": 17.16599190283401,
+   "PF": 6.405693950177936,
+   "CLEAR": 2.5407779171894607
+  },
+  "delta_D": {
+   "point": -0.3540475411332443,
+   "ci95": [
+    -0.3931213946163364,
+    -0.313721291478793
+   ]
+  }
+ },
+ "no_hashed": {
+  "n_cycles": 163,
+  "n_W_total": 4745,
+  "off": {
+   "row0a": {
+    "ci95": [
+     -0.00197312337715909,
+     0.174865689134061
+    ],
+    "bar": 0.05,
+    "pass": false,
+    "D": 0.08254554689455583
+   },
+   "row0b": {
+    "EXPOSED_dropped": 194,
+    "EXPOSED_total": 299,
+    "PL_0a_dropped": 266,
+    "PL_0a_total": 432,
+    "pass": false
+   },
+   "D": 0.6391013748156605,
+   "ci95": [
+    0.5062911986500027,
+    0.798106784519828
+   ],
+   "n_exposed": 299,
+   "C_pp": 4.027214142674025,
+   "matched_rate_pct": {
+    "EXPOSED": 10.033444816053512,
+    "GAP": 45.45454545454545,
+    "PL": 84.49074074074075,
+    "PL_TRANS_STRONG": 46.666666666666664,
+    "TRANSITION": 61.91646191646192,
+    "PF": 85.46168958742632,
+    "CLEAR": 92.74061990212071
+   },
+   "n": {
+    "EXPOSED": 299,
+    "GAP": 44,
+    "PL": 432,
+    "PL_TRANS_STRONG": 15,
+    "TRANSITION": 407,
+    "PF": 509,
+    "CLEAR": 1226
+   }
+  },
+  "on": {
+   "row0a": {
+    "ci95": [
+     0.01628448151930063,
+     0.17252658694451997
+    ],
+    "bar": 0.05,
+    "pass": false,
+    "D": 0.09038063906699739
+   },
+   "row0b": {
+    "EXPOSED_dropped": 194,
+    "EXPOSED_total": 299,
+    "PL_0a_dropped": 266,
+    "PL_0a_total": 432,
+    "pass": false
+   },
+   "D": 0.3199096141953285,
+   "ci95": [
+    0.13779686602564223,
+    0.5714335472956162
+   ],
+   "n_exposed": 299,
+   "C_pp": 2.0158688017787822,
+   "matched_rate_pct": {
+    "EXPOSED": 54.180602006688964,
+    "GAP": 56.81818181818182,
+    "PL": 88.19444444444444,
+    "PL_TRANS_STRONG": 73.33333333333333,
+    "TRANSITION": 81.81818181818181,
+    "PF": 91.55206286836935,
+    "CLEAR": 95.02446982055464
+   },
+   "n": {
+    "EXPOSED": 299,
+    "GAP": 44,
+    "PL": 432,
+    "PL_TRANS_STRONG": 15,
+    "TRANSITION": 407,
+    "PF": 509,
+    "CLEAR": 1226
+   }
+  },
+  "net_pp_per_stratum": {
+   "EXPOSED": 44.147157190635454,
+   "GAP": 11.363636363636363,
+   "PL": 3.7037037037037037,
+   "PL_TRANS_STRONG": 26.666666666666668,
+   "TRANSITION": 19.9017199017199,
+   "PF": 6.090373280943026,
+   "CLEAR": 2.2838499184339316
+  },
+  "delta_D": {
+   "point": -0.31919176062033205,
+   "ci95": [
+    -0.46515935576193834,
+    -0.14949579577239155
+   ]
+  }
+ },
+ "arm_valid_ON": {
+  "all": false,
+  "no_hashed": false
+ },
+ "arm_valid_OFF": {
+  "all": false,
+  "no_hashed": false
+ },
+ "verdict_ON": {
+  "all": "INVALID",
+  "no_hashed": "INVALID",
+  "final": "INVALID",
+  "subset_note": "inconclusive (DS-OPEN or invalid); all-cycles verdict stands"
+ }
+}

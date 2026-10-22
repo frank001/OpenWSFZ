@@ -18,7 +18,7 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.58**. v0.x scope: FT8 receive and transmit,
+> The current release is **v0.59**. v0.x scope: FT8 receive and transmit,
 > CAT rig control, a web UI (loopback or passphrase-protected LAN),
 > single operator.
 > v1.0 is reached when the software can complete a confirmed two-way contact
@@ -68,8 +68,8 @@ quantify decoder quality across four dimensions:
 | **S7** Compounding | Co-channel / pileup recovery | Informational; per-overlap-family recovery rates |
 
 The harness is fully decoupled from OpenWSFZ source: it shares no assemblies and interacts
-only with a shared **VB-CABLE** virtual audio device and the two applications' `ALL.TXT`
-log files. Signals are synthesised by an independent clean-room FT8 encoder (text → tones
+only with a shared virtual or loopback audio device (**VB-CABLE** on Windows, an ALSA loopback
+on Linux) and the two applications' `ALL.TXT` log files. Signals are synthesised by an independent clean-room FT8 encoder (text → tones
 → PCM) so that truth is exactly known for every trial. Each trial draws a fresh seeded
 noise realisation, giving non-zero repeatability variance.
 
@@ -80,6 +80,22 @@ The full batteries are under
 
 See [`qa/rr-study/STUDY-SPEC.md`](qa/rr-study/STUDY-SPEC.md) for the full study design
 and [`qa/rr-study/RUNBOOK.md`](qa/rr-study/RUNBOOK.md) for the operating procedure.
+
+**Linux.** The S1–S8 battery also runs unattended on Linux (first run 2026-10-11): see
+[`qa/rr-study/linux/README.md`](qa/rr-study/linux/README.md) for the host requirements, the
+launcher, and the WSJT-X 2.7.0 build used as the appraiser (the install is checked by decoding a
+canary signal before any battery starts). A Linux run is a **separate series** from the Windows
+sweeps, never pooled with them, and its report states which audio chain it ran on: ALSA's
+default rate converter lowers the SNR OpenWSFZ reports by about 4.5 dB (issue
+[#234](https://github.com/frank001/OpenWSFZ/issues/234)), so a run on the default chain and a run on a
+corrected chain are different readings.
+
+**Off-air reference set (in preparation).** A frozen corpus of recorded 15-second cycles with both
+applications' recordings and live `ALL.TXT` files, drawn by band and time of day, is replayed
+through the decoder to give build-to-build numbers on real signals. It is built and verified
+(`qa/rr-study/refset/`); the replay harness lives in
+[`qa/rr-study/refset/harness/`](qa/rr-study/refset/harness/README.md). No results are published
+here: the first run has not been made.
 
 ---
 
@@ -207,7 +223,7 @@ the correction in issue [#215](https://github.com/frank001/OpenWSFZ/issues/215).
 |---|---|
 | [.NET SDK](https://dotnet.microsoft.com/download) | 10.0 (pinned in `global.json`) |
 | Windows | WASAPI audio capture (full support) |
-| Linux | `arecord` (`alsa-utils`) for audio capture |
+| Linux | `arecord` (`alsa-utils`) for audio capture. A card that cannot deliver 12 kHz natively needs an ALSA `plug` device (`plughw:` ids, issue [#232](https://github.com/frank001/OpenWSFZ/issues/232)); the default `plug` rate converter has no anti-alias filter and costs weak-signal decodes and about 4.5 dB of reported SNR ([#234](https://github.com/frank001/OpenWSFZ/issues/234)) |
 | macOS | `sox` for audio capture |
 
 ## Build & run
@@ -295,6 +311,11 @@ The build and test suite has been verified on all three target platforms:
 | Windows x64 | ✅ 0 warnings | ✅ all green | ✅ GitHub Actions |
 | Linux x64 (Debian 13, WSL2, .NET 10.0.300) | ✅ 0 warnings | ✅ all green | ✅ GitHub Actions |
 | macOS ARM64 | ✅ | ✅ | ✅ GitHub Actions |
+
+Linux has also run on real hardware (Gentoo, AMD FX-8350, onboard codec through ALSA, 2026-10-11): the
+daemon captured, decoded the synthetic fixtures and ran full R&R batteries. Three Linux issues came out of
+it ([#232](https://github.com/frank001/OpenWSFZ/issues/232), [#233](https://github.com/frank001/OpenWSFZ/issues/233),
+[#234](https://github.com/frank001/OpenWSFZ/issues/234)); none is fixed yet.
 
 Eight CI gates are active. The build-and-test gate (G1) and the real-signal gate (G6) run
 on all three platforms; the pure text-scan gates (G3, G5, G8, G10) run once, on Linux, since

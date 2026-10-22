@@ -94,4 +94,13 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
     public void HashStateSave(byte[] buffer) => Ft8LibInterop.HashStateSave(buffer);
 
     public void HashStateRestore(byte[] buffer) => Ft8LibInterop.HashStateRestore(buffer);
+
+    /// <inheritdoc/>
+    public byte[]? CohFallbackSnapshot() => Ft8LibInterop.CohFallbackSnapshot();
+
+    /// <inheritdoc/>
+    public ICohFallbackBackend? CohFallbackBackend => CohFallbackLibBackend.Instance;
+
+    /// <inheritdoc/>
+    public string? CohFallbackUnpack(byte[] payload) => Ft8LibInterop.CohFallbackUnpack(payload);
 }
