@@ -1,0 +1,110 @@
+{
+ "pins": [
+  {
+   "arm": "MAIN",
+   "commit": "74c75792",
+   "libft8_sha256": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef"
+  },
+  {
+   "arm": "SYNC",
+   "commit": "56736264",
+   "libft8_sha256": "0e180dfc4791b615fd21cd5e0dcb427e35816c3958b4b6f5f4032eaebe98cf56"
+  },
+  {
+   "arm": "CTRL2",
+   "commit": "74c75792",
+   "libft8_sha256": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef"
+  }
+ ],
+ "identity": [
+  {
+   "pair": "MAIN_F0 vs SYNC_F0",
+   "what": "identity, fallback OFF",
+   "cycles_in_files": 121,
+   "excluded_abandoned": 0,
+   "compared": 121,
+   "cycles_differing": 0,
+   "differing_stamps_first10": [],
+   "decodes_a": 2541,
+   "decodes_b": 2541
+  },
+  {
+   "pair": "MAIN_F1 vs SYNC_F1",
+   "what": "identity, fallback ON",
+   "cycles_in_files": 121,
+   "excluded_abandoned": 0,
+   "compared": 121,
+   "cycles_differing": 0,
+   "differing_stamps_first10": [],
+   "decodes_a": 2716,
+   "decodes_b": 2716
+  }
+ ],
+ "fallback_control": [
+  {
+   "pair": "MAIN_F1 vs SYNC_F0",
+   "what": "fallback control (ON vs OFF)",
+   "cycles_in_files": 121,
+   "excluded_abandoned": 0,
+   "compared": 121,
+   "cycles_differing": 89,
+   "differing_stamps_first10": [
+    "260922_210815",
+    "260922_212015",
+    "260922_212615",
+    "260922_213815",
+    "260922_214415",
+    "260922_220215",
+    "260922_220815",
+    "260922_222015",
+    "260922_222615",
+    "260922_223215"
+   ],
+   "decodes_a": 2716,
+   "decodes_b": 2541
+  },
+  {
+   "pair": "MAIN_F1 vs MAIN_F0",
+   "what": "fallback control (ON vs OFF, same build)",
+   "cycles_in_files": 121,
+   "excluded_abandoned": 0,
+   "compared": 121,
+   "cycles_differing": 89,
+   "differing_stamps_first10": [
+    "260922_210815",
+    "260922_212015",
+    "260922_212615",
+    "260922_213815",
+    "260922_214415",
+    "260922_220215",
+    "260922_220815",
+    "260922_222015",
+    "260922_222615",
+    "260922_223215"
+   ],
+   "decodes_a": 2716,
+   "decodes_b": 2541
+  }
+ ],
+ "osd_control": [
+  {
+   "pair": "MAIN_F0 vs CTRL2_F0",
+   "what": "OSD control",
+   "cycles_in_files": 121,
+   "excluded_abandoned": 0,
+   "compared": 121,
+   "cycles_differing": 3,
+   "differing_stamps_first10": [
+    "260922_220215",
+    "260923_041415",
+    "260923_055615"
+   ],
+   "decodes_a": 2541,
+   "decodes_b": 2537
+  }
+ ],
+ "identical_main_sync": true,
+ "fallback_control_detects": true,
+ "osd_control_detects": true,
+ "valid": true
+}

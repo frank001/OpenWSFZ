@@ -47,14 +47,19 @@ PIN=${TP_RIG_CONFIG_SHA:-661de047bc52b833620316c2fe505000584fcde318987f25793a378
 CK=$("$PY" - "$RIGCFG" "$CFG" "$PIN" <<'PYEOF'
 import hashlib, json, sys
 rig, tp, pin = sys.argv[1:4]
+FLAGS = []
 def minus_depth(path):
     c = json.load(open(path, encoding="utf8"))
     depth = c["decoder"].pop("decodingDepth", None)
+    # 2026-10-22 (PR #253, DI sync 7: decoder.coherentFallbackEnabled now DEFAULTS TO ON): the sweep config may CARRY the flag explicitly (DI7COH sets it true); like the depth, it is dropped
+    # before the pin comparison and reported beside the result, so an explicit flag is the ONLY other difference allowed between TP_CONFIG and the pinned rig config.
+    flag = c["decoder"].pop("coherentFallbackEnabled", "absent")
+    FLAGS.append(flag)
     return hashlib.sha256(json.dumps(c, indent=2, ensure_ascii=False).encode()).hexdigest(), depth
 rs, rig_depth = minus_depth(rig)
 ts, _ = minus_depth(tp)
 ok = rs == pin and ts == pin and rig_depth in ("Normal", "Deep")
-print(("OK" if ok else "FAIL") + " rig-minus-depth=%s tp-minus-depth=%s pin=%s rig-depth=%s" % (rs[:16], ts[:16], pin[:16], rig_depth))
+print(("OK" if ok else "FAIL") + " rig-minus-depth=%s tp-minus-depth=%s pin=%s rig-depth=%s rig-flag=%s tp-flag=%s" % (rs[:16], ts[:16], pin[:16], rig_depth, FLAGS[0], FLAGS[1]))
 PYEOF
 )
 log "config pin: $CK"
