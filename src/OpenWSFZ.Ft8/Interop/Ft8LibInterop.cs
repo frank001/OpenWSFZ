@@ -467,7 +467,24 @@ internal static class Ft8LibInterop
     /// brings the pruned frequency search onto the 20260060 line. No new or changed export and no ABI change, so this binding
     /// file changes only the expected version. 20260061 is held by <c>decoding_improvement</c>.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260062;
+    /// <remarks>
+    /// COH-FALLBACK (A' step 3) Stage 1, shim 20260066: two new DIAGNOSTIC-ONLY exports (<c>ft8_coherent_fallback_at</c>,
+    /// <c>ft8_coherent_fallback_cycle</c>) and a thread-local retention of the last decode's candidate list. No managed binding
+    /// yet (Stage 2 wires the product), no existing export or struct changes.
+    /// </remarks>
+    /// <remarks>
+    /// COH-FALLBACK Stage 1 Amendment 3, shim 20260067: the diagnostic cycle export defaults to the output-first order and its
+    /// stats/row structs grew. Still no managed binding and no change to any existing export or struct.
+    /// </remarks>
+    /// <remarks>
+    /// COH-FALLBACK Stage 2, shim 20260068: three new exports bound below (<c>ft8_coherent_fallback_snapshot_size</c>, <c>_snapshot</c>,
+    /// <c>_run</c>, <c>_unpack</c>) and a new coherent-SNR function in the fallback core; no existing export or struct changes.
+    /// </remarks>
+    /// <remarks>
+    /// COH-FALLBACK step 4, shim 20260069: four new exports bound below (<c>ft8_coherent_fallback_plan</c>, <c>_ctx_new</c>, <c>_ctx_free</c>,
+    /// <c>_process</c>) for the parallel cycle; no existing export or struct changes.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260069;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -807,6 +824,39 @@ internal static class Ft8LibInterop
     /// </summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_set_diagnostics_enabled", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeSetDiagnosticsEnabled(int enabled);
+
+    // ── COH-FALLBACK Stage 2 (shim 20260068) ─────────────────────────────────────────────────────────────
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_snapshot_size", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackSnapshotSize();
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_snapshot", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackSnapshot([Out] byte[] buf, int cap);
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_run", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackRun(
+        [In] float[] pcm, int pcmLen, [In] byte[] snapshot, int snapshotLen, int flags, double budgetMs,
+        IntPtr cancel, out CohFallbackStatsNative stats, [Out] CohFallbackOutNative[] rows, int rowsCap);
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_unpack", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackUnpack([In] byte[] payload, [Out] byte[] textOut, int cap);
+
+    // ── COH-FALLBACK step 4 (shim 20260069) ──────────────────────────────────────────────────────────────
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_plan", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackPlan(
+        [In] byte[] snapshot, int snapshotLen, [Out] int[] candIndex, [Out] CohFallbackOutNative[] rows, int cap, out CohFallbackStatsNative stats);
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_ctx_new", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr NativeCohFallbackCtxNew();
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_ctx_free", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeCohFallbackCtxFree(IntPtr ctx);
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_process", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackProcess(
+        IntPtr ctx, [In] float[] pcm, int pcmLen, [In] byte[] snapshot, int snapshotLen, int candIndex,
+        out CohFallbackOutNative row, ref CohFallbackStatsNative acc);
 
     /// <summary>decode-early-batch-panel (shim 20260058): bytes the caller must supply to <see cref="NativeHashStateSave"/>.</summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_hash_state_size", CallingConvention = CallingConvention.Cdecl)]
@@ -1461,6 +1511,127 @@ internal static class Ft8LibInterop
             throw new InvalidOperationException(
                 $"ft8_hash_state_restore rejected a {buffer.Length}-byte image (needs exactly {NativeHashStateSize()}).");
     }
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2: copies the candidate list and decoded payloads retained by the last <see cref="DecodeAll"/> call
+    /// ON THE CALLING THREAD into a fresh buffer. Call it on the thread that ran <see cref="DecodeAll"/>, with no native decode between.
+    /// </summary>
+    public static byte[] CohFallbackSnapshot()
+    {
+        EnsureInitialized();
+        var buf = new byte[NativeCohFallbackSnapshotSize()];
+        if (NativeCohFallbackSnapshot(buf, buf.Length) != buf.Length)
+            throw new InvalidOperationException("ft8_coherent_fallback_snapshot rejected its buffer.");
+        return buf;
+    }
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2: runs the fallback over a snapshot taken by <see cref="CohFallbackSnapshot"/>, on any thread, touching no
+    /// shared native state. <paramref name="budgetMs"/> &lt; 0 = no deadline; otherwise no candidate is started after the budget has
+    /// passed (it is counted as abandoned). Cancelling <paramref name="ct"/> has the same effect for the candidates not yet started.
+    /// </summary>
+    /// <exception cref="NativeAccessViolationException">An access violation was contained by the native SEH wrapper.</exception>
+    public static CohFallbackRunResult CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(pcm);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (pcm.Length != PcmSampleCount)
+            throw new ArgumentException($"PCM buffer must be exactly {PcmSampleCount} samples. Got {pcm.Length}.", nameof(pcm));
+        EnsureInitialized();
+
+        // The candidate count bounds the row count; the snapshot's first int32 is that count.
+        int nCands = BitConverter.ToInt32(snapshot, 0);
+        var rows = new CohFallbackOutNative[Math.Max(nCands, 1)];
+        IntPtr cancel = Marshal.AllocHGlobal(sizeof(int));
+        Marshal.WriteInt32(cancel, 0);
+        try
+        {
+            using var reg = ct.Register(static p => Marshal.WriteInt32((IntPtr)p!, 1), cancel);
+            int n = NativeCohFallbackRun(pcm, pcm.Length, snapshot, snapshot.Length, 0, budgetMs, cancel, out var stats, rows, rows.Length);
+            if (n == -2) throw new NativeAccessViolationException();
+            if (n < 0) throw new InvalidOperationException($"ft8_coherent_fallback_run returned {n}.");
+            var list = new List<CohFallbackRow>(n);
+            for (int i = 0; i < n; i++) list.Add(CohFallbackRow.From(in rows[i]));
+            return new CohFallbackRunResult(CohFallbackStats.From(in stats), list);
+        }
+        finally
+        {
+            // The registration is disposed before the memory is freed (using declared after the try's allocation order): the callback
+            // can no longer run once Dispose has returned.
+            Marshal.FreeHGlobal(cancel);
+        }
+    }
+
+    /// <summary>
+    /// COH-FALLBACK step 4: the eligible candidates of a snapshot (<see cref="CohFallbackSnapshot"/>), in candidate order, with every row
+    /// pre-filled as abandoned. Touches no shared state; callable from any thread.
+    /// </summary>
+    public static CohFallbackPlan CohFallbackMakePlan(byte[] snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        EnsureInitialized();
+        int nCands = BitConverter.ToInt32(snapshot, 0);
+        int cap = Math.Max(nCands, 1);
+        var idx = new int[cap];
+        var rows = new CohFallbackOutNative[cap];
+        int n = NativeCohFallbackPlan(snapshot, snapshot.Length, idx, rows, cap, out var stats);
+        if (n < 0) throw new InvalidOperationException($"ft8_coherent_fallback_plan returned {n}.");
+        var list = new List<CohFallbackRow>(n);
+        var order = new List<int>(n);
+        for (int i = 0; i < n; i++) { list.Add(CohFallbackRow.From(in rows[i])); order.Add(idx[i]); }
+        return new CohFallbackPlan(CohFallbackStats.From(in stats), order, list);
+    }
+
+    /// <summary>COH-FALLBACK step 4: a new native scratch context for ONE worker thread. Free it with <see cref="CohFallbackFreeContext"/>.</summary>
+    public static IntPtr CohFallbackNewContext()
+    {
+        EnsureInitialized();
+        var ctx = NativeCohFallbackCtxNew();
+        if (ctx == IntPtr.Zero) throw new OutOfMemoryException("ft8_coherent_fallback_ctx_new returned NULL.");
+        return ctx;
+    }
+
+    /// <summary>COH-FALLBACK step 4: frees a context made by <see cref="CohFallbackNewContext"/>.</summary>
+    public static void CohFallbackFreeContext(IntPtr ctx) => NativeCohFallbackCtxFree(ctx);
+
+    /// <summary>
+    /// COH-FALLBACK step 4: runs ONE eligible candidate (snapshot index <paramref name="candidateIndex"/>) on the calling thread with that
+    /// thread's own <paramref name="ctx"/>, adding its counts to <paramref name="acc"/>. Reads only the snapshot and PCM.
+    /// </summary>
+    /// <exception cref="NativeAccessViolationException">An access violation was contained by the native SEH wrapper.</exception>
+    public static CohFallbackRow CohFallbackProcess(
+        IntPtr ctx, float[] pcm, byte[] snapshot, int candidateIndex, ref CohFallbackStatsNative acc)
+    {
+        ArgumentNullException.ThrowIfNull(pcm);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (pcm.Length != PcmSampleCount)
+            throw new ArgumentException($"PCM buffer must be exactly {PcmSampleCount} samples. Got {pcm.Length}.", nameof(pcm));
+        int rc = NativeCohFallbackProcess(ctx, pcm, pcm.Length, snapshot, snapshot.Length, candidateIndex, out var row, ref acc);
+        if (rc == -2) throw new NativeAccessViolationException();
+        if (rc != 0) throw new InvalidOperationException($"ft8_coherent_fallback_process returned {rc}.");
+        return CohFallbackRow.From(in row);
+    }
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2: the message text of a 77-bit payload (the first 10 bytes of <paramref name="payload"/>) through the ordinary
+    /// message decode, or <c>null</c> when it does not decode. Touches the session hash table like any decode: the caller must hold the
+    /// decode gate and run no other native decode at the same time.
+    /// </summary>
+    public static string? CohFallbackUnpack(byte[] payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        EnsureInitialized();
+        var text = new byte[CohFallbackTextBytes];
+        int rc = NativeCohFallbackUnpack(payload, text, text.Length);
+        if (rc == -3) throw new NativeAccessViolationException();
+        if (rc == -2) return null;
+        if (rc != 0) throw new InvalidOperationException($"ft8_coherent_fallback_unpack returned {rc}.");
+        int len = Array.IndexOf(text, (byte)0);
+        return System.Text.Encoding.ASCII.GetString(text, 0, len < 0 ? text.Length : len);
+    }
+
+    /// <summary>Output buffer size for <see cref="CohFallbackUnpack"/> (FTX_MAX_MESSAGE_LENGTH + 1 = 36, with headroom).</summary>
+    private const int CohFallbackTextBytes = 64;
 
     // ── Lazy initialisation ──────────────────────────────────────────────
 

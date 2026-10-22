@@ -151,6 +151,16 @@ cl ^
 echo ERRORLEVEL after cl (coherent_llr.c): %ERRORLEVEL%
 if %ERRORLEVEL% neq 0 goto :err_cl
 
+echo === Compiling coherent_fallback.c (COH-FALLBACK Stage 1, OpenWSFZ-original, diagnostic-only) ===
+cl ^
+  /I "%FT8_ROOT%\native\ft8_lib_vendor" ^
+  /I "%FT8_ROOT%\src\OpenWSFZ.Ft8\Native" ^
+  /std:c11 /O2 /W3 /c ^
+  /Fo"%FT8_ROOT%\native\ft8_lib_build\obj\coherent_fallback.obj" ^
+  "%FT8_ROOT%\native\ft8_lib_vendor\refine\coherent_fallback.c"
+echo ERRORLEVEL after cl (coherent_fallback.c): %ERRORLEVEL%
+if %ERRORLEVEL% neq 0 goto :err_cl
+
 echo === Compiling subfeas_fit.c (sub-feas-native-subtraction, OpenWSFZ-original, no production call site yet) ===
 cl ^
   /I "%FT8_ROOT%\native\ft8_lib_vendor" ^
@@ -198,6 +208,16 @@ link /DLL ^
   /EXPORT:ft8_subfeas_pool_get_stats ^
   /EXPORT:ft8_hash_state_size ^
   /EXPORT:ft8_hash_state_save ^
+  /EXPORT:ft8_coherent_fallback_at ^
+  /EXPORT:ft8_coherent_fallback_cycle ^
+  /EXPORT:ft8_coherent_fallback_snapshot_size ^
+  /EXPORT:ft8_coherent_fallback_snapshot ^
+  /EXPORT:ft8_coherent_fallback_run ^
+  /EXPORT:ft8_coherent_fallback_unpack ^
+  /EXPORT:ft8_coherent_fallback_plan ^
+  /EXPORT:ft8_coherent_fallback_ctx_new ^
+  /EXPORT:ft8_coherent_fallback_ctx_free ^
+  /EXPORT:ft8_coherent_fallback_process ^
   /EXPORT:ft8_hash_state_restore ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^
@@ -212,6 +232,7 @@ link /DLL ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\ft8_shim.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\sync_refiner.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\coherent_llr.obj" ^
+  "%FT8_ROOT%\native\ft8_lib_build\obj\coherent_fallback.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\subfeas_fit.obj"
 echo ERRORLEVEL after link: %ERRORLEVEL%
 if %ERRORLEVEL% neq 0 goto :err_link

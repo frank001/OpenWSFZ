@@ -343,9 +343,12 @@ var allTxtWriter = new AllTxtWriter(configStore, loggerFactory.CreateLogger<AllT
 //   avoids the fallback-to-UtcNow bug (D-TX-UI-004).  The decode pump fan-outs to both channels;
 //   QsoControllerRouter activates the appropriate service via IsActive flags.
 // late-batches-in-qso (D1): up to 3 batches per cycle reach each QSO service, so the capacity is 8, not 2 (see LateBatch).
-// DropOldest and the single writer / single reader are unchanged.
-var qsoAnswererChannel = LateBatch.CreateQsoChannel();
-var qsoCallerChannel   = LateBatch.CreateQsoChannel();
+// COH-FALLBACK step 4 (R14): with decoder.coherentFallbackEnabled ON a cycle can deliver a 4th batch, so the capacity in force is
+// 4 x 2 + 2 = 10 while the flag is ON and exactly the old 8 while it is OFF (the writer enforces it; see LateBatch.CreateQsoQueue).
+// `fallbackOn` is wired to the decoder's flag below, once the decoder exists. DropOldest and the single writer are unchanged.
+bool fallbackOn = false;
+var qsoAnswererChannel = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
+var qsoCallerChannel   = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 
 // Channel 3c: decode pump → ExternalReportingService (bounded, DropOldest — same rationale as
 // the two channels above). Dedicated rather than a DecodeEventBus subscription (design.md
@@ -800,6 +803,9 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetSubtractionMaxThreads(initialDecoder.SubtractionMaxThreads);
     // third-pass-deep (#240): Normal unless the config says Deep; read once per cycle.
     ft8Decoder.SetDecodingDepth(initialDecoder.DecodingDepth);
+    // COH-FALLBACK Stage 2 (R10): true unless the config says false (default ON since 2026-10-22); read once per cycle.
+    ft8Decoder.SetCoherentFallbackEnabled(initialDecoder.CoherentFallbackEnabled);
+    Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
     // not the raw pre-DI `configStore` local, so a WebApplicationFactory-hosted test host's
@@ -858,6 +864,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
         DecodeStaged = (pcm, cycleStart, band, publishBatch, _) =>
                            ft8Decoder.DecodeStagedAsync(pcm, cycleStart, band, publishBatch),
         DecodingDeep = () => ft8Decoder.DecodingDepth == DecodingDepth.Deep,
+        // COH-FALLBACK step 4: with the flag ON the staged entry carries the fallback's own batch on Normal too (batch 3).
+        CoherentFallbackOn = () => ft8Decoder.CoherentFallbackEnabled,
     });
     _ = Task.Run(() => decodePump.RunAsync(
         framerOutput.Reader.ReadAllAsync(stoppingToken),
@@ -899,6 +907,8 @@ configStore.OnSaved += newConfig =>
     ft8Decoder.SetSubtractionEnabled(dec.SubtractionEnabled);
     ft8Decoder.SetSubtractionMaxThreads(dec.SubtractionMaxThreads);
     ft8Decoder.SetDecodingDepth(dec.DecodingDepth);   // third-pass-deep (#240): next cycle
+    ft8Decoder.SetCoherentFallbackEnabled(dec.CoherentFallbackEnabled);   // COH-FALLBACK Stage 2 (R10): next cycle
+    Volatile.Write(ref fallbackOn, dec.CoherentFallbackEnabled);          // R14: the QSO queues' capacity follows the flag
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
     // create a spurious new log file and reset the active sink.

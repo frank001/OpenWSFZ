@@ -1,4 +1,92 @@
-=== CURRENT: sub-feas-stage-b B2 merged with main (FT8_SHIM_VERSION 20260062) ===
+=== CURRENT: COH-FALLBACK (A' step 4), the parallel cycle (FT8_SHIM_VERSION 20260069) ===
+
+Built 2026-10-21 on feat/coh-fallback-stage1 after 1405ada4 (shim 20260068), local, not pushed. QA handoff
+dev-tasks/2026-10-21-coh-fallback-step4.md (qa/refset); the Architect's spec section 14 (Amendment 4) as changed by section 15.
+Version: bumped (20260068 was the Stage 2 build QA measured; a changed binary must not share its label).
+What changed (native): four NEW exports, appended to ft8_shim.c; nothing else.
+  ft8_coherent_fallback_plan     the eligible candidates of a snapshot in candidate order (same dedup rule as _run), one row each
+      pre-filled as ABANDONED exactly as _run starts it;
+  ft8_coherent_fallback_ctx_new / _ctx_free  one scratch context per worker thread;
+  ft8_coherent_fallback_process  ONE eligible candidate into its own row, adding its counts and times to a caller-owned accumulator;
+      _run's per-candidate body statement for statement; it touches only its context, its row, the accumulator and the read-only
+      snapshot and PCM (no hash table, no counter, no thread-local state).
+The worker split, the deadline and the gather in candidate order are managed (CohFallbackParallelRunner); the native side stops nowhere.
+Unchanged, mechanically (git diff 1405ada4 over native/ and the two source files): ft8_coherent_fallback_at, ft8_coherent_fallback_cycle,
+ft8_coherent_fallback_run, _snapshot, _unpack, cf_estimate / cf_f1b_db / cf_v3_llrs / cf_process_one / cf_snr_db, ft8_decode_all and every
+other export and struct; the shim and coherent_fallback.c differ by appended lines only (coherent_fallback.c not touched at all).
+
+  Windows x64 (rebuild_shim.bat, MSVC): SHA256
+    aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    0197f9ce0ac3008d3eba11bb09ec49d35931219e1d5edbb4d83b161ba9b3ea90
+    tools/check_native_version.py reports shim 20260069 for both files built here.
+
+
+=== Previous: COH-FALLBACK (A' step 3) Stage 2, product wiring (FT8_SHIM_VERSION 20260068) ===
+
+Built 2026-10-20 on feat/coh-fallback-stage1 after d926bdc6 (shim 20260067), local, not pushed. QA handoff
+dev-tasks/2026-10-20-coh-fallback-step3-stage2.md (qa/refset); the Architect's spec R6-R13 as amended (A1.2, A3, A12.1).
+Version: bumped (20260067 was the Stage 1 Amendment 3 build, accepted; a changed binary must not share its label).
+What changed (native): three NEW exports and one NEW struct, plus one NEW function in coherent_fallback.c, all pure additions:
+  ft8_coherent_fallback_snapshot_size / ft8_coherent_fallback_snapshot  copy the calling thread's retained candidate list and decoded
+      payloads into a flat buffer, so the fallback can run on another thread (ft8_decode_all's thread-local retention is reset by the
+      residual pass's own decodes on the thread they run on);
+  ft8_coherent_fallback_run  the product cycle: snapshot in, FT8CohFallbackOut rows (56 bytes) out; output-first; stops BETWEEN candidates
+      at a deadline (budget_ms from the call's start) or a cancel flag (abandoned candidates counted, never queued); computes the
+      coherent SNR; writes no shared state; the publication choice (R6'') is the caller's;
+  ft8_coherent_fallback_unpack  one payload to text through the ordinary message decode (the fallback's only hash-table access);
+  cf_snr_db (coherent_fallback.c/.h)  the SNR from the 79 x 8 tone powers cf_v3_llrs leaves in the context.
+Unchanged, mechanically (git diff d926bdc6): ft8_coherent_fallback_at, ft8_coherent_fallback_cycle, cf_process_one, cf_estimate,
+cf_f1b_db, cf_v3_llrs, ft8_decode_all and every existing export and struct (both source files differ from d926bdc6 by appended
+lines only).
+
+  Windows x64 (rebuild_shim.bat, MSVC): SHA256
+    581331da9383bc2d690e0b4146d8737b7f35738917839534d9f88ce72e85f5d1
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    861f5999b9a17b41352252c01f95b47b504dd43131d1bee4006eb59691327ccc
+    tools/check_native_version.py reports shim 20260068 for both files built here.
+
+
+=== Previous: COH-FALLBACK Stage 1 Amendment 3, output-first cycle export (FT8_SHIM_VERSION 20260067) ===
+
+Built 2026-10-20 on feat/coh-fallback-stage1 after 44f0df4e (shim 20260066), local, not pushed. QA handoff
+dev-tasks/2026-10-20-coh-fallback-step3-stage1-amendment-3.md (qa/refset 19d54fd8); the Architect's spec section 10, Amendment 3.
+Version: bumped (20260066 was the first Stage 1 build, which QA is testing; a changed binary must not share its label).
+What changed: ft8_coherent_fallback_cycle runs estimate + C3 + BP on every eligible candidate and computes F1b only for a CRC-valid
+output with a payload not yet decoded in the call (default); the old order is FT8_COH_FLAG_GATE_FIRST (harness only). Stats struct 96
+bytes, row struct 144. ft8_coherent_fallback_at, cf_f1b_db and coherent_fallback.c are byte-identical to 44f0df4e.
+
+  Windows x64 (rebuild_shim.bat, MSVC): SHA256
+    60963686bf5264619b445af95f8fafca32d601587e9e1399ad907702f567c3db
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    761c3c0f71eea0c8df2c32c2f1496145398b8405beea7866f2b522e8bb150e63
+    tools/check_native_version.py reports shim 20260067 for both files built here.
+
+
+=== Previous: COH-FALLBACK (A' step 3) Stage 1, native core + diagnostic export (FT8_SHIM_VERSION 20260066) ===
+
+Built 2026-10-20 from branch feat/coh-fallback-stage1, off origin/main 9d5ba635 (shim 20260062), local, not pushed. QA handoff
+dev-tasks/2026-10-20-coh-fallback-step3-stage1.md (qa/refset 0a0f47a2); design: the Architect's spec R1-R13, sections 3 and 5.1
+(arch/coherent-limb2). Developer session.
+Version literal: highest FT8_SHIM_VERSION on any local or origin/* ref on 2026-10-20 was 20260065 (feat/dxpedition-decode-225);
+the handoff assigns 20260066 (20260063 = origin/decoding_improvement, 20260064/20260065 = the #225 branch, not merged).
+
+What changed: NEW file native/ft8_lib_vendor/refine/coherent_fallback.c (+ .h), a C port of our own clean-room Python reference
+(QA commit 44c70ea2): the Costas fine-sync estimator, F1b, the 174 V3 coherent LLRs. NEW exports ft8_coherent_fallback_at and
+ft8_coherent_fallback_cycle with the new structs FT8CohFallbackResult / FT8CohFallbackCycleStats / FT8CohFallbackRow. BP only (no
+OSD), CRC-14. NO product wiring. ft8_decode_all gains only the retention of its candidate list and its decoded payloads in
+thread-local arrays (reset at the top of every call); its output and every existing export and struct are unchanged.
+
+  Windows x64 (rebuild_shim.bat, MSVC): SHA256
+    7af6f893122aae009f60c18920339dc8c4e3882908a7e3d60ab888a83a92a4d3
+    (Not bit-reproducible run to run: the PE carries link timestamps. The pin identifies THIS file only.)
+  Linux x64   (build_linux.sh, GCC via WSL2 Debian): SHA256
+    d88b5b4d4ac1d1c72e2e39165c77c0fe29040f30a8cb38f2b73df504e7036290
+    tools/check_native_version.py reports shim 20260066 for both files built here.
+  macOS ARM64: NOT rebuilt here. CI owns it (the macOS/Linux recipes in .github/workflows/ci.yml now compile coherent_fallback.c).
+
+
+=== Previous: sub-feas-stage-b B2 merged with main (FT8_SHIM_VERSION 20260062) ===
 
 Built 2026-10-14 from branch feat/sub-feas-stage-b: B2 (origin/feat/sub-feas-stage-b aab18b75, shim 20260059, accepted 2026-10-04,
 never merged) merged with origin/main 76aa48cd (shim 20260060, the osd-sign-fix line), locally, not pushed. QA handoff
