@@ -100,7 +100,9 @@ jobs:
             ft8/message.c ft8/text.c \
             common/monitor.c \
             fft/kiss_fft.c fft/kiss_fftr.c
+          # ft8_shim.c includes <refine/coherent_fallback.h> (COH-FALLBACK Stage 1): the vendored refine/ headers live in native/ft8_lib_vendor.
           clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/native/ft8_lib_vendor" \
             -target arm64-apple-macos11.0 -c \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"
           # sync_refiner.c (r1-sync-refiner-instrument-validation): this build step
@@ -244,7 +246,9 @@ jobs:
             ft8/message.c ft8/text.c \
             common/monitor.c \
             fft/kiss_fft.c fft/kiss_fftr.c
-          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
+          # ft8_shim.c includes <refine/coherent_fallback.h> (COH-FALLBACK Stage 1): the vendored refine/ headers live in native/ft8_lib_vendor.
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/native/ft8_lib_vendor" -c \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"
           # sync_refiner.c (r1-sync-refiner-instrument-validation): this build step
           # was never updated when that change added ft8_refine_candidate, so every
