@@ -123,6 +123,7 @@ def main():
             pubc[n] += 1
     res["published_cycles_by_batch"] = {str(k): pubc[k] for k in (2, 3, 4)}
     l1 = {}
+    extra_cycles = []
     for svc in ("QsoAnswererService", "QsoCallerService"):
         miss, extra, ok, ordered = collections.Counter(), collections.Counter(), 0, True
         missing_cycles = []
@@ -137,12 +138,14 @@ def main():
                     missing_cycles.append((c["cs"].strftime("%H:%M:%S"), n))
                 elif have > want:
                     extra[n] += 1
+                    extra_cycles.append((svc[3:9], c["cs"].strftime("%H:%M:%S"), n, sorted(c["pub"]), sorted(c.get("nominal", {}).items()), got))   # diagnostic output only
             if sorted(got) == sorted(c["pub"]):
                 ok += 1
         l1[svc] = {"cycles_matching": ok, "missing_by_batch": {str(k): miss[k] for k in (2, 3, 4)}, "extra_by_batch": {str(k): extra[k] for k in (2, 3, 4)},
                    "in_order": ordered, "superseded_lines_reported_separately": sum(c["sup"][svc] for c in body), "first_missing": missing_cycles[:10],
                    "lines": sum(len(c["late"][svc]) for c in body)}
     res["L1a"] = l1
+    res["L1a_extra_line_cycles"] = extra_cycles
     cov = len(body) / len(body_all) if body_all else 0.0
     res["determined_coverage"] = cov
     ok = all(v["cycles_matching"] == len(body) and v["in_order"] for v in l1.values()) and len(body) > 0
