@@ -1201,3 +1201,119 @@ frozen.**
     - OPEN goes to him and is not a rejection;
     - raising the strength gate later is possible, but needs its own test.
   - He replied: "go with your recommendations". **0.042 stands.**
+
+---
+
+## §19 RULING: the step-4 replay. A3″ PASS, D-GO′, U′-OK; every replay row passes. Default ON now waits only on the R14 live check and the Captain (Architect, 2026-10-22 ~14:3xZ by `date -u`)
+
+**Read:** QA's message of 2026-10-22 ~14:25Z, and `_qa-scratch\coh-fallback\step4\analysis_step4.json` with the
+per-cycle U′ aggregates (`off\uprime_off.json.percycle.csv`, `on\uprime_on.json.percycle.csv`) and `chain4.log`.
+The raw copy in `qa/rr-study/results/2026-10-21-coh-fallback-step4-replay-raw/` is not yet committed. No message
+text was read: counts only (HK-037).
+
+**Order of events, checked.** U′_max = 0.042 was frozen at 19:49–19:55Z (§18 A18.6) and the analysis script was
+committed with it (`qa/refset` `9448cb92`) before the ON arm started at 20:00:27Z (`chain4.log`). ON finished
+20:53Z, ON-repeat 21:11Z. **No bar was set or moved after any ON decode.**
+
+**A19.1 The rows.** Night `20260922_2056` (40 m, Voicemeeter chain), 961 cycles (960 with a WSJT-X reference),
+build `b8fc732e` / `db3d7df5` line, DLL `aaf6b03e…`, Deep, nhard 24, OSD fix, 8 workers.
+
+| row | result | verdict |
+|---|---|---|
+| V1 DLL pin, start and end, every arm | equal in OFF, ON, ON-repeat | PASS |
+| V2 read-backs | all three arms | PASS |
+| V3 exceptions | 0 / 0 / 0 | PASS |
+| V4 = A3 batch 1 identical | covered by A3″(a): 0 cycles differ | PASS |
+| V5 abandonment | 0 / 961 (Wilson hi 0.40 %); ordinary 0, fallback 0 | PASS |
+| V6 ON-repeat | 0 / 321 differ | PASS |
+| **A3″(a)** batches 1–3 identical | 0 / 0 / 0 cycles differ; 0 ordinary-budget exception cycles | **PASS** |
+| **A3″(b)** median signed delay, both-published | batch 2: −0.3 ms [−12.5, +10.2], n 909; batch 3: −4.0 ms [−18.9, +12.1], n 238. Both CI_hi ≤ 50 | **PASS** |
+| **D-GO′** | NET **+3.82 pp [3.44, 4.21]** (71.68 → 75.50 %; ΣΔM 1,170 / ΣW 30,656, re-divided: 3.817) vs CI_lo ≥ 1.0 | **D-GO′** |
+| **U′** | ΔU′ **+0.0198 [0.0125, 0.0271]** (U′0 179/960 = 0.1865 → U′ 198/960 = 0.2063, re-subtracted: 19/960 = 0.0198) vs CI_hi ≤ 0.042 | **U′-OK** |
+| S4-T (descriptive) | fallback wall median **215 ms**, p95 352, max 532; starts at median 3.07 s from decode start; batch 4 published in 668 / 961 cycles, median **3.35 s**, p95 4.10, max 4.86 s from decode start; min margin to the 13 s budget 8.1 s | — |
+
+- **Population (A14.4):** batch 2 both 909 / ON-only 0 / OFF-only 0 / neither 52; batch 3 both 238 / 0 / 0 / 723.
+- **The p95s, descriptive:** batch 2 94.5 ms [79, 113] against this night's ON-repeat − ON 297 ms [48, 424];
+  batch 3 111 ms [79, 142] against 233 ms [63, 495]. ON − OFF is no wider than a repeat of itself.
+- **Where the margin is.** U′'s CI_hi (0.0271) sits on the ≈ 0.027 that A18.6 said OK needs. It passes, but not
+  by much. The bar was not moved and is not reinterpreted.
+
+**A19.2 FP-watch: it trips on Test B, and §14 asked for it on U′. Computed both; the tones say the extra
+unconfirmed outputs are mostly real signals, and the rest are hashed texts the instrument cannot test.**
+- **QA's flag (sub-feas rule, on Test B not-confirmed):** batch 4 54 / 1,224 = **4.4 % [3.4, 5.7]** against batch
+  1's **1.1 % [1.0, 1.3]**: it **trips**. By band: D 47 / 972, C 7 / 225, B 0 / 27.
+- **§14 A14.4 asked for the FP-watch "on U′".** Batches 1–3 are identical in both arms (A3″(a)), so the per-cycle
+  ON − OFF difference of each U′ component is exactly the fallback's. No cycle has ON < OFF in any component.
+  From the per-cycle aggregates (my arithmetic):
+
+| fallback's 54 not-confirmed outputs | n | per output (of 1,224) | OFF arm, all batches (of 22,264) |
+|---|---:|---|---|
+| tones shown present | **35** | — | 111 |
+| tested and absent | **2** | **0.16 % [0.04, 0.59]** | 36 = **0.16 % [0.12, 0.22]** |
+| hashed or unencodable | 17 | 1.4 % | 135 = 0.61 % |
+| untestable class | 0 | — | 8 |
+| **U′ (not shown present)** | **19** | **1.55 % [1.00, 2.41]** | 179 = **0.80 % [0.69, 0.93]** |
+
+- **Read mechanically on U′, it still trips, narrowly** (CI_lo 1.00 % > CI_hi 0.93 %). The comparator is the OFF
+  arm's **all-batch** U′, because the per-cycle U′ file has no batch split (my error E22 below). **The whole excess
+  is hashed texts.** On the testable outputs, the fallback is **as clean as the ordinary decoder**: tested-absent
+  0.16 % in both. 35 of its 37 testable unconfirmed outputs show their tones (94.6 %, as 10-09's 94.2 %, A13.9).
+- **What that says.** Most of the fallback's Test-B "unconfirmed" outputs are signals WSJT-X did not decode. The 17
+  hashed ones are the instrument's blind spot (HK-026): they are counted against the fallback, as the conservative
+  rule says, and they are inside the U′-OK above.
+- **What it does not say.** Tones present proves that a signal with those tones is in the audio, not that every bit
+  of the message is right (A13.9). Why the fallback's hashed share is 2.3× the ordinary decoder's is not known.
+- **The FP-watch is descriptive.** It goes to the Captain beside this ruling. It changes no row.
+- **The old Test-B ΔU is +0.056 [0.041, 0.072].** It is descriptive by A14.3 and is not compared with 0.042, which
+  is a U′ bar. 🛑 It is never cited as a U verdict.
+
+**A19.3 What the rows now allow (A14.4).**
+- **Merge** needs A1, A2 (carried; A2(e′) 100 / 100, §17), A3″ (**PASS**), the unit tests (code review APPROVED,
+  `db3d7df5`) and the Captain's sign-off. **A1 (flag-OFF identity, §5.2) has not run on this build.** It was
+  withdrawn as not owed while no merge was pending (E13). **It is owed now, if the Captain wants this put up for
+  merge.**
+- **Default ON** needs D-GO′ (**met**), U′-OK (**met**), **the R14 live check (not run)** and the Captain's decision.
+- **Limits, stated:** one night, Voicemeeter chain, 40 m, replay timing (not live); 10-09 (direct-CODEC) gave NET
+  +6.56 pp, this night +3.82 pp, so the size of the gain varies by night. Reply-guard misses are not reported:
+  the replay has no live decode-start offset (A2.2).
+
+**A19.4 The R14 live check: what QA's specification must contain (A14.4, A15.4 N3, A16.2).** QA writes it as a
+dated spec; the Architect (k)-reviews it; **the Captain's go is needed to run the step-4 build live with the flag
+ON on the station.** It is not a merge gate.
+- **Pre-flight (HK-020, HK-035):** the DLL hash at the start and the end; the flag set **through the config API**
+  and read back true (never a hand edit of the station config); Deep, nhard 24 and the OSD fix read back.
+- **Size:** at least **200 cycles with a batch 4** (≈ 70 % of cycles had one here, so about 2 h of a busy 40 m
+  evening). A decision value; QA may propose another with its reason.
+- **L1 delivery (PASS/FAIL):** every batch-4 decode the daemon logs reaches the panel and both QSO services, in
+  order, and the daemon log shows **0 channel drops**. Any drop or missing delivery ⇒ FAIL, which blocks default ON.
+- **L2 deferral (defect check):** for every batch-4 decode a QSO service acts on, it deferred. **Acting without
+  deferring is a defect and blocks default ON** (A16.2). If no QSO service acted on any batch-4 decode, L2 reads
+  **NOT EXERCISED** and says so: it is not a pass (HK-022).
+- **L3 descriptive:** per cycle with a batch 4: publish time **from slot start** (the live decode-start offset +
+  the time from decode start); how many batch-4 decodes fall past the 2.36 s reply guard; fallback wall time under
+  live load (median, p95, max) and the R12′ and abandonment counters.
+- **HK-037:** aggregates only; no message text leaves the function that reads `ALL.TXT` or the daemon log.
+- **QA states** what the daemon log records for deliveries and drops before specifying L1 (HK-027): if it does not
+  record a drop, the row cannot read 0 drops and must say how it will be measured.
+
+**A19.5 Owed by QA (descriptive, mandatory under A14.4, not blocking this ruling):** NET by band; ΔU′ by band; the
+FP-watch on U′ by band. And commit the raw-results copy with the analysis output.
+
+**A19.6 The sol cross-check.** Descriptive (§16); no row depends on it. The rerun is housekeeping. It goes ahead on
+the Captain's go, as QA has asked.
+
+**A19.7 Predictions, scored now (§14 A14.5).**
+- **SG1** A3″ passes, (a) and (b), 0.75 H: ✅ **HIT**.
+- **SG2** fallback wall median ≤ 0.5 s on the station, 0.65 C: ✅ **HIT** (215 ms).
+- **SG3** D-GO′ on the fresh night, 0.70 H: ✅ **HIT** (CI_lo 3.44 pp).
+- **SG4** U′-OK at the Captain's bar, 0.55 H: ✅ **HIT**, narrowly (CI_hi 0.0271 vs 0.042).
+- SG5: ✅ already scored (§17).
+
+**My error (ledger E22):** A14.4 asked for "the FP-watch per band, on U′" without saying what U′ is compared with.
+The sub-feas rule compares with batch 1, and U′ is recorded per cycle, not per batch, so batch 1's U′ rate cannot
+be read from the outputs. The comparator above (OFF arm, all batches) is my choice at the ruling. The row is
+descriptive, so no verdict depends on it.
+
+**Waiting on the Captain:** (1) whether to put step 4 up for merge (A1 then runs first); (2) his go for the R14
+live check once QA has specified it; (3) the sol rerun (housekeeping). **Waiting on QA:** the R14 specification
+(A19.4); the A19.5 descriptive items; committing the raw copy (HK-033 for any push).
