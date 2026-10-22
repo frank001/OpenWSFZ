@@ -59,6 +59,10 @@ Everything else in the decoder section is the station's own (the Architect's rul
 4. **Disk.** The PC's D: drive has 1.5 TB free; the archive cap is 16 GiB.
 5. **A daemon crash or WSJT-X stall** is handled by the supervisor and the watchdogs as in #225; QA cannot attend overnight, so the read after the close is the safety net.
 
+## 7a. The Captain's answers (QA's window, 2026-10-22, recorded 19:16:05Z by `date -u`)
+
+1. **End time: confirmed** (10:00 local = 08:00Z on 2026-10-23). 2. **`subtractionMaxThreads` = 0 (auto).** 3. **Cycle-audio archive: on.** 4. **The go and the station-daemon stop: he asked for an explanation (given in the reply; his go is still to come).** 5. **After the close: leave the PC up.**
+
 ## 7. Decisions for the Captain (with their data; nothing started)
 
 1. **End time:** 10:00 local = 08:00Z on 2026-10-23? *Data:* the PC logs UTC+2.
