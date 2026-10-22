@@ -87,13 +87,22 @@ jobs:
           # Overlay the repo's patched decode.c (adds ftx_compute_candidate_llr_mean_abs
           # and any future non-static diagnostic probes) before compiling.
           cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/ft8/decode.c" ft8/decode.c
+          # Overlay the repo's vendored message.c / message.h too: they carry the type 0.1 (DXpedition)
+          # unpacker (#225 phase 2) that the msvc-compat clone does not have. Without this the CI-built
+          # .so/.dylib (which commit-native-binaries pushes) silently lacks the feature.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.c" ft8/message.c
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.h" ft8/message.h
+          # common/monitor.c: the repo's copy differs from the clone's only in a LOG_LEVEL line (the clone's prints four INFO lines to stderr on every ft8_decode_all) and comments; it is what Windows and build_linux.sh compile.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/common/monitor.c" common/monitor.c
           clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -target arm64-apple-macos11.0 -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
             ft8/message.c ft8/text.c \
             common/monitor.c \
             fft/kiss_fft.c fft/kiss_fftr.c
+          # ft8_shim.c includes <refine/coherent_fallback.h> (COH-FALLBACK Stage 1): the vendored refine/ headers live in native/ft8_lib_vendor.
           clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/native/ft8_lib_vendor" \
             -target arm64-apple-macos11.0 -c \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"
           # sync_refiner.c (r1-sync-refiner-instrument-validation): this build step
@@ -120,6 +129,12 @@ jobs:
             -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" \
             -target arm64-apple-macos11.0 -c \
             "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/coherent_llr.c"
+          # coherent_fallback.c (COH-FALLBACK Stage 1, shim 20260066): a NEW compiled file, so this hand-duplicated recipe
+          # (see the coherent_llr.c note above) must compile and link it too. Same -I flags as coherent_llr.c.
+          clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" \
+            -target arm64-apple-macos11.0 -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/coherent_fallback.c"
           # subfeas_fit.c (sub-feas-native-subtraction, extended by sub-feas-speed-redesign): this inline
           # recipe never compiled it, so the Linux/macOS CI libft8 carried NONE of the ft8_subfeas_* exports
           # (the same silent gap as sync_refiner.c and coherent_llr.c above). It matters now because the
@@ -133,7 +148,7 @@ jobs:
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o subfeas_fit.o
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o coherent_fallback.o subfeas_fit.o
           # ld embeds a fresh, randomly-generated LC_UUID on every link (see
           # chore/ci-native-binary-reproducibility, 2026-07-03). Omitting it
           # via -Wl,-no_uuid is NOT viable — dyld refuses to dlopen a Mach-O
@@ -175,7 +190,7 @@ jobs:
           clang -dynamiclib -target arm64-apple-macos11.0 \
             -o libft8.dylib \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o subfeas_fit.o
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o coherent_fallback.o subfeas_fit.o
           python3 "$GITHUB_WORKSPACE/tools/zero_dylib_uuid.py" libft8.dylib
           if ! cmp -s /tmp/ft8_lib/libft8.dylib libft8.dylib; then
             echo "=== DIAGNOSTIC: sizes ==="
@@ -219,12 +234,21 @@ jobs:
           # Overlay the repo's patched decode.c (adds ftx_compute_candidate_llr_mean_abs
           # and any future non-static diagnostic probes) before compiling.
           cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/ft8/decode.c" ft8/decode.c
+          # Overlay the repo's vendored message.c / message.h too: they carry the type 0.1 (DXpedition)
+          # unpacker (#225 phase 2) that the msvc-compat clone does not have. Without this the CI-built
+          # .so/.dylib (which commit-native-binaries pushes) silently lacks the feature.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.c" ft8/message.c
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.h" ft8/message.h
+          # common/monitor.c: the repo's copy differs from the clone's only in a LOG_LEVEL line (the clone's prints four INFO lines to stderr on every ft8_decode_all) and comments; it is what Windows and build_linux.sh compile.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/common/monitor.c" common/monitor.c
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
             ft8/message.c ft8/text.c \
             common/monitor.c \
             fft/kiss_fft.c fft/kiss_fftr.c
-          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
+          # ft8_shim.c includes <refine/coherent_fallback.h> (COH-FALLBACK Stage 1): the vendored refine/ headers live in native/ft8_lib_vendor.
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/native/ft8_lib_vendor" -c \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/ft8_shim.c"
           # sync_refiner.c (r1-sync-refiner-instrument-validation): this build step
           # was never updated when that change added ft8_refine_candidate, so every
@@ -248,6 +272,10 @@ jobs:
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" -c \
             "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/coherent_llr.c"
+          # coherent_fallback.c (COH-FALLBACK Stage 1, shim 20260066): a NEW compiled file; see the macOS note above.
+          gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
+            -I"$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native" -c \
+            "$GITHUB_WORKSPACE/native/ft8_lib_vendor/refine/coherent_fallback.c"
           # subfeas_fit.c (sub-feas-native-subtraction, extended by sub-feas-speed-redesign): this inline
           # recipe never compiled it, so the Linux/macOS CI libft8 carried NONE of the ft8_subfeas_* exports
           # (the same silent gap as sync_refiner.c and coherent_llr.c above). It matters now because the
@@ -259,7 +287,7 @@ jobs:
             "$GITHUB_WORKSPACE/native/ft8_lib_vendor/subfeas/subfeas_fit.c"
           gcc -shared -o libft8.so \
             constants.o crc.o decode.o encode.o ldpc.o message.o text.o \
-            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o subfeas_fit.o \
+            monitor.o kiss_fft.o kiss_fftr.o ft8_shim.o sync_refiner.o coherent_llr.o coherent_fallback.o subfeas_fit.o \
             -lm
           echo "=== Linux .so exports ==="
           nm -D libft8.so | grep "ft8_"

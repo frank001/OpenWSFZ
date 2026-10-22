@@ -97,6 +97,18 @@ def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=F
     res["checks"]["daemon_exe_exists"] = True
     res["checks"]["config_exists"] = True
 
+    # WSJT-X must be running BEFORE the daemon is started (2026-10-13: the Linux repeats of 2026-10-11 ran 3 x 1 h 53 min with WSJT-X not
+    # decoding and nothing stopped them; HK-020). This is the cheap half; harness/warmup_check.py (run before scenario 1) demands a decode.
+    import wsjtx_alive
+    _w = wsjtx_alive.check()
+    res["checks"]["wsjtx_running"] = _w["wsjtx_running"]
+    res["checks"]["wsjtx_process_count"] = _w["count"]
+    if not _w["wsjtx_running"]:
+        res["checks"]["wsjtx_refusal"] = "no WSJT-X process: start WSJT-X (FT8, Monitor on) before the battery"
+        res["checks"]["all_pass"] = False
+        _write(run_dir, res)
+        return run, res
+
     # Build provenance -- required, recorded, NOT a branch gate (Captain, direct, URGENT
     # reversal, 2026-09-22: "I really don't want that hard check on the branch. It should be
     # able to run on whatever we want."). The build-inputs dirty gate DOES still apply --
@@ -230,7 +242,7 @@ def precheck(run_dir, daemon_exe, config_path, port, wsjtx_ini, allow_existing=F
     res["checks"]["decodingEnabled"] = bool(res["daemon"].get("decodingEnabled"))
     res["checks"]["dll_readable"] = bool(res["daemon"].get("dll_sha256"))
     res["checks"]["all_pass"] = all([device_match, res["checks"]["captureActive"],
-                                      res["checks"]["decodingEnabled"], res["checks"]["dll_readable"]])
+                                      res["checks"]["decodingEnabled"], res["checks"]["dll_readable"], res["checks"]["wsjtx_running"]])
 
     _write(run_dir, res)
     if not res["checks"]["all_pass"] and not attach_existing:

@@ -58,7 +58,8 @@
       "osdCorrThreshold",
       "osdNhardMax",
       "earlyDecodeEnabled",
-      "earlyDecodeCutSeconds"
+      "earlyDecodeCutSeconds",
+      "coherentFallbackEnabled"
     ],
     "decodeNoiseSuppression": [
       "suppressUnknownRegion",

@@ -20,6 +20,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from harness.analyse import (
     _attribute_agreement,
     _collect_verdicts,
+    _derived_metrics,
+    _migrate_trend_header,
+    _TREND_COLUMNS,
+    _verdict_grr,
+    _verdict_ndc,
     S4_DECODABLE_SNR_FLOOR_DB,
 )
 
@@ -138,3 +143,119 @@ def test_empty_s4_yields_nan_kappa_not_a_crash():
     # Restricted variant must also degrade gracefully, not crash
     assert "restricted" in result
     assert "snr_floor_db" in result["restricted"]
+
+
+# ---- ndc: "not computable", never FAIL, when there is no second appraiser or no GRR variance (2026-10-13, the Linux repeats) -------------
+
+def _anova(n_appraisers, var_grr, var_part=25.0):
+    return {"n_appraisers": n_appraisers, "var_total": var_grr + var_part, "var_grr": var_grr, "var_repeatability": var_grr,
+            "var_reproducibility": 0.0, "var_part": var_part}
+
+
+def test_ndc_is_a_number_with_two_appraisers_and_some_variance():
+    m = _derived_metrics(_anova(2, 1.0), 10.0)
+    assert m["ndc"] == 7 and m["ndc_reason"] == "" and m["n_appraisers"] == 2          # floor(1.41 * 5 / 1)
+    assert _verdict_ndc(m["ndc"]) == "PASS"
+
+
+def test_ndc_is_not_computable_with_one_appraiser():
+    m = _derived_metrics(_anova(1, 0.0), 10.0)
+    assert m["ndc"] is None and "one appraiser" in m["ndc_reason"] and m["n_appraisers"] == 1
+    assert _verdict_ndc(m["ndc"]) == "N/A"                                              # it used to print 1 and FAIL
+
+
+def test_ndc_is_not_computable_when_sigma_grr_is_exactly_zero_and_is_not_a_pass():
+    m = _derived_metrics(_anova(2, 0.0), 10.0)
+    assert m["ndc"] is None and "sigma_GRR = 0" in m["ndc_reason"]
+    assert _verdict_ndc(m["ndc"]) == "N/A" and _verdict_ndc(1) == "FAIL" and _verdict_ndc(3) == "MARGINAL"
+
+
+def test_collect_verdicts_reports_a_missing_ndc_as_na_with_a_note_and_does_not_fail_the_run():
+    res = {"S2": {"metrics": _derived_metrics(_anova(1, 0.0), 10.0)}}
+    rows, overall, fails, notes = _collect_verdicts(res, {}, {}, {})
+    ndc_row = [r for r in rows if r[0] == "ndc"][0]
+    assert ndc_row == ("ndc", "S2", "not computable", "N/A")
+    grr_row = [r for r in rows if r[0] == "%GR&R (%StudyVar)"][0]
+    assert "one appraiser" in grr_row[2] and grr_row[3] == "PASS"                      # the figure is labelled, not hidden
+    assert any("ndc (S2) is not computable" in n for n in notes) and not fails
+
+
+# ---- the %GR&R gate reads %StudyVar (Captain, 2026-10-14), not %Contribution ------------------------------------------------------------------
+
+def _row(rows, scen):
+    return [r for r in rows if r[0] == "%GR&R (%StudyVar)" and r[1] == scen][0]
+
+
+def test_verdict_is_pinned_to_study_var_11_2_percent_contribution_is_33_5_study_var_is_fail():
+    m = _derived_metrics(_anova(2, 11.23, var_part=88.77), 10.0)       # the LINUX run 1 S1 shape: 11.2 % contribution
+    assert abs(m["pct_contribution_grr"] - 11.23) < 1e-9 and abs(m["pct_study_var_grr"] - 33.5) < 0.05
+    rows, overall, fails, notes = _collect_verdicts({"S1": {"metrics": m}}, {}, {}, {})
+    assert _row(rows, "S1")[3] == "FAIL"                                  # under the old rule (%Contribution 11.2 %) this was MARGINAL
+    assert "33.5%" in _row(rows, "S1")[2] and "%Contribution 11.2%" in _row(rows, "S1")[2]
+    assert any("%StudyVar" in f and "S1" in f for f in fails)
+
+
+def test_verdict_bands_on_study_var_pass_marginal_fail():
+    assert _verdict_grr(4.7) == "PASS" and _verdict_grr(9.99) == "PASS"
+    assert _verdict_grr(10.0) == "MARGINAL" and _verdict_grr(10.5) == "MARGINAL" and _verdict_grr(30.0) == "MARGINAL"
+    assert _verdict_grr(30.01) == "FAIL"
+    m3 = _derived_metrics(_anova(2, 1.108, var_part=98.892), 10.0)       # S3-like: 1.1 % contribution is 10.5 % study var
+    rows, *_ = _collect_verdicts({"S3": {"metrics": m3}}, {}, {}, {})
+    assert _row(rows, "S3")[3] == "MARGINAL"                              # PASS under the old rule
+    m1 = _derived_metrics(_anova(2, 0.224, var_part=99.776), 10.0)
+    rows, *_ = _collect_verdicts({"S1": {"metrics": m1}}, {}, {}, {})
+    assert _row(rows, "S1")[3] == "PASS"
+
+
+def test_every_report_says_the_gate_changed_and_old_reports_are_not_regraded():
+    m = _derived_metrics(_anova(2, 1.0), 10.0)
+    _, _, _, notes = _collect_verdicts({"S1": {"metrics": m}}, {}, {}, {})
+    assert any("gate changed to %StudyVar on 2026-10-14" in n and "not re-graded" in n for n in notes)
+
+
+def test_trend_header_migration_adds_study_var_derived_from_contribution_and_is_idempotent(tmp_path):
+    old = "\n".join(["run_date,git_sha,pct_grr_snr,ndc_snr,bias_snr_owsfz,kappa_s4,fp_rate_s5,fp_events_s5,fp_slots_s5",
+                     "2026-06-06,abc,44.79,1,-1.9,,0.0,,",
+                     "2026-10-03,def,0.19,60,0.5,0.9,0.0,0,480",
+                     "2026-10-04,ghi,,,,,,,"]) + "\n"
+    f = tmp_path / "trend.csv"
+    f.write_text(old, encoding="utf-8")
+    _migrate_trend_header(f)
+    lines = f.read_text(encoding="utf-8").splitlines()
+    assert lines[0].split(",") == _TREND_COLUMNS
+    assert abs(float(lines[1].split(",")[-1]) - 100 * math.sqrt(0.4479)) < 1e-6         # exact identity from %Contribution
+    assert abs(float(lines[2].split(",")[-1]) - 100 * math.sqrt(0.0019)) < 1e-6
+    assert lines[3].split(",")[-1] == ""                                                 # no figure on file: left empty, not invented
+    before = f.read_text(encoding="utf-8")
+    _migrate_trend_header(f)                                                              # a second call changes nothing
+    assert f.read_text(encoding="utf-8") == before
+    assert len(lines[0].split(",")) == len(lines[1].split(",")) == len(lines[3].split(","))
+
+
+# ---- the cross-platform analyser follows the same gate (Captain 2026-10-14, applied to the file by the Architect's follow-up) ----------------
+
+def test_xplat_verdict_is_pinned_to_study_var_too():
+    from harness import analyse_xplat as X
+    m = _derived_metrics(_anova(2, 11.23, var_part=88.77), 10.0)
+    rows, overall, fails = X._collect_verdicts({"S1": {"metrics": m}}, {}, {}, {}, {}, {}, {})
+    row = [r for r in rows if r[0] == "%GR&R (%StudyVar)"][0]
+    assert row[3] == "FAIL" and "33.5%" in row[2] and "%Contribution 11.2%" in row[2]
+    assert any("%StudyVar" in f for f in fails)
+
+
+def test_s3_future_reports_carry_the_dt_offset_sentence():
+    from harness.analyse import S3_DT_OFFSET_NOTE
+    assert "fixed OpenWSFZ − WSJT-X DT offset" in S3_DT_OFFSET_NOTE and "+0.12 s" in S3_DT_OFFSET_NOTE and "not by run-to-run noise" in S3_DT_OFFSET_NOTE
+    src = (Path(__file__).resolve().parent.parent / "harness" / "analyse.py").read_text(encoding="utf-8")
+    xsrc = (Path(__file__).resolve().parent.parent / "harness" / "analyse_xplat.py").read_text(encoding="utf-8")
+    assert 'if scen_id == "S3":' in src and "S3_DT_OFFSET_NOTE" in src and 'if scen_id == "S3":' in xsrc and "S3_DT_OFFSET_NOTE" in xsrc
+
+
+def test_xplat_trend_migration_uses_its_own_columns(tmp_path):
+    from harness import analyse_xplat as X
+    f = tmp_path / "trend_xplat.csv"
+    f.write_text("\n".join(["run_date,git_sha,pct_grr_snr,ndc_snr,platform_snr_bias_db,win_wsjt_snr_bias_db,linux_wsjt_snr_bias_db,between_platform_kappa,fp_events_windows,fp_events_linux,fp_events_wsjt,mcnemar_p,overall",
+                            "2026-07-01,abc,4.0,5,0.1,0.2,0.3,0.9,0,0,0,1.0,PASS"]) + "\n", encoding="utf-8")
+    X._migrate_trend_header(f, X._TREND_COLUMNS_XPLAT)
+    lines = f.read_text(encoding="utf-8").splitlines()
+    assert lines[0].split(",") == X._TREND_COLUMNS_XPLAT and abs(float(lines[1].split(",")[-1]) - 100 * math.sqrt(0.04)) < 1e-6

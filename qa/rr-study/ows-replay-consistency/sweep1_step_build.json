@@ -1,0 +1,15 @@
+{
+ "plays": 180,
+ "arm_P": {
+  "zero_filled_plays": 0,
+  "plays": 180
+ },
+ "PV4": {
+  "plays_checked": 10,
+  "matched_chunks_compared": 150,
+  "max_abs_error_s": 0.0020000000000000018,
+  "bar_s": 0.02,
+  "result": "PASS",
+  "ids_seed": 20261016
+ }
+}

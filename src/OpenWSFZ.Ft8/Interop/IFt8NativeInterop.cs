@@ -268,6 +268,34 @@ internal interface IFt8NativeInterop
     /// </summary>
     void HashStateRestore(byte[] buffer) { }
 
+    /// <summary>
+    /// COH-FALLBACK Stage 2 (shim 20260068): snapshots the candidate list and decoded payloads retained by the last
+    /// <see cref="DecodeAll"/> on THIS thread. MUST be called on the thread that ran <see cref="DecodeAll"/>. Default: <c>null</c>
+    /// (a fake does not model the fallback).
+    /// </summary>
+    byte[]? CohFallbackSnapshot() => null;
+
+    /// <summary>
+    /// COH-FALLBACK step 4 (shim 20260069): the native side of the parallel fallback cycle (plan + one context per worker + one candidate
+    /// at a time). Default: <c>null</c> (a fake does not model the fallback, or overrides <see cref="CohFallbackRun"/> itself).
+    /// </summary>
+    ICohFallbackBackend? CohFallbackBackend => null;
+
+    /// <summary>
+    /// COH-FALLBACK step 4 (R15): runs the fallback over a snapshot on up to <paramref name="workers"/> threads and returns the rows in
+    /// candidate order, whatever the scheduling. <paramref name="budgetMs"/> &lt; 0 = no deadline. Candidates not started by the deadline
+    /// (or after <paramref name="ct"/> is cancelled) are counted abandoned, never queued; they are always a suffix of candidate order.
+    /// Default: runs <see cref="CohFallbackBackend"/> through <see cref="CohFallbackParallelRunner"/>, or <c>null</c> when there is none.
+    /// </summary>
+    CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
+        => CohFallbackBackend is { } backend ? CohFallbackParallelRunner.Run(backend, pcm, snapshot, budgetMs, workers, ct) : null;
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2: the message text of a payload through the ordinary message decode (touches the session hash table: no other
+    /// native decode may run at the same time), or <c>null</c>. Default: <c>null</c>.
+    /// </summary>
+    string? CohFallbackUnpack(byte[] payload) => null;
+
     /// <summary>osd-sign-fix (#215, shim 20260060): sets the OSD sign switch. Default: no-op (a fake does not model it).</summary>
     void SetOsdSignFix(int enabled) { }
 

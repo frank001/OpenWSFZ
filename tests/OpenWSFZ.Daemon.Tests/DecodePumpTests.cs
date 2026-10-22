@@ -44,7 +44,9 @@ public sealed class DecodePumpTests
         public Func<float[], DateTime, string?, Func<IReadOnlyList<DecodeResult>, Task>, Task<IReadOnlyList<DecodeResult>>>? TwoStage;
         public Func<DateTime, IReadOnlyList<DecodeResult>>? Single;
         public Func<IReadOnlyList<DecodeResult>, IReadOnlyList<DecodeResult>> Suppress = r => r;
-        public int SingleCalls, TwoStageCalls;
+        public int SingleCalls, TwoStageCalls, StagedCalls;
+        public bool Deep;
+        public Func<Func<int, IReadOnlyList<DecodeResult>, Task>, Task>? Staged;
 
         public DecodePump Build() => new(new DecodePumpDependencies(
             CurrentDialFrequency:     () => CurrentDial,
@@ -70,7 +72,16 @@ public sealed class DecodePumpTests
             AnswererChannel:          Answerer.Writer,
             CallerChannel:            Caller.Writer,
             ExternalReportingChannel: External.Writer,
-            Logger:                   NullLogger.Instance));
+            Logger:                   NullLogger.Instance)
+        {
+            // third-pass-deep (#240): the staged entry, used only while Deep is on (and the residual pass is).
+            DecodeStaged = async (pcm, cs, band, publishBatch, _) =>
+            {
+                lock (Events) { StagedCalls++; Events.Add($"decode-staged:{cs:mm:ss}"); }
+                await Staged!(publishBatch);
+            },
+            DecodingDeep = () => Deep,
+        });
 
         public static async IAsyncEnumerable<(float[] Pcm, DateTime CycleStart, double? DialFrequency)> Windows(
             params DateTime[] cycles)
@@ -94,8 +105,8 @@ public sealed class DecodePumpTests
 
     // ── S3 (a): the answerer and caller receive exactly one batch per flag-ON cycle ──
 
-    [Fact(DisplayName = "S3(a): flag ON — the answerer and caller receive exactly one batch per cycle, and it is batch 1")]
-    public async Task AnswererAndCaller_ExactlyOneBatch_IsBatch1()
+    [Fact(DisplayName = "S3(a) [late-batches-in-qso: policy reversed]: flag ON — the answerer and caller receive batch 1 then batch 2 of the cycle, numbered 1 and 2")]
+    public async Task AnswererAndCaller_Batch1ThenBatch2_Numbered()
     {
         var rig = new Rig { FlagOn = true };
         var b1 = new[] { R("CQ Q1ABC JO33") };
@@ -106,17 +117,24 @@ public sealed class DecodePumpTests
 
         var answerer = rig.Drain(rig.Answerer);
         var caller   = rig.Drain(rig.Caller);
-        answerer.Should().ContainSingle();
-        caller.Should().ContainSingle();
-        answerer[0].Results.Should().Equal(b1, "the answerer's idle snapshot after a flag-ON cycle is batch 1 (P-5)");
+        answerer.Should().HaveCount(2, "batch 2 now reaches the answerer, as a supplementary batch");
+        caller.Should().HaveCount(2);
+        answerer[0].Results.Should().Equal(b1);
+        answerer[0].BatchNumber.Should().Be(1);
+        answerer[1].Results.Should().Equal(b2);
+        answerer[1].BatchNumber.Should().Be(2);
         caller[0].Results.Should().Equal(b1);
+        caller[0].BatchNumber.Should().Be(1);
+        caller[1].Results.Should().Equal(b2);
+        caller[1].BatchNumber.Should().Be(2);
         answerer[0].CycleStart.Should().Be(new DateTimeOffset(Cycle1, TimeSpan.Zero));
+        answerer[1].CycleStart.Should().Be(answerer[0].CycleStart, "same cycle");
     }
 
     // ── S3 (b): _lastIdleDecodeBatch after a flag-ON cycle equals batch 1 (real answerer) ──
 
-    [Fact(DisplayName = "S3(b)+(h): the real answerer's idle snapshot equals batch 1, so a reply naming a pass-0 station still engages and a reply naming a batch-2 station is ignored")]
-    public async Task RealAnswerer_SnapshotIsBatch1_ExternalReplyForBatch2StationIgnored()
+    [Fact(DisplayName = "S3(b)+(h) [late-batches-in-qso: policy reversed]: the real answerer's idle snapshot is batch 1 plus batch 2 of the cycle, so a reply naming a pass-0 station and a reply naming a batch-2 station both engage")]
+    public async Task RealAnswerer_SnapshotMergesBatch2_ExternalReplyForBothStationsEngages()
     {
         var rig = new Rig { FlagOn = true };
         var b1 = new[] { R("CQ Q1ABC JO33") };
@@ -127,16 +145,25 @@ public sealed class DecodePumpTests
         await using var sut = await AnswererHarness.CreateAsync();
         // The pump's answerer channel is drained into the real service exactly as Program.cs wires it.
         foreach (var batch in rig.Drain(rig.Answerer)) sut.Channel.Writer.TryWrite(batch);
-        await sut.WaitForIdleSnapshotAsync();
+        await sut.WaitForIdleSnapshotAsync(expectedResultCount: 2);
 
-        (await sut.Service.TryEngageExternal("Q1DEF")).Should().BeFalse(
-            "a station heard only in batch 2 is not in the answerer's snapshot: the reply is ignored (P-5)");
-        sut.Log.Entries.Should().Contain(e => e.Contains("is not present as a CQ in the most recent decode batch"),
-            "with the existing log line");
-
-        (await sut.Service.TryEngageExternal("Q1ABC")).Should().BeTrue(
-            "the pass-0 station is still engageable: batch 2 did not overwrite the snapshot");
+        (await sut.Service.TryEngageExternal("Q1DEF")).Should().BeTrue(
+            "a station heard only in batch 2 is in the merged snapshot: the reply engages (late-batches-in-qso D4)");
         sut.Service._wakeupChannel.Reader.TryRead(out _);
+        // A second reply is refused only because the first one already engaged (state no longer Idle): re-create to check the other station.
+        await using var sut2 = await AnswererHarness.CreateAsync();
+        foreach (var batch in rig2Batches(b1, b2)) sut2.Channel.Writer.TryWrite(batch);
+        await sut2.WaitForIdleSnapshotAsync(expectedResultCount: 2);
+        (await sut2.Service.TryEngageExternal("Q1ABC")).Should().BeTrue(
+            "the pass-0 station is still engageable: batch 2 appended to the snapshot, it did not replace it");
+        sut2.Service._wakeupChannel.Reader.TryRead(out _);
+    }
+
+    private static IEnumerable<DecodeBatch> rig2Batches(DecodeResult[] b1, DecodeResult[] b2)
+    {
+        var cs = new DateTimeOffset(Cycle1, TimeSpan.Zero);
+        yield return new DecodeBatch(cs, b1, 1);
+        yield return new DecodeBatch(cs, b2, 2);
     }
 
     // ── S3 (c): ALL.TXT holds batch 1's lines then batch 2's, same stamp ──
@@ -227,8 +254,8 @@ public sealed class DecodePumpTests
         rig.Drain(rig.External).Should().ContainSingle();
     }
 
-    [Fact(DisplayName = "P-4: batch 2 reaches decode-filter admission and the external-reporting channel (and only that channel of the three)")]
-    public async Task Batch2_AdmissionAndExternalReporting()
+    [Fact(DisplayName = "P-4 [late-batches-in-qso: policy reversed]: batch 2 reaches decode-filter admission, the external-reporting channel, and (as batch number 2) the answerer and caller channels")]
+    public async Task Batch2_AdmissionExternalReportingAndQsoServices()
     {
         var rig = new Rig { FlagOn = true };
         rig.TwoStage = TwoBatches([R("CQ Q1ABC JO33")], [R("CQ Q1DEF EN37", 2100)]);
@@ -240,8 +267,13 @@ public sealed class DecodePumpTests
         external.Should().HaveCount(2);
         external[1].Results.Select(r => r.Message).Should().Equal("CQ Q1DEF EN37");
         external[1].CycleStart.Should().Be(external[0].CycleStart, "same cycle");
-        rig.Drain(rig.Answerer).Should().ContainSingle();
-        rig.Drain(rig.Caller).Should().ContainSingle();
+        external[1].BatchNumber.Should().Be(2);
+        var answerer = rig.Drain(rig.Answerer);
+        var caller   = rig.Drain(rig.Caller);
+        answerer.Select(b => b.BatchNumber).Should().Equal(1, 2);
+        caller.Select(b => b.BatchNumber).Should().Equal(1, 2);
+        answerer[1].Results.Select(r => r.Message).Should().Equal("CQ Q1DEF EN37");
+        caller[1].Results.Select(r => r.Message).Should().Equal("CQ Q1DEF EN37");
     }
 
     // ── S3 (i) and P-7: the pump stays serial ──
@@ -339,12 +371,14 @@ public sealed class DecodePumpTests
             return new AnswererHarness { Service = service, Channel = channel, Ptt = ptt, Log = log, Cts = cts };
         }
 
-        public async Task WaitForIdleSnapshotAsync()
+        public async Task WaitForIdleSnapshotAsync(int expectedResultCount = 0)
         {
             var field = typeof(QsoAnswererService).GetField("_lastIdleDecodeBatch",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-            await Poll.UntilAsync(() => field.GetValue(Service) is not null, timeout: TimeSpan.FromSeconds(2),
-                timeoutMessage: () => "the answerer never recorded a batch");
+            await Poll.UntilAsync(
+                () => field.GetValue(Service) is DecodeBatch snap && snap.Results.Count >= expectedResultCount,
+                timeout: TimeSpan.FromSeconds(2),
+                timeoutMessage: () => "the answerer never recorded the expected batch(es)");
         }
 
         public async ValueTask DisposeAsync()
@@ -380,5 +414,85 @@ public sealed class DecodePumpTests
         {
             lock (_entries) _entries.Add(formatter(state, exception));
         }
+    }
+    // ── third-pass-deep (#240): batch 3 ─────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "Third pass: Deep + flag ON — the staged entry is used instead of the two-stage one; batch 1 reaches every consumer, batches 2 and 3 the batch-2 sinks and (late-batches-in-qso) the answerer and caller, numbered 2 and 3")]
+    public async Task Deep_StagedEntry_Batch3GoesWhereBatch2Goes()
+    {
+        var rig = new Rig { FlagOn = true, Deep = true };
+        var b1 = new[] { R("CQ Q1ABC JO33") };
+        var b2 = new[] { R("CQ Q1DEF EN37", 2100) };
+        var b3 = new[] { R("CQ Q1GHI FN20", 2400) };
+        rig.Staged = async publish =>
+        {
+            await publish(1, b1);
+            await publish(2, b2);
+            await publish(3, b3);
+        };
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.StagedCalls.Should().Be(1);
+        rig.TwoStageCalls.Should().Be(0, "Deep takes the staged entry");
+        rig.SingleCalls.Should().Be(0);
+        rig.Panel.Should().HaveCount(3);
+        rig.Panel[0].Should().Equal(b1);
+        rig.Panel[1].Should().Equal(b2);
+        rig.Panel[2].Should().Equal(b3);
+        rig.AllTxt.Select(a => a.Results.Count).Should().Equal(1, 1, 1);
+        rig.AllTxt.Select(a => a.Stamp).Should().OnlyContain(t => t == Cycle1, "all three batches carry the cycle's stamp");
+        rig.Admitted.Should().Equal("CQ Q1ABC JO33", "CQ Q1DEF EN37", "CQ Q1GHI FN20");
+        rig.Archive.Should().ContainSingle("the archive runs once per cycle, at batch 1");
+
+        var answerer = rig.Drain(rig.Answerer);
+        var caller   = rig.Drain(rig.Caller);
+        answerer.Select(b => b.BatchNumber).Should().Equal(1, 2, 3);
+        caller.Select(b => b.BatchNumber).Should().Equal(1, 2, 3);
+        answerer.Select(b => b.Results[0].Message).Should().Equal("CQ Q1ABC JO33", "CQ Q1DEF EN37", "CQ Q1GHI FN20");
+        caller.Select(b => b.Results[0].Message).Should().Equal("CQ Q1ABC JO33", "CQ Q1DEF EN37", "CQ Q1GHI FN20");
+        var external = rig.Drain(rig.External);
+        external.Select(b => b.Results.Count).Should().Equal(1, 1, 1);
+        external.Select(b => b.BatchNumber).Should().Equal(1, 2, 3);
+    }
+
+    [Fact(DisplayName = "Third pass: Deep with no batch 2 or 3 (staged entry delivers batch 1 only) — a single, ordinary batch-1 publish")]
+    public async Task Deep_OnlyBatch1_IsOrdinary()
+    {
+        var rig = new Rig { FlagOn = true, Deep = true };
+        var b1 = new[] { R("CQ Q1ABC JO33") };
+        rig.Staged = async publish => { await publish(1, b1); };
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.Panel.Should().ContainSingle();
+        rig.Drain(rig.Answerer).Should().ContainSingle();
+    }
+
+    [Fact(DisplayName = "Third pass: Normal (Deep off) — the two-stage entry as ever, the staged entry never called")]
+    public async Task Normal_UsesTwoStageEntry()
+    {
+        var rig = new Rig { FlagOn = true, Deep = false };
+        rig.TwoStage = TwoBatches([R("CQ Q1ABC JO33")], [R("CQ Q1DEF EN37", 2100)]);
+        rig.Staged = _ => throw new InvalidOperationException("must not be called");
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.TwoStageCalls.Should().Be(1);
+        rig.StagedCalls.Should().Be(0);
+        rig.Panel.Should().HaveCount(2);
+    }
+
+    [Fact(DisplayName = "Third pass: Deep but the residual flag OFF — the ordinary single batch, no staged entry")]
+    public async Task Deep_WithFlagOff_IsSingleBatch()
+    {
+        var rig = new Rig { FlagOn = false, Deep = true };
+        rig.Single = _ => [R("CQ Q1ABC JO33")];
+        rig.Staged = _ => throw new InvalidOperationException("must not be called");
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.SingleCalls.Should().Be(1);
+        rig.StagedCalls.Should().Be(0);
     }
 }

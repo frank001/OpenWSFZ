@@ -1,0 +1,103 @@
+{
+ "seed": 20261011,
+ "min_age_h": 2,
+ "tile_cycles": 72,
+ "blocks": [
+  {
+   "tile": 7,
+   "first_stamp": "261009_195845",
+   "scored_first": "261009_200845",
+   "last_stamp": "261009_201630",
+   "sun": "night",
+   "age_h": 2.3
+  },
+  {
+   "tile": 9,
+   "first_stamp": "261009_203445",
+   "scored_first": "261009_204445",
+   "last_stamp": "261009_205230",
+   "sun": "night",
+   "age_h": 2.9
+  },
+  {
+   "tile": 10,
+   "first_stamp": "261009_205245",
+   "scored_first": "261009_210245",
+   "last_stamp": "261009_211030",
+   "sun": "night",
+   "age_h": 3.2
+  },
+  {
+   "tile": 24,
+   "first_stamp": "261010_011145",
+   "scored_first": "261010_012145",
+   "last_stamp": "261010_012930",
+   "sun": "night",
+   "age_h": 7.5
+  },
+  {
+   "tile": 28,
+   "first_stamp": "261010_022345",
+   "scored_first": "261010_023345",
+   "last_stamp": "261010_024130",
+   "sun": "night",
+   "age_h": 8.7
+  },
+  {
+   "tile": 29,
+   "first_stamp": "261010_024145",
+   "scored_first": "261010_025145",
+   "last_stamp": "261010_025930",
+   "sun": "night",
+   "age_h": 9.0
+  },
+  {
+   "tile": 37,
+   "first_stamp": "261010_050545",
+   "scored_first": "261010_051545",
+   "last_stamp": "261010_052330",
+   "sun": "twilight",
+   "age_h": 11.4
+  },
+  {
+   "tile": 38,
+   "first_stamp": "261010_052345",
+   "scored_first": "261010_053345",
+   "last_stamp": "261010_054130",
+   "sun": "twilight",
+   "age_h": 11.7
+  },
+  {
+   "tile": 42,
+   "first_stamp": "261010_063545",
+   "scored_first": "261010_064545",
+   "last_stamp": "261010_065330",
+   "sun": "day",
+   "age_h": 12.9
+  },
+  {
+   "tile": 43,
+   "first_stamp": "261010_065345",
+   "scored_first": "261010_070345",
+   "last_stamp": "261010_071130",
+   "sun": "day",
+   "age_h": 13.2
+  },
+  {
+   "tile": 48,
+   "first_stamp": "261010_082345",
+   "scored_first": "261010_083345",
+   "last_stamp": "261010_084130",
+   "sun": "day",
+   "age_h": 14.7
+  },
+  {
+   "tile": 49,
+   "first_stamp": "261010_084145",
+   "scored_first": "261010_085145",
+   "last_stamp": "261010_085930",
+   "sun": "day",
+   "age_h": 15.0
+  }
+ ]
+}

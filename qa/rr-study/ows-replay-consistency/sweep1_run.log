@@ -1,0 +1,7 @@
+{"plays": 180, "missing_archive": 0, "missing_savewav": 0, "v2": "PASS"}
+RUN R-A: 180 items, wall 651.5s cpu 2317.9s abandoned 0 of 177 residual passes
+RUN R-W: 180 items, wall 722.8s cpu 2889.1s abandoned 0 of 177 residual passes
+RUN R-D8-1: 180 items, wall 653.9s cpu 2328.1s abandoned 0 of 177 residual passes
+RUN R-D8-2: 180 items, wall 652.5s cpu 2329.7s abandoned 0 of 177 residual passes
+RUN R-D8-3: 180 items, wall 652.5s cpu 2325.6s abandoned 0 of 177 residual passes
+pin actual 873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a pinned 873287b114a8674f800d4816fd5362c51175fc050e535d190516e01dab03ac6a

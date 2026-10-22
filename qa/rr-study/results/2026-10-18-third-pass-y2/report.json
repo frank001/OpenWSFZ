@@ -1,0 +1,201 @@
+{
+ "corpus": "20260808_1154 (y2), every 8th WAV = 232 cycles",
+ "pins": [
+  {
+   "arm": "MAIN",
+   "commit": "535661a2",
+   "mode": "two1",
+   "osd_sign_fix": 1,
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "NORMAL",
+   "commit": "a329cea9",
+   "mode": "three0",
+   "osd_sign_fix": 1,
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "DEEP",
+   "commit": "a329cea9",
+   "mode": "three1",
+   "osd_sign_fix": 1,
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "DEEP2",
+   "commit": "a329cea9",
+   "mode": "three1",
+   "osd_sign_fix": 1,
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "CTRL",
+   "commit": "535661a2",
+   "mode": "two1",
+   "osd_sign_fix": 0,
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  }
+ ],
+ "env": {
+  "cpu": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+  "cores": 16,
+  "threads_arg": 8,
+  "daemon_or_wsjtx_processes_at_start": "0",
+  "daemon_or_wsjtx_processes_at_end": "0"
+ },
+ "rows": [
+  {
+   "row": "V0 pins and read-back",
+   "result": "PASS",
+   "one_dll_for_all_arms": true,
+   "arms": [
+    {
+     "arm": "MAIN",
+     "start_equals_end": true,
+     "settings_ok": true,
+     "depth_ok": true,
+     "dll_sha256_16": "06e513a4384dd3da"
+    },
+    {
+     "arm": "NORMAL",
+     "start_equals_end": true,
+     "settings_ok": true,
+     "depth_ok": true,
+     "dll_sha256_16": "06e513a4384dd3da"
+    },
+    {
+     "arm": "DEEP",
+     "start_equals_end": true,
+     "settings_ok": true,
+     "depth_ok": true,
+     "dll_sha256_16": "06e513a4384dd3da"
+    },
+    {
+     "arm": "DEEP2",
+     "start_equals_end": true,
+     "settings_ok": true,
+     "depth_ok": true,
+     "dll_sha256_16": "06e513a4384dd3da"
+    },
+    {
+     "arm": "CTRL",
+     "start_equals_end": true,
+     "settings_ok": true,
+     "depth_ok": true,
+     "dll_sha256_16": "06e513a4384dd3da"
+    }
+   ]
+  },
+  {
+   "row": "V1 NORMAL == MAIN (batches 1+2)",
+   "pair": "MAIN vs NORMAL",
+   "cycles": 232,
+   "excluded_abandoned": 0,
+   "compared": 232,
+   "cycles_differing": 0,
+   "matched_cycles_differing": 0,
+   "differing_first5": [],
+   "normal_has_batch3_rows": 0,
+   "control_cycles_differing": 5,
+   "result": "PASS"
+  },
+  {
+   "row": "V1 control: OSD sign OFF must move >= 1 cycle",
+   "pair": "MAIN vs CTRL",
+   "cycles": 232,
+   "excluded_abandoned": 0,
+   "compared": 232,
+   "cycles_differing": 5,
+   "matched_cycles_differing": 5,
+   "differing_first5": [
+    "260808_135845",
+    "260808_144645",
+    "260808_145645",
+    "260808_145845",
+    "260808_172045"
+   ]
+  },
+  {
+   "row": "V2 DEEP batches 1+2 == NORMAL",
+   "pair": "NORMAL vs DEEP",
+   "cycles": 232,
+   "excluded_abandoned": 0,
+   "compared": 232,
+   "cycles_differing": 0,
+   "matched_cycles_differing": 0,
+   "differing_first5": [],
+   "matched_cycles_differing_whole_file_NOT_a_valid_test": 21,
+   "result": "PASS"
+  },
+  {
+   "row": "V3 DEEP == DEEP2 (cycles with no abandon in either)",
+   "pair": "DEEP vs DEEP2",
+   "cycles": 232,
+   "excluded_abandoned": 0,
+   "compared": 232,
+   "cycles_differing": 0,
+   "matched_cycles_differing": 0,
+   "differing_first5": [],
+   "result": "PASS"
+  },
+  {
+   "row": "V4 abandoned in any pass, any arm",
+   "cycles": 232,
+   "abandoned_cycles_union": 0,
+   "share": 0.0,
+   "fail_above": 0.05,
+   "result": "PASS"
+  }
+ ],
+ "all_validity_rows_pass": true,
+ "measurement": {
+  "status": "REPORTED",
+  "cycles_used_pairwise": 232,
+  "NET_3_pp_of_WSJTX_decodes": 0.482,
+  "NET_3_95CI_cycle_bootstrap": [
+   0.293,
+   0.679
+  ],
+  "bootstrap": "2000 cycle draws, seed 20261018",
+  "wsjtx_decodes_in_cycles": 4568,
+  "M2_batch3_decodes": 22,
+  "M2_per_cycle": 0.095,
+  "M2_wsjtx_matched": 22,
+  "M2_ows_only_FP_upper_bound": 0,
+  "M2_by_snr_band_n_matched": {
+   "A": [
+    1,
+    1
+   ],
+   "B": [
+    5,
+    5
+   ],
+   "C": [
+    12,
+    12
+   ],
+   "D": [
+    4,
+    4
+   ]
+  },
+  "M3_third_pass_ms_median_p90_max_PC": [
+   623,
+   789,
+   936
+  ],
+  "M3_cycle_wall_ms_mean_normal_deep_PC": [
+   1615,
+   2079
+  ],
+  "M4_outcomes_all_cycles": {
+   "ran": 173,
+   "skipped-no-new": 59
+  },
+  "M4_started": 173,
+  "M4_abandon_share_over_started": 0.0,
+  "citation_guard": "NET_3 only with this corpus (Y2, PC, production 13 s budget, abandoned cycles excluded pairwise) and its CI; never add to or difference from SUB-FEAS +8.89 / +11.73 pp; PC timings are the PC's, not sol's or the station's"
+ }
+}

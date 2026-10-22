@@ -1,0 +1,86 @@
+{
+ "pins": [
+  {
+   "arm": "MAIN",
+   "commit": "535661a2",
+   "mode": "two1",
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "NORMAL",
+   "commit": "a329cea9",
+   "mode": "three0",
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "DEEP",
+   "commit": "a329cea9",
+   "mode": "three1",
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  },
+  {
+   "arm": "DEEP2",
+   "commit": "a329cea9",
+   "mode": "three1",
+   "libft8_sha256": "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
+  }
+ ],
+ "cycles": 20,
+ "rows": [
+  {
+   "row": "V1 NORMAL == MAIN (batches 1+2)",
+   "pair": "MAIN vs NORMAL",
+   "cycles": 20,
+   "excluded_abandoned": 0,
+   "compared": 20,
+   "cycles_differing": 0,
+   "differing_first5": [],
+   "matched_cycles_differing": 0,
+   "normal_has_batch3_rows": 0
+  },
+  {
+   "row": "V2 DEEP batches 1+2 == NORMAL",
+   "pair": "NORMAL vs DEEP",
+   "cycles": 20,
+   "excluded_abandoned": 0,
+   "compared": 20,
+   "cycles_differing": 0,
+   "differing_first5": []
+  },
+  {
+   "row": "V3 DEEP == DEEP2 (all batches)",
+   "pair": "DEEP vs DEEP2",
+   "cycles": 20,
+   "excluded_abandoned": 0,
+   "compared": 20,
+   "cycles_differing": 0,
+   "differing_first5": [],
+   "matched_cycles_differing": 0
+  },
+  {
+   "row": "V4 abandoned in any pass, any arm (excluded pairwise)",
+   "cycles": 20,
+   "abandoned_cycles_union": 0,
+   "share": 0.0,
+   "fail_above": 0.05,
+   "result": "PASS"
+  }
+ ],
+ "smoke": {
+  "note": "SMOKE ONLY: busiest cycles, tiny sample, production budget on this PC. Not NET_3. Do not cite.",
+  "third_pass_outcomes_by_cycle": {
+   "ran": 20
+  },
+  "ran_ms_median_p90_max": [
+   1066,
+   1166,
+   1310
+  ],
+  "batch1_decodes": 445,
+  "batch2_decodes": 111,
+  "batch3_decodes": 9,
+  "batch3_matched_to_WSJTX": 9,
+  "batch3_OWS_only": 0
+ },
+ "control": "NOT RUN in the smoke (OSD-sign-OFF control): V1 is 'equal on these cycles', not proof that the check can fail"
+}

@@ -65,6 +65,9 @@ internal static class Program
     private static async Task<int> RunAsync(string[] args)
     {
         var a = ParseArgs(args);
+#if HAS_THIRDPASS
+        if (a.ContainsKey("selftest-batch3")) return SelfTestBatch3();
+#endif
         string selectionPath = Req(a, "selection"), run = Req(a, "run"), stratum = Req(a, "stratum");
         string wavRoot = Req(a, "wav-root"), outCsv = Req(a, "out"), logPath = Req(a, "log");
         OsdNhardMax = ParseNhard(Req(a, "nhard"));
@@ -108,9 +111,15 @@ internal static class Program
         // sub-feas-speed-redesign two-stage acceptance: modes "two"/"two1" write an 11-column CSV (tb1_ms = time to
         // batch 1, b1_n, b2_n); every row in such a file is written 11 columns wide.
         _wide = mode is "two" or "two1" or "two0";
+        // third-pass-deep (#240): modes three0 (decoding depth Normal) / three1 (Deep) write a 12-column CSV with b3_n added.
+        _wide3 = mode is "three0" or "three1";
+#if !HAS_THIRDPASS
+        if (_wide3) throw new InvalidOperationException("this build has no decoding-depth setter (build with -p:HasThirdPass=true)");
+#endif
         if (newFile)
-            csv.WriteLine(_wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
-                                : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
+            csv.WriteLine(_wide3 ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n,b3_n"
+                          : _wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
+                                  : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
         // Optional outcome keys (S1): per decode only NUMERIC fields plus an 8-hex-digit hash of the message text; the
         // text itself never leaves the function that reads it (HK-037 / NFR-021). Written to a gitignored artefact.
         // HK-037 clarification (Architect, 2026-09-30): a text-DERIVED hash counts as message identity. So the per-decode
@@ -155,6 +164,14 @@ internal static class Program
             _abandon = new StreamWriter(abandonPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
             if (freshAb) _abandon.WriteLine("stamp,ran,abandoned,contained");
         }
+        // third-pass-deep (#240): per-cycle third-pass outcome (numeric + a fixed category word): stamp,outcome,newDecodes,elapsedMs,fittedSignals.
+        if (a.TryGetValue("third-out", out var thirdPath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(thirdPath))!);
+            bool freshTh = !File.Exists(thirdPath);
+            _third = new StreamWriter(thirdPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (freshTh) _third.WriteLine("stamp,outcome,newDecodes,elapsedMs,fittedSignals");
+        }
         if (a.TryGetValue("outcomes", out var outcomesPath))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outcomesPath))!);
@@ -164,7 +181,7 @@ internal static class Program
         // ---- warm-up: one discarded cycle per process start, through the full path ----
         string warm = root.GetProperty("runs").GetProperty(run).GetProperty("warmup").GetString()!;
         var warmPcm = ReadWav(Path.Combine(WavDirFor(run), warm + ".wav"));
-        SetFlag(decoder, mode is "alt" or "two" or "on" or "two1");
+        SetFlag(decoder, mode is "alt" or "two" or "on" or "two1" or "three0" or "three1");
         await decoder.DecodeAsync(warmPcm, StampToUtc(warm));
         log.Raw("# warm-up cycle decoded and discarded");
         // V2' first probe point: after SetDecodeParams and the warm-up. A miss stops THIS arm before any cycle is decoded (exit 5).
@@ -208,6 +225,15 @@ internal static class Program
         // Offline flag-OFF/ON replay: the arm's flag is set ONCE here and read back from the decoder object (spec V2).
         if (mode is "two0" or "two1") { SetFlag(decoder, mode == "two1"); Readback(decoder, log, "start", threadsNote); }
 #endif
+#if HAS_THIRDPASS
+        // third-pass-deep: subtraction ON and the depth set ONCE here, read back from the decoder object (spec V0).
+        if (mode is "three0" or "three1")
+        {
+            SetFlag(decoder, true);
+            decoder.SetDecodingDepth(mode == "three1" ? DecodingDepth.Deep : DecodingDepth.Normal);
+            Readback(decoder, log, "start", threadsNote);
+        }
+#endif
         for (int idx = 0; idx < cycles.Count; idx++)
         {
             string stamp = cycles[idx];
@@ -228,6 +254,17 @@ internal static class Program
                 await Decode1(decoder, pcm, cyc, csv, run, stratum, stamp, idx, "ON");
                 continue;
             }
+#if HAS_THIRDPASS
+            // "three0" / "three1": subtraction ON, DecodeStagedAsync, ONE call per cycle; decoding depth Normal / Deep. Both arms use the same
+            // entry (Normal delivers exactly what DecodeTwoStageAsync does), batch 3 is its own kind in every output.
+            if (mode is "three0" or "three1")
+            {
+                string tflag = mode == "three1" ? "DEEP" : "NORMAL";
+                if (done.Contains(stamp + "|" + tflag)) continue;
+                await DecodeThree(decoder, pcm, cyc, csv, run, stratum, stamp, idx, tflag);
+                continue;
+            }
+#endif
 #if HAS_TWOSTAGE
             // "two0": flag OFF, DecodeTwoStageAsync, ONE call per cycle: the OFF arm of the offline replay. Same call,
             // same scoring as "two1"; with the flag OFF the decoder publishes batch 1 only and returns an empty batch 2.
@@ -266,6 +303,9 @@ internal static class Program
         }
 #if HAS_TWOSTAGE
         if (mode is "two0" or "two1") Readback(decoder, log, "end", threadsNote);
+#endif
+#if HAS_THIRDPASS
+        if (mode is "three0" or "three1") Readback(decoder, log, "end", threadsNote);
 #endif
         // V2' second probe point: after the last cycle. Recorded; row V2' is judged afterwards by nhard_rep_rows.py.
         if (_probe is not null && !RunProbe("end", log))
@@ -383,6 +423,8 @@ internal static class Program
     private static StreamWriter? _abandon;   // --abandon-out: stamp,ran,abandoned,contained (numeric flags, 0/1)
 
     private static bool _wide;
+    private static bool _wide3;                    // three0 / three1: 12-column CSV with b3_n
+    private static StreamWriter? _third;           // --third-out: stamp,outcome,newDecodes,elapsedMs,fittedSignals
     private static StreamWriter? _outcomes;
     private static bool _outcomeTextHash;   // default OFF (HK-037: a text-derived hash is message identity)
 
@@ -423,13 +465,16 @@ internal static class Program
     /// WSJT-X decoded the same message text in the same cycle within 10 Hz, paired ONE-TO-ONE nearest-first across both
     /// batches (a WSJT-X decode corroborates at most one OpenWSFZ decode). Emits COUNTS per (kind, SNR band); text never leaves.
     /// </summary>
-    private static void ScoreTestB(string run, string stamp, IReadOnlyList<DecodeResult> b1, IReadOnlyList<DecodeResult> b2)
+    private static void ScoreTestB(string run, string stamp, IReadOnlyList<DecodeResult> b1, IReadOnlyList<DecodeResult> b2,
+                                   IReadOnlyList<DecodeResult>? b3 = null)
     {
         if (_testB is null) return;
         var w = _wsjtx.TryGetValue(stamp, out var l) ? l : new List<(int Snr, int Freq, string Msg)>();
         var ows = new List<(int Kind, int Snr, int Freq, string Msg)>();
         foreach (var r in b1) ows.Add((1, r.Snr, r.FreqHz, r.Message.TrimEnd()));
         foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd()));
+        // third-pass-deep (#240): batch 3 is its OWN kind, never folded into 1 or 2. b3 == null (every older mode) leaves the output exactly as it was.
+        if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd()));
         var cands = new List<(int Df, int Oi, int Wi)>();
         for (int i = 0; i < ows.Count; i++)
             for (int j = 0; j < w.Count; j++)
@@ -441,7 +486,7 @@ internal static class Program
         cands.Sort((x, y) => x.Df != y.Df ? x.Df.CompareTo(y.Df) : x.Oi != y.Oi ? x.Oi.CompareTo(y.Oi) : x.Wi.CompareTo(y.Wi));
         var usedO = new bool[ows.Count];
         var usedW = new bool[w.Count];
-        var matchBatch = new int[w.Count];     // the Kind (1 or 2) of the OpenWSFZ decode that matched each WSJT-X line; 0 = unmatched
+        var matchBatch = new int[w.Count];     // the Kind (1, 2 or 3) of the OpenWSFZ decode that matched each WSJT-X line; 0 = unmatched
         foreach (var (_, oi, wi) in cands)
         {
             if (usedO[oi] || usedW[wi]) continue;
@@ -449,13 +494,13 @@ internal static class Program
             usedW[wi] = true;
             matchBatch[wi] = ows[oi].Kind;
         }
-        foreach (int kind in new[] { 1, 2 })
+        foreach (int kind in b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
             foreach (var band in new[] { "A", "B", "C", "D" })
             {
                 int n = 0, c = 0;
                 for (int i = 0; i < ows.Count; i++)
                     if (ows[i].Kind == kind && BandOf(ows[i].Snr) == band) { n++; if (usedO[i]) c++; }
-                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : "b2", band,
+                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : "b3", band,
                     n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
             }
         _matched?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j])));
@@ -483,6 +528,151 @@ internal static class Program
             _outcomes.WriteLine(string.Join(",", fields));
         }
     }
+
+#if HAS_THIRDPASS
+    /// <summary>
+    /// third-pass-deep (#240): the staged decode (Ft8Decoder.DecodeStagedAsync). Collects batch 1, 2 and 3 as they are delivered
+    /// (2 and 3 only when non-empty), writes each as its own kind, scores all three against WSJT-X, and records the third-pass
+    /// outcome the decoder logged for this cycle. Columns: ...,tb1_ms,b1_n,b2_n,b3_n.
+    /// </summary>
+    private static async Task DecodeThree(Ft8Decoder d, float[] pcm, DateTime cycleStart, StreamWriter csv,
+                                          string run, string stratum, string stamp, int seq, string flag)
+    {
+        string exc = "";
+        int n1 = -1, n2 = 0, n3 = 0;
+        double tb1 = -1;
+        SubfeasProbe.Reset();
+        ThirdProbe.Reset();
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null;
+            await d.DecodeStagedAsync(pcm, cycleStart, null, (n, batch) =>
+            {
+                if (n == 1) { tb1 = sw.Elapsed.TotalMilliseconds; b1 = batch; }
+                else if (n == 2) b2 = batch;
+                else if (n == 3) b3 = batch;
+                else throw new InvalidOperationException("unexpected batch number");
+                return Task.CompletedTask;
+            });
+            IReadOnlyList<DecodeResult> none = Array.Empty<DecodeResult>();
+            n1 = b1?.Count ?? -1;
+            n2 = b2?.Count ?? 0;
+            n3 = b3?.Count ?? 0;
+            if (b1 is not null) WriteOutcomes(stamp, "b1", b1);
+            WriteOutcomes(stamp, "b2", b2 ?? none);
+            WriteOutcomes(stamp, "b3", b3 ?? none);
+            if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none);
+        }
+        catch (Exception ex) { exc = ex.GetType().Name; }
+        sw.Stop();
+        _abandon?.WriteLine(string.Join(",", stamp, SubfeasProbe.Ran ? "1" : "0", SubfeasProbe.Abandoned ? "1" : "0",
+            SubfeasProbe.Contained ? "1" : "0"));
+        _third?.WriteLine(string.Join(",", stamp, ThirdProbe.Seen ? ThirdProbe.Outcome : "no-line",
+            ThirdProbe.NewDecodes.ToString(CultureInfo.InvariantCulture), ThirdProbe.ElapsedMs.ToString(CultureInfo.InvariantCulture),
+            ThirdProbe.Fitted.ToString(CultureInfo.InvariantCulture)));
+        csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), flag,
+            sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
+            (n1 < 0 ? -1 : n1 + n2 + n3).ToString(CultureInfo.InvariantCulture), exc,
+            tb1.ToString("F1", CultureInfo.InvariantCulture),
+            n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture), n3.ToString(CultureInfo.InvariantCulture)));
+    }
+
+    /// <summary>The third-pass line the decoder logged for the cycle being decoded (one line per cycle in which pass 0 had decodes).</summary>
+    private static class ThirdProbe
+    {
+        public static volatile bool Seen;
+        public static string Outcome = "no-line";
+        public static int NewDecodes, Fitted;
+        public static long ElapsedMs;
+        public static void Reset() { Seen = false; Outcome = "no-line"; NewDecodes = 0; Fitted = 0; ElapsedMs = 0; }
+        private static readonly System.Text.RegularExpressions.Regex Rx = new(
+            @"^Third pass: newDecodes=(\d+) elapsedMs=(\d+) outcome=(ran|skipped-no-new|skipped-abandoned|abandoned|failed) fittedSignals=(\d+)$");
+        public static void Set(string rendered)
+        {
+            var m = Rx.Match(rendered);
+            if (!m.Success) return;                  // anything else is not recorded (and never the text of a decode)
+            NewDecodes = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            ElapsedMs = long.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            Outcome = m.Groups[3].Value;
+            Fitted = int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture);
+            Seen = true;
+        }
+    }
+
+    /// <summary>
+    /// Spec amendment A4 (2026-10-18): proof, before any Deep-ON data is read, that the harness counts a batch-3 row as batch 3
+    /// and never as batch 1 or 2. Synthetic decodes and synthetic WSJT-X lines; no decoder. Prints SELFTEST lines and returns 0 on PASS.
+    /// </summary>
+    private static List<string> ReadLinesShared(string path)
+    {
+        // The writers stay open (AutoFlush), so read with a share mode that tolerates them.
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var sr = new StreamReader(fs, Encoding.UTF8);
+        var l = new List<string>();
+        for (string? line; (line = sr.ReadLine()) is not null;) l.Add(line);
+        return l;
+    }
+
+    private static int SelfTestBatch3()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "r81_selftest_batch3_" + Environment.ProcessId);
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string tb = Path.Combine(dir, "testb.csv"), mb = Path.Combine(dir, "matchedbatch.csv"), mo = Path.Combine(dir, "matched.csv");
+            _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            _matchedBatch = new StreamWriter(mb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            _matched = new StreamWriter(mo, false, new UTF8Encoding(false)) { AutoFlush = true };
+            const string S = "261001_000000";
+            // WSJT-X heard four messages in this synthetic cycle; OWS has one per batch plus one OWS-only third-pass row.
+            _wsjtx[S] = new() { (-10, 1000, "AAA BBB CC11"), (-12, 1500, "DDD EEE FF22"), (-18, 2000, "GGG HHH JJ33"), (-5, 2500, "ZZZ ZZZ ZZ99") };
+            DecodeResult R(int snr, int f, string m) => new("000000", snr, 0.1, f, m);
+            var b1 = new[] { R(-10, 1000, "AAA BBB CC11") };
+            var b2 = new[] { R(-12, 1500, "DDD EEE FF22") };
+            var b3 = new[] { R(-18, 2000, "GGG HHH JJ33"), R(-20, 3000, "QQQ RRR SS44") };   // 1 matched, 1 OWS-only
+            ScoreTestB("selftest", S, b1, b2, b3);
+            var tbl = ReadLinesShared(tb).ToList();
+            bool ok = true;
+            void Check(string what, bool cond) { Console.WriteLine("SELFTEST " + (cond ? "PASS" : "FAIL") + " " + what); ok &= cond; }
+            // rows: run,stamp,kind,band,n,corroborated. Band of snr: -10 -> B, -12 -> C, -18 -> D, -20 -> D.
+            Check("b1 row B: n=1 corroborated=1", tbl.Contains("selftest," + S + ",b1,B,1,1"));
+            Check("b2 row C: n=1 corroborated=1", tbl.Contains("selftest," + S + ",b2,C,1,1"));
+            Check("b3 row D: n=2 corroborated=1 (one matched, one OWS-only)", tbl.Contains("selftest," + S + ",b3,D,2,1"));
+            Check("batch 3 never appears under b1 or b2 in band D", tbl.Contains("selftest," + S + ",b1,D,0,0") && tbl.Contains("selftest," + S + ",b2,D,0,0"));
+            string mbl = ReadLinesShared(mb).Last();
+            Check("matched-batch-out tags the WSJT-X lines 0:1, 1:2, 2:3 (the third-pass match is 3)", mbl == S + ",0:1;1:2;2:3");
+            Check("the unmatched WSJT-X line (index 3) is absent from matched-batch-out", !mbl.Contains("3:"));
+            Check("matched-out lists the three matched WSJT-X lines", ReadLinesShared(mo).Last() == S + ",0;1;2");
+            // Old modes: b3 absent => exactly the old 2-kind output (no b3 row at all).
+            _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            ScoreTestB("selftest", S, b1, b2);
+            Check("without a batch 3 (older modes) no b3 row is written", !ReadLinesShared(tb).Any(x => x.Contains(",b3,")));
+            // Normal arm: an EMPTY batch 3 writes b3 rows with n=0 and never a match.
+            _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            ScoreTestB("selftest", S, b1, b2, Array.Empty<DecodeResult>());
+            var b3rows = ReadLinesShared(tb).Where(x => x.Contains(",b3,")).ToList();
+            Check("an EMPTY batch 3 (Normal / skipped) writes b3 rows with n=0 and corroborated=0", b3rows.Count == 4 && b3rows.All(x => x.EndsWith(",0,0")));
+            // The third-pass log-line parser.
+            ThirdProbe.Reset();
+            ThirdProbe.Set("Third pass: newDecodes=2 elapsedMs=1234 outcome=ran fittedSignals=3");
+            Check("third-pass line parsed", ThirdProbe.Seen && ThirdProbe.Outcome == "ran" && ThirdProbe.NewDecodes == 2 && ThirdProbe.ElapsedMs == 1234 && ThirdProbe.Fitted == 3);
+            ThirdProbe.Reset();
+            ThirdProbe.Set("Third pass: newDecodes=0 elapsedMs=0 outcome=skipped-no-new fittedSignals=0");
+            Check("third-pass skip line parsed", ThirdProbe.Seen && ThirdProbe.Outcome == "skipped-no-new");
+            ThirdProbe.Reset();
+            ThirdProbe.Set("Third pass: something else entirely");
+            Check("a non-matching line is ignored", !ThirdProbe.Seen);
+            Console.WriteLine("SELFTEST " + (ok ? "ALL PASS" : "FAILED"));
+            return ok ? 0 : 1;
+        }
+        finally
+        {
+            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose();
+            try { Directory.Delete(dir, true); } catch (IOException) { }
+        }
+    }
+#endif
 
 #if HAS_TWOSTAGE
     /// <summary>
@@ -543,6 +733,9 @@ internal static class Program
                 $"shim={Ft8Decoder.LoadedShimVersion}"
 #if HAS_OSDSIGNFIX
                 + $" osdSignFixSet={OsdSignFix} osdSignFixRead={d.GetOsdSignFix()}"
+#endif
+#if HAS_THIRDPASS
+                + $" decodingDepth={d.DecodingDepth}"
 #endif
                 );
     }
@@ -636,6 +829,7 @@ internal static class Program
         // Rendered text is only ever written for these two templates: both carry aggregates only.
         private const string SubfeasPrefix = "Sub-feas residual pass: residualDecodes=";
         private const string CyclePrefix = "Cycle {Time}: {Count} decode(s) found";
+        private const string ThirdPrefix = "Third pass: newDecodes=";
         private readonly ReplayLog _log;
         public ReplayLogger(ReplayLog log) { _log = log; }
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -657,6 +851,15 @@ internal static class Program
                 SubfeasProbe.Set(t.Contains("deadlineAbandoned=True", StringComparison.OrdinalIgnoreCase),
                                  t.Contains("containedException=True", StringComparison.OrdinalIgnoreCase));
             }
+#if HAS_THIRDPASS
+            if (template.StartsWith(ThirdPrefix, StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                string rendered = formatter(state, exception);
+                ThirdProbe.Set(rendered);
+                _log.Line(level.ToString(), rendered);   // aggregate-only template: counts, ms, a fixed outcome word
+                return;
+            }
+#endif
             if (template.StartsWith(SubfeasPrefix, StringComparison.Ordinal) && level == LogLevel.Information
                 || template.StartsWith(CyclePrefix, StringComparison.Ordinal))
             {

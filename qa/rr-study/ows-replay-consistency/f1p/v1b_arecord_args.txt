@@ -1,0 +1,1 @@
+/usr/bin/arecord --buffer-time=4000000 -D rr_in -f FLOAT_LE -r 12000 -c 1 -t raw -

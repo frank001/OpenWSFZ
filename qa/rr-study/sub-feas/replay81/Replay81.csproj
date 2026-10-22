@@ -23,6 +23,8 @@
     <DefineConstants Condition="'$(HasTwoStage)' == 'true'">$(DefineConstants);HAS_TWOSTAGE</DefineConstants>
     <!-- osd-sign-fix (#215): only the build with Ft8Decoder.SetOsdSignFix / GetOsdSignFix (shim 20260060+). With it, the osd-sign-fix argument (0 or 1) is REQUIRED and read back. -->
     <DefineConstants Condition="'$(HasOsdSignFix)' == 'true'">$(DefineConstants);HAS_OSDSIGNFIX</DefineConstants>
+    <!-- third-pass-deep (#240): only the build with Ft8Decoder.SetDecodingDepth / DecodeStagedAsync (feat/third-pass-deep a329cea9). Needs HasTwoStage and HasSubfeas too (modes three0 / three1). -->
+    <DefineConstants Condition="'$(HasThirdPass)' == 'true'">$(DefineConstants);HAS_THIRDPASS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

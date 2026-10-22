@@ -34,6 +34,26 @@ internal sealed record DecodePumpDependencies(
     /// decode never run together), the matching of batch 1 against the early rows, and the R7 log line's final-wait figure.
     /// </summary>
     public EarlyDecodeCoordinator? Early { get; init; }
+
+    /// <summary>
+    /// third-pass-deep (#240): optional. <c>null</c> (the default; every existing caller) means the pump never runs the
+    /// third pass and is the pre-change pump, call for call. When present, <see cref="DecodingDeep"/> is read once per
+    /// window and, if it answers <c>true</c> while the residual pass is on, the window is decoded with this staged entry
+    /// instead of <see cref="DecodeTwoStage"/>: batch 1, batch 2 and batch 3 each reach the pump through the callback as
+    /// soon as they exist.
+    /// </summary>
+    public Func<float[], DateTime, string?, Func<int, IReadOnlyList<DecodeResult>, Task>, CancellationToken, Task>? DecodeStaged { get; init; }
+
+    /// <summary>third-pass-deep (#240): whether the decoding depth is Deep. Used only together with <see cref="DecodeStaged"/>.</summary>
+    public Func<bool>? DecodingDeep { get; init; }
+
+    /// <summary>
+    /// COH-FALLBACK step 4: optional. Whether <c>decoder.coherentFallbackEnabled</c> is on. Read once per window, together with
+    /// <see cref="DecodingDeep"/>: when it answers <c>true</c> the window is decoded with <see cref="DecodeStaged"/> even on the Normal
+    /// depth, because the fallback's own batch (batch 3 on Normal, 4 on Deep) can only leave through the staged callback.
+    /// <c>null</c> (the default) means never: the pump is the pre-change pump.
+    /// </summary>
+    public Func<bool>? CoherentFallbackOn { get; init; }
 }
 
 /// <summary>
@@ -52,11 +72,12 @@ internal sealed record DecodePumpDependencies(
 /// fails or finds nothing new. The pump stays serial: it does not read the next window until batch 2 has been
 /// published or abandoned.</para>
 ///
-/// <para><b>Who receives batch 2 (P-4/P-5/P-6).</b> The decode panel, ALL.TXT, decode-filter admission and external
-/// reporting. NOT the QSO answerer or caller (the answerer keeps <c>_lastIdleDecodeBatch</c> on every idle batch and
-/// reads it in <c>TryEngageExternal</c>: a residual-only batch would replace the pass-0 snapshot and an external reply
-/// to a pass-0 station would then be ignored; both services also treat every batch as a cycle). Not the cycle-audio
-/// archive either: it enqueues the window once, at batch 1, with the pass-0 count.</para>
+/// <para><b>Who receives batch 2 and 3 (P-4/P-5/P-6, amended by late-batches-in-qso).</b> The decode panel, ALL.TXT,
+/// decode-filter admission, external reporting and, now, the QSO answerer and caller, carrying <c>BatchNumber</c> 2, 3 or 4 (4: the
+/// coherent-fallback batch on Deep; on Normal the fallback is batch 3).
+/// The services treat such a batch as <i>heard</i> (it may drive a message-driven transition, and the answerer merges it
+/// into its per-cycle snapshot) but never as a <i>cycle</i> (no retry, no CQ-repeat count). NOT the cycle-audio
+/// archive: it enqueues the window once, at batch 1, with the pass-0 count.</para>
 /// </summary>
 internal sealed class DecodePump
 {
@@ -126,6 +147,19 @@ internal sealed class DecodePump
                     {
                         var results = await _d.DecodeSingleBatch(pcmWindow, cycleStart, currentBand, stoppingToken);
                         await PublishFirstAsync(results, pcmWindow, cycleStart, windowClosedUtc, dialFreq);
+                    }
+                    else if (_d.DecodeStaged is { } staged
+                             && (_d.DecodingDeep?.Invoke() == true || _d.CoherentFallbackOn?.Invoke() == true))
+                    {
+                        // third-pass-deep: batch 1 as ever; batches 2 and 3 go to the same sinks (panel, ALL.TXT, filter
+                        // admission, external reporting and, since late-batches-in-qso, the answerer and caller as supplementary
+                        // batches; not the archive), each as soon as it exists.
+                        await staged(
+                            pcmWindow, cycleStart, currentBand,
+                            (batchNumber, batch) => batchNumber == 1
+                                ? PublishFirstAsync(batch, pcmWindow, cycleStart, windowClosedUtc, dialFreq)
+                                : batch.Count > 0 ? PublishSecondAsync(batch, cycleStart, dialFreq, batchNumber) : Task.CompletedTask,
+                            stoppingToken);
                     }
                     else
                     {
@@ -198,11 +232,13 @@ internal sealed class DecodePump
     }
 
     /// <summary>
-    /// Publishes batch 2 of a flag-ON cycle: the panel (appended, never replacing), ALL.TXT (appended, same stamp),
-    /// decode-filter admission and external reporting. Deliberately NOT the answerer, the caller or the archive
-    /// (P-5, P-6; see the class remarks).
+    /// Publishes batch 2 (or, on the Deep path, batch 3, or the coherent fallback's batch 4 / Normal batch 3) of a flag-ON cycle: the panel (appended, never replacing), ALL.TXT
+    /// (appended, same stamp), decode-filter admission, external reporting and, since late-batches-in-qso, the answerer and
+    /// caller channels carrying <paramref name="batchNumber"/> (the services treat it as heard but never as a cycle).
+    /// Deliberately NOT the cycle-audio archive (P-6; see the class remarks).
     /// </summary>
-    internal async Task PublishSecondAsync(IReadOnlyList<DecodeResult> results, DateTime cycleStart, double dialFreq)
+    internal async Task PublishSecondAsync(
+        IReadOnlyList<DecodeResult> results, DateTime cycleStart, double dialFreq, int batchNumber = 2)
     {
         var visibleResults = _d.ApplyNoiseSuppression(results);
 
@@ -211,7 +247,10 @@ internal sealed class DecodePump
 
         AdmitAndBroadcastFilterState(visibleResults);
 
-        _d.ExternalReportingChannel.TryWrite(new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults));
+        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults, batchNumber);
+        _d.AnswererChannel.TryWrite(batch);
+        _d.CallerChannel.TryWrite(batch);
+        _d.ExternalReportingChannel.TryWrite(batch);
     }
 
     /// <summary>
