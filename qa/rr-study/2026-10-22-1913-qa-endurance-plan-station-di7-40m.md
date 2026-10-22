@@ -1,0 +1,68 @@
+# QA: plan for a 40 m endurance run on the station PC with the synced `decoding_improvement` daemon and every improvement setting on
+
+**Stamped:** 2026-10-22T19:13:08Z by `date -u`. **Status: PREPARED, NOT STARTED.** The Captain's instruction (QA's window, 2026-10-22): *"prepare a separate plan on the local station. The same decoding_improvement daemon with all the improvement settings on for an endurance run, 40m. usual B1 audio path. end time about 10:00 am tomorrow. I will clean and start wsjt-x FT991A."* Separate from the `sol` R&R plan (`2026-10-22-1900-qa-rr-sweep-x3-sol-di7-coh-plan.md`). Nothing runs without the Captain's go (§7). No push, no `src/` change.
+
+## 0. What it is, in one paragraph
+
+One unattended window on the station PC, 40 m (7.074 MHz), the live radio on Voicemeeter Stereo Input 1 routed to **Out B1**, the OpenWSFZ daemon and the Captain's WSJT-X (FT-991A profile) both reading **Voicemeeter Out B1**. It is the existing endurance machinery (`dxped225-arm.py` is the template: the #225 run of 2026-10-19/20, 19.4 h, which I will copy to a new arm script `di7-endurance-arm.py`, with `--end-utc`), run on the synced `decoding_improvement` build, **receive-only** (CAT off in the daemon's config because WSJT-X holds CAT; no TX; no external reporting).
+
+**End time.** "About 10:00 am tomorrow" read as the Captain's local time. The PC is on W. Europe Standard Time (CEST, UTC+2 in the daemon log), so **10:00 local = 08:00Z on 2026-10-23**. *Please confirm this reading* (§7). The arm script derives the hours from the real start minute (`--end-utc 2026-10-23T08:00:00Z`).
+
+## 1. The gate: what must be true before the run starts
+
+1. DI sync 7 accepted: the Developer's merge `56736264` reviewed (HK-039 record `4d9c1230`), QA's acceptance runs green (the pre-merge check, the decode-identity check against `main`, both under way at 19:13Z), the PR into `decoding_improvement` merged on green CI (the Captain's go covers it).
+2. The daemon is **published from the merged DI tip** with `tools/publish_selfcontained.py --rid win-x64` (never a plain `dotnet publish --self-contained`: that is a Native AOT build with broken WASAPI), in a scratch worktree under `_qa-scratch\endur-di7\tree` (not the station's own deploy folder), `tools/capture_build_provenance.py` run next to it, `build_provenance.json` `build_dirty` false.
+3. **The pin is asserted in code, not in prose:** the arm script carries the published `libft8.dll` SHA-256 and the commit hash as constants and aborts before one decode if either differs (as `dxped225-arm.py` does). They are filled in from the published tree after the merge; I will quote them in the report before starting.
+4. The station state, which the Captain controls: the station daemon (pid 37328, port 8080, CAT, 20 m) **stopped** so port 8080 is free and CAT is released; WSJT-X (FT991A profile) **cleaned and started by the Captain**, tuned to 7.074 MHz on 40 m, `SoundInName` = *Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)* (the script reads the `.ini` and aborts otherwise), and it must **not transmit**. I stop the station daemon only on the Captain's word.
+
+## 2. The configuration: all improvements on, explicit
+
+Built by the arm script from the proven base (`rr-main` config) plus the station's own decoder section, with these **asserted** before launch:
+
+| Setting | Value | Why |
+|---|---|---|
+| `decoder.decodingDepth` | **Deep** (third pass) | read back from `/api/v1/status` `thirdPass.decodingDepth` |
+| `decoder.coherentFallbackEnabled` | **true, written explicitly** | the new default is on, but the station's own config carries an explicit `false` from the R14 teardown, and the read-back is compared with an explicit value |
+| `decoder.osdNhardMax` | 24, migrations applied | the station's decoder section, as in #225 |
+| `decoder.subtractionEnabled`, `earlyDecodeEnabled` | true | the station's decoder section |
+| `decoder.subtractionMaxThreads` | **decision, §7**: 8 (as #225) or 0 = auto (the station's own) | see §7 |
+| `cat.enabled` | false (asserted) | WSJT-X holds the radio |
+| `tx.autoAnswer`, `externalReporting.enabled` | false (asserted) | receive-only; no spots leave the PC |
+| `cycleAudioArchive` | mode `all`, 16 GiB cap, 48 h | so the night can be replayed offline afterwards (the 20 m live run could not be, which cost us requirement 9) |
+| `audioDeviceId` / name | Voicemeeter Out B1 | the usual path |
+| Decode log / daemon logs / ALL.TXT | inside the corpus folder `artefacts\<stamp>_endurance_run` | HK-016 |
+
+Everything else in the decoder section is the station's own (the Architect's rule for #225: no other change). **Validity rows (a sweep-style bar, same idea as the R&R plan):** V-D depth read back Deep at the start and end; **V-F the fallback ran**: the config read back `true` (`GET /api/v1/config`) at the start and end, and the daemon's per-cycle `Coherent fallback:` line present in ≥ 95 % of the cycles (every scored cycle of the 20 m run had one, empty cycles included). A mismatch voids the era row, not the run.
+
+## 3. Voicemeeter and the run itself
+
+- Strips (read and asserted before launch, as in #225): Strip[0] (radio) routes to B1; Strip[2] does **not** feed B1; Strip[4] (AUX, the WAV replay) **muted**. Strip[0] is **unmuted** just before the start and **muted again** by a detached watcher 2 minutes after the window ends (`vm_strip.py`, every write read back and logged to `voicemeeter_actions_<stamp>.jsonl`). QA may mute and unmute strips only (standing permission).
+- `run_endurance.py` (the existing runner) starts the daemon and its supervisor (`endurance_supervisor.py`: the PRECHECK appraiser gate incl. device-name match and dial match, the watchdogs, the gather on close); a detached **F2 poller** (1 Hz, ends 10 min after the window) records the capture counters.
+- The arm script writes `arm_readback.json` (config and status read back 20 s after the start) and prints the **depth read-back**; I stop and look if it is not Deep, and the same for the flag.
+
+## 4. What the run answers, and what it does not (HK-022, HK-038)
+
+- **It answers:** how the full improvement set (Deep third pass, residual pass, early decode, the coherent fallback as batch 4) behaves over about 10 h of real 40 m traffic on the station PC, read against the **live WSJT-X on the same audio**: the standard Section 4 rows (live WSJT-X, same band; HK-036), the decode counts per batch, the fallback counters (R12′ per cycle: attempted, published, abandoned, wall time, workers), the timing of batch 4 from slot start, capture health (overruns, channel drops), and, because the audio is archived, an offline replay afterwards.
+- **A new data era.** The Captain's "count against the new data era" holds here as for the R&R series: this run is a row of its own, **label `DI7COH-E`**: DI synced with `main` (merge 2026-10-22 18:17:34Z), shim 20260070, Deep, fallback on, `nhard` 24. **Never pooled** with #225 (flag-less, `main` `5229beec`-era), the 2026-10-18/19 MAINDEEP, TPDEEP, B2CAP, or the flag-ON live check (20 m, with a transmitter, 2 h).
+- **It does not answer:** whether the fallback's gain over WSJT-X (+3.82 pp on the 09-22 replay) appears live at the same size (the run measures matched counts against WSJT-X, descriptive); anything about TX or QSO behaviour (receive-only); the deferred-reply path.
+- **No pass/fail bar of QA's own is added** (HK-038: an invented bar would need a source). The run's read follows the established endurance reading: Section 4, HK-036, the capture counters, the F2 clamp check, the live-WSJT-X rows.
+
+## 5. The close (after 08:00Z)
+
+`artefacts\<stamp>_endurance_run` is gathered by the supervisor; I read Section 4 before any number is cited (HK-036), `f2_station_count.py` on the corpus, confirm Strip[0] muted, run the offline replay of the archived audio if the Captain wants it, copy the folder into `qa\endurance` (the standing results location), update the board in the same edit (HK-024), and report once. **Nothing is pushed.**
+
+## 6. Risks I see
+
+1. **Timing.** The gate has to be met before the start: the identity check is about 45 min, then push, PR, CI (two runs of about 8 min), merge, publish. If the merge slips, a start after about 22:00Z shortens the window (10 h from 22:00Z; 08:00Z is fixed by the Captain's end time).
+2. **The station is the live station.** Stopping the station daemon ends the 20 m listening and CAT control; the Captain's WSJT-X takes over. After the run the station daemon is **not** restarted by QA; whether it comes back on the merged build, with the flag explicit, is the Captain's (the board's M5 decision).
+3. **CPU on the PC.** The run is CPU-heavy by design; **nothing else CPU-heavy runs on the PC during it** (a Developer build or test run would perturb the timing and the capture). The `sol` series is on another machine and does not compete.
+4. **Disk.** The PC's D: drive has 1.5 TB free; the archive cap is 16 GiB.
+5. **A daemon crash or WSJT-X stall** is handled by the supervisor and the watchdogs as in #225; QA cannot attend overnight, so the read after the close is the safety net.
+
+## 7. Decisions for the Captain (with their data; nothing started)
+
+1. **End time:** 10:00 local = 08:00Z on 2026-10-23? *Data:* the PC logs UTC+2.
+2. **`subtractionMaxThreads`:** **8** (as #225 and the R&R and replay runs: comparable with them, 8 fallback workers) or **0 = auto** (the station's own config; 14 workers resolved live on this PC; what the station will actually run after a redeploy). *My recommendation: 0 = auto,* because the question of this run is how the station behaves; the resolved worker count is in every R12′ line, so either reading stays honest. *Consequence:* timing numbers are not comparable with the 8-thread replay (the 20 m live check already ran at 14 workers).
+3. **Cycle-audio archive on** (recommended, 16 GiB cap) or off.
+4. **Go**, after §1 is met, and **your word to stop the station daemon** (pid 37328) when the time comes; your WSJT-X start follows.
+5. **After the close:** hibernate the PC (as on 2026-10-21) or leave it up for the replay and the analysis?
