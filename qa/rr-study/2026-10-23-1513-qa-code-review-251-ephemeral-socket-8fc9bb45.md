@@ -66,6 +66,14 @@ The Captain's rule (2026-10-23): `pre_merge_check.py` runs BEFORE any push when 
 
 **Required change (docs only, no `src/`):** set the anchor sentence to v0.60 in `README.md` and `REQUIREMENTS.md`, and add the version-history row for 0.60 if the repo's convention for a bump has one (see `f684277f` for the 0.59 bump). Amend or add a commit; QA then reviews the delta (HK-039 record on the new tip) and re-runs the check before any push. The code review and test results above stand for `8fc9bb45`; the tip will change only in the two docs.
 
+## ADDENDUM 2 (QA, 2026-10-23, `date -u` ~15:50Z): the G9a fix, new tip
+
+Reviewed-commit: a920910cc07b39424874a3a4d50d999c587759b9
+
+Verdict: APPROVED. The Developer added a NEW commit on top of `8fc9bb45` (not amended). Delta, read by QA: exactly 2 lines in 2 files, `README.md:21` and `REQUIREMENTS.md:23`, "v0.59" to "v0.60"; no `src/` or `tests/` change. `pre_merge_check.py` re-run from a clean detached checkout of `a920910c` (log `D:\Projects\claude\_qa-scratch\251-review\pmc2.log`): **READY, every gate passed, exit 0** (G9a, G9b, build, UDP margin lint, G10, full Release suite with Daemon 784 / Ft8 580 on Windows, G3, WSL Debian compile and test with Daemon 752 / Ft8 580, G8, both publishes, native freshness 20260069 on all three platforms).
+
+No version-history row was added to `REQUIREMENTS.md`: the 0.59 bump (`f684277f`) added none either. It did add one line to `docs/development-history.md`, which no gate requires; the Captain may want the same for 0.60.
+
 ## Next
 
 Push the branch so CI runs on three OSes (needs the Captain's go; QA pushes for the Developer). Then, on the Captain's go for a PR: open it with CI green. Live acceptance L-a to L-e at the station with the Captain; close #251 with the PR link; the next `decoding_improvement` sync carries the fix.
