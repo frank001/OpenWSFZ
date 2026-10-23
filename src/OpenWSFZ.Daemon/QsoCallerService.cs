@@ -782,6 +782,19 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                     return;
                 }
 
+                // #259: WSJT-X allows no start at or after 11.25 s into the slot. Retain the
+                // pending responder (do not clear it) so the next correct-phase batch
+                // re-evaluates it. The 60 s expiry above keeps UtcNow.
+                var responderNow = _timeProvider.GetUtcNow();
+                if (Ft8TimeHelper.IsPastLastStart(responderNow))
+                {
+                    _logger.LogInformation(
+                        "QsoCallerService: pending responder '{Callsign}' retained — {OffsetMs} ms into the slot " +
+                        "is past the last-start limit; it will fire in the next correct-phase window.",
+                        pendingCallsign, (long)Ft8TimeHelper.OffsetIntoSlot(responderNow).TotalMilliseconds);
+                    return;
+                }
+
                 // Correct phase — fire TxReport for the pending responder.
                 _logger.LogInformation(
                     "QsoCallerService: pending responder '{Callsign}' at {FreqHz} Hz — sending report at {Phase} phase.",
@@ -1315,20 +1328,51 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
 
         var samples = _synthesiser.Synthesise(tones, freqHz);
 
-        // D-CALLER-021: the pending-responder path already fires unconditionally once the
-        // phase check passes, however late into its window that happens — so the transmission
-        // itself must never key past the current window's boundary. Truncate to whatever fits.
-        var sampleCount = Ft8TimeHelper.ClampSampleCountToWindowBoundary(
-            _timeProvider.GetUtcNow(), samples.Length, Ft8AudioSynthesiser.SampleRateHz);
-        if (sampleCount == 0)
+        // #259: a transmission that starts late in its slot is TIME-ALIGNED, as WSJT-X does: the
+        // START of the clip is skipped so each symbol keeps its slot-relative time (D-CALLER-021's
+        // tail truncation shifted every symbol by the lateness, outside a decoder's +-2.5 s sync
+        // search), and the new start is faded in over 5 ms. No start at or after 11.25 s. The time
+        // comes from _timeProvider (one read, used for the skip and the safety-net clamp).
+        var now  = _timeProvider.GetUtcNow();
+        var late = Ft8TimeHelper.ApplyLateStart(now, samples, Ft8AudioSynthesiser.SampleRateHz);
+        var align = late.Alignment;
+        if (!align.ShouldKey)
+        {
+            _logger.LogInformation(
+                "QsoCallerService: late start at {OffsetMs} ms into the slot is at or after the {CutoffMs} ms " +
+                "last-start limit — not keying.",
+                (long)align.Offset.TotalMilliseconds, (long)Ft8TimeHelper.LastStartOffset.TotalMilliseconds);
+            return;
+        }
+        if (align.SkipSamples > 0)
+        {
+            _logger.LogInformation(
+                "QsoCallerService: late start at {OffsetMs} ms into the slot — skipping {SkipMs} ms of the clip, " +
+                "loading {LoadMs} ms.",
+                (long)align.Offset.TotalMilliseconds,
+                (long)align.SkipSamples * 1000 / Ft8AudioSynthesiser.SampleRateHz,
+                (long)align.LoadSamples * 1000 / Ft8AudioSynthesiser.SampleRateHz);
+        }
+        samples = late.Samples!;
+
+        // D-CALLER-021 safety net, now AFTER the skip: the transmission must never key past the
+        // current window's boundary. The skip above already guarantees it up to the PTT lead and
+        // device latency, so this should not cut anything; when it does, it says how much.
+        samples = Ft8TimeHelper.ClampToWindowBoundary(
+            now, samples, Ft8AudioSynthesiser.SampleRateHz, out var clampCut);
+        if (clampCut > 0)
+        {
+            _logger.LogInformation(
+                "QsoCallerService: the window-boundary clamp cut {CutSamples} samples ({CutMs} ms) off the end.",
+                clampCut, (long)clampCut * 1000 / Ft8AudioSynthesiser.SampleRateHz);
+        }
+        if (samples.Length == 0)
         {
             _logger.LogDebug(
                 "QsoCallerService: window already closed — skipping transmission of \"{Message}\".",
                 message);
             return;
         }
-        if (sampleCount < samples.Length)
-            samples = samples[..sampleCount];
 
         _pttController.LoadAudio(samples);
 
