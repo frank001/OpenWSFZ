@@ -45,6 +45,14 @@ Read at 14:5xZ, `Get-NetUDPEndpoint`, process names and port numbers only:
 
 **To finish P0:** the Captain starts WSJT-X 2.7.0 reporting to GridTracker on 2237 (or says so, and QA starts it with TX off), and QA reads `netstat -ano -p udp` once. Minutes, no radio.
 
+## 3a. P0 RESULT (QA, 14:53:40Z `date -u`; the Captain started WSJT-X; the radio was OFF)
+
+`Get-NetUDPEndpoint`, process names and port numbers only:
+- **GridTracker2 (pid 37080): `0.0.0.0:2237`** (and `0.0.0.0:49221`).
+- **wsjtx (pid 36780): `0.0.0.0:64988` only.** It holds **no** socket on 2237.
+
+Reading: the premise holds on the binding side. The server (GridTracker) holds the well-known port; the client (WSJT-X 2.7.0) holds an OS-assigned port in the dynamic range. **X1: confirmed for the bind** (a prediction of the Architect's; scoring is the Architect's). **Two limits, stated so they are not lost:** (a) the radio was off, so no Status/Decode datagram flow was observed, only the socket the client holds; (b) which target port WSJT-X's UDP Server setting points at was not read, only its local port. Neither changes the premise, which concerns who binds the well-known port.
+
 ## 4. Next steps (in the spec's order)
 
 (2) finish P0, on the Captain's word; (3) OpenSpec change `external-reporting-ephemeral-client-socket` and the dev-task, with K1 to K8 applied; (4) Developer session (HK-011); (5) QA review (HK-039); (6) live acceptance with the Captain at the station. The merge is the Captain's (HK-010).
