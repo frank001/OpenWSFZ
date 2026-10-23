@@ -68,8 +68,7 @@ public sealed class ExternalReportingServiceTests
     /// <c>LocalEndPoint</c> off that same live socket instead (see e.g. <c>StopAsync_SendsCloseDatagram</c>),
     /// so there is no release-then-rebind gap at all. The remaining <c>GetFreeUdpPort()</c> call
     /// sites below hand the number to the SUT as a target/config port with no test-side bind of
-    /// their own (or, for the D-014 port-contention tests, are deliberately racing a fake peer on
-    /// purpose — that's the scenario under test, not a bug).
+    /// their own (or only race a fake peer on purpose, as the #251 tests do).
     /// </summary>
     private static int GetFreeUdpPort()
     {
@@ -387,10 +386,8 @@ public sealed class ExternalReportingServiceTests
     }
 
     /// <summary>
-    /// Reads the private <c>_inboundClient</c> field via reflection to assert the bind's own
-    /// success/failure directly, independent of the OS's delivery semantics for a shared port
-    /// (see the class-level remarks on the two D-014 tests below for why delivery itself is not
-    /// asserted while a peer remains bound to the same port).
+    /// Reads the private <c>_inboundClient</c> field via reflection: the daemon's single
+    /// OS-assigned client socket (#251), whose local port is the endpoint a peer replies to.
     /// </summary>
     private static UdpClient? GetInboundClient(ExternalReportingService sut)
     {
@@ -425,136 +422,176 @@ public sealed class ExternalReportingServiceTests
     }
 
     /// <summary>
-    /// Polls until <c>Reconcile</c> has bound the inbound UDP socket, replacing the fixed
+    /// Polls until <c>Reconcile</c> has opened the client socket, replacing the fixed
     /// "let Reconcile attempt the bind" delays that used to precede sending an inbound datagram
-    /// (fix-flaky-test-delay-synchronization). Sending before the socket is bound would silently
-    /// drop the datagram; the bound <c>_inboundClient</c> is the real, observable barrier.
+    /// (fix-flaky-test-delay-synchronization). The datagram needs the socket's endpoint to be
+    /// addressed at all; the open <c>_inboundClient</c> is the real, observable barrier.
     /// </summary>
     private static Task WaitForInboundBoundAsync(ExternalReportingService sut)
         => Poll.UntilAsync(() => GetInboundClient(sut) is not null, timeout: TimeSpan.FromSeconds(5),
             timeoutMessage: () => "inbound UDP socket was never bound by Reconcile");
 
-    /// <remarks>
-    /// <para>
-    /// <strong>Windows platform note:</strong> empirically probed while writing this test (see
-    /// dev-tasks/2026-07-12-gridtracker-udp-reporting-review-fixes.md §3 for the review that
-    /// found D-014): when two <see cref="UdpClient"/>s share one local port via
-    /// <c>SO_REUSEADDR</c>, Windows delivers an incoming unicast datagram to only the
-    /// <em>first-bound</em> socket — never both, and (unlike Linux <c>SO_REUSEPORT</c>) with no
-    /// load-balancing fan-out. This is a real, pre-existing OS/platform limitation, not something
-    /// this fix's `ReuseAddress` call can or is scoped to solve — true concurrent multi-listener
-    /// delivery on one port on one machine would need UDP multicast, which design.md's own "Open
-    /// Questions" section already defers as unimplemented, out of scope here.
-    /// </para>
-    /// <para>
-    /// What D-014 Part A actually fixes, and what this test actually proves, is narrower and
-    /// still the entire point of the defect: before the fix, the bind <em>throws</em> when a peer
-    /// already owns the port, the exception is swallowed, and <c>_inboundClient</c> stays
-    /// permanently <c>null</c> — no message of any kind, from any sender, at any later time,
-    /// would ever reach the daemon, because nothing ever retries the bind outside of a config
-    /// save. This test proves the bind no longer fails that way: it binds successfully (directly
-    /// verified via <c>_inboundClient</c>) despite a peer having already claimed the port at
-    /// daemon-startup time, and a Halt Tx sent after that peer disconnects <em>is</em> received —
-    /// which could only happen if the original bind actually succeeded, since <c>Reconcile</c> is
-    /// never called again in this test to retry it.
-    /// </para>
-    /// </remarks>
-    [Fact(DisplayName = "D-014 AC-1: inbound listener binds successfully when a peer already owns the target port at startup")]
-    public async Task InboundBind_SucceedsWhenTargetPortAlreadyBoundByPeer()
-    {
-        var port = GetFreeUdpPort();
+    // ── #251: one OS-assigned client socket; the peer holds the well-known port ──
+    //
+    // WSJT-X protocol model: the SERVER (GridTracker2, JTAlert, ...) owns the well-known port; the
+    // CLIENT (this daemon, like WSJT-X) sends from an OS-assigned port and receives replies on that
+    // same socket. These tests replace the two D-014 tests, which asserted the opposite mechanism
+    // (the daemon bound the target's own port and sent from it). Real loopback UDP, no socket mocks;
+    // every wait is a Poll.* positive condition (TESTING_STRATEGY section 11).
 
-        var qso = Substitute.For<IQsoController>();
-        qso.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+    /// <summary>The daemon's own socket, as a peer sees it: where a reply must be sent.</summary>
+    private static IPEndPoint GetInboundEndpoint(ExternalReportingService sut)
+        => new(IPAddress.Loopback, ((IPEndPoint)GetInboundClient(sut)!.Client.LocalEndPoint!).Port);
 
-        var config = new AppConfig() with
+    private static DecodeBatch SampleBatch() => new(DateTimeOffset.UtcNow,
+        [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22",
+            Region: new RegionInfo(Continent: "EU", Entity: "TestLand", Synthetic: false))]);
+
+    private static AppConfig PrimaryConfig(int port, bool honourInboundCommands = false)
+        => new AppConfig() with
         {
             ExternalReporting = new ExternalReportingConfig(
                 enabled: true,
-                targets: [new ExternalReportingTarget("GridTracker2", "127.0.0.1", port, true)])
+                targets: [new ExternalReportingTarget("GridTracker2", "127.0.0.1", port, true)],
+                honourInboundCommands: honourInboundCommands)
         };
-        var store   = new MutableConfigStore(config);
-        var channel = Channel.CreateBounded<DecodeBatch>(2);
-        var sut     = CreateSut(store, channel.Reader, BuildServiceProvider(qso: qso));
 
-        using var cts = new CancellationTokenSource();
-
-        // The peer (e.g. GridTracker2) is already running and bound to this port BEFORE the
-        // daemon starts — the normal real-world case D-014 was found against. Pre-fix, this
-        // alone was enough to leave the daemon's inbound listener permanently unbound.
-        var fakePeer = CreateFakePeer(port);
-        try
+    /// <summary>
+    /// Polls <paramref name="peer"/> until every type in <paramref name="wanted"/> has been seen,
+    /// feeding a decode batch into <paramref name="feed"/> on each tick (a peer that binds late
+    /// misses the start-up burst, so the Decode has to be re-offered). Returns the source endpoint
+    /// of the last datagram — the daemon's socket, as the peer sees it.
+    /// </summary>
+    private static async Task<IPEndPoint> WaitForTypesAsync(
+        UdpClient peer, ChannelWriter<DecodeBatch>? feed, params WsjtxDatagram.MessageType[] wanted)
+    {
+        var seen = new HashSet<WsjtxDatagram.MessageType>();
+        IPEndPoint? source = null;
+        await Poll.UntilAsync(() =>
         {
-            await sut.StartAsync(cts.Token);
-            await WaitForInboundBoundAsync(sut);
-
-            GetInboundClient(sut).Should().NotBeNull(
-                "the bind must succeed (via ReuseAddress) even though a peer already owns the port " +
-                "at daemon-startup time — D-014's exact defect was this staying permanently null");
-        }
-        finally
-        {
-            fakePeer.Dispose(); // release the port so the reply step below is unambiguous (see remarks)
-        }
-
-        try
-        {
-            using var sender = new UdpClient();
-            var haltTx = BuildHaltTxDatagram();
-            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
-
-            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
-                timeout: TimeSpan.FromSeconds(5));
-            await qso.Received(1).AbortAsync(Arg.Any<CancellationToken>());
-        }
-        finally
-        {
-            await sut.StopAsync(CancellationToken.None);
-        }
+            feed?.TryWrite(SampleBatch());
+            while (peer.Available > 0)
+            {
+                IPEndPoint? from = null;
+                var buf = peer.Receive(ref from);
+                seen.Add(ReadMessageType(buf));
+                source = from;
+            }
+            return wanted.All(seen.Contains);
+        }, timeout: TimeSpan.FromSeconds(10),
+           timeoutMessage: () => $"peer never saw {string.Join("+", wanted)}; saw {string.Join(",", seen)}");
+        return source!;
     }
 
-    /// <remarks>
-    /// <strong>Linux platform note (2026-07-12 CI failure fix):</strong> this test originally
-    /// proved the point by racing a second socket (<c>fakePeer</c>) bound to the same shared port
-    /// to receive the daemon's own outbound send over the wire — reasoning that, per the Windows
-    /// finding documented on <see cref="InboundBind_SucceedsWhenTargetPortAlreadyBoundByPeer"/>,
-    /// the first-bound socket wins delivery. That does not generalise: on Linux, unicast delivery
-    /// to a <c>SO_REUSEADDR</c>-shared UDP port has historically gone to the <em>last</em>-bound
-    /// socket, not the first — and in this test the daemon's own <c>_inboundClient</c> binds
-    /// second (inside <c>Reconcile</c>, after <c>fakePeer</c>). If that Linux behaviour applies,
-    /// the daemon's own outbound send back to <c>127.0.0.1:port</c> is delivered to the daemon's
-    /// own <c>_inboundClient</c>/<c>InboundLoopAsync</c> rather than to <c>fakePeer</c>, which is
-    /// exactly what made this test time out on <c>ubuntu-latest</c> (see
-    /// dev-tasks/2026-07-12-gridtracker-udp-reporting-linux-ci-failure.md and design.md Decision 7's
-    /// Linux addendum). Racing OS-specific same-host delivery arbitration is inherently unportable,
-    /// so this test now asserts the *sending* socket's own local port directly instead — deterministic
-    /// on every platform, and still exactly what AC-2 requires: proof that the primary target's
-    /// outbound sends originate from the shared bound inbound port, since
-    /// <see cref="ExternalReportingService"/>'s own <c>SendToAllEnabledAsync</c> resolves the
-    /// primary target's client as <c>_inboundClient ?? _primaryFallbackClient</c> — a bound,
-    /// non-null <c>_inboundClient</c> on the target's port is exactly the condition under which
-    /// that fallback expression selects the shared socket.
-    /// </remarks>
-    [Fact(DisplayName = "D-014 AC-2: outbound sends to the primary target originate from the shared inbound port")]
-    public async Task OutboundToPrimaryTarget_UsesSharedInboundPort()
+    private static readonly TimeSpan FastHeartbeat = TimeSpan.FromMilliseconds(100);
+
+    [Fact(DisplayName = "#251 T1: daemon started first, a peer binding the target port afterwards receives Status and Decode")]
+    public async Task EphemeralSocket_DaemonFirst_PeerReceives()
     {
-        var port = GetFreeUdpPort();
-
-        var config = new AppConfig() with
-        {
-            ExternalReporting = new ExternalReportingConfig(
-                enabled: true,
-                targets: [new ExternalReportingTarget("GridTracker2", "127.0.0.1", port, true)])
-        };
-        var store   = new MutableConfigStore(config);
+        var port    = GetFreeUdpPort();
         var channel = Channel.CreateBounded<DecodeBatch>(2);
-        var sut     = CreateSut(store, channel.Reader);
+        var sut     = CreateSut(new MutableConfigStore(PrimaryConfig(port)), channel.Reader,
+                              heartbeatInterval: FastHeartbeat);
 
-        // A peer (e.g. GridTracker2) already bound to the port before the daemon starts — the
-        // realistic startup order D-014 targets. It is never used to observe delivery here (see
-        // the remarks above for why that's no longer safe); it exists only so the shared-bind
-        // assertion below is exercised under the same contended-port condition as production.
-        using var fakePeer = CreateFakePeer(port);
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            using var peer = CreateFakePeer(port);
+            await WaitForTypesAsync(peer, channel.Writer,
+                WsjtxDatagram.MessageType.Status, WsjtxDatagram.MessageType.Decode);
+        }
+        finally { await sut.StopAsync(CancellationToken.None); }
+    }
+
+    [Fact(DisplayName = "#251 T2: peer bound first, then the daemon starts: the peer receives Status and Decode")]
+    public async Task EphemeralSocket_PeerFirst_PeerReceives()
+    {
+        var port    = GetFreeUdpPort();
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(new MutableConfigStore(PrimaryConfig(port)), channel.Reader,
+                              heartbeatInterval: FastHeartbeat);
+
+        using var peer = CreateFakePeer(port);
+        using var cts  = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            await WaitForTypesAsync(peer, channel.Writer,
+                WsjtxDatagram.MessageType.Status, WsjtxDatagram.MessageType.Decode);
+        }
+        finally { await sut.StopAsync(CancellationToken.None); }
+    }
+
+    [Fact(DisplayName = "#251 T3: the peer socket is replaced while the daemon runs: the new peer receives")]
+    public async Task EphemeralSocket_PeerRestart_NewPeerReceives()
+    {
+        var port    = GetFreeUdpPort();
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(new MutableConfigStore(PrimaryConfig(port)), channel.Reader,
+                              heartbeatInterval: FastHeartbeat);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            var first = CreateFakePeer(port);
+            try
+            {
+                await WaitForTypesAsync(first, channel.Writer,
+                    WsjtxDatagram.MessageType.Status, WsjtxDatagram.MessageType.Decode);
+            }
+            finally { first.Dispose(); }
+
+            using var second = CreateFakePeer(port);
+            await WaitForTypesAsync(second, channel.Writer,
+                WsjtxDatagram.MessageType.Status, WsjtxDatagram.MessageType.Decode);
+        }
+        finally { await sut.StopAsync(CancellationToken.None); }
+    }
+
+    [Fact(DisplayName = "#251 T4: Halt Tx and Reply sent to the datagram's source endpoint reach the daemon")]
+    public async Task EphemeralSocket_RepliesToSourceEndpoint_ReachDaemon()
+    {
+        var port  = GetFreeUdpPort();
+        var qso   = Substitute.For<IQsoController>();
+        qso.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        var reply = Substitute.For<IExternalReplyTarget>();
+        reply.TryEngageAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
+
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(new MutableConfigStore(PrimaryConfig(port, honourInboundCommands: true)),
+                              channel.Reader, BuildServiceProvider(qso: qso, reply: reply),
+                              heartbeatInterval: FastHeartbeat);
+
+        using var peer = CreateFakePeer(port);
+        using var cts  = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            // The peer answers to wherever the datagram came from, as GridTracker2 / JTAlert do.
+            var source = await WaitForTypesAsync(peer, null, WsjtxDatagram.MessageType.Heartbeat);
+
+            var haltTx = BuildHaltTxDatagram();
+            await peer.SendAsync(haltTx, haltTx.Length, source);
+            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
+                timeout: TimeSpan.FromSeconds(5));
+
+            var replyDatagram = BuildReplyDatagram("CQ Q1TST JO22");
+            await peer.SendAsync(replyDatagram, replyDatagram.Length, source);
+            await Poll.WaitForCallAsync(() => reply.ReceivedCalls(),
+                nameof(IExternalReplyTarget.TryEngageAsync), timeout: TimeSpan.FromSeconds(5));
+            await reply.Received(1).TryEngageAsync("Q1TST", Arg.Any<CancellationToken>());
+        }
+        finally { await sut.StopAsync(CancellationToken.None); }
+    }
+
+    [Fact(DisplayName = "#251 T5: the target port stays free while the daemon runs (a bind of it succeeds)")]
+    public async Task EphemeralSocket_TargetPortStaysFree()
+    {
+        var port    = GetFreeUdpPort();
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(new MutableConfigStore(PrimaryConfig(port)), channel.Reader);
 
         using var cts = new CancellationTokenSource();
         await sut.StartAsync(cts.Token);
@@ -562,27 +599,107 @@ public sealed class ExternalReportingServiceTests
         {
             await WaitForInboundBoundAsync(sut);
 
-            channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow,
-                [new DecodeResult(Time: "12:00:00", Snr: -5, Dt: 0.1, FreqHz: 1500, Message: "CQ Q1TST JO22")]));
+            // Asserts only that the bind succeeds: ExclusiveAddressUse semantics differ per OS.
+            var act = () => { using var probe = new UdpClient(new IPEndPoint(IPAddress.Any, port)); };
+            act.Should().NotThrow("the daemon must not hold the primary target's port (#251)");
+            ((IPEndPoint)GetInboundClient(sut)!.Client.LocalEndPoint!).Port.Should().NotBe(port);
+        }
+        finally { await sut.StopAsync(CancellationToken.None); }
+    }
 
-            // Assert the SENDING socket's own local port directly, rather than inferring it by
-            // racing a second socket to receive the packet over the wire (platform-dependent —
-            // see the remarks above). A bound _inboundClient on the target's port is exactly the
-            // condition under which SendToAllEnabledAsync's own `_inboundClient ??
-            // _primaryFallbackClient` resolution picks the shared socket for the primary target.
-            var inboundClient = GetInboundClient(sut);
-            inboundClient.Should().NotBeNull(
-                "the shared inbound socket must be bound so the primary target's outbound sends " +
-                "route through it — D-014 Part B's entire point");
-            ((IPEndPoint)inboundClient!.Client.LocalEndPoint!).Port.Should().Be(port,
-                "the primary target's outbound sends must originate from the shared bound inbound " +
-                "port, not a separate ephemeral socket, so a peer's reply-to-sender-port semantics " +
-                "(e.g. GridTracker2 replying to whatever port it last saw traffic from) reach us");
-        }
-        finally
+    /// <remarks>
+    /// Windows only (xunit 2.9.3 has no runtime skip, so it returns early elsewhere, the repo's
+    /// existing convention): <c>SIO_UDP_CONNRESET</c> is a Windows behaviour. Without the
+    /// IOControl call, an ICMP port-unreachable from sending to a closed port surfaces as a
+    /// <see cref="SocketException"/> (10054) on the next receive and is logged as
+    /// "inbound socket error". The secondary listener makes "at least 20 sends to the closed
+    /// primary" a positive condition: it is sent each datagram BEFORE the primary, so N datagrams
+    /// there imply at least N-1 sends to the closed port.
+    /// </remarks>
+    [Fact(DisplayName = "#251 T6: sends to an absent peer raise no inbound socket error (Windows) and Halt Tx still arrives")]
+    public async Task EphemeralSocket_PeerAbsent_NoConnResetNoise()
+    {
+        if (!OperatingSystem.IsWindows()) return; // Windows-only behaviour; explicit early return
+
+        const int MinSendsToClosedPort = 20;
+        var closedPort = GetFreeUdpPort();   // nothing ever binds it
+        using var secondary = new UdpClient(0, AddressFamily.InterNetwork);
+        var secondaryPort = ((IPEndPoint)secondary.Client.LocalEndPoint!).Port;
+
+        var config = new AppConfig() with
         {
-            await sut.StopAsync(CancellationToken.None);
+            ExternalReporting = new ExternalReportingConfig(
+                enabled: true,
+                targets:
+                [
+                    new ExternalReportingTarget("Absent",    "127.0.0.1", closedPort,    true),
+                    new ExternalReportingTarget("Secondary", "127.0.0.1", secondaryPort, true),
+                ])
+        };
+        // The primary is index 0; the secondary's client is added to the send list first (see
+        // SendToAllEnabledAsync), so it sees each datagram before the primary does.
+        var qso = Substitute.For<IQsoController>();
+        qso.AbortAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        var logger  = new CapturingLogger();
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(new MutableConfigStore(config), channel.Reader,
+                              BuildServiceProvider(qso: qso),
+                              heartbeatInterval: TimeSpan.FromMilliseconds(10), logger: logger);
+
+        using var cts = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            var count = 0;
+            await Poll.UntilAsync(() =>
+            {
+                while (secondary.Available > 0)
+                {
+                    IPEndPoint? from = null;
+                    secondary.Receive(ref from);
+                    count++;
+                }
+                return count >= MinSendsToClosedPort + 1;
+            }, timeout: TimeSpan.FromSeconds(10),
+               timeoutMessage: () => $"only {count} datagrams reached the secondary target");
+
+            // A sender that is not the (absent) primary, addressed at the daemon's own socket.
+            using var other = new UdpClient(AddressFamily.InterNetwork);
+            var haltTx = BuildHaltTxDatagram();
+            await other.SendAsync(haltTx, haltTx.Length, GetInboundEndpoint(sut));
+            await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
+                timeout: TimeSpan.FromSeconds(5));
+
+            logger.Entries.Where(e => e.Message.Contains("inbound socket error", StringComparison.OrdinalIgnoreCase))
+                  .Should().BeEmpty("SIO_UDP_CONNRESET must stop ICMP port-unreachable from failing the receive loop");
         }
+        finally { await sut.StopAsync(CancellationToken.None); }
+    }
+
+    [Fact(DisplayName = "#251 T7: the source port is stable when the primary target's port changes mid-run")]
+    public async Task EphemeralSocket_TargetPortChange_KeepsSourcePort()
+    {
+        var port1 = GetFreeUdpPort();
+        var port2 = GetFreeUdpPort();
+        var store   = new MutableConfigStore(PrimaryConfig(port1));
+        var channel = Channel.CreateBounded<DecodeBatch>(2);
+        var sut     = CreateSut(store, channel.Reader, heartbeatInterval: FastHeartbeat);
+
+        using var peer1 = CreateFakePeer(port1);
+        using var peer2 = CreateFakePeer(port2);
+        using var cts   = new CancellationTokenSource();
+        await sut.StartAsync(cts.Token);
+        try
+        {
+            var before = await WaitForTypesAsync(peer1, null, WsjtxDatagram.MessageType.Heartbeat);
+
+            await store.SaveAsync(PrimaryConfig(port2), CancellationToken.None);
+
+            var after = await WaitForTypesAsync(peer2, null, WsjtxDatagram.MessageType.Heartbeat);
+            after.Port.Should().Be(before.Port,
+                "a change of the primary's port must not recreate the socket (stable source port)");
+        }
+        finally { await sut.StopAsync(CancellationToken.None); }
     }
 
     // ── Absolute exclusion of synthetic/unknown-region traffic (no exceptions) ──
@@ -1081,7 +1198,7 @@ public sealed class ExternalReportingServiceTests
 
             // 1) Garbage — must not crash the listener.
             var garbage = new byte[] { 0x01, 0x02, 0x03 };
-            await sender.SendAsync(garbage, garbage.Length, "127.0.0.1", port);
+            await sender.SendAsync(garbage, garbage.Length, GetInboundEndpoint(sut));
 
             // 2) A well-formed Halt Tx afterward must still be processed. FIFO delivery on the
             // single inbound socket means it is read after the garbage above with no pacing delay;
@@ -1092,7 +1209,7 @@ public sealed class ExternalReportingServiceTests
             BinaryPrimitives.WriteUInt32BigEndian(haltTx.AsSpan(8), (uint)WsjtxDatagram.MessageType.HaltTx);
             // Id string: length=0 (empty).
             BinaryPrimitives.WriteUInt32BigEndian(haltTx.AsSpan(12), 0);
-            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
+            await sender.SendAsync(haltTx, haltTx.Length, GetInboundEndpoint(sut));
 
             await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
                 timeout: TimeSpan.FromSeconds(5));
@@ -1134,7 +1251,7 @@ public sealed class ExternalReportingServiceTests
             await WaitForInboundBoundAsync(sut);
 
             var haltTx = BuildHaltTxDatagram();
-            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
+            await sender.SendAsync(haltTx, haltTx.Length, GetInboundEndpoint(sut));
 
             await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
                 timeout: TimeSpan.FromSeconds(5));
@@ -1185,7 +1302,7 @@ public sealed class ExternalReportingServiceTests
             await WaitForInboundBoundAsync(sut);
 
             var datagram = BuildReplyDatagram("CQ Q1TST JO22");
-            await sender.SendAsync(datagram, datagram.Length, "127.0.0.1", port);
+            await sender.SendAsync(datagram, datagram.Length, GetInboundEndpoint(sut));
 
             // Poll for the (forbidden) engage and require it never happens within the window,
             // instead of a bare fixed delay — the datagram is delivered on loopback well inside it.
@@ -1226,7 +1343,7 @@ public sealed class ExternalReportingServiceTests
             await WaitForInboundBoundAsync(sut);
 
             var datagram = BuildReplyDatagram("CQ Q1TST JO22");
-            await sender.SendAsync(datagram, datagram.Length, "127.0.0.1", port);
+            await sender.SendAsync(datagram, datagram.Length, GetInboundEndpoint(sut));
 
             await Poll.WaitForCallAsync(() => reply.ReceivedCalls(),
                 nameof(IExternalReplyTarget.TryEngageAsync), timeout: TimeSpan.FromSeconds(5));
@@ -1294,7 +1411,7 @@ public sealed class ExternalReportingServiceTests
             Str("");
             Str("TEST MSG");
             buf.Add(1);
-            await sender.SendAsync(buf.ToArray(), buf.Count, "127.0.0.1", port);
+            await sender.SendAsync(buf.ToArray(), buf.Count, GetInboundEndpoint(sut));
 
             await Poll.WaitForEqualAsync(() => sut.LastFreeText, "TEST MSG",
                 timeout: TimeSpan.FromSeconds(5));
@@ -1333,12 +1450,12 @@ public sealed class ExternalReportingServiceTests
             await WaitForInboundBoundAsync(sut);
 
             var closeDatagram = WsjtxDatagram.EncodeClose("GridTracker2");
-            await sender.SendAsync(closeDatagram, closeDatagram.Length, "127.0.0.1", port);
+            await sender.SendAsync(closeDatagram, closeDatagram.Length, GetInboundEndpoint(sut));
 
             // The listener must still be alive: a subsequent Halt Tx is still processed. FIFO
             // delivery means the Halt Tx below is read after this Close with no pacing delay.
             var haltTx = BuildHaltTxDatagram();
-            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
+            await sender.SendAsync(haltTx, haltTx.Length, GetInboundEndpoint(sut));
             await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
                 timeout: TimeSpan.FromSeconds(5));
 
@@ -1753,7 +1870,7 @@ public sealed class ExternalReportingServiceTests
             await WaitForInboundBoundAsync(sut);
 
             var haltTx = BuildHaltTxDatagram();
-            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
+            await sender.SendAsync(haltTx, haltTx.Length, GetInboundEndpoint(sut));
 
             await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
                 timeout: TimeSpan.FromSeconds(5));
@@ -1804,7 +1921,7 @@ public sealed class ExternalReportingServiceTests
             await WaitForInboundBoundAsync(sut);
 
             var haltTx = BuildHaltTxDatagram();
-            await sender.SendAsync(haltTx, haltTx.Length, "127.0.0.1", port);
+            await sender.SendAsync(haltTx, haltTx.Length, GetInboundEndpoint(sut));
 
             await Poll.WaitForCallAsync(() => qso.ReceivedCalls(), nameof(IQsoController.AbortAsync),
                 timeout: TimeSpan.FromSeconds(5));
@@ -1862,7 +1979,7 @@ public sealed class ExternalReportingServiceTests
                 timeoutMessage: () => "the decode loop never processed the seeded own-decode-batch");
 
             var datagram = BuildReplyDatagram("CQ Q1TST JO22");
-            await sender.SendAsync(datagram, datagram.Length, "127.0.0.1", port);
+            await sender.SendAsync(datagram, datagram.Length, GetInboundEndpoint(sut));
 
             await Poll.WaitForCallAsync(() => reply.ReceivedCalls(),
                 nameof(IExternalReplyTarget.TryEngageAsync), timeout: TimeSpan.FromSeconds(5));
@@ -1906,7 +2023,7 @@ public sealed class ExternalReportingServiceTests
             // An empty message: TryExtractCallsign fails before the new decode-batch check is ever
             // reached — the pre-existing "no callsign could be extracted" path.
             var datagram = BuildReplyDatagram("");
-            await sender.SendAsync(datagram, datagram.Length, "127.0.0.1", port);
+            await sender.SendAsync(datagram, datagram.Length, GetInboundEndpoint(sut));
 
             await Poll.UntilAsync(
                 () => capturing.HasEntryContaining(LogLevel.Information, "no callsign could be extracted"),
