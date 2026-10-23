@@ -1,0 +1,26 @@
+{
+ "date": "2026-10-22",
+ "band": "40m",
+ "hours": 12.17,
+ "dll_sha256": "0e180dfc4791b615fd21cd5e0dcb427e35816c3958b4b6f5f4032eaebe98cf56",
+ "build_branch": "HEAD",
+ "build_commit": "5673626492017148c170de258c42e92038415c54",
+ "shim": 20260070,
+ "nhard": 24,
+ "reference": "live_wsjtx",
+ "radio_chain": "FT-991A -> Voicemeeter Strip[0] -> B1 -> both WSJT-X and OpenWSFZ",
+ "comparable": true,
+ "grid_gate_g": 1.0,
+ "n_pairs": 60074,
+ "matched_pct_of_ref": 76.73560105764686,
+ "ows_only_pct": 1.3595612623559161,
+ "snr_gap_db": -2.0743083530312614,
+ "dt_gap_s": 0.6529064154209808,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": false,
+ "drift_note": "",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\artefacts\\20261022_1949_endurance_run-gathered",
+ "source_files": [
+  "../../artefacts/20261022_1949_endurance_run-gathered/anova_report.md"
+ ]
+}
