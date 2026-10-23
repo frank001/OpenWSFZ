@@ -1,9 +1,9 @@
 ## 1. Tests first (each must be able to fail; inject `TimeProvider`, no unbounded sleeps)
 
 - [ ] 1.1 **T1 helper table:** t = 0, 0.62 and 2.36 s: the full buffer, 606,720 samples loaded, identical to the input.
-- [ ] 1.2 **T2 just past whole:** t = 2.37 s: 89,760 skipped, 516,960 loaded; **the first loaded sample equals input[89,760]** (the start is cut, not the tail).
-- [ ] 1.3 **T3 the #257 L-2 case:** t = 4.9 s: 211,200 skipped, 395,520 loaded; the first loaded sample equals input[211,200].
-- [ ] 1.4 **T4 last start:** t = 11.24 s: 515,520 skipped, 91,200 loaded.
+- [ ] 1.2 **T2 just past whole:** t = 2.37 s: 89,760 skipped, 516,960 loaded; **from the 241st loaded sample on they equal input[89,760 + 240 ...]** (the start is cut, not the tail); the first 240 loaded samples rise from 0 to 1 x input by the raised-cosine of the design.
+- [ ] 1.3 **T3 the #257 L-2 case:** t = 4.9 s: 211,200 skipped, 395,520 loaded; from the 241st on equal input[211,200 + 240 ...]; the first 240 rise from 0.
+- [ ] 1.4 **T4 last start:** t = 11.24 s: 515,520 skipped, 91,200 loaded; from the 241st on equal input[515,520 + 240 ...]; the first 240 rise from 0. **T4b fade-out:** where the boundary clamp still cuts the tail, the last 240 samples fall to 0 along the same raised-cosine, and the samples cut are logged; an uncut full clip (T1) has no fade.
 - [ ] 1.5 **T5 cut-off:** t = 11.25 s and t = 14.9 s: nothing loaded, PTT never keyed, one Information log line.
 - [ ] 1.6 **T6 manual engage past the cut-off:** an answerer pending target, an answerer jump-in and a caller pending responder, each consumed at 12 s into a correct-phase window: not fired, retained, and fired in the next correct-phase window.
 - [ ] 1.7 **T7 manual engage late but before the cut-off:** the same three at 5 s and 6 s (today's D-CALLER-021 A and C cases): fires immediately, aligned as T3.
@@ -16,7 +16,7 @@
 - [ ] 2.1 `Ft8TimeHelper`: the helper of design decision 1; the existing clamp stays and is applied after the skip.
 - [ ] 2.2 `QsoAnswererService.TransmitAsync` and `QsoCallerService.TransmitAsync`: call the helper; the Information log lines (design decision 5); a transmission not keyed at t >= 11.25 s keeps today's zero-remaining accounting (the Developer states in the commit what that is).
 - [ ] 2.3 The three fire sites: retain at t >= 11.25 s (design decision 4).
-- [ ] 2.4 No ramp on the cut start (design decision 7); the commit says so. Nothing in `LateBatch`, the synthesiser or `native/`; `git diff --stat` confirms.
+- [ ] 2.4 The 240-sample raised-cosine fade-in after a skip and fade-out where the clamp cuts the tail (design decision 7); full clips untouched; the commit states the exact formula. Nothing in `LateBatch`, the synthesiser or `native/`; `git diff --stat` confirms.
 
 ## 3. Verification
 

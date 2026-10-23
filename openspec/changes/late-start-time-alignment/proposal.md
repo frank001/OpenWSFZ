@@ -21,13 +21,14 @@ Architect spec: `qa/rr-study/2026-10-23-1735-architect-to-qa-spec-late-start-tim
 - The existing boundary clamp stays as a safety net, applied after the skip.
 - **Manual engages never fire at t >= 11.25 s:** the answerer's pending target and jump-in, and the caller's pending responder, are retained and fire in the next correct-phase window (about 19 s later; the 60 s stale expiry is unchanged).
 - One Information log line at every late start (t > 2.36 s) with the offset, the samples skipped and the samples loaded, as milliseconds. No message text.
+- A 240-sample (5 ms) raised-cosine fade-in on the first samples loaded after a skip, and a matching fade-out wherever the boundary clamp cuts the tail, so a cut at an arbitrary phase does not click on air; full, uncut clips are untouched.
 - An aligned (shortened) transmission counts for retry, watchdog and ADIF exactly as a full one does today.
 
 **Unchanged:** `LateBatch` (the auto-reply hold at 2.36 s), the audio synthesiser, anything in `native/`.
 
 ## Non-goals
 
-`LateBatch`'s hold; style "M" (a smaller skip) as code, unless a later spec argues for it; pre-keying PTT earlier; the O1 log line; other receivers' DT ranges (JTDX and MSHV were not read); a ramp on the cut start (an open question to the Architect, see design.md).
+`LateBatch`'s hold; style "M" (a smaller skip) as code, unless a later spec argues for it; pre-keying PTT earlier; the O1 log line; other receivers' DT ranges (JTDX and MSHV were not read).
 
 ## Capabilities
 

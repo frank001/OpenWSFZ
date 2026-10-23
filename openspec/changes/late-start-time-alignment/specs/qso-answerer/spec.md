@@ -39,7 +39,7 @@ The offset t SHALL be computed from the service's injectable `TimeProvider`.
 - **t greater than 2.36 s and less than 11.25 s:** the first `round((t - 0.5) x 48,000)` samples SHALL be skipped and the remaining samples loaded, so that every remaining symbol goes out at its proper time (as WSJT-X does for a late start; the nominal FT8 start is 0.5 s into the window). Playback then ends about 13.14 s into the window. The start of the clip is cut, not the tail.
 - **t at least 11.25 s:** the service SHALL NOT call `LoadAudio` or `KeyDownAsync` and SHALL log at Information level, rather than keying PTT with an empty or useless buffer.
 
-The existing boundary clamp (truncating the buffer so that playback cannot extend past the window's boundary) SHALL remain as a safety net and SHALL be applied after the skip.
+The existing boundary clamp (truncating the buffer so that playback cannot extend past the window's boundary) SHALL remain as a safety net and SHALL be applied after the skip; when it cuts any samples it SHALL log the number of samples cut at Information level. **Where the clip is cut, the cut SHALL be shaped:** the first 240 samples (5 ms) loaded after a skip SHALL be faded in with a raised cosine, gain(i) = 0.5 x (1 - cos(pi x i / 239)) for i = 0 to 239, and the last 240 samples before a tail cut by the boundary clamp SHALL be faded out along the same curve. A full, uncut buffer SHALL be loaded unmodified.
 
 For every transmission with t greater than 2.36 s the service SHALL write one Information log line carrying the offset, the samples skipped and the samples loaded, as milliseconds, and no message text.
 
@@ -53,12 +53,12 @@ A transmission shortened by this requirement SHALL be treated identically to a f
 #### Scenario: A start just past 2.36 s skips the start of the clip
 
 - **WHEN** `TransmitAsync` is called 2.37 s into its window
-- **THEN** the first 89,760 samples SHALL be skipped, 516,960 samples SHALL be loaded, and the first loaded sample SHALL be the input sample at index 89,760
+- **THEN** the first 89,760 samples SHALL be skipped and 516,960 samples SHALL be loaded; the first 240 loaded samples SHALL rise from 0 to 1 x the input by the raised cosine, and from the 241st loaded sample on they SHALL equal the input samples from index 90,000
 
 #### Scenario: Late-armed transmission is time-aligned
 
 - **WHEN** `TransmitAsync` is called 4.9 s into its window
-- **THEN** 211,200 samples SHALL be skipped and 395,520 loaded, the first loaded sample being the input sample at index 211,200, and one Information line with the offset, skipped and loaded milliseconds SHALL be written
+- **THEN** 211,200 samples SHALL be skipped and 395,520 loaded, the first 240 loaded samples rising from 0 and the rest equal to the input from index 211,440, and one Information line with the offset, skipped and loaded milliseconds SHALL be written
 
 #### Scenario: The last allowed start
 

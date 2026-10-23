@@ -27,7 +27,11 @@ Only `src/OpenWSFZ.Daemon/Ft8TimeHelper.cs`, `QsoAnswererService.cs`, `QsoCaller
 3. **One Information log line at every start with t > 2.36 s:** the offset, the samples skipped and the samples loaded, as milliseconds; **no message text**. A "not keyed at t >= 11.25 s" decision is also Information. Write the line at the moment the skip is computed (QA amendment M2: the audio really starts 0.05 to 0.3 s later because of PTT lead and device latency, so the clamp can still fire at the 2.36 s edge; it stays as the safety net).
 4. **The three manual-engage fire sites retain at t >= 11.25 s** (return without clearing the target, so the next correct-phase batch re-evaluates it; about 18.75 s later; the 60 s stale expiry is unchanged): the answerer pending target (`:783-801`), the answerer jump-in (`:715-730`), the caller pending responder (`QsoCallerService.cs:777-784`). Compute t from `_timeProvider`. `ArmPendingTarget` and the 60 s expiry keep `DateTimeOffset.UtcNow` (`:466`, `:764`): do not mix the two in the new check. The existing test-only arming helpers (`:482-500`) exist for this.
 5. **An aligned (shortened) transmission counts for retry, watchdog and ADIF exactly as a full one does.** A transmission not keyed at t >= 11.25 s keeps today's zero-remaining accounting: **state in the commit message what that is.**
-6. **No ramp on the cut start.** The cut begins mid-symbol with no ramp, so the key goes down with the tone at full amplitude (key-click risk; QA amendment M4). This is an open question to the Architect, not part of this task: implement NO ramp and say so in the commit.
+6. **A short ramp where the clip is cut (Architect's ruling on M4, Amendment 1 A1.4: RAMP YES).** The synthesiser has no envelope (`Ft8AudioSynthesiser.cs:20-24`), so a cut start at an arbitrary phase steps by up to +-0.5: a key click on air.
+   - **Fade-in:** a **240-sample (5 ms) raised-cosine** on the first 240 samples loaded after an R1 skip: gain(i) = 0.5 x (1 - cos(pi x i / 239)) for i = 0 to 239, so sample 0 is 0 and sample 239 is the input unchanged; samples from index 240 on are the input unchanged.
+   - **Fade-out:** a matching 240-sample raised-cosine fade-out on the last 240 samples **wherever the boundary clamp cuts the tail** (the safety net after the skip).
+   - **Full, uncut clips are untouched** (no fade), so T1 stays byte-identical to the input.
+   - **Log (Architect A1.2):** when the clamp cuts anything it logs, at Information, the number of samples it cut; the R3 line logs the t that was used.
 7. **Not changed:** `LateBatch` (the auto-reply hold at 2.36 s), the audio synthesiser, anything in `native/`. If you find the change must reach further, **stop and tell QA** (the Architect's prediction V5).
 
 ## 2. Tests (test-first; HK-025(k): each must be able to fail)
@@ -37,16 +41,17 @@ Inject `TimeProvider` as the existing D-CALLER-021 tests do; no unbounded sleeps
 | id | what it proves |
 |---|---|
 | T1 helper table | t = 0, 0.62, 2.36 s: skip 0, 606,720 loaded, identical to the input |
-| T2 just past whole | t = 2.37 s: 89,760 skipped, 516,960 loaded; **the first loaded sample equals input[89,760]** (the start is cut, not the tail) |
-| T3 the #257 L-2 case | t = 4.9 s: 211,200 skipped, 395,520 loaded; first loaded = input[211,200] |
-| T4 last start | t = 11.24 s: 515,520 skipped, 91,200 loaded |
+| T2 just past whole | t = 2.37 s: 89,760 skipped, 516,960 loaded; **the loaded samples from the 241st on equal input[89,760 + 240 ...]** (the start is cut, not the tail); **the first 240 loaded samples rise from 0 to 1 x input[89,760 ...]** by the raised-cosine of item 6 |
+| T3 the #257 L-2 case | t = 4.9 s: 211,200 skipped, 395,520 loaded; from the 241st loaded sample on equal input[211,200 + 240 ...]; the first 240 rise from 0 |
+| T4 last start | t = 11.24 s: 515,520 skipped, 91,200 loaded; from the 241st on equal input[515,520 + 240 ...]; the first 240 rise from 0 |
+| T4b fade-out | a case where the boundary clamp still cuts the tail (t = 2.36 s plus a start-latency margin, or an injected shorter window): the last 240 samples fall to 0 along the same raised-cosine; an uncut full clip (T1) has no fade |
 | T5 cut-off | t = 11.25 s and 14.9 s: nothing loaded, PTT never keyed, one Information log line |
 | T6 manual engage past the cut-off | answerer pending target, answerer jump-in, caller pending responder, each consumed 12 s into a correct-phase window: not fired, retained, fired in the next correct-phase window |
 | T7 late but before the cut-off | the same three at 5 s and 6 s (today's D-CALLER-021 A and C cases): fire immediately, aligned as T3 |
 | T8 existing tests | the D-CALLER-021 G case (8 s in) and the caller's 9 s case rewritten to the new rule (8 s: 360,000 skipped, 246,720 loaded; 9 s: 408,000 skipped, 198,720 loaded); the H/I cases and the retry-budget tests J stay; all green |
 | T9 regression | the full unfiltered suite |
 
-**QA's mutation at review:** with today's tail-truncation restored in the helper, **T2, T3 and T4 must fail**; T1 passes either way. Show T2 to T4 failing on the old behaviour before your change (as you did for #257).
+**QA's mutation at review:** with today's tail-truncation restored in the helper, **T2, T3 and T4 must fail**; T1 passes either way. Show T2 to T4 failing on the old behaviour before your change (as you did for #257). A second mutation: with the fade-in removed, T2 to T4's "first 240 rise from 0" assertions must fail.
 
 ## 3. Not in scope
 
@@ -56,7 +61,7 @@ Inject `TimeProvider` as the existing D-CALLER-021 tests do; no unbounded sleeps
 
 - The **full unfiltered** `dotnet test OpenWSFZ.slnx`: the exact command line and the counts (passed / failed / skipped); a filtered run does not count (HK-022).
 - `openspec validate --all --strict`; `check_version_docs.py` (G9a) and `check_version_bump.py` (G9b).
-- The commit hash(es); the list of replaced and changed tests and why; T2 to T4 failing on the old behaviour; what the "not keyed" accounting is; anything surprising.
+- The commit hash(es); the list of replaced and changed tests and why; T2 to T4 failing on the old behaviour; what the "not keyed" accounting is; anything surprising; the exact fade formula you used.
 - `git diff --stat -- native` empty, and the file list limited to the scope in section 1.
 - **Stop and tell QA before pushing anything.** QA reviews the commit (HK-039) with the mutation, runs `pre_merge_check.py` on a clean checkout of the exact tip before any push, then asks the Captain for the push go. The merge is the Captain's.
 
