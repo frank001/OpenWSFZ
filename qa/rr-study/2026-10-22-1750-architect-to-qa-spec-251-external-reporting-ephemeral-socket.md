@@ -111,3 +111,42 @@ ephemeral socket works as before); the `leaderUrl` fault (#195); radio control (
 | X3 | L-a, L-b, L-c, L-e pass on the first live try | 0.75 | C |
 
 *Architect. Docs only; `src/`/`native/` diff empty.*
+
+---
+
+## Amendment 1 (2026-10-23 ~15:0xZ `date -u`): QA's (k) review ACCEPTED IN FULL
+
+**Issued** on the Captain's go, 14:48Z (Architect's window), which he confirmed in QA's window. QA's review is
+`qa/rr-study/2026-10-23-1450-qa-k-review-251-external-reporting-ephemeral-socket.md` (`qa/refset`). Every FILE:LINE
+above still holds on `main` `74c75792`: `git diff 9d5ba635 74c75792` is empty for both files. All eight points
+are adopted, and the text above is to be read with them:
+
+- **A1.1 (K1) R4 touch list completed.** It adds `ExternalReportingService.cs:128-138` (comment + fields
+  `_primaryFallbackClient`, `_inboundClient`, `_inboundBoundPort`), `:382-383` and `:421-442` (fallback-client
+  creation/disposal in `Reconcile`), `:955-960` (teardown) and `:966-972` (the inbound loop's read of the client).
+- **A1.2 (K2) T6 now discriminates.** The loop already swallows every `SocketException` at Debug (`:995`), so as
+  first written T6 passed with R3 removed (my error, E34). T6 now also asserts **zero** "inbound socket error" log
+  entries after the ≥ 20 sends to the closed port (capturing logger), plus the Halt Tx arriving. **Mutation
+  check required:** T6 must FAIL on Windows with the R3 `IOControl` line removed. QA shows this in the HK-039 review.
+- **A1.3 (K3) H5.** DI sync 7 ran (PR #255, 2026-10-22 19:43:25Z), so this fix rides **DI sync 8**. H5's
+  conditional resolves to its "otherwise" branch.
+- **A1.4 (K4) H1.** Branch off `origin/main` `74c75792`.
+- **A1.5 (K5) R1/R3 detail.** R1: the client is `AddressFamily.InterNetwork` (IPv4), as before; IPv6 is out of
+  scope. R3: `Socket.IOControl(-1744830452 /* 0x9800000C SIO_UDP_CONNRESET */, new byte[] { 0 }, null)`; my
+  "`IOControl(SIO_UDP_CONNRESET, false)`" named the wrong signature (E35).
+- **A1.6 (K6) cross-platform / flake.** T6 is skipped explicitly, with a stated reason, off Windows. T1–T3 and T7
+  wait on a positive condition (`OpenWSFZ.TestSupport.Poll.*`), and the Poll timeout is the upper bound (no fixed
+  "2 intervals" sleep). T5 asserts only that the bind of P succeeds (`ExclusiveAddressUse` semantics differ off Windows).
+- **A1.7 (K7) behaviour change, recorded as a decision.** After the fix, a peer that sends commands
+  **unsolicited** to the target port (not as a reply to one of the daemon's datagrams) no longer reaches the daemon.
+  This is the WSJT-X client model, and the daemon sends Status within seconds of start. The OpenSpec delta carries
+  one scenario for it, and the PR description and the #251 close note state it. I had not stated it (E38).
+- **A1.8 (K8) R6.** The main spec never encoded the shared bind (QA's grep), so the delta is **ADDED-only**. The
+  "modify or remove" clause is void (E36). The Developer re-greps before writing.
+
+**Prediction scoring:** **X1 HIT** (P0, QA 14:53:40Z, radio off: GridTracker2 alone on `0.0.0.0:2237`; wsjtx
+2.7.0 on `0.0.0.0:64988` only). Limits: no datagram flow observed, and WSJT-X's configured target port was not
+read; neither bears on who binds the well-known port. X2 is read against R1–R5 **as amended here** (the
+amendments precede any build). X3 is unchanged.
+
+No bar moves; T1–T8 and L-a..L-e are otherwise as written. *Docs only; `src/`/`native/` diff empty.*
