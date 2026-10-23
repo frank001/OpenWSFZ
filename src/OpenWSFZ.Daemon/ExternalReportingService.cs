@@ -38,10 +38,14 @@ namespace OpenWSFZ.Daemon;
 /// </para>
 ///
 /// <para>
-/// Inbound: a single listener bound to the first enabled target's port (WSJT-X convention: the
-/// app listens on the same port it sends to). Halt Tx is always honoured; Reply/Free Text are
-/// gated by <c>externalReporting.honourInboundCommands</c>; Close is logged only and never
-/// terminates the daemon; any other recognised type is discarded at Debug.
+/// Sockets (#251): this service is the <em>client</em> of the WSJT-X protocol, like WSJT-X
+/// itself. The server (GridTracker2, JTAlert, ...) holds the well-known port; the primary
+/// target (first enabled) is served by ONE IPv4 socket bound to an OS-assigned port, which both
+/// sends to the target and receives the peer's replies (a peer answers to the datagram's source
+/// endpoint). No socket in this class binds a target's port. Inbound: Halt Tx is always
+/// honoured; Reply/Free Text are gated by <c>externalReporting.honourInboundCommands</c>; Close
+/// is logged only and never terminates the daemon; any other recognised type is discarded at
+/// Debug.
 /// </para>
 ///
 /// <para>
@@ -122,20 +126,23 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable,
     private readonly object _targetsLock = new();
 
     // Secondary targets only — index 1+ of the enabled target list. Each keeps its own
-    // dedicated, outbound-only, ephemeral-port UdpClient exactly as before D-014.
+    // dedicated, outbound-only, ephemeral-port UdpClient (secondaries never bind a port).
     private List<(ExternalReportingTarget Target, UdpClient Client)> _outboundClients = [];
 
-    // Primary target (index 0 of the enabled target list) — D-014 Part B. Its outbound sends go
-    // through the shared _inboundClient socket (so a peer's reply-to-sender-port semantics work,
-    // per design.md's "GridTracker2 replies from the same port it received on" rationale) rather
-    // than a separate ephemeral client. _primaryFallbackClient is used only when _inboundClient
-    // failed to bind (or isn't configured), so outbound delivery to the primary target is never
-    // lost — only the source port it's sent from changes.
+    // Primary target (index 0 of the enabled target list) — #251. One IPv4 socket on an
+    // OS-assigned port serves it: every send to the primary target goes out from it and
+    // InboundLoopAsync receives the peer's replies on it (the peer replies to the datagram's
+    // source endpoint). It exists while a primary target exists and is NOT recreated when the
+    // primary's host or port changes, so the source port stays stable. Guarded by _targetsLock.
     private ExternalReportingTarget? _primaryTarget;
-    private UdpClient?               _primaryFallbackClient;
+    private UdpClient?               _inboundClient;
 
-    private UdpClient? _inboundClient;
-    private int         _inboundBoundPort = -1;
+    /// <summary>
+    /// Windows <c>SIO_UDP_CONNRESET</c> (<c>0x9800000C</c>): without clearing it, an ICMP
+    /// port-unreachable from sending to an absent peer fails the next receive with
+    /// <see cref="SocketError.ConnectionReset"/> on the shared socket.
+    /// </summary>
+    private const int SioUdpConnReset = unchecked((int)0x9800000C);
 
     private readonly ConcurrentDictionary<string, bool> _resolutionWarned = new();
 
@@ -374,73 +381,53 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable,
                 }
             }
 
-            // ── Primary target (index 0): drop the stale fallback client on any target change —
-            //    re-evaluated below against the (possibly newly re-bound) inbound socket. ──
-            if (!Equals(_primaryTarget, newPrimary))
-            {
-                _primaryTarget = newPrimary;
-                _primaryFallbackClient?.Dispose();
-                _primaryFallbackClient = null;
-            }
+            // ── Primary target (index 0): one IPv4 socket on an OS-assigned port (#251). Created
+            //    when a primary first exists, disposed when none does; a changed host or port
+            //    keeps it, so the peer sees a stable source port. It never binds a target's port:
+            //    the server holds that. ──
+            _primaryTarget = newPrimary;
 
-            // ── Inbound listener: bind to the primary target's port with ReuseAddress so it
-            //    coexists with a peer (e.g. GridTracker2, which itself binds with Qt's
-            //    ShareAddress|ReuseAddressHint) already bound there (D-014 Part A). Without this,
-            //    the bind throws whenever the operator's mapping tool is already running — the
-            //    normal real-world case — and Halt Tx/Reply/Free Text become silently
-            //    unreachable. ──
-            var desiredInboundPort = newPrimary?.Port ?? -1;
-            if (desiredInboundPort != _inboundBoundPort)
+            if (newPrimary is null)
             {
                 _inboundClient?.Dispose();
-                _inboundClient    = null;
-                _inboundBoundPort = -1;
-
-                if (desiredInboundPort > 0)
-                {
-                    try
-                    {
-                        var client = new UdpClient(AddressFamily.InterNetwork);
-                        client.Client.SetSocketOption(
-                            SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                        client.Client.Bind(new IPEndPoint(IPAddress.Any, desiredInboundPort));
-                        _inboundClient    = client;
-                        _inboundBoundPort = desiredInboundPort;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex,
-                            "external-reporting: failed to bind inbound listener on port {Port} — " +
-                            "Halt Tx/Reply/Free Text will be unreachable until this is resolved; " +
-                            "outbound delivery to the primary target continues via a fallback socket.",
-                            desiredInboundPort);
-                    }
-                }
+                _inboundClient = null;
             }
-
-            // ── D-014 Part B: outbound sends to the primary target go through the shared bound
-            //    _inboundClient socket, so a peer's reply-to-sender-port semantics reach our
-            //    inbound listener. Only fall back to a dedicated ephemeral outbound-only client
-            //    when the shared bind is unavailable, so outbound delivery is never lost — only
-            //    the source port it's sent from changes. ──
-            if (newPrimary is not null && _inboundClient is null && _primaryFallbackClient is null)
+            else if (_inboundClient is null)
             {
                 try
                 {
-                    _primaryFallbackClient = new UdpClient();
+                    var client = new UdpClient(AddressFamily.InterNetwork);
+                    client.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+                    DisableUdpConnectionReset(client);
+                    _inboundClient = client;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex,
-                        "external-reporting: failed to open fallback outbound socket for primary target '{Name}'.",
+                        "external-reporting: failed to open the client socket for primary target '{Name}' — " +
+                        "nothing will be sent to it and Halt Tx/Reply/Free Text will be unreachable " +
+                        "until a config change retries.",
                         newPrimary.Name);
                 }
             }
-            else if ((newPrimary is null || _inboundClient is not null) && _primaryFallbackClient is not null)
-            {
-                _primaryFallbackClient.Dispose();
-                _primaryFallbackClient = null;
-            }
+        }
+    }
+
+    /// <summary>
+    /// Windows only: clears <c>SIO_UDP_CONNRESET</c> so an ICMP port-unreachable (an absent peer)
+    /// does not make the next receive on this shared send/receive socket throw. A failure is
+    /// logged at Debug and never fatal.
+    /// </summary>
+    private void DisableUdpConnectionReset(UdpClient client)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            client.Client.IOControl(SioUdpConnReset, [0], null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "external-reporting: could not clear SIO_UDP_CONNRESET — continuing.");
         }
     }
 
@@ -707,14 +694,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable,
         {
             clients = [.. _outboundClients];
 
-            // D-014 Part B: the primary target sends through the shared inbound socket when
-            // bound, falling back to the dedicated ephemeral client otherwise.
-            if (_primaryTarget is { } primary)
-            {
-                var primaryClient = _inboundClient ?? _primaryFallbackClient;
-                if (primaryClient is not null)
-                    clients.Add((primary, primaryClient));
-            }
+            // #251: the primary target sends from the one OS-assigned client socket.
+            if (_primaryTarget is { } primary && _inboundClient is { } primaryClient)
+                clients.Add((primary, primaryClient));
         }
 
         foreach (var (target, client) in clients)
@@ -727,9 +709,9 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable,
             }
             catch (Exception ex) when (ex is SocketException or ArgumentException or ObjectDisposedException)
             {
-                // ObjectDisposedException: the shared _inboundClient can be disposed and
-                // rebound concurrently by Reconcile (D-014 Part B) — treat exactly like any
-                // other per-target send failure; the next tick resolves the current socket fresh.
+                // ObjectDisposedException: _inboundClient can be disposed concurrently by
+                // Reconcile (primary removed or service stopping) — treat exactly like any other
+                // per-target send failure; the next tick resolves the current socket fresh.
                 if (_resolutionWarned.TryAdd(TargetKey(target), true))
                 {
                     _logger.LogWarning(ex,
@@ -952,12 +934,8 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable,
             _outboundClients.Clear();
 
             _primaryTarget = null;
-            _primaryFallbackClient?.Dispose();
-            _primaryFallbackClient = null;
-
             _inboundClient?.Dispose();
-            _inboundClient    = null;
-            _inboundBoundPort = -1;
+            _inboundClient = null;
         }
     }
 
@@ -988,7 +966,7 @@ public sealed class ExternalReportingService : IHostedService, IAsyncDisposable,
             }
             catch (ObjectDisposedException)
             {
-                continue; // rebound/closed concurrently by Reconcile — pick up the new client
+                continue; // closed concurrently by Reconcile — pick up the current client, if any
             }
             catch (SocketException ex)
             {
