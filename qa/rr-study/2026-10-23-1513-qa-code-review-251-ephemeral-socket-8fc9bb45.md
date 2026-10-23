@@ -2,7 +2,7 @@
 
 Reviewed-commit: 8fc9bb4521e67a4d477f69ccdfcb076bbe1128f5
 
-Verdict: APPROVED (no change required). Nothing is pushed. Live acceptance (L-a to L-e) needs the Captain at the station and has not been done; the merge is the Captain's (HK-010).
+Verdict: APPROVED (code and tests); **ADDENDUM 2026-10-23, see the end: `pre_merge_check.py` FAILS G9a, one docs change required before any push.** Nothing is pushed. Live acceptance (L-a to L-e) needs the Captain at the station and has not been done; the merge is the Captain's (HK-010).
 
 **Stamped:** 2026-10-23T15:13:37Z by `date -u`. **Reviewer:** QA. **Task:** `dev-tasks/2026-10-23-251-external-reporting-ephemeral-socket.md` (`72b8c0a1` on `qa/refset`). **Commit:** branch `fix/251-ext-reporting-ephemeral-socket`, one commit off `origin/main` `74c75792`, local in the Developer's worktree. 8 files: `VERSION`, `ExternalReportingService.cs`, `ExternalReportingServiceTests.cs`, and the 5 OpenSpec files.
 
@@ -56,6 +56,15 @@ Both scratch edits were reverted (`git status` clean).
 2. **Not exercised:** Linux and macOS (no run here; CI on a push is the check), and the live path with GridTracker (L-a to L-e). `T2`/`T6` Windows-only semantics are as above.
 3. **Exposure, unchanged:** the socket binds every interface (`IPAddress.Any`), as the old one did; an OS-assigned port is harder to guess than 2237. A loopback-only bind for a localhost target would be tighter, but LAN and multicast targets need the wide bind. Not a #251 matter; the Architect may want a separate line.
 4. The class remarks and field comments are accurate; the two stale doc comments on `GetInboundClient`/`WaitForInboundBoundAsync` were reworded correctly.
+
+## ADDENDUM (QA, 2026-10-23 15:29Z by `date -u`): the pre-merge check, run on the Captain's rule
+
+The Captain's rule (2026-10-23): `pre_merge_check.py` runs BEFORE any push when `src/` or `native/` changed. Run from a clean detached checkout of `8fc9bb45` (`D:\Projects\claude\_qa-scratch\251-review\pmc`, log `...\251-review\pmc.log`), exit 1:
+
+- **FAIL: G9a, doc/VERSION consistency.** `README.md:21` and `REQUIREMENTS.md:23` still say "The current release is v0.59" while `VERSION` is 0.60. This is the exact HK-006 case: G9b passes (VERSION bumped) but G9a needs the two anchor sentences changed too.
+- PASS: native freshness (Windows, Linux, macOS all 20260069), G9b, solution build, UDP margin lint, G10, full test suite (Release), G3 traceability (1794 tests mapped), WSL Debian compile and test (Linux; the Daemon assembly ran 752 there against 784 on Windows, the Windows-only tests excluded), G8 OpenSpec strict (70 of 70), self-contained publish, AOT publish.
+
+**Required change (docs only, no `src/`):** set the anchor sentence to v0.60 in `README.md` and `REQUIREMENTS.md`, and add the version-history row for 0.60 if the repo's convention for a bump has one (see `f684277f` for the 0.59 bump). Amend or add a commit; QA then reviews the delta (HK-039 record on the new tip) and re-runs the check before any push. The code review and test results above stand for `8fc9bb45`; the tip will change only in the two docs.
 
 ## Next
 
