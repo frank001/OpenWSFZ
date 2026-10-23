@@ -1355,27 +1355,24 @@ public sealed class ExternalReportingServiceTests
         }
     }
 
+    /// <summary>
+    /// A real-layout Reply (#257; NetworkMessage.hpp Reply, In, 4; bytes captured from GridTracker2):
+    /// the literal prefix (header, Id "QA-PROBE", Time, snr, delta time, delta frequency 1234,
+    /// Mode "~"), then the Message, then the literal trailer (Low confidence 0, Modifiers 0).
+    /// There is no "New" byte. Only the message is substituted.
+    /// </summary>
     private static byte[] BuildReplyDatagram(string message)
     {
-        var buf = new List<byte>();
-        void U32(uint v) { Span<byte> b = stackalloc byte[4]; BinaryPrimitives.WriteUInt32BigEndian(b, v); buf.AddRange(b.ToArray()); }
-        void I32(int v)  => U32(unchecked((uint)v));
-        void Str(string s) { var bytes = System.Text.Encoding.UTF8.GetBytes(s); U32((uint)bytes.Length); buf.AddRange(bytes); }
-        void Dbl(double v) { Span<byte> b = stackalloc byte[8]; BinaryPrimitives.WriteInt64BigEndian(b, BitConverter.DoubleToInt64Bits(v)); buf.AddRange(b.ToArray()); }
-
-        U32(WsjtxDatagram.Magic);
-        U32(WsjtxDatagram.SchemaVersion);
-        U32((uint)WsjtxDatagram.MessageType.Reply);
-        Str(""); // Id
-        buf.Add(1);           // New
-        U32(51300);           // Time
-        I32(-10);              // SNR
-        Dbl(0.1);              // DeltaTime
-        U32(1500);              // DeltaFrequency
-        Str("~");               // Mode
-        Str(message);            // Message
-        buf.Add(0);               // LowConfidence
-        return buf.ToArray();
+        var prefix  = Convert.FromHexString(
+            "adbccbda" + "00000003" + "00000004" +              // magic, schema 3, type 4 (Reply)
+            "00000008" + "51412d50524f4245" +                   // Id "QA-PROBE"
+            "0385cb60" + "fffffff6" + "3fb999999999999a" +      // Time, snr -10, delta time 0.1
+            "000004d2" + "00000001" + "7e");                    // delta frequency 1234, Mode "~"
+        var text    = System.Text.Encoding.UTF8.GetBytes(message);
+        var length  = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(length, (uint)text.Length);
+        var trailer = Convert.FromHexString("0000");            // Low confidence 0, Modifiers 0
+        return [.. prefix, .. length, .. text, .. trailer];
     }
 
     // ── Inbound: Free Text gated and a no-op ────────────────────────────────

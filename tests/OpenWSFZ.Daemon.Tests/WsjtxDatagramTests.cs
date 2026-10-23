@@ -165,39 +165,92 @@ public sealed class WsjtxDatagramTests
         hb.Revision.Should().Be("revX");
     }
 
-    // ── Decode: Reply (mirrors Decode's field layout) ───────────────────────
+    // â”€â”€ Decode: Reply (#257) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //
+    // The fixtures below are LITERAL bytes, never produced by a helper that encodes this daemon's
+    // own field list: the previous Reply test built its datagram with the same (wrong) field list
+    // the parser read, so the defect passed both. U1 is a real Reply that GridTracker2 sent on a
+    // double-click (QA capture P1, 2026-10-23, 68 bytes), layout per NetworkMessage.hpp (Reply,
+    // In, 4): header, Id, Time, snr, delta time, delta frequency, Mode, Message, Low confidence,
+    // Modifiers. There is NO "New" byte. Synthetic values only (NFR-021).
 
-    [Fact(DisplayName = "TryDecode parses a Reply datagram and extracts the message text")]
-    public void TryDecode_Reply_ExtractsMessage()
+    private const string RealReplyHex =
+        "adbccbda" +                    // magic 0xADBCCBDA
+        "00000003" +                    // schema 3
+        "00000004" +                    // message type 4 = Reply
+        "00000008" + "51412d50524f4245" + // Id, utf8, length 8: "QA-PROBE"
+        "0385cb60" +                    // Time, quint32 ms since midnight: 59,100,000
+        "fffffff6" +                    // snr, qint32: -10
+        "3fb999999999999a" +            // delta time, double: 0.1
+        "000004d2" +                    // delta frequency, quint32: 1234
+        "00000001" + "7e" +             // Mode, utf8, length 1: "~"
+        "0000000d" + "4351205131545354204a4f3232" + // Message, utf8, length 13: "CQ Q1TST JO22"
+        "00" +                          // Low confidence, bool: false
+        "00";                           // Modifiers, quint8: 0
+
+    private static byte[] RealReply() => Convert.FromHexString(RealReplyHex);
+
+    private static void AssertParsesAsRealReply(byte[] datagram)
     {
-        // Hand-build a Reply datagram: header + New(bool) + Time(u32) + SNR(i32) +
-        // DeltaTime(double) + DeltaFrequency(u32) + Mode(str) + Message(str) + LowConfidence(bool).
-        var buf = new List<byte>();
-        void U32(uint v) { Span<byte> b = stackalloc byte[4]; BinaryPrimitives.WriteUInt32BigEndian(b, v); buf.AddRange(b.ToArray()); }
-        void I32(int v)  => U32(unchecked((uint)v));
-        void Str(string s) { var bytes = Encoding.UTF8.GetBytes(s); U32((uint)bytes.Length); buf.AddRange(bytes); }
-        void Dbl(double v) { Span<byte> b = stackalloc byte[8]; BinaryPrimitives.WriteInt64BigEndian(b, BitConverter.DoubleToInt64Bits(v)); buf.AddRange(b.ToArray()); }
-
-        U32(WsjtxDatagram.Magic);
-        U32(WsjtxDatagram.SchemaVersion);
-        U32((uint)WsjtxDatagram.MessageType.Reply);
-        Str("GridTracker2");
-        buf.Add(1);              // New = true
-        U32(51300);              // Time
-        I32(-10);                // SNR
-        Dbl(0.1);                // DeltaTime
-        U32(1500);               // DeltaFrequency
-        Str("~");                // Mode
-        Str("CQ Q1TST JO22");    // Message
-        buf.Add(0);               // LowConfidence = false
-
-        var ok = WsjtxDatagram.TryDecode(buf.ToArray(), out var message);
+        var ok = WsjtxDatagram.TryDecode(datagram, out var message);
 
         ok.Should().BeTrue();
         var reply = message.Should().BeOfType<WsjtxDatagram.InboundMessage.ReplyMessage>().Subject;
         reply.Message.Should().Be("CQ Q1TST JO22");
-        reply.DeltaFrequencyHz.Should().Be(1500);
+        reply.DeltaFrequencyHz.Should().Be(1234);
     }
+
+    [Fact(DisplayName = "#257 U1: TryDecode parses the real GridTracker2 Reply (no New byte)")]
+    public void TryDecode_RealReply_ExtractsMessageAndDeltaFrequency()
+    {
+        var bytes = RealReply();
+        bytes.Length.Should().Be(68);
+        AssertParsesAsRealReply(bytes);
+    }
+
+    [Theory(DisplayName = "#257 U2: the Modifiers byte is read and ignored")]
+    [InlineData((byte)0x02)]
+    [InlineData((byte)0x04)]
+    public void TryDecode_RealReply_ModifiersIgnored(byte modifiers)
+    {
+        var bytes = RealReply();
+        bytes[^1] = modifiers;
+        AssertParsesAsRealReply(bytes);
+    }
+
+    [Fact(DisplayName = "#257 U3: a Reply without the Modifiers byte still parses")]
+    public void TryDecode_RealReply_NoModifiers_Parses()
+        => AssertParsesAsRealReply(RealReply()[..67]);
+
+    [Fact(DisplayName = "#257 U4: a Reply ending after the message (no Low confidence, no Modifiers) still parses")]
+    public void TryDecode_RealReply_EndsAfterMessage_Parses()
+        => AssertParsesAsRealReply(RealReply()[..66]);
+
+    [Theory(DisplayName = "#257 U5: a Reply truncated inside a required field is rejected without throwing")]
+    [InlineData(60)] // inside the message (message bytes are 53..65)
+    [InlineData(36)] // inside delta time (bytes 32..39)
+    public void TryDecode_RealReply_TruncatedRequiredField_ReturnsFalse(int length)
+    {
+        var truncated = RealReply()[..length];
+
+        var act = () => WsjtxDatagram.TryDecode(truncated, out _);
+
+        act.Should().NotThrow();
+        WsjtxDatagram.TryDecode(truncated, out var message).Should().BeFalse();
+        message.Should().BeNull();
+    }
+
+    [Fact(DisplayName = "#257 U6: a null Mode (length 0xFFFFFFFF, no bytes) still parses")]
+    public void TryDecode_RealReply_NullMode_Parses()
+    {
+        var hex = RealReplyHex.Replace("00000001" + "7e", "ffffffff");
+        hex.Length.Should().Be(RealReplyHex.Length - 2, "only the Mode length changed and its byte was removed");
+        AssertParsesAsRealReply(Convert.FromHexString(hex));
+    }
+
+    [Fact(DisplayName = "#257 U10: bytes appended after Modifiers are ignored")]
+    public void TryDecode_RealReply_TrailingBytes_Ignored()
+        => AssertParsesAsRealReply([.. RealReply(), 0x01, 0x02, 0x03]);
 
     // ── Decode: Halt Tx ──────────────────────────────────────────────────────
 
