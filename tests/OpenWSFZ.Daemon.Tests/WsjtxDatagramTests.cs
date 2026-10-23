@@ -165,7 +165,7 @@ public sealed class WsjtxDatagramTests
         hb.Revision.Should().Be("revX");
     }
 
-    // â”€â”€ Decode: Reply (#257) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Decode: Reply (#257) ─────────────────────────────────────────────────
     //
     // The fixtures below are LITERAL bytes, never produced by a helper that encodes this daemon's
     // own field list: the previous Reply test built its datagram with the same (wrong) field list
