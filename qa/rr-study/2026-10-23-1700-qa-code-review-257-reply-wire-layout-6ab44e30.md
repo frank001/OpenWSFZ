@@ -27,6 +27,12 @@ Clean detached checkout of exactly `6ab44e30` (`D:\Projects\claude\_qa-scratch\2
 
 `tests/OpenWSFZ.Daemon.Tests/WsjtxDatagramTests.cs` line 168 in the commit reads `// â”€â”€ Decode: Reply (#257) â”€â€¦`: the box-drawing characters of the original comment (`// ── Decode: Reply …`, bytes `e2 94 80`) were written back double-encoded. It compiles and changes no behaviour, but it is an encoding regression in a file the repository keeps in UTF-8 (no other changed file has it; `ExternalReportingServiceTests.cs` and `WsjtxDatagram.cs` are clean). **Restore the proper characters or use plain ASCII dashes on that line, as a new commit on top.** QA will review the delta (one line) and re-run `pre_merge_check.py` on the new tip.
 
+## ADDENDUM (QA, 2026-10-23, `date -u` 16:42Z): the fix commit, new tip
+
+Reviewed-commit: e8ef95448ab9321af7c5ff8d38f7d7d3b4829b85
+
+Verdict: APPROVED. The Developer added a NEW commit on top of `6ab44e30` (no amend). Delta, read by QA: exactly 2 files, 2 lines each, no `src/` change: `WsjtxDatagramTests.cs` line 168 (the box-drawing characters are back to the proper UTF-8 bytes; a grep of all three C# files for the double-encoded marker gives 0 hits in each) and `openspec/changes/inbound-reply-wire-layout/tasks.md` (byte-identical to QA's version at `65cbf8a0`, so it now carries the Architect's A1.5). **`pre_merge_check.py` run from a clean detached checkout of exactly `e8ef9544` (`D:\Projects\claude\_qa-scratch\257-review\tip`, log `…\257-review\pmc257b.log`): READY, every gate passed, exit 0:** native freshness (Windows, Linux, macOS 20260069), G9a, G9b, solution build, UDP margin lint, G10, full Release suite (Daemon 792, Ft8 580 on Windows), G3, WSL Debian compile and test (Daemon 760, Ft8 580 on Linux; the Windows-only tests are excluded there), G8, self-contained publish, AOT publish. The U1 mutation result above (11 fail) was taken on `6ab44e30`; the delta touches no code, so it stands for the tip.
+
 ## Next
 
 The Developer fixes line 168. QA runs the full pre-merge check on the exact new tip, including the Linux/WSL leg (a run on `6ab44e30` is in progress and will say now if anything else needs fixing in the same round), then asks the Captain for the push go. Live L-1 and L-2 follow the merge and a redeploy.
