@@ -1,6 +1,6 @@
 # REVIEW: what WSJT-X 2.7.0 "Deep" does, against OpenWSFZ `main`, and the ranked levers that follow
 
-- **From:** Architect  **To:** Captain (cc QA)  **Date:** 2026-10-24 12:35Z (`date -u` 12:30:59Z)
+- **From:** Architect  **To:** Captain (cc QA)  **Date:** 2026-10-24 12:31Z (`date -u` 12:30:59Z; first committed 12:32:10Z; the earlier "12:35Z" was an estimate, ledger E53)
 - **Asked by:** the Captain, 2026-10-24 ("start the Deep read").
 - **Branch:** `arch/wsjtx-deep-read`, off `origin/main` `5a9667ee`. Docs only; `git diff --stat -- src/ native/` is empty.
 - **This is a source read, not a measurement.** No run was made. Every "expected" below is a judgement, and none is a figure to cite.

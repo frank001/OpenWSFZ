@@ -178,7 +178,7 @@ Statistics: the cycle-block bootstrap of `cg_rows.py` (blocks of 8 sampled cycle
 
 ---
 
-## Amendment 1 (2026-10-24 ~13:0xZ `date -u`): QA's (k) review, A1–A3 ACCEPTED; V3 corrected; X's population defined
+## Amendment 1 (2026-10-24 12:44Z, commit `9dc26f52` 12:44:17Z; corrected from an estimated "~13:0xZ", ledger E53): QA's (k) review, A1–A3 ACCEPTED; V3 corrected; X's population defined
 
 **Source:** QA's (k) review, 2026-10-24 12:5xZ (message). Verdict: ACCEPT WITH 3 AMENDMENTS. QA confirmed every FILE:LINE against `origin/main` `5a9667ee`:
 - `cf_run_bp` `ft8_shim.c:2236–2244`;
@@ -235,15 +235,33 @@ The Stage 2 night is `20261009_1752_endurance_run` (+ `-gathered`).
 - X4 (W-FAIL, 0.20) is **not re-priced.** It now scores against A1.2's row.
 - **QA proceeds to step 2.** No real-audio decode before BAR_L is ratified.
 
-**A1.7 Step 2 rulings (2026-10-24 ~13:1xZ, on QA's inventory; nothing decoded).**
+**A1.7 Step 2 rulings (2026-10-24 12:47Z, commit `cbbc871e` 12:47:20Z; corrected from "~13:1xZ", E53; on QA's inventory; nothing decoded).**
 - **Night:** `20261022_1949_endurance_run-gathered`, 40 m, Windows Voicemeeter chain. It has 2,926 cycles in both WAV sets, 2,923 with Rx lines, and 78,287 WSJT-X Rx lines. It is fresh for this question.
 - **WAV source:** `owsfz/wav`, for parity with COH-GAIN. δ = 0.7 s was calibrated on OWS WAVs.
 - **Sampling:** **k = 3.**
   - QA's proposed k = 4 would put every sampled cycle on one index parity, against §4's "odd k".
   - Sample = index mod 3 == 1 (≈ 975 cycles); pilot = the first 100 cycles with index mod 3 == 2.
   - The pilot is never pooled with the sample. Even/odd slot counts must be within 2 % of each other, as Q-GATE-2.
-- **A1.8 (QA's conflict note, ~13:2xZ; my error E52): A1.6/A1.7 contradicted §8.** They needed a pilot decode before BAR_L, which §8 forbids. Ruled:
+- **A1.8 (QA's conflict note; ruled 12:49Z, commit `8b769cd8` 12:49:54Z, corrected from "~13:2xZ", E53; my error E52): A1.6/A1.7 contradicted §8.** They needed a pilot decode before BAR_L, which §8 forbids. Ruled:
   - **(1) δ is computed from `ALL.TXT` numbers alone:** the DT of the live run's exact OWS/WSJT-X matches in the pilot cycles, aggregates only. No decode, so it runs now.
   - **(2) No real-audio decode of any kind before BAR_L, pilot included.** A pilot NET_X seen before the bar would let the bar be chosen with the result in view. That is exactly what "frozen before data" protects (HK-038; blind only where it protects a verdict, and this is the verdict).
   - **(3) The half-width for D3 is given as a function of the unknown NET_X,** from the counted row and cycle structure (N, rows per cycle, block count). A1.6's indicative table already shows both bars are resolvable. The pilot decode (timing) may run after BAR_L is set, and is still never pooled.
 - **Pilot δ check (mechanical, before D3 is asked):** median anchor offset on the pilot's exact matches, as COH-GAIN Amendment 1. If |δ_pilot − 0.7 s| > **0.05 s** (half of WSJT-X's 0.1 s DT resolution), stop and come back before any sample decode.
+
+**A1.9 δ PASS; BAR_L RATIFIED = 0.5 pp, FROZEN (2026-10-24 12:50:57Z by `date -u`, before any real-audio decode).**
+- **δ (QA, `ALL.TXT` numbers only, pilot 100 cycles):**
+  - 1,869 exact matches of 2,433 WSJT-X lines;
+  - median(OWS_DT − WS_DT) = **0.700 s** (quartiles 0.6, 0.7);
+  - |δ − 0.7| = 0.000 ≤ 0.05: **PASS**.
+- **Counted structure (QA):**
+  - 975 cycles, N = 26,190 WSJT-X rows (unencodable rows included; the encodable count follows with the DLL);
+  - 26.86 rows per cycle; 122 blocks of 8.
+- **Half-width shown to the Captain** (95 %, design effect 1.45 from COH-GAIN; a floor-ish indication): ±0.065 / 0.103 / 0.145 / 0.204 pp at a true NET_X of 0.2 / 0.5 / 1.0 / 2.0.
+  - At 0.5 pp: GO needs a point of about 0.60, STOP a point below about 0.40.
+- **The Captain's choice:** **"0.5 pp (Recommended)"**, from both options with their consequences (Architect's window, AskUserQuestion).
+- **Rows:**
+  - L1-GO `CI_lo(NET_X)` ≥ **0.5 pp**;
+  - L1-STOP `CI_hi(NET_X)` < 0.5;
+  - L1-OPEN otherwise.
+- 🛑 **Never moved after NET_X is seen.** X2 is scored against it.
+- **QA may now run the real-audio steps in §8 step 4's order.** The run itself is QA's (runs and pushes need the Captain's go in QA's window as usual; this ratification is not that go).
