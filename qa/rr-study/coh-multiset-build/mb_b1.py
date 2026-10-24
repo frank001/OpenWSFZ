@@ -57,10 +57,17 @@ assert C.sizeof(Outcome) == 32 and C.sizeof(SetsResult) == 216
 _DEC = _NEW = _ROWS = None
 
 
-def _init(dll_new, dll_old):
+def _init(dll_new, dll_old, pin_new, same_lib_bp):
     global _DEC, _NEW, _ROWS
-    assert CG.file_sha256(dll_new) == NEW_DLL_PIN, "new DLL differs from its pin"
-    _DEC = R.load_decoder(dll_old)                                  # BP for the Python reference: the arm's pinned DLL (aaf6b03e)
+    assert CG.file_sha256(dll_new) == pin_new, "new library differs from its pin"
+    if same_lib_bp:
+        # Linux (sol): the arm's Windows DLL does not exist there; BP for the Python reference goes through the SAME library (decode.c is unchanged between aaf6b03e and this build).
+        from ldpc_decode_ctypes import LdpcDecodeLLRs
+        _DEC = LdpcDecodeLLRs(dll_new, verify=True, expected_sha256=pin_new, expected_shim_version=NEW_SHIM, check_version=True)
+        _DEC.dll.ft8_set_decode_params(10, 0.10, 24)
+        _DEC.dll.ft8_set_osd_sign_fix(1)
+    else:
+        _DEC = R.load_decoder(dll_old)                              # BP for the Python reference: the arm's pinned DLL (aaf6b03e)
     _NEW = C.CDLL(dll_new)
     _NEW.ft8_lib_version_check.restype = C.c_int
     assert _NEW.ft8_lib_version_check() == NEW_SHIM
@@ -146,9 +153,12 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--pin-new", default=NEW_DLL_PIN, help="SHA-256 the library under test must have (default: the Windows ea2c1d14/d7750bde DLL; sol passes its own .so)")
+    ap.add_argument("--same-lib-bp", action="store_true", help="use the library under test for the Python reference's BP (Linux)")
     a = ap.parse_args()
-    assert CG.file_sha256(a.dll_new) == NEW_DLL_PIN
-    assert CG.file_sha256(a.dll_old) == R.DLL_PIN
+    assert CG.file_sha256(a.dll_new) == a.pin_new
+    if not a.same_lib_bp:
+        assert CG.file_sha256(a.dll_old) == R.DLL_PIN
     rows_all = json.load(open(ROWS_JSON))["rows"]
     key = {(r[0], r[2]): r for r in rows_all}
     tasks = []
@@ -159,11 +169,11 @@ def main():
     if a.limit:
         tasks = tasks[:a.limit]
     assert a.limit or len(tasks) == 7498, len(tasks)
-    with ProcessPoolExecutor(max_workers=a.workers, initializer=_init, initargs=(a.dll_new, a.dll_old)) as ex:
+    with ProcessPoolExecutor(max_workers=a.workers, initializer=_init, initargs=(a.dll_new, a.dll_old, a.pin_new, a.same_lib_bp)) as ex:
         res = list(ex.map(_row, tasks, chunksize=16))
     ok = [r for r in res if not r["fault"]]
     n = len(ok)
-    out = {"rows": len(tasks), "evaluated": n, "faults": len(res) - n, "new_dll_pin": NEW_DLL_PIN, "old_dll_pin": R.DLL_PIN, "estimate_equal": sum(r["est_equal"] for r in ok),
+    out = {"rows": len(tasks), "evaluated": n, "faults": len(res) - n, "new_dll_pin": a.pin_new, "old_dll_pin": ("same library (Linux)" if a.same_lib_bp else R.DLL_PIN), "estimate_equal": sum(r["est_equal"] for r in ok),
            "thresholds": {"overall": OVERALL_MIN, "positive_class": POSITIVE_MIN, "union": UNION_MIN, "v3": V3_MIN}, "sets": {}}
     allpass = n == len(tasks)
     for name in NAMES + ("walk",):
