@@ -231,3 +231,11 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
 - **Clarification (a):** R3 stands. A KNOWN set payload ends the walk. f_X's upper-bound nature is already in §7 / the arm's §10.
 
 **Next:** QA writes the OpenSpec change `coh-multiset-build`, `tasks.md` (B1 with M2, B2 with M1, B3, A1) and the Developer handoff with shim `20260071`. Developer work may start from that handoff.
+
+**A1.1 (15:03:01Z by `date -u`): how the bit reaches `_process`.**
+- **QA's finding.** `ft8_coherent_fallback_process` has no flags argument (`ft8_shim.c:2634–2636`), and `_ctx_new` takes none (`ft8_shim.h:1638`). My "the same bit given to `_process`" assumed a parameter that does not exist (ledger E59).
+- **QA's route in the handoff:** an added setter on the per-thread scratch context, with the existing signatures unchanged and the FILE:LINE recorded. This is accepted. A context is not a process-global (R7, R8).
+- **Added requirement: the context is long-lived.** `CohFallbackLibBackend` holds `_ctx` as a field (`CohFallbackLibBackend.cs:22`), so a context outlives a cycle while the flag can change at run time.
+  - The managed side **sets the bit on every context before each cycle's `_process` calls**, from the once-per-cycle flag read (R7).
+  - The native default for a new context is **off**.
+  - **Test:** one context, two consecutive cycles with the flag ON then OFF (and OFF then ON). Each cycle's outputs equal a fresh context with that cycle's flag.
