@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """COH-MULTISET-BUILD replay analysis (Architect spec sections 6.2-6.7 with Amendments 1-3). Numbers only: no message text is read.
 
-  python mb_analysis.py <raw dir with ref/ ms/ msrep/ and ref_status.txt ms_status.txt msrep_status.txt> <out json> --pin <libft8 sha256> --v5-max <0.05 PC | 0.01 sol>
+  python mb_analysis.py <raw dir with ref/ ms/ msrep/ and ref_status.txt ms_status.txt msrep_status.txt> <out json> --pin <libft8 sha256> --v5-max <0.05 PC | 0.01 sol> [--nc-ref <ref nc_dump.tsv> --nc-ms <ms nc_dump.tsv>]
   python mb_analysis.py compare <raw dir A> <raw dir B> <out json>        # V8: per cycle, machine A's outcomes (all kinds incl. provenance fields) equal machine B's
 
 COMMITTED BEFORE ANY DECODE OF ANY ARM. THE BARS ARE THE CAPTAIN'S AND FROZEN (set by him 2026-10-24 before any decode, relayed in the Architect's Amendment 3; never moved):
@@ -13,9 +13,11 @@ Rows:
   V3  0 exceptions in every arm (run.csv).      V4  batches 1, 2, 3 identical MS vs REF per cycle, except cycles where an ORDINARY pass hit the cycle budget in exactly one arm.
   V5  cycles with any abandoned work <= --v5-max (0.05 on the PC, 0.01 on sol) in MS AND, on sol, in REF.
   V6  MS-repeat vs MS on the repeated cycles: the per-cycle outcome multiset identical, 0 unexplained (cycles explained by abandonment in either run are counted).
-  V7  V3 untouched, as far as the replay can see it: per cycle, every batch-4 decode REF published is also published by MS (multiset inclusion), except abandonment-explained cycles; N/N.
-      LIMIT: the replay's decodes carry no per-decode provenance (DecodeResult.Path is 2 for every fallback decode and Replay81 cannot reach the fallback rows), so 'MS has no V3-provenance decode REF lacks' is
-      checked as: MS-only batch-4 decodes are reported (count) and the per-set CRC-valid counters (crcC1..N1) bound how many of them can come from a set.
+  V7' (Architect Amendment 4, replaces V7)  V3 untouched, as far as the replay can see it: per cycle, every batch-4 decode REF published is also published by MS (same outcome fields: freq, dt, snr, path), except
+      (a) abandonment-explained cycles and (b) a REF decode whose SAME TEXT is published by MS on a different candidate (an earlier set decode of the same message, published once by the per-cycle text dedup, so the position may
+      differ); (b) counts as explained ONLY when listed one by one in the output (stamp, freq, dt, snr). MS-only batch-4 decodes are counted, with the R10 counters crcC1..N1 beside them as bounds.
+      LIMIT, stated in the report: the replay carries no per-decode provenance, so 'MS has no NEW V3-provenance decode' is not checked here; it rests on the P1 cross-check (product walk == export walk on real audio).
+      The text of (b) is read from the Replay81 working files (--nc-dump, path 2 only) INSIDE this function; only freq/dt/snr/stamp leave it (HK-037).
 Descriptive: NET and dU' by Test-B band, set wins per cycle by provenance counter, R10 counters, cost lines (fallback wall time per cycle median/p95/max, batch-4 publish time median/p95, margin to the 13 s budget), MS-repeat timing.
 """
 import collections
@@ -120,7 +122,7 @@ def fb_ab(R, a, s):
     return int(R[a]["coh"].get(s, {}).get("abandoned") or 0) > 0
 
 
-def analyse(raw, out, pin, v5_max):
+def analyse(raw, out, pin, v5_max, nc_ref=None, nc_ms=None):
     R = {a: load_arm(raw, a) for a in ("ref", "ms", "msrep")}
     res = {"bars": {"D_bar_pp": D_BAR_PP, "U_bar": U_BAR}, "block": BLOCK, "B": B_BOOT, "seed": SEED, "pin": pin, "v5_max": v5_max}
     stamps = sorted(R["ref"]["run"])
@@ -170,19 +172,46 @@ def analyse(raw, out, pin, v5_max):
 
     def b4(arm, s):
         return collections.Counter((f, d, n, p) for (k, f, d, n, p) in R[arm]["out"].get(s, []) if k == "b4")
-    missing, ms_only, v7_exc = [], 0, 0
+
+    def load_nc_b4(path):
+        """stamp -> list of (freq, dt, snr, text) of the batch-4 (fallback) decodes in a --nc-dump working file. Text never leaves this module's functions."""
+        d = collections.defaultdict(list)
+        if not path:
+            return d
+        for line in open(path, encoding="utf-8", errors="replace"):
+            f = line.rstrip("\n").split("\t")
+            if len(f) >= 11 and f[1] == "4":
+                d[f[0]].append((f[3], f"{float(f[4]):.1f}", f[5], f[10].strip()))
+        return d
+    ncr, ncm = load_nc_b4(nc_ref), load_nc_b4(nc_ms)
+
+    def same_text_elsewhere(s, item):
+        """True iff the lost REF decode's text is published by MS in this cycle on a candidate that is not one of REF's own batch-4 decodes (so it is an MS-only extra)."""
+        f, d, n, _p = item
+        texts = {t for (ff, dd, nn, t) in ncr.get(s, []) if (ff, f"{float(dd):.1f}", nn) == (f, f"{float(d):.1f}", n)}
+        ref_pos = {(ff, f"{float(dd):.1f}", nn) for (ff, dd, nn, _t) in ncr.get(s, [])}
+        return any(t in texts and (ff, f"{float(dd):.1f}", nn) not in ref_pos for (ff, dd, nn, t) in ncm.get(s, []))
+
+    missing, ms_only, v7_exc, listed = [], 0, 0, []
     for s in stamps:
         r_, m_ = b4("ref", s), b4("ms", s)
         lost = r_ - m_
         ms_only += sum((m_ - r_).values())
-        if lost:
-            if fb_ab(R, "ref", s) != fb_ab(R, "ms", s) or ord_ab(R, "ref", s) != ord_ab(R, "ms", s):
-                v7_exc += 1
-            else:
-                missing.append(s)
+        if not lost:
+            continue
+        if fb_ab(R, "ref", s) != fb_ab(R, "ms", s) or ord_ab(R, "ref", s) != ord_ab(R, "ms", s):
+            v7_exc += 1
+            continue
+        unexplained = [it for it in lost.elements() if not same_text_elsewhere(s, it)]
+        for it in lost.elements():
+            if it not in unexplained:
+                listed.append({"stamp": s, "freq": it[0], "dt": it[1], "snr": it[2]})
+        if unexplained:
+            missing.append(s)
     res["V7"] = {"ref_b4_decodes_missing_in_ms_cycles": len(missing), "first": missing[:5], "abandonment_explained_cycles": v7_exc, "ms_only_b4_decodes": ms_only,
-                 "verdict": "PASS" if not missing else "FAIL",
-                 "limit": "no per-decode provenance in the replay: inclusion is checked, MS-only decodes are counted, not attributed"}
+                 "same_text_other_candidate_exceptions_listed": listed, "n_listed": len(listed), "nc_dumps_used": bool(nc_ref and nc_ms),
+                 "r10_counters_bound": "see R10_counters_ms (crc_c1..crc_n1)", "verdict": "PASS" if not missing else "FAIL",
+                 "limit": "no per-decode provenance in the replay; 'no new V3-provenance decode in MS' rests on the P1 cross-check (product walk == export walk, real audio)"}
 
     W = {s: ws_ref[s][0] for s in ref}
     Mref = {s: R["ref"]["tb"][0][s][1] for s in ref}
@@ -252,4 +281,6 @@ if __name__ == "__main__":
     raw, out = sys.argv[1], sys.argv[2]
     pin = sys.argv[sys.argv.index("--pin") + 1]
     v5 = float(sys.argv[sys.argv.index("--v5-max") + 1])
-    sys.exit(analyse(raw, out, pin, v5))
+    ncr = sys.argv[sys.argv.index("--nc-ref") + 1] if "--nc-ref" in sys.argv else None
+    ncm = sys.argv[sys.argv.index("--nc-ms") + 1] if "--nc-ms" in sys.argv else None
+    sys.exit(analyse(raw, out, pin, v5, ncr, ncm))
