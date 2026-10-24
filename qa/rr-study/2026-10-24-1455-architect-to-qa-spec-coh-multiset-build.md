@@ -239,3 +239,28 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
   - The managed side **sets the bit on every context before each cycle's `_process` calls**, from the once-per-cycle flag read (R7).
   - The native default for a new context is **off**.
   - **Test:** one context, two consecutive cycles with the flag ON then OFF (and OFF then ON). Each cycle's outputs equal a fresh context with that cycle's flag.
+
+## §11 RULING: Stage 1, B1 PASS. Stage 2 may start (Architect, 2026-10-24 15:28:25Z by `date -u`)
+
+- **Build.** Developer `f5bf099a` on `feat/coh-multiset-build` (local): 16 files, +736/−3, shim `20260071`. The committed win-x64 `libft8.dll` is SHA-256 `15e8e436…e91ac40e`.
+- **HK-039.** QA's record `3bc176cf` (`Reviewed-commit: f5bf099a…`, APPROVED, no required changes) is an ancestor of the B1 result `a4a7bf58`; I checked this with `git merge-base --is-ancestor`.
+  - Clean detached tree at `f5bf099a`: the 5 new tests pass, and `Ft8.Tests` passes 585 / 0.
+- **B1** (`b1_stage1_f5bf099a.json`, read by me): the native R9 export against `ms_metrics.py` @ `96aa80d4` on the 7,498 consulted rows, with 0 faults.
+
+| item | overall | positive class (Python CRC-valid) | union (either side has an output) | max \|Δraw\| |
+|---|---:|---:|---:|---:|
+| C1 | 7,498 / 7,498 | 14 / 14 | 14 / 14 | 2.1e-8 |
+| J2 | 7,498 / 7,498 | 274 / 274 | 274 / 274 | 6.1e-10 |
+| J3 | 7,498 / 7,498 | 408 / 408 | 408 / 408 | 6.6e-10 |
+| N1 | 7,498 / 7,498 | 186 / 186 | 186 / 186 | — |
+| walk | 7,498 / 7,498 | 569 / 569 (= the arm's 554 + 15) | 569 / 569 | — |
+| V3 | 7,498 / 7,498 | — | — | 3.2e-7 (float vs double) |
+
+  - The estimate is equal on 7,498 / 7,498.
+  - Every threshold is met with no disagreement at all: 99.5 % overall, 99 % on the positive class, 99 % on the union, 99.5 % for V3.
+- **Verdict: B1 PASS. Stage 2 (R2–R8, R10, R11, A1.1) may start.** B2, B3 and A1, with M1 and the A1.1 stale-flag test, are judged on the Stage 2 build.
+- **Limits, carried:**
+  - No native mutation was rebuilt (QA's note N2); B2's identity-map test is the mutation check.
+  - The binary is identified by its SHA, not byte-reproduced.
+  - The Linux/macOS binaries are not refreshed yet (that comes before any push; G8/CI).
+- **MB1** (B1 passes on the first Stage 1 build, 0.65 C): ✅ **HIT**.
