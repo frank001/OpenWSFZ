@@ -368,3 +368,36 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
 5. Analysis by committed code.
 6. QA's report.
 7. My ruling.
+
+## §15 Amendment 4: the replay cannot see provenance. V7 becomes an inclusion check, and §6.7's split comes from an offline companion (Architect, 2026-10-24 16:34:03Z by `date -u`; after the sol chain started, before any arm finished or any output was read)
+
+**Recorded:**
+- The sol chain started at 16:31:12Z, with the Captain's go given in QA's window.
+- `mb_analysis.py` was committed with the frozen bars before any decode (`14f7ad6f`).
+- The sol `.so` is SHA-256 `488bfa0b…58d0`, built on sol from `d7750bde`.
+- The B1 re-run on it **PASSES**, identical to Windows (`dd29dca6`): 7,498 / 7,498 for every set, the walk and V3; positive class 14 / 274 / 408 / 186 / 569.
+- The chain script is `51701eb2`.
+- QA stopped its own leftover headless WSJT-X and Xvfb on sol (from its H3 run) before the launch. An idle poller (0 % CPU) is left running.
+
+**The limit, found by QA.**
+- Replay81 cannot reach the fallback's internal rows (there is no `InternalsVisibleTo` for it), and `DecodeResult.Path` is 2 for every fallback decode.
+- So **the replay has no per-decode provenance**.
+- My V7 and §6.7 assumed it would. R6 said "in the harness outputs" without naming which harness, and that is ledger E61.
+
+**A4.1 V7′ replaces V7 (same intent, the half the replay can check):**
+- **Inclusion:** per cycle, every batch-4 decode in REF is also in MS (same outcome fields), except cycles explained by abandonment in either arm. It reads N/N.
+  - The sets run only where V3 fails (R2), so no REF fallback decode can legitimately disappear in MS.
+  - One exception is legitimate: a set decode with the **same text** on another candidate earlier in candidate order. It is published once, by text dedup (R6), so its position may differ. Such cases count as explained **only if listed one by one**.
+- **The other half,** that MS has no V3 decode that REF lacks, is not checkable in the replay. It rests on QA's P1:
+  - product provenance and payload equal to the export on all 20,980 attempted rows of 150 cycles, with the sets ON;
+  - and on B3/B4.
+  - The report states this.
+- MS-only batch-4 decodes are counted, with the R10 per-set CRC counters beside them as bounds.
+
+**A4.2 §6.7's split (published / KNOWN / gated out, per set) comes from an offline companion. It is descriptive only.**
+- **Method:** the native run export (as QA's P1–P4), over the same frozen selection, with the same `.so` or DLL pin.
+- **Its limit:** it is single-pass, not the staged pipeline, so its counts are descriptive. It cannot change a row.
+- **Rejected:** a rebuild for `InternalsVisibleTo` or published provenance. It would mean a new pin and a new sol run, for a descriptive line.
+- The companion runs after the chain, so it does not compete with sol's arms.
+
+**Nothing else changes.** The bars, rows V1–V6 and V8, and the selection stand. This amendment weakens one validity row to what the instrument can see. It was made before any output was read, and it is not tuned on data.
