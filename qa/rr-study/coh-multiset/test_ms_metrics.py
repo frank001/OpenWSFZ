@@ -92,6 +92,18 @@ class CleanSignal(unittest.TestCase):
         self.assertAlmostEqual(M.j2(X)[0], 1.0, places=9)              # in-phase pair: best 1-hypothesis |1 + 1| = 2, best 0-hypothesis |1 + 0| = 1, so 2 - 1
 
 
+class Spectra(unittest.TestCase):
+    def test_spectra_reproduce_the_extractors_order_one(self):
+        """The shared-estimate path (ms_metrics.spectra) must yield exactly the extractor's own V1 at the same estimate: the sets differ only in how the bits are formed."""
+        import fine_sync as FS
+        rng = np.random.default_rng(5)
+        pcm = (0.1 * rng.standard_normal(180000)).astype(np.float32)
+        est = {"dt_step": 3, "est_df_hz": 0.4}
+        f, t = 1234.0, 0.7
+        want = M.CE.extract_variants(pcm, f, FS.anchor_dt_for_step(t, est["dt_step"]), df_hz=est["est_df_hz"])["V1"]
+        np.testing.assert_allclose(M.c1(M.spectra(pcm, f, t, est)), want, rtol=0, atol=1e-9)
+
+
 class N1(unittest.TestCase):
     def test_bounded_and_zero_safe(self):
         rng = np.random.default_rng(3)

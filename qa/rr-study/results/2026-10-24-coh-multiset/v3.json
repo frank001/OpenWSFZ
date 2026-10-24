@@ -1,0 +1,15 @@
+{
+ "V3": {
+  "pass": true,
+  "rule": "outcome agrees on >= 299/300 and (df, dt) equal on >= 297/300 (Amendment 1 A1.5)"
+ },
+ "both_have_output": 206,
+ "dll_pin": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef",
+ "estimate_equal": 300,
+ "max_abs_dLLR_descriptive": 0.001952860846358817,
+ "native_outputs": 206,
+ "outcome_agree": 300,
+ "python_outputs": 206,
+ "rightness_equal_where_both": 206,
+ "rows": 300
+}

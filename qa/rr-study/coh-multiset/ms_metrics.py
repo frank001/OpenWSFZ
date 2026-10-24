@@ -27,6 +27,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "n2-coherent-llr-extractor"))
+sys.path.insert(0, os.path.join(HERE, "..", "coh-gain"))
 import coherent_extract as CE  # noqa: E402
 
 GRAY_MAP = CE.GRAY_MAP                  # (0, 1, 3, 2, 5, 6, 4, 7): public protocol constant
@@ -110,6 +111,15 @@ def c1(X: np.ndarray) -> np.ndarray:
     for k, sym in enumerate(DATA_SYM_IDX):
         v[3 * k:3 * k + 3] = CE._order1_llr(X, sym)
     return v
+
+
+def spectra(pcm: np.ndarray, anchor_f: float, anchor_t: float, est: dict) -> np.ndarray:
+    """X[79, 8] at C3's own fine-sync estimate: exactly the steps of coherent_extract.extract_variants up to correlate_symbols (the arms share one estimate per row)."""
+    import fine_sync as FS
+    t = FS.anchor_dt_for_step(anchor_t, est["dt_step"])
+    bb = CE.downconvert_decimate(pcm, anchor_f + est["est_df_hz"])
+    start = int(round(t * CE.RATE_FINE_HZ)) + CE.TIME_ORIGIN_CORRECTION_SAMPLES_2K
+    return CE.correlate_symbols(bb, start)
 
 
 SETS = {"C1": c1, "J2": j2, "J3": j3, "N1": n1}      # X's fixed order (Architect Amendment 1 / A1.3): C1 > J2 > J3 > N1
