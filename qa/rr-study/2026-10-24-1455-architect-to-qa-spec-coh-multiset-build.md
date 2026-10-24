@@ -1,0 +1,197 @@
+# SPEC — `COH-MULTISET-BUILD`: the coherent fallback tries four more bit-metric sets where V3 fails; flag-gated (default OFF); then an offline replay, as shipped vs with the sets
+
+- **To:** QA (owner of the OpenSpec change, `tasks.md` and the Developer handoff; HK-015 / HK-000). **cc:** Captain. **From:** Architect.
+- **Date:** 2026-10-24 14:55Z (`date -u` 14:54:40Z).
+- **Branch:** `arch/coh-multiset` (local; the arm's spec, amendments and ruling live here). Docs only: `git diff --stat -- src/ native/` is empty.
+- **The build is in `native/` and `src/`** (`native/ft8_lib_vendor/refine/coherent_fallback.c`, `src/OpenWSFZ.Ft8/Native/ft8_shim.c`, the managed interop and config). It needs a separate Developer session (HK-011) and a new shim number, the next free one after `20260069`; QA confirms the number on `origin/main` before the handoff.
+- **Authorised:** the Captain, Architect's window, 2026-10-24, after the COH-MULTISET ruling and its options: *"yes, write the build spec."*
+  - **This spec authorises the build and the replay.** Merge (HK-010) and default ON stay the Captain's.
+- **Status:** pre-registered for the acceptance rows (§5, §6). QA may amend mechanics before any decode, by a dated note. No row, bar or threshold changes after any acceptance decode has run.
+- 🛑 **Licence (Captain, 2026-10-24, re-confirmed):** method only. **No WSJT-X source is opened, copied, transliterated or ported.** The reference is QA's own clean-room Python, written from the spec's prose (§2 R1). The new code carries a provenance header like `coherent_fallback.c:1–8`.
+
+## 0. Evidence this rests on
+
+| figure | value | source |
+|---|---|---|
+| X (C1 → J2 → J3 → N1, first CRC-valid, BP only) where G and C3 both fail, at WSJT-X's positions | **NET_X +2.115 pp [1.937, 2.302]**, 554 right / 15 wrong; f_X 2.64 % [1.60, 4.30] vs same-night f_C3 3.02 % | COH-MULTISET ruling `2026-10-24-1436` §1 (night `20261022_1949`, 974 cycles) |
+| per set, right at all / only this set | C1 11 / 1, J2 269 / 64, J3 401 / 196, N1 177 / 71 | same, §3 |
+| OSD in the fallback (L2) | +7 right for X, +19 / 1 for C3: **closed** | same, §3 |
+| CPU, Python, per consulted row | four sets 0.031 s (C3 0.047 s, G 0.078 s) | same, §3 |
+| the fallback as shipped, replay | NET +3.82 pp [3.44, 4.21], ΔU′ +0.0198 [0.0125, 0.0271]; wall median 215 ms, p95 352 ms | COH-FALLBACK §19 (`20260922_2056`) |
+| positions → production | the fallback went from +5.25 pp at WSJT-X's positions to +3.82 pp in replay | COH-GAIN; COH-FALLBACK §19 |
+
+🛑 **Not established, and measured here:**
+- the gain from our own candidates, with the F1b gate on the outputs;
+- false outputs on the product's noise candidates (U′);
+- the native CPU cost;
+- a second night.
+
+**For scale only, not a bar or a prediction:** applying the positions → production ratio (0.73) to +2.1 pp gives about +1.5 pp.
+
+## 1. What changes, in one paragraph
+
+In the coherent fallback's per-candidate body (`cf_process_one`, `ft8_shim.c:2247`; the parallel twin is `ft8_coherent_fallback_process`, `:2634`), **when V3 + BP gives no CRC-valid output**, the same candidate gets up to four more tries, in this fixed order:
+1. **C1** (order 1 on power);
+2. **J2** (joint pairs);
+3. **J3** (joint triples);
+4. **N1** (order 1 on magnitudes, normalised bit by bit).
+
+Each set is built from **the same per-symbol correlations `x_re/x_im` that `cf_v3_llrs` has just computed** at the same estimate (`coherent_fallback.c:392–416`). Each goes to BP only (as `cf_run_bp`, `ft8_shim.c:2236–2244`), and each is followed by the CRC.
+- **The first CRC-valid output ends the walk.** From there it follows the existing path unchanged: the known-payload check, `cf_snr_db`, the F1b gate (≤ `CF_T1_DB`), the states, dedup, `IsPlausibleMessage`, batch 4.
+- **If V3 gives a CRC-valid output, nothing new runs** (as the arm, A1.1).
+- **The new work is gated by a flag.** Flag OFF, or the fallback OFF ⇒ nothing changes.
+
+## 2. Requirements
+
+| # | Requirement |
+|---|---|
+| **R1 the method is the measured one** | Port **exactly** `qa/rr-study/coh-multiset/ms_metrics.py` as frozen for the arm (last change `96aa80d4`; unchanged at `1d172b18`), using `coherent_extract.py`'s V1 for C1, as `ms_metrics.py` imports it. Grouping, the magnitude score, the Gray map, N1's division (0 when both maxima are 0), the bit order and the sign (positive = bit 1) are as that file. **An equivalent but faster computation is allowed only if B1 passes** (e.g. the J3 max-log over 512 hypotheses by any exact rearrangement). B1 is what "exactly" means. The arithmetic is double, as `cf_v3_llrs`. |
+| **R2 when the sets run** | Only for a candidate on which the fallback's V3 ran and BP returned **no CRC-valid output** (state `NO_CRC` today: `ft8_shim.c:2663–2665` in `_process`, `:2507–2509` in the serial `_run`; both paths get the sets). Never when V3 is CRC-valid, whether the payload is known, new, gated or gated out. Never on a candidate the fallback did not attempt. |
+| **R3 order and stop** | C1 → J2 → J3 → N1, fixed (the arm's order, chosen in advance, never tuned). The first CRC-valid output stops the walk. It then takes the **existing** path exactly as a V3 output would: KNOWN if its payload is in the snapshot's decoded list, otherwise SNR, F1b and the gate. **A known or gated-out payload is not retried with a later set.** |
+| **R4 the gate applies to set outputs** | A set's new payload is published only if F1b ≤ `CF_T1_DB` (17.552 dB), the same constant and the same `cf_f1b_db` call as for V3 (`ft8_shim.c:2680–2683`; `_run` `:2527–2530`). **The arm did not apply this gate.** It can only lower both the gain and the false outputs, and the replay measures both. |
+| **R5 decoder** | BP only: `ftx_ldpc_decode_llrs` with `osd_depth` −1, `K_LDPC_ITERATIONS`, production normalisation, then CRC-14, as `cf_run_bp`. **No OSD** (L2 closed). The raw set values are cast to float exactly as `cf_run_bp` casts V3. |
+| **R6 provenance** | Every fallback result records which set produced its payload: 0 = V3, 1 = C1, 2 = J2, 3 = J3, 4 = N1, and −1 for none. It goes in the harness outputs and the per-cycle counters. **`ALL.TXT`, UDP and panel formats are unchanged.** |
+| **R7 the flag** | `decoder.coherentFallbackMultiSet`, **default `false`**. It is read once per cycle, as `coherentFallbackEnabled` is. It acts only when `coherentFallbackEnabled` is true. Config POST is an overlay (HK-035): a partial update leaves it as it was (test). **No Settings-page control in this change.** The Developer chooses how the flag reaches native (a parameter of `_process`/`_run` or a per-call flag bit, **not** a process-global), and records it with FILE:LINE. |
+| **R8 no mutable global state** | The per-candidate code stays free of mutable globals (`coherent_fallback.c:31`, the hash-state completeness test). Scratch lives in `cf_ctx_t` or on the stack. Parallel results stay deterministic: they are gathered in candidate order (step-4 R15). |
+| **R9 diagnostic export** | A new diagnostic-only export, which the Developer names (e.g. `ft8_coherent_fallback_sets_at`), takes `(pcm, f0, t0)` exactly as `ft8_coherent_fallback_at` and returns: the estimate; V3's BP outcome; for **each** of C1/J2/J3/N1, its 174 raw values, BP rc, CRC flag and payload, **computed for every set regardless of R2/R3** (B1 needs all four); and the R3 walk's result. **The existing exports' contracts and struct layouts are unchanged** (`_at`, `_cycle`, `_snapshot`, `_run`, `_plan`, `_process`, `_unpack`). Any new field goes in a new struct or in an appended field with the C# side (`CohFallbackTypes.cs`) changed in the same commit, a size assertion and a test. |
+| **R10 log line** | The per-cycle `Coherent fallback:` line (R12′) gains aggregates only: `sets=on/off`, the number of candidates that entered the walk, and CRC-valid counts per set (C1/J2/J3/N1). No text. |
+| **R11 flag OFF ⇒ nothing changes** | With `coherentFallbackMultiSet` false: identical native calls, outputs, counters (apart from the added zeros) and order. With `coherentFallbackEnabled` false: as today (R13). Characterisation tests cover both. |
+| **R12 nothing else moves** | Pass 0, the residual pass, the third pass, batches 1–3, F1b, `CF_T1_DB`, the estimator, V3, the deadline and abandonment rule (abandoned, never queued; R12′), the batch-4 publish and `LateBatch` capacity (A14.1 R14): **unchanged**. |
+| **R13 era** | With the flag ON, decodes are a **new era**: never pooled with flag-OFF figures. `FT8_SHIM_VERSION` bumps, and the DLL SHA is what identifies a build. |
+
+## 3. Stages
+
+- **Stage 1: the native core and R9's export, no product wiring.** → B1, B2, B3.
+- **Stage 2: the product wiring, R2–R8 and R10–R11.** It starts only after B1 passes.
+- **Before the replay:** QA's HK-039 review of every Developer commit, with the `Reviewed-commit:` record committed before any acceptance run.
+- **Before any push:** `pre_merge_check.py` from a clean checkout of the exact commit (HK-006, Captain 2026-10-23).
+
+## 4. Who decides what
+
+| step | needs |
+|---|---|
+| Stage 1 → Stage 2 | B1 PASS (Architect rules) |
+| the replay | B2, B3, A1 green; HK-039 record; the Captain sets D and U′ bars after the REF arm, before any MS decode (§6.3) |
+| merge with the flag OFF | A1, B1–B3, the unit and characterisation tests; `pre_merge_check.py`; **the Captain's sign-off** (HK-010) |
+| default ON | D-GO and U′-OK (§6), then **the Captain's decision** (he may ask for a live check first, as R14 was) |
+
+## 5. Stage acceptance (mechanical)
+
+| row | predicate | guards | where the number comes from (HK-038) |
+|---|---|---|---|
+| **B1 port fidelity** | Native (R9 export) vs `ms_metrics.py` on the COH-MULTISET consulted rows (the 7,498 rows of `main_rows.csv` with `consulted = 1`, anchors as the arm), same DLL line. **For each of C1, J2, J3, N1:** the BP outcome (CRC-valid y/n and payload equality) agrees on **≥ 99.5 %** of rows; **and** the walk's result (which set, which payload) agrees on ≥ 99.5 %. Also **V3's outcome agrees on ≥ 99.5 %** (it must not have moved). | the method's identity with what was measured | 99.5 % is COH-FALLBACK A2(a)'s port margin for the same kind of floating-point difference, a decision value. 7,498 is the arm's own population |
+| **B2 grouping and sign** | Unit tests (native): J2 makes 15 groups per half (14 pairs + 1 single), J3 makes 10 (9 triples + 1 pair); no group touches symbols 0–6, 36–42 or 72–78; on a noiseless synthetic signal every set's 174 signs equal the codeword's bits (positive = 1); with the Gray map replaced by the identity (a test-only hook, or a test copy of the routine), J2 and J3 fail on that same signal | the grouping and sign that B1's agreement could share with the Python by accident | the arm's A1.4 test and V2b, ported |
+| **B3 determinism** | The existing row-by-row test between `_run` and the parallel `_process` (`CoherentFallbackStep4NativeTests`) passes with the sets ON, and the provenance (R6) is equal row by row | R8 | by construction |
+| **A1 flag-OFF identity** | Existing suite green; characterisation: with `coherentFallbackMultiSet` false, `ALL.TXT` lines, UDP datagrams, panel events and QSO-channel batches for a fixed set of recorded cycles are **identical** (outcome fields) to the pre-change build, with the fallback ON and with it OFF | the merge | by construction (R11) |
+
+## 6. The decision replay (offline; REF vs MS, the step-4 design)
+
+### 6.1 Corpus
+
+- **Inventory:** QA lists **every** `artefacts/` folder with full-cycle WAVs and a WSJT-X `ALL.TXT` (rule 2026-10-03).
+- **The night:** QA picks one 40 m night that is **none of** `20261004_1634`, `20261009_1752`, `20261019_1905`, `20260922_2056`, `20260930_1930` and `20261022_1949`.
+  - The Voicemeeter chain is preferred, and the 2026-10-17..19 OWS-recorded-WAV disposition applies.
+  - The frozen ordered `selection.json` and its SHA are committed before any decode.
+  - Use the whole night, or a systematic 1-in-k sample with k odd if the CPU projection is over 8 h. The choice is recorded before any decode.
+- **If no such night exists,** QA says so, and the Captain chooses before any decode. His options are:
+  - wait for a fresh night;
+  - reuse `20260922_2056`, where no metric-set choice was made but the shipped fallback was accepted;
+  - reuse `20261022_1949`, the arm's own night, which is not independent of the GO.
+
+### 6.2 Fixed
+
+- **One build:** the Stage 2 build, with the DLL SHA pinned at the start and end of every arm.
+- **Settings:** harness mode as step 4, Deep, subtraction ON, `nhard` 24, sign fix ON, threads 8, `coherentFallbackEnabled` **true** in every arm.
+- **Arms**, each in a fresh process with its flags read back:
+  - **REF:** `coherentFallbackMultiSet` = false, i.e. as shipped;
+  - **MS:** `coherentFallbackMultiSet` = true;
+  - **MS-repeat:** the same as MS, over the first 320 cycles.
+- **Match rule:** Test B exactly as implemented (`replay81/Program.cs`), in-process (HK-037).
+- **U′:** the tone-presence instrument `cf_fbid.py` @ `ecc4c5e7` with its null and T as frozen, applied as in COH-FALLBACK §14 A14.3. Untestable counts as not shown present.
+
+### 6.3 Estimands and bars
+
+- **NET** = 100 × Σ(`M_ms,i` − `M_ref,i`) / Σ`W_i`, in pp of WSJT-X's decodes. `M` is the union of all batches, matched as one set.
+- **ΔU′** = the mean over cycles of (U′_ms − U′_ref), paired.
+- **Statistics for both:** a 95 % block bootstrap, blocks of 40 consecutive cycles, a ratio estimator for NET, B 10,000, seed 20261025.
+- **The bars are set after the REF arm and before any MS decode.** They are frozen and never moved once MS data exists. QA runs REF and then writes a dated note giving:
+  - U′0, the REF arm's U′ per cycle;
+  - the projected half-widths of NET and ΔU′ at this cycle count (A11.2 form);
+  - the two lines in §6.5.
+
+  The Captain then sets:
+
+| row | predicate | my proposal | where it comes from (HK-038) |
+|---|---|---|---|
+| **D-GO / D-STOP / D-OPEN** | `CI_lo(NET)` ≥ D_bar / `CI_hi(NET)` < D_bar / otherwise | **D_bar = 0.5 pp** | BAR_L, ratified by the Captain 2026-10-24 12:50:57Z as "the size of gain that justifies a Developer build" of exactly this change. Default ON asks the same question in production |
+| **U′-OK / U′-FAIL / U′-OPEN** | `CI_hi(ΔU′)` ≤ U′_bar / `CI_lo(ΔU′)` > U′_bar / otherwise | **U′_bar = 0.021 per cycle** | half the 0.042 the Captain set for the **whole** fallback (A18.6, before ON data). The sets are an increment on the fallback, so they get at most half its false-output allowance. For scale: the whole fallback measured +0.0198 for +3.82 pp (§19), and the arm's f_X was no worse than C3's. A decision value |
+
+**What the proposed bars can resolve (HK-038 / HK-025(k): counted from step 4 on file, `20260922_2056`, 961 cycles; QA's REF note replaces these with this night's figures):**
+- **ΔU′.** Step 4's half-width was about 0.0073 at ΔU′ 0.0198 ([0.0125, 0.0271]). At 0.021:
+  - OK needs ΔU′ ≤ about 0.014;
+  - FAIL needs ΔU′ ≥ about 0.028;
+  - 2 × 0.0073 = 0.015 ≤ 0.021, so OK is reachable for a set as clean per decode as the whole fallback (≈ 0.0052 per pp of NET × 1.5 pp ≈ 0.008).
+- **NET.** Step 4's half-width was about 0.39 pp at +3.82. A smaller increment has a narrower one, about 0.2–0.3 pp, which is my estimate, not a count.
+  - A true +1.0 pp would read D-GO.
+  - A true +0.5 pp would read OPEN.
+  - D-STOP needs NET below about 0.25.
+
+### 6.4 Validity (any FAIL ⇒ no verdict)
+
+| row | predicate |
+|---|---|
+| V1 | DLL pin equal at the start and end of REF, MS and MS-repeat |
+| V2 | both flags read back in every run; `selection.json` SHA identical in every run |
+| V3 | 0 access violations, 0 contained exceptions, 0 non-zero exits |
+| V4 | batches 1, 2 and 3 identical MS vs REF, N/N, except cycles explained by abandonment in one arm (A3″(a)) |
+| **V5** | cycles with any abandoned work ≤ 5 % in MS (step-4 V5) |
+| V6 | MS-repeat: the per-cycle union multiset identical to MS, except cycles explained by abandonment in exactly one run (≤ 16 of 320); **unexplained = 0** |
+| **V7 (new): V3 untouched** | per cycle, every batch-4 decode REF published from V3 (provenance 0) is also published by MS from V3, and MS has no V3-provenance decode that REF lacks; exceptions only for abandonment. **N/N** |
+
+### 6.5 The two lines in QA's REF note (mechanical, answered before the Captain sets the bars)
+
+- "With these half-widths, D_bar = 0.5 can / cannot resolve a true NET of 1.0 pp (CI_lo ≥ 0.5)."
+- "U′_bar = 0.021 is / is not ≥ 2 × the projected ΔU′ half-width." If it is not, OK is unreachable for a fallback as clean as the shipped one. That is said **before** the bar is set.
+
+### 6.6 HK-025(k), both ways
+
+- **Sets that publish nothing:** NET ≈ 0 ⇒ D-STOP, and ΔU′ ≈ 0 ⇒ U′-OK. So D-GO is the row that can fail.
+- **Sets that publish junk:** ΔU′ is large ⇒ U′-FAIL. Default ON needs both D-GO and U′-OK.
+
+### 6.7 Descriptive, mandatory
+
+- NET and ΔU′ by Test B SNR band (A–D).
+- Set decodes per cycle by provenance, with their confirmed share.
+- The R10 counters.
+- **Cost:** fallback wall time per cycle (median, p95, max), MS against REF, and the batch-4 publish time from decode start (median, p95), MS against REF.
+- The FP-watch on U′ by provenance, against REF's V3 rate.
+- MS-repeat timing beside MS − REF.
+
+## 7. Limits, stated in the report
+
+- **Scope:** one night, one band, a replay rather than live operation.
+- **U′** is an upper bound on false decodes: hashed texts are untestable and are counted against the sets.
+- **The sets' order** was fixed on the arm's data, never tuned. Dropping C1, which had 1 unique row, is a possible later saving. It would change the walk, so it would need its own replay.
+- **Cost:** a slower CPU (the `sol` class) is not measured here. If the MS wall p95 is more than double REF's, I raise it with the Captain before default ON.
+
+## 8. Predictions (blind; scored at the rulings)
+
+| # | prediction | P | class |
+|---|---|---:|:---:|
+| MB1 | B1 passes on the first Stage 1 build, all four sets and the walk | 0.65 | C |
+| MB2 | V7 passes (V3 untouched) | 0.85 | C |
+| MB3 | D-GO at D_bar = 0.5 pp (if the Captain sets 0.5) | 0.55 | H |
+| MB4 | U′-OK at U′_bar = 0.021 (if the Captain sets 0.021) | 0.55 | H |
+| MB5 | NET point in [0.5, 2.0] pp | 0.60 | H |
+| MB6 | MS fallback wall median ≤ 2 × REF's on the PC | 0.70 | C |
+
+⚠️ **Calibration note:** at the arm I was under-confident (X1/X2). MB3 and MB5 lean on the 0.73 positions → production ratio from one earlier change, and the F1b gate on set outputs is new. So they stay near even.
+
+## 9. For QA, in order
+
+1. (k) review of this spec: FILE:LINE against `main` `5a9667ee`, and the corpus inventory (§6.1).
+2. The OpenSpec change, `tasks.md` and the Developer handoff (HK-015/HK-000), with the shim number confirmed.
+3. After Stage 1: B1, then my ruling. After Stage 2: B2, B3 and A1, then the HK-039 review record.
+4. The REF arm, then the REF note (§6.3, §6.5), then the Captain's bars, then MS and MS-repeat, then analysis by committed code and the report in COH-FALLBACK §19's format.
+
+*Architect. Docs only; `src/`/`native/` diff empty.*
