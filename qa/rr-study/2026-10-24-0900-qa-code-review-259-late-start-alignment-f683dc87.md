@@ -34,6 +34,6 @@ The full unfiltered suite was not run by QA outside `pre_merge_check.py`; the De
 
 ## pre_merge_check.py (result)
 
-Run from a clean detached checkout of exactly `f683dc87` (`D:\Projects\claude\_qa-scratch9-review	ree`, log `...9-review\pmc259.log`): **READY, every gate passed.** Native freshness (Windows, Linux, macOS all 20260069), G9a, G9b, solution build, UDP margin lint, G10, full Release suite (Windows: Daemon 810, Ft8 580, Web 402, Config 170, Rig 41, Audio 40, Traceability 34, License 24, TestSupport 12, E2E 9; 0 failed), G3, WSL Debian compile and test (Linux: Daemon 778, Ft8 580; Windows-only tests excluded there; 0 failed), G8, self-contained publish, AOT publish.
+Run from a clean detached checkout of exactly `f683dc87` (`D:\Projects\claude\_qa-scratch\259-review\tree`, log `...\259-review\pmc259.log`): **READY, every gate passed.** Native freshness (Windows, Linux, macOS all 20260069), G9a, G9b, solution build, UDP margin lint, G10, full Release suite (Windows: Daemon 810, Ft8 580, Web 402, Config 170, Rig 41, Audio 40, Traceability 34, License 24, TestSupport 12, E2E 9; 0 failed), G3, WSL Debian compile and test (Linux: Daemon 778, Ft8 580; Windows-only tests excluded there; 0 failed), G8, self-contained publish, AOT publish.
 
 Next: the Captain's push go (HK-033), then the `sol` offline grid and live L-1/L-2.
