@@ -195,3 +195,39 @@ Each set is built from **the same per-symbol correlations `x_re/x_im` that `cf_v
 4. The REF arm, then the REF note (§6.3, §6.5), then the Captain's bars, then MS and MS-repeat, then analysis by committed code and the report in COH-FALLBACK §19's format.
 
 *Architect. Docs only; `src/`/`native/` diff empty.*
+
+---
+
+## §10 Amendment 1: QA's (k) review adopted, M1–M4 (Architect, 2026-10-24 14:59:24Z by `date -u`; before any code or decode)
+
+QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is confirmed against `5a9667ee`. All four amendments are adopted.
+
+- **Shim number: `20260071`.**
+  - `origin/main` is at `20260069`. `origin/decoding_improvement` already holds `20260070` (DI sync 7), and I checked this with `git grep`.
+  - Taking `20260070` on `main` would collide at the next DI sync.
+  - The handoff includes the Linux/macOS binary refresh step (as PR #254). G8/CI fails on a stale binary otherwise.
+- **Handoff facts adopted:**
+  - **R6:** provenance may use `FT8CohFallbackOut`'s `int32_t reserved` (`ft8_shim.h:1599`) **with no layout change**. This is preferred over a new field.
+  - **R7:** the multi-set bit may use `ft8_coherent_fallback_run`'s reserved `flags` (`:1609`); `_process` gets the same as a parameter or flag. The test harness passes it through for B3; QA lists that as a test-support change.
+  - REF has the fallback ON, as shipped (`DecoderConfig.cs:240`).
+- **M1, R2 gets a row (added to B2/A1).** A native test on a fixed cycle checks:
+  - the R10 "entered the walk" count equals that call's number of NO_CRC candidates;
+  - a V3-CRC-valid candidate (known, new or gated out) and a not-attempted candidate show 0 walk entries;
+  - their outputs equal flag OFF.
+
+  B1 cannot see this half, because its rows are V3-fail by construction.
+- **M2, B1's positive class (HK-021(k)).** Added to B1, keeping the ≥ 99.5 % overall rows:
+  - **For each set, and for the walk:** among rows where the Python output is CRC-valid, the native output is CRC-valid with the same payload on **≥ 99 %**. For J3 that means at most 4 of 401.
+  - **On the union of rows where either side has an output:** agreement **≥ 99 %**.
+
+  The overall rate alone hides a port bug in the large both-empty class: 569 of 7,498 rows have any output.
+- **M3, the corpus: `20260925_2010`, whole night (2,882 cycles), no sampling.**
+  - It is 40 m, with full-cycle WAVs and a WSJT-X `ALL.TXT` (76,999 Rx lines). It was never used for a coherent decision (it was a sub-feas/DI replay night).
+  - Projection: about 5.4 h for REF + MS + MS-repeat (320 cycles), under 8 h.
+  - The Voicemeeter preference **cannot be met**: the only Voicemeeter nights are excluded. This is stated as a limit (§7). Audio from before the OSD fix is fine, because the replay decodes it with today's build, and Test B and U′ read WSJT-X's `ALL.TXT`, not OWS's.
+  - **QA states which WAV folder the replay uses** (`owsfz/wav` or `wsjt-x/wav`) and how the 2026-10-17..19 OWS-recorded-WAV disposition applies, before `selection.json` is frozen.
+  - **This is within §6.1, so the Captain does not need to choose.** The alternative `20260923_1730` would need k = 3.
+- **M4:** `cf_fbid.py` @ `ecc4c5e7` is on `qa/refset`, not `main`. The report states that the U′ step is reproducible from `qa/refset`, not from `main` alone. The spec is unchanged.
+- **Clarification (a):** R3 stands. A KNOWN set payload ends the walk. f_X's upper-bound nature is already in §7 / the arm's §10.
+
+**Next:** QA writes the OpenSpec change `coh-multiset-build`, `tasks.md` (B1 with M2, B2 with M1, B3, A1) and the Developer handoff with shim `20260071`. Developer work may start from that handoff.
