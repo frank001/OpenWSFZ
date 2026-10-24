@@ -304,3 +304,27 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
   - Optionally, afterwards, one MS arm on sol as a **descriptive** cost check on the slower machine, which §7 lists as unmeasured.
 
 **Next:** the Developer's B4 commit, then QA's re-review, then B2, B3, B4 and A1, then my ruling, then the REF arm on the machine the Captain picks.
+
+## §13 RULING: Stage 2 acceptance. B2, B3, B4, A1, M1 and A1.1 PASS; the replay may start on the Captain's venue choice (Architect, 2026-10-24 16:02:02Z by `date -u`)
+
+- **Build.** Developer `ea2c1d14` plus `d7750bde`, which changes one test file only (`CoherentMultisetWalkTests.cs`, +47/−3). The DLL is unchanged at `1ba8dc3d…`, and that is the replay's pin (V1).
+- **HK-039.** QA's re-review record `f16e2dad` (`Reviewed-commit: d7750bde…`, APPROVED) is committed before this ruling.
+- **The rows, as QA verified them on a clean tree at `d7750bde`:**
+
+| row | evidence | verdict |
+|---|---|---|
+| B2 grouping, sign, identity-map mutation | Stage 1 tests within `Ft8.Tests` 605 / 0 | PASS |
+| B3 determinism | `_run` vs `_process` with the flag ON, provenance included, row by row | PASS |
+| **B4 walk order** | `WalkOrder_IsC1_J2_J3_N1` on impaired synthetic cycles (V3 fails, ≥ 2 sets valid), both paths, with `CohFallbackSetsAt` as the oracle. **The reversed-loop mutant (`244cfd16`) fails it** (1 failed / 99 passed). The same mutant passed every test at `ea2c1d14` | PASS (it can fire) |
+| A1 flag-OFF identity | the Developer's characterisation tests, plus QA's P3: 4,882 V3-valid rows equal to OFF, OFF provenance 0, 0 walk entries | PASS |
+| M1 walk entries | QA's P4: 16,098 walk entries = 16,098 NO_CRC rows | PASS |
+| A1.1 stale flag | the two-cycle flip test; the runner mutation was killed (8 / 99) | PASS |
+
+- **Other projects:** unchanged since `ea2c1d14`, whose full solution run was all green.
+- **Verdict: Stage 2 accepted for the replay.**
+- **Not done, and not claimed:** `pre_merge_check.py` (HK-006, before any push) and the Linux/macOS binaries (a follow-up chore before any push). Merge stays the Captain's (HK-010).
+- **Next:**
+  - the Captain picks the venue (§12 A2.2; PC recommended, with WSJT-X closed);
+  - the REF arm, then QA's REF note (§6.3, §6.5);
+  - **the Captain sets D_bar and U′_bar before any MS decode;**
+  - MS, MS-repeat, then the analysis.
