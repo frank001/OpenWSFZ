@@ -265,3 +265,27 @@ The Stage 2 night is `20261009_1752_endurance_run` (+ `-gathered`).
   - L1-OPEN otherwise.
 - 🛑 **Never moved after NET_X is seen.** X2 is scored against it.
 - **QA may now run the real-audio steps in §8 step 4's order.** The run itself is QA's (runs and pushes need the Captain's go in QA's window as usual; this ratification is not that go).
+
+**A1.10 V4 FAIL as built (QA error Q15): V4′ ordered exactly as COH-GAIN Amendment 3; the gates stay unread (2026-10-24 13:07:32Z by `date -u`).**
+- **QA's report (main extraction 13:00:48–13:05:44Z):**
+  - 974 cycles, 24,348 encodable rows; harness `96aa80d4`, DLL `aaf6b03e` pinned at start and end;
+  - V1, V2a, V2b, V3 (300/300 and 300/300, max |ΔLLR| 0.00195) and V5 PASS;
+  - **V4 FAIL**: G 0.770 on live-hit rows.
+- **Cause:** `live_hit` was taken from the live OpenWSFZ `ALL.TXT`, where §5 says "a V4′-style replay". The live run published batches 2–4 (subtraction and fallback) and had fallback output, so its hits are not a batch-1 population. That is the population mismatch COH-GAIN Amendment 3 already corrected. This is a harness error, not a design change.
+- **V4′, as COH-GAIN Amendment 3 (its spec line 232), on today's build:**
+  - Replay the 974 sampled cycles through the NHARD-REP arm harness, on a clean checkout of `main` `5a9667ee` in `_qa-scratch`, with **the same DLL SHA `aaf6b03e`** (asserted).
+  - Settings: `nhard` 24, sign fix ON, subtraction ON, threads 8, Test B match rule. The fallback flag state is as shipped, **stated**; it cannot affect P1.
+  - The matched output carries each match's batch.
+  - **P1** = this spec's encodable rows matched by that replay **in batch 1**.
+  - **PASS iff G success on P1 ≥ 0.90.** Unchanged, and not moved. Its source (HK-038): GAP-LOCATE's `P_ctrl` 95.96 % and COH-GAIN's own V4′ reading of 0.969 on P1. A batch-1 decode is one our own extractor made, so G at that position should reproduce it almost always.
+  - QA's ws-count consistency check from Amendment 3 is included.
+  - The batch-labelled matched output is committed **before** V4′ is evaluated.
+- **If V4′ FAILS, the verdict is VOID.** QA reports and stops; I rule.
+- **Release scope (HK-025(ab)):** V4 guards G and the anchor mapping, which X's population (G no output) depends on. **Nothing is scored, cited or ruled until V4′ passes.**
+  - The provisional figures QA has already seen are not to be quoted anywhere, board included.
+  - Predictions X1–X6 wait.
+  - The gate code and BAR_L are unchanged; V4′ is not given a second try on a changed rule.
+- **V1's `nhard` read-back:** this build has no getter for the decode parameters (QA). Substitute, mechanical:
+  - (a) the harness log records the `ft8_set_decode_params(…, 24)` call and its return;
+  - (b) over the run, every OSD accept recorded by the shipped diagnostics (`ft8_osd_diag_accept`, `decode.c:735`) has `nhard` ≤ 24, and at least one reject is recorded under reason 0 (the `nhard` cap, `decode.c:727–728`). If none is recorded, say so; (b) then shows only ≤ 24.
+- **Go:** the V4′ replay is a validity check inside this arm with no station time. As in COH-GAIN Amendment 3, the Captain's go for the main extraction covers it unless he says otherwise.
