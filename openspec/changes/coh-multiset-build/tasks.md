@@ -14,6 +14,7 @@
 - [ ] 2.4 `decoder.coherentFallbackMultiSet` (default `false`; `DecoderConfig.cs` next to `CoherentFallbackEnabled` `:240`; `Ft8Decoder.cs` setter/getter like `:197-214`; daemon wiring like `Program.cs:807` and `:910`; read once per cycle; acts only when `coherentFallbackEnabled` is true); no Settings-page control.
 - [ ] 2.5 The `Coherent fallback:` log line (`Ft8Decoder.cs:1038`) gains `sets=on/off`, candidates that entered the walk, CRC-valid counts per set (C1/J2/J3/N1). Aggregates only.
 - [ ] 2.6 Test support: the `_run` / `_process` row-by-row test (`CoherentFallbackStep4NativeTests`, `tests/OpenWSFZ.Ft8.Tests/CoherentFallbackStep4NativeTests.cs:13`) passes the flag, with the sets ON, and compares the provenance row by row (B3).
+- [ ] 2.6b **B4 walk order (Architect Amendment 2, from QA's R-1):** a synthetic fixture (Q-prefix message) where V3 fails and two or more sets are CRC-valid at the candidate's anchor; through **both** `ft8_coherent_fallback_run` and `ft8_coherent_fallback_process` the row's provenance equals the lowest-numbered CRC-valid set, with `CohFallbackSetsAt` at the row's own anchor as the oracle; "at least one such fixture on each platform". It must fail against a reversed loop (QA repeats that mutation at re-review).
 - [ ] 2.7 Linux and macOS native binaries: the committed `src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so` and `osx-arm64/libft8.dylib` are refreshed by the usual follow-up chore after the native merge (as PR #254 did for 20260069); state the step in the PR.
 
 ## 3. Verification
