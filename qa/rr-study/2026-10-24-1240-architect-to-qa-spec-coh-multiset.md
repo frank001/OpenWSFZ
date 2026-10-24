@@ -242,4 +242,8 @@ The Stage 2 night is `20261009_1752_endurance_run` (+ `-gathered`).
   - QA's proposed k = 4 would put every sampled cycle on one index parity, against §4's "odd k".
   - Sample = index mod 3 == 1 (≈ 975 cycles); pilot = the first 100 cycles with index mod 3 == 2.
   - The pilot is never pooled with the sample. Even/odd slot counts must be within 2 % of each other, as Q-GATE-2.
+- **A1.8 (QA's conflict note, ~13:2xZ; my error E52): A1.6/A1.7 contradicted §8.** They needed a pilot decode before BAR_L, which §8 forbids. Ruled:
+  - **(1) δ is computed from `ALL.TXT` numbers alone:** the DT of the live run's exact OWS/WSJT-X matches in the pilot cycles, aggregates only. No decode, so it runs now.
+  - **(2) No real-audio decode of any kind before BAR_L, pilot included.** A pilot NET_X seen before the bar would let the bar be chosen with the result in view. That is exactly what "frozen before data" protects (HK-038; blind only where it protects a verdict, and this is the verdict).
+  - **(3) The half-width for D3 is given as a function of the unknown NET_X,** from the counted row and cycle structure (N, rows per cycle, block count). A1.6's indicative table already shows both bars are resolvable. The pilot decode (timing) may run after BAR_L is set, and is still never pooled.
 - **Pilot δ check (mechanical, before D3 is asked):** median anchor offset on the pilot's exact matches, as COH-GAIN Amendment 1. If |δ_pilot − 0.7 s| > **0.05 s** (half of WSJT-X's 0.1 s DT resolution), stop and come back before any sample decode.
