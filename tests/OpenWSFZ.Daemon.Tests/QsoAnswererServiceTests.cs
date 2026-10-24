@@ -873,10 +873,15 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        // #259: a start at or after 11.25 s into its 15 s slot is not keyed, so a test that leaves
+        // the clock to the wall would behave differently in the last 3.75 s of every slot (about
+        // one run in four). Fixed clock at the START of a slot, as this class's fixture does.
         var sut     = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
             adifLog, new AudioOffsetEventBus(),
-            NullLogger<QsoAnswererService>.Instance);
+            NullLogger<QsoAnswererService>.Instance,
+            watchdogDurationOverride: TimeSpan.FromMinutes(4), // the WatchdogMinutes = 4 this test configures
+            timeProvider: new FakeTimeProvider(new DateTimeOffset(2026, 6, 27, 17, 30, 0, TimeSpan.Zero)));
 
         using var stopCts = new CancellationTokenSource();
         await sut.StartAsync(stopCts.Token);
@@ -931,10 +936,15 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         var channel = ObservedDecodeChannel.Create();
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
+        // #259: a start at or after 11.25 s into its 15 s slot is not keyed, so a test that leaves
+        // the clock to the wall would behave differently in the last 3.75 s of every slot (about
+        // one run in four). Fixed clock at the START of a slot, as this class's fixture does.
         var sut     = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
             adifLog, new AudioOffsetEventBus(),
-            NullLogger<QsoAnswererService>.Instance);
+            NullLogger<QsoAnswererService>.Instance,
+            watchdogDurationOverride: TimeSpan.FromMinutes(4), // the WatchdogMinutes = 4 this test configures
+            timeProvider: new FakeTimeProvider(new DateTimeOffset(2026, 6, 27, 17, 30, 0, TimeSpan.Zero)));
 
         using var stopCts = new CancellationTokenSource();
         await sut.StartAsync(stopCts.Token);
@@ -1087,9 +1097,14 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
         var adifLog = new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance);
         var channel = ObservedDecodeChannel.Create();
+        // #259: a start at or after 11.25 s into its 15 s slot is not keyed, so a test that leaves
+        // the clock to the wall would behave differently in the last 3.75 s of every slot (about
+        // one run in four). Fixed clock at the START of a slot, as this class's fixture does.
         var sut     = new QsoAnswererService(channel.Reader, store, racyPtt, new TxEventBus(),
                           adifLog, new AudioOffsetEventBus(),
-                          NullLogger<QsoAnswererService>.Instance);
+                          NullLogger<QsoAnswererService>.Instance,
+                          watchdogDurationOverride: TimeSpan.FromMinutes(4), // the WatchdogMinutes = 4 this test configures
+                          timeProvider: new FakeTimeProvider(new DateTimeOffset(2026, 6, 27, 17, 30, 0, TimeSpan.Zero)));
 
         using var stopCts = new CancellationTokenSource();
         await sut.StartAsync(stopCts.Token);
@@ -2055,12 +2070,16 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var channel     = ObservedDecodeChannel.Create();
         var stopCts     = new CancellationTokenSource();
 
+        // #259: a start at or after 11.25 s into its 15 s slot is not keyed, so a test that leaves
+        // the clock to the wall would behave differently in the last 3.75 s of every slot (about
+        // one run in four). Fixed clock at the START of a slot, as this class's fixture does.
         var sut = new QsoAnswererService(
             channel.Reader, store, ptt, eventBus,
             resolvedLog, new AudioOffsetEventBus(),
             NullLogger<QsoAnswererService>.Instance,
             watchdogDurationOverride: watchdogDuration,
-            catState: catState);
+            catState: catState,
+            timeProvider: new FakeTimeProvider(new DateTimeOffset(2026, 6, 27, 17, 30, 0, TimeSpan.Zero)));
 
         return (sut, eventBus, resolvedLog, ptt, channel, stopCts);
     }
@@ -2594,7 +2613,8 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     /// </summary>
     private static (QsoAnswererService sut, IPttController ptt,
                     Channel<DecodeBatch> channel, CancellationTokenSource stopCts)
-        BuildTimeControlledSut(FakeTimeProvider fakeTime, int retryCount = 2)
+        BuildTimeControlledSut(FakeTimeProvider fakeTime, int retryCount = 2,
+                              ILogger<QsoAnswererService>? logger = null)
     {
         var ptt = Substitute.For<IPttController>();
         ptt.KeyDownAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
@@ -2620,7 +2640,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         var sut     = new QsoAnswererService(
             channel.Reader, store, ptt, new TxEventBus(),
             adifLog, new AudioOffsetEventBus(),
-            NullLogger<QsoAnswererService>.Instance,
+            logger ?? NullLogger<QsoAnswererService>.Instance,
             watchdogDurationOverride: TimeSpan.FromSeconds(30),
             timeProvider: fakeTime);
 
@@ -2848,12 +2868,12 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
 
     // ── D-CALLER-021: window-boundary transmission truncation (tasks 5.1–5.4) ────
 
-    [Fact(DisplayName = "D-CALLER-021 G: TransmitAsync — late in window (8 s in) truncates the buffer to the remaining 7 s")]
-    public async Task TransmitAsync_LateInWindow_TruncatesBufferToRemainingTime()
+    [Fact(DisplayName = "D-CALLER-021 G (#259): TransmitAsync — late in window (8 s in) skips the start: 360,000 skipped, 246,720 loaded")]
+    public async Task TransmitAsync_LateInWindow_SkipsTheStartOfTheClip()
     {
-        // FakeTime = 8 s into the :00 A-phase window → 7.0 s remain until the :15 boundary →
-        // 7.0 s × 48 000 Hz = 336 000 samples exactly (FakeTimeProvider is fixed, not real-clock
-        // jittery, so this is deterministic).
+        // FakeTime = 8 s into the :00 A-phase window. #259: the start of the clip is skipped,
+        // round((8 - 0.5) x 48 000) = 360 000 samples, and the remaining 606 720 - 360 000 =
+        // 246 720 are loaded (before #259 the tail was cut to the remaining 7 s = 336 000).
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 8, TimeSpan.Zero));
         var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
@@ -2868,7 +2888,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             Array.Empty<DecodeResult>()));
 
         await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
-        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 336_000));
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 246_720));
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -2899,30 +2919,27 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "D-CALLER-021 I: TransmitAsync — zero remaining time skips transmission without throwing")]
-    public async Task TransmitAsync_ZeroRemainingTime_SkipsTransmissionWithoutThrowing()
+    [Fact(DisplayName = "D-CALLER-021 I (#259): a pending target 1 tick before the boundary is retained, not fired")]
+    public async Task PendingTarget_OneTickBeforeBoundary_IsRetainedNotFired()
     {
-        // 1 tick (100 ns) before the :15 boundary of the :00 A-phase window: remaining ≈ 100 ns,
-        // which truncates to 0 samples at 48 000 Hz — the "computed remaining-sample count is
-        // zero" case from task 2.2, reached via integer truncation rather than a literally
-        // negative TimeSpan (the floor-based boundary calculation cannot itself go negative).
+        // 1 tick (100 ns) before the :15 boundary of the :00 A-phase window. Before #259 this
+        // reached TransmitAsync and truncated to 0 samples; now the fire site retains the target
+        // at t >= 11.25 s (see the #259 T6 tests), so nothing is loaded or keyed and the target
+        // is still armed. (The TransmitAsync-level "not keyed" decision is the #259 T5 test.)
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero).AddTicks(-1));
         var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
         await sut.StartAsync(stopCts.Token);
 
-        // TestSetPendingTarget (not AnswerCqAsync) — avoids the racy real-time-based wakeup push;
-        // see PendingTarget_WrongPhase_StillWaitsForNextMatchingPhase for the full rationale.
         sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
 
         channel.Writer.TryWrite(new DecodeBatch(
             new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
+        await Poll.UntilAsync(() => ((ObservedDecodeChannel)channel).IsProcessedThroughLastDequeue,
+            timeout: TimeSpan.FromSeconds(3));
 
-        // ExecuteTxAnswerAsync's SetStateAndNotify(WaitReport) runs unconditionally after
-        // TransmitAsync returns — the skip must not throw or otherwise abort the state machine.
-        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
-
+        sut.State.Should().Be(QsoState.Idle);
         ptt.DidNotReceive().LoadAudio(Arg.Any<float[]>());
         await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
 
@@ -2934,7 +2951,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
     [Fact(DisplayName = "D-CALLER-021 J: A truncated transmission that goes unanswered still counts toward the retry budget")]
     public async Task TruncatedTransmission_Unanswered_StillCountsTowardRetryBudget()
     {
-        // Same 8-s-in truncation as test G above, but this time drive the standard A-01
+        // Same 8-s-in time alignment as test G above, but this time drive the standard A-01
         // skip-then-retry silence pattern (established by "A-01 2.2" elsewhere in this file) to
         // prove the truncated initial TX participates in retry accounting exactly like a
         // full-length one would.
@@ -2951,7 +2968,7 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero),
             Array.Empty<DecodeResult>()));
         await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
-        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 336_000)); // confirms truncated
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 246_720)); // confirms time-aligned (start skipped)
 
         // First silence cycle: skipped by the A-01 guard (no retry yet). Prove no new
         // KeyDownAsync fires: poll for a second call and expect the poll to time out.
@@ -2968,6 +2985,144 @@ public sealed class QsoAnswererServiceTests : IAsyncLifetime
             expectedCount: 2, timeout: TimeSpan.FromSeconds(3));
         await ptt.Received(2).KeyDownAsync(Arg.Any<CancellationToken>());
         sut.State.Should().Be(QsoState.WaitReport, "one retry should not exhaust the retry budget");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    // ── #259: a late transmission is time-aligned (the START of the clip is skipped) ──
+
+    private static DateTimeOffset SlotAt(int ms)
+        => new DateTimeOffset(2026, 6, 27, 17, 30, 0, TimeSpan.Zero)
+           + TimeSpan.FromTicks(ms * TimeSpan.TicksPerMillisecond);
+
+    /// <summary>Runs a pending-target answer with the clock at <paramref name="now"/> and returns the buffer that was loaded.</summary>
+    private static async Task<float[]> CaptureLoadedClipAsync(DateTimeOffset now)
+    {
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(new FakeTimeProvider(now));
+        await sut.StartAsync(stopCts.Token);
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero), Array.Empty<DecodeResult>()));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        var loaded = (float[])ptt.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(IPttController.LoadAudio))
+            .GetArguments()[0]!;
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+        return loaded;
+    }
+
+    [Fact(DisplayName = "#259 T3/T7: a pending target consumed 4.9 s into the slot transmits the time-aligned clip (211,200 skipped, 5 ms fade-in)")]
+    public async Task PendingTarget_At4Point9s_TransmitsTimeAlignedClip()
+    {
+        var full = await CaptureLoadedClipAsync(SlotAt(0));
+        var late = await CaptureLoadedClipAsync(SlotAt(4900));
+
+        full.Length.Should().Be(Ft8AudioSynthesiser.TotalSampleCount);
+        late.Length.Should().Be(395_520);
+        late[0].Should().Be(0f, "the cut start is faded in from 0");
+        late.AsSpan(240).SequenceEqual(full.AsSpan(211_200 + 240)).Should().BeTrue(
+            "from the 241st loaded sample on the clip is the input from index 211,200 + 240");
+    }
+
+    [Theory(DisplayName = "#259 T5: an auto-answer that would start at or after 11.25 s is not keyed (Information log, no PTT)")]
+    [InlineData(11_250)]
+    [InlineData(14_900)]
+    public async Task AutoAnswer_AtOrAfterLastStart_IsNotKeyed(int ms)
+    {
+        var logger = new RecordingLogger<QsoAnswererService>();
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(new FakeTimeProvider(SlotAt(ms)), logger: logger);
+        await sut.StartAsync(stopCts.Token);
+
+        channel.Writer.TryWrite(new DecodeBatch(DateTimeOffset.UtcNow, [Make($"CQ {PartnerCall} {PartnerGrid}")]));
+
+        // ExecuteTxAnswerAsync advances to WaitReport once TransmitAsync returns, keyed or not: a
+        // transmission that is not keyed counts as a transmission for retry accounting, exactly
+        // as the zero-remaining skip did before #259.
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        ptt.DidNotReceive().LoadAudio(Arg.Any<float[]>());
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+        logger.Messages.Count(m => m.Contains("last-start limit") && m.Contains("not keying")).Should().Be(1);
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "#259 T5: an aligned late start logs one Information line with the offset, the skip and the load (no message text)")]
+    public async Task LateStart_LogsOffsetSkipAndLoad_WithoutMessageText()
+    {
+        var logger = new RecordingLogger<QsoAnswererService>();
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(new FakeTimeProvider(SlotAt(4900)), logger: logger);
+        await sut.StartAsync(stopCts.Token);
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero), Array.Empty<DecodeResult>()));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+
+        var lines = logger.Messages.Where(m => m.Contains("late start at")).ToList();
+        lines.Should().ContainSingle();
+        lines[0].Should().Contain("4900 ms").And.Contain("skipping 4400 ms").And.Contain("loading 8240 ms");
+        lines[0].Should().NotContain(PartnerCall, "the line carries no message text");
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "#259 T6: a pending target consumed 12 s into a correct-phase window is retained, then fires in the next correct-phase window")]
+    public async Task PendingTarget_PastLastStart_IsRetainedThenFiresNextWindow()
+    {
+        var fakeTime = new FakeTimeProvider(SlotAt(12_000));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+        sut.TestSetPendingTarget(PartnerCall, AudioFreqHz, isAPhase: true);
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero), Array.Empty<DecodeResult>()));
+        await Poll.UntilAsync(() => ((ObservedDecodeChannel)channel).IsProcessedThroughLastDequeue,
+            timeout: TimeSpan.FromSeconds(3));
+        sut.State.Should().Be(QsoState.Idle, "past 11.25 s the target is retained, not fired");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        // The next correct-phase (A) window: :30, with the clock 0.5 s into it.
+        fakeTime.UtcNow = SlotAt(30_500);
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero), Array.Empty<DecodeResult>()));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(3));
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == Ft8AudioSynthesiser.TotalSampleCount));
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "#259 T6: a jump-in consumed 12 s into a correct-phase window is retained, then fires in the next correct-phase window")]
+    public async Task JumpIn_PastLastStart_IsRetainedThenFiresNextWindow()
+    {
+        var fakeTime = new FakeTimeProvider(SlotAt(12_000));
+        var (sut, ptt, channel, stopCts) = BuildTimeControlledSut(fakeTime);
+        await sut.StartAsync(stopCts.Token);
+        sut.TestSetJumpTarget(PartnerCall, AudioFreqHz, EngagePoint.SendReport, isAPhase: true, snr: 7);
+
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 29, 45, TimeSpan.Zero), Array.Empty<DecodeResult>()));
+        await Poll.UntilAsync(() => ((ObservedDecodeChannel)channel).IsProcessedThroughLastDequeue,
+            timeout: TimeSpan.FromSeconds(3));
+        sut.State.Should().Be(QsoState.Idle, "past 11.25 s the jump-in is retained, not fired");
+        await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        fakeTime.UtcNow = SlotAt(30_500);
+        channel.Writer.TryWrite(new DecodeBatch(
+            new DateTimeOffset(2026, 6, 27, 17, 30, 15, TimeSpan.Zero), Array.Empty<DecodeResult>()));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == Ft8AudioSynthesiser.TotalSampleCount));
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
