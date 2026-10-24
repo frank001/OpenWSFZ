@@ -256,12 +256,21 @@ internal static class Program
             // COH-FALLBACK Stage 2 (spec section 8): the flag is REQUIRED (--cohfb 0|1), set ONCE per process and read back at start and end.
             _cohfb = Req(a, "cohfb") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohfb must be 0 or 1") };
             decoder.SetCoherentFallbackEnabled(_cohfb);
+#if HAS_COHMS
+            // COH-MULTISET-BUILD (spec section 6.2): decoder.coherentFallbackMultiSet is REQUIRED (--cohms 0|1), set ONCE per process and read back at start and end.
+            _cohms = Req(a, "cohms") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohms must be 0 or 1") };
+            decoder.SetCoherentFallbackMultiSet(_cohms);
+#endif
             if (a.TryGetValue("cohfb-out", out var cohPath))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cohPath))!);
                 _cohOut = new StreamWriter(cohPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
 #if HAS_COHFB4
-                if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge,workers,fb_start_ms,fb_wall_ms,batch,batch4_published,batch4_publish_ms");
+                if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge,workers,fb_start_ms,fb_wall_ms,batch,batch4_published,batch4_publish_ms"
+#if HAS_COHMS
+                    + ",sets,walk_entered,crc_c1,crc_j2,crc_j3,crc_n1"
+#endif
+                    );
 #else
                 if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge");
 #endif
@@ -471,6 +480,9 @@ internal static class Program
     private static bool _wide;
 #if HAS_COHFB
     private static bool _cohfb;                    // --cohfb 0|1: decoder.coherentFallbackEnabled, read back at start and end
+#if HAS_COHMS
+    private static bool _cohms;                    // --cohms 0|1: decoder.coherentFallbackMultiSet (COH-MULTISET-BUILD), read back at start and end
+#endif
     private static StreamWriter? _cohOut;          // --cohfb-out: one aggregate line per cycle (the R12' counters)
 #endif
     private static bool _wide3;                    // three0 / three1: 12-column CSV with b3_n
@@ -722,7 +734,7 @@ internal static class Program
         private static volatile bool _seen;
         private static string _vals = "";
         private static readonly System.Text.RegularExpressions.Regex Rx = new(
-            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)(?:, workers=(\d+), fbStartMs=(-?\d+), fbWallMs=(-?\d+), batch=(\d+), batch4Published=([01]), batch4PublishMs=(-?\d+))?\.$");
+            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)(?:, workers=(\d+), fbStartMs=(-?\d+), fbWallMs=(-?\d+), batch=(\d+), batch4Published=([01]), batch4PublishMs=(-?\d+)(?:, sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+))?)?\.$");
         public static void Reset() { _seen = false; _vals = ""; }
         public static void Set(string rendered)
         {
@@ -733,10 +745,17 @@ internal static class Program
             // step 4: the tail is REQUIRED on this build (a line without it is a harness/decoder mismatch, not a cycle to skip silently).
             if (!m.Groups[11].Success) throw new InvalidOperationException("step-4 build logged a fallback line without the workers/batch tail");
             _vals += "," + string.Join(",", m.Groups[11].Value, m.Groups[12].Value, m.Groups[13].Value, m.Groups[14].Value, m.Groups[15].Value, m.Groups[16].Value);
+#if HAS_COHMS
+            // COH-MULTISET-BUILD: the multi-set tail is REQUIRED on this build (R10).
+            if (!m.Groups[17].Success) throw new InvalidOperationException("multi-set build logged a fallback line without the sets/walkEntered tail");
+            _vals += "," + string.Join(",", m.Groups[17].Value, m.Groups[18].Value, m.Groups[19].Value, m.Groups[20].Value, m.Groups[21].Value, m.Groups[22].Value);
+#endif
 #endif
             _seen = true;
         }
-        #if HAS_COHFB4
+        #if HAS_COHMS
+        public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,,,,,,,,,,,,,";
+#elif HAS_COHFB4
         public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,,,,,,,";
 #else
         public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,";
@@ -905,6 +924,9 @@ internal static class Program
 #endif
 #if HAS_COHFB
                 + $" cohfb={d.CoherentFallbackEnabled}"
+#endif
+#if HAS_COHMS
+                + $" cohms={d.CoherentFallbackMultiSet}"
 #endif
                 );
     }

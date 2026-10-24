@@ -31,6 +31,8 @@
     <DefineConstants Condition="'$(HasCohFb)' == 'true'">$(DefineConstants);HAS_COHFB</DefineConstants>
     <!-- COH-FALLBACK step 4 (shim 20260069): the fallback runs after the last ordinary batch and publishes its OWN batch (4 on Deep); the cycle log line carries workers/fbStartMs/fbWallMs/batch/batch4Published/batch4PublishMs. Needs HasCohFb too. -->
     <DefineConstants Condition="'$(HasCohFb4)' == 'true'">$(DefineConstants);HAS_COHFB4</DefineConstants>
+    <!-- COH-MULTISET-BUILD (shim 20260071): only the build with Ft8Decoder.SetCoherentFallbackMultiSet; the cohms argument (0 or 1) is then REQUIRED and read back. Needs HasCohFb4 too. -->
+    <DefineConstants Condition="'$(HasCohMs)' == 'true'">$(DefineConstants);HAS_COHMS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
