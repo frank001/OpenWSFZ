@@ -175,3 +175,62 @@ Statistics: the cycle-block bootstrap of `cg_rows.py` (blocks of 8 sampled cycle
 | X6 | V2a passes first time for all four sets | 0.60 | C |
 
 *Architect. Docs only; `src/`/`native/` diff empty.*
+
+---
+
+## Amendment 1 (2026-10-24 ~13:0xZ `date -u`): QA's (k) review, A1–A3 ACCEPTED; V3 corrected; X's population defined
+
+**Source:** QA's (k) review, 2026-10-24 12:5xZ (message). Verdict: ACCEPT WITH 3 AMENDMENTS. QA confirmed every FILE:LINE against `origin/main` `5a9667ee`:
+- `cf_run_bp` `ft8_shim.c:2236–2244`;
+- the normalisation in `decode.c` `ftx_ldpc_decode_llrs`, lines 991–995: **one global variance scale, not per bit**; zero-variance guard 986–988;
+- `ldpc.c:149` positive = bit 1;
+- `coherent_extract.py:50–58`: V3 sums **overlapping** groups, so J2/J3, which are non-overlapping, are genuinely different sets.
+
+The Stage 2 night is `20261009_1752_endurance_run` (+ `-gathered`).
+
+**A1.1 X's population, defined to match production (it was unstated: my error E49).**
+- In production a candidate reaches the fallback only if the ordinary decode produced **no CRC-valid output** for it (`ft8_shim.c:1881–1882`, `decoded` flag).
+- The fallback publishes C3's first CRC-valid payload, right or wrong.
+- So **X is consulted only on rows where G returned no CRC-valid payload AND C3 returned no CRC-valid payload.**
+  - Rows where G or C3 returned a CRC-valid **wrong** payload are **not** in X's population; that payload is already published in production.
+  - They are counted and reported, with how often each happened.
+- NET_X's numerator is X's correct payloads on that population; N is unchanged.
+
+**A1.2 (QA's A1) W-FAIL rebased on the same night, and its meaning stated (my error E48).**
+- **QA is right:** 0.284 is C3's wrong share on G-fail rows. X sees the leftovers after C3, where right answers are scarcer. A set with C3's per-row error rate would show a higher share there from the population change alone, so the row was not testing "the cost already accepted".
+- **What the row now measures:** the **cost per gained decode** of X, against the fallback's own cost per gained decode **on this night and this harness**. It is not a like-for-like per-row error rate; that rate is reported beside it.
+- **W bar (replaces 0.284):** **f_C3** = C3's wrong / (wrong + right) on **this night's** G-fail rows (G no CRC-valid output). It is computed by the committed script before f_X is read, and printed first.
+  - 0.284 (COH-GAIN, 10-04) is printed beside it, descriptive.
+- **W-FAIL:** Wilson `CI_lo(f_X)` > f_C3 (point).
+- **Consequence:** W-FAIL no longer blocks automatically. **L1-GO + W-FAIL goes to the Captain** with both rates and their consequences. A build is licensed only on L1-GO without W-FAIL.
+- **Descriptive, mandatory beside it, the like-for-like rate:** wrong payloads per **consulted row** for X (on its population) and for C3 (on G-no-output rows), each with a Wilson CI.
+
+**A1.3 (QA's A2) Order dependence stated (my error E50).**
+- X takes the first CRC-valid of C1 → J2 → J3 → N1, so an earlier wrong payload blocks a later right one: **NET_X and f_X depend on that order.** The order is fixed in advance (WSJT-X's method order: single, pairs, triples, normalised) and is not tuned after data.
+- **Descriptive, mandatory:**
+  - per set, on X's population, rows right and rows wrong;
+  - the **order-free "any set right"** count;
+  - the count of rows where an earlier set's wrong payload blocked a later set's right one.
+- So a build spec is not tied to the order. f_X is shown beside every per-set wrong share.
+
+**A1.4 (QA's A3) V2b's coverage stated; grouping test added.**
+- **V2b mutates J2/J3 only.** C1 and N1 share the order-1 Gray map, which V3 covers through C3's equality with the build. That is accepted, and said here.
+- **Required unit test (QA's, a test, not a row):**
+  - J2 = 14 pairs + 1 single per half;
+  - J3 = 9 triples + 1 pair per half;
+  - no group touches symbols 0–6, 36–42 or 72–78.
+- A grouping bug costs sensitivity only, so it biases toward STOP, never toward a false GO.
+
+**A1.5 V3 corrected: there is no "A2 tolerance" on LLR values (my error E51).** A2 (COH-FALLBACK spec line 62) tests **outcome agreement**, not numerical closeness. V3 now uses A2's own bars on the first **300** rows:
+- **(a)** BP outcome (CRC-valid y/n, and payload equality) between this harness's C3 and the native `ft8_coherent_fallback_at` agrees on **≥ 299/300** (A2(a) ≥ 99.5 %);
+- **(b)** the (df, dt) estimate is equal on **≥ 297/300** (A2(b) ≥ 99 %).
+- Max |ΔLLR| is reported, descriptive.
+
+**A1.6 Half-width for D3.**
+- QA's indicative scaling, from COH-GAIN's G ∪ C3 half-width (≈ 0.54 pp at p = 5.25 %, 309 cycles): at 600 cycles, about ±0.12 pp at a true 0.5 pp and ±0.17 pp at 1.0 pp. **Both bars are resolvable.**
+- L1-GO at 0.5 needs a point of about 0.62 pp.
+- QA replaces this with the counted pilot figure at step 2, **before** the Captain is asked.
+
+**Unchanged:** L1-GO/STOP/OPEN, BAR_L (the Captain's, before any real-audio decode), V1, V2a, V2b, V4, V5, §7, the predictions.
+- X4 (W-FAIL, 0.20) is **not re-priced.** It now scores against A1.2's row.
+- **QA proceeds to step 2.** No real-audio decode before BAR_L is ratified.
