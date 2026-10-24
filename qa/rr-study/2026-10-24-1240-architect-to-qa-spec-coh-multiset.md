@@ -234,3 +234,12 @@ The Stage 2 night is `20261009_1752_endurance_run` (+ `-gathered`).
 **Unchanged:** L1-GO/STOP/OPEN, BAR_L (the Captain's, before any real-audio decode), V1, V2a, V2b, V4, V5, §7, the predictions.
 - X4 (W-FAIL, 0.20) is **not re-priced.** It now scores against A1.2's row.
 - **QA proceeds to step 2.** No real-audio decode before BAR_L is ratified.
+
+**A1.7 Step 2 rulings (2026-10-24 ~13:1xZ, on QA's inventory; nothing decoded).**
+- **Night:** `20261022_1949_endurance_run-gathered`, 40 m, Windows Voicemeeter chain. It has 2,926 cycles in both WAV sets, 2,923 with Rx lines, and 78,287 WSJT-X Rx lines. It is fresh for this question.
+- **WAV source:** `owsfz/wav`, for parity with COH-GAIN. δ = 0.7 s was calibrated on OWS WAVs.
+- **Sampling:** **k = 3.**
+  - QA's proposed k = 4 would put every sampled cycle on one index parity, against §4's "odd k".
+  - Sample = index mod 3 == 1 (≈ 975 cycles); pilot = the first 100 cycles with index mod 3 == 2.
+  - The pilot is never pooled with the sample. Even/odd slot counts must be within 2 % of each other, as Q-GATE-2.
+- **Pilot δ check (mechanical, before D3 is asked):** median anchor offset on the pilot's exact matches, as COH-GAIN Amendment 1. If |δ_pilot − 0.7 s| > **0.05 s** (half of WSJT-X's 0.1 s DT resolution), stop and come back before any sample decode.
