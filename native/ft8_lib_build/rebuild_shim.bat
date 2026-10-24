@@ -217,6 +217,7 @@ link /DLL ^
   /EXPORT:ft8_coherent_fallback_plan ^
   /EXPORT:ft8_coherent_fallback_ctx_new ^
   /EXPORT:ft8_coherent_fallback_ctx_free ^
+  /EXPORT:ft8_coherent_fallback_ctx_set_flags ^
   /EXPORT:ft8_coherent_fallback_process ^
   /EXPORT:ft8_coherent_fallback_sets_at ^
   /EXPORT:ft8_coherent_fallback_set_groups ^

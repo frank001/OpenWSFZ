@@ -93,6 +93,7 @@ struct cf_ctx {
     double  p_re[CF_PFX_LEN + 1], p_im[CF_PFX_LEN + 1];
     double* acc_re; double* acc_im;                /* the complex sum per (df, dt) */
     double  x_re[CF_NSYM * CF_TONES], x_im[CF_NSYM * CF_TONES];
+    int     multiset;                /* COH-MULTISET: the per-context walk bit (0 = off; cf_ctx_new's calloc starts it off) */
 };
 
 double cf_monotonic_ms(void)
@@ -157,6 +158,10 @@ cf_ctx_t* cf_ctx_new(int pcm_len)
     }
     return c;
 }
+
+void cf_ctx_set_multiset(cf_ctx_t* c, int on) { c->multiset = on ? 1 : 0; }
+
+int cf_ctx_multiset(const cf_ctx_t* c) { return c->multiset; }
 
 void cf_ctx_free(cf_ctx_t* c)
 {

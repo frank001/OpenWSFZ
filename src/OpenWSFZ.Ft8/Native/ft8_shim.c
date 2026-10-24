@@ -2243,9 +2243,17 @@ static void cf_run_bp(const double* v3, FT8CohFallbackResult* r, float* llr_out)
                                     &r->bp_ldpc_errors, &r->bp_path, &r->bp_crc_ok);
 }
 
-/* One anchor: estimate, F1b (unless skipped), the gate, and (if it passes or is forced) C3 + BP. */
-static void cf_process_one(cf_ctx_t* ctx, const float* pcm, double f0, double t0, int flags, FT8CohFallbackResult* r, float* llr_out)
+/* COH-MULTISET Stage 2: what the walk did for one candidate. entered = 1 iff V3's BP gave no CRC-valid output AND the context's multi-set
+ * bit was on; provenance = 0 (V3, or the bit off), 1..4 (C1, J2, J3, N1 produced the payload), -1 (the walk ran and found nothing). */
+typedef struct { int entered; int provenance; } cf_walk_info_t;
+
+/* One anchor: estimate, F1b (unless skipped), the gate, and (if it passes or is forced) C3 + BP. With the context's multi-set bit on and
+ * V3's BP giving no CRC-valid output, the walk then tries C1, J2, J3, N1 in that fixed order (BP only, no OSD); the first CRC-valid output
+ * ends it and replaces r's BP fields. wi (may be NULL) receives what the walk did. */
+static void cf_process_one(cf_ctx_t* ctx, const float* pcm, double f0, double t0, int flags, FT8CohFallbackResult* r, float* llr_out,
+                           cf_walk_info_t* wi)
 {
+    if (wi) { wi->entered = 0; wi->provenance = 0; }
     memset(r, 0, sizeof(*r));
     r->bp_rc = FT8_COH_BP_NOT_RUN;
     r->bp_path = -1;
@@ -2274,6 +2282,23 @@ static void cf_process_one(cf_ctx_t* ctx, const float* pcm, double f0, double t0
         cf_v3_llrs(ctx, pcm, f0, t0, &est, v3);
         cf_run_bp(v3, r, llr_out);
         r->c3_ran = 1;
+        if (cf_ctx_multiset(ctx) && !(r->bp_rc == 0 && r->bp_crc_ok)) {
+            /* The walk (COH-MULTISET): the sets read the correlations cf_v3_llrs just left in the context, at the same estimate. */
+            if (wi) { wi->entered = 1; wi->provenance = -1; }
+            for (int set = CF_SET_C1; set <= CF_SET_N1; set++) {
+                double raw[CF_N_LLR];
+                FT8CohFallbackResult t;
+                memset(&t, 0, sizeof(t));
+                cf_multiset_llrs(ctx, set, raw);
+                cf_run_bp(raw, &t, NULL);
+                if (t.bp_rc == 0 && t.bp_crc_ok) {
+                    r->bp_rc = t.bp_rc; r->bp_path = t.bp_path; r->bp_crc_ok = t.bp_crc_ok; r->bp_ldpc_errors = t.bp_ldpc_errors;
+                    memcpy(r->a91, t.a91, sizeof(r->a91));
+                    if (wi) wi->provenance = set;
+                    break;          /* the first CRC-valid output ends the walk */
+                }
+            }
+        }
         r->c3_bp_ms = cf_monotonic_ms() - t_f1b;
     }
     r->elapsed_ms = cf_monotonic_ms() - t_begin;
@@ -2293,7 +2318,7 @@ int ft8_coherent_fallback_at(
 #endif
     ctx = cf_ctx_new(pcm_len);
     if (!ctx) return -3;
-    cf_process_one(ctx, pcm, freq_hz, time_offset_s, flags, res, out_llr174);
+    cf_process_one(ctx, pcm, freq_hz, time_offset_s, flags, res, out_llr174, NULL);
     cf_ctx_free(ctx);
     return 0;
 #ifdef _MSC_VER
@@ -2436,7 +2461,7 @@ int ft8_coherent_fallback_cycle(
                    : gate_first        ? flags
                                        : (flags | FT8_COH_FLAG_SKIP_F1B);
         const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
-        cf_process_one(ctx, pcm, f0, t0, pflags, r, NULL);
+        cf_process_one(ctx, pcm, f0, t0, pflags, r, NULL, NULL);
 
         int crc_new = 0, f1b_computed = 0, published = 0;
         if (eligible) {
@@ -2534,7 +2559,7 @@ int ft8_coherent_fallback_run(
     const volatile int32_t* cancel,
     FT8CohFallbackCycleStats* stats, FT8CohFallbackOut* out, int out_cap)
 {
-    if (pcm == NULL || snapshot == NULL || stats == NULL || out == NULL || out_cap < 0 || flags != 0
+    if (pcm == NULL || snapshot == NULL || stats == NULL || out == NULL || out_cap < 0 || (flags & ~FT8_COH_RUN_MULTISET) != 0
         || pcm_len != FT8_EXPECTED_SAMPLES || snapshot_len != (int)sizeof(cf_snapshot_t)) return -1;
     memset(stats, 0, sizeof(*stats));
     const cf_snapshot_t* snap = (const cf_snapshot_t*)snapshot;
@@ -2548,6 +2573,7 @@ int ft8_coherent_fallback_run(
     const double deadline = (budget_ms < 0.0) ? 0.0 : t_begin + budget_ms;
     ctx = cf_ctx_new(pcm_len);
     if (!ctx) return -3;
+    cf_ctx_set_multiset(ctx, (flags & FT8_COH_RUN_MULTISET) != 0);   /* COH-MULTISET: the per-call bit (ft8_shim.c, this line) */
 
     int nrows = 0, stop = 0;
     stats->n_candidates = snap->n_cands;
@@ -2575,10 +2601,13 @@ int ft8_coherent_fallback_run(
 
         FT8CohFallbackResult r;
         const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
-        cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL);
+        cf_walk_info_t wi;
+        cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL, &wi);
         stats->n_attempted++;
         stats->estimate_ms += r.estimate_ms; stats->c3_bp_ms += r.c3_bp_ms;
         if (r.edge) stats->n_edge++;
+        if (wi.entered) stats->n_walk_entered++;
+        o->provenance = wi.provenance;
         o->edge = r.edge;
         o->out_freq_hz = (float)(f0 + r.est_df_hz);
         o->out_dt_s    = (float)(t0 + r.est_dt_s);
@@ -2709,6 +2738,13 @@ void ft8_coherent_fallback_ctx_free(void* ctx)
     if (ctx != NULL) cf_ctx_free((cf_ctx_t*)ctx);
 }
 
+int ft8_coherent_fallback_ctx_set_flags(void* ctx, int flags)
+{
+    if (ctx == NULL || (flags & ~FT8_COH_RUN_MULTISET) != 0) return -1;
+    cf_ctx_set_multiset((cf_ctx_t*)ctx, (flags & FT8_COH_RUN_MULTISET) != 0);
+    return 0;
+}
+
 int ft8_coherent_fallback_process(
     void* ctx_in, const float* pcm, int pcm_len, const void* snapshot, int snapshot_len, int cand_index,
     FT8CohFallbackOut* o, FT8CohFallbackCycleStats* acc)
@@ -2731,10 +2767,13 @@ int ft8_coherent_fallback_process(
 
     FT8CohFallbackResult r;
     const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
-    cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL);
+    cf_walk_info_t wi;
+    cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL, &wi);
     acc->n_attempted++;
     acc->estimate_ms += r.estimate_ms; acc->c3_bp_ms += r.c3_bp_ms;
     if (r.edge) acc->n_edge++;
+    if (wi.entered) acc->n_walk_entered++;
+    o->provenance = wi.provenance;
     o->edge = r.edge;
     o->out_freq_hz = (float)(f0 + r.est_df_hz);
     o->out_dt_s    = (float)(t0 + r.est_dt_s);

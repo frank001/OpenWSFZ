@@ -8,7 +8,7 @@ namespace OpenWSFZ.Ft8.Interop;
 internal struct CohFallbackStatsNative
 {
     public int NCandidates, NDecoded, NDupPosition, NEligible, NAttempted, NCrcOk, NCrcNew, NF1bComputed, NGated, NPublished,
-               NAbandoned, NEdge, NDecodedEstimated, NRows, Reserved0, Reserved1;
+               NAbandoned, NEdge, NDecodedEstimated, NRows, NWalkEntered, Reserved1;
     public double EstimateMs, F1bMs, C3BpMs, TotalMs;
 
     /// <summary>sizeof(FT8CohFallbackCycleStats).</summary>
@@ -24,7 +24,8 @@ internal struct CohFallbackOutNative
     public double F1bDb;
     public ulong Payload0;
     public uint Payload1;
-    public int Reserved;
+    /// <summary>COH-MULTISET (20260071; was Reserved): the set that produced the payload (0 V3, 1 C1, 2 J2, 3 J3, 4 N1, -1 the walk found nothing).</summary>
+    public int Provenance;
 
     /// <summary>sizeof(FT8CohFallbackOut).</summary>
     public const int ExpectedNativeSizeBytes = 56;
@@ -50,12 +51,21 @@ internal sealed record CohFallbackRow(
     float FreqHz, float DtS, float OutFreqHz, float OutDtS, int Pass, bool Edge, CohFallbackState State, int SnrDb, double F1bDb,
     byte[] Payload)
 {
+    /// <summary>
+    /// COH-MULTISET: the set that produced <see cref="Payload"/>: 0 = V3 (always 0 with the multi-set flag off), 1 = C1, 2 = J2, 3 = J3, 4 = N1,
+    /// -1 = the walk ran and found nothing. Meaningful for attempted rows.
+    /// </summary>
+    public int Provenance { get; init; }
+
     internal static CohFallbackRow From(in CohFallbackOutNative n)
     {
         var payload = new byte[12];
         BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(0, 8), n.Payload0);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), n.Payload1);
-        return new CohFallbackRow(n.FreqHz, n.DtS, n.OutFreqHz, n.OutDtS, n.Pass, n.Edge != 0, (CohFallbackState)n.State, n.SnrDb, n.F1bDb, payload);
+        return new CohFallbackRow(n.FreqHz, n.DtS, n.OutFreqHz, n.OutDtS, n.Pass, n.Edge != 0, (CohFallbackState)n.State, n.SnrDb, n.F1bDb, payload)
+        {
+            Provenance = n.Provenance,
+        };
     }
 }
 
@@ -64,9 +74,15 @@ internal readonly record struct CohFallbackStats(
     int Candidates, int Decoded, int DupPosition, int Eligible, int Attempted, int CrcOk, int CrcNew, int F1bComputed, int Gated,
     int Abandoned, int Edge, double EstimateMs, double F1bMs, double C3BpMs, double TotalMs)
 {
+    /// <summary>COH-MULTISET: candidates that entered the walk (V3 gave no CRC-valid output with the multi-set flag on); 0 with it off.</summary>
+    public int WalkEntered { get; init; }
+
     internal static CohFallbackStats From(in CohFallbackStatsNative n) => new(
         n.NCandidates, n.NDecoded, n.NDupPosition, n.NEligible, n.NAttempted, n.NCrcOk, n.NCrcNew, n.NF1bComputed, n.NGated,
-        n.NAbandoned, n.NEdge, n.EstimateMs, n.F1bMs, n.C3BpMs, n.TotalMs);
+        n.NAbandoned, n.NEdge, n.EstimateMs, n.F1bMs, n.C3BpMs, n.TotalMs)
+    {
+        WalkEntered = n.NWalkEntered,
+    };
 }
 
 /// <summary>The rows (candidate order) and counters of one fallback run.</summary>
@@ -74,6 +90,13 @@ internal sealed record CohFallbackRunResult(CohFallbackStats Stats, IReadOnlyLis
 {
     /// <summary>COH-FALLBACK step 4 (R15): the number of worker threads the run used (1 for the single-thread run).</summary>
     public int Workers { get; init; } = 1;
+
+    /// <summary>
+    /// COH-MULTISET: how many attempted rows carry a CRC-valid payload (state Known, GatedOut or NewGated) produced by <paramref name="set"/>
+    /// (0 V3, 1 C1, 2 J2, 3 J3, 4 N1). Counted from the rows' provenance.
+    /// </summary>
+    public int CrcValidBySet(int set) => Rows.Count(r => r.Provenance == set
+        && r.State is CohFallbackState.Known or CohFallbackState.GatedOut or CohFallbackState.NewGated);
 }
 
 /// <summary>
@@ -94,6 +117,13 @@ internal interface ICohFallbackWorker : IDisposable
 
     /// <summary>The counts and times of every candidate this worker has run so far (attempted, crcOk, crcNew, f1bComputed, gated, edge, ms).</summary>
     CohFallbackStats Accumulated { get; }
+
+    /// <summary>
+    /// COH-MULTISET: sets the multi-set walk bit on this worker's native context. The runner calls it on EVERY worker before the cycle's
+    /// <see cref="Process"/> calls, because a context may outlive a cycle while the flag changes at run time (Architect A1.1). Default: no-op
+    /// (a fake does not model the walk).
+    /// </summary>
+    void SetMultiSet(bool on) { }
 }
 
 /// <summary>COH-FALLBACK step 4: the native side of the parallel cycle, behind a seam so the scheduling can be tested without the library.</summary>

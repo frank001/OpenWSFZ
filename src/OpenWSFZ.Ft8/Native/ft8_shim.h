@@ -845,6 +845,10 @@ extern "C" {
  *              exports: ft8_coherent_fallback_sets_at (the estimate, V3's BP outcome and, for each set, its 174 raw values and BP-only
  *              outcome, plus the walk's result) with the NEW structs FT8CohSetOutcome (32 bytes) and FT8CohSetsResult (216), and
  *              ft8_coherent_fallback_set_groups (the J2/J3 grouping, for the B2 test). Every existing export and struct is unchanged.
+ *              Stage 2 (same number: Stage 1 was never released): the walk in the product path. ft8_coherent_fallback_run's flags accept
+ *              FT8_COH_RUN_MULTISET; NEW export ft8_coherent_fallback_ctx_set_flags sets the same bit on a scratch context for
+ *              ft8_coherent_fallback_process (a new context is off); FT8CohFallbackCycleStats.reserved0 became n_walk_entered and
+ *              FT8CohFallbackOut.reserved became provenance (layouts and sizes unchanged; both stay 0 with the bit off).
  *              20260070 is origin/decoding_improvement's (sync 7), not merged here.
  */
 #define FT8_SHIM_VERSION 20260071
@@ -1551,7 +1555,8 @@ typedef struct
     int32_t n_edge;              /* ... whose estimate sits on a window edge */
     int32_t n_decoded_estimated; /* INCLUDE_DECODED: decoded candidates whose estimate was run */
     int32_t n_rows;              /* rows produced (may exceed rows_cap) */
-    int32_t reserved0, reserved1;
+    int32_t n_walk_entered;      /* COH-MULTISET (20260071; was reserved0): candidates that entered the walk (V3 gave no CRC-valid output, multi-set bit on); 0 with it off */
+    int32_t reserved1;
     double  estimate_ms;         /* summed over the eligible candidates */
     double  f1b_ms;
     double  c3_bp_ms;
@@ -1604,7 +1609,8 @@ typedef struct
     int32_t snr_db;              /* the coherent SNR in dB (2500 Hz reference), valid for states GATED_OUT and NEW_GATED */
     double  f1b_db;              /* F1b in dB; NaN unless computed (states GATED_OUT and NEW_GATED) */
     uint8_t payload[12];         /* the CRC-valid BP output (states KNOWN, GATED_OUT, NEW_GATED); the first 10 bytes are the 77-bit payload */
-    int32_t reserved;
+    int32_t provenance;          /* COH-MULTISET (20260071; was reserved): the set that produced the payload: 0 = V3 (always 0 with the multi-set bit off),
+                                  * 1 = C1, 2 = J2, 3 = J3, 4 = N1, -1 = the walk ran and found nothing. Meaningful for attempted rows. */
 } FT8CohFallbackOut;
 
 /* Bytes needed by ft8_coherent_fallback_snapshot. */
@@ -1614,7 +1620,10 @@ int ft8_coherent_fallback_snapshot_size(void);
  * size). Returns the size, or -1. Call it on the thread that ran ft8_decode_all, with no other call in between. */
 int ft8_coherent_fallback_snapshot(void* buf, int cap);
 
-/* The product cycle (see the version-20260068 history entry). flags must be 0 (reserved). budget_ms < 0: no deadline; otherwise the
+/* COH-MULTISET (20260071): the one defined bit of ft8_coherent_fallback_run's flags (and of ft8_coherent_fallback_ctx_set_flags): try C1, J2, J3, N1 where V3 fails. */
+#define FT8_COH_RUN_MULTISET  1
+
+/* The product cycle (see the version-20260068 history entry). flags: 0 or FT8_COH_RUN_MULTISET (any other bit is refused, -1). budget_ms < 0: no deadline; otherwise the
  * deadline is the call's start + budget_ms, checked before each eligible candidate. cancel (may be NULL): a candidate is not started
  * once *cancel != 0. stats: FT8CohFallbackCycleStats (n_published is left 0: publication is the caller's, R6''). out receives one row
  * per eligible candidate up to out_cap (size it to the snapshot's candidate count). Returns the number of rows written; -1 bad
@@ -1645,6 +1654,11 @@ int ft8_coherent_fallback_plan(
 /* One scratch context for ft8_coherent_fallback_process: one per worker thread, never shared between threads. NULL when out of memory. */
 void* ft8_coherent_fallback_ctx_new(void);
 void  ft8_coherent_fallback_ctx_free(void* ctx);
+
+/* COH-MULTISET Stage 2 (20260071): sets the per-context flags (FT8_COH_RUN_MULTISET or 0) that ft8_coherent_fallback_process reads. A NEW context is
+ * OFF. The context is long-lived on the managed side while the flag changes at run time, so the caller sets it before each cycle's _process
+ * calls. Returns 0, or -1 for a NULL context or an unknown bit. Existing signatures are unchanged. */
+int ft8_coherent_fallback_ctx_set_flags(void* ctx, int flags);
 
 /* Runs ONE eligible candidate (snapshot index cand_index, as ft8_coherent_fallback_plan gave it) into *out and ADDS its counts and
  * times to *acc (n_attempted, n_edge, n_crc_ok, n_crc_new, n_f1b_computed, n_gated, estimate_ms, f1b_ms, c3_bp_ms). It does not check a

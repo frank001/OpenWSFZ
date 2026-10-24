@@ -94,6 +94,11 @@ int cf_multiset_groups(int group_size, int first_k[CF_MS_MAX_GROUPS], int n_syms
 void cf_multiset_llrs(const cf_ctx_t* ctx, int set, double out174[CF_N_LLR]);
 void cf_multiset_llrs_gray(const cf_ctx_t* ctx, int set, const int gray[8], double out174[CF_N_LLR]);
 
+/* COH-MULTISET Stage 2: the per-context walk bit. A new context has it OFF; the shim's per-candidate body reads it (never a process
+ * global). */
+void cf_ctx_set_multiset(cf_ctx_t* ctx, int on);
+int  cf_ctx_multiset(const cf_ctx_t* ctx);
+
 /* Monotonic wall-clock milliseconds (QueryPerformanceCounter / CLOCK_MONOTONIC). */
 double cf_monotonic_ms(void);
 

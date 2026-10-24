@@ -34,9 +34,10 @@ internal static class CohFallbackParallelRunner
     /// <param name="budgetMs">&lt; 0: no deadline; otherwise no candidate is claimed once this many ms have passed since the call began.</param>
     /// <param name="workers">Worker threads wanted (at least 1; never more than there are candidates).</param>
     /// <param name="ct">Cancelling it has the same effect as the deadline.</param>
+    /// <param name="multiSet">COH-MULTISET: the once-per-cycle flag. Set on EVERY worker's context before its first candidate (A1.1), true or false.</param>
     /// <returns>The result, or <c>null</c> when the backend could not make a plan.</returns>
     public static CohFallbackRunResult? Run(
-        ICohFallbackBackend backend, float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
+        ICohFallbackBackend backend, float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct, bool multiSet = false)
     {
         ArgumentNullException.ThrowIfNull(backend);
         ArgumentNullException.ThrowIfNull(pcm);
@@ -68,6 +69,7 @@ internal static class CohFallbackParallelRunner
                 try
                 {
                     using var worker = backend.CreateWorker();
+                    worker.SetMultiSet(multiSet);
                     while (MayClaim())
                     {
                         int e = Interlocked.Increment(ref next);
@@ -100,15 +102,17 @@ internal static class CohFallbackParallelRunner
         var p = plan.Stats;
         int attempted = 0, crcOk = 0, crcNew = 0, f1b = 0, gated = 0, edge = 0;
         double estMs = 0, f1bMs = 0, c3Ms = 0;
+        int walkEntered = 0;
         foreach (var a in accumulated)
         {
+            walkEntered += a.WalkEntered;
             attempted += a.Attempted; crcOk += a.CrcOk; crcNew += a.CrcNew; f1b += a.F1bComputed; gated += a.Gated; edge += a.Edge;
             estMs += a.EstimateMs; f1bMs += a.F1bMs; c3Ms += a.C3BpMs;
         }
         var stats = new CohFallbackStats(
             p.Candidates, p.Decoded, p.DupPosition, p.Eligible, attempted, crcOk, crcNew, f1b, gated,
             Abandoned: p.Eligible - attempted, Edge: edge, EstimateMs: estMs, F1bMs: f1bMs, C3BpMs: c3Ms,
-            TotalMs: wall.Elapsed.TotalMilliseconds);
+            TotalMs: wall.Elapsed.TotalMilliseconds) { WalkEntered = walkEntered };
         return new CohFallbackRunResult(stats, rows) { Workers = nWorkers };
     }
 }

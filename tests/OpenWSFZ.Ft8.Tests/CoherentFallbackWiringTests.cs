@@ -95,6 +95,15 @@ public sealed class CoherentFallbackWiringTests
             return [1, 2, 3, 4];
         }
 
+        /// <summary>COH-MULTISET: the once-per-cycle flag value the decoder passed, one entry per run.</summary>
+        public List<bool> MultiSetArgs { get; } = [];
+
+        public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, CancellationToken ct)
+        {
+            lock (_gate) MultiSetArgs.Add(multiSet);
+            return CohFallbackRun(pcm, snapshot, budgetMs, workers, ct);
+        }
+
         public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
         {
             lock (_gate) { RunCalls++; Calls.Add("run"); RunBudgetMs = budgetMs; RunWorkers = workers; RunPcm = pcm; OrdinaryActiveAtRun = _ordinaryActive; }
@@ -192,6 +201,87 @@ public sealed class CoherentFallbackWiringTests
     private static readonly Ft8NativeResult[] Third = [Msg("Q1MNO Q1PQR IO91", 2400)];
 
     private static CohFallbackRunResult OneNew(int id = 1) => new(Stats(1, 1, 1, 1, 1, 0), [Row(id)]) { Workers = 4 };
+
+    // ── COH-MULTISET: the flag reaches the run once per cycle, and the line reports it ─────────────────────────────
+
+    private static CohFallbackRow WonBy(int id, int provenance) => Row(id) with { Provenance = provenance };
+
+    [Fact(DisplayName = "COH-MULTISET: decoder.coherentFallbackMultiSet defaults to false (config record, bare decoder); the setter and getter round-trip")]
+    public void MultiSet_DefaultsToFalse_AndRoundTrips()
+    {
+        new DecoderConfig().CoherentFallbackMultiSet.Should().BeFalse();
+        var d = Build(new FallbackInterop([Pass0], OneNew()), DecodingDepth.Deep, true);
+        d.CoherentFallbackMultiSet.Should().BeFalse();
+        d.SetCoherentFallbackMultiSet(true);
+        d.CoherentFallbackMultiSet.Should().BeTrue();
+        d.SetCoherentFallbackMultiSet(false);
+        d.CoherentFallbackMultiSet.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "COH-MULTISET: the run gets the flag exactly once per cycle (false by default, true when set) and the line says sets=off / sets=on")]
+    public async Task MultiSet_IsPassedOncePerCycle_AndLogged()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var d = Build(interop, DecodingDepth.Deep, true, log);
+
+        await RunStaged(d);
+        d.SetCoherentFallbackMultiSet(true);
+        await RunStaged(d);
+
+        interop.MultiSetArgs.Should().Equal(false, true);
+        var lines = log.Lines.Where(l => l.StartsWith("Coherent fallback:")).ToList();
+        lines[0].Should().Contain("sets=off, walkEntered=0, crcC1=0, crcJ2=0, crcJ3=0, crcN1=0.");
+        lines[1].Should().Contain("sets=on, ");
+    }
+
+    [Fact(DisplayName = "COH-MULTISET: the line carries the walk-entry count and the CRC-valid counts per set, from the run's own counters and rows, and no message text")]
+    public async Task MultiSet_LineCarriesTheCounters()
+    {
+        var log = new LineLog();
+        var rows = new[] { WonBy(1, 3), WonBy(2, 3), WonBy(3, 2), WonBy(4, 0), Row(5, CohFallbackState.NoCrc) with { Provenance = -1 } };
+        var run = new CohFallbackRunResult(Stats(5, 5, 4, 4, 4, 0) with { WalkEntered = 4 }, rows) { Workers = 4 };
+        var interop = new FallbackInterop([Pass0, Resid], run)
+        {
+            Texts = { [1] = "Q1AAA Q1BBB RR73", [2] = "Q1CCC Q1DDD RR73", [3] = "Q1EEE Q1FFF RR73", [4] = "Q1GGG Q1HHH RR73" },
+        };
+        var d = Build(interop, DecodingDepth.Deep, true, log);
+        d.SetCoherentFallbackMultiSet(true);
+
+        await RunStaged(d);
+
+        var line = log.Lines.Single(l => l.StartsWith("Coherent fallback:"));
+        line.Should().Contain("sets=on, walkEntered=4, crcC1=0, crcJ2=1, crcJ3=2, crcN1=0.");
+        line.Should().NotContain("Q1AAA");
+    }
+
+    [Fact(DisplayName = "COH-MULTISET: the flag is read ONCE per cycle - changing it while the cycle runs does not change that cycle's value, the next cycle sees it")]
+    public async Task MultiSet_IsReadOnce_PerCycle()
+    {
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" } };
+        var d = Build(interop, DecodingDepth.Deep, true);
+        d.SetCoherentFallbackMultiSet(true);
+
+        await RunStaged(d, interop, onBatch: n => { if (n == 1) d.SetCoherentFallbackMultiSet(false); });
+        await RunStaged(d, interop);
+
+        interop.MultiSetArgs.Should().Equal(true, false);
+    }
+
+    [Fact(DisplayName = "COH-MULTISET: the flag acts only while the fallback is on - with the fallback OFF there is no run and no line, whatever the flag says")]
+    public async Task MultiSet_NeedsTheFallback()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew());
+        var d = Build(interop, DecodingDepth.Deep, fallback: false, log);
+        d.SetCoherentFallbackMultiSet(true);
+
+        await RunStaged(d);
+
+        interop.RunCalls.Should().Be(0);
+        interop.MultiSetArgs.Should().BeEmpty();
+        log.Lines.Should().NotContain(l => l.StartsWith("Coherent fallback:"));
+    }
 
     // ── R10: the flag ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -421,7 +511,8 @@ public sealed class CoherentFallbackWiringTests
 
     private static readonly Regex LineShape = new(
         @"^Coherent fallback: eligible=7, attempted=6, crcOk=3, f1bComputed=2, gated=1, published=1, abandoned=1, elapsedMs=457, publishedEdge=1, path=2, " +
-        @"workers=4, fbStartMs=(\d+), fbWallMs=(\d+), batch=(\d), batch4Published=([01]), batch4PublishMs=(-?\d+)\.$", RegexOptions.CultureInvariant);
+        @"workers=4, fbStartMs=(\d+), fbWallMs=(\d+), batch=(\d), batch4Published=([01]), batch4PublishMs=(-?\d+), " +
+        @"sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+)\.$", RegexOptions.CultureInvariant);
 
     [Fact(DisplayName = "R12': ONE aggregates-only line per cycle, with the documented fields (workers, fbStartMs, fbWallMs, batch, batch4Published, batch4PublishMs) and no message text")]
     public async Task Log_OneLinePerCycle_WithTheFields()
@@ -455,7 +546,7 @@ public sealed class CoherentFallbackWiringTests
 
         on.Select(b => b.Batch).Should().Equal(new[] { 1, 2 }, "no batch 4");
         var line = log.Lines.Single(l => l.StartsWith("Coherent fallback:"));
-        line.Should().Contain("published=0,").And.Contain("batch=4, batch4Published=0, batch4PublishMs=-1.");
+        line.Should().Contain("published=0,").And.Contain("batch=4, batch4Published=0, batch4PublishMs=-1, ");
     }
 
     [Fact(DisplayName = "R12': a publish callback that throws still leaves the cycle's line (written in a finally), with batch4Published=1")]

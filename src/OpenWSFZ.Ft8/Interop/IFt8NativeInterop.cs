@@ -265,6 +265,16 @@ internal interface IFt8NativeInterop
         => CohFallbackBackend is { } backend ? CohFallbackParallelRunner.Run(backend, pcm, snapshot, budgetMs, workers, ct) : null;
 
     /// <summary>
+    /// COH-MULTISET: as <see cref="CohFallbackRun(float[], byte[], double, int, CancellationToken)"/>, with the once-per-cycle <c>decoder.coherentFallbackMultiSet</c>
+    /// value. With <paramref name="multiSet"/> false it is EXACTLY the call above (same method, same arguments: a fake that overrides it keeps
+    /// working and the flag-off path is unchanged); with it true the runner sets the bit on every worker context before its first candidate.
+    /// </summary>
+    CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, CancellationToken ct)
+        => multiSet
+            ? (CohFallbackBackend is { } backend ? CohFallbackParallelRunner.Run(backend, pcm, snapshot, budgetMs, workers, ct, multiSet: true) : null)
+            : CohFallbackRun(pcm, snapshot, budgetMs, workers, ct);
+
+    /// <summary>
     /// COH-FALLBACK Stage 2: the message text of a payload through the ordinary message decode (touches the session hash table: no other
     /// native decode may run at the same time), or <c>null</c>. Default: <c>null</c>.
     /// </summary>

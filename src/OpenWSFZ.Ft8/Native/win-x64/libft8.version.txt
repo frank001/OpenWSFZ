@@ -1,20 +1,26 @@
-=== CURRENT: COH-MULTISET Stage 1, the four further coherent bit-metric sets + a diagnostic export (FT8_SHIM_VERSION 20260071) ===
+=== CURRENT: COH-MULTISET Stages 1 + 2, the four further coherent bit-metric sets, the diagnostic export and the walk (FT8_SHIM_VERSION 20260071) ===
 
 Built 2026-10-24 on feat/coh-multiset-build (off origin/main 5a9667ee, shim 20260069), local, not pushed. QA handoff
 dev-tasks/2026-10-24-coh-multiset-build.md (qa/refset); Architect spec 37a1a298 + Amendment 1 b59f7d7a.
 Version: 20260070 is decoding_improvement's (sync 7), not merged here.
-What changed (native): NO product wiring; nothing in the decode path calls any of it.
+What changed (native). Stage 1 (f5bf099a, B1 PASS): the sets and the diagnostic export, no product wiring. Stage 2: the walk in the product path.
   coherent_fallback.c/.h   cf_multiset_llrs: C1 (order 1, power), J2 (joint pairs), J3 (joint triples), N1 (order 1, magnitude, normalised),
       a C port of QA's own Python ms_metrics.py @ 96aa80d4 (method only, no WSJT-X source), doubles, reading the per-symbol correlations
       cf_v3_llrs leaves in the context; cf_multiset_groups (the J2/J3 grouping); cf_multiset_llrs_gray (test hook: the Gray map as a parameter).
   ft8_shim.c/.h            TWO NEW exports, ft8_coherent_fallback_sets_at (estimate, V3 BP outcome, each set's 174 raw values and BP-only
       outcome, the walk's result) and ft8_coherent_fallback_set_groups; NEW structs FT8CohSetOutcome (32 bytes), FT8CohSetsResult (216).
-  rebuild_shim.bat         the two exports added to the /EXPORT list.
+    Stage 2 (ft8_shim.c/.h): cf_process_one runs the walk (C1, J2, J3, N1, fixed order, BP only, no OSD) where V3's BP gave no CRC-valid output and the
+      context's multi-set bit is on; the first CRC-valid output ends it and takes the existing known / SNR / F1b-gate path. ft8_coherent_fallback_run's flags
+      accept FT8_COH_RUN_MULTISET (1); NEW export ft8_coherent_fallback_ctx_set_flags sets the same bit on a scratch context for
+      ft8_coherent_fallback_process (a NEW context is OFF; ctx_new unchanged). FT8CohFallbackCycleStats.reserved0 -> n_walk_entered and
+      FT8CohFallbackOut.reserved -> provenance (0 V3 / 1 C1 / 2 J2 / 3 J3 / 4 N1 / -1 walk found nothing): layouts and sizes unchanged, both 0 with the bit off.
+rebuild_shim.bat         the three new exports added to the /EXPORT list.
 Unchanged: every existing export and struct (ft8_coherent_fallback_at/_cycle/_run/_plan/_process/..., FT8CohFallbackOut), ft8_decode_all,
 cf_estimate / cf_f1b_db / cf_v3_llrs / cf_snr_db.
 
   Windows x64 (rebuild_shim.bat, MSVC): SHA256
-    15e8e436f6cd9b83468499b6b0020aace61e21e1f1eea0e5a59de720e91ac40e
+    1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914
+  (Stage 1 alone, f5bf099a, was 15e8e436f6cd9b83468499b6b0020aace61e21e1f1eea0e5a59de720e91ac40e: same label, different binary.)
   Linux x64 / macOS arm64: NOT rebuilt here; refreshed by the usual follow-up chore after the native merge (PR #254 for 20260069).
     tools/check_native_version.py reports shim 20260071 for the Windows file.
 

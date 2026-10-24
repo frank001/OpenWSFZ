@@ -859,6 +859,9 @@ internal static class Ft8LibInterop
     [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_ctx_free", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeCohFallbackCtxFree(IntPtr ctx);
 
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_ctx_set_flags", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackCtxSetFlags(IntPtr ctx, int flags);
+
     [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_process", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeCohFallbackProcess(
         IntPtr ctx, [In] float[] pcm, int pcmLen, [In] byte[] snapshot, int snapshotLen, int candIndex,
@@ -1547,6 +1550,10 @@ internal static class Ft8LibInterop
     /// </summary>
     /// <exception cref="NativeAccessViolationException">An access violation was contained by the native SEH wrapper.</exception>
     public static CohFallbackRunResult CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, CancellationToken ct)
+        => CohFallbackRun(pcm, snapshot, budgetMs, multiSet: false, ct);
+
+    /// <summary>COH-MULTISET: as above, with the per-call multi-set bit (<c>FT8_COH_RUN_MULTISET</c> in the native flags; never a process global).</summary>
+    public static CohFallbackRunResult CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, bool multiSet, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(pcm);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -1562,7 +1569,7 @@ internal static class Ft8LibInterop
         try
         {
             using var reg = ct.Register(static p => Marshal.WriteInt32((IntPtr)p!, 1), cancel);
-            int n = NativeCohFallbackRun(pcm, pcm.Length, snapshot, snapshot.Length, 0, budgetMs, cancel, out var stats, rows, rows.Length);
+            int n = NativeCohFallbackRun(pcm, pcm.Length, snapshot, snapshot.Length, multiSet ? CohRunMultiSet : 0, budgetMs, cancel, out var stats, rows, rows.Length);
             if (n == -2) throw new NativeAccessViolationException();
             if (n < 0) throw new InvalidOperationException($"ft8_coherent_fallback_run returned {n}.");
             var list = new List<CohFallbackRow>(n);
@@ -1595,6 +1602,19 @@ internal static class Ft8LibInterop
         var order = new List<int>(n);
         for (int i = 0; i < n; i++) { list.Add(CohFallbackRow.From(in rows[i])); order.Add(idx[i]); }
         return new CohFallbackPlan(CohFallbackStats.From(in stats), order, list);
+    }
+
+    /// <summary>COH-MULTISET Stage 2: <c>FT8_COH_RUN_MULTISET</c>, the native per-call / per-context multi-set bit.</summary>
+    internal const int CohRunMultiSet = 1;
+
+    /// <summary>
+    /// COH-MULTISET Stage 2: sets the multi-set walk bit on a scratch context made by <see cref="CohFallbackNewContext"/>. A new context is OFF;
+    /// the caller sets it before each cycle's <see cref="CohFallbackProcess"/> calls.
+    /// </summary>
+    internal static void CohFallbackSetContextMultiSet(IntPtr ctx, bool on)
+    {
+        int rc = NativeCohFallbackCtxSetFlags(ctx, on ? CohRunMultiSet : 0);
+        if (rc != 0) throw new InvalidOperationException($"ft8_coherent_fallback_ctx_set_flags returned {rc}.");
     }
 
     /// <summary>COH-MULTISET Stage 1: <c>ft8_coherent_fallback_sets_at</c> flag, TEST ONLY: J2, J3 and N1 use the identity tone map.</summary>
