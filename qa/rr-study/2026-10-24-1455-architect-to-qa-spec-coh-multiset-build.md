@@ -328,3 +328,43 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
   - the REF arm, then QA's REF note (§6.3, §6.5);
   - **the Captain sets D_bar and U′_bar before any MS decode;**
   - MS, MS-repeat, then the analysis.
+
+## §14 Amendment 3: both machines. sol now and the PC overnight; the bars are set now, before any decode (Architect, 2026-10-24 16:13:05Z by `date -u`)
+
+**The Captain's decisions, first-hand, in the Architect's window:**
+- *"we will do both. sol can be started immediately as it is free. I'm still using the PC for now, that will have to wait until later for an overnight run when I'm done using it."*
+- To the question of when to set the bars, he chose **"Set now: 0.5 pp / 0.021"**, recorded at 16:13:05Z.
+
+**A3.1 The bars are frozen now, before any decode on either machine.**
+- **D_bar = 0.5 pp.** D-GO if `CI_lo(NET)` ≥ 0.5; D-STOP if `CI_hi(NET)` < 0.5; D-OPEN otherwise.
+- **U′_bar = 0.021 per cycle.** U′-OK if `CI_hi(ΔU′)` ≤ 0.021; U′-FAIL if `CI_lo(ΔU′)` > 0.021; U′-OPEN otherwise.
+- **Where they come from:** as set out in §6.3, with the resolution counted from step 4 there.
+  - The whole night has 2,882 cycles against step 4's 961, so this night's intervals should be narrower than those figures.
+  - Setting the bars before any decode is stricter than "after REF".
+- 🛑 **Never moved after any decode.** MB3 and MB4 are scored against these bars.
+- **QA's REF note (§6.3, §6.5) is still written,** for the record (U′0, half-widths, the two lines). It is no longer a stop point. If a §6.5 line comes out "cannot resolve", QA reports it with the verdict. The bars do not move.
+
+**A3.2 sol: the verdict run, conditional on V5.**
+- **Before any arm:** the Linux `.so` is built on sol from `d7750bde` and its SHA is pinned (V1). B1 is re-run on that `.so` (the 7,498 rows, the same thresholds); FAIL ⇒ no sol arm.
+- **Run:** REF → MS → MS-repeat (first 320 cycles) as one unattended chain on the frozen whole-night `selection.json` (`81372df5`). It is detached, supervised, logged and orphan-checked (HK-013, HK-019, HK-023).
+  - **Projection:** sol's step-4 elapsed median was about 8.2 s per cycle, so about 6.6 h per arm and **about 14 h in all**.
+  - §6.1's 8 h sampling rule is **waived for sol**. The machine is idle, and keeping the frozen whole-night selection keeps **one population on both machines**. This changes mechanics only, before any decode.
+- **V5 on sol: ≤ 1 % of cycles with any abandoned work in REF and in MS** (§12 A2.2).
+- **The verdict comes from sol if every validity row passes there, V5 at 1 % included.** Otherwise it comes from the PC.
+
+**A3.3 The PC overnight: required before the verdict is final.**
+- **Build:** the build of record, win-x64 DLL `1ba8dc3d`. Arms REF and MS on the same frozen selection, with WSJT-X closed (about 5 h).
+- **V8 platform identity (new):** per cycle, the PC's REF and MS outcomes equal sol's (all kinds, including provenance), except cycles explained by abandonment on either machine.
+  - The data on file had 961/961 identical (`74017b63`).
+  - Any unexplained difference ⇒ the verdict waits and I rule.
+- **If sol's V5 failed,** the PC run is the verdict run, and an MS-repeat over 320 cycles is added on the PC.
+- **The cost lines (§6.7) are reported for both machines.** sol's run answers §7's "slower CPU not measured".
+
+**A3.4 Order:**
+1. sol: build and pin the `.so`, then the B1 re-run.
+2. sol: the REF → MS → MS-repeat chain, starting now.
+3. QA's REF note.
+4. The PC overnight, when the Captain hands it over (REF and MS).
+5. Analysis by committed code.
+6. QA's report.
+7. My ruling.
