@@ -118,6 +118,33 @@ I recounted from the committed rows, not from QA's summary:
 - **Brier score:** 0.36, 0.49, 0.16, 0.04, 0.0625, 0.16, mean **0.212**.
 - **Calibration:** I was *under*-confident on X1 and X2. The gain came out at about 4× the bar, where I gave 0.40 for even reaching it. This runs against the ledger's usual bias, where hypothesised calls favour a findable defect, and is recorded as such.
 
+## 4a. Addendum, 14:43:02Z by `date -u`: V1(b) PASS, so L1-GO is FINAL
+
+**QA's result** (output `d1f7d906`, committed before evaluation):
+- **The run:** `ft8_decode_all` over the 975 sampled cycles. Same DLL `aaf6b03e`. The process was configured as `ms_run` configures it: `set_decode_params(10, 0.10, 24)`, sign fix 1.
+- **Decodes:** 16,543, with 48 OSD accepts. All 48 were stored, so the store was not truncated.
+- **`nhard` on accepts:** the maximum was 16; **0 accepts had `nhard` > 24**.
+- **Rejects:** 7,153 under reason 0, the `nhard` cap, so the cap was demonstrably in force; 0 under reason 1.
+
+**Why this counts for the G arm** (FILE:LINE on `5a9667ee`):
+- The shipped diagnostic records only the `ft8_decode_all` path, so it cannot see G's `ft8_ldpc_decode_llrs` calls (QA, `ft8_shim.h:1139–1140`).
+- Both paths read the same cap:
+  - the gate in `ft8_ldpc_decode_llrs` is `if (nhard > OSD_NHARD_MAX)` (`decode.c:1034`);
+  - `OSD_NHARD_MAX` is `s_osd_nhard_max` (`decode.c:77`), a process-global that `extern` declares at `decode.c:65`;
+  - the candidate path reads the same macro at `decode.c:727`.
+- So (a), the call and its return in the harness log, together with this run, shows the cap at 24 in a process set up like G's. It is not an instrument on G itself, and QA's report says so.
+- **My error (ledger E55).** I wrote (b) without checking what the diagnostic covers. QA's substitute is the mechanical check that can actually be done, and I accept it.
+
+**Report items, counted by QA:**
+- **(i) Faults.** All 16 fault rows are one kind: `ft8_extract_llrs_at` returned −3 (frequency outside the export band).
+  - 13 rows sit at 113–134 Hz and 3 at 3,106–3,107 Hz.
+  - On 15 rows all 9 lattice cells failed; on 1 row, 6 of 9.
+  - There were 0 mismatches between codeword and row. C3 ran on these rows.
+  - 11 rows are in the consulted population and 5 are not. Immaterial (at most 0.06 pp).
+- **(ii) The missing cycle.** It is cycle index 1, stamp `261022_194915`, at the very start of the run, where WSJT-X logged no Rx lines. So 975 cycles were selected and 974 have rows. Every sampled cycle that has WSJT-X lines has at least one encodable row.
+
+**Verdict: L1-GO, FINAL; not W-FAIL.** The next step is a build spec, which waits on the Captain's go (HK-011).
+
 ## 5. Next
 
 1. **QA:**
