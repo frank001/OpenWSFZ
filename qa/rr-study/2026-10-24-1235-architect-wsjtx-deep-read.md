@@ -101,4 +101,8 @@ The data behind the ranking:
 
 **D2, the go for an L1+L2 offline spec**, `To: QA`, for `sol` or the PC. It needs no Developer build and no `src/`/`native/` change, and runs on a recorded 40 m night with the fallback's U′ watch.
 
+**DECIDED, 2026-10-24 ~12:38Z (Captain, Architect's window):**
+- **D1 → (a):** *"my requirements only said look at the method, don't copy code from wsjt-x. I think that still stands as long as there is no direct copying of the code."*
+- **D2 → "go".** Spec: `qa/rr-study/2026-10-24-1240-architect-to-qa-spec-coh-multiset.md`.
+
 *Architect. Docs only; `src/`/`native/` diff empty.*
