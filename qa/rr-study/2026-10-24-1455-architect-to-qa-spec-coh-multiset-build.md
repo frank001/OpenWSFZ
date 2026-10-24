@@ -264,3 +264,43 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
   - The binary is identified by its SHA, not byte-reproduced.
   - The Linux/macOS binaries are not refreshed yet (that comes before any push; G8/CI).
 - **MB1** (B1 passes on the first Stage 1 build, 0.65 C): ✅ **HIT**.
+
+## §12 Amendment 2: the walk order gets a product row; where the replay may run (Architect, 2026-10-24 15:54:19Z by `date -u`; before any Stage 2 acceptance row or replay decode)
+
+**A2.1 QA's R-1 is adopted as a required row (B4).**
+- **The gap.** QA reviewed Stage 2 (`ea2c1d14`, record `710b9052`). With the product loop's set order reversed in a scratch rebuild (DLL `482bb594`), all 99 `Coherent*` tests still passed. QA's real-audio cross-check caught the reversal on 225 of 225 multi-valid rows.
+  - The R3 order had no product-path row. B1 covers only the Stage 1 export's own walk, and B3 compares `_run` with `_process`, which share the loop. That is my spec's gap: ledger E60, the same class as E58.
+- **B4, the walk order.** A fixture with **≥ 2 CRC-valid sets** on a candidate. It asserts that the product path's provenance equals the **lowest-numbered** valid set, with `CohFallbackSetsAt` as the oracle, through both `_run` and `_process`. The reversed-loop mutation must fail it; QA confirms that at re-review.
+- **Also recorded:** QA's real-audio cross-check on 150 cycles of the arm's night.
+  - P1: provenance and payload equal to the export on all 20,980 attempted rows.
+  - P2: the order is correct on all 852 multi-valid rows.
+  - P3: with the flag OFF, the 4,882 V3-valid rows are unchanged.
+  - P4: walk entries 16,098 = NO_CRC rows (M1).
+  - The A1.1 runner mutation was killed (8 of 99 tests).
+  - The full unfiltered solution passes, 0 failed.
+  - These are QA's checks, not spec rows. B4 goes into the test suite because the suite is what guards later changes.
+- **Noted, descriptive:** at the product's own candidates, **C1 wins 743 of 1,316 set wins**, against 11 of 554 at WSJT-X's positions in the arm. Many may be KNOWN duplicates, which end the walk without publishing (R3).
+  - §6.7's per-provenance figures must therefore split each set's wins into **published / KNOWN / gated out**.
+  - If C1 mostly produces KNOWN payloads, it is spending the walk's first try on payloads that are already decoded. That is a design question for after the replay. Nothing changes now, and the order stays frozen.
+- **Build reproducibility (noted):** QA's clean rebuild (`228fb5ef`) and the Developer's (`1ba8dc3d`) differ in bytes but not in behaviour on P1–P4. The build of record is the committed DLL, pinned by SHA (V1).
+
+**A2.2 Where the replay may run: the PC (recommended) or `sol`, the Captain's choice.**
+- **The trade-off.** On the PC, the replay needs WSJT-X closed for about 5.4 h, because of CPU contention: work past the deadline is abandoned, which changes outcomes. On `sol`, WSJT-X can stay open.
+- **Data on file (`74017b63`, step 4, `20260922_2056`, 961 cycles), `sol` against the PC:**
+  - outcomes identical 961/961 in both arms; 0 abandoned on either machine;
+  - but sol is about 2.5× slower: elapsed median 8.2 s vs 3.3 s; fallback wall median 485 ms vs 215 ms, max 1,041 ms;
+  - **sol's minimum margin to the 13 s budget was 1,360 ms**, against 8.1 s on the PC.
+- **Why the margin matters here.** MB6 expects the sets to cost up to about 2× the fallback's wall time. On sol's worst cycles that could exceed the 1.36 s margin, so the MS arm could abandon work that REF does not.
+  - Work abandoned only in MS lowers both its gain and its false outputs. **That biases ΔU′ toward OK**, the direction that matters.
+  - On the PC the margin makes this negligible.
+- **Rule if the replay runs on `sol`:**
+  - **Binary.** The Linux `.so` is built on sol from the exact reviewed commit and its SHA is pinned (V1). B1 is re-run on that `.so` (the 7,498 rows) before any arm.
+  - **Abandonment.** V5 tightens to **≤ 1 % of cycles with any abandoned work in MS, and in REF**. Its source is sol's own 0/961 on step 4 (HK-038).
+  - **If V5 fails on sol,** the verdict comes from a PC run. The sol run stays descriptive, as the cost line on the slower machine.
+  - MB6 is scored on whichever machine runs MS.
+  - The unit and characterisation tests (B2, B3, B4, A1) stay on the PC in either case, because the PC holds the build of record.
+- **My recommendation: the PC, overnight, with WSJT-X closed.**
+  - It is the build of record, it carries no abandonment bias, and the night costs no operating time.
+  - Optionally, afterwards, one MS arm on sol as a **descriptive** cost check on the slower machine, which §7 lists as unmeasured.
+
+**Next:** the Developer's B4 commit, then QA's re-review, then B2, B3, B4 and A1, then my ruling, then the REF arm on the machine the Captain picks.
