@@ -28,7 +28,7 @@ public sealed class CoherentMultisetWalkTests
     /// <summary>(noise sigma, seed) pairs at which V3 itself recovers the payload (a V3-CRC-valid candidate beside V3 failures).</summary>
     private static readonly (double Sigma, int Seed)[] V3Candidates = [(3.5, 1), (3.5, 3), (3.5, 4)];
 
-    private static float[] Synthesise(double sigma, int seed)
+    private static float[] Synthesise(double sigma, int seed, double driftHz = 0.0, double dip = 1.0)
     {
         var tones = new byte[79];
         Ft8LibInterop.EncodeMessage(Message, tones);
@@ -37,11 +37,11 @@ public sealed class CoherentMultisetWalkTests
         long n0 = (long)Math.Round(0.55 * 12000.0);
         for (int s = 0; s < tones.Length; s++)
         {
-            double f = 1500.0 + 6.25 * tones[s];
+            double f = 1500.0 + 6.25 * tones[s] + driftHz * s / tones.Length;       // a linear frequency drift across the message
             for (int i = 0; i < 1920; i++)
             {
                 long idx = n0 + (long)s * 1920 + i;
-                if (idx >= 0 && idx < PcmSamples) pcm[idx] += (float)(0.3 * Math.Sin(phase));
+                if (idx >= 0 && idx < PcmSamples) pcm[idx] += (float)(0.3 * ((s >= 30 && s < 40) ? dip : 1.0) * Math.Sin(phase));      // symbols 30-39 fade to dip x amplitude
                 phase += 2.0 * Math.PI * f / 12000.0;
             }
         }
@@ -105,6 +105,50 @@ public sealed class CoherentMultisetWalkTests
             on.Stats.Gated.Should().Be(off.Stats.Gated + 1);
             on.CrcValidBySet(row.Provenance).Should().Be(1);
         }
+    }
+
+    // ── R3: the walk ORDER is C1 > J2 > J3 > N1, fixed ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// (sigma, seed, drift Hz, dip) impaired cycles (a linear frequency drift across the message and a fade over symbols 30-39) at which V3 fails
+    /// at the signal's position and TWO OR MORE further sets are CRC-valid (the scan found C1 and N1 together, once C1, J2 and N1). With one
+    /// winner only the order is invisible: a reversed loop returns the same set.
+    /// </summary>
+    private static readonly (double Sigma, int Seed, double Drift, double Dip)[] OrderCandidates =
+        [(2.0, 3, 2.0, 0.5), (2.0, 6, 2.0, 0.5), (2.0, 21, 2.0, 0.5), (2.0, 23, 2.0, 0.5), (2.0, 1, 3.0, 0.5), (2.0, 22, 3.0, 0.5), (2.0, 23, 3.0, 0.5)];
+
+    private static int LowestCrcValid(CohSetsResult r)
+        => r.V3.CrcValid ? 0 : r.Sets.Select((o, i) => (o, i)).Where(x => x.o.CrcValid).Select(x => x.i + 1).DefaultIfEmpty(-1).First();
+
+    [Fact(DisplayName = "R3: the walk order is fixed C1 > J2 > J3 > N1 - where several sets are CRC-valid the row carries the LOWEST-numbered one (the diagnostic export at the row's own anchor is the oracle)")]
+    public void WalkOrder_IsC1_J2_J3_N1()
+    {
+        int multiWinnerRows = 0;
+        foreach (var (sigma, seed, drift, dip) in OrderCandidates)
+        {
+            var pcm = Synthesise(sigma, seed, drift, dip);
+            Ft8LibInterop.DecodeAll(pcm);
+            var snap = Ft8LibInterop.CohFallbackSnapshot();
+            // Path 1: ft8_coherent_fallback_run (the serial cycle, the per-call flag bit).
+            var viaRun = Ft8LibInterop.CohFallbackRun(pcm, snap, -1, multiSet: true, CancellationToken.None);
+            // Path 2: ft8_coherent_fallback_process (the parallel cycle: a worker context with the bit set, one candidate at a time).
+            var plan = Ft8LibInterop.CohFallbackMakePlan(snap);
+            using var worker = CohFallbackLibBackend.Instance.CreateWorker();
+            worker.SetMultiSet(true);
+            var viaProcess = plan.CandidateIndex.Select(i => worker.Process(pcm, snap, i)).ToList();
+            viaProcess.Select(r => Key(r)).Should().Equal(viaRun.Rows.Select(r => Key(r)), "the two product paths agree row by row");
+
+            foreach (var (path, rows) in new[] { ("_run", (IReadOnlyList<CohFallbackRow>)viaRun.Rows), ("_process", viaProcess) })
+            foreach (var row in rows.Where(r => r.State != CohFallbackState.Abandoned))
+            {
+                var oracle = Ft8LibInterop.CohFallbackSetsAt(pcm, row.FreqHz, row.DtS);
+                int validSets = oracle.Sets.Count(o => o.CrcValid);
+                row.Provenance.Should().Be(LowestCrcValid(oracle), "{0}, sigma {1} seed {2} drift {3}: the first CRC-valid set in the order C1, J2, J3, N1 ends the walk (sets valid at this anchor: {4})",
+                                           path, sigma, seed, drift, validSets);
+                if (!oracle.V3.CrcValid && validSets >= 2) multiWinnerRows++;
+            }
+        }
+        multiWinnerRows.Should().BeGreaterThan(0, "at least one candidate on this platform has V3 failing and two or more sets CRC-valid, else a reversed loop would pass unseen");
     }
 
     // ── M1: the walk is entered where, and only where, V3 gave no CRC-valid output ───────────────────────────────
