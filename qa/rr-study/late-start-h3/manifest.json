@@ -1,0 +1,1628 @@
+{
+ "cycles": [
+  {
+   "cycle": 0,
+   "k": 0,
+   "noise_seed": 1925709568,
+   "snr": -16,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 1,
+   "k": 1,
+   "noise_seed": 83789049,
+   "snr": -16,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 2,
+   "k": 2,
+   "noise_seed": 1240026719,
+   "snr": -16,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 3,
+   "k": 4,
+   "noise_seed": 1377997035,
+   "snr": -8,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 4,
+   "k": 4,
+   "noise_seed": 992029592,
+   "snr": -8,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 5,
+   "k": 3,
+   "noise_seed": 758596982,
+   "snr": -8,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 6,
+   "k": 1,
+   "noise_seed": 1351157380,
+   "snr": -16,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 7,
+   "k": 0,
+   "noise_seed": 1127480943,
+   "snr": -16,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 8,
+   "k": 0,
+   "noise_seed": 1336981058,
+   "snr": -8,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 9,
+   "k": 0,
+   "noise_seed": 511520048,
+   "snr": -8,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 10,
+   "k": 0,
+   "noise_seed": 181195981,
+   "snr": -16,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 11,
+   "k": 3,
+   "noise_seed": 758596982,
+   "snr": -8,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 12,
+   "k": 2,
+   "noise_seed": 787455377,
+   "snr": -16,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 13,
+   "k": 4,
+   "noise_seed": 1327453532,
+   "snr": -8,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 14,
+   "k": 4,
+   "noise_seed": 1515661898,
+   "snr": -16,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 15,
+   "k": 2,
+   "noise_seed": 1240026719,
+   "snr": -16,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 16,
+   "k": 2,
+   "noise_seed": 787455377,
+   "snr": -16,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 17,
+   "k": 1,
+   "noise_seed": 1377777255,
+   "snr": -16,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 18,
+   "k": 4,
+   "noise_seed": 727658557,
+   "snr": -16,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 19,
+   "k": 3,
+   "noise_seed": 1843657023,
+   "snr": -8,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 20,
+   "k": 1,
+   "noise_seed": 2129437089,
+   "snr": -16,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 21,
+   "k": 4,
+   "noise_seed": 1847732349,
+   "snr": -16,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 22,
+   "k": 1,
+   "noise_seed": 501317541,
+   "snr": -16,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 23,
+   "k": 3,
+   "noise_seed": 547935754,
+   "snr": -16,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 24,
+   "k": 3,
+   "noise_seed": 1015048951,
+   "snr": -8,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 25,
+   "k": 0,
+   "noise_seed": 1499036344,
+   "snr": -8,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 26,
+   "k": 1,
+   "noise_seed": 83789049,
+   "snr": -16,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 27,
+   "k": 4,
+   "noise_seed": 575761889,
+   "snr": -16,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 28,
+   "k": 2,
+   "noise_seed": 421235172,
+   "snr": -8,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 29,
+   "k": 4,
+   "noise_seed": 992029592,
+   "snr": -8,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 30,
+   "k": 2,
+   "noise_seed": 1565791482,
+   "snr": -8,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 31,
+   "k": 3,
+   "noise_seed": 162764650,
+   "snr": -16,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 32,
+   "k": 2,
+   "noise_seed": 1686971879,
+   "snr": -16,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 33,
+   "k": 3,
+   "noise_seed": 880196070,
+   "snr": -16,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 34,
+   "k": 0,
+   "noise_seed": 2131405150,
+   "snr": -16,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 35,
+   "k": 2,
+   "noise_seed": 45003811,
+   "snr": -8,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 36,
+   "k": 2,
+   "noise_seed": 847794522,
+   "snr": -8,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 37,
+   "k": 4,
+   "noise_seed": 1327453532,
+   "snr": -8,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 38,
+   "k": 2,
+   "noise_seed": 969893911,
+   "snr": -16,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 39,
+   "k": 0,
+   "noise_seed": 1983719998,
+   "snr": -16,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 40,
+   "k": 2,
+   "noise_seed": 847794522,
+   "snr": -8,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 41,
+   "k": 1,
+   "noise_seed": 1377777255,
+   "snr": -16,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 42,
+   "k": 2,
+   "noise_seed": 672388239,
+   "snr": -8,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 43,
+   "k": 3,
+   "noise_seed": 1255664242,
+   "snr": -8,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 44,
+   "k": 0,
+   "noise_seed": 1021077968,
+   "snr": -16,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 45,
+   "k": 2,
+   "noise_seed": 421235172,
+   "snr": -8,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 46,
+   "k": 1,
+   "noise_seed": 388750872,
+   "snr": -8,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 47,
+   "k": 1,
+   "noise_seed": 1759377829,
+   "snr": -8,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 48,
+   "k": 2,
+   "noise_seed": 1197035761,
+   "snr": -8,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 49,
+   "k": 0,
+   "noise_seed": 1987630548,
+   "snr": -8,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 50,
+   "k": 3,
+   "noise_seed": 880196070,
+   "snr": -16,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 51,
+   "k": 4,
+   "noise_seed": 1315281577,
+   "snr": -8,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 52,
+   "k": 0,
+   "noise_seed": 1607463328,
+   "snr": -16,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 53,
+   "k": 4,
+   "noise_seed": 1377997035,
+   "snr": -8,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 54,
+   "k": 0,
+   "noise_seed": 1987630548,
+   "snr": -8,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 55,
+   "k": 4,
+   "noise_seed": 1847732349,
+   "snr": -16,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 56,
+   "k": 2,
+   "noise_seed": 1197035761,
+   "snr": -8,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 57,
+   "k": 4,
+   "noise_seed": 1654063173,
+   "snr": -8,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 58,
+   "k": 3,
+   "noise_seed": 2017012752,
+   "snr": -16,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 59,
+   "k": 1,
+   "noise_seed": 501317541,
+   "snr": -16,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 60,
+   "k": 0,
+   "noise_seed": 1983719998,
+   "snr": -16,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 61,
+   "k": 1,
+   "noise_seed": 630533062,
+   "snr": -16,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 62,
+   "k": 4,
+   "noise_seed": 1847732349,
+   "snr": -16,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 63,
+   "k": 1,
+   "noise_seed": 290318044,
+   "snr": -8,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 64,
+   "k": 1,
+   "noise_seed": 1694289589,
+   "snr": -8,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 65,
+   "k": 0,
+   "noise_seed": 1559875133,
+   "snr": -8,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 66,
+   "k": 3,
+   "noise_seed": 870825398,
+   "snr": -8,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 67,
+   "k": 1,
+   "noise_seed": 83789049,
+   "snr": -16,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 68,
+   "k": 1,
+   "noise_seed": 1377777255,
+   "snr": -16,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 69,
+   "k": 3,
+   "noise_seed": 162764650,
+   "snr": -16,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 70,
+   "k": 3,
+   "noise_seed": 323073700,
+   "snr": -16,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 71,
+   "k": 2,
+   "noise_seed": 1227965897,
+   "snr": -16,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 72,
+   "k": 2,
+   "noise_seed": 351050412,
+   "snr": -16,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 73,
+   "k": 2,
+   "noise_seed": 1869294209,
+   "snr": -16,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 74,
+   "k": 1,
+   "noise_seed": 1884133792,
+   "snr": -16,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 75,
+   "k": 0,
+   "noise_seed": 1607463328,
+   "snr": -16,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 76,
+   "k": 3,
+   "noise_seed": 547935754,
+   "snr": -16,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 77,
+   "k": 1,
+   "noise_seed": 388750872,
+   "snr": -8,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 78,
+   "k": 3,
+   "noise_seed": 880196070,
+   "snr": -16,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 79,
+   "k": 2,
+   "noise_seed": 787455377,
+   "snr": -16,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 80,
+   "k": 3,
+   "noise_seed": 819052152,
+   "snr": -16,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 81,
+   "k": 0,
+   "noise_seed": 114186102,
+   "snr": -8,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 82,
+   "k": 0,
+   "noise_seed": 1559875133,
+   "snr": -8,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 83,
+   "k": 0,
+   "noise_seed": 114186102,
+   "snr": -8,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 84,
+   "k": 0,
+   "noise_seed": 511520048,
+   "snr": -8,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 85,
+   "k": 4,
+   "noise_seed": 1515661898,
+   "snr": -16,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 86,
+   "k": 3,
+   "noise_seed": 505448873,
+   "snr": -8,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 87,
+   "k": 3,
+   "noise_seed": 162764650,
+   "snr": -16,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 88,
+   "k": 4,
+   "noise_seed": 1515080169,
+   "snr": -16,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 89,
+   "k": 2,
+   "noise_seed": 1248559010,
+   "snr": -8,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 90,
+   "k": 3,
+   "noise_seed": 680323406,
+   "snr": -8,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 91,
+   "k": 3,
+   "noise_seed": 505448873,
+   "snr": -8,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 92,
+   "k": 2,
+   "noise_seed": 1686971879,
+   "snr": -16,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 93,
+   "k": 3,
+   "noise_seed": 870825398,
+   "snr": -8,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 94,
+   "k": 3,
+   "noise_seed": 758596982,
+   "snr": -8,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 95,
+   "k": 0,
+   "noise_seed": 1021077968,
+   "snr": -16,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 96,
+   "k": 2,
+   "noise_seed": 1248559010,
+   "snr": -8,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 97,
+   "k": 0,
+   "noise_seed": 114186102,
+   "snr": -8,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 98,
+   "k": 3,
+   "noise_seed": 1843657023,
+   "snr": -8,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 99,
+   "k": 4,
+   "noise_seed": 727658557,
+   "snr": -16,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 100,
+   "k": 0,
+   "noise_seed": 1499036344,
+   "snr": -8,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 101,
+   "k": 1,
+   "noise_seed": 1935185440,
+   "snr": -8,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 102,
+   "k": 4,
+   "noise_seed": 575761889,
+   "snr": -16,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 103,
+   "k": 1,
+   "noise_seed": 630533062,
+   "snr": -16,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 104,
+   "k": 0,
+   "noise_seed": 1499036344,
+   "snr": -8,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 105,
+   "k": 0,
+   "noise_seed": 1021077968,
+   "snr": -16,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 106,
+   "k": 0,
+   "noise_seed": 181195981,
+   "snr": -16,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 107,
+   "k": 2,
+   "noise_seed": 847794522,
+   "snr": -8,
+   "style": "M",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 108,
+   "k": 0,
+   "noise_seed": 474375595,
+   "snr": -8,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 109,
+   "k": 2,
+   "noise_seed": 1240026719,
+   "snr": -16,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 110,
+   "k": 2,
+   "noise_seed": 2023800961,
+   "snr": -16,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 111,
+   "k": 1,
+   "noise_seed": 1965008844,
+   "snr": -8,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 112,
+   "k": 1,
+   "noise_seed": 290318044,
+   "snr": -8,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 113,
+   "k": 2,
+   "noise_seed": 45003811,
+   "snr": -8,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 114,
+   "k": 0,
+   "noise_seed": 1607463328,
+   "snr": -16,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 115,
+   "k": 4,
+   "noise_seed": 2003630577,
+   "snr": -16,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 116,
+   "k": 3,
+   "noise_seed": 323073700,
+   "snr": -16,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 117,
+   "k": 3,
+   "noise_seed": 638541721,
+   "snr": -8,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 118,
+   "k": 3,
+   "noise_seed": 1255664242,
+   "snr": -8,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 119,
+   "k": 4,
+   "noise_seed": 1377997035,
+   "snr": -8,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 120,
+   "k": 1,
+   "noise_seed": 1447332567,
+   "snr": -16,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 121,
+   "k": 4,
+   "noise_seed": 1327453532,
+   "snr": -8,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 122,
+   "k": 2,
+   "noise_seed": 421235172,
+   "snr": -8,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 123,
+   "k": 1,
+   "noise_seed": 342200616,
+   "snr": -8,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 124,
+   "k": 4,
+   "noise_seed": 1515661898,
+   "snr": -16,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 125,
+   "k": 0,
+   "noise_seed": 1559875133,
+   "snr": -8,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 126,
+   "k": 2,
+   "noise_seed": 1197035761,
+   "snr": -8,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 127,
+   "k": 2,
+   "noise_seed": 1686971879,
+   "snr": -16,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 128,
+   "k": 0,
+   "noise_seed": 1529791246,
+   "snr": -8,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 129,
+   "k": 3,
+   "noise_seed": 870825398,
+   "snr": -8,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 130,
+   "k": 3,
+   "noise_seed": 1843657023,
+   "snr": -8,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 131,
+   "k": 4,
+   "noise_seed": 1579199846,
+   "snr": -16,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 132,
+   "k": 4,
+   "noise_seed": 1699714072,
+   "snr": -8,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 133,
+   "k": 2,
+   "noise_seed": 1227965897,
+   "snr": -16,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 134,
+   "k": 1,
+   "noise_seed": 342200616,
+   "snr": -8,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 135,
+   "k": 4,
+   "noise_seed": 428769100,
+   "snr": -8,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 136,
+   "k": 3,
+   "noise_seed": 495323775,
+   "snr": -16,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 137,
+   "k": 1,
+   "noise_seed": 342200616,
+   "snr": -8,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 138,
+   "k": 2,
+   "noise_seed": 1248559010,
+   "snr": -8,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 139,
+   "k": 3,
+   "noise_seed": 323073700,
+   "snr": -16,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 140,
+   "k": 4,
+   "noise_seed": 2003630577,
+   "snr": -16,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 141,
+   "k": 4,
+   "noise_seed": 1315281577,
+   "snr": -8,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 142,
+   "k": 1,
+   "noise_seed": 290318044,
+   "snr": -8,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 143,
+   "k": 1,
+   "noise_seed": 1694289589,
+   "snr": -8,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 144,
+   "k": 4,
+   "noise_seed": 2003630577,
+   "snr": -16,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 145,
+   "k": 1,
+   "noise_seed": 501317541,
+   "snr": -16,
+   "style": "O",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 146,
+   "k": 1,
+   "noise_seed": 1694289589,
+   "snr": -8,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 147,
+   "k": 2,
+   "noise_seed": 1227965897,
+   "snr": -16,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 148,
+   "k": 1,
+   "noise_seed": 1213313165,
+   "snr": -8,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 149,
+   "k": 2,
+   "noise_seed": 969893911,
+   "snr": -16,
+   "style": "M",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 150,
+   "k": 3,
+   "noise_seed": 1255664242,
+   "snr": -8,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 151,
+   "k": 0,
+   "noise_seed": 1925709568,
+   "snr": -16,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 152,
+   "k": 4,
+   "noise_seed": 992029592,
+   "snr": -8,
+   "style": "O",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 153,
+   "k": 0,
+   "noise_seed": 1925709568,
+   "snr": -16,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 154,
+   "k": 3,
+   "noise_seed": 1253327950,
+   "snr": -16,
+   "style": "O",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 155,
+   "k": 4,
+   "noise_seed": 575761889,
+   "snr": -16,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 156,
+   "k": 4,
+   "noise_seed": 428769100,
+   "snr": -8,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 157,
+   "k": 1,
+   "noise_seed": 388750872,
+   "snr": -8,
+   "style": "M",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 158,
+   "k": 1,
+   "noise_seed": 1759377829,
+   "snr": -8,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 159,
+   "k": 4,
+   "noise_seed": 1315281577,
+   "snr": -8,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 160,
+   "k": 0,
+   "noise_seed": 511520048,
+   "snr": -8,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 161,
+   "k": 0,
+   "noise_seed": 181195981,
+   "snr": -16,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 162,
+   "k": 2,
+   "noise_seed": 45003811,
+   "snr": -8,
+   "style": "A",
+   "t": 6.5,
+   "ti": 5
+  },
+  {
+   "cycle": 163,
+   "k": 3,
+   "noise_seed": 1253327950,
+   "snr": -16,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 164,
+   "k": 1,
+   "noise_seed": 2129437089,
+   "snr": -16,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 165,
+   "k": 3,
+   "noise_seed": 547935754,
+   "snr": -16,
+   "style": "O",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 166,
+   "k": 1,
+   "noise_seed": 1759377829,
+   "snr": -8,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 167,
+   "k": 1,
+   "noise_seed": 630533062,
+   "snr": -16,
+   "style": "M",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 168,
+   "k": 2,
+   "noise_seed": 1097325191,
+   "snr": -8,
+   "style": "F",
+   "t": 2.36,
+   "ti": 2
+  },
+  {
+   "cycle": 169,
+   "k": 3,
+   "noise_seed": 505448873,
+   "snr": -8,
+   "style": "M",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 170,
+   "k": 2,
+   "noise_seed": 969893911,
+   "snr": -16,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 171,
+   "k": 0,
+   "noise_seed": 1952055550,
+   "snr": -16,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 172,
+   "k": 4,
+   "noise_seed": 428769100,
+   "snr": -8,
+   "style": "A",
+   "t": 8.0,
+   "ti": 6
+  },
+  {
+   "cycle": 173,
+   "k": 4,
+   "noise_seed": 727658557,
+   "snr": -16,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 174,
+   "k": 4,
+   "noise_seed": 367361554,
+   "snr": -8,
+   "style": "F",
+   "t": 0.62,
+   "ti": 0
+  },
+  {
+   "cycle": 175,
+   "k": 1,
+   "noise_seed": 2129437089,
+   "snr": -16,
+   "style": "A",
+   "t": 10.0,
+   "ti": 7
+  },
+  {
+   "cycle": 176,
+   "k": 3,
+   "noise_seed": 1253327950,
+   "snr": -16,
+   "style": "A",
+   "t": 4.9,
+   "ti": 4
+  },
+  {
+   "cycle": 177,
+   "k": 4,
+   "noise_seed": 663980258,
+   "snr": -16,
+   "style": "F",
+   "t": 1.5,
+   "ti": 1
+  },
+  {
+   "cycle": 178,
+   "k": 0,
+   "noise_seed": 1983719998,
+   "snr": -16,
+   "style": "A",
+   "t": 3.5,
+   "ti": 3
+  },
+  {
+   "cycle": 179,
+   "k": 0,
+   "noise_seed": 1987630548,
+   "snr": -8,
+   "style": "O",
+   "t": 10.0,
+   "ti": 7
+  }
+ ],
+ "freq_hz": 1500.0,
+ "n_cycles": 180,
+ "seed": 20261024,
+ "text": "Q1ABC Q2DEF FN42"
+}
