@@ -1,0 +1,126 @@
+{
+ "B1": {
+  "pass": true
+ },
+ "V3": {
+  "agree": [
+   7498,
+   7498,
+   1.0
+  ],
+  "max_abs_raw_diff": 3.2412344808108173e-07,
+  "pass": true
+ },
+ "estimate_equal": 7498,
+ "evaluated": 7498,
+ "faults": 0,
+ "new_dll_pin": "15e8e436f6cd9b83468499b6b0020aace61e21e1f1eea0e5a59de720e91ac40e",
+ "old_dll_pin": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef",
+ "rows": 7498,
+ "sets": {
+  "C1": {
+   "max_abs_raw_diff": 2.0871539163636044e-08,
+   "overall": [
+    7498,
+    7498,
+    1.0
+   ],
+   "pass": true,
+   "positive_class": [
+    14,
+    14,
+    1.0
+   ],
+   "union": [
+    14,
+    14,
+    1.0
+   ]
+  },
+  "J2": {
+   "max_abs_raw_diff": 6.101927851887012e-10,
+   "overall": [
+    7498,
+    7498,
+    1.0
+   ],
+   "pass": true,
+   "positive_class": [
+    274,
+    274,
+    1.0
+   ],
+   "union": [
+    274,
+    274,
+    1.0
+   ]
+  },
+  "J3": {
+   "max_abs_raw_diff": 6.642295602432569e-10,
+   "overall": [
+    7498,
+    7498,
+    1.0
+   ],
+   "pass": true,
+   "positive_class": [
+    408,
+    408,
+    1.0
+   ],
+   "union": [
+    408,
+    408,
+    1.0
+   ]
+  },
+  "N1": {
+   "max_abs_raw_diff": 4.855358948230304e-09,
+   "overall": [
+    7498,
+    7498,
+    1.0
+   ],
+   "pass": true,
+   "positive_class": [
+    186,
+    186,
+    1.0
+   ],
+   "union": [
+    186,
+    186,
+    1.0
+   ]
+  },
+  "walk": {
+   "overall": [
+    7498,
+    7498,
+    1.0
+   ],
+   "pass": true,
+   "positive_class": [
+    569,
+    569,
+    1.0
+   ],
+   "union": [
+    569,
+    569,
+    1.0
+   ]
+  }
+ },
+ "thresholds": {
+  "overall": 0.995,
+  "positive_class": 0.99,
+  "union": 0.99,
+  "v3": 0.995
+ },
+ "wall_cpu_s_median_per_row": {
+  "native_export": 0.015625,
+  "python_reference": 0.0625
+ }
+}
