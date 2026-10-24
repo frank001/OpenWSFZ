@@ -30,6 +30,7 @@ extern "C" {
 #define CF_NDT              49      /* dt grid: -0.12 .. +0.12 s step 5 ms */
 #define CF_DT_STEP_SAMPLES  10      /* 5 ms at 2 kHz */
 #define CF_N_LLR            174
+#define CF_HALF             29      /* data symbols per half (raw symbols 7-35 and 43-71) */
 
 /*
  * T1: the F1b strength-gate threshold in dB. Chosen on TRAIN and fixed by the Architect's Q-GATE ruling 7313db6f; the value is
@@ -72,6 +73,26 @@ void cf_v3_llrs(cf_ctx_t* ctx, const float* pcm, double f0, double t0, const cf_
  * context (call it right after cf_v3_llrs on the same context). tones[] is the decoded message's 79 FT8 tones. Floored at
  * CF_SNR_FLOOR_DB. NaN when the context holds no noise power. */
 double cf_snr_db(const cf_ctx_t* ctx, const uint8_t tones[CF_NSYM]);
+
+/* COH-MULTISET (shim 20260071): the four further coherent bit-metric sets, tried in this fixed order where V3 fails. Method only
+ * (ms_metrics.py @ 96aa80d4, our own clean-room reference); no WSJT-X source. */
+#define CF_SET_C1           1       /* order 1 on power */
+#define CF_SET_J2           2       /* joint pairs, magnitude */
+#define CF_SET_J3           3       /* joint triples, magnitude */
+#define CF_SET_N1           4       /* order 1 on magnitude, normalised by the larger maximum */
+#define CF_NSETS            4
+#define CF_MS_MAX_GROUPS    30      /* J2: 2 x (14 pairs + 1 single); J3: 2 x (9 triples + 1 pair) = 20 */
+
+/* The groups of J2 (group_size 2) or J3 (3): first_k[g] is the first DATA symbol index (0..57) of group g and n_syms[g] its length
+ * (1..3). Each half of 29 is split on its own, consecutive and non-overlapping, so no group straddles a Costas block. Returns the
+ * number of groups (both arrays hold CF_MS_MAX_GROUPS), -1 for another group size. */
+int cf_multiset_groups(int group_size, int first_k[CF_MS_MAX_GROUPS], int n_syms[CF_MS_MAX_GROUPS]);
+
+/* The 174 raw values of set CF_SET_* from the 79 x 8 correlations cf_v3_llrs left in the context (call it right after, on the same
+ * context): doubles, positive = bit 1, data symbol k = 0..57 with three bits each (Gray index bit 2, 1, 0). No scaling. The Gray map
+ * is the production one; cf_multiset_llrs_gray takes it as a parameter ONLY so a test can break it on purpose (the identity map). */
+void cf_multiset_llrs(const cf_ctx_t* ctx, int set, double out174[CF_N_LLR]);
+void cf_multiset_llrs_gray(const cf_ctx_t* ctx, int set, const int gray[8], double out174[CF_N_LLR]);
 
 /* Monotonic wall-clock milliseconds (QueryPerformanceCounter / CLOCK_MONOTONIC). */
 double cf_monotonic_ms(void);

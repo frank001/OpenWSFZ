@@ -28,6 +28,11 @@
  * 2 kHz, calibrated against ft8_extract_llrs_at), so the estimator's symbol-0 start index at 2 kHz is round(t0 x 2000) - 320
  * and the search window (+-0.12 s, +-2 Hz) is centred on the lattice position itself. No other offset is applied.
  *
+ * COH-MULTISET (shim 20260071): the four further bit-metric sets C1, J2, J3, N1 (cf_multiset_llrs below) are a C port of our own
+ * clean-room Python reference qa/rr-study/coh-multiset/ms_metrics.py @ QA commit 96aa80d4, itself written from the Architect's PROSE
+ * method (spec 2026-10-24) and FT8's public constants. METHOD ONLY: NO WSJT-X source was opened, copied, transliterated or ported
+ * (licence policy; Captain 2026-10-24). They read the per-symbol correlations cf_v3_llrs leaves in the context.
+ *
  * No mutable global state: every table lives in the context or on the stack (the hash-state completeness test scans this file).
  */
 
@@ -492,3 +497,113 @@ double cf_snr_db(const cf_ctx_t* c, const uint8_t tones[CF_NSYM])
     const double snr = 10.0 * log10(sig / oth) + CF_SNR_BIN_TO_2500_DB;
     return snr < CF_SNR_FLOOR_DB ? CF_SNR_FLOOR_DB : snr;
 }
+
+/* ---- COH-MULTISET: the four further bit-metric sets (shim 20260071) ---------------------------------------------------------- */
+
+/* The raw symbol index of data symbol k (0..57): the two halves of 29 sit after the first and the second Costas block. */
+static int cf_data_sym(int k) { return k + (k < CF_HALF ? 7 : 14); }
+
+/* The value of the three Gray bits of ONE group member from by_j[j], the best score with that member at Gray index j (the maximum
+ * over the other members' hypotheses). bit 2 of j first: out = max over j with the bit 1 minus max over j with the bit 0. */
+static void cf_by_j_bits(const double by_j[CF_TONES], double out[3])
+{
+    out[0] = cf_max4(by_j[4], by_j[5], by_j[6], by_j[7]) - cf_max4(by_j[0], by_j[1], by_j[2], by_j[3]);
+    out[1] = cf_max4(by_j[2], by_j[3], by_j[6], by_j[7]) - cf_max4(by_j[0], by_j[1], by_j[4], by_j[5]);
+    out[2] = cf_max4(by_j[1], by_j[3], by_j[5], by_j[7]) - cf_max4(by_j[0], by_j[2], by_j[4], by_j[6]);
+}
+
+int cf_multiset_groups(int group_size, int first_k[CF_MS_MAX_GROUPS], int n_syms[CF_MS_MAX_GROUPS])
+{
+    if (group_size != 2 && group_size != 3) return -1;
+    int ng = 0;
+    for (int h = 0; h < 2; h++) {
+        int k = h * CF_HALF;
+        const int end = (h + 1) * CF_HALF;
+        while (k < end) {
+            const int n = (end - k < group_size) ? (end - k) : group_size;
+            first_k[ng] = k;
+            n_syms[ng]  = n;
+            ng++;
+            k += n;
+        }
+    }
+    return ng;
+}
+
+/* One group of n (1..3) data symbols starting at data index k0: the 3n values in (member, bit2, bit1, bit0) order. The score of a
+ * hypothesis is the MAGNITUDE |sum of X[sym_p][tone_p]|; each member's tone is gray[j] for its Gray index j. */
+static void cf_group_values(const cf_ctx_t* c, int k0, int n, const int gray[CF_TONES], double out[9])
+{
+    double by_j[3][CF_TONES];
+    int sym[3];
+    for (int p = 0; p < n; p++) {
+        sym[p] = cf_data_sym(k0 + p);
+        for (int j = 0; j < CF_TONES; j++) by_j[p][j] = -1.0;       /* every score is >= 0, so -1 is below any real one */
+    }
+    for (int j0 = 0; j0 < CF_TONES; j0++) {
+        const double r0 = c->x_re[sym[0] * CF_TONES + gray[j0]], i0 = c->x_im[sym[0] * CF_TONES + gray[j0]];
+        if (n == 1) {
+            const double v = hypot(r0, i0);
+            if (v > by_j[0][j0]) by_j[0][j0] = v;
+            continue;
+        }
+        for (int j1 = 0; j1 < CF_TONES; j1++) {
+            const double r01 = r0 + c->x_re[sym[1] * CF_TONES + gray[j1]], i01 = i0 + c->x_im[sym[1] * CF_TONES + gray[j1]];
+            if (n == 2) {
+                const double v = hypot(r01, i01);
+                if (v > by_j[0][j0]) by_j[0][j0] = v;
+                if (v > by_j[1][j1]) by_j[1][j1] = v;
+                continue;
+            }
+            for (int j2 = 0; j2 < CF_TONES; j2++) {
+                const double v = hypot(r01 + c->x_re[sym[2] * CF_TONES + gray[j2]], i01 + c->x_im[sym[2] * CF_TONES + gray[j2]]);
+                if (v > by_j[0][j0]) by_j[0][j0] = v;
+                if (v > by_j[1][j1]) by_j[1][j1] = v;
+                if (v > by_j[2][j2]) by_j[2][j2] = v;
+            }
+        }
+    }
+    for (int p = 0; p < n; p++) cf_by_j_bits(by_j[p], out + 3 * p);
+}
+
+void cf_multiset_llrs_gray(const cf_ctx_t* c, int set, const int gray[CF_TONES], double out174[CF_N_LLR])
+{
+    memset(out174, 0, CF_N_LLR * sizeof(double));
+    if (set == CF_SET_C1) {
+        /* order 1 on POWER at the production Gray map (the V3 extractor's own first term, unchanged) */
+        for (int k = 0; k < CF_NDATA; k++) {
+            const int sym = cf_data_sym(k);
+            double by_tone[CF_TONES];
+            for (int t = 0; t < CF_TONES; t++) {
+                const double re = c->x_re[sym * CF_TONES + t], im = c->x_im[sym * CF_TONES + t];
+                by_tone[t] = re * re + im * im;
+            }
+            cf_gray_bit_llrs(by_tone, out174 + 3 * k);
+        }
+    } else if (set == CF_SET_J2 || set == CF_SET_J3) {
+        int first[CF_MS_MAX_GROUPS], len[CF_MS_MAX_GROUPS];
+        const int ng = cf_multiset_groups(set == CF_SET_J2 ? 2 : 3, first, len);
+        for (int g = 0; g < ng; g++) cf_group_values(c, first[g], len[g], gray, out174 + 3 * first[g]);
+    } else if (set == CF_SET_N1) {
+        /* order 1 on magnitudes, each bit divided by the larger of its two maxima (0 when both are 0) */
+        for (int k = 0; k < CF_NDATA; k++) {
+            const int sym = cf_data_sym(k);
+            double by_j[CF_TONES];
+            for (int j = 0; j < CF_TONES; j++) by_j[j] = hypot(c->x_re[sym * CF_TONES + gray[j]], c->x_im[sym * CF_TONES + gray[j]]);
+            static const int kBitJ[3][2][4] = {      /* [bit][value][4 Gray indices]: bit 2, 1, 0 of j */
+                { { 0, 1, 2, 3 }, { 4, 5, 6, 7 } }, { { 0, 1, 4, 5 }, { 2, 3, 6, 7 } }, { { 0, 2, 4, 6 }, { 1, 3, 5, 7 } } };
+            for (int b = 0; b < 3; b++) {
+                const double m0 = cf_max4(by_j[kBitJ[b][0][0]], by_j[kBitJ[b][0][1]], by_j[kBitJ[b][0][2]], by_j[kBitJ[b][0][3]]);
+                const double m1 = cf_max4(by_j[kBitJ[b][1][0]], by_j[kBitJ[b][1][1]], by_j[kBitJ[b][1][2]], by_j[kBitJ[b][1][3]]);
+                const double den = m1 > m0 ? m1 : m0;
+                out174[3 * k + b] = (den == 0.0) ? 0.0 : (m1 - m0) / den;
+            }
+        }
+    }
+}
+
+void cf_multiset_llrs(const cf_ctx_t* c, int set, double out174[CF_N_LLR])
+{
+    cf_multiset_llrs_gray(c, set, kGrayMap, out174);
+}
+

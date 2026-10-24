@@ -838,8 +838,16 @@ extern "C" {
  *              row, with ft8_coherent_fallback_run's per-candidate body statement for statement. The managed side owns the worker split,
  *              the deadline and the gather in candidate order. ft8_coherent_fallback_run, _at, _cycle, _snapshot, _unpack, the F1b code
  *              and every other export and struct are unchanged.
+ *
+ *   20260071 — COH-MULTISET Stage 1 (the native core and a diagnostic export; NO product wiring, nothing in the decode path calls them).
+ *              coherent_fallback.c gains the four further coherent bit-metric sets C1, J2, J3, N1 (cf_multiset_llrs; a C port of our own
+ *              clean-room Python reference qa/rr-study/coh-multiset/ms_metrics.py @ 96aa80d4; method only, no WSJT-X source) and TWO NEW
+ *              exports: ft8_coherent_fallback_sets_at (the estimate, V3's BP outcome and, for each set, its 174 raw values and BP-only
+ *              outcome, plus the walk's result) with the NEW structs FT8CohSetOutcome (32 bytes) and FT8CohSetsResult (216), and
+ *              ft8_coherent_fallback_set_groups (the J2/J3 grouping, for the B2 test). Every existing export and struct is unchanged.
+ *              20260070 is origin/decoding_improvement's (sync 7), not merged here.
  */
-#define FT8_SHIM_VERSION 20260069
+#define FT8_SHIM_VERSION 20260071
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1646,6 +1654,48 @@ void  ft8_coherent_fallback_ctx_free(void* ctx);
 int ft8_coherent_fallback_process(
     void* ctx, const float* pcm, int pcm_len, const void* snapshot, int snapshot_len, int cand_index,
     FT8CohFallbackOut* out, FT8CohFallbackCycleStats* acc);
+
+/* ── COH-MULTISET Stage 1 (shim 20260071): the diagnostic export of the four further coherent bit-metric sets ──────────────────── */
+
+#define FT8_COH_SETS_IDENTITY_GRAY  1   /* TEST ONLY: J2, J3 and N1 use the identity tone map instead of the Gray map (the B2 mutation check) */
+
+/* sizeof == 32. The BP-only outcome of one 174-value vector (V3 or one set), as FT8CohFallbackResult carries it. */
+typedef struct
+{
+    int32_t bp_rc;          /* ftx_ldpc_decode_llrs's return (0 ok, -2 degenerate LLR vector) */
+    int32_t bp_path;        /* 0 = BP converged, -1 = no CRC-valid codeword (BP only: never 1) */
+    int32_t bp_crc_ok;      /* 1 iff the CRC-14 of the BP codeword matched */
+    int32_t bp_ldpc_errors;
+    uint8_t a91[12];        /* payload + CRC as ftx_ldpc_decode_llrs packs it */
+    int32_t reserved;
+} FT8CohSetOutcome;
+
+/* sizeof == 216. Every field is written by every successful call (zeroed first). */
+typedef struct
+{
+    double  est_df_hz;      /* the fine-sync estimate, as FT8CohFallbackResult */
+    double  est_dt_s;
+    double  peak;
+    int32_t dt_step;
+    int32_t edge;
+    int32_t walk_entered;   /* 1 iff V3 had no CRC-valid output (the walk would run) */
+    int32_t walk_set;       /* the walk's result: 0 = V3 had a CRC-valid output (no walk), 1 C1, 2 J2, 3 J3, 4 N1, -1 none */
+    uint8_t walk_a91[12];   /* the payload of walk_set (zero when -1) */
+    int32_t reserved;
+    FT8CohSetOutcome v3;
+    FT8CohSetOutcome sets[4];   /* C1, J2, J3, N1: computed for EVERY call whatever the walk does */
+} FT8CohSetsResult;
+
+/* One anchor, candidate convention as ft8_coherent_fallback_at. out_raw (may be NULL) receives 5 x 174 doubles: V3, C1, J2, J3, N1,
+ * the raw values before the float cast and BP's normalisation. flags: FT8_COH_SETS_IDENTITY_GRAY or 0. Returns 0; -1 bad arguments;
+ * -2 a contained access violation; -3 out of memory. Thread-safe (own context). */
+int ft8_coherent_fallback_sets_at(
+    const float* pcm, int pcm_len, double freq_hz, double time_offset_s, int flags,
+    FT8CohSetsResult* res, double* out_raw);
+
+/* The grouping of J2 (group_size 2) or J3 (3): first_k[g] the first data symbol index (0..57), n_syms[g] its length. cap must be >= 30.
+ * Returns the number of groups; -1 for bad arguments or another group size. */
+int ft8_coherent_fallback_set_groups(int group_size, int32_t* first_k, int32_t* n_syms, int cap);
 
 
 #ifdef __cplusplus

@@ -105,3 +105,54 @@ internal interface ICohFallbackBackend
     /// <summary>A new worker context (one per worker thread).</summary>
     ICohFallbackWorker CreateWorker();
 }
+
+/// <summary>COH-MULTISET Stage 1 (shim 20260071): mirrors <c>FT8CohSetOutcome</c> (32 bytes), the BP-only outcome of one 174-value vector.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct CohSetOutcomeNative
+{
+    public int BpRc, BpPath, BpCrcOk, BpLdpcErrors;
+    public ulong A910;
+    public uint A911;
+    public int Reserved;
+
+    /// <summary>sizeof(FT8CohSetOutcome).</summary>
+    public const int ExpectedNativeSizeBytes = 32;
+}
+
+/// <summary>COH-MULTISET Stage 1 (shim 20260071): mirrors <c>FT8CohSetsResult</c> (216 bytes).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct CohSetsResultNative
+{
+    public double EstDfHz, EstDtS, Peak;
+    public int DtStep, Edge, WalkEntered, WalkSet;
+    public ulong WalkA910;
+    public uint WalkA911;
+    public int Reserved;
+    public CohSetOutcomeNative V3, C1, J2, J3, N1;
+
+    /// <summary>sizeof(FT8CohSetsResult).</summary>
+    public const int ExpectedNativeSizeBytes = 216;
+}
+
+/// <summary>The BP-only outcome of one 174-value vector (V3 or one of the four further sets).</summary>
+internal sealed record CohSetOutcome(int BpRc, int BpPath, bool CrcOk, int LdpcErrors, byte[] A91)
+{
+    /// <summary>True iff BP returned a codeword whose CRC-14 matched (the walk's test).</summary>
+    public bool CrcValid => BpRc == 0 && CrcOk;
+
+    internal static CohSetOutcome From(in CohSetOutcomeNative n)
+    {
+        var a91 = new byte[12];
+        BinaryPrimitives.WriteUInt64LittleEndian(a91.AsSpan(0, 8), n.A910);
+        BinaryPrimitives.WriteUInt32LittleEndian(a91.AsSpan(8, 4), n.A911);
+        return new CohSetOutcome(n.BpRc, n.BpPath, n.BpCrcOk != 0, n.BpLdpcErrors, a91);
+    }
+}
+
+/// <summary>
+/// COH-MULTISET Stage 1: the diagnostic result of <c>ft8_coherent_fallback_sets_at</c>. <see cref="Sets"/> is C1, J2, J3, N1 in the walk's order;
+/// <see cref="Raw"/> holds the 174 raw values of V3 then C1, J2, J3, N1. <see cref="WalkSet"/>: 0 V3 (no walk), 1 C1, 2 J2, 3 J3, 4 N1, -1 none.
+/// </summary>
+internal sealed record CohSetsResult(
+    double EstDfHz, double EstDtS, double Peak, int DtStep, bool Edge, bool WalkEntered, int WalkSet, byte[] WalkPayload,
+    CohSetOutcome V3, IReadOnlyList<CohSetOutcome> Sets, double[][] Raw);
