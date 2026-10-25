@@ -471,4 +471,19 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
 
 **A16.7 Before any push or merge (unchanged; owed by QA, HK-006/HK-033/HK-010):** `pre_merge_check.py` from a clean checkout of the exact commit (`src/`/`native/` change, so mandatory); the Linux/macOS binary refresh; the Captain's go for the push, and his separate sign-off for the merge. The carried `decode.c:432–434` comment fix is separate.
 
+**A16.8 Owed items (a) and (b) received (QA, 2026-10-25 09:55Z; `mb_desc.py` `d17db18c`, `sol_desc.json`, `pc_desc.json`).** Recorded at 2026-10-25 09:56Z.
+- **(b)** QA's code reproduces my PC reading of A16.3 exactly. MB6 stands.
+- **(a) By Test-B band on sol** (Replay81's SNR band of the OWS decode: A ≥ 0, B ≥ −10, C ≥ −15, D below), with the same bootstrap:
+
+| band | NET, pp | corroborated Δ | ΔU′ per cycle |
+|---|---|---:|---|
+| A | 0.000 [0, 0] | 0 | 0.0000 |
+| B | +0.026 [0.016, 0.037] | 20 | +0.00035 [0, 0.0010] |
+| C | +0.375 [0.332, 0.420] | 289 | +0.00035 [0, 0.0010] |
+| D | +1.048 [0.959, 1.143] | 807 | +0.00417 [0.0017, 0.0069] |
+| sum | 1.449 = the verdict | 1,116 = ΔM | 14 / 2,880 = +0.00486 = the verdict |
+
+- The bands add up to the verdict exactly. The gain and the unwelcome output both come mainly from band D. Per pp of NET, D's ΔU′ is 0.0040, against 0.0009 in C. All of this is descriptive.
+- **(c)**, the companion split, is running on the PC (`mb_split.py` `0daab602`).
+
 *Architect. Docs only; `src/`/`native/` diff empty in this worktree.*
