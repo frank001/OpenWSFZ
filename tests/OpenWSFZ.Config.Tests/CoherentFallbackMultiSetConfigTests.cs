@@ -7,7 +7,7 @@ using Xunit;
 namespace OpenWSFZ.Config.Tests;
 
 /// <summary>
-/// COH-MULTISET: <c>decoder.coherentFallbackMultiSet</c> defaults to <c>false</c> (an absent key reads false; an explicit true survives load,
+/// COH-MULTISET: <c>decoder.coherentFallbackMultiSet</c> defaults to <c>true</c> (an absent key reads true; an explicit false stays false; an explicit true survives load,
 /// an unrelated save and a reload). HK-035: what an ABSENT key deserialises to is checked through the real source-generated deserialisation and
 /// the real <see cref="JsonConfigStore"/> path. All values are synthetic.
 /// </summary>
@@ -27,40 +27,42 @@ public sealed class CoherentFallbackMultiSetConfigTests
     // Both markers true so no migration rewrites the decoder section: the file under test is read as written.
     private const string MarkersOnly = "\"nhard40MigrationApplied\":true,\"subtractionOnMigrationApplied\":true";
 
-    [Fact(DisplayName = "COH-MULTISET: the code default is false, an absent key reads false (also with the fallback flag present), an explicit true is read, the wire name is camelCase")]
-    public void CodeDefault_IsFalse_AbsentKeyReadsFalse_ExplicitTrueIsRead()
+    [Fact(DisplayName = "COH-MULTISET: the code default is true, an absent key reads true (also with the fallback flag present), an explicit false reads false, an explicit true is read, the wire name is camelCase")]
+    public void CodeDefault_IsTrue_AbsentKeyReadsTrue_ExplicitFalseIsRead()
     {
-        new DecoderConfig().CoherentFallbackMultiSet.Should().BeFalse();
+        new DecoderConfig().CoherentFallbackMultiSet.Should().BeTrue();
         JsonSerializer.Deserialize("""{"decoder":{}}""", ConfigJsonContext.Default.AppConfig)!
-            .Decoder!.CoherentFallbackMultiSet.Should().BeFalse("an absent key reads false");
+            .Decoder!.CoherentFallbackMultiSet.Should().BeTrue("an absent key reads true (default ON)");
         JsonSerializer.Deserialize("""{"decoder":{"coherentFallbackEnabled":true}}""", ConfigJsonContext.Default.AppConfig)!
-            .Decoder!.CoherentFallbackMultiSet.Should().BeFalse("turning the fallback on does not turn the sets on");
+            .Decoder!.CoherentFallbackMultiSet.Should().BeTrue("a body for the other flag leaves this one at its default");
+        JsonSerializer.Deserialize("""{"decoder":{"coherentFallbackMultiSet":false}}""", ConfigJsonContext.Default.AppConfig)!
+            .Decoder!.CoherentFallbackMultiSet.Should().BeFalse("an explicit false turns it off");
         JsonSerializer.Deserialize("""{"decoder":{"coherentFallbackMultiSet":true}}""", ConfigJsonContext.Default.AppConfig)!
             .Decoder!.CoherentFallbackMultiSet.Should().BeTrue();
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(new DecoderConfig { CoherentFallbackMultiSet = true }, ConfigJsonContext.Default.DecoderConfig));
         doc.RootElement.GetProperty("coherentFallbackMultiSet").GetBoolean().Should().BeTrue();
     }
 
-    [Fact(DisplayName = "COH-MULTISET: a stored decoder section without the key loads false; saved back it carries the key, false")]
-    public async Task StoredWithoutTheKey_LoadsFalse_SavesFalse()
+    [Fact(DisplayName = "COH-MULTISET: a stored decoder section without the key loads true; saved back it carries the key, true")]
+    public async Task StoredWithoutTheKey_LoadsTrue_SavesTrue()
     {
         using var dir = new TempDirectory();
         File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10," + MarkersOnly + "}}");
 
         var store = new JsonConfigStore(ConfigPath(dir));
-        Effective(store).Should().BeFalse();
+        Effective(store).Should().BeTrue();
 
         await store.SaveAsync(store.Current with { ShowCycleCountdown = !store.Current.ShowCycleCountdown });
         using var written = JsonDocument.Parse(File.ReadAllText(ConfigPath(dir)));
-        written.RootElement.GetProperty("decoder").GetProperty("coherentFallbackMultiSet").GetBoolean().Should().BeFalse();
+        written.RootElement.GetProperty("decoder").GetProperty("coherentFallbackMultiSet").GetBoolean().Should().BeTrue();
     }
 
-    [Fact(DisplayName = "COH-MULTISET: a config file with no decoder section at all reads false")]
-    public void NoDecoderSection_ReadsFalse()
+    [Fact(DisplayName = "COH-MULTISET: a config file with no decoder section at all reads true")]
+    public void NoDecoderSection_ReadsTrue()
     {
         using var dir = new TempDirectory();
         File.WriteAllText(ConfigPath(dir), "{\"showCycleCountdown\":true," + MarkersOnly + "}");
-        Effective(new JsonConfigStore(ConfigPath(dir))).Should().BeFalse();
+        Effective(new JsonConfigStore(ConfigPath(dir))).Should().BeTrue();
     }
 
     [Fact(DisplayName = "COH-MULTISET: an explicit true survives a load, an unrelated save and a reload")]
@@ -74,5 +76,18 @@ public sealed class CoherentFallbackMultiSetConfigTests
 
         await store.SaveAsync(store.Current with { ShowCycleCountdown = !store.Current.ShowCycleCountdown });
         Effective(new JsonConfigStore(ConfigPath(dir))).Should().BeTrue("an explicit true is written and read back, not lost to the default");
+    }
+
+    [Fact(DisplayName = "COH-MULTISET: an explicit false survives a load, an unrelated save and a reload (the station can stay OFF)")]
+    public async Task ExplicitFalse_Survives()
+    {
+        using var dir = new TempDirectory();
+        File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10,\"coherentFallbackMultiSet\":false," + MarkersOnly + "}}");
+
+        var store = new JsonConfigStore(ConfigPath(dir));
+        Effective(store).Should().BeFalse();
+
+        await store.SaveAsync(store.Current with { ShowCycleCountdown = !store.Current.ShowCycleCountdown });
+        Effective(new JsonConfigStore(ConfigPath(dir))).Should().BeFalse("an explicit false is written and read back, not replaced by the default");
     }
 }

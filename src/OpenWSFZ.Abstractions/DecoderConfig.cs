@@ -51,7 +51,7 @@ public sealed record DecoderConfig
         // COH-FALLBACK Stage 2 (R10): in the constructor with its default (true since 2026-10-22), for the same reason as the fields above.
         bool coherentFallbackEnabled   = true,
         // COH-MULTISET: in the constructor with its default (false), for the same reason as the fields above.
-        bool coherentFallbackMultiSet  = false)
+        bool coherentFallbackMultiSet  = true)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -245,10 +245,10 @@ public sealed record DecoderConfig
     /// <summary>
     /// COH-MULTISET: when <c>true</c> (and <see cref="CoherentFallbackEnabled"/> is on) the coherent fallback tries four further coherent
     /// bit-metric sets (C1, J2, J3, N1, in that order, BP only) on a candidate where its V3 extraction gives no CRC-valid output; the first
-    /// CRC-valid output takes the ordinary path (known check, F1b gate). <b>Default <c>false</c></b>; an absent key reads <c>false</c>. It has no
-    /// effect while <see cref="CoherentFallbackEnabled"/> is off. No Settings-page control; the POST is an overlay, so a body without the key
-    /// leaves it as it was. Read once per window; takes effect on the next window. Decodes it produces are a new era: never pool them with
-    /// flag-off figures.
+    /// CRC-valid output takes the ordinary path (known check, F1b gate). <b>Default <c>true</c></b>: ON when the key is absent; an explicit <c>false</c>
+    /// turns it off. It has no effect while <see cref="CoherentFallbackEnabled"/> is off. No Settings-page control; the POST is an overlay, so
+    /// a body without the key leaves it as it was. Read once per window; takes effect on the next window. Decodes it produces are a new era
+    /// ("MS ON"): never pool them with flag-off figures.
     /// </summary>
-    public bool CoherentFallbackMultiSet { get; init; } = false;
+    public bool CoherentFallbackMultiSet { get; init; } = true;
 }

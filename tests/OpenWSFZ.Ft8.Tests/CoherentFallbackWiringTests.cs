@@ -206,12 +206,17 @@ public sealed class CoherentFallbackWiringTests
 
     private static CohFallbackRow WonBy(int id, int provenance) => Row(id) with { Provenance = provenance };
 
-    [Fact(DisplayName = "COH-MULTISET: decoder.coherentFallbackMultiSet defaults to false (config record, bare decoder); the setter and getter round-trip")]
-    public void MultiSet_DefaultsToFalse_AndRoundTrips()
+    [Fact(DisplayName = "COH-MULTISET: decoder.coherentFallbackMultiSet defaults to true in the config record (the bare decoder object still starts false; the daemon sets it from the config); the setter and getter round-trip")]
+    public void MultiSet_ConfigDefaultsToTrue_BareDecoderFalse_AndRoundTrips()
     {
-        new DecoderConfig().CoherentFallbackMultiSet.Should().BeFalse();
+        var cfg = new DecoderConfig();
+        cfg.CoherentFallbackMultiSet.Should().BeTrue();
         var d = Build(new FallbackInterop([Pass0], OneNew()), DecodingDepth.Deep, true);
-        d.CoherentFallbackMultiSet.Should().BeFalse();
+        d.CoherentFallbackMultiSet.Should().BeFalse("the object's own value at construction; the configured default reaches it through the setter");
+        d.SetCoherentFallbackMultiSet(cfg.CoherentFallbackMultiSet);   // the daemon's wiring (Program.cs)
+        d.CoherentFallbackMultiSet.Should().BeTrue("an absent key: the daemon's decoder reads true");
+        d.SetCoherentFallbackMultiSet(new DecoderConfig { CoherentFallbackMultiSet = false }.CoherentFallbackMultiSet);
+        d.CoherentFallbackMultiSet.Should().BeFalse("an explicit false: the daemon's decoder reads false");
         d.SetCoherentFallbackMultiSet(true);
         d.CoherentFallbackMultiSet.Should().BeTrue();
         d.SetCoherentFallbackMultiSet(false);

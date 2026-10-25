@@ -805,7 +805,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetDecodingDepth(initialDecoder.DecodingDepth);
     // COH-FALLBACK Stage 2 (R10): true unless the config says false (default ON since 2026-10-22); read once per cycle.
     ft8Decoder.SetCoherentFallbackEnabled(initialDecoder.CoherentFallbackEnabled);
-    ft8Decoder.SetCoherentFallbackMultiSet(initialDecoder.CoherentFallbackMultiSet);   // COH-MULTISET: default false
+    ft8Decoder.SetCoherentFallbackMultiSet(initialDecoder.CoherentFallbackMultiSet);   // COH-MULTISET: default true (key absent = ON)
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),

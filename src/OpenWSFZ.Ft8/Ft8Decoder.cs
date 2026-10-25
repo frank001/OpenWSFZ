@@ -213,11 +213,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-FALLBACK Stage 2: whether the coherent-extraction fallback is on now (the read-back of <see cref="SetCoherentFallbackEnabled"/>).</summary>
     public bool CoherentFallbackEnabled => _coherentFallbackEnabled;
 
-    private volatile bool _coherentFallbackMultiSet;   // false at construction
+    private volatile bool _coherentFallbackMultiSet;   // false at construction; the daemon sets the configured value (default true) before the first cycle
 
     /// <summary>
-    /// COH-MULTISET: sets <c>decoder.coherentFallbackMultiSet</c>. <c>false</c> (the default at construction) leaves the fallback exactly as it
-    /// was: the same native calls, outputs and order. <c>true</c> makes the fallback try C1, J2, J3, N1 on a candidate where V3 gives no CRC-valid
+    /// COH-MULTISET: sets <c>decoder.coherentFallbackMultiSet</c>. The decoder object itself starts <c>false</c> at construction; the configured default
+    /// (<c>DecoderConfig.CoherentFallbackMultiSet</c>, true when the key is absent) reaches it through this setter, which the daemon calls before
+    /// the first cycle and on every config change. <c>false</c> leaves the fallback exactly as it was: the same native calls, outputs and order. <c>true</c> makes the fallback try C1, J2, J3, N1 on a candidate where V3 gives no CRC-valid
     /// output. It acts only while <see cref="CoherentFallbackEnabled"/> is on. Read once per decode cycle; takes effect on the next cycle.
     /// </summary>
     public void SetCoherentFallbackMultiSet(bool enabled)
