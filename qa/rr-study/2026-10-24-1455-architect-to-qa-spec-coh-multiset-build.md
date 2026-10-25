@@ -527,6 +527,21 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
 - **Before deploying**, QA checks that the station's saved config has no explicit `"coherentFallbackMultiSet": false`. The config POST is an overlay (HK-035); an explicit `false` would keep the station OFF. The check is a readback, not an assumption.
 - **The deploy instant starts a new era, "MS ON".** QA records it with `date -u` on the board, and live figures are never pooled across it (the same rule as `nhard` and the fallback flag).
 
+**A17.5 RULING (2026-10-25 10:45:02Z by `date -u`): the default-ON change is ACCEPTED.**
+- **Build:** Developer `a51a2cdf` (OpenSpec copy) and `3865990c` (the change, VERSION 0.63), on top of `d7750bde`.
+- **HK-039:** QA's record `93a209cb` (`Reviewed-commit: 3865990c590b…`, APPROVED) is committed before this ruling.
+- **What I checked myself:**
+  - `git diff d7750bde 3865990c -- native/` is empty, so A17.2's no-replay condition holds and the DLL stays `1ba8dc3d`.
+  - The `src/` diff is the four sites of A17.1. Both `DecoderConfig` defaults now read `true`, and the decoder's construction value stays `false`, set by the daemon before the first cycle.
+
+| row | evidence (QA, clean tree at `3865990c`) | verdict |
+|---|---|---|
+| D1 key-absent ⇒ ON, explicit false ⇒ OFF | the Config tests pass; both mutations die (reverted default: 3/5 Config and 1/37 wiring fail; ignored false: 2/5 and 1/37) | PASS (it can fire) |
+| D2 the existing suite | full `OpenWSFZ.slnx`, 10 projects, 0 failed (Ft8 605, Daemon 810); `openspec validate --all --strict` 73/73; `check_version_bump.py` OK, 0.62 → 0.63 | PASS |
+| D3 the review record before acceptance | `93a209cb` | PASS |
+
+- **QA's F-1 (minor) is accepted as QA proposes.** The daemon's two setter calls (`Program.cs:808`, `:912`) have no test, as with `SetCoherentFallbackEnabled`. They are covered at deploy by `sets=on` in the first Coherent fallback log line, together with the A17.3 config readback and the "MS ON" era stamp. If `sets=on` is absent, the deploy is not done and I am told.
+
 **A17.4 The push path is unchanged:** G9b and the version bump (default behaviour now changes, so G9b's earlier "User-facing = no" is re-run, not copied); `pre_merge_check.py` from a clean checkout of the exact commit; the Linux/macOS binaries; the Captain's push go; his merge sign-off.
 
 *Architect. Docs only; `src/`/`native/` diff empty in this worktree.*
