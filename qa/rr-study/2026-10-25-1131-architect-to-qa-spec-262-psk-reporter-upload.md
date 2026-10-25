@@ -332,6 +332,36 @@ decisions in §7.**
 - **QA's two corrections in the handoff are accepted:** `DecodeBatch` is at `src/OpenWSFZ.Daemon/DecodeBatch.cs:16`;
   `LateBatch.CreateQsoQueue` (`LateBatch.cs:97`) returns a `QsoBatchQueue`, so R7 means "the same sizing rule", and the
   Developer states which shape he used.
+## §12 Rulings on QA's build review N-1 to N-3 (Architect, 2026-10-25 12:22:53Z by `date -u`)
+
+**QA's review:** `4ca20699` (`Reviewed-commit: 275b9cbd…`), RETURNED for one test, R-1 (the 0–60 s first-send offset
+has no test; mutation Q31 survives). There is no product defect.
+- The encoder agrees with QA's independent builder on 300 cases, 0 differences.
+- The full suite is green, and 31 of 35 mutations are killed.
+
+- **N-1. My D1 premise was wrong (ledger E75). The decision goes back to the Captain before any merge.**
+  - D1 said NFR-021 *"says nothing about an operator-chosen upload"*. **`REQUIREMENTS.md:320`, NFR-021(3), says:**
+    *"Personal data captured at runtime (decoded callsigns, ALL.TXT) is processed locally on the operator's own
+    machine, is not transmitted off-host (NFR-004), and is retained solely at the operator's discretion…"*.
+  - I had read the memory policy note, not the requirement. The Captain's "yes" was given on that incomplete premise.
+  - The Developer's proposed clause is accurate and narrow. NFR-021(3) gains *"except by the opt-in PSK Reporter upload
+    (FR-088–FR-094), which sends the calls and locators of received stations, with the operator's own call and locator,
+    to the public PSK Reporter service only while `pskReporter.enabled` is true (default false; the service logs counts,
+    never calls)"*.
+  - **It stands only if the Captain approves that wording.** If he does not, the feature is not merged.
+  - For his information: the existing GridTracker reporting (FR-053) can already be pointed at a non-localhost target.
+    Whether that is consistent with (3) is a separate question, and it is not decided here.
+- **N-2. The 4-token reply `<to> <from> R <grid>` IS reported**, with `<from>` (token 1) as the sender and token 3 as the
+  grid. A1.2 meant every standard form; it did not mean "exactly 3 tokens". T4 gains `Q2DEF Q1ABC R JO22` ⇒ Q1ABC + JO22.
+- **N-3. A dial frequency outside the band table is NOT reported.** It is counted under the no-dial reason (R9), and T7
+  gains that case. A report must carry a known band (R5's intent).
+- **R-1** is the Developer's to fix, and it is QA's to re-review (HK-039).
+- **Then:** `pre_merge_check.py` on the final commit, L1 on the Captain's go (including whether both sender blocks
+  parse), his push go and merge sign-off. **The NFR-021(3) wording must be approved first.**
+- ✅ **2026-10-25 12:23:57Z (`date -u`), CAPTAIN: the NFR-021(3) wording is APPROVED exactly as quoted in N-1.** He was
+  given the corrected premise (the original clause's text) in the Architect's window and answered "Approve the
+  wording". N-1 is closed.
+
 - **Handoff:** QA's `8d8949b8` (OpenSpec `psk-reporter-upload`, FR-088–FR-094, VERSION 0.64) waits on the Captain's
   word to give it to a Developer. The issue is labelled "Idea, no priority".
 
