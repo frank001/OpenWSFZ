@@ -24,13 +24,23 @@ When `decoder.coherentFallbackMultiSet` is true and the coherent fallback is on,
 - **WHEN** a set gives a new CRC-valid payload whose F1b exceeds `CF_T1_DB`
 - **THEN** the payload SHALL NOT be published and the walk SHALL NOT continue with a later set
 
-### Requirement: The multi-set walk is behind a default-off flag
+### Requirement: The multi-set walk is behind a flag that is on when its key is absent
 
-The configuration SHALL provide `decoder.coherentFallbackMultiSet` (boolean, default `false`), read once per decode cycle as `decoder.coherentFallbackEnabled` is, and acting only when `decoder.coherentFallbackEnabled` is true. It SHALL have no Settings-page control. A configuration update that does not mention it SHALL leave it unchanged. With the flag false the decoder SHALL make the same native calls and produce the same outputs, counters (apart from added zeros) and order as the build without this change, both with the fallback on and with it off. The flag SHALL reach native as a per-call parameter, not as a process-global setting.
+The configuration SHALL provide `decoder.coherentFallbackMultiSet` (boolean). When the key is absent from the configuration the value SHALL be `true` (amended 2026-10-25, Captain: "default on confirmed"; the same pattern as the Deep decoding-depth default). It is read once per decode cycle as `decoder.coherentFallbackEnabled` is, and acts only when `decoder.coherentFallbackEnabled` is true. It SHALL have no Settings-page control. A configuration update that does not mention it SHALL leave it unchanged. With the flag explicitly false the decoder SHALL make the same native calls and produce the same outputs, counters (apart from added zeros) and order as the build without this change, both with the fallback on and with it off. The flag SHALL reach native as a per-call parameter, not as a process-global setting.
+
+#### Scenario: A configuration without the key turns the walk on
+
+- **WHEN** the configuration has no `decoder.coherentFallbackMultiSet` key and the daemon's decoder is set up from it
+- **THEN** the decoder SHALL request the multi-set walk (the flag reads back true) from the first cycle
+
+#### Scenario: An explicit false turns the walk off
+
+- **WHEN** the configuration holds `"coherentFallbackMultiSet": false`
+- **THEN** the decoder SHALL NOT request the walk (the flag reads back false) and SHALL behave as the next scenario states
 
 #### Scenario: Flag off changes nothing
 
-- **WHEN** `decoder.coherentFallbackMultiSet` is false and a fixed set of recorded cycles is decoded with the fallback on, then with it off
+- **WHEN** `decoder.coherentFallbackMultiSet` is explicitly false and a fixed set of recorded cycles is decoded with the fallback on, then with it off
 - **THEN** the `ALL.TXT` lines, UDP datagrams, panel events and QSO-channel batches SHALL be identical (outcome fields) to those of the build before this change
 
 #### Scenario: A partial configuration update leaves the flag as it was

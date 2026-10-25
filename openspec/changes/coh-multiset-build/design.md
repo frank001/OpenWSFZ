@@ -17,6 +17,7 @@ The coherent fallback (shim 20260066 to 20260069) runs, after the last ordinary 
 11. **Log line.** The `Coherent fallback:` line (`Ft8Decoder.cs:1038`) gains `sets=on/off`, the candidates that entered the walk, and CRC-valid counts per set. Aggregates only, no message text.
 12. **Shim number 20260071.** `origin/main` is 20260069; `decoding_improvement` already holds 20260070 (sync 7). The DLL SHA-256 is what identifies a build (era rule: flag-on decodes are a new era, never pooled with flag-off figures).
 13. **Linux/macOS binaries.** They are committed and refreshed by a follow-up chore after the native change (PR #254 for 20260069); the Developer's handoff lists the step.
+14. **Default ON (amended 2026-10-25, build spec §17).** `decoder.coherentFallbackMultiSet` defaults to **true** when the key is absent (`DecoderConfig` constructor parameter and property initialiser), the same pattern as the Deep default (#240). The setter runs every cycle from config (decision 8, A1.1), so the managed side always writes the flag before a decode; whether the native context's own construction default also changes is the Developer's call, reviewed by QA (A1.1's "a new context defaults to off natively" is a statement about the native context and is not required to change). No native code beyond a default may change in this amendment: the replay measured exactly the flag-ON behaviour on the same native code, and the Architect's "no new replay needed" lapses if `native/` changes beyond a default.
 
 ## Risks
 
