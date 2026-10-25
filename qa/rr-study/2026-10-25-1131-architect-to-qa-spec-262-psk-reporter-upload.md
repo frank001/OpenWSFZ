@@ -408,8 +408,14 @@ in QA's window):**
   OpenWSFZ 0.64"**, with the last report at **13:32:30 GMT**, inside the pilot. The production collector received and
   processed our datagrams, receiver record included.
 - **A second instance** (SDRUno, port 8081, same build, both under his call) uploaded nothing for about 12 min on a
-  fresh config. Three designed guards were the cause: placeholder identity, unknown region on the seed-only region
-  table, dial 0. Two of them leave no log trace when nothing is sent.
+  fresh config.
+  - ~~Three designed guards were the cause~~. **Corrected 2026-10-25 14:59:17Z (ledger E77):** the instance **decoded
+    nothing at all**. That is the Captain's account, and its log agrees: 85 of 90 cycles had 0 decodes after an
+    in-process pipeline restart at 13:57:26Z.
+  - The pattern is two framers on one stream, a suspected capture defect sent to QA (board). Only the daemon restart
+    cured it.
+  - The guards (placeholder identity, unknown region, dial 0) are real, and two of them leave no trace when nothing is
+    sent, so F-a still stands. **They were not why nothing was uploaded.**
 - **The Captain chose option 2 for the locator:** an optional 6-character locator for PSK Reporter. PSK Reporter shows
   his old WSJT-X-era `JO33ED`, while OpenWSFZ can only send `tx.grid`, 4 characters.
 
