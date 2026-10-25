@@ -1,0 +1,16 @@
+[
+ {
+  "id": "Q16 a batch with no dial frequency is reported on 14.074",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 2,
+    "passed": 67,
+    "total": 69,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ }
+]

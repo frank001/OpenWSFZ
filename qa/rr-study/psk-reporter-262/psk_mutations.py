@@ -33,7 +33,7 @@ M = [
  ("Q13 identity guard: empty locator allowed", D + "PskReporterEngine.cs", "           || string.IsNullOrWhiteSpace(Locator);", "           ;", [DAEMON]),
  ("Q14 unknown-region decodes are reported", D + "PskReporterEngine.cs", "if (r.Region is null || r.Region.Synthetic)", "if (r.Region is { Synthetic: true })", [DAEMON]),
  ("Q15 synthetic decodes are reported", D + "PskReporterEngine.cs", "if (r.Region is null || r.Region.Synthetic)", "if (r.Region is null)", [DAEMON]),
- ("Q16 a batch with no dial frequency is reported on 14.074", D + "PskReporterEngine.cs", "if (batch.DialFrequencyMHz is not { } dialMHz || dialMHz <= 0)", "double dialMHz = batch.DialFrequencyMHz ?? 14.074; if (dialMHz <= 0)", [DAEMON]),
+ ("Q16 a batch with no dial frequency is reported on 14.074", D + "PskReporterEngine.cs", "if (batch.DialFrequencyMHz is not { } dialMHz || dialMHz <= 0 || BandTable.DeriveBand(dialMHz) is not { } band)", "double dialMHz = batch.DialFrequencyMHz ?? 14.074; if (dialMHz <= 0 || BandTable.DeriveBand(dialMHz) is not { } band)", [DAEMON]),
  ("Q17 RR73 accepted as a grid", D + "PskSenderExtractor.cs", "GridRegex.IsMatch(token) && !token.Equals(\"RR73\", StringComparison.OrdinalIgnoreCase)", "GridRegex.IsMatch(token)", [DAEMON]),
  ("Q18 resolved hashed calls are reported", D + "PskSenderExtractor.cs", "private static bool IsHash(string token) => token.StartsWith('<') || token.EndsWith('>');", "private static bool IsHash(string token) => token.Contains(\"...\");", [DAEMON]),
  ("Q19 own call compared on the full string", D + "PskSenderExtractor.cs", "BaseCall(found.Callsign).Equals(BaseCall(ownCallsign)", "found.Callsign.Equals(ownCallsign", [DAEMON]),
@@ -57,6 +57,12 @@ M = [
   ["", "PskReporter            = config.PskReporter ?? new PskReporterConfig(),"], [WEB, CONFIG]),
  ("Q35 equivalence check for Q22: read-loop guard AND engine guard both removed", [D + "PskReporterService.cs", D + "PskReporterEngine.cs"],
   ["if (!IsActive) continue;", "if (!_active || batch.Results.Count == 0) return;"], ["", "if (batch.Results.Count == 0) return;"], [DAEMON]),
+ ("Q36 the 4-token form accepts any word in the R slot", D + "PskSenderExtractor.cs", "t[2].Equals(\"R\", StringComparison.OrdinalIgnoreCase) && IsGrid(t[3])", "IsGrid(t[3])", [DAEMON]),
+ ("Q37 the 4-token form accepts a non-grid in the grid slot", D + "PskSenderExtractor.cs", "&& IsGrid(t[3]) ? new PskSender(t[1], t[3]) : null", "? new PskSender(t[1], t[3]) : null", [DAEMON]),
+ ("Q38 the 4-token form drops the grid", D + "PskSenderExtractor.cs", "new PskSender(t[1], t[3])", "new PskSender(t[1], null)", [DAEMON]),
+ ("Q39 N-3 reverted: an out-of-band dial is reported under band unknown", [D + "PskReporterEngine.cs", D + "PskReporterEngine.cs"],
+  ["if (batch.DialFrequencyMHz is not { } dialMHz || dialMHz <= 0 || BandTable.DeriveBand(dialMHz) is not { } band)", "long dialHz = (long)Math.Round(dialMHz * 1_000_000d);"],
+  ["if (batch.DialFrequencyMHz is not { } dialMHz || dialMHz <= 0)", "string band = BandTable.DeriveBand(dialMHz) ?? \"unknown\"; long dialHz = (long)Math.Round(dialMHz * 1_000_000d);"], [DAEMON]),
 ]
 
 
