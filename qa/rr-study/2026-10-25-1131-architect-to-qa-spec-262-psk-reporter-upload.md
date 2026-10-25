@@ -389,6 +389,90 @@ has no test; mutation Q31 survives). There is no product defect.
   4. His push go and his merge sign-off. Whether L2/L3 come before or after the merge is his call. Since the feature is
      off by default, merging before L2 changes nothing on air.
 
+## §14 Amendment 2: what the live run showed, and the follow-ups in one handoff (Architect, 2026-10-25 14:53:37Z by `date -u`)
+
+**Recorded (QA's reports `eaad4556`, `1f9dbcaf`, `f7464afb` on `qa/refset`, local; the Captain's decisions, first-hand
+in QA's window):**
+- **L1 BLOCKED.**
+  - `pskreporter.info` resolves to Cloudflare and cannot carry UDP 14739. §1, R1 and L1 named it, from the page's text
+    (ledger E76).
+  - On `report.pskreporter.info:14739`, the analysis page showed 0 packets even for the page's own worked example sent
+    from a plain socket.
+  - **The test listener, or its page, does not work.** L1 gave no reading on any row.
+- **The Captain refused to ask the author** ("out of the question") and chose a bounded production pilot (13:27:34Z).
+  He stopped it at **13:37:30Z** ("I've seen enough. it is working properly"): 3 datagrams, 93 records (R9), with
+  WSJT-X off.
+- **The pre-registered count rule was NOT evaluated.** The retrieve API answered **HTTP 429** at 13:33:39Z because QA
+  queried more often than the page asks.
+- **First-hand production evidence:** the Captain's screenshot of PSK Reporter's popup for his monitor shows **"Using:
+  OpenWSFZ 0.64"**, with the last report at **13:32:30 GMT**, inside the pilot. The production collector received and
+  processed our datagrams, receiver record included.
+- **A second instance** (SDRUno, port 8081, same build, both under his call) uploaded nothing for about 12 min on a
+  fresh config. Three designed guards were the cause: placeholder identity, unknown region on the seed-only region
+  table, dial 0. Two of them leave no log trace when nothing is sent.
+- **The Captain chose option 2 for the locator:** an optional 6-character locator for PSK Reporter. PSK Reporter shows
+  his old WSJT-X-era `JO33ED`, while OpenWSFZ can only send `tx.grid`, 4 characters.
+
+**A2.1 The test host is corrected:** `report.pskreporter.info`, port 14739, in §1, R1 and L1. Nothing in the product
+changes: its default host was already `report.pskreporter.info`. QA corrects its OpenSpec text, and the Developer's
+branch takes the copy.
+
+**A2.2 Ruling: for the merge decision, the pilot and the Captain's observation replace L1–L3.** These rows are recorded
+exactly as they are, not as passes:
+
+| row | status |
+|---|---|
+| L1 (test listener) | **NOT RUN.** The listener does not work |
+| L2/L3 count ±10 % | **NOT EVALUATED** (HTTP 429) |
+| production acceptance, end to end | **SHOWN** by the Captain's popup: software name and last report inside the pilot |
+| both sender blocks (`0x9993` + `0x9994`) in one datagram (A1.4) | **OPEN.** Nothing seen shows which block's records were accepted |
+
+- **Why the merge may proceed anyway:** the feature is off by default and he is the only user. Everything below the
+  network is fully evidenced (the 300-case differential against QA's page-derived builder, the suite, mutations, and
+  `pre_merge_check` READY). He has seen it work in production.
+- **My concern, stated once:** if the collector drops one of the two blocks, roughly the records without a locator (or
+  with one) would silently never appear. Nothing on the map would show it.
+- **So one follow-up check is owed after the merge, non-blocking:**
+  - **one** retrieve query (`receiverCallsign`, `rronly=1`, `noactive=1`, a raised `rptlimit`), made **at least 5
+    minutes** after an upload window, and never more than one query per 5 minutes (the 429 lesson);
+  - **PASS** if the returned reports include both kinds (with and without a sender locator), if the format shows the
+    sender locator;
+  - if it does not show it, the check is INCONCLUSIVE and nothing more is asked.
+  - It needs the Captain's go for an upload window.
+- **Scoring:** PR3 and PR4 are **VOID** (their events never ran).
+
+**A2.3 Follow-ups, in ONE Developer handoff and ONE re-review, in the same PR:**
+- **F-a. One Information line per window, even when nothing is sent:** `"PSK Reporter: N decodes seen, 0 reported:
+  region=a, no-dial=b, identity=c, hashed=d, own-call=e, dedup=f"`. Counts only, no calls. It replaces the silence that
+  hid the 8081 instance's guards.
+- **F-b. A status line on the Settings page next to the checkbox:** off, or on with the last datagram's time and its
+  record count, or on but refused, with the dominant reason (identity, no dial or region). It comes from the same
+  counters as F-a.
+- **F-c. Settings placement:** the Captain decides between the top of External Programs and its own "PSK Reporter"
+  tab. QA asks him. The handoff carries his answer.
+- **F-d. The 6-character locator (the Captain's option 2):**
+  - **Key:** `pskReporter.locator` (string, default `""`). It goes in the nested overlay (a T16-style test: a POST of
+    only `locator` keeps `enabled`, `host` and `port`).
+  - **Valid:** empty, or exactly 6 characters matching `[A-Ra-r]{2}[0-9]{2}[A-Xa-x]{2}`.
+  - **Stored as typed. Sent normalised** as the first 4 upper case and the last 2 lower case (`JO33ed`), the form of
+    the page's own example. My call: one form on the wire, whatever was typed.
+  - **Used** only when valid **and** its first 4 characters equal `tx.grid` (case-insensitive). Otherwise `tx.grid` is
+    sent, with **one** Warning per window naming the reason (invalid or mismatch) and no callsign.
+  - The identity guard is unchanged: `tx.grid` must still be non-empty. Nothing in the transmit path changes: FT8
+    messages still carry `tx.grid`.
+  - **Privacy:** the locator is the operator's own data, sent only while he has the upload on. NFR-021(3), as approved,
+    covers it ("with the operator's own call and locator").
+  - **Settings field:** "Locator for PSK Reporter (6 characters, optional)", with client-side and server-side
+    validation.
+  - **Tests:** the engine uses the 6-character locator when set, valid and matching; it falls back when empty, invalid
+    or mismatched, with exactly one Warning per window; the overlay; the Settings field and its validation (Playwright
+    and a served-page test).
+- **F-e. Rate etiquette in the docs and the capability spec:** the product never queries the retrieve API, and any QA
+  check queries at most once per 5 minutes.
+- **Version:** G9b decides. It is the same PR with no merge in between, so 0.64 may stand.
+
+**A2.4 Ledger:** E76 (the test host). PR3 and PR4 are VOID.
+
 - **Handoff:** QA's `8d8949b8` (OpenSpec `psk-reporter-upload`, FR-088–FR-094, VERSION 0.64) waits on the Captain's
   word to give it to a Developer. The issue is labelled "Idea, no priority".
 
