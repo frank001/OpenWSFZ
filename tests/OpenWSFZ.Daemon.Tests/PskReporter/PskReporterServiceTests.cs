@@ -77,6 +77,45 @@ public sealed class PskReporterServiceTests
         (rig.Service.Engine.Sequence + (uint)rig.Service.Engine.PendingCount).Should().Be(1u, "exactly the one batch that arrived while enabled");
     }
 
+    // ── FR-093: shutdown is order-independent (R-2) ──────────────────────────────────────────────────────────────────
+
+    private static PskReporterService NewService(bool enabled, out FakeTransport transport)
+    {
+        var t = new FakeTransport();
+        transport = t;
+        var store = new FakeConfigStore(new AppConfig { PskReporter = new PskReporterConfig(enabled: enabled) });
+        return new PskReporterService(Channel.CreateUnbounded<DecodeBatch>().Reader, store, new FakeClock(), (_, _) => t,
+            () => Identity(), new CapturingLogger<PskReporterService>(), firstSendOffset: () => TimeSpan.Zero, tickInterval: TimeSpan.FromHours(1));
+    }
+
+    [Theory(DisplayName = "FR-093: R-2: StopAsync after Dispose does not throw (the host can tear down in either order)")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task R2_StopAfterDispose_DoesNotThrow(bool enabled)
+    {
+        var service = NewService(enabled, out _);
+        await service.StartAsync(CancellationToken.None);
+        service.Dispose();
+        Func<Task> stop = () => service.StopAsync(CancellationToken.None);
+        await stop.Should().NotThrowAsync();
+    }
+
+    [Theory(DisplayName = "FR-093: R-2: StopAsync twice and Dispose twice do not throw, and the socket is released")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task R2_StopTwice_DisposeTwice_DoNotThrow(bool enabled)
+    {
+        var service = NewService(enabled, out var transport);
+        await service.StartAsync(CancellationToken.None);
+        await service.StopAsync(CancellationToken.None);
+        Func<Task> stopAgain = () => service.StopAsync(CancellationToken.None);
+        await stopAgain.Should().NotThrowAsync();
+        service.Dispose();
+        Action disposeAgain = service.Dispose;
+        disposeAgain.Should().NotThrow();
+        if (enabled) transport.Disposed.Should().BeTrue();
+    }
+
     // ── FR-092: the first-send offset is taken from the delegate, once per enabled period ───────────────────────────
 
     [Fact(DisplayName = "FR-092: T10: the first send follows the 0-60 s offset (nothing at 41 s, the datagram at 42 s) and a disable-then-enable takes a fresh offset")]

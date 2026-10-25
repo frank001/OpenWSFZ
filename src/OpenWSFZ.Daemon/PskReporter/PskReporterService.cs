@@ -39,6 +39,7 @@ internal sealed class PskReporterService : IHostedService, IDisposable
     private Task?                    _tickTask;
     private CancellationTokenSource? _stopCts;
     private Task?                    _readTask;
+    private int                      _disposed;
 
     /// <param name="reader">The service's own queue (<c>LateBatch.CreateQsoQueue</c> sizing: 10 with the coherent fallback on, 8 off).</param>
     /// <param name="config">Read for <c>pskReporter</c> on start and on every save.</param>
@@ -88,7 +89,11 @@ internal sealed class PskReporterService : IHostedService, IDisposable
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _config.OnSaved -= OnConfigSaved;
-        _stopCts?.Cancel();
+        // Shutdown is order-independent: the host may call Dispose before StopAsync (or either twice). A disposed service has already
+        // cancelled its reader and released its socket, so there is nothing left to stop.
+        if (Volatile.Read(ref _disposed) == 1) return;
+        try { _stopCts?.Cancel(); }
+        catch (ObjectDisposedException) { /* disposed concurrently: already cancelled */ }
         if (_readTask is not null)
         {
             try { await _readTask.WaitAsync(cancellationToken).ConfigureAwait(false); }
@@ -100,7 +105,10 @@ internal sealed class PskReporterService : IHostedService, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
         _config.OnSaved -= OnConfigSaved;
+        try { _stopCts?.Cancel(); }
+        catch (ObjectDisposedException) { }
         _stopCts?.Dispose();
         Deactivate();
         _sendLock.Dispose();
