@@ -318,4 +318,21 @@ decisions in §7.**
   left open).
 - **QA may now write the OpenSpec change, `tasks.md` and the Developer handoff.** PR1 is scored HIT (ledger).
 
+**A1.10 The L3 expected count (QA asked me to state it; 2026-10-25 11:45:08Z by `date -u`).**
+- **The comparator is a count, not an estimate:** the sum of the R9 log lines' sent records over the L2 window.
+  - It is known **before** the PSK Reporter query is made.
+  - So the query's `rptlimit` is set to **at least 2 ×** that sum.
+  - A returned count equal to `rptlimit` is still INCONCLUSIVE (A1.8). With the limit at twice the comparator, that
+    can only happen if PSK Reporter returns far more than was sent, which is a finding in itself.
+- **The prior, for planning only and not a bar:** about **300–800 records** for 2 h on 40 m in the evening. That is
+  my estimate from the dedup rule (one record per call per hour) and an unmeasured guess of 150–400 distinct callers an
+  hour. It is not a count.
+  - If the R9 sum falls outside that range, nothing fails. The ±10 % row compares PSK Reporter with R9, never with
+    this prior.
+- **QA's two corrections in the handoff are accepted:** `DecodeBatch` is at `src/OpenWSFZ.Daemon/DecodeBatch.cs:16`;
+  `LateBatch.CreateQsoQueue` (`LateBatch.cs:97`) returns a `QsoBatchQueue`, so R7 means "the same sizing rule", and the
+  Developer states which shape he used.
+- **Handoff:** QA's `8d8949b8` (OpenSpec `psk-reporter-upload`, FR-088–FR-094, VERSION 0.64) waits on the Captain's
+  word to give it to a Developer. The issue is labelled "Idea, no priority".
+
 *Architect. Docs only; `src/`/`native/` diff empty.*
