@@ -106,4 +106,11 @@ public sealed record AppConfig(
     /// written unless an operator opts in (NFR-021).
     /// </summary>
     public CycleAudioArchiveConfig CycleAudioArchive { get; init; } = new();
+
+    /// <summary>
+    /// Opt-in upload of this station's own decodes to PSK Reporter (<c>psk-reporter-upload</c> capability, issue #262).
+    /// Always non-null; defaults to <c>Enabled = false</c>, so existing config files without a <c>pskReporter</c> key
+    /// load inert and nothing is sent unless the operator opts in.
+    /// </summary>
+    public PskReporterConfig PskReporter { get; init; } = new();
 }

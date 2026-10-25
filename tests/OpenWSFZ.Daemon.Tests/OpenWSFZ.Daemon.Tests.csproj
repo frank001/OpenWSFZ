@@ -18,6 +18,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- psk-reporter-upload (#262): QA's hand-built golden datagrams, copied unchanged from qa/refset qa/rr-study/psk-reporter-262/. -->
+    <EmbeddedResource Include="PskReporter\Fixtures\*.hex" LogicalName="PskReporter.Fixtures.%(Filename)%(Extension)" />
+    <None Include="PskReporter\Fixtures\build_t1_fixture.py" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj" />
     <ProjectReference Include="..\..\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />

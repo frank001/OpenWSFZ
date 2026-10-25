@@ -132,6 +132,10 @@ const addExtRepTargetBtn   = /** @type {HTMLButtonElement}        */ (document.g
 const extRepHonourInbound  = /** @type {HTMLInputElement}         */ (document.getElementById('ext-rep-honour-inbound'));
 const extRepRestrictReplies = /** @type {HTMLInputElement}        */ (document.getElementById('ext-rep-restrict-replies-to-filter'));
 
+// PSK Reporter upload (psk-reporter-upload, #262). host and port are configuration-file only and are NOT on this page.
+const pskReporterEnabled = /** @type {HTMLInputElement} */ (document.getElementById('psk-reporter-enabled'));
+const pskReporterAntenna = /** @type {HTMLInputElement} */ (document.getElementById('psk-reporter-antenna'));
+
 // Advanced Decoder Settings controls (decoder-settings-page)
 const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
 const decoderCorr  = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-corr'));
@@ -423,6 +427,11 @@ function snapshotForm() {
       targets:                                collectExtRepTargets(),
       honourInboundCommands:                  extRepHonourInbound?.checked ?? false,
       restrictExternalRepliesToDecodeFilter:  extRepRestrictReplies?.checked ?? false,
+    },
+    // PSK Reporter upload (#262): the dirty state covers the two controls on this page.
+    pskReporter: {
+      enabled:            pskReporterEnabled?.checked ?? false,
+      antennaInformation: pskReporterAntenna?.value ?? '',
     },
     // Audio archive group (FR-040 dirty state).
     cycleAudioArchive: {
@@ -970,6 +979,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateExtRepRestrictRepliesVisibility();
     renderExtRepTable(Array.isArray(extRep.targets) ? extRep.targets : []);
 
+    // Pre-fill the PSK Reporter upload controls (psk-reporter-upload, #262). An absent block is the inert default.
+    const pskRep = config.pskReporter ?? {};
+    if (pskReporterEnabled) pskReporterEnabled.checked = pskRep.enabled ?? false;
+    if (pskReporterAntenna) pskReporterAntenna.value = pskRep.antennaInformation ?? '';
+
     // Capture the clean baseline after all fields are fully populated (FR-040).
     _cleanSnapshot = snapshotForm();
 
@@ -1458,6 +1472,12 @@ saveBtn.addEventListener('click', async () => {
       restrictExternalRepliesToDecodeFilter:  extRepRestrictReplies?.checked ?? false,
     };
 
+    // PSK Reporter upload (#262): only these two keys are posted; host and port stay as stored (the POST is an overlay that merges nested objects).
+    const pskReporter = {
+      enabled:            pskReporterEnabled?.checked ?? false,
+      antennaInformation: pskReporterAntenna?.value.trim() ?? '',
+    };
+
     // Audio archive (Part C). A blank directory is sent as null: "use the default location".
     const cycleAudioArchive = {
       mode:          archiveMode.value,
@@ -1486,6 +1506,7 @@ saveBtn.addEventListener('click', async () => {
         decoder,
         decodeNoiseSuppression,
         externalReporting,
+        pskReporter,
         cycleAudioArchive,
       }),
       postFrequencies(freqEntries),

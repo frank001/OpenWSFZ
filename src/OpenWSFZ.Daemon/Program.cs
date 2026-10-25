@@ -350,6 +350,11 @@ bool fallbackOn = false;
 var qsoAnswererChannel = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 var qsoCallerChannel   = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 
+// Channel 3d (psk-reporter-upload, #262): decode pump → PskReporterService. ALL FOUR batches of a cycle must reach it, so it gets the
+// sizing rule of the QSO queues (10 with the coherent fallback on, 8 off, DropOldest) and NOT the capacity-2 channel above, which
+// would drop batch 1 under the batches that follow it. Reuses QsoBatchQueue (Reader/Writer, trimming writer); separate instance.
+var pskReporterChannel = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
+
 // Channel 3c: decode pump → ExternalReportingService (bounded, DropOldest — same rationale as
 // the two channels above). Dedicated rather than a DecodeEventBus subscription (design.md
 // originally sketched the latter, but DecodeEventBus is a one-way WebSocket broadcaster with no
@@ -679,6 +684,27 @@ var app = WebApp.Create(
             sp.GetService<ICallsignRegionStore>()));
         services.AddHostedService(sp => sp.GetRequiredService<ExternalReportingService>());
 
+        // psk-reporter-upload (#262): registered unconditionally and INERT until pskReporter.enabled is true (no socket, no DNS, no
+        // timer, nothing queued). Reads its own queue (pskReporterChannel above), fed by the decode pump.
+        services.AddSingleton(sp =>
+        {
+            var store = sp.GetRequiredService<IConfigStore>();
+            return new OpenWSFZ.Daemon.PskReporter.PskReporterService(
+                pskReporterChannel.Reader,
+                store,
+                new OpenWSFZ.Ft8.SystemClock(),
+                (host, port) => new OpenWSFZ.Daemon.PskReporter.UdpPskTransport(host, port),
+                () =>
+                {
+                    var tx = store.Current.Tx ?? new TxConfig();
+                    return new OpenWSFZ.Daemon.PskReporter.PskIdentity(
+                        tx.Callsign ?? "", tx.Grid ?? "", store.Current.PskReporter?.AntennaInformation ?? "",
+                        $"OpenWSFZ {OpenWSFZ.Web.AssemblyVersion.Get()}");
+                },
+                sp.GetRequiredService<ILogger<OpenWSFZ.Daemon.PskReporter.PskReporterService>>());
+        });
+        services.AddHostedService(sp => sp.GetRequiredService<OpenWSFZ.Daemon.PskReporter.PskReporterService>());
+
         // cycle-audio-archive: registered unconditionally (inert by default — mode Off writes
         // nothing and creates no directory). The decode pump below resolves the same singleton
         // and calls TryEnqueue non-blockingly after each cycle (design.md Decision 2).
@@ -861,6 +887,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
         Logger:                   startupLogger)
     {
         Early = earlyCoordinator,
+        PskReporterChannel = pskReporterChannel.Writer,
         // third-pass-deep (#240): only used while decoder.decodingDepth is Deep (and the residual pass is on).
         DecodeStaged = (pcm, cycleStart, band, publishBatch, _) =>
                            ft8Decoder.DecodeStagedAsync(pcm, cycleStart, band, publishBatch),

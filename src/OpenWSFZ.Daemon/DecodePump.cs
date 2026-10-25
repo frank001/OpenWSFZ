@@ -54,6 +54,13 @@ internal sealed record DecodePumpDependencies(
     /// <c>null</c> (the default) means never: the pump is the pre-change pump.
     /// </summary>
     public Func<bool>? CoherentFallbackOn { get; init; }
+
+    /// <summary>
+    /// psk-reporter-upload (#262): optional. The PSK Reporter upload's own queue (every batch 1 to 4, after noise suppression, never
+    /// early-decode preview rows). <c>null</c> (the default; every existing caller) means the pump writes nothing there and is the
+    /// pre-change pump, call for call.
+    /// </summary>
+    public ChannelWriter<DecodeBatch>? PskReporterChannel { get; init; }
 }
 
 /// <summary>
@@ -225,11 +232,15 @@ internal sealed class DecodePump
         // Fan-out to both QSO controller channels (non-blocking; DropOldest when full).
         // QsoControllerRouter activates only one service at a time via IsActive flags;
         // the inactive service's HandleIdleAsync is a no-op, so the extra batches are cheap.
-        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults);
+        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults, DialFrequencyMHz: KnownDial(dialFreq));
         _d.AnswererChannel.TryWrite(batch);
         _d.CallerChannel.TryWrite(batch);
         _d.ExternalReportingChannel.TryWrite(batch);
+        _d.PskReporterChannel?.TryWrite(batch);
     }
+
+    /// <summary>psk-reporter-upload (#262): the dial frequency a batch carries, or <c>null</c> when the pump had none (a 0 fallback).</summary>
+    private static double? KnownDial(double dialFreqMHz) => dialFreqMHz > 0 ? dialFreqMHz : null;
 
     /// <summary>
     /// Publishes batch 2 (or, on the Deep path, batch 3, or the coherent fallback's batch 4 / Normal batch 3) of a flag-ON cycle: the panel (appended, never replacing), ALL.TXT
@@ -247,10 +258,11 @@ internal sealed class DecodePump
 
         AdmitAndBroadcastFilterState(visibleResults);
 
-        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults, batchNumber);
+        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults, batchNumber, KnownDial(dialFreq));
         _d.AnswererChannel.TryWrite(batch);
         _d.CallerChannel.TryWrite(batch);
         _d.ExternalReportingChannel.TryWrite(batch);
+        _d.PskReporterChannel?.TryWrite(batch);
     }
 
     /// <summary>
