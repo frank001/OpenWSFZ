@@ -8,7 +8,7 @@ The Captain decided on 2026-10-25 (Architect build spec `arch/psk-reporter-262`,
 
 ## What Changes
 
-- A new `PskReporterService` (Daemon) turns the decoded stream into PSK Reporter datagrams and sends them over one IPv4 UDP socket to `report.pskreporter.info:4739` (the test listener `pskreporter.info:14739` selectable in the configuration file). **Off by default and inert** until the operator opts in.
+- A new `PskReporterService` (Daemon) turns the decoded stream into PSK Reporter datagrams and sends them over one IPv4 UDP socket to `report.pskreporter.info:4739` (the test listener `report.pskreporter.info:14739` selectable in the configuration file; corrected 2026-10-25, Architect A2.1: the name `pskreporter.info` is Cloudflare-fronted and cannot receive UDP). **Off by default and inert** until the operator opts in.
 - A new **encoder**: a pure function from (session id, sequence, export time, receiver, sender records, templates-due) to the page's bytes. Clean-room: the only reference is the public protocol page and QA's hand-built fixtures; no WSJT-X source is read.
 - A new **strict sender extractor** (token classification, no fallback to the addressee, no hashed senders, never the station's own call), separate from the region lookup's `ExtractPrimaryCallsignToken`.
 - `DecodeBatch` carries the cycle's **dial frequency at capture** (a new nullable member), so reports are immune to the band alternation of issue #260 (which this change does not fix).

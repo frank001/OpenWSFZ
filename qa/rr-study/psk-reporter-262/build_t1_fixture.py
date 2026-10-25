@@ -149,7 +149,11 @@ def t1():
     main = datagram(t_export, seq, sid, descs + [recv, send_block(8, [a]), send_block(7, [b])])
     ant = datagram(t_export, seq, sid, [recv_descriptor(True), send_descriptor(8), send_descriptor(7), recv_record("Q1OFZ", "JO33", "OpenWSFZ 0.63", "Q1 test antenna"), send_block(8, [a]), send_block(7, [b])])
     later = datagram(t_export + 300, seq + 2, sid, [recv, send_block(8, [rec("Q1ABC", dial + 1510, "FT8", t_cycle + 300, loc="JO22", snr=-127 - 5, imd=0)])])   # templates NOT due; SNR clamped to -128 (T13)
-    return {"t1_8field_and_7field": main, "t1_with_antenna": ant, "t1_templates_not_due_snr_clamped": later}
+    # Architect Amendment 2 (F-d): the receiver locator is the normalised 6-character locator (first 4 upper case, last 2 lower case) when pskReporter.locator
+    # is valid and matches tx.grid: the same datagram as the main fixture with receiver locator "JO33ed" instead of "JO33".
+    recv6 = recv_record("Q1OFZ", "JO33ed", "OpenWSFZ 0.63")
+    loc6 = datagram(t_export, seq, sid, descs + [recv6, send_block(8, [a]), send_block(7, [b])])
+    return {"t1_8field_and_7field": main, "t1_with_antenna": ant, "t1_templates_not_due_snr_clamped": later, "t1_receiver_locator6": loc6}
 
 
 def main():
