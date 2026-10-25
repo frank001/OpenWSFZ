@@ -1,0 +1,86 @@
+  Determining projects to restore...
+  Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj (in 82 ms).
+  Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj (in 135 ms).
+  Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Config\OpenWSFZ.Config.csproj (in 171 ms).
+  Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj (in 171 ms).
+  Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj (in 192 ms).
+  Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Web\OpenWSFZ.Web.csproj (in 156 ms).
+  Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj (in 195 ms).
+  16 of 23 projects are up-to-date for restore.
+  E2E precondition: publishing self-contained Daemon (win-x64) before running OpenWSFZ.E2E.Tests -- see tools/publish_selfcontained.py and TESTING_STRATEGY.md.
+  LicenseInventoryCheck.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\LicenseInventoryCheck.Tests\bin\Debug\net10.0\LicenseInventoryCheck.Tests.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\LicenseInventoryCheck.Tests\bin\Debug\net10.0\LicenseInventoryCheck.Tests.dll (.NETCoreApp,Version=v10.0)
+  OpenWSFZ.TestSupport -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.TestSupport\bin\Debug\net10.0\OpenWSFZ.TestSupport.dll
+  TraceabilityCheck.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\TraceabilityCheck.Tests\bin\Debug\net10.0\TraceabilityCheck.Tests.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\TraceabilityCheck.Tests\bin\Debug\net10.0\TraceabilityCheck.Tests.dll (.NETCoreApp,Version=v10.0)
+  OpenWSFZ.Abstractions -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Abstractions\bin\Debug\net10.0\OpenWSFZ.Abstractions.dll
+A total of 1 test files matched the specified pattern.
+    Determining projects to restore...
+A total of 1 test files matched the specified pattern.
+  OpenWSFZ.Rig -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Rig\bin\Debug\net10.0\OpenWSFZ.Rig.dll
+  OpenWSFZ.TestSupport.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.TestSupport.Tests\bin\Debug\net10.0\OpenWSFZ.TestSupport.Tests.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.TestSupport.Tests\bin\Debug\net10.0\OpenWSFZ.TestSupport.Tests.dll (.NETCoreApp,Version=v10.0)
+  OpenWSFZ.Config -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Config\bin\Debug\net10.0\OpenWSFZ.Config.dll
+
+Passed!  - Failed:     0, Passed:    24, Skipped:     0, Total:    24, Duration: 84 ms - LicenseInventoryCheck.Tests.dll (net10.0)
+A total of 1 test files matched the specified pattern.
+  OpenWSFZ.Rig.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Rig.Tests\bin\Debug\net10.0\OpenWSFZ.Rig.Tests.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Rig.Tests\bin\Debug\net10.0\OpenWSFZ.Rig.Tests.dll (.NETCoreApp,Version=v10.0)
+
+Passed!  - Failed:     0, Passed:    34, Skipped:     0, Total:    34, Duration: 57 ms - TraceabilityCheck.Tests.dll (net10.0)
+A total of 1 test files matched the specified pattern.
+    Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj (in 300 ms).
+    Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj (in 335 ms).
+    Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Config\OpenWSFZ.Config.csproj (in 339 ms).
+    Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj (in 335 ms).
+    Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj (in 378 ms).
+    Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Web\OpenWSFZ.Web.csproj (in 384 ms).
+    Restored D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj (in 387 ms).
+  SigHupProbe -> D:\Projects\claude\_qa-scratch\psk-review-clean\tools\SigHupProbe\bin\Debug\net10.0\SigHupProbe.dll
+  OpenWSFZ.Audio -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Audio\bin\Debug\net10.0\OpenWSFZ.Audio.dll
+  OpenWSFZ.Config.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Config.Tests\bin\Debug\net10.0\OpenWSFZ.Config.Tests.dll
+  OpenWSFZ.Ft8 -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Ft8\bin\Debug\net10.0\OpenWSFZ.Ft8.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Config.Tests\bin\Debug\net10.0\OpenWSFZ.Config.Tests.dll (.NETCoreApp,Version=v10.0)
+    OpenWSFZ.Abstractions -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Abstractions\bin\Release\net10.0\OpenWSFZ.Abstractions.dll
+
+Passed!  - Failed:     0, Passed:    41, Skipped:     0, Total:    41, Duration: 241 ms - OpenWSFZ.Rig.Tests.dll (net10.0)
+  OpenWSFZ.Audio.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Audio.Tests\bin\Debug\net10.0\OpenWSFZ.Audio.Tests.dll
+A total of 1 test files matched the specified pattern.
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Audio.Tests\bin\Debug\net10.0\OpenWSFZ.Audio.Tests.dll (.NETCoreApp,Version=v10.0)
+    OpenWSFZ.Rig -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Rig\bin\Release\net10.0\OpenWSFZ.Rig.dll
+    OpenWSFZ.Audio -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Audio\bin\Release\net10.0\OpenWSFZ.Audio.dll
+    OpenWSFZ.Ft8 -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Ft8\bin\Release\net10.0\OpenWSFZ.Ft8.dll
+    OpenWSFZ.Config -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Config\bin\Release\net10.0\OpenWSFZ.Config.dll
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 1 s - OpenWSFZ.TestSupport.Tests.dll (net10.0)
+  OpenWSFZ.Web -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Web\bin\Debug\net10.0\OpenWSFZ.Web.dll
+
+Passed!  - Failed:     0, Passed:   179, Skipped:     0, Total:   179, Duration: 656 ms - OpenWSFZ.Config.Tests.dll (net10.0)
+    OpenWSFZ.Web -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Web\bin\Release\net10.0\OpenWSFZ.Web.dll
+  OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Daemon\bin\Debug\net10.0\OpenWSFZ.Daemon.dll
+
+Passed!  - Failed:     0, Passed:    40, Skipped:     0, Total:    40, Duration: 1 s - OpenWSFZ.Audio.Tests.dll (net10.0)
+  OpenWSFZ.Web.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Web.Tests\bin\Debug\net10.0\OpenWSFZ.Web.Tests.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Web.Tests\bin\Debug\net10.0\OpenWSFZ.Web.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+  OpenWSFZ.Ft8.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Ft8.Tests\bin\Debug\net10.0\OpenWSFZ.Ft8.Tests.dll
+    OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\OpenWSFZ.Daemon.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Ft8.Tests\bin\Debug\net10.0\OpenWSFZ.Ft8.Tests.dll (.NETCoreApp,Version=v10.0)
+    OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\psk-review-clean\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\publish\
+  $ dotnet publish src\OpenWSFZ.Daemon -c Release -r win-x64 --self-contained -p:PublishAot=false
+  OpenWSFZ.Daemon.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Daemon.Tests\bin\Debug\net10.0\OpenWSFZ.Daemon.Tests.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.Daemon.Tests\bin\Debug\net10.0\OpenWSFZ.Daemon.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+  OpenWSFZ.E2E.Tests -> D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.E2E.Tests\bin\Debug\net10.0\OpenWSFZ.E2E.Tests.dll
+Test run for D:\Projects\claude\_qa-scratch\psk-review-clean\tests\OpenWSFZ.E2E.Tests\bin\Debug\net10.0\OpenWSFZ.E2E.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 4 s - OpenWSFZ.E2E.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   410, Skipped:     0, Total:   410, Duration: 14 s - OpenWSFZ.Web.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   882, Skipped:     0, Total:   882, Duration: 22 s - OpenWSFZ.Daemon.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   605, Skipped:     0, Total:   605, Duration: 2 m 45 s - OpenWSFZ.Ft8.Tests.dll (net10.0)

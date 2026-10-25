@@ -1,0 +1,72 @@
+[
+ {
+  "id": "Q21 service builds the socket even when disabled",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 5,
+    "passed": 70,
+    "total": 75,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q22 disabled batches are processed instead of discarded",
+  "killed": false,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 0,
+    "passed": 75,
+    "total": 75,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q31 the random first-send offset is ignored",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 74,
+    "total": 75,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q35 equivalence check for Q22: read-loop guard AND engine guard both removed",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 74,
+    "total": 75,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q40 R-2 reverted: StopAsync cancels unguarded after Dispose",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 3,
+    "passed": 72,
+    "total": 75,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ }
+]
