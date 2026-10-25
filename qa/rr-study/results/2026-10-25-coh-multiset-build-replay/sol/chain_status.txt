@@ -1,0 +1,10 @@
+2026-10-24T16:31:12Z chain start; so=488bfa0b90a570ad0bc9f285d871147f62f4a71165fcf6dc39bd31eb584f58d0; selection sha_lf=53d9ba4ec52b0f6bca8f4a4cb03a92ad3493387dfb1f4d11e7a29709857331c4; rep320 sha_lf=80b78a34c8ac57207222f939c6c5d77f3206dbdaf8cdb492fac7f66f5daced8a
+2026-10-24T16:31:12Z arm ref start (cohms=0)
+2026-10-24T22:06:53Z arm ref done rc=0 ok=1 rows=2882
+2026-10-24T22:06:54Z arm ms start (cohms=1)
+2026-10-25T03:48:08Z arm ms done rc=0 ok=1 rows=2882
+2026-10-25T03:48:08Z arm msrep start (cohms=1)
+2026-10-25T04:30:07Z arm msrep done rc=0 ok=1 rows=320
+2026-10-25T04:30:07Z orphan check clean
+2026-10-25T04:30:07Z END so pin OK
+2026-10-25T04:30:07Z chain done

@@ -1,0 +1,8 @@
+2026-10-24T20:28:24Z PC chain start; dll=1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914; selection sha_lf=53d9ba4ec52b0f6bca8f4a4cb03a92ad3493387dfb1f4d11e7a29709857331c4
+2026-10-24T20:28:24Z arm ref start (cohms=0)
+2026-10-24T22:41:52Z arm ref done rc=0 ok=1 rows=2882
+2026-10-24T22:41:52Z arm ms start (cohms=1)
+2026-10-25T00:55:52Z arm ms done rc=0 ok=1 rows=2882
+2026-10-25T00:55:52Z orphan check clean
+2026-10-25T00:55:52Z END dll pin OK
+2026-10-25T00:55:52Z chain done

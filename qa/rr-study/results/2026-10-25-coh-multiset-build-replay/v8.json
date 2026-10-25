@@ -1,0 +1,21 @@
+{
+ "arms": {
+  "ref": {
+   "cycles_a": 2882,
+   "cycles_b": 2882,
+   "common": 2882,
+   "differing_unexplained": 0,
+   "abandonment_explained": 0,
+   "first_unexplained": []
+  },
+  "ms": {
+   "cycles_a": 2882,
+   "cycles_b": 2882,
+   "common": 2882,
+   "differing_unexplained": 0,
+   "abandonment_explained": 0,
+   "first_unexplained": []
+  }
+ },
+ "V8": "PASS"
+}
