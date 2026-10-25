@@ -55,11 +55,44 @@ R10 counters, MS: walk entered 359,853 of 456,185 attempted; CRC-valid counts by
 
 ## 5. Not done, and limits
 
-- **§6.7 per-set split (published / KNOWN / gated out)**: the offline companion through the native run export on the frozen selection (same pin) is NOT yet run; descriptive only, no rebuild (Amendment 4).
+- **§6.7 per-set split**: see §7 below (run after the ruling, descriptive, no rebuild). The "FP-watch on U′ by provenance" and the provenance clause of V8 are unobtainable from the replay and dropped (Architect, ledger E63).
 - One night, one band (40 m), one corpus. NET here (+1.449 pp) is smaller than the arm's +2.115 pp [1.937, 2.302]; they are different instruments (the arm re-decoded at WSJT-X's positions in a 975-cycle sample; this is the whole product pipeline over 2,882 cycles, where earlier passes already take part of the gain). Never difference them.
 - The PC run had no U′ stage (not required); V8 is the PC's contribution.
 - Nothing is pushed. **Default ON** would need D-GO and U′-OK (both met here) and the Captain's decision. Before any push: `pre_merge_check.py` from a clean checkout of the exact commit, and the Linux/macOS binary refresh chore (HK-006).
 
 ## 6. Files
 
-`sol_analysis.json` (all rows), `v8.json`, `sol/` (U′ stages, per-cycle and by-band CSVs, class list, chain and arm status), `pc/` (chain and arm status, hibernate log). Scripts: `qa/rr-study/coh-multiset-build/` (`mb_analysis.py` `f7ffefd3`, `sol_chain.sh` `51701eb2`, `pc_chain.sh` `f813d5ff`).
+`sol_analysis.json` (all rows), `v8.json`, `sol_desc.json` and `pc_desc.json` (§7a, §7b), `split_full.json` (§7c), `sol/` (U′ stages, per-cycle and by-band CSVs, class list, chain and arm status), `pc/` (chain and arm status, hibernate log). Scripts: `qa/rr-study/coh-multiset-build/` (`mb_analysis.py` `f7ffefd3`, `mb_desc.py` `d17db18c`, `mb_split.py` `0daab602`, `sol_chain.sh` `51701eb2`, `pc_chain.sh` `f813d5ff`).
+
+## 7. Follow-ups owed by the ruling (descriptive; no bar on any of it)
+
+**(a) NET and ΔU′ by Test-B band, sol.** Bands are Replay81's SNR bands of the OpenWSFZ decode (A ≥ 0 dB, B ≥ −10, C ≥ −15, D below). Same bootstrap as the verdict.
+
+| Band | Δ matched decodes | NET, pp [CI] | ΔU′ per cycle [CI] |
+|---|---|---|---|
+| A | 0 | 0.000 [0, 0] | 0.0000 |
+| B | +20 | +0.026 [0.016, 0.037] | +0.00035 [0, 0.0010] |
+| C | +289 | +0.375 [0.332, 0.420] | +0.00035 [0, 0.0010] |
+| D | +807 | +1.048 [0.959, 1.143] | +0.00417 [0.0017, 0.0069] |
+
+The band changes sum to the verdict's +1,116 (and ΔU′ to +14 / 2,880 = +0.00486): the gain and almost all of the U′ cost sit in band D. The PC run has no U′ stage, so there is no PC ΔU′ by band.
+
+**(b) PC cost lines (`coh.csv`, through the verdict's definitions).** Fallback wall time median / p95 / max: REF 203 / 328 / 495 ms → MS 237 / 373 / 583 ms. Batch-4 publish time median / p95 / max: REF 2,777 / 3,622 / 4,256 ms → MS 2,798 / 3,650 / 4,360 ms. Minimum margin to the 13 s budget: REF 8,744 → MS 8,640 ms. These equal the Architect's own reading of `coh.csv`. (Sol, same lines: §4; margin 2,601 → 1,686 ms.) The tight margin is the 8-core sol's, not the product's.
+
+**(c) Per-set split (Amendment 4.2).** `mb_split.py` calls the native run export (`ft8_coherent_fallback_run`, the product's own per-candidate body) on the frozen 2,882 cycles with the Stage 2 pin (`1ba8dc3d…db914`), flags 0 and `FT8_COH_RUN_MULTISET`, no deadline. Limit: candidates and the ordinary-decode snapshot come from ONE `ft8_decode_all` pass, not the replay's Deep multi-pass pipeline, so the counts describe the sets, not the replay's totals. Check against the replay: the first-success counts per set are identical to the replay's R10 counters (C1 13,856, J2 3,914, J3 2,161, N1 8,456; 28,387 in all); rows entering the walk 359,851 here against 359,853 in the replay (2 of about 360,000).
+
+Rows where V3 found nothing and a set found a CRC-valid payload, by the set that won first (C1 > J2 > J3 > N1) and what happened to it:
+
+| Set | First successes | KNOWN (already decoded) | Gated out (new, F1b > T1) | Publication candidates (new, F1b ≤ T1) | Distinct new payloads per cycle, summed |
+|---|---|---|---|---|---|
+| C1 | 13,856 | 13,647 (98.5 %) | 87 (0.6 %) | 122 (0.9 %) | 33 |
+| J2 | 3,914 | 2,028 (51.8 %) | 431 (11.0 %) | 1,455 (37.2 %) | 638 |
+| J3 | 2,161 | 446 (20.6 %) | 350 (16.2 %) | 1,365 (63.2 %) | 676 |
+| N1 | 8,456 | 7,891 (93.3 %) | 213 (2.5 %) | 352 (4.2 %) | 147 |
+| **All** | **28,387** | **24,012 (84.6 %)** | **1,081 (3.8 %)** | **3,294 (11.6 %)** | **1,494** |
+
+- Walk entered on 359,851 rows; on 331,464 of them (92.1 %) no set found anything.
+- Distinct new payloads that MS publishes beyond OFF's own publication candidates: **1,438** (the per-set column sums to 1,494 because one message can be found by more than one set; the per-cycle text dedup admits each once).
+- **J2 and J3 together produce 1,314 of the 1,494 (88 %) distinct new payloads**, N1 10 %, C1 2 %. C1 wins the most rows (49 %) but almost all of them are messages the ordinary decode already has, which is why the earlier "C1 wins 743 of 1,316" observation did not mean C1 matters.
+- OFF baseline on the same rows (V3 alone): 84,263 KNOWN, 2,783 gated out, 9,286 publication candidates.
+- Not obtainable and dropped: provenance per replay decode (the replay has none), hence no FP-watch on U′ by provenance.
