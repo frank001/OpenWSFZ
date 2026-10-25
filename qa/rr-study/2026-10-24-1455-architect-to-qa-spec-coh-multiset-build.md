@@ -503,4 +503,32 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
 
 *Every A16.4 item is closed.*
 
+## §17 CAPTAIN: default ON confirmed (recorded by the Architect, 2026-10-25 10:18:27Z by `date -u`)
+
+**His words, first-hand in the Architect's window:** *"default on confirmed"*. This answers §16 A16.6 with option 1.
+
+**A17.1 What changes (a `src/` change, so a Developer session is required, HK-011; it goes Architect → QA → Developer, HK-015):**
+- `decoder.coherentFallbackMultiSet` defaults to **true** when the key is absent. The sites, from `feat/coh-multiset-build` at `d7750bde`:
+  - `src/OpenWSFZ.Abstractions/DecoderConfig.cs:54`, the constructor parameter `coherentFallbackMultiSet = false`;
+  - `src/OpenWSFZ.Abstractions/DecoderConfig.cs:253`, the property initialiser `= false`;
+  - `src/OpenWSFZ.Daemon/Program.cs:808`, the comment "default false";
+  - `src/OpenWSFZ.Ft8/Ft8Decoder.cs:219`, the doc comment.
+- Whether the native context's own construction default changes is the Developer's call, with QA reviewing it. The setter runs every cycle from config (A1.1), so the row below is what decides.
+- `false` stays available and turns the sets off exactly as before; A1 flag-OFF identity is unchanged.
+- **Same pattern as #240** (Deep default): when the key is absent, the new default applies.
+
+**A17.2 Rows (mechanical):**
+- **D1:** a test that a config without the key gives `CoherentFallbackMultiSet == true` in the daemon's decoder, and that an explicit `false` gives OFF.
+- **D2:** the existing Coherent* and A1/A1.1 tests still pass. A test that assumed the old default is changed only where it asserted that default.
+- **D3:** QA's HK-039 review record, committed before any acceptance run.
+- **No new replay is needed.** The MS arm already measured exactly this behaviour (flag ON) on the same native code. If the change touches anything in `native/` beyond a default, that statement lapses and I rule again.
+
+**A17.3 The Captain's station and eras:**
+- **Before deploying**, QA checks that the station's saved config has no explicit `"coherentFallbackMultiSet": false`. The config POST is an overlay (HK-035); an explicit `false` would keep the station OFF. The check is a readback, not an assumption.
+- **The deploy instant starts a new era, "MS ON".** QA records it with `date -u` on the board, and live figures are never pooled across it (the same rule as `nhard` and the fallback flag).
+
+**A17.4 The push path is unchanged:** G9b and the version bump (default behaviour now changes, so G9b's earlier "User-facing = no" is re-run, not copied); `pre_merge_check.py` from a clean checkout of the exact commit; the Linux/macOS binaries; the Captain's push go; his merge sign-off.
+
+*Architect. Docs only; `src/`/`native/` diff empty in this worktree.*
+
 *Architect. Docs only; `src/`/`native/` diff empty in this worktree.*
