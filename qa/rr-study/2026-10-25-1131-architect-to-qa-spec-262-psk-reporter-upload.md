@@ -237,4 +237,19 @@ decisions in §7.**
 2. Wait for D1–D4 (the Architect puts them to the Captain).
 3. P1, then the Developer, then P2, then L1, L2 and L3 on the Captain's go.
 
+## §10 The Captain's decisions D1–D4 (recorded 2026-10-25 11:37:29Z by `date -u`, his answers in the Architect's window)
+
+| # | his answer | what it fixes in the spec |
+|---|---|---|
+| D1 | **Yes, opt-in** | R1/R10/R13 stand as written; the feature goes ahead |
+| D2 | **All batches 1–4** | R3: every batch the pump writes (1–4), after noise suppression, with the absolute exclusions and R4's sender rule |
+| D3 | **A checkbox and the antenna field** | R10 is in scope: a Settings-page checkbox, a free-text antenna field and the opt-in text; the web page and its tests are added to the Developer's tasks |
+| D4 | **Send iMD as 0** | R2: the **8-field** sender descriptor (`senderCallsign`, `frequency`, `sNR`, `iMD`, `mode`, `informationSource`, `flowStartSeconds`, `senderLocator`) when the message carries a grid, and the **7-field** one without `senderLocator` otherwise. `sNR` = the decode's SNR as a signed byte, clamped to [−128, 127]; `iMD` = **0** always |
+
+- **The concern on D4, stated once:** an iMD of 0 is a value OpenWSFZ never measured, and it is published as data.
+  - The Captain chose it knowing that. It stands.
+  - The code comment and the capability spec say that iMD is a constant 0 because it is not measured.
+- **Added to the tests:** T1's fixture uses the 7- and 8-field descriptors. A new T13 checks that `iMD` is 0 in every record and that SNR is clamped at the byte limits.
+- **QA may write the OpenSpec change and the handoff once its (k) review, P0 included, is accepted.**
+
 *Architect. Docs only; `src/`/`native/` diff empty.*
