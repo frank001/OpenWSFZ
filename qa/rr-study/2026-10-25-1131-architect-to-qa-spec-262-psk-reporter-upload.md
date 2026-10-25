@@ -252,4 +252,70 @@ decisions in §7.**
 - **Added to the tests:** T1's fixture uses the 7- and 8-field descriptors. A new T13 checks that `iMD` is 0 in every record and that SNR is clamped at the byte limits.
 - **QA may write the OpenSpec change and the handoff once its (k) review, P0 included, is accepted.**
 
+## §11 Amendment 1: QA's (k) review adopted, F1–F7 and the advisories (Architect, 2026-10-25 11:40:18Z by `date -u`)
+
+**QA's review:** `qa/rr-study/2026-10-25-1139-qa-to-architect-k-review-psk-reporter-262.md` (`qa/refset`, local), ACCEPTED subject to seven amendments.
+- **P0 was done against the raw page** (27,434 bytes): every value in §1 is on it, with no contradiction.
+- The FILE:LINE audit against `d20059c3` is all correct.
+- I fetched the raw page myself (same size) and confirmed F3's descriptor bytes. Every amendment is adopted, as below. **Where this section and §1–§10 disagree, this section wins.**
+
+- **A1.1 (F1) Dedup, one rule.** For each call, a hard minimum of **5 minutes** between records. For each (call, band),
+  at most one record per **60 minutes**. A band change starts a new (call, band) key, but still respects the 5-minute
+  minimum. T6 is restated:
+  - the same call 3× in 4 min on one band ⇒ 1 record;
+  - at 6 min on the same band ⇒ **0**;
+  - at 61 min on the same band ⇒ 1;
+  - at 7 min on **another** band ⇒ 1.
+- **A1.2 (F2) Sender extraction classifies tokens; it never counts them.**
+  - A **callsign** token contains at least one digit and one letter, optionally with `/…` parts; `<…>` is a hash.
+  - A **CQ modifier** is 1–4 letters (`DX`, `NA`, `POTA`, …) or exactly 3 digits.
+  - A **grid** is `[A-R]{2}[0-9]{2}` and is not `RR73`.
+  - `CQ [modifier] <callsign> [grid]` gives the callsign.
+  - Five cases are added to T4: `CQ DX Q1ABC` (no grid) ⇒ Q1ABC; `CQ POTA Q1ABC JO22` ⇒ Q1ABC + JO22;
+    `CQ 123 Q1ABC` ⇒ Q1ABC; `CQ Q1ABC/P` ⇒ Q1ABC/P; `CQ DX` (no call) ⇒ not reported.
+  - **Resolved hashed calls** (`<Q1ABC>`, where the hash table resolved them) are **not reported** either: the text
+    on air was a hash.
+- **A1.3 (F3) The wire format is the page's descriptor bytes, not my prose lists.** R2 cites QA's fixtures in
+  `qa/rr-study/psk-reporter-262/` (the builder script and three `.hex` files, Q-calls only). The builder first
+  reproduces the page's two worked datagrams byte for byte.
+  - The order is fixed by the page:
+    - **8 fields:** `senderCallsign, frequency, sNR, iMD, mode, informationSource, senderLocator, flowStartSeconds`;
+    - **7 fields:** the same without `senderLocator`.
+  - §10's list put `senderLocator` last. That is wrong (ledger E69) and corrected here.
+  - The receiver template goes in set id **3**, with scope-field count 1; the sender template in set id **2**.
+  - Variable-length strings are encoded as the page shows.
+- **A1.4 (F4) Two sender templates, and two sender blocks in one datagram.** D4 gives records with and without a
+  locator.
+  - Template ids **`0x9993`** (8-field, with locator) and **`0x9994`** (7-field, without), both announced in the
+    template set.
+  - A datagram carries one block per template that has records.
+  - The page shows no such datagram, so **L1 also checks that the test listener parses both blocks**. If it rejects
+    either, stop and come back to me. I would not invent a workaround.
+- **A1.5 (F5) No upload with placeholder identity.** While the receiver call is empty or Q-prefix (the `TxConfig`
+  default is `Q1OFZ`, `TxConfig.cs:81`), or the locator is empty, the service sends **nothing**.
+  - It logs that once per window (a count, no call).
+  - The own-call exclusion compares **base calls** (prefix and suffix stripped), so `PD2FZ/P` as a sender is excluded
+    for receiver `PD2FZ`.
+  - New test **T14**.
+- **A1.6 (F6) One UDP source port for the life of the service, IPv4.** The socket factory is called once per enable.
+  It is re-created only after `enabled` goes false and then true again, never per window, and it is never bound to
+  4739. New test **T15**.
+- **A1.7 (F7) Sequence number.** It starts at **0** for each process (with a new random session id). It increases by
+  the number of **sender records** in each datagram sent; the receiver record is not counted. An unsent datagram does
+  not advance it. T3 stands under this rule.
+- **A1.8 Advisories, adopted.**
+  - **L3 query:** use `receiverCallsign` with `rronly=1`, `noactive=1` and a raised `rptlimit`.
+    - A returned count **at the cap is INCONCLUSIVE**, never PASS or FAIL. The cap is unmeasured, because QA's one
+      read-only query found 0 records (the 10-24 WSJT-X spots were older than the 24 h window).
+    - L3's window is chosen so the expected count stays under the cap. QA states that count before the run.
+  - **T16:** a nested config overlay. A POST that changes only `pskReporter.antennaInformation` leaves `enabled`,
+    `host` and `port` unchanged (HK-035).
+  - **The 1,400-byte limit** is a decision value derived from a 1,500-byte Ethernet MTU minus IP/UDP headers and
+    margin. It is not from the page.
+  - **`DecodePump`'s dependencies change** (the new channel writer, R7). The pump tests' fixtures are updated.
+- **A1.9 Errors in my spec, in the ledger now:** E69 (F3 order), E70 (F1 contradiction), E71 (F2 by-count), E72 (F4
+  unstated consequence of D4), E73 (F5 placeholder identity), E74 (F6/F7: §1 rules not carried into R, and the sequence
+  left open).
+- **QA may now write the OpenSpec change, `tasks.md` and the Developer handoff.** PR1 is scored HIT (ledger).
+
 *Architect. Docs only; `src/`/`native/` diff empty.*
