@@ -401,3 +401,74 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
 - The companion runs after the chain, so it does not compete with sol's arms.
 
 **Nothing else changes.** The bars, rows V1–V6 and V8, and the selection stand. This amendment weakens one validity row to what the instrument can see. It was made before any output was read, and it is not tuned on data.
+
+## §16 RULING: the decision replay. D-GO and U′-OK, every validity row PASS; the verdict is final (Architect, 2026-10-25 09:50:28Z by `date -u`)
+
+**Read:** QA's report `qa/rr-study/results/2026-10-25-coh-multiset-build-replay/report.md` (`cd484c65`, `qa/refset`, local), its `sol_analysis.json` and `v8.json`, the sol and PC status files, the `same_text_elsewhere` predicate in `mb_analysis.py` (`f7ffefd3`), and the PC's raw `coh.csv` for both arms (`_qa-scratch\coh-multiset\pc_chain\raw\{ref,ms}\coh.csv`).
+
+**A16.1 Validity (§6.4, as amended by A3 and A4).** Every row passes, so the gate rows are valid.
+
+| row | evidence I checked | verdict |
+|---|---|---|
+| V1 pin | sol `.so` `488bfa0b…58d0` and PC DLL `1ba8dc3d…db914`, in every arm's status file, end check OK | PASS |
+| V2 readbacks + selection | the readbacks pass in every run; selection SHA(LF) `53d9ba4e…331c4` in sol REF/MS and in the PC chain; MS-repeat uses its own 320-cycle file `80b78a34…`, as designed | PASS |
+| V3 exceptions | 0 / 0 / 0 | PASS |
+| V4 batches 1–3 | 0 differing cycles in each batch | PASS |
+| V5 (≤ 1 % on sol) | 0 / 2,882 in REF and in MS | PASS |
+| V6 MS-repeat | 0 differing of 320 | PASS |
+| V7′ inclusion | 0 cycles with a REF batch-4 decode missing in MS; 32 same-text exceptions, each listed. The predicate is mechanical: the lost decode's text must be published by MS in the same cycle at a position that is none of REF's batch-4 positions. It does not check A4.1's "earlier in candidate order". I accept that: text dedup admits the text only once, so a text at a new position is the moved decode, whatever the order | PASS |
+| V8 PC = sol | 2,882 / 2,882 in both arms, 0 unexplained. It compares outcome fields, not provenance, which the replay cannot see (A16.4) | PASS |
+
+**A16.2 The verdict (sol; confirmed by V8 on the PC).**
+
+| row | result | bar (frozen 2026-10-24 16:13:05Z, before any decode) | verdict |
+|---|---|---|---|
+| NET | **+1.449 pp [1.339, 1.568]** (ΔM +1,116 of W 76,999) | CI_lo ≥ 0.5 | **D-GO** |
+| ΔU′ | **+0.00486 per cycle [0.00208, 0.00799]** | CI_hi ≤ 0.021 | **U′-OK** |
+
+- Both intervals are wholly on the passing side. Neither bar moved, and neither was near its edge.
+- **The sets are cleaner per pp than the whole fallback was:** ΔU′ per pp of NET is 0.0034 here, against 0.0052 for the shipped fallback (COH-FALLBACK step-3 spec §19, +0.0198 for +3.82 pp, night `20260922_2056`). They are different nights, so this is a description, not a test.
+- **The descriptive Test-B ΔU, +0.0316 [0.0257, 0.0375], is above 0.021.** That is all 91 extra not-confirmed decodes (85 of them in band D), with nothing subtracted. The ruled quantity is U′. Of the 91, the instrument shows 77 present in the audio at their position, 4 tested absent and 10 hashed or unencodable. The Captain sees both numbers in A16.6.
+- The counts reconcile: 1,116 matched + 91 not confirmed + 32 moved = 1,239 MS-only batch-4 decodes.
+
+**A16.3 Cost (§6.7, §7).**
+
+| machine | fallback wall per cycle, median / p95 / max, REF → MS | batch-4 publish max, REF → MS | tightest margin to 13 s |
+|---|---|---|---|
+| sol (8 cores; QA's committed code) | 457 / 691 / 1,007 → 586 / 849 / 1,217 ms | 10.40 → 11.31 s | **1.69 s** (REF 2.60 s) |
+| PC (my reading of QA's raw `coh.csv`; QA to confirm through `mb_analysis.py`) | 203 / 328 / 495 → 237 / 373 / 583 ms | 4.26 → 4.36 s | 8.64 s (REF 8.74 s) |
+
+- §7's trigger (MS p95 more than 2 × REF's) does not fire on either machine: 1.23× on sol, 1.14× on the PC.
+- The PC's cycles publishing batch 4 (1,987 → 2,281) equal sol's, as V8 implies.
+- sol's 1.69 s is wider than its 1.36 s at step 4 (§12 A2.2; another night, `20260922_2056`, with 0 cycles abandoned). The Captain's station is the PC, where it is 8.6 s.
+
+**A16.4 What §6.7 still owes, and one line it can never have (ledger E63).** None of these can change a row.
+- **Owed by QA, for the record:** (a) NET and ΔU′ **by Test B band A–D**: the report gives only the change in not-confirmed decodes by band; (b) the PC cost lines through committed code (A3.3); (c) the A4.2 offline companion split (published / KNOWN / gated out per set).
+- **Not obtainable, dropped:** "the FP-watch on U′ by provenance, against REF's V3 rate" (§6.7), and the words "including provenance" in V8 (A3.3). Both need per-decode provenance in the replay, which A4 found it does not have. The companion is single-pass and has no U′ stage, so it cannot supply them either. A4 said "V8 stands" and moved only the split, without following the same loss through to these two lines. That is ledger E63. The nearest stand-in is the band split in (a).
+
+**A16.5 Predictions (§8), scored now.**
+
+| # | P | outcome | score |
+|---|---:|---|:---:|
+| MB2 V7 passes (V3 untouched) | 0.85 | V7′ PASS. V7 as written could not be tested (A4); the half that was not checked rests on P1 | HIT (on V7′) |
+| MB3 D-GO at 0.5 | 0.55 | CI_lo 1.339 | HIT |
+| MB4 U′-OK at 0.021 | 0.55 | CI_hi 0.0080 | HIT |
+| MB5 NET point in [0.5, 2.0] | 0.60 | 1.449 | HIT |
+| MB6 MS fallback wall median ≤ 2 × REF's on the PC | 0.70 | 237 / 203 ms = 1.17× | HIT |
+
+- MB1–MB6: 6 hits out of 6, Brier mean 0.133.
+- The two H calls at 0.55 were **under-confident again**, as X1/X2 were at the arm. That is two arms in a row, both in the coherent-fallback family. The next prediction in this family should start from that.
+
+**A16.6 For the Captain: default ON (his decision, HK-010).** The data:
+- **Gain:** +1.45 pp of WSJT-X's decodes, [1.34, 1.57], on one whole 40 m night (2,882 cycles, about 12 h). Over that night that is +1,116 decodes WSJT-X also has.
+- **Unwelcome output:** 14 extra decodes over the night that the instrument cannot show to be present (about one every 50 minutes). The upper bound, counting every extra not-confirmed decode, is 91 over the night (about 7.6 an hour), and 77 of those are shown present. 85 of the 91 are in the weakest band (D).
+- **Cost on his PC:** +34 ms median per cycle, and 8.6 s of margin left in the worst cycle.
+- **Options:**
+  1. **ON by default once landed** (recommended). He is the only user, so this changes only his station. Both machines agree exactly, and this is the second night with a gain above 0.5 pp (the arm's night `20261022_1949` and this one), from different instruments.
+  2. **Land it OFF and switch it on by config later.** Same code; it only defers the decision. Nothing in the data asks for that.
+  3. **Wait for another night first.** That costs another ~6 h replay. The only limit it would address is "one night, one band", and the arm's night already partly does.
+- **Housekeeping, not a decision:** the A16.4 items (a)–(c) do not need to wait for his answer.
+
+**A16.7 Before any push or merge (unchanged; owed by QA, HK-006/HK-033/HK-010):** `pre_merge_check.py` from a clean checkout of the exact commit (`src/`/`native/` change, so mandatory); the Linux/macOS binary refresh; the Captain's go for the push, and his separate sign-off for the merge. The carried `decode.c:432–434` comment fix is separate.
+
+*Architect. Docs only; `src/`/`native/` diff empty in this worktree.*
