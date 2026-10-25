@@ -16,7 +16,7 @@ public sealed class CoherentFallbackStep4NativeTests
     private const double WeakNoiseSigma = 3.5;
     private static readonly int[] Seeds = [1, 3, 4];
 
-    private static float[] Synthesise(int seed)
+    private static float[] Synthesise(int seed, double sigma = WeakNoiseSigma)
     {
         var tones = new byte[79];
         Ft8LibInterop.EncodeMessage("CQ Q1ABC FN20", tones);
@@ -37,7 +37,7 @@ public sealed class CoherentFallbackStep4NativeTests
         for (int i = 0; i < PcmSamples; i++)
         {
             double u1 = 1.0 - rng.NextDouble(), u2 = rng.NextDouble();
-            pcm[i] += (float)(WeakNoiseSigma * Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2));
+            pcm[i] += (float)(sigma * Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2));
         }
         return pcm;
     }
@@ -49,22 +49,31 @@ public sealed class CoherentFallbackStep4NativeTests
     }
 
     private static string Key(CohFallbackRow r)
-        => $"{r.FreqHz:R}/{r.DtS:R}/{r.OutFreqHz:R}/{r.OutDtS:R}/{r.Pass}/{r.Edge}/{r.State}/{r.SnrDb}/{r.F1bDb:R}/{Convert.ToHexString(r.Payload)}";
+        => $"{r.FreqHz:R}/{r.DtS:R}/{r.OutFreqHz:R}/{r.OutDtS:R}/{r.Pass}/{r.Edge}/{r.State}/{r.SnrDb}/{r.F1bDb:R}/{Convert.ToHexString(r.Payload)}/prov{r.Provenance}";
 
-    [Theory(DisplayName = "R15: with the real library, 1, 2 and 8 workers give the single-thread run's rows (every field) and counts, in candidate order")]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(8)]
-    public void ParallelRows_EqualTheSingleThreadRun(int workers)
+    [Theory(DisplayName = "R15/B3: with the real library, 1, 2 and 8 workers give the single-thread run's rows (every field, the COH-MULTISET provenance included) and counts, in candidate order, with the multi-set flag OFF and ON")]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(8, false)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    [InlineData(8, true)]
+    public void ParallelRows_EqualTheSingleThreadRun(int workers, bool multiSet)
     {
-        int crcNewSeen = 0;
-        foreach (int seed in Seeds)
+        int crcNewSeen = 0, walkWins = 0;
+        // ON adds two fixtures where V3 fails and J3 recovers the payload (found by a scan; the walk then takes the ordinary path)
+        var cycles = multiSet ? Seeds.Select(s => (s, WeakNoiseSigma)).Concat([(6, 3.4), (18, 3.6)]).ToArray()
+                              : Seeds.Select(s => (s, WeakNoiseSigma)).ToArray();
+        foreach (var (seed, sigma) in cycles)
         {
-            var pcm = Synthesise(seed);
+            var pcm = Synthesise(seed, sigma);
             var snap = DecodeAndSnapshot(pcm);
 
-            var reference = Ft8LibInterop.CohFallbackRun(pcm, snap, -1, CancellationToken.None);
-            var parallel = CohFallbackParallelRunner.Run(CohFallbackLibBackend.Instance, pcm, snap, -1, workers, CancellationToken.None)!;
+            var reference = Ft8LibInterop.CohFallbackRun(pcm, snap, -1, multiSet, CancellationToken.None);
+            var parallel = CohFallbackParallelRunner.Run(CohFallbackLibBackend.Instance, pcm, snap, -1, workers, CancellationToken.None, multiSet)!;
+            walkWins += reference.Rows.Count(r => r.Provenance > 0);
+            parallel.Stats.WalkEntered.Should().Be(reference.Stats.WalkEntered, "seed {0}, {1} workers: the walk-entry counter", seed, workers);
+            if (!multiSet) reference.Rows.Should().OnlyContain(r => r.Provenance == 0, "the flag OFF leaves the provenance at 0");
 
             crcNewSeen += reference.Stats.CrcNew;
             reference.Stats.Eligible.Should().BeGreaterThan(8, "seed {0}: enough candidates to share between workers", seed);
@@ -77,6 +86,7 @@ public sealed class CoherentFallbackStep4NativeTests
                               "seed {0}, {1} workers", seed, workers);
         }
         crcNewSeen.Should().BeGreaterThan(0, "at least one seed reaches a CRC-valid new output, so the equality covers the SNR / F1b path and context reuse, not just empty rows");
+        if (multiSet) walkWins.Should().BeGreaterThan(0, "at least one cycle's payload is recovered by a further set, so the provenance comparison is not all zeros");
     }
 
     [Fact(DisplayName = "R15: the plan is the single-thread run's candidate list - the same eligible count, ordinals in increasing snapshot order, every row pre-filled as abandoned")]

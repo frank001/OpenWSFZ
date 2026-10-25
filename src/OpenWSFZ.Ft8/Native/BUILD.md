@@ -237,6 +237,11 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
+COH-MULTISET Stage 1 (shim 20260071) adds NO new source file and no new recipe line: two diagnostic exports (`ft8_coherent_fallback_sets_at`,
+`ft8_coherent_fallback_set_groups`, appended to `ft8_shim.c` and added to the `rebuild_shim.bat` `/EXPORT` list) and the four coherent bit-metric
+sets in `refine/coherent_fallback.c`, which every recipe above already compiles. Stage 2 (same shim number) adds a third export,
+`ft8_coherent_fallback_ctx_set_flags` (also in the `/EXPORT` list), and the walk in the product path behind `decoder.coherentFallbackMultiSet`.
+
 COH-FALLBACK step 4 (shim 20260069) adds NO new source file and no new recipe line either: four new exports (`ft8_coherent_fallback_plan`,
 `_ctx_new`, `_ctx_free`, `_process`, appended to `ft8_shim.c` and added to the `rebuild_shim.bat` `/EXPORT` list) for the parallel cycle. The
 Linux, macOS and CI builds need no export list (default visibility).

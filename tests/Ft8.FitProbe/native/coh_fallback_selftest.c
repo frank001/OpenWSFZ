@@ -475,7 +475,18 @@ static void stage2_exports(void)
     CHECK(ft8_coherent_fallback_run(NULL, 180000, snap, ssz, 0, -1.0, NULL, &st, out, 16) == -1, "NULL pcm");
     CHECK(ft8_coherent_fallback_run(g_pcm, 180000, NULL, ssz, 0, -1.0, NULL, &st, out, 16) == -1, "NULL snapshot");
     CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz - 1, 0, -1.0, NULL, &st, out, 16) == -1, "wrong snapshot length");
-    CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 1, -1.0, NULL, &st, out, 16) == -1, "non-zero flags are reserved");
+    CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 2, -1.0, NULL, &st, out, 16) == -1, "an undefined flag bit is refused");
+    CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, FT8_COH_RUN_MULTISET | 2, -1.0, NULL, &st, out, 16) == -1, "an undefined flag bit beside MULTISET is refused");
+    {   /* COH-MULTISET (20260071): the one defined bit is accepted; the context setter takes the same bit and refuses the rest */
+        int nm = ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, FT8_COH_RUN_MULTISET, -1.0, NULL, &st, out, 16);
+        CHECK(nm >= 0, "MULTISET flag accepted: %d", nm);
+        void* cx = ft8_coherent_fallback_ctx_new();
+        CHECK(cx != NULL && cf_ctx_multiset((cf_ctx_t*)cx) == 0, "a NEW context is OFF");
+        CHECK(ft8_coherent_fallback_ctx_set_flags(cx, FT8_COH_RUN_MULTISET) == 0 && cf_ctx_multiset((cf_ctx_t*)cx) == 1, "setter turns it on");
+        CHECK(ft8_coherent_fallback_ctx_set_flags(cx, 0) == 0 && cf_ctx_multiset((cf_ctx_t*)cx) == 0, "setter turns it off");
+        CHECK(ft8_coherent_fallback_ctx_set_flags(cx, 2) == -1 && ft8_coherent_fallback_ctx_set_flags(NULL, 0) == -1, "setter refuses an unknown bit and NULL");
+        ft8_coherent_fallback_ctx_free(cx);
+    }
     CHECK(ft8_coherent_fallback_run(g_pcm, 179999, snap, ssz, 0, -1.0, NULL, &st, out, 16) == -1, "wrong pcm length");
     CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, NULL, out, 16) == -1, "NULL stats");
     CHECK(ft8_coherent_fallback_run(g_pcm, 180000, snap, ssz, 0, -1.0, NULL, &st, NULL, 16) == -1, "NULL rows");

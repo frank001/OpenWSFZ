@@ -30,6 +30,12 @@ internal sealed class CohFallbackLibBackend : ICohFallbackBackend
 
         public CohFallbackStats Accumulated => CohFallbackStats.From(in _acc);
 
+        public void SetMultiSet(bool on)
+        {
+            if (_ctx == IntPtr.Zero) throw new ObjectDisposedException(nameof(LibWorker));
+            Ft8LibInterop.CohFallbackSetContextMultiSet(_ctx, on);
+        }
+
         public void Dispose()
         {
             var ctx = _ctx;

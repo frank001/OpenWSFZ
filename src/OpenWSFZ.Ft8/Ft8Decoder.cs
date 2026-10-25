@@ -213,6 +213,20 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-FALLBACK Stage 2: whether the coherent-extraction fallback is on now (the read-back of <see cref="SetCoherentFallbackEnabled"/>).</summary>
     public bool CoherentFallbackEnabled => _coherentFallbackEnabled;
 
+    private volatile bool _coherentFallbackMultiSet;   // false at construction; the daemon sets the configured value (default true) before the first cycle
+
+    /// <summary>
+    /// COH-MULTISET: sets <c>decoder.coherentFallbackMultiSet</c>. The decoder object itself starts <c>false</c> at construction; the configured default
+    /// (<c>DecoderConfig.CoherentFallbackMultiSet</c>, true when the key is absent) reaches it through this setter, which the daemon calls before
+    /// the first cycle and on every config change. <c>false</c> leaves the fallback exactly as it was: the same native calls, outputs and order. <c>true</c> makes the fallback try C1, J2, J3, N1 on a candidate where V3 gives no CRC-valid
+    /// output. It acts only while <see cref="CoherentFallbackEnabled"/> is on. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCoherentFallbackMultiSet(bool enabled)
+        => _coherentFallbackMultiSet = enabled;
+
+    /// <summary>COH-MULTISET: whether the multi-set walk is requested now (the read-back of <see cref="SetCoherentFallbackMultiSet"/>).</summary>
+    public bool CoherentFallbackMultiSet => _coherentFallbackMultiSet;
+
     /// <summary>
     /// COH-FALLBACK Stage 2, R7': time held back from the shared 13 s cycle budget for the work after the native fallback returns (the text
     /// unpack, the mapping and the publish of the last batch). The native run stops starting candidates at <c>budget - elapsed - this</c>.
@@ -520,6 +534,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // supplies none, so on that entry the flag has no effect.
         bool cohOn         = twoStage && _coherentFallbackEnabled
                              && onSecondBatch is not null && onThirdBatch is not null && onFallbackBatch is not null;
+        // COH-MULTISET: read ONCE per cycle too, and only meaningful while the fallback itself runs.
+        bool multiSetOn    = cohOn && _coherentFallbackMultiSet;
 
         // ── R2: Pre-condition guard ──────────────────────────────────────────
         // Declared async so that this throw surfaces as a faulted Task rather than
@@ -994,7 +1010,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             double budgetMs = Math.Max(0.0, (SubtractionCycleBudget - fbStart - CoherentFallbackPublishReserve).TotalMilliseconds);
             int workers = EffectiveSubtractionThreads;
             var outcome = await Task.Run(
-                () => RunCoherentFallback(normalisedPcm, cohSnapshot!, budgetMs, workers, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+                () => RunCoherentFallback(normalisedPcm, cohSnapshot!, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
             double fbWallMs = (sw.Elapsed - fbStart).TotalMilliseconds;
             if (outcome is null) return;   // failed: already logged, nothing published
 
@@ -1037,9 +1053,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 _logger?.LogInformation(
                     "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
                     "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
-                    "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}.",
+                    "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}, " +
+                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}.",
                     st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
-                    outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs);
+                    outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs,
+                    multiSetOn ? "on" : "off", st.WalkEntered, outcome.CrcValidBySet(1), outcome.CrcValidBySet(2), outcome.CrcValidBySet(3), outcome.CrcValidBySet(4));
             }
         }
     }
@@ -1063,11 +1081,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// COH-FALLBACK Stage 2: the native fallback run on a thread of its own. Contains every failure: a fault is logged and the cycle
     /// simply has no fallback decodes (batches 1, 2 and 3 as they would have been), never lost.
     /// </summary>
-    private CohFallbackRunResult? RunCoherentFallback(float[] pcm, byte[] snapshot, double budgetMs, int workers, string timeStr, CancellationToken ct)
+    private CohFallbackRunResult? RunCoherentFallback(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, string timeStr, CancellationToken ct)
     {
         try
         {
-            return _interop.CohFallbackRun(pcm, snapshot, budgetMs, workers, ct);
+            return _interop.CohFallbackRun(pcm, snapshot, budgetMs, workers, multiSet, ct);
         }
         catch (Exception ex)
         {

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
 namespace OpenWSFZ.Ft8.Interop;
@@ -484,7 +485,12 @@ internal static class Ft8LibInterop
     /// COH-FALLBACK step 4, shim 20260069: four new exports bound below (<c>ft8_coherent_fallback_plan</c>, <c>_ctx_new</c>, <c>_ctx_free</c>,
     /// <c>_process</c>) for the parallel cycle; no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260069;
+    /// <remarks>
+    /// COH-MULTISET Stage 1, shim 20260071: two new DIAGNOSTIC exports bound below (<c>ft8_coherent_fallback_sets_at</c>,
+    /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
+    /// decode path calls them, no existing export or struct changes.
+    /// </remarks>
+    private const int ExpectedShimVersion = 20260071;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -853,10 +859,22 @@ internal static class Ft8LibInterop
     [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_ctx_free", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeCohFallbackCtxFree(IntPtr ctx);
 
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_ctx_set_flags", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackCtxSetFlags(IntPtr ctx, int flags);
+
     [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_process", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeCohFallbackProcess(
         IntPtr ctx, [In] float[] pcm, int pcmLen, [In] byte[] snapshot, int snapshotLen, int candIndex,
         out CohFallbackOutNative row, ref CohFallbackStatsNative acc);
+
+    // ── COH-MULTISET Stage 1 (shim 20260071): the diagnostic export ──────────────────────────────────────
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_sets_at", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackSetsAt(
+        [In] float[] pcm, int pcmLen, double freqHz, double timeOffsetS, int flags, out CohSetsResultNative res, [Out] double[]? outRaw);
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_coherent_fallback_set_groups", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCohFallbackSetGroups(int groupSize, [Out] int[] firstK, [Out] int[] nSyms, int cap);
 
     /// <summary>decode-early-batch-panel (shim 20260058): bytes the caller must supply to <see cref="NativeHashStateSave"/>.</summary>
     [DllImport("libft8.dll", EntryPoint = "ft8_hash_state_size", CallingConvention = CallingConvention.Cdecl)]
@@ -1532,6 +1550,10 @@ internal static class Ft8LibInterop
     /// </summary>
     /// <exception cref="NativeAccessViolationException">An access violation was contained by the native SEH wrapper.</exception>
     public static CohFallbackRunResult CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, CancellationToken ct)
+        => CohFallbackRun(pcm, snapshot, budgetMs, multiSet: false, ct);
+
+    /// <summary>COH-MULTISET: as above, with the per-call multi-set bit (<c>FT8_COH_RUN_MULTISET</c> in the native flags; never a process global).</summary>
+    public static CohFallbackRunResult CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, bool multiSet, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(pcm);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -1547,7 +1569,7 @@ internal static class Ft8LibInterop
         try
         {
             using var reg = ct.Register(static p => Marshal.WriteInt32((IntPtr)p!, 1), cancel);
-            int n = NativeCohFallbackRun(pcm, pcm.Length, snapshot, snapshot.Length, 0, budgetMs, cancel, out var stats, rows, rows.Length);
+            int n = NativeCohFallbackRun(pcm, pcm.Length, snapshot, snapshot.Length, multiSet ? CohRunMultiSet : 0, budgetMs, cancel, out var stats, rows, rows.Length);
             if (n == -2) throw new NativeAccessViolationException();
             if (n < 0) throw new InvalidOperationException($"ft8_coherent_fallback_run returned {n}.");
             var list = new List<CohFallbackRow>(n);
@@ -1580,6 +1602,61 @@ internal static class Ft8LibInterop
         var order = new List<int>(n);
         for (int i = 0; i < n; i++) { list.Add(CohFallbackRow.From(in rows[i])); order.Add(idx[i]); }
         return new CohFallbackPlan(CohFallbackStats.From(in stats), order, list);
+    }
+
+    /// <summary>COH-MULTISET Stage 2: <c>FT8_COH_RUN_MULTISET</c>, the native per-call / per-context multi-set bit.</summary>
+    internal const int CohRunMultiSet = 1;
+
+    /// <summary>
+    /// COH-MULTISET Stage 2: sets the multi-set walk bit on a scratch context made by <see cref="CohFallbackNewContext"/>. A new context is OFF;
+    /// the caller sets it before each cycle's <see cref="CohFallbackProcess"/> calls.
+    /// </summary>
+    internal static void CohFallbackSetContextMultiSet(IntPtr ctx, bool on)
+    {
+        int rc = NativeCohFallbackCtxSetFlags(ctx, on ? CohRunMultiSet : 0);
+        if (rc != 0) throw new InvalidOperationException($"ft8_coherent_fallback_ctx_set_flags returned {rc}.");
+    }
+
+    /// <summary>COH-MULTISET Stage 1: <c>ft8_coherent_fallback_sets_at</c> flag, TEST ONLY: J2, J3 and N1 use the identity tone map.</summary>
+    internal const int CohSetsIdentityGray = 1;
+
+    /// <summary>Number of raw vectors <c>ft8_coherent_fallback_sets_at</c> returns (V3, C1, J2, J3, N1) and their length.</summary>
+    internal const int CohSetsRawVectors = 5, CohSetsRawLength = 174;
+
+    /// <summary>
+    /// COH-MULTISET Stage 1 (diagnostic, nothing in the product calls it): at the anchor (<paramref name="freqHz"/>, <paramref name="timeOffsetS"/>),
+    /// candidate convention) the fine-sync estimate, V3's BP outcome and, for each of C1, J2, J3, N1, its 174 raw values and BP-only outcome,
+    /// computed for every set whatever the walk would do, plus the walk's result.
+    /// </summary>
+    internal static CohSetsResult CohFallbackSetsAt(float[] pcm, double freqHz, double timeOffsetS, int flags = 0)
+    {
+        ArgumentNullException.ThrowIfNull(pcm);
+        EnsureInitialized();
+        var raw = new double[CohSetsRawVectors * CohSetsRawLength];
+        int rc = NativeCohFallbackSetsAt(pcm, pcm.Length, freqHz, timeOffsetS, flags, out var n, raw);
+        if (rc != 0) throw new InvalidOperationException($"ft8_coherent_fallback_sets_at returned {rc}.");
+        var payload = new byte[12];
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(0, 8), n.WalkA910);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), n.WalkA911);
+        var vectors = new double[CohSetsRawVectors][];
+        for (int v = 0; v < CohSetsRawVectors; v++) vectors[v] = raw.AsSpan(v * CohSetsRawLength, CohSetsRawLength).ToArray();
+        return new CohSetsResult(n.EstDfHz, n.EstDtS, n.Peak, n.DtStep, n.Edge != 0, n.WalkEntered != 0, n.WalkSet, payload,
+            CohSetOutcome.From(in n.V3),
+            new[] { CohSetOutcome.From(in n.C1), CohSetOutcome.From(in n.J2), CohSetOutcome.From(in n.J3), CohSetOutcome.From(in n.N1) },
+            vectors);
+    }
+
+    /// <summary>COH-MULTISET Stage 1: the (first data symbol, length) groups of J2 (<paramref name="groupSize"/> 2) or J3 (3), as the native code makes them.</summary>
+    internal static IReadOnlyList<(int FirstK, int Length)> CohFallbackSetGroups(int groupSize)
+    {
+        EnsureInitialized();
+        var first = new int[30];
+        var len = new int[30];
+        int n = NativeCohFallbackSetGroups(groupSize, first, len, first.Length);
+        if (n < 0) throw new ArgumentOutOfRangeException(nameof(groupSize), $"ft8_coherent_fallback_set_groups returned {n}.");
+        var list = new List<(int, int)>(n);
+        for (int i = 0; i < n; i++) list.Add((first[i], len[i]));
+        return list;
     }
 
     /// <summary>COH-FALLBACK step 4: a new native scratch context for ONE worker thread. Free it with <see cref="CohFallbackFreeContext"/>.</summary>

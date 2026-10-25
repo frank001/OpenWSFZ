@@ -2243,9 +2243,17 @@ static void cf_run_bp(const double* v3, FT8CohFallbackResult* r, float* llr_out)
                                     &r->bp_ldpc_errors, &r->bp_path, &r->bp_crc_ok);
 }
 
-/* One anchor: estimate, F1b (unless skipped), the gate, and (if it passes or is forced) C3 + BP. */
-static void cf_process_one(cf_ctx_t* ctx, const float* pcm, double f0, double t0, int flags, FT8CohFallbackResult* r, float* llr_out)
+/* COH-MULTISET Stage 2: what the walk did for one candidate. entered = 1 iff V3's BP gave no CRC-valid output AND the context's multi-set
+ * bit was on; provenance = 0 (V3, or the bit off), 1..4 (C1, J2, J3, N1 produced the payload), -1 (the walk ran and found nothing). */
+typedef struct { int entered; int provenance; } cf_walk_info_t;
+
+/* One anchor: estimate, F1b (unless skipped), the gate, and (if it passes or is forced) C3 + BP. With the context's multi-set bit on and
+ * V3's BP giving no CRC-valid output, the walk then tries C1, J2, J3, N1 in that fixed order (BP only, no OSD); the first CRC-valid output
+ * ends it and replaces r's BP fields. wi (may be NULL) receives what the walk did. */
+static void cf_process_one(cf_ctx_t* ctx, const float* pcm, double f0, double t0, int flags, FT8CohFallbackResult* r, float* llr_out,
+                           cf_walk_info_t* wi)
 {
+    if (wi) { wi->entered = 0; wi->provenance = 0; }
     memset(r, 0, sizeof(*r));
     r->bp_rc = FT8_COH_BP_NOT_RUN;
     r->bp_path = -1;
@@ -2274,6 +2282,23 @@ static void cf_process_one(cf_ctx_t* ctx, const float* pcm, double f0, double t0
         cf_v3_llrs(ctx, pcm, f0, t0, &est, v3);
         cf_run_bp(v3, r, llr_out);
         r->c3_ran = 1;
+        if (cf_ctx_multiset(ctx) && !(r->bp_rc == 0 && r->bp_crc_ok)) {
+            /* The walk (COH-MULTISET): the sets read the correlations cf_v3_llrs just left in the context, at the same estimate. */
+            if (wi) { wi->entered = 1; wi->provenance = -1; }
+            for (int set = CF_SET_C1; set <= CF_SET_N1; set++) {
+                double raw[CF_N_LLR];
+                FT8CohFallbackResult t;
+                memset(&t, 0, sizeof(t));
+                cf_multiset_llrs(ctx, set, raw);
+                cf_run_bp(raw, &t, NULL);
+                if (t.bp_rc == 0 && t.bp_crc_ok) {
+                    r->bp_rc = t.bp_rc; r->bp_path = t.bp_path; r->bp_crc_ok = t.bp_crc_ok; r->bp_ldpc_errors = t.bp_ldpc_errors;
+                    memcpy(r->a91, t.a91, sizeof(r->a91));
+                    if (wi) wi->provenance = set;
+                    break;          /* the first CRC-valid output ends the walk */
+                }
+            }
+        }
         r->c3_bp_ms = cf_monotonic_ms() - t_f1b;
     }
     r->elapsed_ms = cf_monotonic_ms() - t_begin;
@@ -2293,7 +2318,7 @@ int ft8_coherent_fallback_at(
 #endif
     ctx = cf_ctx_new(pcm_len);
     if (!ctx) return -3;
-    cf_process_one(ctx, pcm, freq_hz, time_offset_s, flags, res, out_llr174);
+    cf_process_one(ctx, pcm, freq_hz, time_offset_s, flags, res, out_llr174, NULL);
     cf_ctx_free(ctx);
     return 0;
 #ifdef _MSC_VER
@@ -2302,6 +2327,84 @@ int ft8_coherent_fallback_at(
         return -2;   /* the context is leaked on purpose: the heap may be damaged (same discipline as ft8_decode_all) */
     }
 #endif
+}
+
+/* COH-MULTISET Stage 1 (shim 20260071): the diagnostic export. One anchor: the fine-sync estimate, V3's BP outcome and, for EACH of
+ * C1, J2, J3, N1, the 174 raw values and the BP-only outcome (computed for every set whatever the walk would do, because the
+ * port-fidelity row compares each set separately), then the walk's own result. Same estimate and same correlations for all five (no
+ * second downconversion). Nothing in the product calls it. */
+static void cf_set_outcome(const double* raw, FT8CohSetOutcome* o)
+{
+    FT8CohFallbackResult r;
+    memset(&r, 0, sizeof(r));
+    cf_run_bp(raw, &r, NULL);
+    memset(o, 0, sizeof(*o));
+    o->bp_rc = r.bp_rc; o->bp_path = r.bp_path; o->bp_crc_ok = r.bp_crc_ok; o->bp_ldpc_errors = r.bp_ldpc_errors;
+    memcpy(o->a91, r.a91, sizeof(o->a91));
+}
+
+static int cf_outcome_crc_valid(const FT8CohSetOutcome* o) { return o->bp_rc == 0 && o->bp_crc_ok; }
+
+int ft8_coherent_fallback_sets_at(
+    const float* pcm, int pcm_len, double freq_hz, double time_offset_s, int flags,
+    FT8CohSetsResult* res, double* out_raw)
+{
+    if (pcm == NULL || res == NULL || pcm_len != FT8_EXPECTED_SAMPLES || (flags & ~FT8_COH_SETS_IDENTITY_GRAY) != 0) return -1;
+    static const int kIdentity[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    cf_ctx_t* ctx = NULL;
+#ifdef _MSC_VER
+    __try {
+#endif
+    ctx = cf_ctx_new(pcm_len);
+    if (!ctx) return -3;
+    memset(res, 0, sizeof(*res));
+    res->walk_set = -1;
+
+    cf_estimate_t est;
+    cf_estimate(ctx, pcm, freq_hz, time_offset_s, &est);
+    res->est_df_hz = est.est_df_hz; res->est_dt_s = est.est_dt_s; res->peak = est.peak; res->dt_step = est.dt_step; res->edge = est.edge;
+
+    double raw[1 + CF_NSETS][CF_N_LLR];
+    cf_v3_llrs(ctx, pcm, freq_hz, time_offset_s, &est, raw[0]);
+    cf_set_outcome(raw[0], &res->v3);
+    for (int s = 0; s < CF_NSETS; s++) {
+        if (flags & FT8_COH_SETS_IDENTITY_GRAY) cf_multiset_llrs_gray(ctx, s + 1, kIdentity, raw[s + 1]);
+        else                                    cf_multiset_llrs(ctx, s + 1, raw[s + 1]);
+        cf_set_outcome(raw[s + 1], &res->sets[s]);
+    }
+    if (out_raw) memcpy(out_raw, raw, sizeof(raw));
+
+    /* The walk (what Stage 2 will do): only where V3 has no CRC-valid output; C1, J2, J3, N1 in order, the first CRC-valid ends it. */
+    if (cf_outcome_crc_valid(&res->v3)) {
+        res->walk_set = 0;
+        memcpy(res->walk_a91, res->v3.a91, sizeof(res->walk_a91));
+    } else {
+        res->walk_entered = 1;
+        for (int s = 0; s < CF_NSETS; s++) {
+            if (cf_outcome_crc_valid(&res->sets[s])) {
+                res->walk_set = s + 1;
+                memcpy(res->walk_a91, res->sets[s].a91, sizeof(res->walk_a91));
+                break;
+            }
+        }
+    }
+    cf_ctx_free(ctx);
+    return 0;
+#ifdef _MSC_VER
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        return -2;   /* the context is leaked on purpose: the heap may be damaged (same discipline as ft8_decode_all) */
+    }
+#endif
+}
+
+int ft8_coherent_fallback_set_groups(int group_size, int32_t* first_k, int32_t* n_syms, int cap)
+{
+    if (first_k == NULL || n_syms == NULL || cap < CF_MS_MAX_GROUPS) return -1;
+    int fk[CF_MS_MAX_GROUPS], ns[CF_MS_MAX_GROUPS];
+    const int ng = cf_multiset_groups(group_size, fk, ns);
+    for (int g = 0; g < ng; g++) { first_k[g] = fk[g]; n_syms[g] = ns[g]; }
+    return ng;
 }
 
 int ft8_coherent_fallback_cycle(
@@ -2358,7 +2461,7 @@ int ft8_coherent_fallback_cycle(
                    : gate_first        ? flags
                                        : (flags | FT8_COH_FLAG_SKIP_F1B);
         const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
-        cf_process_one(ctx, pcm, f0, t0, pflags, r, NULL);
+        cf_process_one(ctx, pcm, f0, t0, pflags, r, NULL, NULL);
 
         int crc_new = 0, f1b_computed = 0, published = 0;
         if (eligible) {
@@ -2456,7 +2559,7 @@ int ft8_coherent_fallback_run(
     const volatile int32_t* cancel,
     FT8CohFallbackCycleStats* stats, FT8CohFallbackOut* out, int out_cap)
 {
-    if (pcm == NULL || snapshot == NULL || stats == NULL || out == NULL || out_cap < 0 || flags != 0
+    if (pcm == NULL || snapshot == NULL || stats == NULL || out == NULL || out_cap < 0 || (flags & ~FT8_COH_RUN_MULTISET) != 0
         || pcm_len != FT8_EXPECTED_SAMPLES || snapshot_len != (int)sizeof(cf_snapshot_t)) return -1;
     memset(stats, 0, sizeof(*stats));
     const cf_snapshot_t* snap = (const cf_snapshot_t*)snapshot;
@@ -2470,6 +2573,7 @@ int ft8_coherent_fallback_run(
     const double deadline = (budget_ms < 0.0) ? 0.0 : t_begin + budget_ms;
     ctx = cf_ctx_new(pcm_len);
     if (!ctx) return -3;
+    cf_ctx_set_multiset(ctx, (flags & FT8_COH_RUN_MULTISET) != 0);   /* COH-MULTISET: the per-call bit (ft8_shim.c, this line) */
 
     int nrows = 0, stop = 0;
     stats->n_candidates = snap->n_cands;
@@ -2497,10 +2601,13 @@ int ft8_coherent_fallback_run(
 
         FT8CohFallbackResult r;
         const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
-        cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL);
+        cf_walk_info_t wi;
+        cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL, &wi);
         stats->n_attempted++;
         stats->estimate_ms += r.estimate_ms; stats->c3_bp_ms += r.c3_bp_ms;
         if (r.edge) stats->n_edge++;
+        if (wi.entered) stats->n_walk_entered++;
+        o->provenance = wi.provenance;
         o->edge = r.edge;
         o->out_freq_hz = (float)(f0 + r.est_df_hz);
         o->out_dt_s    = (float)(t0 + r.est_dt_s);
@@ -2631,6 +2738,13 @@ void ft8_coherent_fallback_ctx_free(void* ctx)
     if (ctx != NULL) cf_ctx_free((cf_ctx_t*)ctx);
 }
 
+int ft8_coherent_fallback_ctx_set_flags(void* ctx, int flags)
+{
+    if (ctx == NULL || (flags & ~FT8_COH_RUN_MULTISET) != 0) return -1;
+    cf_ctx_set_multiset((cf_ctx_t*)ctx, (flags & FT8_COH_RUN_MULTISET) != 0);
+    return 0;
+}
+
 int ft8_coherent_fallback_process(
     void* ctx_in, const float* pcm, int pcm_len, const void* snapshot, int snapshot_len, int cand_index,
     FT8CohFallbackOut* o, FT8CohFallbackCycleStats* acc)
@@ -2653,10 +2767,13 @@ int ft8_coherent_fallback_process(
 
     FT8CohFallbackResult r;
     const double f0 = (double)cr->freq_hz, t0 = (double)cr->dt;
-    cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL);
+    cf_walk_info_t wi;
+    cf_process_one(ctx, pcm, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL, &wi);
     acc->n_attempted++;
     acc->estimate_ms += r.estimate_ms; acc->c3_bp_ms += r.c3_bp_ms;
     if (r.edge) acc->n_edge++;
+    if (wi.entered) acc->n_walk_entered++;
+    o->provenance = wi.provenance;
     o->edge = r.edge;
     o->out_freq_hz = (float)(f0 + r.est_df_hz);
     o->out_dt_s    = (float)(t0 + r.est_dt_s);

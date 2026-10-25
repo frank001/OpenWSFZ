@@ -805,6 +805,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetDecodingDepth(initialDecoder.DecodingDepth);
     // COH-FALLBACK Stage 2 (R10): true unless the config says false (default ON since 2026-10-22); read once per cycle.
     ft8Decoder.SetCoherentFallbackEnabled(initialDecoder.CoherentFallbackEnabled);
+    ft8Decoder.SetCoherentFallbackMultiSet(initialDecoder.CoherentFallbackMultiSet);   // COH-MULTISET: default true (key absent = ON)
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
@@ -908,6 +909,7 @@ configStore.OnSaved += newConfig =>
     ft8Decoder.SetSubtractionMaxThreads(dec.SubtractionMaxThreads);
     ft8Decoder.SetDecodingDepth(dec.DecodingDepth);   // third-pass-deep (#240): next cycle
     ft8Decoder.SetCoherentFallbackEnabled(dec.CoherentFallbackEnabled);   // COH-FALLBACK Stage 2 (R10): next cycle
+    ft8Decoder.SetCoherentFallbackMultiSet(dec.CoherentFallbackMultiSet);   // COH-MULTISET: next cycle
     Volatile.Write(ref fallbackOn, dec.CoherentFallbackEnabled);          // R14: the QSO queues' capacity follows the flag
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
