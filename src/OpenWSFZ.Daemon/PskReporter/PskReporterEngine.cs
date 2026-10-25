@@ -136,13 +136,13 @@ internal sealed class PskReporterEngine
                 _identityRefused += batch.Results.Count;
                 return;
             }
-            if (batch.DialFrequencyMHz is not { } dialMHz || dialMHz <= 0)
+            // No dial frequency, or one outside the band table (N-3, Architect spec 12): nothing is reported, counted as no-dial-frequency.
+            if (batch.DialFrequencyMHz is not { } dialMHz || dialMHz <= 0 || BandTable.DeriveBand(dialMHz) is not { } band)
             {
                 _exNoDial += batch.Results.Count;
                 return;
             }
 
-            string band = BandTable.DeriveBand(dialMHz) ?? "unknown";
             long dialHz = (long)Math.Round(dialMHz * 1_000_000d);
             uint flow   = ToUnixSeconds(batch.CycleStart.UtcDateTime);
 

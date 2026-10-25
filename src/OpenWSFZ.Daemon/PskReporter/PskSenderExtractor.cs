@@ -101,10 +101,14 @@ internal static class PskSenderExtractor
         return i == t.Length ? new PskSender(call, grid) : null;
     }
 
-    /// <summary><c>&lt;to&gt; &lt;from&gt; &lt;extension&gt;</c>: the sender is token 1, and the extension must be a recognised one.</summary>
+    /// <summary><c>&lt;to&gt; &lt;from&gt; &lt;extension&gt;</c> (or <c>&lt;to&gt; &lt;from&gt; R &lt;grid&gt;</c>): the sender is token 1, and the extension must be a recognised one.</summary>
     private static PskSender? FromStandard(string[] t)
     {
-        if (t.Length != 3 || !IsCallsign(t[0]) || !IsCallsign(t[1])) return null;
+        if (t.Length < 3 || t.Length > 4 || !IsCallsign(t[0]) || !IsCallsign(t[1])) return null;
+
+        // The 4-token form <to> <from> R <grid> (Architect spec 12, N-2): the sender is token 1 and the grid token 3.
+        if (t.Length == 4)
+            return t[2].Equals("R", StringComparison.OrdinalIgnoreCase) && IsGrid(t[3]) ? new PskSender(t[1], t[3]) : null;
 
         string ext = t[2];
         if (IsGrid(ext)) return new PskSender(t[1], ext);

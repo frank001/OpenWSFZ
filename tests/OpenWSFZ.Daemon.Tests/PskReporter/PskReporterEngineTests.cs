@@ -136,6 +136,19 @@ public sealed class PskReporterEngineTests
         rig.Log.Entries.Single(e => e.Level == LogLevel.Information).Message.Should().Contain("no-dial-frequency=2");
     }
 
+    [Fact(DisplayName = "FR-091: T7: a dial frequency outside the band table reports nothing and is counted as no-dial-frequency (N-3: there is no 'unknown' band)")]
+    public void T7_OutOfBandDial_ReportsNothing_AndIsCounted()
+    {
+        var rig = new Rig();
+        rig.Engine.Ingest(Batch(T0, 3.0, Decode("CQ Q1ABC JO22")), T0);          // 3.000 MHz is between 160 m and 80 m
+        rig.Engine.Ingest(Batch(T0, Dial20m, Decode("CQ Q2DEF JO22")), T0);
+        rig.Engine.PendingCount.Should().Be(1, "only the in-band decode is queued");
+
+        var d = rig.Send()!;
+        ParseSpots(d.Bytes).Select(s => s.Call).Should().Equal("Q2DEF");
+        rig.Log.Entries.Single(e => e.Level == LogLevel.Information).Message.Should().Contain("no-dial-frequency=1");
+    }
+
     // ── FR-092: T6 dedup ─────────────────────────────────────────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-092: T6: the same call 3 times in 4 minutes on one band gives 1 record; at 6 minutes on the same band 0; at 61 minutes 1; at 7 minutes on another band 1")]

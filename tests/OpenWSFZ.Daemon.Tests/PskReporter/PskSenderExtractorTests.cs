@@ -22,6 +22,7 @@ public sealed class PskSenderExtractorTests
         { "Q2DEF Q1ABC R-05",    "Q1ABC",   null },
         { "Q2DEF Q1ABC RR73",    "Q1ABC",   null },   // RR73 matches the grid pattern but is never a grid
         { "Q2DEF Q1ABC JO22",    "Q1ABC",   "JO22" },
+        { "Q2DEF Q1ABC R JO22",  "Q1ABC",   "JO22" },   // N-2 (Architect spec 12): sender at token 1, grid at token 3
         { "Q2DEF Q1ABC/P -07",   "Q1ABC/P", null },
         { "Q2DEF Q1ABC 73",      "Q1ABC",   null },
         { "Q2DEF Q1ABC RRR",     "Q1ABC",   null },
@@ -47,6 +48,9 @@ public sealed class PskSenderExtractorTests
         { "Q1ABC RR73; Q2DEF <Q3GHI> -08",         "Hashed" },
         { "Q2DEF Q1ABC HELLO",                     "Unparseable" },
         { "Q2DEF Q1ABC",                           "Unparseable" },
+        { "Q2DEF Q1ABC R HELLO",                   "Unparseable" },   // the 4-token form needs a grid at token 3
+        { "Q2DEF Q1ABC X JO22",                    "Unparseable" },   // ... and an R at token 2
+        { "Q2DEF Q1ABC R RR73",                    "Unparseable" },   // RR73 is never a grid
         { "CQ Q1ABC JO22 EXTRA",                   "Unparseable" },
         { "Q9OWN Q9OWN -05",                       "OwnCall" },
         { "Q2DEF Q9OWN/P -05",                     "OwnCall" },
