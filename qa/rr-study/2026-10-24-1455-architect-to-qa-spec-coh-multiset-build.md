@@ -486,4 +486,21 @@ QA's review: ACCEPT WITH 4 AMENDMENTS. Every FILE:LINE in R2, R4, R8 and §1 is 
 - The bands add up to the verdict exactly. The gain and the unwelcome output both come mainly from band D. Per pp of NET, D's ΔU′ is 0.0040, against 0.0009 in C. All of this is descriptive.
 - **(c)**, the companion split, is running on the PC (`mb_split.py` `0daab602`).
 
+**A16.9 Owed item (c) received (QA, 2026-10-25 10:15Z; report §7, `551bcff7`). Nothing more is owed by QA on this arm.**
+- **Instrument check.** First successes per set equal the replay's R10 counters exactly (C1 13,856, J2 3,914, J3 2,161, N1 8,456; 28,387 in all). Walk rows are 359,851 in the companion and 359,853 in the replay. The 2-row difference is the single-pass list against the staged pipeline, and it is descriptive.
+- **Of the 28,387 set successes:** 24,012 (84.6 %) are KNOWN, 1,081 (3.8 %) are gated out, and 3,294 (11.6 %) are publication candidates. The sum checks.
+- **By set**, as publication candidates out of first successes and as distinct new payloads:
+
+| set | candidates / first successes | distinct new payloads |
+|---|---|---:|
+| C1 | 122 / 13,856 (0.9 %) | 33 |
+| J2 | 1,455 / 3,914 (37.2 %) | 638 |
+| J3 | 1,365 / 2,161 (63.2 %) | 676 |
+| N1 | 352 / 8,456 (4.2 %) | 147 |
+
+- **The value is in J2 and J3:** 88 % of the 1,494 distinct new payloads (1,438 after removing what OFF already has). The arm found the same thing (X3, 85 %).
+- **C1** takes 49 % of the first successes and gives 2 % of the new payloads. Because it is first in the walk, its KNOWN hits end the walk before J2 or J3 run. Dropping or moving C1 (§7) is now a **named candidate for a later arm, with its own replay**. It changes nothing in this verdict or in the default-ON question.
+
+*Every A16.4 item is closed.*
+
 *Architect. Docs only; `src/`/`native/` diff empty in this worktree.*
