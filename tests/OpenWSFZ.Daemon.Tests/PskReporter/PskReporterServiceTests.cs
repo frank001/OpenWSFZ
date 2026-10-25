@@ -32,13 +32,13 @@ public sealed class PskReporterServiceTests
         public PskIdentity Id = Identity();
         public readonly PskReporterService Service;
 
-        public Rig(bool enabled)
+        public Rig(bool enabled, Func<TimeSpan>? offset = null)
         {
             Store = new FakeConfigStore(new AppConfig { PskReporter = new PskReporterConfig(enabled: enabled, host: "test.invalid", port: 14739) });
             Service = new PskReporterService(
                 Queue.Reader, Store, Clock,
                 (host, port) => { var t = new FakeTransport(); lock (Transports) { Transports.Add(t); FactoryCalls.Add((host, port)); } return t; },
-                () => Id, Log, firstSendOffset: () => TimeSpan.Zero, tickInterval: TimeSpan.FromHours(1));   // a long tick: the test drives FlushAsync by hand
+                () => Id, Log, firstSendOffset: offset ?? (() => TimeSpan.Zero), tickInterval: TimeSpan.FromHours(1));   // a long tick: the test drives FlushAsync by hand
         }
 
         public Task StartAsync() => Service.StartAsync(CancellationToken.None);
@@ -75,6 +75,39 @@ public sealed class PskReporterServiceTests
         await Poll.UntilAsync(() => rig.Service.Engine.PendingCount + (rig.Transports.Sum(t => t.SentCount)) >= 1);
         rig.Factory.Should().Be(1);
         (rig.Service.Engine.Sequence + (uint)rig.Service.Engine.PendingCount).Should().Be(1u, "exactly the one batch that arrived while enabled");
+    }
+
+    // ── FR-092: the first-send offset is taken from the delegate, once per enabled period ───────────────────────────
+
+    [Fact(DisplayName = "FR-092: T10: the first send follows the 0-60 s offset (nothing at 41 s, the datagram at 42 s) and a disable-then-enable takes a fresh offset")]
+    public async Task T10_FirstSendOffset_IsUsed_AndFreshPerEnable()
+    {
+        var offsets = new Queue<TimeSpan>([TimeSpan.FromSeconds(42), TimeSpan.FromSeconds(17)]);
+        await using var rig = new Rig(enabled: true, offset: () => offsets.Dequeue());
+        await rig.StartAsync();
+        offsets.Count.Should().Be(1, "one offset was taken for this enabled period");
+
+        void Ingest(string msg) => rig.Service.Engine.Ingest(Batch(rig.Clock.UtcNow, Dial, Decode(msg)), rig.Clock.UtcNow);
+        Ingest("CQ Q1ABC JO22");
+
+        rig.Clock.Advance(TimeSpan.FromSeconds(41));
+        await rig.Service.FlushAsync(CancellationToken.None);
+        rig.Transports[0].SentCount.Should().Be(0, "41 s is before the 42 s offset");
+
+        rig.Clock.Advance(TimeSpan.FromSeconds(1));
+        await rig.Service.FlushAsync(CancellationToken.None);
+        rig.Transports[0].SentCount.Should().Be(1, "the first window falls at the offset");
+
+        await rig.SetEnabledAsync(false);
+        await rig.SetEnabledAsync(true);
+        offsets.Count.Should().Be(0, "a new enabled period takes a fresh offset from the delegate");
+        Ingest("CQ Q2DEF JO22");
+        rig.Clock.Advance(TimeSpan.FromSeconds(16));
+        await rig.Service.FlushAsync(CancellationToken.None);
+        rig.Transports[1].SentCount.Should().Be(0, "16 s is before the new 17 s offset");
+        rig.Clock.Advance(TimeSpan.FromSeconds(1));
+        await rig.Service.FlushAsync(CancellationToken.None);
+        rig.Transports[1].SentCount.Should().Be(1);
     }
 
     // ── FR-092: T15 one source port ──────────────────────────────────────────────────────────────────────────────────

@@ -106,7 +106,17 @@ internal sealed class PskReporterService : IHostedService, IDisposable
         _sendLock.Dispose();
     }
 
-    private void OnConfigSaved(AppConfig _) => ApplyConfig();
+    /// <summary>
+    /// Runs on the caller's thread inside <c>IConfigStore.OnSaved</c>, which is unguarded: nothing thrown here may fail a Settings save.
+    /// </summary>
+    private void OnConfigSaved(AppConfig _)
+    {
+        try { ApplyConfig(); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("psk-reporter: the configuration change could not be applied ({Error}).", ex.GetType().Name);
+        }
+    }
 
     /// <summary>Brings the socket and tick in line with the current configuration (idempotent).</summary>
     private void ApplyConfig()

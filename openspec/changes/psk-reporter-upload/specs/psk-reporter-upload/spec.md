@@ -133,7 +133,7 @@ For each datagram sent the service SHALL log one Information line with the UTC t
 
 ### Requirement: The Settings page has the opt-in control
 
-The Settings page SHALL provide a checkbox bound to `pskReporter.enabled` and a free-text field bound to `pskReporter.antennaInformation`, with the text: "Sends the calls and locators of stations you receive, with your call and locator, to the public PSK Reporter service." Saving SHALL send only the changed keys, and a configuration POST that does not mention the `pskReporter` block SHALL leave it unchanged; a POST that changes only `pskReporter.antennaInformation` SHALL leave `enabled`, `host` and `port` as saved.
+The Settings page SHALL provide a checkbox bound to `pskReporter.enabled` and a free-text field bound to `pskReporter.antennaInformation`, with the text: "Sends the calls and locators of stations you receive, with your call and locator, to the public PSK Reporter service." Saving SHALL post only the two keys the page shows (`enabled` and `antennaInformation`), never `host` or `port`, and a configuration POST that does not mention the `pskReporter` block SHALL leave it unchanged; a POST that changes only `pskReporter.antennaInformation` SHALL leave `enabled`, `host` and `port` as saved.
 
 #### Scenario: Opt in through the page
 
