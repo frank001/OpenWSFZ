@@ -1,0 +1,29 @@
+# #262 bounded production pilot (replacing L1), 2026-10-25: stopped by the Captain after about ten minutes, "working properly"
+
+QA, written 2026-10-25 (`date -u` read 13:38:24Z before this file was written). Build: `feat/psk-reporter-262` `6ef0b33b` (VERSION 0.64) on the Captain's station. Counts only; no third-party callsign, no IP address (NFR-021). The Captain's own call is the one exception the project allows.
+
+## What was done
+
+- **Why a pilot:** the test listener showed nothing for any packet (see `L1_attempt_report.md`); the Captain ruled out asking the PSK Reporter author and said "move to 2": a short production run in its place.
+- **Preflight (13:26Z):** WSJT-X not running (no double spotting), capture flowing, CAT connected, dial 14.074 MHz, identity set (a real call, a 4-character grid); baseline: PSK Reporter held **0 reports** for the call as a receiver in the previous hour.
+- **13:27:34Z:** `pskReporter` set by the overlay POST to `enabled` true on the production defaults (`report.pskreporter.info`, 4739); every other config section identical before and after.
+- **Pre-registered pass rule (decision values fixed before enabling):** reports PSK Reporter returns for the call over the window within +/-10 % of the sum of records the daemon logged as sent (Architect A1.10; `rptlimit` 5000; a count at the limit INCONCLUSIVE; 0 FAIL), and reports with and without a sender locator both present if the retrieve format shows it.
+- **Datagrams sent (daemon log, counts only):** 13:28:07Z 42 records (a full datagram sent at once, sequence after 203), 13:32:15Z 48 records (`hashed=9`, `dedup=298`, sequence 251), 13:33:07Z 3 records (sequence 254): **3 datagrams, 93 records (the R9 sum)**.
+- **13:37:30Z:** the **Captain stopped the test** ("I've seen enough. it is working properly"); upload set back to `enabled` false with the default host and port by the overlay POST; the console monitor closed. The pilot ran 9 minutes 56 seconds.
+
+## What this establishes, and what it does not
+
+- **Established:** the live station sent real datagrams to the production collector with the product working as designed (templates, full datagram sent at once, window, dedup, the hashed counter, sequence by records, counts only in the log), and **the Captain, watching PSK Reporter himself, saw the spots and judged it working.** That is his observation, first-hand, in QA's window.
+- **NOT evaluated:** QA's pre-registered count rule. **PSK Reporter's retrieve interface answered HTTP 429 ("your IP has made too many queries too often") at 13:33:39Z**, after the monitor's 5-minute cadence plus QA's own queries (a baseline at 13:26:43Z, the monitor's at about 13:27:20Z and 13:32:20Z, one of QA's at 13:33:39Z, then one more header check by mistake at 13:33:51Z). No count was ever returned, so "reports within +/-10 % of 93" and "both blocks present" were not measured by QA. QA stopped querying, slowed the monitor to every 10 minutes, and then the Captain ended the test. The page asks retrieve users not to query more often than once every five minutes; **a monitor and a second querier from one address exceed that**.
+- **Open question the pilot leaves:** whether the collector accepted BOTH sender blocks cannot be shown from QA's side; the Captain's sight of spots (with and without locators were both in every datagram) is the evidence there is.
+
+## Two points the Captain raised, and what QA found
+
+1. **"My node is not showing that I'm using OpenWSFZ."** The software string sent in every datagram is `OpenWSFZ 0.64` (the assembly's informational version `0.64+<commit>` with the commit stripped by `AssemblyVersion.Resolve`), in the receiver record's `decodingSoftware` field, per the protocol. The page says these values are "currently shown in the statistics page", and PSK Reporter's display of a monitor's software very likely needs more than ten minutes to refresh. QA will check it with ONE query of the active-monitor entry after the rate limit has cleared; a longer run is the other way to see it.
+2. **"I can't locate the PSK Reporter config in the settings page."** The station serves the new page and it contains the section: **Settings, the "External Programs" tab, at the bottom, a box titled "PSK Reporter"** (a checkbox and an antenna field). The server sends no cache header for `settings.html` and `settings.js`, so a browser that loaded Settings before 13:10Z can still show the old page: a hard refresh (Ctrl+F5) shows it. It is, however, hidden at the foot of a tab named for a different feature; a more visible place is a design point for the Captain and the Architect (below).
+
+## Follow-ups proposed
+
+- **Settings placement:** move the control to the top of its tab or give it its own "PSK Reporter" tab (a small Developer change plus QA's re-review; the code has not been pushed, so it can ride in the same pull request). The Captain decides.
+- **Specification and documentation:** the test listener host in the spec and in QA's OpenSpec text is wrong (`pskreporter.info` is Cloudflare-fronted); correct to `report.pskreporter.info` once the Architect rules.
+- **If a count check is still wanted:** one retrieve query, at least ten minutes after the last one, for a window that contains a pilot; QA will not run a monitor and a second querier together again.
