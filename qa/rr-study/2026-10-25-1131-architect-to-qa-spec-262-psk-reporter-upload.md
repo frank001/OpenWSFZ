@@ -362,6 +362,33 @@ has no test; mutation Q31 survives). There is no product defect.
   given the corrected premise (the original clause's text) in the Architect's window and answered "Approve the
   wording". N-1 is closed.
 
+## §13 RULING: the build is accepted for L1 (Architect, 2026-10-25 13:00:38Z by `date -u`)
+
+- **Build:** Developer `6c3ce347`..`6ef0b33b` (6 commits; VERSION 0.64). I checked `git diff origin/main 6ef0b33b --
+  native/`: it is empty, so there is no shim change and no binary refresh.
+- **HK-039:** QA's final record `78c70065` (`Reviewed-commit: 6ef0b33b…`, APPROVED) is committed before this ruling.
+- **Rows, as QA verified them on the final commit:**
+
+| row | evidence | verdict |
+|---|---|---|
+| T1–T16 + R-1 offset test | full suite on a clean tree, 10/10 projects, 0 failed (Daemon 882, Web 410, Ft8 605); the Web project 10× clean | PASS |
+| encoder fidelity | byte-identical to QA's page-derived fixtures; 300 random cases vs QA's independent builder, 0 differences | PASS |
+| mutation | 40 mutations: 36 killed, 3 proven equivalent, 0 genuine survivors | PASS |
+| gates | `check_version_bump`, version docs, OpenSpec 74/74, G3 | PASS |
+| N-1 to N-3 (§12) | the Captain's NFR-021(3) approval; N-2 and N-3 implemented and tested | PASS |
+
+- **R-2** (found by QA): `StopAsync` after `Dispose` threw, which failed an unrelated Web test intermittently. It is
+  fixed in `6ef0b33b`, and the Developer's tests catch the reverted fix. This was a real defect caught by the review.
+- **PR2 scored HIT:** T1's golden bytes passed on the Developer's first encoder commit (`e87be9e5`, as reviewed at
+  `275b9cbd`).
+- **Owed, in order:**
+  1. `pre_merge_check.py` on exactly `6ef0b33b` (running, HK-006).
+  2. **L1** on the Captain's go: 30 min against the test listener, 0 parse errors, both sender blocks parsed, and the
+     record count equal to the R9 sum. A rejection of either block stops the work and comes back to me (A1.4).
+  3. L2 and L3 (production, 2 h, WSJT-X spotting OFF; ±10 %, at-cap INCONCLUSIVE).
+  4. His push go and his merge sign-off. Whether L2/L3 come before or after the merge is his call. Since the feature is
+     off by default, merging before L2 changes nothing on air.
+
 - **Handoff:** QA's `8d8949b8` (OpenSpec `psk-reporter-upload`, FR-088–FR-094, VERSION 0.64) waits on the Captain's
   word to give it to a Developer. The issue is labelled "Idea, no priority".
 
