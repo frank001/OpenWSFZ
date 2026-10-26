@@ -386,27 +386,44 @@ var earlyOutput = Channel.CreateBounded<(float[] Pcm, DateTime CycleStart, doubl
 var earlyCoordinator = new EarlyDecodeCoordinator(
     startupLogger, (results, resolves) => decodeEventBus.Publish(results, resolves));
 
-CancellationTokenSource? framerCts        = null;
-Task?                    framerTask       = null;
-var                      restartSemaphore = new SemaphoreSlim(1, 1); // B2: serialise concurrent restart paths
+// one-pipeline-owner-266 (FR-097, FR-098): the ONE owner of the capture pipeline. It alone constructs the CycleFramer, holds the
+// framer slot, starts and stops capture, resets the monitors and holds the semaphore that serialises every start/stop path (config
+// save, capture retry, shutdown). Every caller asks it to ReconcileAsync; it converges on the configuration read inside the semaphore.
+var pipeline = PipelineController.Create(
+    configStore,
+    captureManager,
+    clock,
+    loggerFactory,
+    // dial frequency snapshot at window-open time
+    dialFreqProvider: () => WebApp.ResolveEffectiveFrequency(catState, configStore.Current),
+    // decode-early-batch-panel D1: read once per window; ON by default (an absent key or a missing decoder section reads as
+    // true, FR-083); an explicit false means no early window is ever emitted.
+    earlyDecodeProvider: () =>
+    {
+        var dec = configStore.Current.Decoder ?? new DecoderConfig();
+        return (dec.EarlyDecodeEnabled, dec.EarlyDecodeCutSeconds);
+    },
+    framerOutput.Writer,
+    earlyOutput.Writer,
+    resetMonitors: () =>
+    {
+        audioMonitor.Reset();
+        dataFlowMonitor.Reset();
+        spectrumAnalyser.Reset();
+    },
+    logger: startupLogger);
 
 // capture-device-reresolution #187: the one place all three automatic capture-start paths
 // (startup, CaptureFailed, watchdog — the latter two registered just below) converge — see
 // CaptureAutoStartCoordinator's own doc comment for the no-double-restart/no-deadlock reasoning.
-// startCaptureAsync forwards to RestartPipelineAsync (defined further down as a local function;
-// local functions are hoisted, so this forward reference is fine). Declared here, after every
-// variable RestartPipelineAsync transitively captures (spectrumAnalyser, catState, clock,
-// framerOutput, framerCts, framerTask, restartSemaphore — all declared above this point) is
-// already assigned: top-level statements' definite-assignment analysis requires that for a
-// delegate value created here, even though the local function itself may be called out of
-// textual order. Must also be declared before CaptureFailed/restartPipeline below, which
-// reference it directly (a local *variable*, unlike a local function, is not itself hoisted).
+// startCaptureAsync forwards to the PipelineController (forceRestart: the retry stops and starts again).
+// Must be declared before CaptureFailed/restartPipeline below, which reference it directly.
 var captureAutoStart = new CaptureAutoStartCoordinator(
     configStore,
     captureDeviceProvider,
     captureRecoveryState,
     isCapturing:       () => captureManager.IsCapturing,
-    startCaptureAsync: (id, _) => RestartPipelineAsync(id, stopCaptureManager: true),
+    startCaptureAsync: (_, _) => pipeline.ReconcileAsync("capture-retry", forceRestart: true),
     logger:            startupLogger);
 
 // Surface inner capture faults to the operator and auto-restart the pipeline.
@@ -469,7 +486,7 @@ Func<Task> restartPipeline = () => Task.Run(async () =>
 // connected WebSocket client count (including zero) — replacing the old per-connection heartbeat
 // loop in WebSocketHub.HandleAsync, which ran zero times unattended and over-ticked the watchdog
 // with N ≥ 2 clients connected. Constructed here (not inside WebApp.Create) so its stop can be
-// sequenced inside the existing restartSemaphore shutdown guard below, before captureManager is
+// sequenced inside the PipelineController's shutdown guard below, before captureManager is
 // disposed (design Risk 4) — ownership of that ordering belongs to this file, which already owns
 // the guard, not to WebApp.Create.
 var audioWatchdog = new AudioWatchdog(
@@ -917,9 +934,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
         stoppingToken));
 });
 
-// Restart pipeline when the device name changes via POST /api/v1/config.
-string?       runningDevice       = configStore.Current.AudioDeviceId;
-bool          runningEnabled      = configStore.Current.DecodingEnabled;
+// Reconcile the pipeline when the device or DecodingEnabled changes via POST /api/v1/config. These two locals only decide WHETHER to
+// ask the controller (so an unrelated save never acts); what the controller then does follows the configuration it reads itself.
+string?       lastSavedDevice     = configStore.Current.AudioDeviceId;
+bool          lastSavedEnabled    = configStore.Current.DecodingEnabled;
 // Track the last applied logging state so the OnSaved handler below can skip
 // Apply() on saves that only touch non-logging fields (e.g. Cat.LastPolledFrequencyMHz
 // from FR-039).  LoggingConfig is a sealed record, so == is value equality.
@@ -972,73 +990,24 @@ configStore.OnSaved += newConfig =>
     var newDevice  = newConfig.AudioDeviceId;
     var newEnabled = newConfig.DecodingEnabled;
 
-    // ── Device-change transition ──────────────────────────────────────────
-    if (newDevice != runningDevice)
+    // Level-triggered (FR-097): one call, whatever changed; the controller reads the current configuration inside its semaphore, so
+    // concurrent saves cannot leave it on a stale one. A device change while decoding is off is saved only (FR-098).
+    if (newDevice == lastSavedDevice && newEnabled == lastSavedEnabled) return;
+    lastSavedDevice  = newDevice;
+    lastSavedEnabled = newEnabled;
+
+    _ = Task.Run(async () =>
     {
-        runningDevice  = newDevice;
-        runningEnabled = newEnabled;
-
-        _ = Task.Run(async () =>
+        try
         {
-            try
-            {
-                await RestartPipelineAsync(newDevice, stopCaptureManager: true);
-            }
-            catch (Exception ex)
-            {
-                startupLogger.LogError(ex,
-                    "Audio capture failed to restart on device '{Device}'.", newDevice);
-            }
-        });
-        return;
-    }
-
-    // ── DecodingEnabled transition ────────────────────────────────────────
-    if (newEnabled == runningEnabled) return;
-
-    runningEnabled = newEnabled;
-
-    if (newEnabled && newDevice is not null)
-    {
-        // Operator enabled decoding — start pipeline.
-        _ = Task.Run(async () =>
+            await pipeline.ReconcileAsync("config");
+        }
+        catch (Exception ex)
         {
-            try
-            {
-                await restartSemaphore.WaitAsync();
-                try { StartPipeline(newDevice); }
-                finally { restartSemaphore.Release(); }
-            }
-            catch (Exception ex)
-            {
-                startupLogger.LogError(ex,
-                    "Failed to start pipeline after DecodingEnabled = true on device '{Device}'.",
-                    newDevice);
-            }
-        });
-    }
-    else if (!newEnabled && runningDevice is not null)
-    {
-        // Operator disabled decoding — stop pipeline.
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await restartSemaphore.WaitAsync();
-                try
-                {
-                    await StopFramerAsync();
-                    await captureManager.StopAsync();
-                }
-                finally { restartSemaphore.Release(); }
-            }
-            catch (Exception ex)
-            {
-                startupLogger.LogError(ex,
-                    "Failed to stop pipeline after DecodingEnabled = false.");
-            }
-        });
-    }
+            startupLogger.LogError(ex,
+                "Audio pipeline failed to reconcile after a configuration change (device '{Device}').", newDevice);
+        }
+    });
 };
 
 // Stop pipeline and dispose on application shutdown.
@@ -1050,22 +1019,21 @@ app.Lifetime.ApplicationStopping.Register(() =>
     startupLogger.LogInformation(
         "Application stopping — aborting WebSocket connections and shutting down capture pipeline.");
 
-    // B2: wait for any in-progress restart to complete before tearing down,
-    // so shutdown cannot race with a concurrent CaptureFailed / watchdog restart.
-    restartSemaphore.Wait();
+    // B2: the controller's shutdown waits for any in-progress reconcile to complete before tearing down,
+    // so shutdown cannot race with a concurrent CaptureFailed / watchdog / config restart; later reconciles do nothing.
     try
     {
-        // capture-stall-detection-unattended #188 (design.md Risk 4): stop the ticker BEFORE
-        // captureManager is disposed, inside this same restartSemaphore guard — otherwise the
-        // watchdog could fire a restart into a pipeline that is mid-teardown.
-        captureHealthMonitor.DisposeAsync().AsTask().GetAwaiter().GetResult();
-
-        StopFramerAsync().GetAwaiter().GetResult();
-        // sub-feas-speed-redesign A3: the decode pump has stopped, so no fit is in flight; free the native
-        // residual-pass workspace pool (about 30 MB per worker) now rather than leave it to process exit.
-        ft8Decoder.Dispose();
-        captureManager.StopAsync().GetAwaiter().GetResult();
-        captureManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        // Order is unchanged: health monitor (capture-stall-detection-unattended #188, design.md Risk 4: stop the ticker BEFORE
+        // captureManager is disposed, or the watchdog could fire a restart into a pipeline that is mid-teardown), framer,
+        // decoder dispose (sub-feas-speed-redesign A3: the decode pump has stopped, so no fit is in flight; free the native
+        // residual-pass workspace pool now rather than leave it to process exit), capture stop, capture dispose.
+        pipeline.ShutdownAsync(
+            stopHealthMonitor: () => captureHealthMonitor.DisposeAsync().AsTask(),
+            disposeDecoder:    () => ft8Decoder.Dispose(),
+            disposeCapture:    async () =>
+            {
+                await captureManager.DisposeAsync();
+            }).GetAwaiter().GetResult();
         framerOutput.Writer.TryComplete();
 
         // f-005-hash-table-saturation-diagnostic (D2): read the session's final native
@@ -1079,9 +1047,9 @@ app.Lifetime.ApplicationStopping.Register(() =>
 
         loggingPipeline.Dispose();    // flush buffered file events before process exit
     }
-    finally
+    catch (Exception ex)
     {
-        restartSemaphore.Release();
+        startupLogger.LogError(ex, "Shutdown of the capture pipeline failed.");
     }
 });
 
@@ -1122,75 +1090,6 @@ else
 return 0;
 
 // ── Helper methods ───────────────────────────────────────────────────────────
-
-void StartPipeline(string deviceName)
-{
-    startupLogger.LogInformation("Starting FT8 pipeline for device '{Device}'.", deviceName);
-
-    // StartAsync itself completes before _captureTask runs; inner faults are
-    // reported via the captureManager.CaptureFailed event (wired above).
-    _ = captureManager.StartAsync(deviceName);
-
-    framerCts = new CancellationTokenSource();
-    var ct = framerCts.Token;
-
-    var cycleFramer = new CycleFramer(
-        captureManager.Samples,
-        clock,
-        loggerFactory.CreateLogger<CycleFramer>(),
-        dialFreqProvider: () => WebApp.ResolveEffectiveFrequency(catState, configStore.Current),
-        // decode-early-batch-panel D1: read once per window; ON by default (an absent key or a missing decoder section reads as
-        // true, FR-083); an explicit false means no early window is ever emitted.
-        earlyDecodeProvider: () =>
-        {
-            var dec = configStore.Current.Decoder ?? new DecoderConfig();
-            return (dec.EarlyDecodeEnabled, dec.EarlyDecodeCutSeconds);
-        });
-
-    framerTask = Task.Run(() => cycleFramer.RunAsync(framerOutput.Writer, earlyOutput.Writer, ct));
-}
-
-async Task StopFramerAsync()
-{
-    var cts = framerCts;
-    if (cts is null) return;
-
-    cts.Cancel();
-
-    var task = framerTask;
-    if (task is not null)
-    {
-        try { await task.WaitAsync(TimeSpan.FromSeconds(3)); }
-        catch (TimeoutException)          { }
-        catch (OperationCanceledException){ }
-        catch (Exception)                 { }
-    }
-
-    cts.Dispose();
-    framerCts  = null;
-    framerTask = null;
-}
-
-async Task RestartPipelineAsync(string? device, bool stopCaptureManager)
-{
-    // B2: serialise all restart callers (CaptureFailed, watchdog, config change).
-    await restartSemaphore.WaitAsync();
-    try
-    {
-        await StopFramerAsync();
-        if (stopCaptureManager)
-            await captureManager.StopAsync();
-        audioMonitor.Reset();
-        dataFlowMonitor.Reset();
-        spectrumAnalyser.Reset();
-        if (device is not null)
-            StartPipeline(device);
-    }
-    finally
-    {
-        restartSemaphore.Release();
-    }
-}
 
 // Public partial Program class — type anchor for WebApplicationFactory<Program> in tests.
 public partial class Program { }
