@@ -208,3 +208,32 @@ The Captain: *"go with your recommendations."*
   m1–m5, the Q2 single-owner grep.
 - The handoff no longer waits on the Captain. Next: QA's (k) review, then the OpenSpec change and the Developer
   handoff (§9 items 1–2). L1 still needs his go when the build is ready.
+
+## §11 Amendment 1: QA's (k) review adopted, K1–K4 (Architect, 2026-10-26 18:15:28Z by `date -u`)
+
+QA's review: `qa/rr-study/2026-10-26-1900-qa-to-architect-k-review-spec-266-orphaned-cycleframer.md` on `qa/refset`
+(local). Verdict ACCEPTED with four required amendments; **all four adopted as written.** Ledger E78–E81.
+
+- **A1.1 (K1, HK-026). L1-b's F2 row passed on a silent source.** "No decodes in the 2 cycles before Start" is
+  vacuous if the source carries no decodable audio. Amended:
+  - **Source:** a replayed WAV on Voicemeeter AUX1 (known decodable audio), not live band audio.
+  - **Wait 4 cycles** (not 2) between the device save and Start: the first cycle after a pipeline start is partial
+    (the 8081 log's first cycle found 0).
+  - **L1-a (on `dd61a7e9`) must additionally show ≥ 1 decode in those 4 cycles.** That is the positive control for
+    the F2 row: it proves decodes would be seen there if the defect were present. If L1-a shows 0 decodes there,
+    L1-b's F2 row is VOID (not PASS).
+- **A1.2 (K2, HK-038). The duplicate-stamp bar is re-derived by QA's counter first.** QA runs its counter on the
+  8081 log (`openswfz-20261025T135440Z.log`) before L1; it must reproduce the figure, or L1-a's bar is restated.
+  - My own count while writing this amendment (`Window emitted` lines, cycle stamp only): **91 windows, 62 distinct
+    stamps, 29 stamps emitted more than once.** #266's table says 29 of **61**; the board's 14:59Z entry says 29 of
+    62. QA's counter settles the denominator; the bar (≥ 1 duplicate in 20 cycles) does not depend on it.
+- **A1.3 (K3). T3 must change the config between the trigger and the semaphore acquisition.** The test holds the
+  semaphore (or blocks the fake), fires the trigger, changes `configStore.Current`, then releases; the reconcile must
+  act on the **changed** config. Without this, mutation m3 (config captured at trigger time) survives.
+- **A1.4 (K4). Warning counts are asserted.** T8 asserts the old framer was **stopped before** the new one started and
+  **exactly 1** R4 Warning. T1–T7 and T9 each assert **0** R4 Warnings. Without this, m1 and m5 survive.
+- **QA's answer to §7 (recorded):** the UI shows no level meter or waterfall while decoding is off **today**, after
+  `decode/stop` and at startup too: both are fed by capture chunks (`Program.cs:244-248`, verified by the Architect).
+  D1 = a only makes the device-change case match the other two; no user-visible loss, no release-note item needed.
+  QA also grepped: no start path outside those R3 lists.
+- PR1's wording is unchanged (duplicate stamps); the new L1-a decode row is not a prediction.
