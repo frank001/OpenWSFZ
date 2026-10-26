@@ -71,6 +71,11 @@
       "honourInboundCommands",
       "restrictExternalRepliesToDecodeFilter"
     ],
+    "pskReporter": [
+      "enabled",
+      "antennaInformation",
+      "locator"
+    ],
     "cycleAudioArchive": [
       "mode",
       "directory",

@@ -120,6 +120,7 @@ internal static class NonDefaultConfig
                 "SerialLine"   => "Dtr",
                 "Method"       => "SerialRtsDtr",
                 "RigModel"     => "RigCtld",
+                "Locator"      => "JO33ab",   // pskReporter.locator must be six Maidenhead characters (FR-096, server-side 400)
                 "Role"         => "follower", // ExternalReporting.Role; needs a non-empty leaderUrl (validation, T12)
                 // The seed has externalReporting enabled as a follower, so ExternalReportingService relays
                 // to this URL on its first timer tick. It MUST be absolute: a relative one ("-nd") makes

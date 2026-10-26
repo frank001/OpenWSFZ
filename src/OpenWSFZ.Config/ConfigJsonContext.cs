@@ -23,6 +23,7 @@ namespace OpenWSFZ.Config;
 [JsonSerializable(typeof(DecodeNoiseSuppressionConfig))]
 [JsonSerializable(typeof(ExternalReportingConfig))]
 [JsonSerializable(typeof(ExternalReportingTarget))]
+[JsonSerializable(typeof(PskReporterConfig))]
 [JsonSerializable(typeof(CycleAudioArchiveConfig))]
 [JsonSerializable(typeof(CycleAudioArchiveMode))]
 public sealed partial class ConfigJsonContext : JsonSerializerContext { }
