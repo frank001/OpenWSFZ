@@ -1,7 +1,7 @@
 # QA code review (HK-039): #266 one pipeline owner, Developer `27b11251`
 
 Reviewed-commit: 27b11251bcde3392f46706b2fcb64efaaef68257
-Verdict: APPROVED (no required changes; four advisories). Next gate: `pre_merge_check.py` on a clean checkout of this exact commit (HK-006), then K2 (the duplicate-stamp counter on the 8081 log) and L1 on the Captain's go.
+Verdict: APPROVED for the code (four advisories); RETURNED for one documentation change R-1, see the addendum at the end. Next gate: `pre_merge_check.py` on a clean checkout of this exact commit (HK-006), then K2 (the duplicate-stamp counter on the 8081 log) and L1 on the Captain's go.
 
 **Branch:** `fix/pipeline-owner-266` (`f5c97a1a` openspec copy, `27b11251` fix) off `origin/main` `dd61a7e9`. **Spec:** OpenSpec `one-pipeline-owner-266` (`qa/refset` `e8be9046`); Architect spec `arch/framer-266` with Amendment 1.
 
@@ -42,3 +42,11 @@ Process: `tasks.md` untouched by the Developer (correct, QA's); FR-097/098 rows 
 ## Not done by this review
 
 The full unfiltered suite, Playwright (none relevant), G3/G9/G10, the WSL and publish checks: **not run here**, they are `pre_merge_check.py`'s job. No live run: **K2** (the 8081 counter, which must reproduce 29 duplicated of 62 distinct stamps in 91 windows) and **L1-a / L1-b** (scratch instance, replayed WAV, positive control on `dd61a7e9` first) are still owed, L1 on the Captain's go. NFR-021: the new log lines carry device identifiers and reasons only (inspection); tests use no callsigns.
+
+## ADDENDUM 2026-10-26 (after `pre_merge_check.py`): one required change, in the documentation only
+
+`pre_merge_check.py` on a clean checkout of `27b11251` returned **NOT READY**: **G9a FAIL**, every other gate PASS (build, full suite Windows and WSL, G3, G9b, G10, OpenSpec strict, both publishes). Log: `D:\Projects\claude\_qa-scratch\p266-logs\pre_merge_check_27b11251.txt`. Cause: `REQUIREMENTS.md` still carries the anchor sentence for v0.64 while `VERSION` and `README.md` say 0.65 (`check_version_docs.py`: "REQUIREMENTS.md cites v0.64 but VERSION says 0.65").
+
+- **R-1 (required, one line, no `src/` change):** edit the anchor sentence in `REQUIREMENTS.md` to read `The current release is v0.65.`, run `python tools/check_version_docs.py` and report its output.
+- This review's sentence "VERSION 0.65 and README agree" was true but covered two of the three documents; the third was left to the gate, as the section above says. The code verdict stands: the diff `27b11251..<fix>` must show **no change under `src/` or `native/`**, and QA will check that and re-run `pre_merge_check` on the new commit.
+- **Revised verdict: RETURNED for R-1 (code approved).** HK-039 for the fix commit: a new record will name its hash.
