@@ -135,6 +135,9 @@ const extRepRestrictReplies = /** @type {HTMLInputElement}        */ (document.g
 // PSK Reporter upload (psk-reporter-upload, #262). host and port are configuration-file only and are NOT on this page.
 const pskReporterEnabled = /** @type {HTMLInputElement} */ (document.getElementById('psk-reporter-enabled'));
 const pskReporterAntenna = /** @type {HTMLInputElement} */ (document.getElementById('psk-reporter-antenna'));
+const pskReporterLocator = /** @type {HTMLInputElement} */ (document.getElementById('psk-reporter-locator'));
+const pskReporterLocatorError = /** @type {HTMLElement}  */ (document.getElementById('psk-reporter-locator-error'));
+const pskReporterStatusLine   = /** @type {HTMLElement}  */ (document.getElementById('psk-reporter-status'));
 
 // Advanced Decoder Settings controls (decoder-settings-page)
 const decoderK     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-k'));
@@ -432,6 +435,7 @@ function snapshotForm() {
     pskReporter: {
       enabled:            pskReporterEnabled?.checked ?? false,
       antennaInformation: pskReporterAntenna?.value ?? '',
+      locator:            pskReporterLocator?.value ?? '',
     },
     // Audio archive group (FR-040 dirty state).
     cycleAudioArchive: {
@@ -983,6 +987,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pskRep = config.pskReporter ?? {};
     if (pskReporterEnabled) pskReporterEnabled.checked = pskRep.enabled ?? false;
     if (pskReporterAntenna) pskReporterAntenna.value = pskRep.antennaInformation ?? '';
+    if (pskReporterLocator) pskReporterLocator.value = pskRep.locator ?? '';
 
     // Capture the clean baseline after all fields are fully populated (FR-040).
     _cleanSnapshot = snapshotForm();
@@ -1347,6 +1352,18 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
+  // PSK Reporter locator (FR-096): empty, or six Maidenhead characters. The daemon answers 400 for anything else; refusing here
+  // gives the message beside the field and posts nothing.
+  const pskLocatorTyped = (pskReporterLocator?.value ?? '').trim();
+  if (!isValidPskLocator(pskLocatorTyped)) {
+    const why = 'The PSK Reporter locator must be empty or six characters like JO33ed (two letters A-R, two digits, two letters A-X).';
+    if (pskReporterLocatorError) { pskReporterLocatorError.textContent = why; pskReporterLocatorError.hidden = false; }
+    showFeedback(why, 'error');
+    saveBtn.disabled = false;
+    return;
+  }
+  if (pskReporterLocatorError) { pskReporterLocatorError.textContent = ''; pskReporterLocatorError.hidden = true; }
+
   // Audio archive: same bounds as the daemon (design D5), so the operator gets immediate feedback
   // instead of a round-trip 400. A blank or non-integer field is refused rather than defaulted:
   // silently substituting a number here would change a setting the operator did not choose.
@@ -1472,10 +1489,11 @@ saveBtn.addEventListener('click', async () => {
       restrictExternalRepliesToDecodeFilter:  extRepRestrictReplies?.checked ?? false,
     };
 
-    // PSK Reporter upload (#262): only these two keys are posted; host and port stay as stored (the POST is an overlay that merges nested objects).
+    // PSK Reporter upload (#262): only these three keys are posted; host and port stay as stored (the POST is an overlay that merges nested objects).
     const pskReporter = {
       enabled:            pskReporterEnabled?.checked ?? false,
       antennaInformation: pskReporterAntenna?.value.trim() ?? '',
+      locator:            pskLocatorTyped,
     };
 
     // Audio archive (Part C). A blank directory is sent as null: "use the default location".
@@ -1519,6 +1537,7 @@ saveBtn.addEventListener('click', async () => {
       _loadedTxRole = txRoleValue;  // update so a second save doesn't re-show
     } else {
       showFeedback('Saved ✓', 'success');
+      refreshPskReporterStatus();
     }
     _cleanSnapshot = snapshotForm();
     syncDirtyUI();          // clears the badge and removes the beforeunload guard
@@ -1561,6 +1580,48 @@ async function refreshLogsTailIfActive() {
     logsTailOutputEl.textContent = `Failed to load log tail: ${err.message}`;
   }
 }
+
+// ── PSK Reporter status line (FR-095) ────────────────────────────────────
+
+/** True for an empty locator or six Maidenhead characters (the daemon enforces the same rule with a 400). */
+function isValidPskLocator(value) {
+  return value === '' || /^[A-Ra-r]{2}[0-9]{2}[A-Xa-x]{2}$/.test(value);
+}
+
+/** The words for a refusal reason code returned by GET /api/v1/psk-reporter/status. */
+const PSK_REASON_TEXT = {
+  'identity': 'the receiver call or grid is a placeholder',
+  'no-dial':  'no dial frequency',
+  'region':   'unknown region',
+};
+
+/** Turns the status body (counts and a reason code, no callsign) into the one line shown next to the checkbox. */
+function formatPskStatus(status) {
+  switch (status?.state) {
+    case 'off':     return 'off';
+    case 'waiting': return 'on, waiting for the first datagram';
+    case 'sending': {
+      const hms = new Date(status.lastDatagramUtc).toISOString().slice(11, 19);
+      return `on, last datagram at ${hms}Z with ${status.lastDatagramRecords} records`;
+    }
+    case 'refused': return `on but nothing is being reported: ${PSK_REASON_TEXT[status.reason] ?? status.reason}`;
+    default:        return 'unknown';
+  }
+}
+
+const PSK_STATUS_POLL_INTERVAL_MS = 30000;
+
+async function refreshPskReporterStatus() {
+  if (!pskReporterStatusLine) return;
+  try {
+    const res = await fetch('/api/v1/psk-reporter/status');
+    if (!res.ok) return;
+    pskReporterStatusLine.textContent = `Status: ${formatPskStatus(await res.json())}`;
+  } catch { /* the status line is informational; leave the last text */ }
+}
+
+refreshPskReporterStatus();
+setInterval(refreshPskReporterStatus, PSK_STATUS_POLL_INTERVAL_MS);
 
 // Poll on a fixed interval; refreshLogsTailIfActive no-ops whenever the Logs tab
 // isn't the visible one.

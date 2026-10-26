@@ -859,6 +859,40 @@
       <!-- ── Tab 7: External Programs (gridtracker-udp-reporting) ─────────── -->
       <div id="tab-external-programs" class="settings-tab-panel" role="tabpanel" aria-labelledby="tab-btn-external-programs">
 
+        <fieldset id="psk-reporter-fieldset">
+          <legend>PSK Reporter</legend>
+
+          <div class="field-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="psk-reporter-enabled" />
+              Upload received stations to PSK Reporter
+            </label>
+            <p class="field-hint">
+              Sends the calls and locators of stations you receive, with your call and locator, to the public PSK Reporter service.
+              Off by default; nothing is sent until you tick this box. Nothing is sent while the callsign on the TX tab is empty or
+              the placeholder <code>Q1OFZ</code>, or the grid is empty. If you also run WSJT-X, turn its own
+              "Enable PSK Reporter Spotting" off so a station is not reported twice.
+            </p>
+            <p id="psk-reporter-status" class="field-hint" aria-live="polite">Status: off</p>
+          </div>
+
+          <div class="field-group">
+            <label for="psk-reporter-antenna">Antenna description (optional)</label>
+            <input type="text" id="psk-reporter-antenna" maxlength="100" autocomplete="off" />
+            <p class="field-hint">Shown on your PSK Reporter receiver entry, for example "Dipole at 10 m".</p>
+          </div>
+
+          <div class="field-group">
+            <label for="psk-reporter-locator">Locator for PSK Reporter (6 characters, optional)</label>
+            <input type="text" id="psk-reporter-locator" maxlength="6" autocomplete="off" placeholder="JO33ed" />
+            <p class="field-hint">
+              Six Maidenhead characters, for example <code>JO33ed</code>. Used only when its first four characters match the grid
+              on the TX tab; otherwise the TX grid is sent. Leave empty to send the TX grid.
+            </p>
+            <p id="psk-reporter-locator-error" class="field-hint" role="alert" hidden></p>
+          </div>
+        </fieldset>
+
         <p class="field-hint">
           Speaks the WSJT-X UDP network protocol so third-party programs (GridTracker2, JTAlert,
           N1MM+, Log4OM, …) can see this station's spots and log completed QSOs exactly as they do
@@ -921,29 +955,6 @@
               own visibility exactly. Only applies while "Honour inbound commands" above is also
               checked.
             </p>
-          </div>
-        </fieldset>
-
-        <fieldset id="psk-reporter-fieldset">
-          <legend>PSK Reporter</legend>
-
-          <div class="field-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="psk-reporter-enabled" />
-              Upload received stations to PSK Reporter
-            </label>
-            <p class="field-hint">
-              Sends the calls and locators of stations you receive, with your call and locator, to the public PSK Reporter service.
-              Off by default; nothing is sent until you tick this box. Nothing is sent while the callsign on the TX tab is empty or
-              the placeholder <code>Q1OFZ</code>, or the grid is empty. If you also run WSJT-X, turn its own
-              "Enable PSK Reporter Spotting" off so a station is not reported twice.
-            </p>
-          </div>
-
-          <div class="field-group">
-            <label for="psk-reporter-antenna">Antenna description (optional)</label>
-            <input type="text" id="psk-reporter-antenna" maxlength="100" autocomplete="off" />
-            <p class="field-hint">Shown on your PSK Reporter receiver entry, for example "Dipole at 10 m".</p>
           </div>
         </fieldset>
 

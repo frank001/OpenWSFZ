@@ -117,7 +117,7 @@ public sealed class PskReporterEngineTests
 
         var d = rig.Send()!;
         ParseSpots(d.Bytes).Select(s => s.Call).Should().Equal("Q1ABC");
-        rig.Log.Entries.Single(e => e.Level == LogLevel.Information).Message.Should().Contain("region=2");
+        rig.Log.Entries.Single(e => e.Level == LogLevel.Information && e.Message.Contains("datagram sent")).Message.Should().Contain("region=2");
     }
 
     [Fact(DisplayName = "FR-091: T7: the record frequency is the dial at capture plus the audio offset, whatever the radio does afterwards; no dial frequency reports nothing and is counted")]
@@ -133,7 +133,7 @@ public sealed class PskReporterEngineTests
         var spot = ParseSpots(d.Bytes).Single();
         spot.Call.Should().Be("Q1ABC");
         spot.Freq.Should().Be(7_074_000u + 1234u);
-        rig.Log.Entries.Single(e => e.Level == LogLevel.Information).Message.Should().Contain("no-dial-frequency=2");
+        rig.Log.Entries.Single(e => e.Level == LogLevel.Information && e.Message.Contains("datagram sent")).Message.Should().Contain("no-dial-frequency=2");
     }
 
     [Fact(DisplayName = "FR-091: T7: a dial frequency outside the band table reports nothing and is counted as no-dial-frequency (N-3: there is no 'unknown' band)")]
@@ -146,7 +146,7 @@ public sealed class PskReporterEngineTests
 
         var d = rig.Send()!;
         ParseSpots(d.Bytes).Select(s => s.Call).Should().Equal("Q2DEF");
-        rig.Log.Entries.Single(e => e.Level == LogLevel.Information).Message.Should().Contain("no-dial-frequency=1");
+        rig.Log.Entries.Single(e => e.Level == LogLevel.Information && e.Message.Contains("datagram sent")).Message.Should().Contain("no-dial-frequency=1");
     }
 
     // ── FR-092: T6 dedup ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -249,7 +249,8 @@ public sealed class PskReporterEngineTests
 
         rig.Send().Should().BeNull();
         rig.Log.Count(LogLevel.Warning).Should().Be(1, "not again inside the same window");
-        rig.Log.Count(LogLevel.Information).Should().Be(0);
+        rig.Log.Entries.Count(e => e.Level == LogLevel.Information && !e.Message.StartsWith("PSK Reporter:", StringComparison.Ordinal))
+            .Should().Be(0, "no datagram line; the per-window accounting line (FR-095) is the only Information entry");
     }
 
     // ── FR-093: T9 failure and the log line ──────────────────────────────────────────────────────────────────────────
@@ -287,7 +288,7 @@ public sealed class PskReporterEngineTests
         rig.Now += PskReporterEngine.SendWindow;
         PskDatagram? sent;
         while ((sent = rig.Send()) is not null) { /* drain */ }
-        rig.Log.Entries.Where(e => e.Level == LogLevel.Information).Any(e => !e.Message.Contains("queue-dropped=0")).Should().BeTrue("the dropped records were counted");
+        rig.Log.Entries.Where(e => e.Level == LogLevel.Information && e.Message.Contains("datagram sent")).Any(e => !e.Message.Contains("queue-dropped=0")).Should().BeTrue("the dropped records were counted");
     }
 
     [Fact(DisplayName = "FR-093: each datagram logs one Information line (UTC time, records, exclusions by reason, sequence after) and no callsign appears in any line at any level")]
@@ -302,7 +303,7 @@ public sealed class PskReporterEngineTests
         rig.Engine.Ingest(Batch(T0, null, Decode("CQ Q6PQR JO22")), T0);
         rig.Send().Should().NotBeNull();
 
-        var info = rig.Log.Entries.Single(e => e.Level == LogLevel.Information).Message;
+        var info = rig.Log.Entries.Single(e => e.Level == LogLevel.Information && e.Message.Contains("datagram sent")).Message;
         info.Should().Contain("2 record(s)").And.Contain("region=1").And.Contain("hashed=1").And.Contain("unparseable=1")
             .And.Contain("own-call=1").And.Contain("no-dial-frequency=1").And.Contain("dedup=1").And.Contain("sequence after=2");
         info.Should().MatchRegex(@"datagram sent at \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}");

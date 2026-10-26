@@ -14,7 +14,7 @@ namespace OpenWSFZ.Daemon.PskReporter;
 /// reads the channel, ticks, and sends. A failure here never reaches the decode pump, which only writes to a bounded DropOldest queue.
 /// </para>
 /// </summary>
-internal sealed class PskReporterService : IHostedService, IDisposable
+internal sealed class PskReporterService : IHostedService, IDisposable, IPskReporterStatusSource
 {
     /// <summary>How often a due window or a full datagram is looked for while enabled.</summary>
     public static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
@@ -71,6 +71,9 @@ internal sealed class PskReporterService : IHostedService, IDisposable
 
     /// <summary>The decision engine (exposed for tests).</summary>
     internal PskReporterEngine Engine => _engine;
+
+    /// <inheritdoc />
+    public PskReporterStatus GetStatus() => _engine.GetStatus();
 
     /// <summary>Whether an enabled period is running now (a socket exists).</summary>
     internal bool IsActive { get { lock (_stateGate) return _transport is not null; } }

@@ -24,11 +24,13 @@ public sealed record PskReporterConfig
     public PskReporterConfig(
         bool   enabled            = false,
         string antennaInformation = "",
+        string locator            = "",
         string host               = DefaultHost,
         int    port               = DefaultPort)
     {
         Enabled            = enabled;
         AntennaInformation = antennaInformation;
+        Locator            = locator;
         Host               = host;
         Port               = port;
     }
@@ -38,6 +40,12 @@ public sealed record PskReporterConfig
 
     /// <summary>Free-text antenna description sent in the receiver record. Default <c>""</c> (the field is then omitted).</summary>
     public string AntennaInformation { get; init; } = "";
+
+    /// <summary>
+    /// Optional 6-character Maidenhead receiver locator (F-d, FR-096). Empty (default) or <c>[A-Ra-r]{2}[0-9]{2}[A-Xa-x]{2}</c>; stored as
+    /// typed and sent normalised (<see cref="PskLocator.Normalise"/>) only when its first 4 characters equal <c>tx.grid</c>.
+    /// </summary>
+    public string Locator { get; init; } = "";
 
     /// <summary>Collector host. Configuration-file only (not on the Settings page): the test listener is <c>pskreporter.info</c>.</summary>
     public string Host { get; init; } = DefaultHost;

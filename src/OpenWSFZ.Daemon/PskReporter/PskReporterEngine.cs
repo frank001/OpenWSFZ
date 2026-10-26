@@ -8,7 +8,8 @@ namespace OpenWSFZ.Daemon.PskReporter;
 /// <param name="Locator"><c>tx.grid</c>.</param>
 /// <param name="Antenna"><c>pskReporter.antennaInformation</c>.</param>
 /// <param name="Software">The <c>decodingSoftware</c> string, <c>OpenWSFZ &lt;VERSION&gt;</c>.</param>
-internal sealed record PskIdentity(string Callsign, string Locator, string Antenna, string Software)
+/// <param name="ConfiguredLocator"><c>pskReporter.locator</c> as stored (empty: none). Sent, normalised, only when valid and matching <paramref name="Locator"/> (FR-096).</param>
+internal sealed record PskIdentity(string Callsign, string Locator, string Antenna, string Software, string ConfiguredLocator = "")
 {
     /// <summary>
     /// Nothing is uploaded under a placeholder identity: an empty or Q-prefix call (the ITU-unallocated range, default <c>Q1OFZ</c>) or
@@ -79,6 +80,19 @@ internal sealed class PskReporterEngine
     // Counts since the last datagram (logged with it) and for the placeholder-identity warning of the current window.
     private int _exRegion, _exHashed, _exUnparseable, _exOwn, _exNoDial, _exDedup, _exDropped, _identityRefused;
 
+    // Per-window accounting (FR-095): the SINGLE source of the window log line and of the Settings status line. Restart at zero each window.
+    private sealed class Window
+    {
+        public int Seen, Reported, Region, NoDial, Identity, Hashed, OwnCall, Dedup;
+
+        public PskReporterWindowCounts ToCounts() => new(Seen, Reported, Region, NoDial, Identity, Hashed, OwnCall, Dedup);
+    }
+
+    private Window    _window = new();
+    private Window    _lastWindow = new();
+    private DateTime? _lastDatagramUtc;
+    private int       _lastDatagramRecords;
+
     /// <param name="identity">Reads the receiver identity (called on every ingest and every build).</param>
     /// <param name="logger">Receives counts only, never callsigns.</param>
     /// <param name="sessionId">The 4-byte session id, constant for the process (random in production).</param>
@@ -130,16 +144,19 @@ internal sealed class PskReporterEngine
         {
             if (!_active || batch.Results.Count == 0) return;
 
+            _window.Seen += batch.Results.Count;
             var id = _identity();
             if (id.IsPlaceholder)
             {
                 _identityRefused += batch.Results.Count;
+                _window.Identity += batch.Results.Count;
                 return;
             }
             // No dial frequency, or one outside the band table (N-3, Architect spec 12): nothing is reported, counted as no-dial-frequency.
             if (batch.DialFrequencyMHz is not { } dialMHz || dialMHz <= 0 || BandTable.DeriveBand(dialMHz) is not { } band)
             {
                 _exNoDial += batch.Results.Count;
+                _window.NoDial += batch.Results.Count;
                 return;
             }
 
@@ -149,25 +166,26 @@ internal sealed class PskReporterEngine
             foreach (var r in batch.Results)
             {
                 // Same absolute rule as external-reporting (never weakened): an unknown-region or synthetic decode is never encoded.
-                if (r.Region is null || r.Region.Synthetic) { _exRegion++; continue; }
+                if (r.Region is null || r.Region.Synthetic) { _exRegion++; _window.Region++; continue; }
 
                 if (!PskSenderExtractor.TryExtract(r.Message, id.Callsign, out var sender, out var why))
                 {
                     switch (why)
                     {
-                        case PskSenderRejection.Hashed:  _exHashed++;      break;
-                        case PskSenderRejection.OwnCall: _exOwn++;         break;
+                        case PskSenderRejection.Hashed:  _exHashed++; _window.Hashed++;  break;
+                        case PskSenderRejection.OwnCall: _exOwn++;    _window.OwnCall++; break;
                         default:                         _exUnparseable++; break;
                     }
                     continue;
                 }
 
-                if (IsDuplicate(sender!.Callsign, band, nowUtc)) { _exDedup++; continue; }
+                if (IsDuplicate(sender!.Callsign, band, nowUtc)) { _exDedup++; _window.Dedup++; continue; }
                 _lastAnyBand[sender.Callsign]             = nowUtc;
                 _lastCallBand[(sender.Callsign, band)]    = nowUtc;
 
                 long freq = Math.Clamp(dialHz + r.FreqHz, 0L, uint.MaxValue);
                 _pending.Add(new PskSpot(sender.Callsign, sender.Locator, (uint)freq, r.Snr, flow));
+                _window.Reported++;
             }
 
             TrimPendingUnsafe();
@@ -188,6 +206,7 @@ internal sealed class PskReporterEngine
             bool due = nowUtc >= _nextWindowUtc;
             if (due)
             {
+                CloseWindowUnsafe();
                 if (_identityRefused > 0)
                 {
                     _logger.LogWarning(
@@ -206,7 +225,7 @@ internal sealed class PskReporterEngine
             }
 
             bool templates = _datagramsSent < InitialTemplateDatagrams || nowUtc - _lastTemplatesUtc >= TemplateInterval;
-            var receiver   = new PskReceiver(id.Callsign, id.Locator, id.Software, id.Antenna);
+            var receiver   = new PskReceiver(id.Callsign, ChooseLocator(id, out _), id.Software, id.Antenna);
             int fit        = Math.Max(1, PskReporterEncoder.CountThatFit(receiver, _pending, templates));
             bool full      = fit < _pending.Count;
             if (!due && (!full || nowUtc < _holdFullUntilUtc)) return null;
@@ -236,6 +255,8 @@ internal sealed class PskReporterEngine
                 _sequence += (uint)datagram.Spots.Count;
                 _datagramsSent++;
                 if (datagram.IncludesTemplates) _lastTemplatesUtc = nowUtc;
+                _lastDatagramUtc     = nowUtc;
+                _lastDatagramRecords = datagram.Spots.Count;
 
                 _logger.LogInformation(
                     "psk-reporter: datagram sent at {UtcTime:O}: {Records} record(s); excluded since the last datagram: region={Region} hashed={Hashed} unparseable={Unparseable} own-call={Own} no-dial-frequency={NoDial} dedup={Dedup} queue-dropped={Dropped}; sequence after={Sequence}.",
@@ -257,7 +278,84 @@ internal sealed class PskReporterEngine
         }
     }
 
+    /// <summary>
+    /// The status for the Settings page (FR-095), from the same counters as the window log line: the window in progress plus the last
+    /// closed one. Refused when nothing was reported in those two windows and identity, no-dial or region excluded something; the
+    /// reason is the largest of the three (ties resolve in that order).
+    /// </summary>
+    public PskReporterStatus GetStatus()
+    {
+        lock (_gate)
+        {
+            if (!_active)
+                return new PskReporterStatus(PskReporterStates.Off, null, 0, null, new PskReporterWindowCounts(0, 0, 0, 0, 0, 0, 0, 0));
+
+            var sum = new Window
+            {
+                Seen     = _window.Seen     + _lastWindow.Seen,
+                Reported = _window.Reported + _lastWindow.Reported,
+                Region   = _window.Region   + _lastWindow.Region,
+                NoDial   = _window.NoDial   + _lastWindow.NoDial,
+                Identity = _window.Identity + _lastWindow.Identity,
+                Hashed   = _window.Hashed   + _lastWindow.Hashed,
+                OwnCall  = _window.OwnCall  + _lastWindow.OwnCall,
+                Dedup    = _window.Dedup    + _lastWindow.Dedup,
+            };
+
+            int max = Math.Max(sum.Identity, Math.Max(sum.NoDial, sum.Region));
+            if (sum.Reported == 0 && max > 0)
+            {
+                string reason = sum.Identity == max ? PskReporterReasons.Identity
+                              : sum.NoDial   == max ? PskReporterReasons.NoDial
+                              :                       PskReporterReasons.Region;
+                return new PskReporterStatus(PskReporterStates.Refused, _lastDatagramUtc, _lastDatagramRecords, reason, sum.ToCounts());
+            }
+            return new PskReporterStatus(
+                _lastDatagramUtc is null ? PskReporterStates.Waiting : PskReporterStates.Sending,
+                _lastDatagramUtc, _lastDatagramRecords, null, sum.ToCounts());
+        }
+    }
+
     // ── internals (call under the lock) ─────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The receiver locator for a datagram (FR-096): the normalised <c>pskReporter.locator</c> when it is valid AND its first 4 characters
+    /// equal <c>tx.grid</c>, else <c>tx.grid</c>. <paramref name="problem"/> is "invalid" or "mismatch" when a non-empty locator was not
+    /// used, else <c>null</c>.
+    /// </summary>
+    private static string ChooseLocator(PskIdentity id, out string? problem)
+    {
+        problem = null;
+        var configured = id.ConfiguredLocator;
+        if (string.IsNullOrEmpty(configured)) return id.Locator;
+        if (!PskLocator.IsValid(configured)) { problem = "invalid"; return id.Locator; }
+        if (!PskLocator.MatchesGrid(configured, id.Locator)) { problem = "mismatch"; return id.Locator; }
+        return PskLocator.Normalise(configured);
+    }
+
+    /// <summary>
+    /// End of a send window: logs the one accounting line (counts only, sent or not), keeps the window for the status reader, starts the
+    /// next at zero, and warns once if the configured locator is not being used.
+    /// </summary>
+    private void CloseWindowUnsafe()
+    {
+        var w = _window;
+        _logger.LogInformation(
+            "PSK Reporter: {Seen} decodes seen, {Reported} reported: region={Region}, no-dial={NoDial}, identity={Identity}, hashed={Hashed}, own-call={OwnCall}, dedup={Dedup}",
+            w.Seen, w.Reported, w.Region, w.NoDial, w.Identity, w.Hashed, w.OwnCall, w.Dedup);
+        _lastWindow = w;
+        _window     = new Window();
+
+        var id = _identity();
+        if (id.IsPlaceholder) return;   // nothing is uploaded under a placeholder, so there is no locator to choose
+        ChooseLocator(id, out var problem);
+        if (problem is not null)
+        {
+            _logger.LogWarning(
+                "PSK Reporter: pskReporter.locator is {Problem} ({Reason}); tx.grid is sent instead.",
+                problem, problem == "invalid" ? "not six Maidenhead characters" : "its first 4 characters differ from tx.grid");
+        }
+    }
 
     private bool IsDuplicate(string call, string band, DateTime nowUtc)
         => (_lastAnyBand.TryGetValue(call, out var any) && nowUtc - any < PerCallInterval)
@@ -284,6 +382,10 @@ internal sealed class PskReporterEngine
         _lastAnyBand.Clear();
         _lastCallBand.Clear();
         _exRegion = _exHashed = _exUnparseable = _exOwn = _exNoDial = _exDedup = _exDropped = _identityRefused = 0;
+        _window = new Window();
+        _lastWindow = new Window();
+        _lastDatagramUtc = null;
+        _lastDatagramRecords = 0;
         _failureWarnedThisWindow = false;
         _holdFullUntilUtc = DateTime.MinValue;
     }

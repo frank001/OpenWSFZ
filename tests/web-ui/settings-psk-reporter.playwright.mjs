@@ -1,5 +1,6 @@
 /**
- * FR-094 (psk-reporter-upload, issue #262): Playwright acceptance of the Settings page's PSK Reporter control.
+ * FR-094..FR-096 (psk-reporter-upload, issue #262): Playwright acceptance of the Settings page's PSK Reporter control: placement at
+ * the top of External Programs (1.23), the 6-character locator field, and the status line against a stubbed endpoint.
  *
  * Not part of `dotnet test` or CI (HK-007: Playwright is fetched on demand). It drives a real Chromium against a running
  * daemon, so it needs one, on an ISOLATED config and port (never the station's):
@@ -68,12 +69,33 @@ async function saveAndWait() {
 
 // Precondition so the script can be re-run: opted out, no antenna text, a known host and port.
 await page.request.post(`${BASE}/api/v1/config`,
-  { data: { pskReporter: { enabled: false, antennaInformation: '', host: 'pskreporter.invalid', port: 14739 } } });
+  { data: { pskReporter: { enabled: false, antennaInformation: '', locator: '', host: 'pskreporter.invalid', port: 14739 } } });
 
 // ── the control exists, carries the stated text, and shows the stored (opted-out) state ───────────
 await openTab();
 check('the opt-in checkbox exists and is unticked for the default (inert) configuration', (await page.isChecked('#psk-reporter-enabled')) === false);
 check('the antenna field exists and is empty', (await page.inputValue('#psk-reporter-antenna')) === '');
+// 1.23: the box is the FIRST box on the External Programs tab, above the GridTracker enable checkbox and its table.
+const order = await page.evaluate(() => {
+  const tab = document.getElementById('tab-external-programs');
+  const box = document.getElementById('psk-reporter-fieldset');
+  const ext = document.getElementById('ext-rep-enabled');
+  const tbl = document.getElementById('ext-rep-table');
+  const before = (a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  return {
+    firstFieldset: tab.querySelector('fieldset') === box,
+    aboveCheckbox: before(box, ext),
+    aboveTable:    before(box, tbl),
+    boxTop:        box.getBoundingClientRect().top,
+    extTop:        ext.getBoundingClientRect().top,
+  };
+});
+check('the PSK Reporter box is the first fieldset on External Programs', order.firstFieldset, JSON.stringify(order));
+check('it is above the GridTracker enable checkbox and its target table (document order and on screen)',
+  order.aboveCheckbox && order.aboveTable && order.boxTop < order.extTop, JSON.stringify(order));
+check('the locator field is labelled "Locator for PSK Reporter (6 characters, optional)"',
+  ((await page.textContent('label[for="psk-reporter-locator"]')) ?? '').trim() === 'Locator for PSK Reporter (6 characters, optional)');
+check('the locator field is empty for the default configuration', (await page.inputValue('#psk-reporter-locator')) === '');
 const fieldsetText = await page.textContent('#psk-reporter-fieldset');
 check('the fieldset carries the stated opt-in text', (fieldsetText ?? '').replace(/\s+/g, ' ').includes(OPT_IN_TEXT));
 check('host and port are NOT on the page', (await page.$('#psk-reporter-host')) === null && (await page.$('#psk-reporter-port')) === null
@@ -89,8 +111,8 @@ const status = await saveAndWait();
 check('save returns 200', status === 200, String(status));
 
 const body = posted.at(-1) ?? {};
-check('the posted pskReporter has exactly enabled and antennaInformation (no host, no port)',
-  same(Object.keys(body.pskReporter ?? {}), ['enabled', 'antennaInformation']), Object.keys(body.pskReporter ?? {}).join(','));
+check('the posted pskReporter has exactly enabled, antennaInformation and locator (no host, no port)',
+  same(Object.keys(body.pskReporter ?? {}), ['enabled', 'antennaInformation', 'locator']), Object.keys(body.pskReporter ?? {}).join(','));
 check('posted top-level keys equal the shared fixture', same(Object.keys(body), Object.keys(expected)), Object.keys(body).join(','));
 
 const stored = (await getConfig(page)).pskReporter;
@@ -99,10 +121,51 @@ check('the daemon stores the antenna text', stored.antennaInformation === 'Q1 te
 check('host is unchanged', stored.host === 'pskreporter.invalid', JSON.stringify(stored));
 check('port is unchanged', stored.port === 14739, JSON.stringify(stored));
 
+// ── the locator: an invalid value is refused in the page (message, nothing posted); a valid one is stored as typed ──
+for (const bad of ['JO33E', 'JO33ZZ', '1O33ab']) {
+  await page.fill('#psk-reporter-locator', bad);
+  posted.length = 0;
+  await page.click('#save-btn');
+  await page.waitForSelector('#psk-reporter-locator-error', { state: 'visible' });
+  check(`an invalid locator "${bad}" is refused in the page with a message`, ((await page.textContent('#psk-reporter-locator-error')) ?? '').length > 0);
+  check(`nothing is posted for "${bad}"`, posted.length === 0, JSON.stringify(posted));
+}
+await page.fill('#psk-reporter-locator', 'jo33ED');
+posted.length = 0;
+check('a valid locator saves with 200', (await saveAndWait()) === 200);
+check('the posted locator is the typed text', posted.at(-1)?.pskReporter?.locator === 'jo33ED', JSON.stringify(posted.at(-1)?.pskReporter));
+check('the daemon stores the locator as typed and still keeps host and port',
+  (await getConfig(page)).pskReporter.locator === 'jo33ED' && (await getConfig(page)).pskReporter.host === 'pskreporter.invalid');
+const rejected = await page.request.post(`${BASE}/api/v1/config`, { data: { pskReporter: { locator: 'JO33E' } } });
+check('the server answers 400 for an invalid locator', rejected.status() === 400, String(rejected.status()));
+check('and leaves the stored locator alone', (await getConfig(page)).pskReporter.locator === 'jo33ED');
+
+// ── the status line shows each of its four states against a stubbed endpoint ─────────────────────
+const zero = { seen: 0, reported: 0, region: 0, noDial: 0, identity: 0, hashed: 0, ownCall: 0, dedup: 0 };
+const states = [
+  [{ state: 'off',     lastDatagramUtc: null, lastDatagramRecords: 0, reason: null, window: zero }, 'off'],
+  [{ state: 'waiting', lastDatagramUtc: null, lastDatagramRecords: 0, reason: null, window: zero }, 'on, waiting for the first datagram'],
+  [{ state: 'sending', lastDatagramUtc: '2026-10-26T12:34:56Z', lastDatagramRecords: 40, reason: null, window: zero }, 'on, last datagram at 12:34:56Z with 40 records'],
+  [{ state: 'refused', lastDatagramUtc: null, lastDatagramRecords: 0, reason: 'identity', window: zero }, 'on but nothing is being reported: the receiver call or grid is a placeholder'],
+  [{ state: 'refused', lastDatagramUtc: null, lastDatagramRecords: 0, reason: 'no-dial', window: zero }, 'on but nothing is being reported: no dial frequency'],
+  [{ state: 'refused', lastDatagramUtc: null, lastDatagramRecords: 0, reason: 'region', window: zero }, 'on but nothing is being reported: unknown region'],
+];
+for (const [stub, text] of states) {
+  await page.route('**/api/v1/psk-reporter/status', (route) => route.fulfill({ json: stub }));
+  await openTab();
+  await page.waitForFunction((t) => document.getElementById('psk-reporter-status').textContent === `Status: ${t}`, text, { timeout: 5000 })
+    .catch(() => {});
+  const shown = (await page.textContent('#psk-reporter-status')) ?? '';
+  check(`the status line shows "${text}"`, shown === `Status: ${text}`, shown);
+  await page.unroute('**/api/v1/psk-reporter/status');
+}
+await page.screenshot({ path: join(SHOTS, 'psk-3-status.png'), fullPage: true });
+
 // ── reload shows the stored state; an unrelated save keeps it ────────────────────────────────────
 await openTab();
 check('after reload the box is ticked', await page.isChecked('#psk-reporter-enabled'));
 check('after reload the antenna text is shown', (await page.inputValue('#psk-reporter-antenna')) === 'Q1 test dipole');
+check('after reload the locator is shown', (await page.inputValue('#psk-reporter-locator')) === 'jo33ED');
 await page.screenshot({ path: join(SHOTS, 'psk-2-opted-in.png'), fullPage: true });
 
 await page.click('#tab-btn-advanced');

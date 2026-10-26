@@ -69,6 +69,7 @@ namespace OpenWSFZ.Web;
 [JsonSerializable(typeof(DecodeFilterState))]
 [JsonSerializable(typeof(WsDecodeFilterMessage))]
 [JsonSerializable(typeof(PskReporterConfig))]
+[JsonSerializable(typeof(PskReporterStatus))]
 [JsonSerializable(typeof(ExternalReportingConfig))]
 [JsonSerializable(typeof(ExternalReportingTarget))]
 [JsonSerializable(typeof(List<ExternalReportingTarget>))]

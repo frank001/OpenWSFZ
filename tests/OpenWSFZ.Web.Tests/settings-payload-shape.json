@@ -73,7 +73,8 @@
     ],
     "pskReporter": [
       "enabled",
-      "antennaInformation"
+      "antennaInformation",
+      "locator"
     ],
     "cycleAudioArchive": [
       "mode",

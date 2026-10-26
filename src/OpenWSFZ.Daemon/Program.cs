@@ -699,11 +699,13 @@ var app = WebApp.Create(
                     var tx = store.Current.Tx ?? new TxConfig();
                     return new OpenWSFZ.Daemon.PskReporter.PskIdentity(
                         tx.Callsign ?? "", tx.Grid ?? "", store.Current.PskReporter?.AntennaInformation ?? "",
-                        $"OpenWSFZ {OpenWSFZ.Web.AssemblyVersion.Get()}");
+                        $"OpenWSFZ {OpenWSFZ.Web.AssemblyVersion.Get()}",
+                        store.Current.PskReporter?.Locator ?? "");
                 },
                 sp.GetRequiredService<ILogger<OpenWSFZ.Daemon.PskReporter.PskReporterService>>());
         });
         services.AddHostedService(sp => sp.GetRequiredService<OpenWSFZ.Daemon.PskReporter.PskReporterService>());
+        services.AddSingleton<IPskReporterStatusSource>(sp => sp.GetRequiredService<OpenWSFZ.Daemon.PskReporter.PskReporterService>());
 
         // cycle-audio-archive: registered unconditionally (inert by default — mode Off writes
         // nothing and creates no directory). The decode pump below resolves the same singleton

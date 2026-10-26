@@ -13,7 +13,7 @@ internal static class PskTestSupport
     public static readonly RegionInfo Real = new("EU", "TestLand", false);
 
     /// <summary>A real-looking identity (a non-Q call). Fixed text, no real person: the call is a plain example.</summary>
-    public static PskIdentity Identity(string call = "W9XYZ", string grid = "JO33", string antenna = "") => new(call, grid, antenna, "OpenWSFZ 0.64");
+    public static PskIdentity Identity(string call = "W9XYZ", string grid = "JO33", string antenna = "", string locator = "") => new(call, grid, antenna, "OpenWSFZ 0.64", locator);
 
     public static DecodeResult Decode(string message, int freqHz = 1500, int snr = -10, RegionInfo? region = null, bool unknownRegion = false)
         => new("12:00:00", snr, 0.2, freqHz, message, unknownRegion ? null : region ?? Real);
