@@ -2,7 +2,7 @@
 
 ### Requirement: The PSK Reporter upload is opt-in and inert by default
 
-The configuration SHALL provide a `pskReporter` block with `enabled` (boolean, default `false`), `antennaInformation` (string, default `""`), `host` (string, default `report.pskreporter.info`) and `port` (integer, default `4739`). A configuration file without the block, or with `enabled` false, SHALL behave identically: the service SHALL create no socket, perform no DNS lookup and run no timer work. The Settings page SHALL NOT expose `host` or `port` (they are for the test listener and are set in the configuration file).
+The configuration SHALL provide a `pskReporter` block with `enabled` (boolean, default `false`), `antennaInformation` (string, default `""`), `locator` (string, default `""`, see "The receiver locator may be a 6-character locator"), `host` (string, default `report.pskreporter.info`) and `port` (integer, default `4739`). A configuration file without the block, or with `enabled` false, SHALL behave identically: the service SHALL create no socket, perform no DNS lookup and run no timer work. The Settings page SHALL NOT expose `host` or `port` (they are for a test listener, `report.pskreporter.info` port 14739, and are set in the configuration file; the Cloudflare-fronted name `pskreporter.info` cannot receive UDP).
 
 #### Scenario: Disabled does nothing
 
@@ -12,7 +12,7 @@ The configuration SHALL provide a `pskReporter` block with `enabled` (boolean, d
 #### Scenario: A configuration without the block
 
 - **WHEN** the stored configuration has no `pskReporter` key
-- **THEN** it SHALL load as `enabled` false, `antennaInformation` empty, `host` `report.pskreporter.info`, `port` 4739, and saving it SHALL write those values back
+- **THEN** it SHALL load as `enabled` false, `antennaInformation` empty, `locator` empty, `host` `report.pskreporter.info`, `port` 4739, and saving it SHALL write those values back
 
 ### Requirement: Nothing is uploaded under a placeholder identity
 
@@ -133,7 +133,7 @@ For each datagram sent the service SHALL log one Information line with the UTC t
 
 ### Requirement: The Settings page has the opt-in control
 
-The Settings page SHALL provide a checkbox bound to `pskReporter.enabled` and a free-text field bound to `pskReporter.antennaInformation`, with the text: "Sends the calls and locators of stations you receive, with your call and locator, to the public PSK Reporter service." Saving SHALL post only the two keys the page shows (`enabled` and `antennaInformation`), never `host` or `port`, and a configuration POST that does not mention the `pskReporter` block SHALL leave it unchanged; a POST that changes only `pskReporter.antennaInformation` SHALL leave `enabled`, `host` and `port` as saved.
+The Settings page SHALL provide, in a box titled "PSK Reporter" **at the top of the External Programs tab** (above the GridTracker controls; the Captain's choice, 2026-10-25), a checkbox bound to `pskReporter.enabled`, a free-text field bound to `pskReporter.antennaInformation`, a field "Locator for PSK Reporter (6 characters, optional)" bound to `pskReporter.locator`, and the status line of the next requirement, with the text: "Sends the calls and locators of stations you receive, with your call and locator, to the public PSK Reporter service." Saving SHALL post only the three keys the page edits (`enabled`, `antennaInformation`, `locator`), never `host` or `port`, and a configuration POST that does not mention the `pskReporter` block SHALL leave it unchanged; a POST that changes only `pskReporter.antennaInformation` (or only `locator`) SHALL leave the other keys as saved. The locator field SHALL be validated in the page and again by the server (an invalid value in a configuration POST SHALL be refused with HTTP 400 and leave the stored configuration unchanged).
 
 #### Scenario: Opt in through the page
 
@@ -142,8 +142,79 @@ The Settings page SHALL provide a checkbox bound to `pskReporter.enabled` and a 
 
 #### Scenario: Nested overlay
 
-- **WHEN** a configuration POST contains only `{"pskReporter":{"antennaInformation":"X"}}` while `enabled` is true
-- **THEN** `enabled`, `host` and `port` SHALL keep their stored values
+- **WHEN** a configuration POST contains only `{"pskReporter":{"antennaInformation":"X"}}` or only `{"pskReporter":{"locator":"JO33ED"}}` while `enabled` is true
+- **THEN** `enabled`, `host`, `port` and the other edited key SHALL keep their stored values
+
+#### Scenario: Where the control is
+
+- **WHEN** the External Programs tab is opened
+- **THEN** the "PSK Reporter" box SHALL be the first box on the tab, above the GridTracker enable checkbox and its target table
+
+#### Scenario: An invalid locator is refused
+
+- **WHEN** the page or a configuration POST carries a locator that is not empty and not 6 Maidenhead characters
+- **THEN** the page SHALL refuse to save and say why, and the server SHALL answer 400 without changing the stored configuration
+
+### Requirement: The receiver locator may be a 6-character locator
+
+`pskReporter.locator` SHALL be valid when empty or exactly 6 characters matching `[A-Ra-r]{2}[0-9]{2}[A-Xa-x]{2}`, and SHALL be stored as typed. The receiver locator in a datagram SHALL be the normalised `pskReporter.locator` (the first 4 characters upper case and the last 2 lower case, for example `JO33ed`) when it is valid **and** its first 4 characters equal `tx.grid` case-insensitively; otherwise it SHALL be `tx.grid`, with **one** Warning per send window that names the reason (invalid, or does not match `tx.grid`) and contains no callsign. The identity guard SHALL be unchanged (`tx.grid` must still be non-empty), and nothing in the transmit path SHALL change: FT8 messages still carry `tx.grid`.
+
+#### Scenario: A valid matching locator is sent normalised
+
+- **WHEN** `tx.grid` is `JO33` and `pskReporter.locator` is `jo33ED`
+- **THEN** the receiver record SHALL carry `JO33ed`, byte for byte as the fixture `t1_receiver_locator6.hex`
+
+#### Scenario: An empty locator changes nothing
+
+- **WHEN** `pskReporter.locator` is empty
+- **THEN** the receiver record SHALL carry `tx.grid` exactly as before this requirement
+
+#### Scenario: A locator that does not match is not sent
+
+- **WHEN** `tx.grid` is `JO33` and `pskReporter.locator` is `JO22AB`, or is `JO33E`
+- **THEN** the receiver record SHALL carry `JO33`, and exactly one Warning per send window SHALL name the reason without a callsign
+
+### Requirement: Each send window is accounted for even when nothing is sent
+
+At the end of every send window while the upload is active, the service SHALL log one Information line of the form `PSK Reporter: N decodes seen, M reported: region=a, no-dial=b, identity=c, hashed=d, own-call=e, dedup=f`, with counts only and no callsign, **whether or not a datagram was sent**, where N counts the decodes the service received in the window, M the records it queued from them, and the other figures the exclusions by reason. A window with no decodes SHALL log `0 decodes seen`. The counters of a window SHALL start at zero for the next. The per-datagram line of "Each datagram is accounted for with counts, never calls" SHALL remain.
+
+#### Scenario: A window in which everything is excluded
+
+- **WHEN** a window receives 30 decodes of which 30 have an unknown region
+- **THEN** the window line SHALL state 30 decodes seen, 0 reported and `region=30`, and no datagram SHALL be sent
+
+#### Scenario: A window with no decodes
+
+- **WHEN** no batch arrives in a window
+- **THEN** the window line SHALL state `0 decodes seen`
+
+### Requirement: The Settings page shows what the upload is doing
+
+Next to the checkbox the Settings page SHALL show one status line taken from the same counters as the window line: "off"; or "on, last datagram at HH:MM:SSZ with N records"; or "on, waiting for the first datagram"; or "on but nothing is being reported: <dominant reason>", where the reason is the largest of identity (the receiver call or locator is a placeholder), no dial frequency, unknown region. The daemon SHALL expose it through a read-only endpoint under `/api/v1/` that carries counts and a reason code, never a callsign.
+
+#### Scenario: Off
+
+- **WHEN** `pskReporter.enabled` is false
+- **THEN** the status line SHALL read "off"
+
+#### Scenario: Refused under a placeholder identity
+
+- **WHEN** the upload is on, `tx.callsign` is `Q1OFZ` and decodes arrive
+- **THEN** the status line SHALL name the placeholder identity as the reason
+
+#### Scenario: Sending
+
+- **WHEN** a datagram of 40 records has just been sent
+- **THEN** the status line SHALL show its time and "40 records"
+
+### Requirement: The product never queries the PSK Reporter retrieve interface
+
+The daemon SHALL NOT query `retrieve.pskreporter.info` or any other read interface of the service; it only sends datagrams. Any verification by QA or the operator SHALL make at most one retrieve query per 5 minutes and SHALL wait at least 5 minutes after an upload window before querying (the interface rate-limits, HTTP 429, and the protocol page asks for no more than one query per five minutes).
+
+#### Scenario: No outgoing query
+
+- **WHEN** the upload runs for a full session
+- **THEN** the only network traffic the service originates SHALL be UDP datagrams to the configured host and port and the name resolution for that host
 
 ### Requirement: Privacy of the upload
 
