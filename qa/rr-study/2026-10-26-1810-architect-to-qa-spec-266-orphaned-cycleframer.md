@@ -195,3 +195,16 @@ is not touched. About 15 minutes per build.
 2. After the Captain's D1/D2: the OpenSpec change (R8), `tasks.md`, the Developer handoff, the Developer nudge.
 3. HK-039 review with Q1–Q2; `pre_merge_check.py` (Q3).
 4. L1 on the Captain's go; then his push go and merge sign-off.
+
+## §10 The Captain's decisions D1–D2 (recorded 2026-10-26 18:13:25Z by `date -u`, his answer in the Architect's window)
+
+The Captain: *"go with your recommendations."*
+
+- **D1 = a. Save only.** A device change while decoding is off stores the device and starts nothing (no capture, no
+  framer). R2 and R7 stand as written; T1 and T6 test it; L1-b's "no pipeline start before the first Start" applies.
+  QA still records, in the (k) review, whether the UI shows a level meter or waterfall while decoding is off (§7),
+  so the behaviour change is stated in the release note if it does.
+- **D2 = a. One owner.** §2 as written: `PipelineController` with level-triggered `ReconcileAsync`, T1–T9, mutations
+  m1–m5, the Q2 single-owner grep.
+- The handoff no longer waits on the Captain. Next: QA's (k) review, then the OpenSpec change and the Developer
+  handoff (§9 items 1–2). L1 still needs his go when the build is ready.
