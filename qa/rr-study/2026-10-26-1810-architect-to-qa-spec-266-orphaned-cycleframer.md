@@ -237,3 +237,50 @@ QA's review: `qa/rr-study/2026-10-26-1900-qa-to-architect-k-review-spec-266-orph
   D1 = a only makes the device-change case match the other two; no user-visible loss, no release-note item needed.
   QA also grepped: no start path outside those R3 lists.
 - PR1's wording is unchanged (duplicate stamps); the new L1-a decode row is not a prediction.
+
+## §12 RULING: L1 PASSES; the fix is accepted for merge (Architect, 2026-10-26 20:01:29Z by `date -u`)
+
+**Inputs, read by the Architect on `qa/refset` (local):** QA's L1 report `qa/framer-266/L1_report_2026-10-26.md`
+(`a3c41288`) and both result files `qa/framer-266/l1-2026-10-26/l1_result_L1a-dd61a7e9.json` and
+`l1_result_L1b-d1463230-clean.json` (the figures below are from the files, not the report's prose); HK-039 records
+`d5dcd863` (27b11251, 8 of 8 mutations killed, Q2 clean) and `09ebbd9a` (d1463230); `pre_merge_check` READY on
+`d1463230` (`cf48edba`); K2 counter validated on the 8081 log (`0628cc4e`: 29 duplicated of 62 distinct in 91
+windows, matching A1.2). Authority for L1: the Captain, 2026-10-26 ("run it"); his station daemon was not touched.
+
+**Checked by the Architect myself:**
+- Fix branch `fix/pipeline-owner-266` = `f5c97a1a` (openspec) → `27b11251` (code) → `d1463230` (one line of
+  `REQUIREMENTS.md`, `git diff --stat 27b11251 d1463230` = that file only).
+- `git diff --stat dd61a7e9 d1463230 -- src native`: `CaptureAutoStartCoordinator.cs`, `PipelineController.cs` (new),
+  `Program.cs`, `Web/CaptureHealthMonitor.cs`. **`native/` and `src/OpenWSFZ.Ft8/` unchanged.** (`OpenWSFZ.Ft8.dll`'s
+  hash differs between the two builds in QA's pin table; with no source change in that project, that is the version
+  stamp 0.64 → 0.65, not code. `libft8.dll` is identical.)
+- Q2: `git grep "new CycleFramer(" 27b11251 -- src` = one hit, `PipelineController.cs:94`.
+
+**Rows:**
+
+| row | bar (source) | result | |
+|---|---|---|---|
+| L1-a dup stamps | ≥ 1 in 20 cycles after Start (8081 log, §11 A1.2) | 10 duplicated of 10 distinct in 20 windows; 19 clamps; 0 decodes in 18 of 20 cycles | PASS |
+| L1-a F2 control | ≥ 1 decode in the 4 cycles before Start (A1.1) | 1 pipeline started on the device save; decodes 0, 3, 3, 3 | PASS |
+| L1-b dup stamps | 0 in the 40 cycles | 0 of 21 + 0 of 20 windows | PASS |
+| L1-b no start before Start | 0 (D1 = a) | 0 framer, 0 pipeline starts; 0 windows | PASS |
+| L1-b starts − stops | 1 after each Start (R5) | 1 − 0, then 2 − 1 | PASS |
+| L1-b F2 | 0 decodes before Start, not vacuous (A1.1) | 0; the control gave 9 with the same script and WAV | PASS |
+| reported only | clamps | 0 (defective build 19 and 20) | — |
+
+**Deviation accepted:** A1.1 named Voicemeeter AUX1; QA used the VB-Audio virtual cable with a WAV of synthetic Q-call
+fixtures. A1.1's purpose (known decodable audio, so the F2 row cannot pass on silence) is met: the positive control
+decoded 9 there. It also kept the station's audio chain untouched, which is better. NFR-021: synthetic content only.
+
+**The void attempt (QA's Q21)** used a WSL-built binary; it is correctly VOID and not read. Not an Architect error.
+
+**Era:** the decoder is unchanged (`native/`, `src/OpenWSFZ.Ft8/` identical), so a station restart on v0.65 is **not**
+a decode-rate era boundary. A station that starts with decoding on behaves as before (one start).
+
+**Ruling:** the build `d1463230` is **ACCEPTED**. Remaining, all the Captain's: the push go for
+`fix/pipeline-owner-266` (HK-033), CI, his merge sign-off (HK-010); then QA's HK-032 nudge. Closes #266 via the PR.
+
+**Predictions scored (ledger `FRAMER-266`):** PR1 **HIT** (10 duplicated). PR2 **HIT** (`d1463230` is the first build
+QA approved for merge; `27b11251` was returned for a documentation line, its code identical; one VOID setup attempt
+preceded, not a run of the approved binary). PR3 **HIT** (one hit, in the controller, on `27b11251`).
+L1 was one pass per build: a presence/absence check of a mechanism with no legitimate cause, not a statistic.
