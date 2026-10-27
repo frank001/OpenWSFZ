@@ -33,6 +33,7 @@
     <DefineConstants Condition="'$(HasCohFb4)' == 'true'">$(DefineConstants);HAS_COHFB4</DefineConstants>
     <!-- COH-MULTISET-BUILD (shim 20260071): only the build with Ft8Decoder.SetCoherentFallbackMultiSet; the cohms argument (0 or 1) is then REQUIRED and read back. Needs HasCohFb4 too. -->
     <DefineConstants Condition="'$(HasCohMs)' == 'true'">$(DefineConstants);HAS_COHMS</DefineConstants>
+      <DefineConstants Condition="'$(HasCohAudio)' == 'true'">$(DefineConstants);HAS_COHAUDIO</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

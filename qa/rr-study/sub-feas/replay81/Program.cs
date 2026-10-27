@@ -261,6 +261,10 @@ internal static class Program
             _cohms = Req(a, "cohms") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohms must be 0 or 1") };
             decoder.SetCoherentFallbackMultiSet(_cohms);
 #endif
+#if HAS_COHAUDIO
+            // COH-FB-AUDIO (scratch patch for the Developer's R0; QA to adopt): --cohaudio Original|Residual|Both is REQUIRED.
+            decoder.SetCoherentFallbackAudio(Enum.Parse<OpenWSFZ.Abstractions.CoherentFallbackAudio>(Req(a, "cohaudio"), ignoreCase: true));
+#endif
             if (a.TryGetValue("cohfb-out", out var cohPath))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cohPath))!);
@@ -734,7 +738,7 @@ internal static class Program
         private static volatile bool _seen;
         private static string _vals = "";
         private static readonly System.Text.RegularExpressions.Regex Rx = new(
-            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)(?:, workers=(\d+), fbStartMs=(-?\d+), fbWallMs=(-?\d+), batch=(\d+), batch4Published=([01]), batch4PublishMs=(-?\d+)(?:, sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+)(?:, audio=[a-z0-9-]+)?)?)?\.$");
+            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)(?:, workers=(\d+), fbStartMs=(-?\d+), fbWallMs=(-?\d+), batch=(\d+), batch4Published=([01]), batch4PublishMs=(-?\d+)(?:, sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+)(?:, audio=[a-z0-9()-]+(?:, fromOriginal=\d+, fromResidual=\d+, inBoth=\d+)?)?)?)?\.$");
         public static void Reset() { _seen = false; _vals = ""; }
         public static void Set(string rendered)
         {
@@ -927,6 +931,9 @@ internal static class Program
 #endif
 #if HAS_COHMS
                 + $" cohms={d.CoherentFallbackMultiSet}"
+#endif
+#if HAS_COHAUDIO
+                + $" cohaudio={d.CoherentFallbackAudio}"
 #endif
                 );
     }
