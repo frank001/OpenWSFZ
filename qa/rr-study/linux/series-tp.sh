@@ -40,7 +40,7 @@ while [ $i -le "$N" ]; do
   cp "$HOME/rr-run/$NAME.log" "$FINAL/launcher.log" 2>/dev/null
   # V-F (DI7COH2; Architect K2): was the coherent fallback running in this sweep? Read from the sweep's own daemon log; a VOID is logged here and decided at the close.
   if [ -f "$HOME/rr-work-b2/qa/rr-study/linux/flag_readback.py" ] && [ "${TP_REQUIRE_FLAG:-}" = "true" ]; then
-    VF=$("$PY" "$HOME/rr-work-b2/qa/rr-study/linux/flag_readback.py" --daemon-log "$HOME/rr-run/$NAME/daemon.stdout.log" --config "${TP_CONFIG:?}" --out "$FINAL/flag_readback.json" 2>&1 | tail -1)
+    VF=$("$PY" "$HOME/rr-work-b2/qa/rr-study/linux/flag_readback.py" --daemon-log "$HOME/rr-run/$NAME/daemon.stdout.log" --config "${TP_CONFIG:?}" ${TP_REQUIRE_AUDIO:+--require-audio "$TP_REQUIRE_AUDIO"} --out "$FINAL/flag_readback.json" 2>&1 | tail -1)
     slog "sweep $i V-F: $VF"
   fi
   SUMLINE=$("$PY" - "$FINAL" <<'PYEOF'
