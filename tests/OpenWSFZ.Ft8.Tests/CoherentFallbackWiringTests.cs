@@ -132,7 +132,14 @@ public sealed class CoherentFallbackWiringTests
 
         public (int ReturnCode, float[] Shat) SubfeasFitSignal(
             float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
-            => (0, new float[180_000]);
+        {
+            var shat = new float[180_000];
+            if (ShatValue != 0f) Array.Fill(shat, ShatValue);
+            return (0, shat);
+        }
+
+        /// <summary>coh-fb-residual: the constant every fitted signal's subtraction buffer holds (0 = the residual equals the input).</summary>
+        public float ShatValue { get; init; }
 
         public int[] GetLastPassCounts(int maxPasses) => new int[maxPasses];
         public int[] GetLastCandidateCounts(int maxPasses) => new int[maxPasses];
@@ -202,6 +209,83 @@ public sealed class CoherentFallbackWiringTests
 
     private static CohFallbackRunResult OneNew(int id = 1) => new(Stats(1, 1, 1, 1, 1, 0), [Row(id)]) { Workers = 4 };
 
+    // ── coh-fb-residual (REPLAY ONLY): which audio the fallback reads ───────────────────────────────────────────
+
+    private static Ft8Decoder BuildWithAudioSwitch(IFt8NativeInterop interop, DecodingDepth depth, string? cohAudio, ILogger<Ft8Decoder>? log = null)
+    {
+        var d = new Ft8Decoder(new FakeClock(CycleStart), log, interop: interop, cohFallbackAudioOverride: cohAudio);
+        d.SetSubtractionEnabled(true);
+        d.SetDecodingDepth(depth);
+        d.SetCoherentFallbackEnabled(true);
+        return d;
+    }
+
+    private static float[] Normalised() => Ft8Decoder.NormalisePcm(LoudPcm(), 0.20f /* Ft8Decoder.PcmNormalisationTargetRms */);
+
+    private static string AudioField(LineLog log)
+        => Regex.Match(log.Lines.Single(l => l.StartsWith("Coherent fallback:")), @"audio=([a-z\-]+)\.$").Groups[1].Value;
+
+    [Fact(DisplayName = "coh-fb-residual: switch unset - the fallback reads the original audio and the line says audio=original")]
+    public async Task CohFbResidual_Unset_ReadsOriginal()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudioSwitch(interop, DecodingDepth.Deep, null, log));
+
+        AudioField(log).Should().Be("original");
+        interop.RunPcm.Should().Equal(Normalised(), "unset: the fallback reads exactly the cycle's normalised audio");
+        log.Lines.Should().NotContain(l => l.Contains("REPLAY ONLY - OPENWSFZ_COHFB_AUDIO"), "inactive: silent");
+    }
+
+    [Fact(DisplayName = "coh-fb-residual: switch = residual, third pass ran - the fallback reads the THIRD pass's buffer (audio=residual) and warns once at construction")]
+    public async Task CohFbResidual_ThirdPassRan_ReadsThirdPassBuffer()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudioSwitch(interop, DecodingDepth.Deep, "residual", log));
+
+        AudioField(log).Should().Be("residual");
+        // pass 0 had 2 signals, the residual pass 1 new one: residual buffer = x - 2*0.01 ... third pass subtracts the 1 new one: x - 0.03.
+        // (the residual pass fits pass 0's 2 signals: x - 0.02; the third pass fits the residual pass's 1 new signal: x - 0.03)
+        var orig = Normalised();
+        interop.RunPcm![100].Should().BeApproximately(orig[100] - 0.03f, 1e-5f);
+        interop.RunPcm.Should().NotBeSameAs(orig);
+        log.Lines.Count(l => l.Contains("REPLAY ONLY - OPENWSFZ_COHFB_AUDIO")).Should().Be(1);
+    }
+
+    [Fact(DisplayName = "coh-fb-residual: switch = residual, third pass skipped (residual pass found nothing new) - the fallback reads the RESIDUAL pass's buffer")]
+    public async Task CohFbResidual_ThirdPassSkipped_ReadsResidualPassBuffer()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, []], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudioSwitch(interop, DecodingDepth.Deep, "residual", log));
+
+        AudioField(log).Should().Be("residual");
+        interop.RunPcm![100].Should().BeApproximately(Normalised()[100] - 0.02f, 1e-5f, "pass 0's two signals subtracted, nothing more");
+    }
+
+    [Fact(DisplayName = "coh-fb-residual: switch = residual on Normal depth - residual-unavailable, original audio, Normal path unchanged")]
+    public async Task CohFbResidual_Normal_Unavailable()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudioSwitch(interop, DecodingDepth.Normal, "residual", log));
+
+        AudioField(log).Should().Be("residual-unavailable");
+        interop.RunPcm.Should().Equal(Normalised());
+    }
+
+    [Fact(DisplayName = "coh-fb-residual: switch = residual and pass 0 decoded nothing (no residual pass) - residual-unavailable")]
+    public async Task CohFbResidual_NothingDecoded_Unavailable()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([[]], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudioSwitch(interop, DecodingDepth.Deep, "residual", log));
+
+        AudioField(log).Should().Be("residual-unavailable");
+        interop.RunPcm.Should().Equal(Normalised());
+    }
+
     // ── COH-MULTISET: the flag reaches the run once per cycle, and the line reports it ─────────────────────────────
 
     private static CohFallbackRow WonBy(int id, int provenance) => Row(id) with { Provenance = provenance };
@@ -236,7 +320,7 @@ public sealed class CoherentFallbackWiringTests
 
         interop.MultiSetArgs.Should().Equal(false, true);
         var lines = log.Lines.Where(l => l.StartsWith("Coherent fallback:")).ToList();
-        lines[0].Should().Contain("sets=off, walkEntered=0, crcC1=0, crcJ2=0, crcJ3=0, crcN1=0.");
+        lines[0].Should().Contain("sets=off, walkEntered=0, crcC1=0, crcJ2=0, crcJ3=0, crcN1=0, audio=original.");
         lines[1].Should().Contain("sets=on, ");
     }
 
@@ -256,7 +340,7 @@ public sealed class CoherentFallbackWiringTests
         await RunStaged(d);
 
         var line = log.Lines.Single(l => l.StartsWith("Coherent fallback:"));
-        line.Should().Contain("sets=on, walkEntered=4, crcC1=0, crcJ2=1, crcJ3=2, crcN1=0.");
+        line.Should().Contain("sets=on, walkEntered=4, crcC1=0, crcJ2=1, crcJ3=2, crcN1=0, audio=original.");
         line.Should().NotContain("Q1AAA");
     }
 
@@ -517,7 +601,7 @@ public sealed class CoherentFallbackWiringTests
     private static readonly Regex LineShape = new(
         @"^Coherent fallback: eligible=7, attempted=6, crcOk=3, f1bComputed=2, gated=1, published=1, abandoned=1, elapsedMs=457, publishedEdge=1, path=2, " +
         @"workers=4, fbStartMs=(\d+), fbWallMs=(\d+), batch=(\d), batch4Published=([01]), batch4PublishMs=(-?\d+), " +
-        @"sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+)\.$", RegexOptions.CultureInvariant);
+        @"sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+), audio=(original|residual|residual-unavailable)\.$", RegexOptions.CultureInvariant);
 
     [Fact(DisplayName = "R12': ONE aggregates-only line per cycle, with the documented fields (workers, fbStartMs, fbWallMs, batch, batch4Published, batch4PublishMs) and no message text")]
     public async Task Log_OneLinePerCycle_WithTheFields()
