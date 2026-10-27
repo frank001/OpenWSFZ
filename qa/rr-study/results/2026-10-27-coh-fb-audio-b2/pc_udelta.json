@@ -1,0 +1,74 @@
+{
+ "cycles": 400,
+ "U_prime_per_cycle": {
+  "ref": 0.1275,
+  "res": 0.2075
+ },
+ "dU_prime": {
+  "point": 0.08,
+  "lo": 0.0425,
+  "hi": 0.1175
+ },
+ "byband_totals": {
+  "ref": {
+   "A": {
+    "not_confirmed": 17,
+    "tested_absent": 0,
+    "hashed_or_unencodable": 13,
+    "untestable_class": 0,
+    "tested_present": 4
+   },
+   "B": {
+    "not_confirmed": 26,
+    "tested_absent": 3,
+    "hashed_or_unencodable": 10,
+    "untestable_class": 0,
+    "tested_present": 13
+   },
+   "C": {
+    "not_confirmed": 25,
+    "tested_absent": 5,
+    "hashed_or_unencodable": 5,
+    "untestable_class": 0,
+    "tested_present": 15
+   },
+   "D": {
+    "not_confirmed": 65,
+    "tested_absent": 7,
+    "hashed_or_unencodable": 8,
+    "untestable_class": 0,
+    "tested_present": 50
+   }
+  },
+  "res": {
+   "A": {
+    "not_confirmed": 15,
+    "tested_absent": 0,
+    "hashed_or_unencodable": 11,
+    "untestable_class": 0,
+    "tested_present": 4
+   },
+   "B": {
+    "not_confirmed": 24,
+    "tested_absent": 3,
+    "hashed_or_unencodable": 9,
+    "untestable_class": 0,
+    "tested_present": 12
+   },
+   "C": {
+    "not_confirmed": 40,
+    "tested_absent": 9,
+    "hashed_or_unencodable": 10,
+    "untestable_class": 0,
+    "tested_present": 21
+   },
+   "D": {
+    "not_confirmed": 110,
+    "tested_absent": 25,
+    "hashed_or_unencodable": 16,
+    "untestable_class": 0,
+    "tested_present": 69
+   }
+  }
+ }
+}

@@ -1,0 +1,164 @@
+{
+ "label": "pc",
+ "cycles": 400,
+ "REF_only": {
+  "n": 132,
+  "confirmed": 119,
+  "not_confirmed": 13,
+  "by_band": {
+   "A": {
+    "n": 0,
+    "confirmed": 0,
+    "not_confirmed": 0
+   },
+   "B": {
+    "n": 7,
+    "confirmed": 6,
+    "not_confirmed": 1
+   },
+   "C": {
+    "n": 45,
+    "confirmed": 45,
+    "not_confirmed": 0
+   },
+   "D": {
+    "n": 80,
+    "confirmed": 68,
+    "not_confirmed": 12
+   }
+  }
+ },
+ "RES_only": {
+  "n": 625,
+  "confirmed": 553,
+  "not_confirmed": 72,
+  "by_band": {
+   "A": {
+    "n": 0,
+    "confirmed": 0,
+    "not_confirmed": 0
+   },
+   "B": {
+    "n": 6,
+    "confirmed": 6,
+    "not_confirmed": 0
+   },
+   "C": {
+    "n": 154,
+    "confirmed": 140,
+    "not_confirmed": 14
+   },
+   "D": {
+    "n": 465,
+    "confirmed": 407,
+    "not_confirmed": 58
+   }
+  }
+ },
+ "both_REF_view": {
+  "n": 593,
+  "confirmed": 555,
+  "not_confirmed": 38,
+  "by_band": {
+   "A": {
+    "n": 0,
+    "confirmed": 0,
+    "not_confirmed": 0
+   },
+   "B": {
+    "n": 8,
+    "confirmed": 7,
+    "not_confirmed": 1
+   },
+   "C": {
+    "n": 80,
+    "confirmed": 79,
+    "not_confirmed": 1
+   },
+   "D": {
+    "n": 505,
+    "confirmed": 469,
+    "not_confirmed": 36
+   }
+  }
+ },
+ "both_RES_view": {
+  "n": 593,
+  "confirmed": 555,
+  "not_confirmed": 38,
+  "by_band": {
+   "A": {
+    "n": 0,
+    "confirmed": 0,
+    "not_confirmed": 0
+   },
+   "B": {
+    "n": 10,
+    "confirmed": 9,
+    "not_confirmed": 1
+   },
+   "C": {
+    "n": 140,
+    "confirmed": 138,
+    "not_confirmed": 2
+   },
+   "D": {
+    "n": 443,
+    "confirmed": 408,
+    "not_confirmed": 35
+   }
+  }
+ },
+ "REF_only_texts_present_in_RES_in_some_batch": 0,
+ "RES_only_texts_present_in_REF_in_some_batch": 0,
+ "reconciliation_ii": {
+  "sum_dM": 437,
+  "RES_only_conf_minus_REF_only_conf": 434
+ },
+ "UNION_batch4_distinct": {
+  "n": 1350,
+  "confirmed": 1227,
+  "not_confirmed": 123,
+  "by_band": {
+   "A": {
+    "n": 0,
+    "confirmed": 0,
+    "not_confirmed": 0
+   },
+   "B": {
+    "n": 23,
+    "confirmed": 21,
+    "not_confirmed": 2
+   },
+   "C": {
+    "n": 339,
+    "confirmed": 323,
+    "not_confirmed": 16
+   },
+   "D": {
+    "n": 988,
+    "confirmed": 883,
+    "not_confirmed": 105
+   }
+  }
+ },
+ "NET_vs_REF_pp": {
+  "RES": {
+   "point": 3.60442098317387,
+   "lo": 3.067984046042548,
+   "hi": 4.133589195324867,
+   "sum_dM": 437
+  },
+  "UNION": {
+   "point": 4.5612009237875295,
+   "lo": 4.244209797264362,
+   "hi": 4.8808878864190905,
+   "sum_dM": 553
+  }
+ },
+ "corroborated_pct_of_W": {
+  "REF": 77.32596502804356,
+  "RES": 80.93038601121742,
+  "UNION": 81.88716595183108
+ }
+}
