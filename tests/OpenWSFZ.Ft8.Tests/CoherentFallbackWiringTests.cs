@@ -223,7 +223,7 @@ public sealed class CoherentFallbackWiringTests
     private static float[] Normalised() => Ft8Decoder.NormalisePcm(LoudPcm(), 0.20f /* Ft8Decoder.PcmNormalisationTargetRms */);
 
     private static string AudioField(LineLog log)
-        => Regex.Match(log.Lines.Single(l => l.StartsWith("Coherent fallback:")), @"audio=([a-z\-]+)\.$").Groups[1].Value;
+        => Regex.Match(log.Lines.Single(l => l.StartsWith("Coherent fallback:")), @"audio=([a-z0-9\-]+)\.$").Groups[1].Value;
 
     [Fact(DisplayName = "coh-fb-residual: switch unset - the fallback reads the original audio and the line says audio=original")]
     public async Task CohFbResidual_Unset_ReadsOriginal()
@@ -244,7 +244,7 @@ public sealed class CoherentFallbackWiringTests
         var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
         await RunStaged(BuildWithAudioSwitch(interop, DecodingDepth.Deep, "residual", log));
 
-        AudioField(log).Should().Be("residual");
+        AudioField(log).Should().Be("residual3");
         // pass 0 had 2 signals, the residual pass 1 new one: residual buffer = x - 2*0.01 ... third pass subtracts the 1 new one: x - 0.03.
         // (the residual pass fits pass 0's 2 signals: x - 0.02; the third pass fits the residual pass's 1 new signal: x - 0.03)
         var orig = Normalised();
@@ -260,7 +260,7 @@ public sealed class CoherentFallbackWiringTests
         var interop = new FallbackInterop([Pass0, []], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
         await RunStaged(BuildWithAudioSwitch(interop, DecodingDepth.Deep, "residual", log));
 
-        AudioField(log).Should().Be("residual");
+        AudioField(log).Should().Be("residual2");
         interop.RunPcm![100].Should().BeApproximately(Normalised()[100] - 0.02f, 1e-5f, "pass 0's two signals subtracted, nothing more");
     }
 
@@ -601,7 +601,7 @@ public sealed class CoherentFallbackWiringTests
     private static readonly Regex LineShape = new(
         @"^Coherent fallback: eligible=7, attempted=6, crcOk=3, f1bComputed=2, gated=1, published=1, abandoned=1, elapsedMs=457, publishedEdge=1, path=2, " +
         @"workers=4, fbStartMs=(\d+), fbWallMs=(\d+), batch=(\d), batch4Published=([01]), batch4PublishMs=(-?\d+), " +
-        @"sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+), audio=(original|residual|residual-unavailable)\.$", RegexOptions.CultureInvariant);
+        @"sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+), audio=(original|residual3|residual2|residual-unavailable)\.$", RegexOptions.CultureInvariant);
 
     [Fact(DisplayName = "R12': ONE aggregates-only line per cycle, with the documented fields (workers, fbStartMs, fbWallMs, batch, batch4Published, batch4PublishMs) and no message text")]
     public async Task Log_OneLinePerCycle_WithTheFields()

@@ -47,7 +47,7 @@ public sealed class CohFallbackAudioTests
     {
         var (buf, label) = CohFallbackAudio.Select(true, Original, true, Report(), Third(SubtractionPass.ThirdPassOutcome.Ran, ThirdBuf));
         buf.Should().BeSameAs(ThirdBuf);
-        label.Should().Be("residual");
+        label.Should().Be("residual3");
     }
 
     [Theory(DisplayName = "coh-fb-residual: active, third pass absent / skipped / abandoned / failed - the residual pass's buffer")]
@@ -61,7 +61,7 @@ public sealed class CohFallbackAudioTests
         var third = thirdOutcome is null ? null : Third(thirdOutcome, ThirdBuf);
         var (buf, label) = CohFallbackAudio.Select(true, Original, true, Report(), third);
         buf.Should().BeSameAs(ResidualBuf);
-        label.Should().Be("residual");
+        label.Should().Be("residual2");
     }
 
     [Fact(DisplayName = "coh-fb-residual: active, third pass ran but exposes no buffer - falls back to the residual pass's buffer, never null")]

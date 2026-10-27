@@ -27,8 +27,11 @@ internal static class CohFallbackAudio
     /// <summary>Log label: the fallback read the original (normalised) audio, switch off.</summary>
     internal const string LabelOriginal = "original";
 
-    /// <summary>Log label: the fallback read a residual buffer.</summary>
-    internal const string LabelResidual = "residual";
+    /// <summary>Log label: the fallback read the third pass's own subtracted buffer (third-pass outcome <c>ran</c>).</summary>
+    internal const string LabelResidual3 = "residual3";
+
+    /// <summary>Log label: the fallback read the residual pass's buffer (no third-pass buffer was usable).</summary>
+    internal const string LabelResidual2 = "residual2";
 
     /// <summary>Log label: the switch was set but there was no usable residual buffer, so the original audio was read.</summary>
     internal const string LabelResidualUnavailable = "residual-unavailable";
@@ -69,8 +72,8 @@ internal static class CohFallbackAudio
             return (original, LabelResidualUnavailable);
 
         if (third is { Outcome: SubtractionPass.ThirdPassOutcome.Ran, Residual: { } thirdBuffer })
-            return (thirdBuffer, LabelResidual);
+            return (thirdBuffer, LabelResidual3);
 
-        return (report.Residual, LabelResidual);
+        return (report.Residual, LabelResidual2);
     }
 }
