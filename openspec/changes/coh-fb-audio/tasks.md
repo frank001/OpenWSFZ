@@ -4,7 +4,7 @@
 ## 1. Pre-implementation (record in `design.md` before writing code)
 
 - [ ] 1.1 Re-check every FILE:LINE in `design.md` D3 on the branch tip (`Ft8Decoder.cs:1049-1061`, `CohFallbackParallelRunner.cs:65`); record drift.
-- [ ] 1.2 Take the next free `FR-` number on `origin/main` at the time (FR-098 is the last at writing, so FR-099); record it.
+- [x] 1.2 No new FR number: FR-099 (the key and its default) and FR-100 (`Both`) already exist from `9ef703d0`; the default is an amendment to FR-099 (done in `c9255ae2`).
 
 ## 2. Default and tests (Developer, `src/`)
 
@@ -18,7 +18,7 @@
 
 - [ ] 3.1 `VERSION`: one minor bump from the base for the arm (0.66), in every place the gates check (`REQUIREMENTS.md` anchor included, #266 R-1); run `check_version_bump.py` and G9a/b before reporting. G9b reads the proposal from git: commit this change first.
 - [ ] 3.2 Any shipped or example config that writes the key writes `Both` (`config.example.json` today: check; add the key only if the file lists decoder keys).
-- [ ] 3.3 `REQUIREMENTS.md`: the FR row from 1.2, naming the key, the default `Both`, and the shared-budget rule.
+- [x] 3.3 `REQUIREMENTS.md`: FR-099 amended to default `Both` (FR-100 holds the shared-budget rule), changelog row 1.62 (`c9255ae2`).
 - [ ] 3.4 `native/` unchanged: `git diff --stat origin/main -- native` empty, `libft8` DLL SHA-256 reported against the pin.
 
 ## 4. Gates and acceptance

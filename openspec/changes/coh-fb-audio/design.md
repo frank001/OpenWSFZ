@@ -11,7 +11,9 @@ measured with the neighbours removed).
 **D3. One shared budget, with a guard that exists (`9ef703d0`).** `budgetMs` is the time left when the fallback starts, less the publish reserve. The second
 run gets `leftMs = budgetMs − elapsed since the fallback start`. If `leftMs <= 0` it is not started and its eligible candidates count as abandoned
 (`Ft8Decoder.cs:1049-1061`). Inside a run a worker claims no candidate once the run's wall clock is past its `budgetMs` (`CohFallbackParallelRunner.cs:65`).
-**N-1 tests this; it adds no code.** Line numbers are from `9ef703d0`: record any drift on the branch tip (task 1.1).
+**N-1 tests this; it adds no code.** Line numbers are from `9ef703d0`; on `c9255ae2` the `leftMs` guard is `Ft8Decoder.cs:1062-1065` and the claim guard `CohFallbackParallelRunner.cs:63-66` (drift +13 and +1; task 1.1).
+
+**D7. A test-only clock seam (approved by QA 2026-10-28).** Both guards read a `Stopwatch` directly, so N-1 could not spend the budget by arithmetic. `c9255ae2` adds an internal `BudgetClock` over `TimeProvider` (default `TimeProvider.System`), used for the decoder's cycle clock and the runner's wall clock; `SubtractionCycleBudget` and `CoherentFallbackPublishReserve` become `internal`. No behaviour change in production; R0 is re-run to show it.
 
 **D4. Why the guard matters in practice.** On `sol` the late fallback cycles start late (maximum start 10,424 ms) because the earlier passes spend the time; the
 fallback's own wall time is at most 2,419 ms (FBAUDIO, counts from the daemon log). The guard is what bounds a slower machine.
