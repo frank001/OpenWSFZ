@@ -58,12 +58,15 @@ def minus_depth(path):
     # before the pin comparison and reported beside the result (so these three keys are the ONLY differences allowed between TP_CONFIG and the pinned rig config).
     ms = c["decoder"].pop("coherentFallbackMultiSet", "absent")
     aud = c["decoder"].pop("coherentFallbackAudio", "absent")
-    FLAGS.append((flag, ms, aud))
+    # 2026-10-28 (COH-GATE-G R-F4, PR #271, v0.67): the sweep config may also CARRY decoder.coherentFallbackResidualUngated explicitly; dropped before the pin comparison like the three above,
+    # reported beside the result, and pinned by TP_REQUIRE_UNGATED=true below.
+    ung = c["decoder"].pop("coherentFallbackResidualUngated", "absent")
+    FLAGS.append((flag, ms, aud, ung))
     return hashlib.sha256(json.dumps(c, indent=2, ensure_ascii=False).encode()).hexdigest(), depth
 rs, rig_depth = minus_depth(rig)
 ts, _ = minus_depth(tp)
 ok = rs == pin and ts == pin and rig_depth in ("Normal", "Deep")
-print(("OK" if ok else "FAIL") + " rig-minus-depth=%s tp-minus-depth=%s pin=%s rig-depth=%s rig-flag=%s tp-ms=%s tp-audio=%s tp-flag=%s" % (rs[:16], ts[:16], pin[:16], rig_depth, FLAGS[0][0], FLAGS[1][1], FLAGS[1][2], FLAGS[1][0]))
+print(("OK" if ok else "FAIL") + " rig-minus-depth=%s tp-minus-depth=%s pin=%s rig-depth=%s rig-flag=%s tp-ms=%s tp-ungated=%s tp-audio=%s tp-flag=%s" % (rs[:16], ts[:16], pin[:16], rig_depth, FLAGS[0][0], FLAGS[1][1], FLAGS[1][3], FLAGS[1][2], FLAGS[1][0]))
 PYEOF
 )
 log "config pin: $CK"
@@ -78,6 +81,11 @@ fi
 if [ -n "${TP_REQUIRE_AUDIO:-}" ]; then
   case "$CK" in *" tp-audio=$TP_REQUIRE_AUDIO tp-flag=True") ;; *) halt "AUDIO PIN FAILED ($CK): TP_REQUIRE_AUDIO=$TP_REQUIRE_AUDIO but the sweep config does not carry decoder.coherentFallbackAudio = $TP_REQUIRE_AUDIO (with the flag true); nothing was run";; esac
   log "audio pin: OK (sweep config carries decoder.coherentFallbackAudio = $TP_REQUIRE_AUDIO)"
+fi
+# UNGATED PIN (R-F4, 2026-10-28): with TP_REQUIRE_UNGATED=true the sweep config must carry decoder.coherentFallbackResidualUngated = true, or the sweep HALTS before anything starts.
+if [ "${TP_REQUIRE_UNGATED:-}" = "true" ]; then
+  case "$CK" in *" tp-ungated=True tp-audio="*) ;; *) halt "UNGATED PIN FAILED ($CK): TP_REQUIRE_UNGATED=true but the sweep config does not carry decoder.coherentFallbackResidualUngated = true; nothing was run";; esac
+  log "ungated pin: OK (sweep config carries decoder.coherentFallbackResidualUngated = true)"
 fi
 log "build under test: $(git -C $TP_REPO rev-parse HEAD); libft8.so $(sha256sum "$(dirname "$DAEMON")/libft8.so" | cut -d' ' -f1); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
 # S6 pins the OpenWSFZ native library the daemon loads: the one in the daemon's publish folder (added here so no caller has to pass the path)
