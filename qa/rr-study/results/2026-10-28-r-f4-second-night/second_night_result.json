@@ -1,0 +1,93 @@
+{
+ "night": "20261022_1949",
+ "cycles": 800,
+ "n_ref": 20753,
+ "cycles_with_wsjtx": 799,
+ "match_vs_replay_flag": {
+  "off_L_match": 16930,
+  "off_flag_sum": 16930,
+  "on_L_match": 17235,
+  "on_flag_sum": 17235,
+  "PASS": true
+ },
+ "baseline_OFF": {
+  "corroborated": 16930,
+  "pct": 81.5785669541753,
+  "refset_TEST_pct": 81.37,
+  "batch4_rows": 2440,
+  "batch4_corroborated": 2239,
+  "batch4_corr_share": 0.9176229508196722
+ },
+ "ON": {
+  "corroborated": 17235,
+  "pct": 83.04823399026647,
+  "batch4_rows": 2765,
+  "batch4_corroborated": 2544
+ },
+ "chain_rows": {
+  "new_text": 325,
+  "moved_frequency": 34,
+  "same_text_same_frequency": 2406,
+  "net_rows": 325
+ },
+ "R-F4": {
+  "NET_pp": 1.4696670360911674,
+  "NET_CI": [
+   1.2959202042935352,
+   1.6385562950378487
+  ],
+  "dU_ta": 0.0037546933667083854,
+  "dU_ta_CI": [
+   0.0,
+   0.00875
+  ],
+  "dU_hu": 0.0037546933667083854,
+  "dU_hu_CI": [
+   0.0,
+   0.008760951188986232
+  ],
+  "dU_present": 0.017521902377972465,
+  "dU_present_CI": [
+   0.008760677409261577,
+   0.0275
+  ],
+  "dU_untestable_class": 0.0,
+  "untestable_class_outputs": 0,
+  "admitted_new_text": 325,
+  "admitted_corroborated": 305,
+  "corroborated_share": 0.9384615384615385,
+  "hashed_share_of_new": 0.14153846153846153,
+  "by_band": {
+   "C": 150,
+   "B": 57,
+   "D": 113,
+   "A": 5
+  },
+  "stations_corroborated": {
+   "distinct": 194,
+   "top_share": 0.03278688524590164,
+   "top5_share": 0.12459016393442623
+  }
+ },
+ "rows": {
+  "N-GO": true,
+  "N-STOP": false,
+  "U-OK": true,
+  "U-FAIL": false,
+  "H-SHARE_fires": false
+ },
+ "HK026_untestable_class_outputs_need_refreeze": false,
+ "timing": {
+  "off": {
+   "max_fallback_end_ms": 11085,
+   "min_margin_to_13s_ms": 1915,
+   "fallback_lines": 800
+  },
+  "on": {
+   "max_fallback_end_ms": 11139,
+   "min_margin_to_13s_ms": 1861,
+   "fallback_lines": 800
+  }
+ },
+ "verdict": "ACCEPT-2N"
+}

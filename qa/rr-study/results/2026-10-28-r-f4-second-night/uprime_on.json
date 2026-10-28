@@ -1,0 +1,32 @@
+{
+ "stage": "arm",
+ "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049",
+ "T_frozen": 0.276,
+ "min_n": 10,
+ "min_present_rate": 0.8,
+ "cycles_ws_gt_0": 799,
+ "decodes": 17745,
+ "confirmed": 17235,
+ "not_confirmed": 510,
+ "calibration": {
+  "reused_from": "D:/Projects/claude/_qa-scratch/coh-gate-r-f4/u2/orig_classes.json",
+  "start_minus_dt_median_s": -0.18999999999999972
+ },
+ "classes_from": "D:/Projects/claude/_qa-scratch/coh-gate-r-f4/u2/orig_classes.json",
+ "U_prime": {
+  "cycles": 799,
+  "totals": {
+   "tested_absent": 56,
+   "hashed_or_unencodable": 178,
+   "untestable_class": 2,
+   "tested_present": 274,
+   "not_confirmed": 510
+  },
+  "U_prime_per_cycle": 0.295369211514393,
+  "split_per_cycle": {
+   "tested_absent": 0.07008760951188986,
+   "hashed_or_unencodable": 0.2227784730913642,
+   "untestable_class": 0.0025031289111389237
+  }
+ }
+}
