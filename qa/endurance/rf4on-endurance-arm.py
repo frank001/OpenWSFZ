@@ -139,10 +139,14 @@ def main() -> None:
     cfg["decoder"]["coherentFallbackMultiSet"] = True
     cfg["decoder"]["coherentFallbackAudio"] = "Both"
     cfg["decoder"]["coherentFallbackResidualUngated"] = True   # THE SETTING UNDER TEST (R-F4): switched ON, explicit
+    # Captain 2026-10-28: 10 / 0.10 (code defaults = the sol series, the replays and the second night), NOT the station config's 5 / 0.05 of today (its decoder section is only the template).
+    cfg["decoder"]["kMinScorePass2"] = 10
+    cfg["decoder"]["osdCorrThreshold"] = 0.1
     d = cfg["decoder"]
     assert cfg["cat"]["enabled"] is False and cfg["tx"]["autoAnswer"] is False and cfg["externalReporting"]["enabled"] is False
     assert d["osdNhardMax"] == 24 and d["nhard24MigrationApplied"] is True and d["nhard40MigrationApplied"] is True, d
     assert d["decodingDepth"] == "Deep" and d["coherentFallbackEnabled"] is True and d["subtractionMaxThreads"] == SUB_THREADS == 8
+    assert d["kMinScorePass2"] == 10 and abs(d["osdCorrThreshold"] - 0.1) < 1e-9, d
     assert d["coherentFallbackResidualUngated"] is True and d["coherentFallbackAudio"] == "Both" and d["coherentFallbackMultiSet"] is True, d
     assert d["subtractionEnabled"] is True and d.get("earlyDecodeEnabled") is True and cfg["audioDeviceFriendlyName"] == B1_NAME
     if a.end_utc:
