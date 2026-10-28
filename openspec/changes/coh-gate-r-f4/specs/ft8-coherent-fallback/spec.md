@@ -65,7 +65,7 @@ With the setting `true` and `decoder.coherentFallbackAudio` = `Both`, a fallback
 
 ### Requirement: The fallback log line counts the admitted rows
 
-With the setting `true`, the `Coherent fallback:` log line SHALL gain `ungated=N`, the number of published fallback messages that came from admitted `GatedOut` rows; the field SHALL NOT be printed when the setting is `false`. The counters `fromOriginal`, `fromResidual` and `inBoth` SHALL count admitted residual rows as found by the residual run. The `Gated` statistic SHALL keep its meaning (rows at or below T1).
+With the setting `true`, the `Coherent fallback:` log line SHALL gain `ungated=N`, the number of published fallback messages whose chosen row was an admitted `GatedOut` row of the residual run, including a row that replaces an original-run row with the same text (it is not the number of additions); the field SHALL NOT be printed when the setting is `false`. The counters `fromOriginal`, `fromResidual` and `inBoth` SHALL count admitted residual rows as found by the residual run. The `Gated` statistic SHALL keep its meaning (rows at or below T1).
 
 #### Scenario: The setting is on and rows were admitted
 
