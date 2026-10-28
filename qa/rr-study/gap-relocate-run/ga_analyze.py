@@ -18,12 +18,19 @@ RUN = "20260925_2010"
 HASHED = re.compile(r"<[^>]*>")
 
 
-def load_nc(arm):
+MAIN_NC = R + "\\scratch_main\\main\\nc_dump.tsv"
+
+
+def load_nc_dir(path):
     d = collections.defaultdict(list)
-    for r in C.load_tsv(f"{R}\\scratch\\{arm}\\nc_dump.tsv"):
+    for r in C.load_tsv(path):
         if len(r) >= 11:
             d[r[0]].append((int(r[1]), int(r[3]), r[10]))
     return d
+
+
+def load_nc(arm):
+    return load_nc_dir(f"{R}\\scratch\\{arm}\\nc_dump.tsv")
 
 
 def main():
@@ -37,9 +44,9 @@ def main():
         ref_main[s] = [(x[0], x[2], x[6]) for x in a["nc"].get(s, [])]
     off, on = load_nc("off"), load_nc("on")
     # the STRICT B-OFF reference is the continuous one-process main arm over cycles 1-1200 (QA ledger Q27); the recorded TRAIN/TEST arms are the fallback
-    cont = os.path.isfile(R + "\scratch_main\main\nc_dump.tsv")
+    cont = os.path.isfile(MAIN_NC)
     if cont:
-        main_nc = load_nc("main", "scratch_main")
+        main_nc = load_nc_dir(MAIN_NC)
         ref_main = {s: [(x[0], x[1], x[2]) for x in main_nc.get(s, [])] for s in stamps}
     res = {"cycles": len(stamps)}
 
@@ -93,11 +100,11 @@ def main():
     def ab(arm):
         coh = list(csv.DictReader(open(f"{R}\\raw\\{arm}\\coh.csv")))
         rows = [l.strip().split(",") for l in open(f"{R}\\raw\\{arm}\\abandon.csv") if l[:1].isdigit()]
-        ends = [float(r["fb_start_ms"]) + float(r["fb_wall_ms"]) for r in coh if float(r["fb_wall_ms"]) >= 0]
+        ends = [float(r["fb_start_ms"]) + float(r["fb_wall_ms"]) for r in coh if r["fb_wall_ms"] != "" and float(r["fb_wall_ms"]) >= 0]
         log = open(f"{R}\\raw\\{arm}\\log.log", encoding="utf-8", errors="replace").read()
         lv = collections.Counter(re.findall(r"audio=both\((\w+)\)", log))
         ung = sum(int(x) for x in re.findall(r"ungated=(\d+)", log))
-        return {"fallback_abandoned": sum(int(r["abandoned"]) for r in coh), "residual_ran": sum(int(r[1]) for r in rows),
+        return {"fallback_abandoned": sum(int(r["abandoned"] or 0) for r in coh), "residual_ran": sum(int(r[1]) for r in rows),
                 "residual_abandoned": sum(int(r[2]) for r in rows), "residual_contained": sum(int(r[3]) for r in rows),
                 "max_fallback_end_ms": max(ends) if ends else None, "min_margin_to_13s_ms": 13000 - max(ends) if ends else None,
                 "levels": dict(lv), "ungated_total_in_log": ung}
@@ -120,8 +127,8 @@ def main():
         for label, pick in (("before", lambda t: t < GAME), ("after", lambda t: t >= GAME)):
             idx = [i for i in range(n) if pick(stamps_t[i])]
             el = sorted(float(run[i]["elapsed_ms"]) for i in idx)
-            ends = [float(coh[i]["fb_start_ms"]) + float(coh[i]["fb_wall_ms"]) for i in idx if float(coh[i]["fb_wall_ms"]) >= 0]
-            out[label] = {"cycles": len(idx), "fallback_abandoned": sum(int(coh[i]["abandoned"]) for i in idx),
+            ends = [float(coh[i]["fb_start_ms"]) + float(coh[i]["fb_wall_ms"]) for i in idx if coh[i]["fb_wall_ms"] != "" and float(coh[i]["fb_wall_ms"]) >= 0]
+            out[label] = {"cycles": len(idx), "fallback_abandoned": sum(int(coh[i]["abandoned"] or 0) for i in idx),
                           "residual_abandoned": sum(int(ab_rows[i][2]) for i in idx),
                           "max_fallback_end_ms": max(ends) if ends else None,
                           "elapsed_ms_median": el[len(el) // 2] if el else None, "elapsed_ms_p95": el[int(0.95 * len(el))] if el else None,
