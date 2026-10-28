@@ -288,6 +288,10 @@ internal static class Program
             // COH-FB-AUDIO (scratch patch for the Developer's R0; QA to adopt): --cohaudio Original|Residual|Both is REQUIRED.
             decoder.SetCoherentFallbackAudio(Enum.Parse<OpenWSFZ.Abstractions.CoherentFallbackAudio>(Req(a, "cohaudio"), ignoreCase: true));
 #endif
+#if HAS_UNGATED
+            // COH-GATE-G R-F4 acceptance: --ungated 0|1 sets decoder.coherentFallbackResidualUngated; ABSENT leaves the decoder at its start value (false = the key absent).
+            if (a.TryGetValue("ungated", out var ung)) decoder.SetCoherentFallbackResidualUngated(ung switch { "0" => false, "1" => true, _ => throw new ArgumentException("--ungated must be 0 or 1") });
+#endif
             if (a.TryGetValue("cohfb-out", out var cohPath))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cohPath))!);
@@ -975,6 +979,9 @@ internal static class Program
 #endif
 #if HAS_COHAUDIO
                 + $" cohaudio={d.CoherentFallbackAudio}"
+#endif
+#if HAS_UNGATED
+                + $" ungated={d.CoherentFallbackResidualUngated}"
 #endif
                 );
     }

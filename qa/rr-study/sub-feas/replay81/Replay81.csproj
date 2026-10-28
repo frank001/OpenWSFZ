@@ -35,6 +35,7 @@
     <DefineConstants Condition="'$(HasCohMs)' == 'true'">$(DefineConstants);HAS_COHMS</DefineConstants>
       <DefineConstants Condition="'$(HasCohAudio)' == 'true'">$(DefineConstants);HAS_COHAUDIO</DefineConstants>
     <!-- GAP-RELOCATE item 1: build as assembly Ft8.FitProbe (already in OpenWSFZ.Ft8's InternalsVisibleTo) to use the internal Ft8Decoder constructor with a counting pass-through interop (StageProbe.cs). -->
+    <DefineConstants Condition="'$(HasUngated)' == 'true'">$(DefineConstants);HAS_UNGATED</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>
