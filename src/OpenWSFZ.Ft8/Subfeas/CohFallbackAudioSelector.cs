@@ -88,21 +88,29 @@ internal static class CohFallbackAudioSelector
     /// DT are measured with the neighbours removed); an original-run row is added only for a payload the residual run did not find. Every residual-run
     /// row is kept (so the selector's one-row-per-payload and edge rules apply to the merged set exactly as to a single run). Either input may be
     /// <c>null</c> or empty (that run did not produce rows). Deterministic: sorted by candidate position, residual before original.
+    /// <para>
+    /// COH-GATE-G R-F4: with <paramref name="admitResidualGatedOut"/> a <see cref="CohFallbackState.GatedOut"/> row of <paramref name="residualRows"/> is
+    /// admitted (flagged <see cref="CohFallbackRow.Admitted"/>, state unchanged) and from here on counts as a found, publishable payload exactly like a
+    /// NewGated one: it joins the residual key set (an original-run NewGated row with the same payload is dropped), is counted in the three counters and
+    /// goes to the selector. A GatedOut row of <paramref name="originalRows"/> is never admitted, and with no residual run (null) nothing is.
+    /// </para>
     /// </summary>
-    internal static Merged Merge(IReadOnlyList<CohFallbackRow>? originalRows, IReadOnlyList<CohFallbackRow>? residualRows)
+    internal static Merged Merge(IReadOnlyList<CohFallbackRow>? originalRows, IReadOnlyList<CohFallbackRow>? residualRows, bool admitResidualGatedOut = false)
     {
         originalRows ??= [];
         residualRows ??= [];
+        if (admitResidualGatedOut)
+            residualRows = residualRows.Select(static r => r.State == CohFallbackState.GatedOut ? r with { Admitted = true } : r).ToList();
 
         static string Key(CohFallbackRow r) => Convert.ToHexString(r.Payload, 0, PayloadKeyBytes);
 
         var residualKeys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var r in residualRows)
-            if (r.State == CohFallbackState.NewGated) residualKeys.Add(Key(r));
+            if (r.IsPublishable) residualKeys.Add(Key(r));
 
         var originalKeys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var r in originalRows)
-            if (r.State == CohFallbackState.NewGated) originalKeys.Add(Key(r));
+            if (r.IsPublishable) originalKeys.Add(Key(r));
 
         int inBoth = originalKeys.Count(residualKeys.Contains);
 
@@ -111,7 +119,7 @@ internal static class CohFallbackAudioSelector
         for (int i = 0; i < originalRows.Count; i++)
         {
             var r = originalRows[i];
-            if (r.State == CohFallbackState.NewGated && !residualKeys.Contains(Key(r))) combined.Add((i, 1, r));
+            if (r.IsPublishable && !residualKeys.Contains(Key(r))) combined.Add((i, 1, r));
         }
         combined.Sort(static (a, b) => a.Index != b.Index ? a.Index.CompareTo(b.Index) : a.Source.CompareTo(b.Source));
 

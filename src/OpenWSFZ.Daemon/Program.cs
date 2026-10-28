@@ -852,6 +852,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetCoherentFallbackEnabled(initialDecoder.CoherentFallbackEnabled);
     ft8Decoder.SetCoherentFallbackMultiSet(initialDecoder.CoherentFallbackMultiSet);   // COH-MULTISET: default true (key absent = ON)
     ft8Decoder.SetCoherentFallbackAudio(initialDecoder.CoherentFallbackAudio);   // COH-FB-AUDIO: default Both (key absent = Both); read once per cycle
+    ft8Decoder.SetCoherentFallbackResidualUngated(initialDecoder.CoherentFallbackResidualUngated);   // COH-GATE-G R-F4: default false (key absent = off); read once per cycle
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
@@ -959,6 +960,7 @@ configStore.OnSaved += newConfig =>
     ft8Decoder.SetCoherentFallbackEnabled(dec.CoherentFallbackEnabled);   // COH-FALLBACK Stage 2 (R10): next cycle
     ft8Decoder.SetCoherentFallbackMultiSet(dec.CoherentFallbackMultiSet);   // COH-MULTISET: next cycle
     ft8Decoder.SetCoherentFallbackAudio(dec.CoherentFallbackAudio);   // COH-FB-AUDIO: next cycle
+    ft8Decoder.SetCoherentFallbackResidualUngated(dec.CoherentFallbackResidualUngated);   // COH-GATE-G R-F4: next cycle
     Volatile.Write(ref fallbackOn, dec.CoherentFallbackEnabled);          // R14: the QSO queues' capacity follows the flag
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not

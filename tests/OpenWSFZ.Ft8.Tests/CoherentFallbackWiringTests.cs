@@ -1005,4 +1005,127 @@ public sealed class CoherentFallbackWiringTests
         time.Elapsed.TotalMilliseconds.Should().BeLessThanOrEqualTo(FirstRunBudgetMs + allowanceMs,
             "the fallback ends within SubtractionCycleBudget - CoherentFallbackPublishReserve plus the one candidate in flight at the budget");
     }
+
+    // ── COH-GATE-G R-F4: decoder.coherentFallbackResidualUngated (the residual run's GatedOut rows) ─────────────────
+
+    private static Ft8Decoder BuildUngated(IFt8NativeInterop interop, DecodingDepth depth, CoherentFallbackAudio mode, bool ungated, ILogger<Ft8Decoder> log)
+    {
+        var d = BuildWithAudio(interop, depth, mode, log);
+        d.SetCoherentFallbackResidualUngated(ungated);
+        return d;
+    }
+
+    private static string FallbackLine(LineLog log) => log.Lines.Single(l => l.StartsWith("Coherent fallback:"));
+
+    // residual run (call 1): 1 GatedOut, 2 GatedOut (SNR -18); original run (call 2): 2 NewGated (SNR -25), 3 GatedOut, 4 NewGated.
+    private static FallbackInterop MixedStatesInterop() => new([Pass0, Resid], null)
+    {
+        Texts = TextsFor(4),
+        ShatValue = 0.01f,
+        RunByCall = n => n == 1
+            ? RunOf(Row(1, CohFallbackState.GatedOut), Row(2, CohFallbackState.GatedOut, freq: 1100f, snr: -18))
+            : RunOf(Row(2, freq: 1100f, snr: -25), Row(3, CohFallbackState.GatedOut, freq: 1150f), Row(4, freq: 1200f)),
+    };
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4: a bare decoder starts OFF; the setter and getter round-trip")]
+    public void Ungated_BareDecoderOff_RoundTrips()
+    {
+        var d = Build(new FallbackInterop([Pass0], OneNew()), DecodingDepth.Deep, true);
+        d.CoherentFallbackResidualUngated.Should().BeFalse();
+        d.SetCoherentFallbackResidualUngated(true);
+        d.CoherentFallbackResidualUngated.Should().BeTrue();
+        d.SetCoherentFallbackResidualUngated(false);
+        d.CoherentFallbackResidualUngated.Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4: Both, ON - residual GatedOut rows publish (residual row kept over the original's), an original GatedOut row does not, the line carries ungated=N and the counts of admitted rows")]
+    public async Task Ungated_Both_On_PublishesResidualGatedOut()
+    {
+        var log = new LineLog();
+        var interop = MixedStatesInterop();
+        var delivered = await RunStaged(BuildUngated(interop, DecodingDepth.Deep, CoherentFallbackAudio.Both, true, log));
+
+        var batch4 = delivered.Single(b => b.Batch == 4);
+        batch4.Messages.Should().BeEquivalentTo(new[] { TextOf(1), TextOf(2), TextOf(4) }, "payload 3 is a GatedOut row of the original run: not admitted");
+        batch4.Results.Select(r => r.Snr).Should().Contain(-18).And.NotContain(-25, "the admitted residual row displaced the original NewGated row");
+        FallbackLine(log).Should().EndWith(", audio=both(residual3), fromOriginal=1, fromResidual=1, inBoth=1, ungated=2.");
+    }
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4: Both, OFF - the same rows publish what the build before this change did and the line has no ungated= field")]
+    public async Task Ungated_Both_Off_AsBefore()
+    {
+        var log = new LineLog();
+        var interop = MixedStatesInterop();
+        var delivered = await RunStaged(BuildUngated(interop, DecodingDepth.Deep, CoherentFallbackAudio.Both, false, log));
+
+        var batch4 = delivered.Single(b => b.Batch == 4);
+        batch4.Messages.Should().BeEquivalentTo(new[] { TextOf(2), TextOf(4) });
+        batch4.Results.Select(r => r.Snr).Should().Contain(-25);
+        FallbackLine(log).Should().EndWith(", audio=both(residual3), fromOriginal=2, fromResidual=0, inBoth=0.");
+        FallbackLine(log).Should().NotContain("ungated=");
+    }
+
+    [Theory(DisplayName = "FR-101: COH-GATE-G R-F4: Original and Residual modes ignore the setting - no GatedOut row is admitted and the line has no ungated= field")]
+    [InlineData(CoherentFallbackAudio.Original)]
+    [InlineData(CoherentFallbackAudio.Residual)]
+    public async Task Ungated_NotBothModes_Ignored(CoherentFallbackAudio mode)
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], RunOf(Row(1, CohFallbackState.GatedOut), Row(2)))
+        {
+            Texts = TextsFor(2),
+            ShatValue = 0.01f,
+        };
+        var delivered = await RunStaged(BuildUngated(interop, DecodingDepth.Deep, mode, true, log));
+
+        interop.RunCalls.Should().Be(1);
+        delivered.Single(b => b.Batch == 4).Messages.Should().Equal(TextOf(2));
+        FallbackLine(log).Should().NotContain("ungated=");
+    }
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4 (b): a lone original-audio run (both(unavailable)) admits nothing over T1, the setting ON")]
+    public async Task Ungated_LoneOriginalRun_NothingAdmitted()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], RunOf(Row(1, CohFallbackState.GatedOut), Row(2)))
+        {
+            Texts = TextsFor(2),
+            ShatValue = 0.01f,
+        };
+        var delivered = await RunStaged(BuildUngated(interop, DecodingDepth.Normal, CoherentFallbackAudio.Both, true, log));
+
+        interop.RunCalls.Should().Be(1, "no usable residual buffer: the original audio is run once");
+        delivered.Single(b => b.Batch == 3).Messages.Should().BeEquivalentTo(new[] { TextOf(2) }, "the GatedOut row of the original run stays out");
+        FallbackLine(log).Should().EndWith(", audio=both(unavailable), fromOriginal=1, fromResidual=0, inBoth=0, ungated=0.");
+    }
+
+    [Theory(DisplayName = "FR-101: COH-GATE-G R-F4 (a): residual run complete, original run NotRun (budget spent, BudgetClock/TimeProvider seam) - the residual GatedOut rows are admitted and published")]
+    [InlineData(0.0)]
+    [InlineData(500.0)]
+    public async Task Ungated_ResidualComplete_OriginalNotRun_StillAdmitted(double overrunMs)
+    {
+        const int EligibleInFirstRun = 2;
+        var time = new ManualTimeProvider();
+        var log = new LineLog();
+        FallbackInterop? interop = null;
+        interop = new FallbackInterop([Pass0, Resid], null)
+        {
+            Texts = TextsFor(EligibleInFirstRun),
+            ShatValue = 0.01f,
+            RunByCall = _ =>
+            {
+                time.Advance(TimeSpan.FromMilliseconds(interop!.RunBudgetMs!.Value + overrunMs));   // the residual run spends the whole budget (no sleeping)
+                return RunOf(Row(1, CohFallbackState.GatedOut), Row(2, CohFallbackState.GatedOut, freq: 1100f));
+            },
+        };
+        var decoder = BuildTimed(interop, time, log);
+        decoder.SetCoherentFallbackResidualUngated(true);
+
+        var delivered = await RunStaged(decoder);
+
+        interop.RunCalls.Should().Be(1, "the original run is never started");
+        IntField(log, "abandoned").Should().Be(EligibleInFirstRun, "the unchanged budget guard counts the NotRun run's eligible candidates abandoned");
+        delivered.Single(b => b.Batch == 4).Messages.Should().BeEquivalentTo(new[] { TextOf(1), TextOf(2) }, "the residual run's GatedOut rows are admitted");
+        FallbackLine(log).Should().EndWith(", audio=both(residual3), fromOriginal=0, fromResidual=2, inBoth=0, ungated=2.");
+    }
 }
