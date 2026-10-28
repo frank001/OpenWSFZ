@@ -32,6 +32,8 @@ Nothing runs until the Captain gives his go (the spec says so, and the station's
 (d) Five routing rows, several may fire, each tested at `CI_lo` >= 0.5 pp: accept as a routing aid; the report should say "no multiplicity adjustment" so nobody reads it as a family-wise claim.
 (e) The bootstrap is by cycle; fine. Please add the per-station clustering figure the spec already asks for next to each fired row.
 
+**Correction (QA, 13:27:00Z `date -u`; ledger Q24):** K5(a) above has the polarity of `gated` inverted. The header defines `gated` = 1 iff F1b was computed and F1b <= T1, so FC = V3 payload with `gated` 1 and G = V3 payload with `gated` 0. The Architect's Amendment 1 (A1.5a) is correct and governs.
+
 ## Scheduling and machine
 
 - The replays and the forced legs use the PC's CPU. The station daemon is live there (era "FB-AUDIO" from 11:57:29Z). A heavy replay beside it could lengthen the station's own cycles and put abandoned candidates into the era's log. I will not start anything before the Captain's go, and I will propose a start after the first night is read and the OpenSpec archived. Row 0f protects the replay; nothing protects the station except the schedule.
