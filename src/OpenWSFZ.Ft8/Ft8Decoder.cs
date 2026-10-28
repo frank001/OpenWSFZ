@@ -105,7 +105,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// (pass-0-only) if it runs out. A hard bound since sub-feas-speed-redesign A5: the native fits are
     /// cancelled at <c>budget - SubtractionPass.SubtractionResidualDecodeReserve</c>.
     /// </summary>
-    private static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
+    internal static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
 
     // Singleton default — stateless adapter; safe to share across instances.
     private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
@@ -126,6 +126,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     public static int LoadedShimVersion => Ft8LibInterop.LoadedShimVersion;
 
     private readonly IClock                 _clock;
+    // COH-FB-AUDIO N-1: the time source of the cycle's elapsed/budget arithmetic (BudgetClock). System in production; a test injects a fake.
+    private readonly TimeProvider          _timeProvider;
     private readonly ILogger<Ft8Decoder>?   _logger;
     private readonly IFt8NativeInterop      _interop;
     private readonly ICallsignGrammarStore? _grammarStore;
@@ -227,11 +229,25 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-MULTISET: whether the multi-set walk is requested now (the read-back of <see cref="SetCoherentFallbackMultiSet"/>).</summary>
     public bool CoherentFallbackMultiSet => _coherentFallbackMultiSet;
 
+    private volatile CoherentFallbackAudio _coherentFallbackAudio = CoherentFallbackAudio.Original;   // the object starts Original; the daemon sets the configured value (default Both) before the first cycle
+
+    /// <summary>
+    /// COH-FB-AUDIO: sets <c>decoder.coherentFallbackAudio</c>. The decoder object itself starts at <see cref="CoherentFallbackAudio.Original"/> (the
+    /// fallback as it was); the configured default (<c>DecoderConfig.CoherentFallbackAudio</c>, <c>Both</c> when the key is absent) reaches it through
+    /// this setter, which the daemon calls before the first cycle and on every config change. Read once per decode cycle; takes effect on the next cycle.
+    /// It acts only while <see cref="CoherentFallbackEnabled"/> is on.
+    /// </summary>
+    public void SetCoherentFallbackAudio(CoherentFallbackAudio audio)
+        => _coherentFallbackAudio = audio;
+
+    /// <summary>COH-FB-AUDIO: the audio mode the fallback uses now (the read-back of <see cref="SetCoherentFallbackAudio"/>).</summary>
+    public CoherentFallbackAudio CoherentFallbackAudio => _coherentFallbackAudio;
+
     /// <summary>
     /// COH-FALLBACK Stage 2, R7': time held back from the shared 13 s cycle budget for the work after the native fallback returns (the text
     /// unpack, the mapping and the publish of the last batch). The native run stops starting candidates at <c>budget - elapsed - this</c>.
     /// </summary>
-    private static readonly TimeSpan CoherentFallbackPublishReserve = TimeSpan.FromMilliseconds(250);
+    internal static readonly TimeSpan CoherentFallbackPublishReserve = TimeSpan.FromMilliseconds(250);
 
     private long _thirdPassRuns, _thirdPassSkippedNoNew, _thirdPassSkippedAbandoned,
                  _thirdPassAbandoned, _thirdPassFailed, _thirdPassDecodes;
@@ -315,8 +331,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         IFt8NativeInterop       interop,
         ICallsignGrammarStore?  grammarStore      = null,
         ICallsignRegionStore?   regionStore       = null,
-        IWorkedBeforeIndex?     workedBeforeIndex = null)
+        IWorkedBeforeIndex?     workedBeforeIndex = null,
+        TimeProvider?           timeProvider      = null)
     {
+        _timeProvider      = timeProvider ?? TimeProvider.System;
         _clock             = clock;
         _logger            = logger;
         _interop           = interop;
@@ -536,6 +554,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                              && onSecondBatch is not null && onThirdBatch is not null && onFallbackBatch is not null;
         // COH-MULTISET: read ONCE per cycle too, and only meaningful while the fallback itself runs.
         bool multiSetOn    = cohOn && _coherentFallbackMultiSet;
+        // COH-FB-AUDIO: read ONCE per cycle too.
+        var  audioMode     = _coherentFallbackAudio;
 
         // ── R2: Pre-condition guard ──────────────────────────────────────────
         // Declared async so that this throw surfaces as a faulted Task rather than
@@ -576,7 +596,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // ── Native decode ────────────────────────────────────────────────────
         // Offload to a thread-pool thread so that the blocking P/Invoke call does
         // not pin the async continuation's synchronisation context.
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = BudgetClock.StartNew(_timeProvider);
 
         // ── D-002 PCM normalisation ──────────────────────────────────────────
         // Normalise a copy of the PCM buffer to a fixed target RMS before passing
@@ -888,6 +908,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             "Cycle {Time}: noise_floor={NoiseFloor:F1} dB (waterfall histogram median).",
             timeStr, noiseFloorDb);
 
+        // coh-fb-residual: what the fallback may read instead of the original audio (set inside the staged path below).
+        bool deepForFallback = false;
+        SubtractionPass.ResidualPassReport? reportForFallback = null;
+        SubtractionPass.ThirdPassResult? thirdResult = null;
+
         if (twoStage)
         {
             // Batch 1 leaves NOW, through the caller's publish path, before any residual work starts. Nothing else
@@ -898,6 +923,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             // third-pass-deep: the depth is read ONCE per cycle, and only a staged caller (one that supplied both
             // callbacks) can receive batch 3. Otherwise this is, statement for statement, the two-stage path as it was.
             bool deep = onSecondBatch is not null && onThirdBatch is not null && DecodingDepth == DecodingDepth.Deep;
+            deepForFallback = deep;
 
             // COH-FALLBACK step 4 (R6''', R7'''): the fallback does NOT run during pass 0's follow-on work. With the flag ON it starts only
             // after the cycle's LAST ordinary batch has been handed off (batch 3 on Deep, after the third pass whether or not batch 3 had
@@ -916,6 +942,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             }
 
             var report = deep ? new SubtractionPass.ResidualPassReport() : null;
+            reportForFallback = report;
 
             // The residual pass, after batch 1 is out. Its wall-clock budget is what remains of the cycle budget,
             // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
@@ -972,6 +999,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 var third = await SubtractionPass.RunThirdPassAsync(
                     _interop, report.Residual, newFromResidual, native, EffectiveSubtractionThreads, _logger,
                     _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+                thirdResult = third;
 
                 switch (third.Outcome)
                 {
@@ -1006,15 +1034,55 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         async Task RunCoherentFallbackBatchAsync(int batchNumber)
         {
             var fbStart = sw.Elapsed;
+            // COH-FB-AUDIO: which audio the fallback reads. Original => normalisedPcm itself (the same reference as before).
+            // The chosen arrays are read-only to the fallback's worker threads; nothing mutates or pools them (the third pass ran to completion
+            // before this point, and the residual pass's array is the pass's own, never returned to a pool).
+            var choice = CohFallbackAudioSelector.Select(audioMode, normalisedPcm, deepForFallback, reportForFallback, thirdResult);
             // The shared 13 s budget (R7'''): what is left of it when the fallback starts, less the reserve for the work after the native run.
             double budgetMs = Math.Max(0.0, (SubtractionCycleBudget - fbStart - CoherentFallbackPublishReserve).TotalMilliseconds);
             int workers = EffectiveSubtractionThreads;
-            var outcome = await Task.Run(
-                () => RunCoherentFallback(normalisedPcm, cohSnapshot!, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+            CohFallbackAudioSelector.Merged? merged = null;
+            CohFallbackRunResult? outcome;
+            if (audioMode != CoherentFallbackAudio.Both)
+            {
+                outcome = await Task.Run(
+                    () => RunCoherentFallback(choice.Pcm, cohSnapshot!, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+            }
+            else
+            {
+                // Both: SEQUENTIAL, residual first (the run that matters if the budget is short), then the original audio on what is left of the ONE shared
+                // budget. Sequential because each run already uses `workers` threads (parallel would double the thread count for no wall-time that the
+                // 13 s budget needs) and because a deadline between the runs is then a plain, countable event. If nothing is left for the second run it is not
+                // started and its eligible candidates are counted abandoned. With no usable residual buffer the original audio is run ONCE, never twice.
+                CohFallbackRunResult? first = await Task.Run(
+                    () => RunCoherentFallback(choice.Pcm, cohSnapshot!, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+                CohFallbackRunResult? second = null;
+                if (choice.IsResidual && first is not null)
+                {
+                    double leftMs = budgetMs - (sw.Elapsed - fbStart).TotalMilliseconds;
+                    second = leftMs > 0.0
+                        ? await Task.Run(() => RunCoherentFallback(normalisedPcm, cohSnapshot!, leftMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false)
+                        : new CohFallbackRunResult(CohFallbackAudioSelector.NotRun(first.Stats), []) { Workers = first.Workers };
+                }
+
+                var residualRun = choice.IsResidual ? first : null;
+                var originalRun = choice.IsResidual ? second : first;
+                merged = CohFallbackAudioSelector.Merge(originalRun?.Rows, residualRun?.Rows);
+                outcome = (originalRun, residualRun) switch
+                {
+                    (null, null) => null,
+                    (not null, null) => originalRun,
+                    (null, not null) => residualRun,
+                    _ => new CohFallbackRunResult(
+                             CohFallbackAudioSelector.CombineStats(originalRun!.Stats, residualRun!.Stats),
+                             residualRun.Rows.Concat(originalRun.Rows).ToList())
+                         { Workers = Math.Max(originalRun.Workers, residualRun.Workers) },
+                };
+            }
             double fbWallMs = (sw.Elapsed - fbStart).TotalMilliseconds;
             if (outcome is null) return;   // failed: already logged, nothing published
 
-            var picked = CoherentFallbackSelector.Select(outcome.Rows);
+            var picked = CoherentFallbackSelector.Select(merged?.Rows ?? outcome.Rows);
             var natives = new List<Ft8NativeResult>(picked.Count);
             var edgeByText = new Dictionary<string, bool>(StringComparer.Ordinal);
             foreach (var row in picked)
@@ -1054,10 +1122,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
                     "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
                     "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}, " +
-                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}.",
+                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}.",
                     st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
                     outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs,
-                    multiSetOn ? "on" : "off", st.WalkEntered, outcome.CrcValidBySet(1), outcome.CrcValidBySet(2), outcome.CrcValidBySet(3), outcome.CrcValidBySet(4));
+                    multiSetOn ? "on" : "off", st.WalkEntered, outcome.CrcValidBySet(1), outcome.CrcValidBySet(2), outcome.CrcValidBySet(3), outcome.CrcValidBySet(4),
+                    CohFallbackAudioSelector.Label(audioMode, choice.Level),
+                    merged is null ? "" : $", fromOriginal={merged.FromOriginal}, fromResidual={merged.FromResidual}, inBoth={merged.InBoth}");
             }
         }
     }

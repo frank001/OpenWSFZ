@@ -65,6 +65,15 @@ public sealed class CoherentFallbackWiringTests
         public int? RunWorkers;
         public float[]? RunPcm;
 
+        /// <summary>COH-FB-AUDIO: the PCM of every fallback run, in call order.</summary>
+        public List<float[]> RunPcms { get; } = [];
+
+        /// <summary>COH-FB-AUDIO: the array pass 0 decoded, which is the cycle's normalised audio (the one the original-audio fallback must be handed).</summary>
+        public float[]? FirstDecodePcm;
+
+        /// <summary>COH-FB-AUDIO: when set, the result of the n-th fallback run (1-based) instead of <c>run</c>.</summary>
+        public Func<int, CohFallbackRunResult?>? RunByCall { get; init; }
+
         /// <summary>How many ordinary native calls (decode, analytic, fit) were in flight when the fallback run was called.</summary>
         public int OrdinaryActiveAtRun = -1;
 
@@ -82,7 +91,7 @@ public sealed class CoherentFallbackWiringTests
             lock (_gate) { n = ++DecodeAllCallCount; Calls.Add("decode" + n); _ordinaryActive++; }
             try
             {
-                if (n == 1) DecodeAllThreadId = Environment.CurrentManagedThreadId;
+                if (n == 1) { DecodeAllThreadId = Environment.CurrentManagedThreadId; FirstDecodePcm = pcm; }
                 return n <= decodes.Length ? decodes[n - 1] : [];
             }
             finally { lock (_gate) _ordinaryActive--; }
@@ -106,9 +115,9 @@ public sealed class CoherentFallbackWiringTests
 
         public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
         {
-            lock (_gate) { RunCalls++; Calls.Add("run"); RunBudgetMs = budgetMs; RunWorkers = workers; RunPcm = pcm; OrdinaryActiveAtRun = _ordinaryActive; }
+            lock (_gate) { RunCalls++; Calls.Add("run"); RunBudgetMs = budgetMs; RunWorkers = workers; RunPcm = pcm; RunPcms.Add(pcm); OrdinaryActiveAtRun = _ordinaryActive; }
             if (RunThrows is not null) throw RunThrows;
-            return run;
+            return RunByCall is { } byCall ? byCall(RunCalls) : run;
         }
 
         public string? CohFallbackUnpack(byte[] payload)
@@ -132,7 +141,14 @@ public sealed class CoherentFallbackWiringTests
 
         public (int ReturnCode, float[] Shat) SubfeasFitSignal(
             float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
-            => (0, new float[180_000]);
+        {
+            var shat = new float[180_000];
+            if (ShatValue != 0f) Array.Fill(shat, ShatValue);
+            return (0, shat);
+        }
+
+        /// <summary>coh-fb-residual: the constant every fitted signal's subtraction buffer holds (0 = the residual equals the input).</summary>
+        public float ShatValue { get; init; }
 
         public int[] GetLastPassCounts(int maxPasses) => new int[maxPasses];
         public int[] GetLastCandidateCounts(int maxPasses) => new int[maxPasses];
@@ -183,10 +199,10 @@ public sealed class CoherentFallbackWiringTests
         public string[] Messages => Results.Select(r => r.Message).ToArray();
     }
 
-    private static async Task<List<Delivered>> RunStaged(Ft8Decoder decoder, FallbackInterop? interop = null, Action<int>? onBatch = null)
+    private static async Task<List<Delivered>> RunStaged(Ft8Decoder decoder, FallbackInterop? interop = null, Action<int>? onBatch = null, float[]? pcm = null)
     {
         var got = new List<Delivered>();
-        await decoder.DecodeStagedAsync(LoudPcm(), CycleStart, null, (n, b) =>
+        await decoder.DecodeStagedAsync(pcm ?? LoudPcm(), CycleStart, null, (n, b) =>
         {
             got.Add(new Delivered(n, b.ToArray()));
             interop?.Note("batch" + n);
@@ -201,6 +217,141 @@ public sealed class CoherentFallbackWiringTests
     private static readonly Ft8NativeResult[] Third = [Msg("Q1MNO Q1PQR IO91", 2400)];
 
     private static CohFallbackRunResult OneNew(int id = 1) => new(Stats(1, 1, 1, 1, 1, 0), [Row(id)]) { Workers = 4 };
+
+    // ── COH-FB-AUDIO: which audio the fallback reads (decoder.coherentFallbackAudio) ──────────────────────────────
+
+    private static Ft8Decoder BuildWithAudio(IFt8NativeInterop interop, DecodingDepth depth, CoherentFallbackAudio? mode, ILogger<Ft8Decoder>? log = null)
+    {
+        var d = Build(interop, depth, true, log);
+        if (mode is { } m) d.SetCoherentFallbackAudio(m);
+        return d;
+    }
+
+    private static float[] Normalised() => Ft8Decoder.NormalisePcm(LoudPcm(), 0.20f /* Ft8Decoder.PcmNormalisationTargetRms */);
+
+    private static string AudioField(LineLog log)
+        => Regex.Match(log.Lines.Single(l => l.StartsWith("Coherent fallback:")), @"audio=([a-z0-9()\-]+)(?:,|\.)").Groups[1].Value;
+
+    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: a bare decoder starts at Original; the setter and getter round-trip all three values")]
+    public void Audio_BareDecoderOriginal_RoundTrips()
+    {
+        var d = Build(new FallbackInterop([Pass0], OneNew()), DecodingDepth.Deep, true);
+        d.CoherentFallbackAudio.Should().Be(CoherentFallbackAudio.Original);
+        foreach (var m in Enum.GetValues<CoherentFallbackAudio>())
+        {
+            d.SetCoherentFallbackAudio(m);
+            d.CoherentFallbackAudio.Should().Be(m);
+        }
+    }
+
+    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: Original - the fallback is handed the SAME reference as the cycle's normalised audio, the line says audio=original and has no counts")]
+    public async Task Audio_Original_SameReference()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudio(interop, DecodingDepth.Deep, CoherentFallbackAudio.Original, log));
+
+        interop.RunPcms.Should().HaveCount(1);
+        interop.FirstDecodePcm.Should().NotBeNull();
+        interop.RunPcms[0].Should().BeSameAs(interop.FirstDecodePcm, "pass 0 decodes normalisedPcm, and Original hands the fallback that very array");
+        var line = log.Lines.Single(l => l.StartsWith("Coherent fallback:"));
+        line.Should().EndWith(", audio=original.");
+        line.Should().NotContain("fromOriginal");
+    }
+
+    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: Original reads the same values as the cycle's normalised audio on a loud buffer")]
+    public async Task Audio_Original_Values()
+    {
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudio(interop, DecodingDepth.Deep, CoherentFallbackAudio.Original));
+        interop.RunPcms.Single().Should().Equal(Normalised());
+    }
+
+    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: Residual, third pass ran - the fallback reads the THIRD pass's buffer (audio=residual3)")]
+    public async Task Audio_Residual_ThirdPassRan_ReadsThirdPassBuffer()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudio(interop, DecodingDepth.Deep, CoherentFallbackAudio.Residual, log));
+
+        AudioField(log).Should().Be("residual3");
+        // pass 0 had 2 signals (residual buffer = x - 0.02); the third pass fits the residual pass's 1 new signal: x - 0.03.
+        var orig = Normalised();
+        interop.RunPcms.Single()[100].Should().BeApproximately(orig[100] - 0.03f, 1e-5f);
+    }
+
+    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: Residual, third pass skipped (residual pass found nothing new) - the fallback reads the RESIDUAL pass's buffer (audio=residual2)")]
+    public async Task Audio_Residual_ThirdPassSkipped_ReadsResidualPassBuffer()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, []], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudio(interop, DecodingDepth.Deep, CoherentFallbackAudio.Residual, log));
+
+        AudioField(log).Should().Be("residual2");
+        interop.RunPcms.Single()[100].Should().BeApproximately(Normalised()[100] - 0.02f, 1e-5f, "pass 0's two signals subtracted, nothing more");
+    }
+
+    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: Residual on Normal depth - residual-unavailable, original audio, Normal path unchanged")]
+    public async Task Audio_Residual_Normal_Unavailable()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudio(interop, DecodingDepth.Normal, CoherentFallbackAudio.Residual, log));
+
+        AudioField(log).Should().Be("residual-unavailable");
+        interop.RunPcms.Single().Should().Equal(Normalised());
+    }
+
+    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: Residual and pass 0 decoded nothing (no residual pass) - residual-unavailable")]
+    public async Task Audio_Residual_NothingDecoded_Unavailable()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([[]], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudio(interop, DecodingDepth.Deep, CoherentFallbackAudio.Residual, log));
+
+        AudioField(log).Should().Be("residual-unavailable");
+        interop.RunPcms.Single().Should().Equal(Normalised());
+    }
+
+    private static CohFallbackRunResult RunOf(params CohFallbackRow[] rows)
+        => new(Stats(rows.Length, rows.Length, rows.Length, rows.Length, rows.Length, 0), rows) { Workers = 4 };
+
+    [Fact(DisplayName = "FR-100: COH-FB-AUDIO: Both - the fallback runs ONCE on each audio (residual first, then original), the results are merged by payload (residual row kept), one batch 4, counts logged")]
+    public async Task Audio_Both_RunsOnBoth_MergesByPayload()
+    {
+        var log = new LineLog();
+        // residual run finds payloads 1 and 2; original run finds 2 and 3.
+        var interop = new FallbackInterop([Pass0, Resid], null)
+        {
+            Texts = { [1] = "Q1AAA Q1BBB RR73", [2] = "Q1CCC Q1DDD RR73", [3] = "Q1EEE Q1FFF RR73" },
+            ShatValue = 0.01f,
+            RunByCall = n => n == 1 ? RunOf(Row(1), Row(2, freq: 1100f, snr: -18)) : RunOf(Row(2, freq: 1100f, snr: -25), Row(3, freq: 1200f)),
+        };
+        var delivered = await RunStaged(BuildWithAudio(interop, DecodingDepth.Deep, CoherentFallbackAudio.Both, log));
+
+        interop.RunCalls.Should().Be(2);
+        var orig = Normalised();
+        interop.RunPcms[0][100].Should().BeApproximately(orig[100] - 0.03f, 1e-5f, "the first run reads the third pass's buffer");
+        interop.RunPcms[1].Should().Equal(orig, "the second run reads the original audio");
+        var batch4 = delivered.Single(b => b.Batch == 4);
+        batch4.Results.Should().HaveCount(3, "one row per payload: 1, 2 and 3");
+        batch4.Results.Select(r => r.Snr).Should().Contain(-18).And.NotContain(-25, "where both found payload 2 the residual row is kept");
+        var line = log.Lines.Single(l => l.StartsWith("Coherent fallback:"));
+        line.Should().EndWith(", audio=both(residual3), fromOriginal=1, fromResidual=1, inBoth=1.");
+    }
+
+    [Fact(DisplayName = "FR-100: COH-FB-AUDIO: Both with no usable residual buffer - the original audio is run ONCE (never twice) and the line says both(unavailable)")]
+    public async Task Audio_Both_ResidualUnavailable_RunsOnce()
+    {
+        var log = new LineLog();
+        var interop = new FallbackInterop([Pass0, Resid], OneNew()) { Texts = { [1] = "Q1AAA Q1BBB RR73" }, ShatValue = 0.01f };
+        await RunStaged(BuildWithAudio(interop, DecodingDepth.Normal, CoherentFallbackAudio.Both, log));
+
+        interop.RunCalls.Should().Be(1);
+        interop.RunPcms.Single().Should().Equal(Normalised());
+        log.Lines.Single(l => l.StartsWith("Coherent fallback:"))
+            .Should().EndWith(", audio=both(unavailable), fromOriginal=1, fromResidual=0, inBoth=0.");
+    }
 
     // ── COH-MULTISET: the flag reaches the run once per cycle, and the line reports it ─────────────────────────────
 
@@ -236,7 +387,7 @@ public sealed class CoherentFallbackWiringTests
 
         interop.MultiSetArgs.Should().Equal(false, true);
         var lines = log.Lines.Where(l => l.StartsWith("Coherent fallback:")).ToList();
-        lines[0].Should().Contain("sets=off, walkEntered=0, crcC1=0, crcJ2=0, crcJ3=0, crcN1=0.");
+        lines[0].Should().Contain("sets=off, walkEntered=0, crcC1=0, crcJ2=0, crcJ3=0, crcN1=0, audio=original.");
         lines[1].Should().Contain("sets=on, ");
     }
 
@@ -256,7 +407,7 @@ public sealed class CoherentFallbackWiringTests
         await RunStaged(d);
 
         var line = log.Lines.Single(l => l.StartsWith("Coherent fallback:"));
-        line.Should().Contain("sets=on, walkEntered=4, crcC1=0, crcJ2=1, crcJ3=2, crcN1=0.");
+        line.Should().Contain("sets=on, walkEntered=4, crcC1=0, crcJ2=1, crcJ3=2, crcN1=0, audio=original.");
         line.Should().NotContain("Q1AAA");
     }
 
@@ -517,7 +668,7 @@ public sealed class CoherentFallbackWiringTests
     private static readonly Regex LineShape = new(
         @"^Coherent fallback: eligible=7, attempted=6, crcOk=3, f1bComputed=2, gated=1, published=1, abandoned=1, elapsedMs=457, publishedEdge=1, path=2, " +
         @"workers=4, fbStartMs=(\d+), fbWallMs=(\d+), batch=(\d), batch4Published=([01]), batch4PublishMs=(-?\d+), " +
-        @"sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+)\.$", RegexOptions.CultureInvariant);
+        @"sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+), audio=(original|residual3|residual2|residual-unavailable)\.$", RegexOptions.CultureInvariant);
 
     [Fact(DisplayName = "R12': ONE aggregates-only line per cycle, with the documented fields (workers, fbStartMs, fbWallMs, batch, batch4Published, batch4PublishMs) and no message text")]
     public async Task Log_OneLinePerCycle_WithTheFields()
@@ -712,5 +863,146 @@ public sealed class CoherentFallbackWiringTests
 
         interop.AnalyticCallCount.Should().Be(offInterop.AnalyticCallCount);
         interop.DecodeAllCallCount.Should().Be(offInterop.DecodeAllCallCount);
+    }
+
+    // ── COH-FB-AUDIO N-1: the shared-budget guard of Both (Ft8Decoder, "leftMs"), and the runner's claim guard ─────
+    //
+    // The clock is a TimeProvider the test owns (the internal seam): it moves only when the stub's fallback run says so, by arithmetic -
+    // no Task.Delay, no Thread.Sleep, no wall-clock read. Workers = 1 wherever a count is asserted exactly.
+
+    /// <summary>A time source that moves only when a test advances it (1 tick = 100 ns, as <see cref="TimeSpan"/>).</summary>
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long _ticks;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => Interlocked.Read(ref _ticks);
+        public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, by.Ticks);
+        public TimeSpan Elapsed => TimeSpan.FromTicks(Interlocked.Read(ref _ticks));
+    }
+
+    /// <summary>A fallback backend of <c>n</c> eligible candidates (payload ids from <c>firstId</c>); every candidate costs <c>costPerCandidate</c> of the manual clock.</summary>
+    private sealed class TickingBackend(int n, int firstId, ManualTimeProvider time, TimeSpan costPerCandidate) : ICohFallbackBackend
+    {
+        public int ProcessCalls;
+        private readonly int _firstId = firstId;
+        private readonly ManualTimeProvider _time = time;
+        private readonly TimeSpan _cost = costPerCandidate;
+
+        public CohFallbackPlan? Plan(byte[] snapshot)
+            => new(Stats(n, 0, 0, 0, 0, 0), Enumerable.Range(0, n).Select(e => 2 * e + 1).ToList(),
+                   Enumerable.Range(0, n).Select(e => Row(_firstId + e, CohFallbackState.Abandoned)).ToList());
+
+        public ICohFallbackWorker CreateWorker() => new Worker(this);
+
+        private sealed class Worker(TickingBackend owner) : ICohFallbackWorker
+        {
+            private int _attempted;
+            public CohFallbackRow Process(float[] pcm, byte[] snapshot, int candidateIndex)
+            {
+                Interlocked.Increment(ref owner.ProcessCalls);
+                _attempted++;
+                owner._time.Advance(owner._cost);   // the candidate's cost, by arithmetic
+                return Row(owner._firstId + (candidateIndex - 1) / 2);
+            }
+            public CohFallbackStats Accumulated => new(0, 0, 0, 0, _attempted, _attempted, _attempted, _attempted, _attempted, 0, 0, 0, 0, 0, 0);
+            public void Dispose() { }
+        }
+    }
+
+    private static string TextOf(int id) => $"Q1{(char)('A' + id / 26)}{(char)('A' + id % 26)}A Q1BBB RR73";
+
+    private static Dictionary<int, string> TextsFor(int count) => Enumerable.Range(1, count).ToDictionary(i => i, TextOf);
+
+    private static Ft8Decoder BuildTimed(IFt8NativeInterop interop, ManualTimeProvider time, ILogger<Ft8Decoder> log)
+    {
+        var d = new Ft8Decoder(new FakeClock(CycleStart), log, interop, timeProvider: time);
+        d.SetSubtractionEnabled(true);
+        d.SetDecodingDepth(DecodingDepth.Deep);
+        d.SetCoherentFallbackEnabled(true);
+        d.SetCoherentFallbackAudio(CoherentFallbackAudio.Both);
+        return d;
+    }
+
+    /// <summary>What production gives the first run: the shared 13 s budget less the publish reserve, when the fallback starts at clock 0.</summary>
+    private static readonly double FirstRunBudgetMs = (Ft8Decoder.SubtractionCycleBudget - Ft8Decoder.CoherentFallbackPublishReserve).TotalMilliseconds;
+
+    private static int IntField(LineLog log, string name)
+        => int.Parse(Regex.Match(log.Lines.Single(l => l.StartsWith("Coherent fallback:")), name + @"=(\d+)").Groups[1].Value);
+
+    [Theory(DisplayName = "FR-100: COH-FB-AUDIO N-1(a): Both, leftMs <= 0 - the second run is never called, its eligible candidates are counted abandoned, the first run's rows still publish")]
+    [InlineData(0.0)]      // the first run spends exactly the whole budget: leftMs == 0, and the guard is "> 0"
+    [InlineData(500.0)]    // it overruns by 500 ms: leftMs < 0
+    public async Task Both_BudgetSpentByFirstRun_SecondRunNotStarted(double overrunMs)
+    {
+        const int EligibleInFirstRun = 2;
+        var time = new ManualTimeProvider();
+        var log = new LineLog();
+        FallbackInterop? interop = null;
+        interop = new FallbackInterop([Pass0, Resid], null)
+        {
+            Texts = TextsFor(EligibleInFirstRun),
+            ShatValue = 0.01f,
+            RunByCall = _ =>
+            {
+                time.Advance(TimeSpan.FromMilliseconds(interop!.RunBudgetMs!.Value + overrunMs));   // the first run spends the budget (no sleeping)
+                return RunOf(Row(1), Row(2, freq: 1100f));
+            },
+        };
+
+        var delivered = await RunStaged(BuildTimed(interop, time, log));
+
+        interop.RunBudgetMs.Should().Be(FirstRunBudgetMs, "the fallback started at clock 0, so the first run gets the 13 s budget less the reserve");
+        interop.RunCalls.Should().Be(1, "the second run's backend is never called once nothing is left of the shared budget");
+        IntField(log, "abandoned").Should().Be(EligibleInFirstRun, "the second run's eligible candidates are counted abandoned (same snapshot, so as many as the first run's eligible)");
+        IntField(log, "attempted").Should().Be(EligibleInFirstRun, "only the first run attempted anything");
+        delivered.Single(b => b.Batch == 4).Messages.Should().BeEquivalentTo(new[] { TextOf(1), TextOf(2) }, "the first run's rows still publish, as one batch 4");
+        log.Lines.Single(l => l.StartsWith("Coherent fallback:")).Should().EndWith(", audio=both(residual3), fromOriginal=0, fromResidual=2, inBoth=0.");
+    }
+
+    [Fact(DisplayName = "FR-100: COH-FB-AUDIO N-1(b): Both, 0 < leftMs < one run's wall time - the second run starts on leftMs, stops claiming at its budget, the rest are abandoned, the first run's rows still publish")]
+    public async Task Both_BudgetShortForSecondRun_StopsClaimingAtItsBudget()
+    {
+        const int EligiblePerRun = 10;
+        const int WorkersForExactCount = 1;   // one worker: how many candidates are claimed is then exact, not scheduling-dependent
+        var costPerCandidate = TimeSpan.FromSeconds(1);
+        double allowanceMs = costPerCandidate.TotalMilliseconds;   // the one candidate in flight when the budget is reached is always finished
+
+        var time = new ManualTimeProvider();
+        var log = new LineLog();
+        FallbackInterop? interop = null;
+        TickingBackend? firstBackend = null, secondBackend = null;
+        interop = new FallbackInterop([Pass0, Resid], null)
+        {
+            Texts = TextsFor(2 * EligiblePerRun),
+            ShatValue = 0.01f,
+            // The REAL runner, on a stub backend and the manual clock: the budget it is handed is the one the decoder computed.
+            RunByCall = call =>
+            {
+                var backend = call == 1
+                    ? firstBackend = new TickingBackend(EligiblePerRun, 1, time, costPerCandidate)
+                    : secondBackend = new TickingBackend(EligiblePerRun, 1 + EligiblePerRun, time, costPerCandidate);
+                return CohFallbackParallelRunner.Run(backend, interop!.RunPcm!, [1, 2, 3, 4], interop.RunBudgetMs!.Value, WorkersForExactCount,
+                                                     CancellationToken.None, timeProvider: time);
+            },
+        };
+
+        var delivered = await RunStaged(BuildTimed(interop, time, log));
+
+        double firstRunMs = EligiblePerRun * costPerCandidate.TotalMilliseconds;
+        double leftMs = FirstRunBudgetMs - firstRunMs;
+        leftMs.Should().BeGreaterThan(0).And.BeLessThan(firstRunMs, "the scenario: something is left, but less than one run needs");
+        int expectedSecondRun = (int)Math.Ceiling(leftMs / costPerCandidate.TotalMilliseconds);   // it claims while elapsed < leftMs: ceil(leftMs / cost)
+
+        interop.RunCalls.Should().Be(2);
+        interop.RunBudgetMs.Should().BeApproximately(leftMs, 1e-6, "the second run is handed what the first left of the shared budget");
+        firstBackend!.ProcessCalls.Should().Be(EligiblePerRun, "the first run finished all its candidates");
+        secondBackend!.ProcessCalls.Should().Be(expectedSecondRun).And.BeLessThan(EligiblePerRun, "the second run stopped claiming at its budget").And.BeGreaterThan(0);
+        IntField(log, "abandoned").Should().Be(EligiblePerRun - expectedSecondRun, "the unclaimed rest of the second run is counted abandoned");
+        IntField(log, "attempted").Should().Be(EligiblePerRun + expectedSecondRun);
+        var messages = delivered.Single(b => b.Batch == 4).Messages;
+        messages.Should().Contain(Enumerable.Range(1, EligiblePerRun).Select(TextOf), "the first run's rows still publish");
+        messages.Should().HaveCount(EligiblePerRun + expectedSecondRun, "one row per candidate that ran, in both runs (distinct payloads)");
+        time.Elapsed.TotalMilliseconds.Should().BeLessThanOrEqualTo(FirstRunBudgetMs + allowanceMs,
+            "the fallback ends within SubtractionCycleBudget - CoherentFallbackPublishReserve plus the one candidate in flight at the budget");
     }
 }
