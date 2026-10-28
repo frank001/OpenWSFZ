@@ -864,4 +864,145 @@ public sealed class CoherentFallbackWiringTests
         interop.AnalyticCallCount.Should().Be(offInterop.AnalyticCallCount);
         interop.DecodeAllCallCount.Should().Be(offInterop.DecodeAllCallCount);
     }
+
+    // ── COH-FB-AUDIO N-1: the shared-budget guard of Both (Ft8Decoder, "leftMs"), and the runner's claim guard ─────
+    //
+    // The clock is a TimeProvider the test owns (the internal seam): it moves only when the stub's fallback run says so, by arithmetic -
+    // no Task.Delay, no Thread.Sleep, no wall-clock read. Workers = 1 wherever a count is asserted exactly.
+
+    /// <summary>A time source that moves only when a test advances it (1 tick = 100 ns, as <see cref="TimeSpan"/>).</summary>
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long _ticks;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => Interlocked.Read(ref _ticks);
+        public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, by.Ticks);
+        public TimeSpan Elapsed => TimeSpan.FromTicks(Interlocked.Read(ref _ticks));
+    }
+
+    /// <summary>A fallback backend of <c>n</c> eligible candidates (payload ids from <c>firstId</c>); every candidate costs <c>costPerCandidate</c> of the manual clock.</summary>
+    private sealed class TickingBackend(int n, int firstId, ManualTimeProvider time, TimeSpan costPerCandidate) : ICohFallbackBackend
+    {
+        public int ProcessCalls;
+        private readonly int _firstId = firstId;
+        private readonly ManualTimeProvider _time = time;
+        private readonly TimeSpan _cost = costPerCandidate;
+
+        public CohFallbackPlan? Plan(byte[] snapshot)
+            => new(Stats(n, 0, 0, 0, 0, 0), Enumerable.Range(0, n).Select(e => 2 * e + 1).ToList(),
+                   Enumerable.Range(0, n).Select(e => Row(_firstId + e, CohFallbackState.Abandoned)).ToList());
+
+        public ICohFallbackWorker CreateWorker() => new Worker(this);
+
+        private sealed class Worker(TickingBackend owner) : ICohFallbackWorker
+        {
+            private int _attempted;
+            public CohFallbackRow Process(float[] pcm, byte[] snapshot, int candidateIndex)
+            {
+                Interlocked.Increment(ref owner.ProcessCalls);
+                _attempted++;
+                owner._time.Advance(owner._cost);   // the candidate's cost, by arithmetic
+                return Row(owner._firstId + (candidateIndex - 1) / 2);
+            }
+            public CohFallbackStats Accumulated => new(0, 0, 0, 0, _attempted, _attempted, _attempted, _attempted, _attempted, 0, 0, 0, 0, 0, 0);
+            public void Dispose() { }
+        }
+    }
+
+    private static string TextOf(int id) => $"Q1{(char)('A' + id / 26)}{(char)('A' + id % 26)}A Q1BBB RR73";
+
+    private static Dictionary<int, string> TextsFor(int count) => Enumerable.Range(1, count).ToDictionary(i => i, TextOf);
+
+    private static Ft8Decoder BuildTimed(IFt8NativeInterop interop, ManualTimeProvider time, ILogger<Ft8Decoder> log)
+    {
+        var d = new Ft8Decoder(new FakeClock(CycleStart), log, interop, timeProvider: time);
+        d.SetSubtractionEnabled(true);
+        d.SetDecodingDepth(DecodingDepth.Deep);
+        d.SetCoherentFallbackEnabled(true);
+        d.SetCoherentFallbackAudio(CoherentFallbackAudio.Both);
+        return d;
+    }
+
+    /// <summary>What production gives the first run: the shared 13 s budget less the publish reserve, when the fallback starts at clock 0.</summary>
+    private static readonly double FirstRunBudgetMs = (Ft8Decoder.SubtractionCycleBudget - Ft8Decoder.CoherentFallbackPublishReserve).TotalMilliseconds;
+
+    private static int IntField(LineLog log, string name)
+        => int.Parse(Regex.Match(log.Lines.Single(l => l.StartsWith("Coherent fallback:")), name + @"=(\d+)").Groups[1].Value);
+
+    [Theory(DisplayName = "FR-100: COH-FB-AUDIO N-1(a): Both, leftMs <= 0 - the second run is never called, its eligible candidates are counted abandoned, the first run's rows still publish")]
+    [InlineData(0.0)]      // the first run spends exactly the whole budget: leftMs == 0, and the guard is "> 0"
+    [InlineData(500.0)]    // it overruns by 500 ms: leftMs < 0
+    public async Task Both_BudgetSpentByFirstRun_SecondRunNotStarted(double overrunMs)
+    {
+        const int EligibleInFirstRun = 2;
+        var time = new ManualTimeProvider();
+        var log = new LineLog();
+        FallbackInterop? interop = null;
+        interop = new FallbackInterop([Pass0, Resid], null)
+        {
+            Texts = TextsFor(EligibleInFirstRun),
+            ShatValue = 0.01f,
+            RunByCall = _ =>
+            {
+                time.Advance(TimeSpan.FromMilliseconds(interop!.RunBudgetMs!.Value + overrunMs));   // the first run spends the budget (no sleeping)
+                return RunOf(Row(1), Row(2, freq: 1100f));
+            },
+        };
+
+        var delivered = await RunStaged(BuildTimed(interop, time, log));
+
+        interop.RunBudgetMs.Should().Be(FirstRunBudgetMs, "the fallback started at clock 0, so the first run gets the 13 s budget less the reserve");
+        interop.RunCalls.Should().Be(1, "the second run's backend is never called once nothing is left of the shared budget");
+        IntField(log, "abandoned").Should().Be(EligibleInFirstRun, "the second run's eligible candidates are counted abandoned (same snapshot, so as many as the first run's eligible)");
+        IntField(log, "attempted").Should().Be(EligibleInFirstRun, "only the first run attempted anything");
+        delivered.Single(b => b.Batch == 4).Messages.Should().BeEquivalentTo(new[] { TextOf(1), TextOf(2) }, "the first run's rows still publish, as one batch 4");
+        log.Lines.Single(l => l.StartsWith("Coherent fallback:")).Should().EndWith(", audio=both(residual3), fromOriginal=0, fromResidual=2, inBoth=0.");
+    }
+
+    [Fact(DisplayName = "FR-100: COH-FB-AUDIO N-1(b): Both, 0 < leftMs < one run's wall time - the second run starts on leftMs, stops claiming at its budget, the rest are abandoned, the first run's rows still publish")]
+    public async Task Both_BudgetShortForSecondRun_StopsClaimingAtItsBudget()
+    {
+        const int EligiblePerRun = 10;
+        const int WorkersForExactCount = 1;   // one worker: how many candidates are claimed is then exact, not scheduling-dependent
+        var costPerCandidate = TimeSpan.FromSeconds(1);
+        double allowanceMs = costPerCandidate.TotalMilliseconds;   // the one candidate in flight when the budget is reached is always finished
+
+        var time = new ManualTimeProvider();
+        var log = new LineLog();
+        FallbackInterop? interop = null;
+        TickingBackend? firstBackend = null, secondBackend = null;
+        interop = new FallbackInterop([Pass0, Resid], null)
+        {
+            Texts = TextsFor(2 * EligiblePerRun),
+            ShatValue = 0.01f,
+            // The REAL runner, on a stub backend and the manual clock: the budget it is handed is the one the decoder computed.
+            RunByCall = call =>
+            {
+                var backend = call == 1
+                    ? firstBackend = new TickingBackend(EligiblePerRun, 1, time, costPerCandidate)
+                    : secondBackend = new TickingBackend(EligiblePerRun, 1 + EligiblePerRun, time, costPerCandidate);
+                return CohFallbackParallelRunner.Run(backend, interop!.RunPcm!, [1, 2, 3, 4], interop.RunBudgetMs!.Value, WorkersForExactCount,
+                                                     CancellationToken.None, timeProvider: time);
+            },
+        };
+
+        var delivered = await RunStaged(BuildTimed(interop, time, log));
+
+        double firstRunMs = EligiblePerRun * costPerCandidate.TotalMilliseconds;
+        double leftMs = FirstRunBudgetMs - firstRunMs;
+        leftMs.Should().BeGreaterThan(0).And.BeLessThan(firstRunMs, "the scenario: something is left, but less than one run needs");
+        int expectedSecondRun = (int)Math.Ceiling(leftMs / costPerCandidate.TotalMilliseconds);   // it claims while elapsed < leftMs: ceil(leftMs / cost)
+
+        interop.RunCalls.Should().Be(2);
+        interop.RunBudgetMs.Should().BeApproximately(leftMs, 1e-6, "the second run is handed what the first left of the shared budget");
+        firstBackend!.ProcessCalls.Should().Be(EligiblePerRun, "the first run finished all its candidates");
+        secondBackend!.ProcessCalls.Should().Be(expectedSecondRun).And.BeLessThan(EligiblePerRun, "the second run stopped claiming at its budget").And.BeGreaterThan(0);
+        IntField(log, "abandoned").Should().Be(EligiblePerRun - expectedSecondRun, "the unclaimed rest of the second run is counted abandoned");
+        IntField(log, "attempted").Should().Be(EligiblePerRun + expectedSecondRun);
+        var messages = delivered.Single(b => b.Batch == 4).Messages;
+        messages.Should().Contain(Enumerable.Range(1, EligiblePerRun).Select(TextOf), "the first run's rows still publish");
+        messages.Should().HaveCount(EligiblePerRun + expectedSecondRun, "one row per candidate that ran, in both runs (distinct payloads)");
+        time.Elapsed.TotalMilliseconds.Should().BeLessThanOrEqualTo(FirstRunBudgetMs + allowanceMs,
+            "the fallback ends within SubtractionCycleBudget - CoherentFallbackPublishReserve plus the one candidate in flight at the budget");
+    }
 }

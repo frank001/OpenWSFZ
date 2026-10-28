@@ -35,15 +35,16 @@ internal static class CohFallbackParallelRunner
     /// <param name="workers">Worker threads wanted (at least 1; never more than there are candidates).</param>
     /// <param name="ct">Cancelling it has the same effect as the deadline.</param>
     /// <param name="multiSet">COH-MULTISET: the once-per-cycle flag. Set on EVERY worker's context before its first candidate (A1.1), true or false.</param>
+    /// <param name="timeProvider">Test seam (COH-FB-AUDIO N-1): the time source of the budget; <see cref="TimeProvider.System"/> when <c>null</c>.</param>
     /// <returns>The result, or <c>null</c> when the backend could not make a plan.</returns>
     public static CohFallbackRunResult? Run(
-        ICohFallbackBackend backend, float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct, bool multiSet = false)
+        ICohFallbackBackend backend, float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct, bool multiSet = false, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(backend);
         ArgumentNullException.ThrowIfNull(pcm);
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        var wall = Stopwatch.StartNew();
+        var wall = BudgetClock.StartNew(timeProvider);   // COH-FB-AUDIO N-1: TimeProvider.System unless a test injects a clock
         var plan = backend.Plan(snapshot);
         if (plan is null) return null;
 

@@ -105,7 +105,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// (pass-0-only) if it runs out. A hard bound since sub-feas-speed-redesign A5: the native fits are
     /// cancelled at <c>budget - SubtractionPass.SubtractionResidualDecodeReserve</c>.
     /// </summary>
-    private static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
+    internal static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
 
     // Singleton default — stateless adapter; safe to share across instances.
     private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
@@ -126,6 +126,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     public static int LoadedShimVersion => Ft8LibInterop.LoadedShimVersion;
 
     private readonly IClock                 _clock;
+    // COH-FB-AUDIO N-1: the time source of the cycle's elapsed/budget arithmetic (BudgetClock). System in production; a test injects a fake.
+    private readonly TimeProvider          _timeProvider;
     private readonly ILogger<Ft8Decoder>?   _logger;
     private readonly IFt8NativeInterop      _interop;
     private readonly ICallsignGrammarStore? _grammarStore;
@@ -227,11 +229,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-MULTISET: whether the multi-set walk is requested now (the read-back of <see cref="SetCoherentFallbackMultiSet"/>).</summary>
     public bool CoherentFallbackMultiSet => _coherentFallbackMultiSet;
 
-    private volatile CoherentFallbackAudio _coherentFallbackAudio = CoherentFallbackAudio.Original;   // the object starts Original; the daemon sets the configured value (default Residual) before the first cycle
+    private volatile CoherentFallbackAudio _coherentFallbackAudio = CoherentFallbackAudio.Original;   // the object starts Original; the daemon sets the configured value (default Both) before the first cycle
 
     /// <summary>
     /// COH-FB-AUDIO: sets <c>decoder.coherentFallbackAudio</c>. The decoder object itself starts at <see cref="CoherentFallbackAudio.Original"/> (the
-    /// fallback as it was); the configured default (<c>DecoderConfig.CoherentFallbackAudio</c>, <c>Residual</c> when the key is absent) reaches it through
+    /// fallback as it was); the configured default (<c>DecoderConfig.CoherentFallbackAudio</c>, <c>Both</c> when the key is absent) reaches it through
     /// this setter, which the daemon calls before the first cycle and on every config change. Read once per decode cycle; takes effect on the next cycle.
     /// It acts only while <see cref="CoherentFallbackEnabled"/> is on.
     /// </summary>
@@ -245,7 +247,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// COH-FALLBACK Stage 2, R7': time held back from the shared 13 s cycle budget for the work after the native fallback returns (the text
     /// unpack, the mapping and the publish of the last batch). The native run stops starting candidates at <c>budget - elapsed - this</c>.
     /// </summary>
-    private static readonly TimeSpan CoherentFallbackPublishReserve = TimeSpan.FromMilliseconds(250);
+    internal static readonly TimeSpan CoherentFallbackPublishReserve = TimeSpan.FromMilliseconds(250);
 
     private long _thirdPassRuns, _thirdPassSkippedNoNew, _thirdPassSkippedAbandoned,
                  _thirdPassAbandoned, _thirdPassFailed, _thirdPassDecodes;
@@ -329,8 +331,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         IFt8NativeInterop       interop,
         ICallsignGrammarStore?  grammarStore      = null,
         ICallsignRegionStore?   regionStore       = null,
-        IWorkedBeforeIndex?     workedBeforeIndex = null)
+        IWorkedBeforeIndex?     workedBeforeIndex = null,
+        TimeProvider?           timeProvider      = null)
     {
+        _timeProvider      = timeProvider ?? TimeProvider.System;
         _clock             = clock;
         _logger            = logger;
         _interop           = interop;
@@ -592,7 +596,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // ── Native decode ────────────────────────────────────────────────────
         // Offload to a thread-pool thread so that the blocking P/Invoke call does
         // not pin the async continuation's synchronisation context.
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = BudgetClock.StartNew(_timeProvider);
 
         // ── D-002 PCM normalisation ──────────────────────────────────────────
         // Normalise a copy of the PCM buffer to a fixed target RMS before passing

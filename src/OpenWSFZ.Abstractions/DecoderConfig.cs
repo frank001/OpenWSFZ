@@ -52,8 +52,8 @@ public sealed record DecoderConfig
         bool coherentFallbackEnabled   = true,
         // COH-MULTISET: in the constructor with its default (false), for the same reason as the fields above.
         bool coherentFallbackMultiSet  = true,
-        // COH-FB-AUDIO: in the constructor with its default (Residual), for the same reason as the fields above.
-        CoherentFallbackAudio coherentFallbackAudio = CoherentFallbackAudio.Residual)
+        // COH-FB-AUDIO: in the constructor with its default (Both), for the same reason as the fields above.
+        CoherentFallbackAudio coherentFallbackAudio = CoherentFallbackAudio.Both)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -259,10 +259,10 @@ public sealed record DecoderConfig
     /// COH-FB-AUDIO: which audio the coherent fallback reads: <see cref="Abstractions.CoherentFallbackAudio.Original"/> (the cycle's input audio, the
     /// fallback as it was), <see cref="Abstractions.CoherentFallbackAudio.Residual"/> (the cycle's last residual buffer, with the decoded signals
     /// subtracted; steps down to the original audio when none is available) or <see cref="Abstractions.CoherentFallbackAudio.Both"/> (both runs, merged
-    /// by payload, the residual row kept where both found a payload). <b>Default <c>Residual</c></b>: an absent key reads <c>Residual</c> (as does a
+    /// by payload, the residual row kept where both found a payload). <b>Default <c>Both</c></b>: an absent key reads <c>Both</c> (as does a
     /// missing <c>decoder</c> section); an explicit value stays. It has an effect only while <see cref="CoherentFallbackEnabled"/> is on. Config file and
     /// API only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Serialised by name. Read once per
     /// window; takes effect on the next window. Decodes it produces are a new era ("FB-AUDIO"): never pool them with figures from another value.
     /// </summary>
-    public CoherentFallbackAudio CoherentFallbackAudio { get; init; } = CoherentFallbackAudio.Residual;
+    public CoherentFallbackAudio CoherentFallbackAudio { get; init; } = CoherentFallbackAudio.Both;
 }

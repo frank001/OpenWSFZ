@@ -22,14 +22,14 @@ public sealed class CoherentFallbackAudioApiTests : IClassFixture<WebTestFactory
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
-    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: serialised by name; an absent key reads Residual")]
+    [Fact(DisplayName = "FR-099: COH-FB-AUDIO: serialised by name; an absent key reads Both")]
     public void WireFormat()
     {
         var json = JsonSerializer.Serialize(new DecoderConfig { CoherentFallbackAudio = CoherentFallbackAudio.Both }, AppJsonContext.Default.DecoderConfig);
         json.Should().Contain("\"coherentFallbackAudio\":\"Both\"");
         JsonSerializer.Deserialize(json, AppJsonContext.Default.DecoderConfig)!.CoherentFallbackAudio.Should().Be(CoherentFallbackAudio.Both);
         JsonSerializer.Deserialize("""{"kMinScorePass2":10}""", AppJsonContext.Default.DecoderConfig)!
-            .CoherentFallbackAudio.Should().Be(CoherentFallbackAudio.Residual);
+            .CoherentFallbackAudio.Should().Be(CoherentFallbackAudio.Both);
     }
 
     [Fact(DisplayName = "FR-099: COH-FB-AUDIO: POST /api/v1/config is an overlay - posting only the key changes only that key; a body without it keeps it")]
