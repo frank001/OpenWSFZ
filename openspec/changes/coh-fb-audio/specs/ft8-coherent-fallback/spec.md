@@ -63,3 +63,8 @@ first run's results SHALL still be published. If something is left but less than
 
 The `Coherent fallback:` log line SHALL end with `audio=` and the mode's label: `original`, `residual3`, `residual2` or `residual-unavailable`; in `Both`,
 `both(<level>)` with `<level>` one of `residual3`, `residual2`, `unavailable`, followed by `fromOriginal=N, fromResidual=N, inBoth=N` (payload counts after the merge).
+
+#### Scenario: A `Both` cycle where the third pass ran
+
+- **WHEN** the mode is `Both`, the third pass ran and the fallback finished
+- **THEN** the line SHALL end with `audio=both(residual3), fromOriginal=A, fromResidual=B, inBoth=C`, where A, B and C count the payloads found only on the original audio, only on the residual, and on both
