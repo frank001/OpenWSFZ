@@ -1,0 +1,103 @@
+{
+ "cycles": 1200,
+ "B-OFF": {
+  "reference": "continuous main arm (one process, cycles 1-1200)",
+  "cycles_differing": 0,
+  "first_differing_cycle_index": null,
+  "batch4_train": 1350,
+  "batch4_test": 2891,
+  "expected": [
+   1350,
+   2891
+  ],
+  "PASS": true
+ },
+ "B-EQ": {
+  "cycles_plain_text_differing": 0,
+  "first_plain_diff_cycle_index": null,
+  "cycles_hashed_count_differing": 0,
+  "first_hashed_diff_cycle_index": null,
+  "new_text_additions_train": 255,
+  "new_text_additions_test": 522,
+  "expected_additions": [
+   255,
+   522
+  ],
+  "single_run_cycles": 0,
+  "batches_1_3_differing_cycles_ON_vs_main": 0,
+  "PASS": true
+ },
+ "B-AB": {
+  "off": {
+   "fallback_abandoned": 0,
+   "residual_ran": 1200,
+   "residual_abandoned": 0,
+   "residual_contained": 0,
+   "max_fallback_end_ms": 5546.0,
+   "min_margin_to_13s_ms": 7454.0,
+   "levels": {
+    "residual3": 1124,
+    "residual2": 76
+   },
+   "ungated_total_in_log": 0
+  },
+  "on": {
+   "fallback_abandoned": 0,
+   "residual_ran": 1200,
+   "residual_abandoned": 0,
+   "residual_contained": 0,
+   "max_fallback_end_ms": 5571.0,
+   "min_margin_to_13s_ms": 7429.0,
+   "levels": {
+    "residual3": 1124,
+    "residual2": 76
+   },
+   "ungated_total_in_log": 1206
+  },
+  "PASS": true
+ },
+ "game_effect": {
+  "note": "2026-10-28T18:18:00Z CAPTAIN STARTS A GAME ON THE PC (PC arms running)\n2026-10-28T20:06:55Z Captain: game stopped (time of the message, as logged by QA; the actual stop may be a little earlier)",
+  "off": {
+   "before": {
+    "cycles": 523,
+    "fallback_abandoned": 0,
+    "residual_abandoned": 0,
+    "max_fallback_end_ms": 4856.0,
+    "elapsed_ms_median": 3397.8,
+    "elapsed_ms_p95": 4216.6,
+    "elapsed_ms_max": 4856.6
+   },
+   "after": {
+    "cycles": 677,
+    "fallback_abandoned": 0,
+    "residual_abandoned": 0,
+    "max_fallback_end_ms": 5546.0,
+    "elapsed_ms_median": 3745.4,
+    "elapsed_ms_p95": 4711.1,
+    "elapsed_ms_max": 5547.4
+   }
+  },
+  "on": {
+   "before": {
+    "cycles": 0,
+    "fallback_abandoned": 0,
+    "residual_abandoned": 0,
+    "max_fallback_end_ms": null,
+    "elapsed_ms_median": null,
+    "elapsed_ms_p95": null,
+    "elapsed_ms_max": null
+   },
+   "after": {
+    "cycles": 1200,
+    "fallback_abandoned": 0,
+    "residual_abandoned": 0,
+    "max_fallback_end_ms": 5571.0,
+    "elapsed_ms_median": 3865.5,
+    "elapsed_ms_p95": 4905.7,
+    "elapsed_ms_max": 5571.2
+   }
+  }
+ },
+ "ALL_PASS_given_B-NAT": true
+}
