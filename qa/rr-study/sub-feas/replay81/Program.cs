@@ -83,7 +83,12 @@ internal static class Program
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outCsv))!);
         using var log = new ReplayLog(logPath);
         var logger = new ReplayLogger<Ft8Decoder>(log);
+#if HAS_INTERNALS
+        // GAP-RELOCATE item 1: pass-through counting wrapper (StageProbe.cs); built only with -p:HasInternals=true.
+        var decoder = new Ft8Decoder(new WallClock(), logger, new StageProbeInterop(new OpenWSFZ.Ft8.Interop.Ft8NativeInteropAdapter()));
+#else
         var decoder = new Ft8Decoder(new WallClock(), logger);
+#endif
         decoder.SetDecodeParams(KMinScorePass2, OsdCorrThreshold, OsdNhardMax);
 #if HAS_OSDSIGNFIX
         // OSD-FIX (ruling 2026-10-08-1545, A4): the sign switch is REQUIRED so an arm never inherits the library default by accident; read back at start and end (Readback).
@@ -137,6 +142,23 @@ internal static class Program
         // COH-FALLBACK step 4 (U'): working file of EVERY scored decode (all batches, all paths) with its Test-B match flag and text, for the tone-presence instrument. Scratch only (HK-037 amendment 2026-10-10).
         if (a.TryGetValue("nc-dump", out var ncd) && !ncd.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--nc-dump must be under _qa-scratch (HK-037)");
         if (a.TryGetValue("nc-dump", out var ncd2)) _ncDump = new StreamWriter(ncd2, false, new UTF8Encoding(false)) { AutoFlush = true };
+        // GAP-RELOCATE: --impl-dump <path> (scratch only; Debug 'filtered implausible message' events WITH text + batch markers) and --stage-out <path> (counts only).
+        if (a.TryGetValue("impl-dump", out var imd) && !imd.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--impl-dump must be under _qa-scratch (HK-037)");
+        if (a.TryGetValue("impl-dump", out var imd2)) _implDump = new StreamWriter(imd2, false, new UTF8Encoding(false)) { AutoFlush = true };
+        if (a.TryGetValue("stage-out", out var sto))
+        {
+#if HAS_INTERNALS
+            _stageOut = new StreamWriter(sto, false, new UTF8Encoding(false)) { AutoFlush = true };
+            if (a.TryGetValue("stage-dump", out var sdp))
+            {
+                if (!sdp.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--stage-dump must be under _qa-scratch (HK-037)");
+                StageProbeInterop.Dump = new StreamWriter(sdp, false, new UTF8Encoding(false)) { AutoFlush = true };
+            }
+            _stageOut.WriteLine("stamp,runs(pcmLen:rows:newGatedRows:distinctNewGated:known:gatedOut:abandoned|...),unpackCalls,unpackNonEmpty,unpackThrew");
+#else
+            throw new ArgumentException("--stage-out needs a build with -p:HasInternals=true");
+#endif
+        }
         // Test B (WSJT-X corroboration, Architect's HK-037 ruling): the match is done INSIDE this process, where the decoded
         // text lives in memory, against WSJT-X's ALL.TXT read here; only COUNTS and stamps are written. Needs mode two1.
         if (a.TryGetValue("wsjtx-alltxt", out var wsPath))
@@ -494,6 +516,15 @@ internal static class Program
     private static StreamWriter? _outcomes;
     private static StreamWriter? _dxped;   // #225 phase 2: type-0.1 texts, scratch only (see --dxped-dump)
     private static StreamWriter? _ncDump;   // --nc-dump <path>: stamp,kind,matched,freq,dt,snr,same_any,min_df,wcount,path,text for every scored decode (scratch only)
+    private static StreamWriter? _implDump;   // --impl-dump: stamp,event[,text] (scratch only; events D = implausible drop WITH text, M = info marker, H = batch hand-off)
+    private static StreamWriter? _stageOut;   // --stage-out: per-cycle counts of the fallback stages (HasInternals build only)
+    private static volatile string _curStamp = "";
+    internal static string CurStamp => _curStamp;
+    internal static void ImplEvent(string ev, string text = "")
+    {
+        var w = _implDump; if (w is null) return;
+        lock (w) w.WriteLine(_curStamp + "	" + ev + (text.Length > 0 ? "	" + text : ""));
+    }
     private static StreamWriter? _fbDump;   // --fb-dump <path>: working file of fallback outputs with text (scratch only)
     private static int DecodePath(DecodeResult r)
     {
@@ -659,12 +690,17 @@ internal static class Program
 #endif
         SubfeasProbe.Reset();
         ThirdProbe.Reset();
+        _curStamp = stamp;
+#if HAS_INTERNALS
+        StageProbeInterop.Reset_();
+#endif
         var sw = Stopwatch.StartNew();
         try
         {
             IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null, b4 = null;
             await d.DecodeStagedAsync(pcm, cycleStart, null, (n, batch) =>
             {
+                ImplEvent("H	" + n + "	" + batch.Count);
                 if (n == 1) { tb1 = sw.Elapsed.TotalMilliseconds; b1 = batch; }
                 else if (n == 2)
                 {
@@ -728,6 +764,9 @@ internal static class Program
             ));
 #if HAS_COHFB
         _cohOut?.WriteLine(stamp + "," + CohProbe.Line());
+#endif
+#if HAS_INTERNALS
+        _stageOut?.WriteLine(stamp + "," + StageProbeInterop.Line());
 #endif
     }
 
@@ -857,7 +896,7 @@ internal static class Program
         }
         finally
         {
-            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose(); _fbDump?.Dispose(); _ncDump?.Dispose();
+            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose(); _fbDump?.Dispose(); _ncDump?.Dispose(); _implDump?.Dispose(); _stageOut?.Dispose();
             try { Directory.Delete(dir, true); } catch (IOException) { }
         }
     }
@@ -1031,12 +1070,22 @@ internal static class Program
         private readonly ReplayLog _log;
         public ReplayLogger(ReplayLog log) { _log = log; }
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information || (logLevel == LogLevel.Debug && _implDump is not null);
 
         public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception,
                                 Func<TState, Exception?, string> formatter)
         {
-            if (level < LogLevel.Information) return;
+            if (level < LogLevel.Information)
+            {
+                // GAP-RELOCATE: ONLY the plausibility-drop Debug line is read, and only when --impl-dump (a scratch file) is given.
+                if (_implDump is not null && level == LogLevel.Debug && state is IReadOnlyList<KeyValuePair<string, object?>> dkv)
+                {
+                    string tpl = "", msg = "";
+                    foreach (var p in dkv) { if (p.Key == "{OriginalFormat}") tpl = p.Value?.ToString() ?? ""; else if (p.Key == "Message") msg = p.Value?.ToString() ?? ""; }
+                    if (tpl.StartsWith("Cycle {Time}: filtered implausible message", StringComparison.Ordinal)) ImplEvent("D", msg.Replace('	', ' '));
+                }
+                return;
+            }
             string template = "";
             if (state is IReadOnlyList<KeyValuePair<string, object?>> kv)
                 foreach (var p in kv) if (p.Key == "{OriginalFormat}") template = p.Value?.ToString() ?? "";
@@ -1048,12 +1097,14 @@ internal static class Program
                 string t = formatter(state, exception);
                 SubfeasProbe.Set(t.Contains("deadlineAbandoned=True", StringComparison.OrdinalIgnoreCase),
                                  t.Contains("containedException=True", StringComparison.OrdinalIgnoreCase));
+                ImplEvent("M	S");
             }
 #if HAS_THIRDPASS
             if (template.StartsWith(ThirdPrefix, StringComparison.Ordinal) && level == LogLevel.Information)
             {
                 string rendered = formatter(state, exception);
                 ThirdProbe.Set(rendered);
+                ImplEvent("M	T");
                 _log.Line(level.ToString(), rendered);   // aggregate-only template: counts, ms, a fixed outcome word
                 return;
             }
@@ -1063,6 +1114,7 @@ internal static class Program
             {
                 string rendered = formatter(state, exception);
                 CohProbe.Set(rendered);
+                ImplEvent("M	C");
                 _log.Line(level.ToString(), rendered);   // aggregate-only template: counts and ms
                 return;
             }

@@ -34,6 +34,9 @@
     <!-- COH-MULTISET-BUILD (shim 20260071): only the build with Ft8Decoder.SetCoherentFallbackMultiSet; the cohms argument (0 or 1) is then REQUIRED and read back. Needs HasCohFb4 too. -->
     <DefineConstants Condition="'$(HasCohMs)' == 'true'">$(DefineConstants);HAS_COHMS</DefineConstants>
       <DefineConstants Condition="'$(HasCohAudio)' == 'true'">$(DefineConstants);HAS_COHAUDIO</DefineConstants>
+    <!-- GAP-RELOCATE item 1: build as assembly Ft8.FitProbe (already in OpenWSFZ.Ft8's InternalsVisibleTo) to use the internal Ft8Decoder constructor with a counting pass-through interop (StageProbe.cs). -->
+    <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
+    <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

@@ -54,7 +54,7 @@ By band (differences; tested_absent / hashed-unencodable / tested_present): Res 
 | fallback attempts (candidate-runs) | 64,368 | 64,368 | 128,736 |
 | CRC-valid | 18,060 | 5,295 | 23,355 |
 | F1b computed | 2,524 | 3,980 | 6,504 |
-| gated out (F1b above T1) | 1,961 | 2,717 | 4,678 |
+| NEW_GATED candidate-run rows (the log's `gated=`: new payload, F1b at or below T1; **corrected 2026-10-28, the earlier label "gated out (F1b above T1)" was wrong**; F1b above T1 = "F1b computed" minus this row: 563 / 1,263 / 1,826) | 1,961 | 2,717 | 4,678 |
 | passed T1 and published | 725 | 1,218 | 1,350 |
 
 Both's payload contributions (summed over 400 cycles, publishable payloads before the mapping step): only on the original audio 257, only on the residual 755, on both 598. These sum to 1,610, against 1,350 published; the original run alone shows 855 (725 published), the residual run alone 1,353 (1,218 published). The difference of about 130 per run is consistent across the arms; its cause (the mapping step's plausibility filter and per-cycle text de-duplication) was not separately verified.
