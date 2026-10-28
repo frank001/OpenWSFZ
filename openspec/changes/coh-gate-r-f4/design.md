@@ -10,7 +10,7 @@
 
 **D5. Hash-table feedback is expected.** The text unpack of an admitted payload can add callsigns to the process-global hash table, as any decode does, so a later cycle's hashed-call text (`<...>`) can differ from an emulation that unpacked after the cycle inside a save and restore. Acceptance row B-EQ therefore requires exact equality on text without `<...>` and only counts hashed text.
 
-**D6. Counters.** `fromOriginal / fromResidual / inBoth` count admitted rows as found by the residual run (they are in the merge and are published); `ungated=N` is separate and printed only when the setting is ON; `Gated` keeps its meaning (at or below T1).
+**D6. Counters.** `fromOriginal / fromResidual / inBoth` count admitted rows as found by the residual run (they are in the merge and are published); `ungated=N` is separate and printed only when the setting is ON; `Gated` keeps its meaning (at or below T1). Log semantics (replay, 1,200 cycles of `20260925_2010`): `ungated=N` counts published rows whose chosen row was admitted over T1 from the residual run, including ones that replace an original-run row with the same text; it is not the number of additions (sum 1,206 = 777 new texts + 77 moved-frequency replacements + 352 outputs unchanged from the setting-off run).
 
 **D7. Config.** The key follows `decoder.coherentFallbackAudio`: `DecoderConfig`, a volatile field set by the daemon before the first window, read once per window, overlay semantics of HK-035 (a partial post leaves it as it was), no Settings-page control.
 
