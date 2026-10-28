@@ -57,6 +57,15 @@ internal sealed record CohFallbackRow(
     /// </summary>
     public int Provenance { get; init; }
 
+    /// <summary>
+    /// COH-GATE-G R-F4: true when the merge admitted this <see cref="CohFallbackState.GatedOut"/> row of the residual-audio run for publication. The row keeps
+    /// its true <see cref="State"/> (no counter or log relabels it <see cref="CohFallbackState.NewGated"/>); only <see cref="IsPublishable"/> reads this flag.
+    /// </summary>
+    public bool Admitted { get; init; }
+
+    /// <summary>True for a row that may be published: <see cref="CohFallbackState.NewGated"/>, or a <see cref="CohFallbackState.GatedOut"/> row the merge <see cref="Admitted"/>.</summary>
+    public bool IsPublishable => State == CohFallbackState.NewGated || (State == CohFallbackState.GatedOut && Admitted);
+
     internal static CohFallbackRow From(in CohFallbackOutNative n)
     {
         var payload = new byte[12];

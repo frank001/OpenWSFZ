@@ -28,7 +28,7 @@ internal static class CoherentFallbackSelector
         for (int i = 0; i < rows.Count; i++)
         {
             var row = rows[i];
-            if (row.State != CohFallbackState.NewGated) continue;
+            if (!row.IsPublishable) continue;   // NewGated, or a GatedOut row the audio merge admitted (COH-GATE-G R-F4)
 
             string key = Convert.ToHexString(row.Payload, 0, PayloadKeyBytes);
             if (!chosen.TryGetValue(key, out int at))

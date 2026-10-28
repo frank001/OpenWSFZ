@@ -243,6 +243,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-FB-AUDIO: the audio mode the fallback uses now (the read-back of <see cref="SetCoherentFallbackAudio"/>).</summary>
     public CoherentFallbackAudio CoherentFallbackAudio => _coherentFallbackAudio;
 
+    private volatile bool _coherentFallbackResidualUngated;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+
+    /// <summary>
+    /// COH-GATE-G R-F4: sets <c>decoder.coherentFallbackResidualUngated</c>. <c>false</c> (the start value, and the configured default when the key is
+    /// absent) leaves the fallback exactly as it was. <c>true</c> admits the F1b-gated-out rows of the run that read the residual audio, in
+    /// <see cref="CoherentFallbackAudio.Both"/> mode only. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCoherentFallbackResidualUngated(bool enabled)
+        => _coherentFallbackResidualUngated = enabled;
+
+    /// <summary>COH-GATE-G R-F4: whether the residual-run ungating is requested now (the read-back of <see cref="SetCoherentFallbackResidualUngated"/>).</summary>
+    public bool CoherentFallbackResidualUngated => _coherentFallbackResidualUngated;
+
     /// <summary>
     /// COH-FALLBACK Stage 2, R7': time held back from the shared 13 s cycle budget for the work after the native fallback returns (the text
     /// unpack, the mapping and the publish of the last batch). The native run stops starting candidates at <c>budget - elapsed - this</c>.
@@ -556,6 +569,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         bool multiSetOn    = cohOn && _coherentFallbackMultiSet;
         // COH-FB-AUDIO: read ONCE per cycle too.
         var  audioMode     = _coherentFallbackAudio;
+        // COH-GATE-G R-F4: read ONCE per cycle too; it acts only in Both mode (Original and Residual are unchanged).
+        bool ungatedOn     = _coherentFallbackResidualUngated && audioMode == CoherentFallbackAudio.Both;
 
         // ── R2: Pre-condition guard ──────────────────────────────────────────
         // Declared async so that this throw surfaces as a faulted Task rather than
@@ -1067,7 +1082,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
                 var residualRun = choice.IsResidual ? first : null;
                 var originalRun = choice.IsResidual ? second : first;
-                merged = CohFallbackAudioSelector.Merge(originalRun?.Rows, residualRun?.Rows);
+                merged = CohFallbackAudioSelector.Merge(originalRun?.Rows, residualRun?.Rows, ungatedOn);
                 outcome = (originalRun, residualRun) switch
                 {
                     (null, null) => null,
@@ -1085,6 +1100,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             var picked = CoherentFallbackSelector.Select(merged?.Rows ?? outcome.Rows);
             var natives = new List<Ft8NativeResult>(picked.Count);
             var edgeByText = new Dictionary<string, bool>(StringComparer.Ordinal);
+            var admittedByText = new Dictionary<string, bool>(StringComparer.Ordinal);   // COH-GATE-G R-F4: text -> came from an admitted GatedOut row
             foreach (var row in picked)
             {
                 string? text;
@@ -1097,10 +1113,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 if (string.IsNullOrWhiteSpace(text)) continue;
                 natives.Add(new Ft8NativeResult { FreqHz = (int)Math.Round(row.OutFreqHz), Dt = row.OutDtS, Snr = row.SnrDb, Message = text });
                 edgeByText[text.TrimEnd()] = row.Edge;
+                admittedByText.TryAdd(text.TrimEnd(), row.Admitted);
             }
 
             var batch = MapNative(natives.ToArray(), PathFallback);
             int publishedEdge = batch.Count(d => edgeByText.TryGetValue(d.Message, out bool edge) && edge);
+            int publishedUngated = batch.Count(d => admittedByText.TryGetValue(d.Message, out bool admitted) && admitted);   // COH-GATE-G R-F4
 
             // Hand-off: the publish time is read immediately before the caller's callback is called, from the decode's own start (the
             // same clock as batch 1's hand-off). -1 with batch4Published=0 when there is no fallback batch: never average the -1.
@@ -1122,12 +1140,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
                     "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
                     "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}, " +
-                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}.",
+                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}{UngatedCount}.",
                     st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
                     outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs,
                     multiSetOn ? "on" : "off", st.WalkEntered, outcome.CrcValidBySet(1), outcome.CrcValidBySet(2), outcome.CrcValidBySet(3), outcome.CrcValidBySet(4),
                     CohFallbackAudioSelector.Label(audioMode, choice.Level),
-                    merged is null ? "" : $", fromOriginal={merged.FromOriginal}, fromResidual={merged.FromResidual}, inBoth={merged.InBoth}");
+                    merged is null ? "" : $", fromOriginal={merged.FromOriginal}, fromResidual={merged.FromResidual}, inBoth={merged.InBoth}",
+                    ungatedOn ? $", ungated={publishedUngated}" : "");   // only while the setting is effective (ON and Both mode)
             }
         }
     }

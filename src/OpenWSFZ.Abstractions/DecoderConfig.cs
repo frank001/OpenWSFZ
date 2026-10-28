@@ -53,7 +53,9 @@ public sealed record DecoderConfig
         // COH-MULTISET: in the constructor with its default (false), for the same reason as the fields above.
         bool coherentFallbackMultiSet  = true,
         // COH-FB-AUDIO: in the constructor with its default (Both), for the same reason as the fields above.
-        CoherentFallbackAudio coherentFallbackAudio = CoherentFallbackAudio.Both)
+        CoherentFallbackAudio coherentFallbackAudio = CoherentFallbackAudio.Both,
+        // COH-GATE-G R-F4: in the constructor with its default (false), for the same reason as the fields above.
+        bool coherentFallbackResidualUngated = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -69,6 +71,7 @@ public sealed record DecoderConfig
         CoherentFallbackEnabled = coherentFallbackEnabled;
         CoherentFallbackMultiSet = coherentFallbackMultiSet;
         CoherentFallbackAudio   = coherentFallbackAudio;
+        CoherentFallbackResidualUngated = coherentFallbackResidualUngated;
     }
 
     /// <summary>
@@ -265,4 +268,14 @@ public sealed record DecoderConfig
     /// window; takes effect on the next window. Decodes it produces are a new era ("FB-AUDIO"): never pool them with figures from another value.
     /// </summary>
     public CoherentFallbackAudio CoherentFallbackAudio { get; init; } = CoherentFallbackAudio.Both;
+
+    /// <summary>
+    /// COH-GATE-G R-F4: when <c>true</c> and <see cref="CoherentFallbackAudio"/> is <see cref="Abstractions.CoherentFallbackAudio.Both"/>, a fallback row
+    /// of the run that read the residual audio whose payload is new and CRC-valid but whose F1b is above T1 (state GatedOut) is published as if it were
+    /// at or below T1; the original-audio run keeps T1. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and the fallback is as it was.
+    /// It has no effect in the <c>Original</c> and <c>Residual</c> modes. Config file and API only (no Settings-page control); the POST is an overlay, so a
+    /// body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on starts a new live era: never pool its
+    /// decodes with figures from the setting off.
+    /// </summary>
+    public bool CoherentFallbackResidualUngated { get; init; }
 }

@@ -200,4 +200,86 @@ public sealed class CohFallbackAudioTests
         n.Abandoned.Should().Be(7);
         n.Attempted.Should().Be(0);
     }
+
+    // ── COH-GATE-G R-F4: admitting the residual run's GatedOut rows ─────────────────────────────────────────
+
+    private static byte[] Payloads(IEnumerable<CohFallbackRow> rows) => rows.Select(r => r.Payload[0]).ToArray();
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4 merge: setting OFF - a residual GatedOut row is not admitted (the merge is exactly the old one)")]
+    public void Merge_Ungated_Off_NothingAdmitted()
+    {
+        var m = CohFallbackAudioSelector.Merge([Row(2)], [Row(1, state: CohFallbackState.GatedOut), Row(2, state: CohFallbackState.GatedOut)]);
+
+        (m.FromOriginal, m.FromResidual, m.InBoth).Should().Be((1, 0, 0));
+        Payloads(CoherentFallbackSelector.Select(m.Rows)).Should().Equal(new byte[] { 2 });
+        m.Rows.Should().OnlyContain(r => !r.Admitted);
+    }
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4 merge: setting ON - residual GatedOut rows are admitted, keep their true state, and are counted as found by the residual run")]
+    public void Merge_Ungated_On_ResidualGatedOutAdmitted_KeepsState()
+    {
+        var residualIn = new[] { Row(1, -19, state: CohFallbackState.GatedOut), Row(2, -18) };
+        var m = CohFallbackAudioSelector.Merge([Row(3, -22)], residualIn, admitResidualGatedOut: true);
+
+        (m.FromOriginal, m.FromResidual, m.InBoth).Should().Be((1, 2, 0));
+        var published = CoherentFallbackSelector.Select(m.Rows);
+        Payloads(published).OrderBy(b => b).Should().Equal(new byte[] { 1, 2, 3 });
+        var admitted = published.Single(r => r.Payload[0] == 1);
+        admitted.State.Should().Be(CohFallbackState.GatedOut, "the row is never relabelled NewGated");
+        admitted.Admitted.Should().BeTrue();
+        published.Single(r => r.Payload[0] == 2).Admitted.Should().BeFalse("a NewGated row is not an admitted one");
+        residualIn[0].Admitted.Should().BeFalse("the caller's row is not mutated");
+    }
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4 merge: a GatedOut row of the ORIGINAL run is never admitted, and with no residual run nothing is")]
+    public void Merge_Ungated_On_OriginalGatedOutNeverAdmitted()
+    {
+        var m = CohFallbackAudioSelector.Merge([Row(1, state: CohFallbackState.GatedOut), Row(2)], [Row(3)], admitResidualGatedOut: true);
+        Payloads(CoherentFallbackSelector.Select(m.Rows)).OrderBy(b => b).Should().Equal(new byte[] { 2, 3 });
+
+        var lone = CohFallbackAudioSelector.Merge([Row(1, state: CohFallbackState.GatedOut), Row(2)], null, admitResidualGatedOut: true);
+        Payloads(CoherentFallbackSelector.Select(lone.Rows)).Should().Equal(new byte[] { 2 });
+        (lone.FromOriginal, lone.FromResidual, lone.InBoth).Should().Be((1, 0, 0));
+    }
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4 merge: an admitted residual row displaces a NewGated original row with the same payload (counted inBoth, residual SNR kept)")]
+    public void Merge_Ungated_On_AdmittedResidualDisplacesOriginal()
+    {
+        var m = CohFallbackAudioSelector.Merge([Row(4, -30)], [Row(4, -17, state: CohFallbackState.GatedOut)], admitResidualGatedOut: true);
+
+        (m.FromOriginal, m.FromResidual, m.InBoth).Should().Be((0, 0, 1));
+        var published = CoherentFallbackSelector.Select(m.Rows);
+        published.Should().ContainSingle();
+        published[0].SnrDb.Should().Be(-17, "the residual row is the one published");
+        published[0].State.Should().Be(CohFallbackState.GatedOut);
+
+        // OFF: the old behaviour for the same rows - the original row publishes.
+        var off = CohFallbackAudioSelector.Merge([Row(4, -30)], [Row(4, -17, state: CohFallbackState.GatedOut)]);
+        CoherentFallbackSelector.Select(off.Rows).Single().SnrDb.Should().Be(-30);
+    }
+
+    [Theory(DisplayName = "FR-101: COH-GATE-G R-F4 merge: the edge rule applies across mixed states - the first non-edge member wins")]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Merge_Ungated_On_EdgeRuleAcrossMixedStates(bool firstGatedOut, bool secondGatedOut)
+    {
+        var first = firstGatedOut ? CohFallbackState.GatedOut : CohFallbackState.NewGated;
+        var second = secondGatedOut ? CohFallbackState.GatedOut : CohFallbackState.NewGated;
+        var residual = new[] { Row(7, -20, edge: true, state: first), Row(7, -21, edge: false, state: second) };
+        var m = CohFallbackAudioSelector.Merge([Row(7, -30)], residual, admitResidualGatedOut: true);
+
+        var published = CoherentFallbackSelector.Select(m.Rows);
+        published.Should().ContainSingle();
+        published[0].Edge.Should().BeFalse();
+        published[0].SnrDb.Should().Be(-21);
+        published[0].State.Should().Be(second);
+    }
+
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4 merge: candidate order is by index within the run, residual before original, admitted rows included")]
+    public void Merge_Ungated_On_CandidateOrder()
+    {
+        var m = CohFallbackAudioSelector.Merge([Row(1), Row(2)], [Row(3, state: CohFallbackState.GatedOut), Row(4, state: CohFallbackState.GatedOut)], admitResidualGatedOut: true);
+        Payloads(m.Rows).Should().Equal(new byte[] { 3, 1, 4, 2 });
+    }
 }
