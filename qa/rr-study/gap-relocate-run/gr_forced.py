@@ -47,6 +47,7 @@ T1_DB = 17.552446               # header: gated = F1b <= T1
 SEED = 20261028
 K_N = 2000
 K_ORIG_MIN = 1500               # A1.1
+ORIG_TAGS = ("b1", "fb_orig")   # Amendment 3: original-audio path = batch 1 + fallback rows of the original-audio run
 PILOT_CYCLES = 40               # A1.2
 P_CTRL_BAR = 0.90               # 0c, source: GAP-LOCATE 0c' 95.96 % (spec section 4)
 CORROB_HZ = 10                  # Replay81 CorroborationDeltaHz
@@ -169,7 +170,7 @@ def prep():
                     p = text2payload.get(otext)
                     row["tag"] = "fb_orig" if p in orig_payloads else "fb_res"
                 else:
-                    row["tag"] = "b123"
+                    row["tag"] = "b1" if kind == 1 else "b23"      # Amendment 3: batches 2 and 3 are decoded after subtraction
                 hits.append(len(rows))
             else:
                 row.update(matched=False, kind=0, tag="miss")
@@ -178,12 +179,12 @@ def prep():
     perm = sorted(hits)
     rng.shuffle(perm)
     kidx = perm[:K_N]
-    norig = sum(1 for i in kidx if rows[i]["tag"] != "fb_res")
+    norig = sum(1 for i in kidx if rows[i]["tag"] in ORIG_TAGS)
     extended = 0
     nxt = K_N
     while norig < K_ORIG_MIN and nxt < len(perm):
         kidx.append(perm[nxt])
-        if rows[perm[nxt]]["tag"] != "fb_res":
+        if rows[perm[nxt]]["tag"] in ORIG_TAGS:
             norig += 1
         nxt += 1
         extended += 1
@@ -341,7 +342,7 @@ def main():
         run_forced(rows, d["delta_p"], d["delta_c"], C.S + "\\forced_pilot.jsonl")
         recs = [json.loads(x) for x in open(C.S + "\\forced_pilot.jsonl", encoding="utf-8")]
         key = {(r["stamp"], r["idx"]): r for r in pop["rows"]}
-        orig = [x for x in recs if not x["unencodable"] and key[(x["stamp"], x["idx"])]["tag"] != "fb_res"]
+        orig = [x for x in recs if not x["unencodable"] and key[(x["stamp"], x["idx"])]["tag"] in ORIG_TAGS]
         pu = sum(1 for x in orig if x["fp"]["found"] or x["fc"]["v3_match"] or x["walk"]["match"])
         pp = sum(1 for x in orig if x["fp"]["found"])
         print(json.dumps({"pilot_K_original_path": len(orig), "P_ctrl_union": pu / len(orig), "P_ctrl_p": pp / len(orig),

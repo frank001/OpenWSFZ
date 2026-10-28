@@ -98,10 +98,13 @@ def main():
         return {"n": n, "P_ctrl_union": u / n if n else None, "P_ctrl_p": p / n if n else None, "P_ctrl_c_any_gate": c / n if n else None,
                 "P_ctrl_c_v3_gated_only": cs / n if n else None}
     K = [r for r in rows if r["K"]]
-    Kmain_orig = [r for r in K if not r["pilot"] and r["tag"] != "fb_res"]
-    Kpilot_orig = [r for r in K if r["pilot"] and r["tag"] != "fb_res"]
+    ORIG = ("b1", "fb_orig")        # Amendment 3
+    Kmain_orig = [r for r in K if not r["pilot"] and r["tag"] in ORIG]
+    Kpilot_orig = [r for r in K if r["pilot"] and r["tag"] in ORIG]
     Kres = [r for r in K if r["tag"] == "fb_res"]
-    out["row0c"] = {"main_original_path": kstats(Kmain_orig), "pilot_original_path": kstats(Kpilot_orig), "P_ctrl_res_all_K": kstats(Kres),
+    Ksub = [r for r in K if r["tag"] == "b23"]
+    out["row0c"] = {"main_original_path": kstats(Kmain_orig), "pilot_original_path": kstats(Kpilot_orig), "P_ctrl_res_all_K": kstats(Kres), "P_ctrl_sub_all_K": kstats(Ksub),
+                    "by_tag_main": {t: kstats([r for r in K if not r["pilot"] and r["tag"] == t]) for t in ("b1", "fb_orig", "b23", "fb_res")},
                     "by_band_main_original_path": {b: kstats([r for r in Kmain_orig if r["band"] == b]) for b in BANDS},
                     "bar": P_CTRL_BAR}
     out["row0c"]["PASS"] = (out["row0c"]["main_original_path"]["P_ctrl_union"] or 0) >= P_CTRL_BAR
@@ -240,6 +243,10 @@ def main():
         sel = [r for r in Kres if gid[r["stamp"]] == q]
         k = kstats(sel)
         return {"n": k["n"], "P_ctrl_union": k["P_ctrl_union"]}
+    def psub(q):
+        k = kstats([r for r in Ksub if gid[r["stamp"]] == q]); return {"n": k["n"], "P_ctrl_union": k["P_ctrl_union"]}
+    dens["P_ctrl_sub_q1"] = psub(1)
+    dens["P_ctrl_sub_q5"] = psub(5)
     dens["P_ctrl_res_q1"] = pres(1)
     dens["P_ctrl_res_q5"] = pres(5)
     dens["bands_dropped"] = not_est
