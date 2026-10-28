@@ -13,22 +13,40 @@ using OpenWSFZ.Ft8.Interop;
 internal sealed class StageProbeInterop : IFt8NativeInterop
 {
     private readonly IFt8NativeInterop _i;
-    public StageProbeInterop(IFt8NativeInterop inner) { _i = inner; }
+    public static StageProbeInterop? Self;
+    public StageProbeInterop(IFt8NativeInterop inner) { _i = inner; Self = this; }
 
     // ── per-cycle counters (the decoder runs one cycle at a time in this harness) ───────────────────────────────
     public static readonly List<string> Runs = new();       // one entry per CohFallbackRun call, in call order
     public static int UnpackCalls, UnpackNonEmpty, UnpackThrew;
+    public static bool Gate;                           // --gate-record: also record every GATED_OUT / NEW_GATED row (COH-GATE-G)
+    private static readonly List<byte[]> Pending = new();
     public static StreamWriter? Dump;   // --stage-dump (scratch only): R = NEW_GATED row of run n (payload, out freq, snr), U = unpack (payload -> text)
     private static void D(string line) { var w = Dump; if (w is null) return; lock (w) w.WriteLine(line); }
-    public static bool Reset_() { Runs.Clear(); UnpackCalls = UnpackNonEmpty = UnpackThrew = 0; return true; }
+    public static bool Reset_() { lock (Pending) Pending.Clear(); Runs.Clear(); UnpackCalls = UnpackNonEmpty = UnpackThrew = 0; return true; }
 
     private static CohFallbackRunResult? Record(CohFallbackRunResult? r, float[] pcm)
     {
         if (r is null) { Runs.Add("null"); return r; }
         int newGated = 0, known = 0, gatedOut = 0, abandoned = 0;
         var distinct = new HashSet<string>(StringComparer.Ordinal);
+        int rowIx = -1;
         foreach (var row in r.Rows)
         {
+            rowIx++;
+            if (Gate && (row.State == CohFallbackState.GatedOut || row.State == CohFallbackState.NewGated))
+            {
+                var p = row.Payload;
+                int Bit(int k) => (p[k >> 3] >> (7 - (k & 7))) & 1;
+                int i3 = (Bit(74) << 2) | (Bit(75) << 1) | Bit(76), n3 = (Bit(71) << 2) | (Bit(72) << 1) | Bit(73);
+                string hex = Convert.ToHexString(p, 0, 10);
+                D(string.Join("	", Program.CurStamp, "G", Runs.Count.ToString(CultureInfo.InvariantCulture), row.State == CohFallbackState.NewGated ? "N" : "G",
+                    row.F1bDb.ToString("R", CultureInfo.InvariantCulture), row.SnrDb.ToString(CultureInfo.InvariantCulture), row.Edge ? "1" : "0",
+                    row.Provenance.ToString(CultureInfo.InvariantCulture), (row.OutFreqHz - row.FreqHz).ToString("R", CultureInfo.InvariantCulture),
+                    (row.OutDtS - row.DtS).ToString("R", CultureInfo.InvariantCulture), row.Pass.ToString(CultureInfo.InvariantCulture),
+                    row.FreqHz.ToString("R", CultureInfo.InvariantCulture), hex, i3, n3, row.DtS.ToString("R", CultureInfo.InvariantCulture), rowIx.ToString(CultureInfo.InvariantCulture)));
+                if (row.State == CohFallbackState.GatedOut) lock (Pending) Pending.Add(p.AsSpan(0, 10).ToArray());
+            }
             if (row.State == CohFallbackState.NewGated)
             {
                 newGated++; distinct.Add(Convert.ToHexString(row.Payload, 0, 10));
@@ -45,6 +63,32 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
 
     public static string Line()   // runs;unpackCalls;nonEmpty;threw
         => (Runs.Count == 0 ? "-" : string.Join("|", Runs)) + "," + UnpackCalls + "," + UnpackNonEmpty + "," + UnpackThrew;
+
+    /// <summary>COH-GATE-G: after the cycle, unpack the GATED_OUT payloads to text. The unpack may add callsigns to the session hash table, so the
+    /// table is saved before and restored after: later cycles see exactly the state the product would have had. Nothing decodes at this moment
+    /// (the staged decode has returned).</summary>
+    public static void FlushExtras()
+    {
+        var self = Self; if (self is null || !Gate) return;
+        List<byte[]> todo; lock (Pending) { todo = Pending.ToList(); Pending.Clear(); }
+        if (todo.Count == 0) return;
+        int size = self._i.HashStateSize();
+        var buf = new byte[size];
+        self._i.HashStateSave(buf);
+        try
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var pl in todo)
+            {
+                string hex = Convert.ToHexString(pl, 0, 10);
+                if (!seen.Add(hex)) continue;
+                string t;
+                try { t = (self._i.CohFallbackUnpack(pl) ?? "").TrimEnd(); } catch { t = ""; }
+                D(string.Join("	", Program.CurStamp, "X", hex, Ft8Decoder.IsPlausibleMessage(t, null) ? "1" : "0", t));
+            }
+        }
+        finally { self._i.HashStateRestore(buf); }
+    }
 
     // ── forwarding ─────────────────────────────────────────────────────────────────────────────────────────────────
     public int MaxDecodePasses => _i.MaxDecodePasses;

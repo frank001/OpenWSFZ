@@ -1,0 +1,28 @@
+{
+ "n_ref": 12124,
+ "V1": {
+  "batch4_published": 1350,
+  "corroborated": 9931,
+  "pct": 81.91,
+  "expected_batch4": 1350,
+  "expected_pct": 81.91,
+  "PASS": true
+ },
+ "V2": {
+  "cycles_not_reproduced": 0,
+  "corroborated_offline_none": 9931,
+  "corroborated_product": 9931,
+  "PASS": true
+ },
+ "ceiling": {
+  "corroborated_admit_all": 10165,
+  "NET_all_pp": 1.930056087099967,
+  "STOP_CEIL_fires": false
+ },
+ "row_census": {
+  "N|run0": 2717,
+  "N|run1": 1961,
+  "G|run0": 1263,
+  "G|run1": 563
+ }
+}

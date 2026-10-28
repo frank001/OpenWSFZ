@@ -1,0 +1,12 @@
+2026-10-28T15:30:52Z COH-GATE-G TRAIN recording start; dll=1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914; selection sha=42e092395dd5cf8b606c0b411b47f03cfe02fddef6e8d4087d0a5aab40168938
+2026-10-28T15:30:52Z arm both start (cohfb=1)
+2026-10-28T15:54:50Z arm both done rc=0 ok=1 rows=400
+2026-10-28T15:54:50Z orphan check clean
+2026-10-28T15:54:50Z END dll pin OK
+2026-10-28T15:54:50Z chain done
+2026-10-28T15:54:50Z COH-GATE-G TRAIN Original arm (U-prime class freeze, V5) start; dll=1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914; selection sha=42e092395dd5cf8b606c0b411b47f03cfe02fddef6e8d4087d0a5aab40168938
+2026-10-28T15:54:51Z arm orig start (cohfb=1)
+2026-10-28T16:16:34Z arm orig done rc=0 ok=1 rows=400
+2026-10-28T16:16:35Z orphan check clean
+2026-10-28T16:16:35Z END dll pin OK
+2026-10-28T16:16:35Z chain done

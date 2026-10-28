@@ -1,0 +1,70 @@
+{
+ "testable_classes": [
+  "RR73/73/RRR",
+  "grid",
+  "grid CQ",
+  "report"
+ ],
+ "class_table": {
+  "RR73/73/RRR": {
+   "confirmed_in_class": 1358,
+   "n_sampled": 50,
+   "present": 45,
+   "present_rate": 0.9,
+   "wilson": [
+    0.7863950966521162,
+    0.956524876008429
+   ],
+   "testable": true
+  },
+  "grid": {
+   "confirmed_in_class": 2888,
+   "n_sampled": 50,
+   "present": 48,
+   "present_rate": 0.96,
+   "wilson": [
+    0.8653966212204534,
+    0.9889613473391734
+   ],
+   "testable": true
+  },
+  "grid CQ": {
+   "confirmed_in_class": 2348,
+   "n_sampled": 50,
+   "present": 47,
+   "present_rate": 0.94,
+   "wilson": [
+    0.8378265662912299,
+    0.9793854036353695
+   ],
+   "testable": true
+  },
+  "other CQ": {
+   "confirmed_in_class": 114,
+   "n_sampled": 50,
+   "present": 0,
+   "present_rate": 0.0,
+   "wilson": [
+    0.0,
+    0.07135003417431873
+   ],
+   "testable": false
+  },
+  "report": {
+   "confirmed_in_class": 2342,
+   "n_sampled": 50,
+   "present": 48,
+   "present_rate": 0.96,
+   "wilson": [
+    0.8653966212204534,
+    0.9889613473391734
+   ],
+   "testable": true
+  }
+ },
+ "T_frozen": 0.276,
+ "min_n": 10,
+ "min_present_rate": 0.8,
+ "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049",
+ "start_minus_dt_median_s": -0.17999999999999972
+}

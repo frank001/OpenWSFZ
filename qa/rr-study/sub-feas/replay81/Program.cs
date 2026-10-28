@@ -149,6 +149,7 @@ internal static class Program
         {
 #if HAS_INTERNALS
             _stageOut = new StreamWriter(sto, false, new UTF8Encoding(false)) { AutoFlush = true };
+            if (a.ContainsKey("gate-record")) StageProbeInterop.Gate = true;
             if (a.TryGetValue("stage-dump", out var sdp))
             {
                 if (!sdp.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--stage-dump must be under _qa-scratch (HK-037)");
@@ -766,6 +767,7 @@ internal static class Program
         _cohOut?.WriteLine(stamp + "," + CohProbe.Line());
 #endif
 #if HAS_INTERNALS
+        StageProbeInterop.FlushExtras();
         _stageOut?.WriteLine(stamp + "," + StageProbeInterop.Line());
 #endif
     }

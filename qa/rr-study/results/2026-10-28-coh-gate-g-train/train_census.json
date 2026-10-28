@@ -1,0 +1,75 @@
+{
+ "n_ref": 12124,
+ "added_outputs_new_text": 258,
+ "added_confirmed": 234,
+ "newly_corroborated_ref_rows": 234,
+ "newly_corroborated_pp": 1.930056087099967,
+ "added_by": {
+  "band": {
+   "C": 118,
+   "B": 53,
+   "D": 86,
+   "A": 1
+  },
+  "i3": {
+   "1": 241,
+   "4": 16,
+   "2": 1
+  },
+  "run": {
+   "residual": 255,
+   "original": 3
+  },
+  "hashed": {
+   "plain": 227,
+   "hashed": 31
+  },
+  "prov": {
+   "V3": 187,
+   "walk": 71
+  },
+  "edge": {
+   "no_edge": 257,
+   "edge": 1
+  }
+ },
+ "confirmed_by": {
+  "band": {
+   "C": 108,
+   "B": 49,
+   "D": 76,
+   "A": 1
+  },
+  "i3": {
+   "1": 222,
+   "4": 11,
+   "2": 1
+  },
+  "run": {
+   "residual": 231,
+   "original": 3
+  },
+  "hashed": {
+   "plain": 212,
+   "hashed": 22
+  },
+  "prov": {
+   "V3": 170,
+   "walk": 64
+  },
+  "edge": {
+   "no_edge": 233,
+   "edge": 1
+  }
+ },
+ "type4_confirmed_share": 0.6875,
+ "hashed_share_of_added": 0.12015503875968993,
+ "D3_gap_relocate_G_rows": 87,
+ "D3_of_which_newly_corroborated": 86,
+ "stations_confirmed": {
+  "distinct": 114,
+  "top_share": 0.05128205128205128,
+  "top5_share": 0.18803418803418803
+ },
+ "batch4_confirmed_share_product": 0.9088888888888889
+}
