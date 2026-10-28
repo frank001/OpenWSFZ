@@ -36,6 +36,11 @@ def main():
         a = train if i < 400 else test
         ref_main[s] = [(x[0], x[2], x[6]) for x in a["nc"].get(s, [])]
     off, on = load_nc("off"), load_nc("on")
+    # the STRICT B-OFF reference is the continuous one-process main arm over cycles 1-1200 (QA ledger Q27); the recorded TRAIN/TEST arms are the fallback
+    cont = os.path.isfile(R + "\scratch_main\main\nc_dump.tsv")
+    if cont:
+        main_nc = load_nc("main", "scratch_main")
+        ref_main = {s: [(x[0], x[1], x[2]) for x in main_nc.get(s, [])] for s in stamps}
     res = {"cycles": len(stamps)}
 
     # ---- B-OFF: setting absent == main, per cycle, all batches --------------------------------------------------------------------------------------
@@ -48,7 +53,7 @@ def main():
             bad += 1
             first_bad = first_bad if first_bad is not None else i + 1
         b4_off["train" if i < 400 else "test"] += sum(1 for k, _, _ in off.get(s, []) if k == 4)
-    res["B-OFF"] = {"cycles_differing": bad, "first_differing_cycle_index": first_bad, "batch4_train": b4_off["train"], "batch4_test": b4_off["test"],
+    res["B-OFF"] = {"reference": "continuous main arm (one process, cycles 1-1200)" if cont else "recorded TRAIN/TEST arms (TEST started at cycle 401: hashed text can differ)", "cycles_differing": bad, "first_differing_cycle_index": first_bad, "batch4_train": b4_off["train"], "batch4_test": b4_off["test"],
                     "expected": [1350, 2891], "PASS": bad == 0 and b4_off["train"] == 1350 and b4_off["test"] == 2891}
 
     # ---- B-EQ: setting ON vs the offline R-F4 publication ---------------------------------------------------------------------------------------------
@@ -97,6 +102,32 @@ def main():
                 "max_fallback_end_ms": max(ends) if ends else None, "min_margin_to_13s_ms": 13000 - max(ends) if ends else None,
                 "levels": dict(lv), "ungated_total_in_log": ung}
     res["B-AB"] = {"off": ab("off"), "on": ab("on")}
+
+    # ---- the game's effect, descriptive (Architect, 2026-10-28): cycles after the Captain started a game on the PC (18:18:00Z, raw/captain_load_note.txt)
+    # against the cycles before it, per arm: abandoned counts, maximum fallback end, elapsed per cycle. The cycle's time stamp is the 'Coherent fallback' log line's.
+    import datetime
+    GAME = datetime.datetime(2026, 10, 28, 18, 18, 0)
+    notes = open(R + "\\raw\\captain_load_note.txt").read()
+
+    def game_effect(arm):
+        log = open(f"{R}\\raw\\{arm}\\log.log", encoding="utf-8", errors="replace").read().splitlines()
+        stamps_t = [datetime.datetime.strptime(l[:19], "%Y-%m-%dT%H:%M:%S") for l in log if "Coherent fallback:" in l]
+        coh = list(csv.DictReader(open(f"{R}\\raw\\{arm}\\coh.csv")))
+        run = list(csv.DictReader(open(f"{R}\\raw\\{arm}\\run.csv")))
+        ab_rows = [l.strip().split(",") for l in open(f"{R}\\raw\\{arm}\\abandon.csv") if l[:1].isdigit()]
+        out = {}
+        n = min(len(stamps_t), len(coh), len(run), len(ab_rows))
+        for label, pick in (("before", lambda t: t < GAME), ("after", lambda t: t >= GAME)):
+            idx = [i for i in range(n) if pick(stamps_t[i])]
+            el = sorted(float(run[i]["elapsed_ms"]) for i in idx)
+            ends = [float(coh[i]["fb_start_ms"]) + float(coh[i]["fb_wall_ms"]) for i in idx if float(coh[i]["fb_wall_ms"]) >= 0]
+            out[label] = {"cycles": len(idx), "fallback_abandoned": sum(int(coh[i]["abandoned"]) for i in idx),
+                          "residual_abandoned": sum(int(ab_rows[i][2]) for i in idx),
+                          "max_fallback_end_ms": max(ends) if ends else None,
+                          "elapsed_ms_median": el[len(el) // 2] if el else None, "elapsed_ms_p95": el[int(0.95 * len(el))] if el else None,
+                          "elapsed_ms_max": el[-1] if el else None}
+        return out
+    res["game_effect"] = {"note": notes.strip(), "off": game_effect("off"), "on": game_effect("on")}
     res["B-AB"]["PASS"] = all(res["B-AB"][a]["fallback_abandoned"] == 0 and res["B-AB"][a]["residual_abandoned"] == 0 for a in ("off", "on"))
     res["ALL_PASS_given_B-NAT"] = res["B-OFF"]["PASS"] and res["B-EQ"]["PASS"] and res["B-AB"]["PASS"]
     json.dump(res, open(R + "\\acceptance.json", "w"), indent=1)
