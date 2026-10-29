@@ -1,0 +1,8 @@
+{
+ "tercile_cuts_ref_snr_db": [
+  -18.0,
+  -12.0
+ ],
+ "n_N_rows": 1860,
+ "frozen_before_forcing": true
+}

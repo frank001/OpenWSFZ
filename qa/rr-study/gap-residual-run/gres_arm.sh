@@ -5,7 +5,7 @@
 # Settings = GAP-RELOCATE's BOTH arm: mode three1 (Deep), nhard 24, OSD sign fix 1, 8 threads, multi-set ON, coherentFallbackAudio Both, no ungated key.
 # Working files with message text (nc dump, native dumps) live ONLY under D:\Projects\claude\_qa-scratch (HK-037); deleted at job close.
 S=/d/Projects/claude/_qa-scratch/gap-residual
-BIN=$S/bin
+BIN=${BIN:-$S/bin}
 DLL=$BIN/libft8.dll
 PIN=1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914
 SEL=/d/Projects/claude/_qa-scratch/gap-relocate/selection400.json
@@ -32,7 +32,7 @@ log "GAP-RESIDUAL arm $NAME start; dll=$PIN; selection sha=$(sha $SEL)"
   --out "$(w $O/run.csv)" --log "$(w $O/log.log)" --nhard 24 --osd-sign-fix 1 --mode three1 --threads 8 --cohfb 1 --cohms 1 --cohaudio Both --cohfb-out "$(w $O/coh.csv)" \
   --label "gap-residual:$NAME:c2c85c45" --wsjtx-alltxt "$(w $ALLTXT)" --testb-out "$(w $O/testb.csv)" --matched-out "$(w $O/matched.csv)" --matched-batch-out "$(w $O/matchedbatch.csv)" \
   --third-out "$(w $O/third.csv)" --abandon-out "$(w $O/abandon.csv)" --outcomes "$(w $O/outcomes.csv)" --nc-dump "$(w $SC/nc_dump.tsv)" \
-  --impl-dump "$(w $SC/impl_dump.tsv)" --stage-out "$(w $O/stage.csv)" --stage-dump "$(w $SC/stage_dump.tsv)" --cap-dir "$(w $CAP)" > "$O/stdout.txt" 2>&1
+  --impl-dump "$(w $SC/impl_dump.tsv)" --stage-out "$(w $O/stage.csv)" --stage-dump "$(w $SC/stage_dump.tsv)" ${CAPARG:+--cap-dir "$(w $CAP)"} $EXTRA > "$O/stdout.txt" 2>&1
 rc=$?
 ok=1
 [ "$(sha "$DLL")" = "$PIN" ] || { ok=0; log "END dll pin mismatch"; }
