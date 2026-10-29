@@ -61,6 +61,22 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
 
 
+def _nhard_from_readback(arm_config_path):
+    """nhard fallback (2026-10-29): arm_config.json's daemon.osd_nhard_max is null when the supervisor's probe did not return it
+    (RF4ON run 20261028_2233 showed '?' in Section 4 although the daemon had it). The arm script's own read-back of the daemon
+    config (arm_readback.json, beside arm_config.json) records decoder.osdNhardMax; use it when present, else None."""
+    import json
+    if not arm_config_path:
+        return None
+    rb = os.path.join(os.path.dirname(os.path.abspath(arm_config_path)), "arm_readback.json")
+    try:
+        j = json.load(open(rb, encoding="utf-8"))
+        v = (j.get("config", j) or {}).get("decoder", {}).get("osdNhardMax")   # the arm script nests the daemon config under "config"
+    except (OSError, ValueError, AttributeError):
+        return None
+    return v if isinstance(v, int) else None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -270,7 +286,7 @@ def main() -> int:
             "build_branch": d.get("build_branch") or ac.NOT_RECORDED,
             "build_commit": d.get("build_commit") or ac.NOT_RECORDED,
             "shim": d.get("shim_version") or "?",
-            "nhard": d.get("osd_nhard_max") or "?",
+            "nhard": d.get("osd_nhard_max") or _nhard_from_readback(args.arm_config) or "?",
             "reference": args.reference,
             "radio_chain": args.radio_chain,
             "comparable": args.reference == "live_wsjtx",
