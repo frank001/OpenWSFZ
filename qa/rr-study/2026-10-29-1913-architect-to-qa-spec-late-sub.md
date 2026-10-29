@@ -150,3 +150,49 @@ The sol question ("does it fit before 13 s with margin?") is the **build spec's*
   - V4's diagnostics-switch question;
   - whether batch-4 and batch-C rows can be handed to `RunThirdPassAsync` as `Ft8NativeResult` from their published fields;
   - whether the publication emulation (V3) covers rows published after batch 4.
+
+## §7. Amendment 1 (2026-10-29 19:20:17Z, `date -u`): QA's (k) review D1–D6 adopted in full
+
+QA review `qa/rr-study/2026-10-29-1919-qa-to-architect-late-sub-k-review.md` (`809e4f7e`, `qa/refset`): **approve with six amendments, no row refused.** All six are adopted. **Where this section and §1–§6 differ, this section governs.** Ledger E111–E114.
+
+**QA's answers that settle open points:**
+- **The diagnostics switch does not touch the snapshot.** `tls_diagnostics_enabled` is read only at `ft8_shim.c:1893` (the LDPC-failure LLR sums); candidate records are written unconditionally (`:1858–1882`) and copied out at `:2550–2552`. No product change is needed. D1 makes this a code assertion.
+- **The per-cycle R-F4 arms are on disk:** `_qa-scratch\coh-gate-r-f4\raw_main\main` (continuous B-OFF), `raw\off`, `raw\on`, 1,200 rows each, with decode dumps. V1 is therefore **per cycle**.
+- **Cost:** R-F4's arms took 72 min per 1,200 cycles. C adds about 0.5 s per cycle and L about 1.5–2 s, so about 1.9 h per process. OFF then ON is about 4 h, unattended.
+
+**A1.1 (D1). V4 as code.** On 5 pilot cycles, decode `B` with the diagnostics switch on and off, from the same restored hash state. Assert the two snapshots are byte-identical and that `CohFallbackMakePlan` parses both. Assert that `snap(B)` and `snap(R4)` exist in every cycle where §2 requires them.
+
+**A1.2 (D2, E113). The fit list is built as the product builds it, not from published fields.**
+- I wrote "built from their published text, dt and freq". The published `Dt` is `Math.Round(nr.Dt, 1)` (`Ft8Decoder.cs:817`), up to 0.05 s off the fit anchor.
+- **Batch 3:** from the offline `RunThirdPassAsync` call (V2).
+- **Batch 4 and batch C:** from the captured fallback rows, as `Ft8Decoder.cs:1114` builds them: `FreqHz` = `(int)Math.Round(OutFreqHz)`, `Dt` = `OutDtS` unrounded.
+- `RunCore` reads only `Message`, `Dt` and `FreqHz`.
+- Pass `logger: null` and `deadline: null` to `RunThirdPassAsync`: unlimited budget, and no extra `Third pass:` lines for the harness's parser.
+- Count the texts `IsReencodable` refuses.
+
+**A1.3 (D3, E114). Every extra call is bracketed by the hash state.**
+- The R4 `DecodeAll` and every unpack of an arm's rows add callsigns to the **process-global** hash table, and in one process that would move the next cycle's baseline and break V1. This is a standing fact I knew and did not apply.
+- So: `HashStateSave` before a cycle's C/L work, `HashStateRestore` after it, as GAP-RESIDUAL's recheck and COH-GATE-G's extras did.
+- **The report states the consequence:** the arms' outputs do not feed later cycles' hash state. A real deployment would resolve slightly more hashed messages in later cycles than this study credits, so the study is **conservative for NET**.
+
+**A1.4 (D4, E111, E112). V1's figures and the selection pin, corrected.**
+- **V1 is per cycle** against the on-disk arms: OFF against `raw_main\main`, ON against `raw\on`.
+- If an aggregate is quoted: the continuous B-OFF arm gives **18,833 / 23,158** on TEST, not the 18,844 I cited. That figure is the COH-GATE-G TEST **process**, which started at cycle 401: 11 rows of hash-state difference, which is why every arm runs as one process from cycle 1. TRAIN 9,931 / 12,124 and batch 4 1,350 / 2,891 agree.
+- **Selection pin: `selection1200.json`, sha `328c85d4…`**, the file the on-disk arms used. Its first 400 stamps equal GAP-RELOCATE's `selection400.json` (`42e09239…`). My `81372df5` was copied from GAP-RELOCATE's text without checking the 1,200-cycle file. QA states in the report whether `81372df5` names the same stamp list.
+
+**A1.5 (D5). Publication emulation, as code.**
+- For rows after batch 4, seed `seen` with **every** text handed to `MapNative` earlier in the cycle, including those the plausibility filter dropped (`seen.Add` precedes `IsPlausibleMessage`).
+- This needs batch-2 and batch-3 natives, so **V2 also reproduces batch 2 offline**, not only batch 3.
+- Batch C and L2 go through `Select` → unpack → natives → `MapNative`; L1 goes through `MapNative` only.
+- **ON configuration:** apply the product's admission (`CohFallbackAudioSelector.Merge`, `:103`: a `GatedOut` row of a residual-audio run becomes `Admitted`) to the new residual-audio runs (C on `B`, L2 on R4), as code.
+
+**A1.6 (D6). Scoring and U′ inputs, stated.**
+- (a) The extra batches are matched to REF rows that the baseline left unmatched, with the same rule (frequency within 10 Hz, text equal, one-to-one, nearest first). NET is the combined matched count minus the baseline's.
+- (b) The U′ instrument uses the refset classes frozen from the Original arm (QA names the file in the report) and reads the original WAV.
+- (c) **Bar re-use: the Captain decides it explicitly with his run go.** `BAR_G`, `U_bar_G` and `h` were ratified for COH-GATE-G, a different lever on the same night and build lineage. The Architect asks him in the same message as the run go, and the report quotes his answer.
+
+**A1.7 (QA's other findings, adopted).**
+- Count level-O cycles (none expected: R3 382, R2 18 on cycles 1–400).
+- Record the wall time of each extra step separately (fits, decode, fallback), as well as totals, for the build spec's timing row.
+
+**Predictions.** LS-1 ("V0–V5 pass on the first harness build, without an amendment") is scored on the harness as built under this amendment. The amendment came before any harness was built, so it is a spec change, not a harness failure. LS-2..LS-6 are unchanged. None of D1–D6 moves NET or U′, except D3, which can only lower NET (conservative).
