@@ -23,7 +23,7 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     private static readonly List<byte[]> Pending = new();
     public static StreamWriter? Dump;   // --stage-dump (scratch only): R = NEW_GATED row of run n (payload, out freq, snr), U = unpack (payload -> text)
     private static void D(string line) { var w = Dump; if (w is null) return; lock (w) w.WriteLine(line); }
-    public static bool Reset_() { lock (Pending) Pending.Clear(); Runs.Clear(); UnpackCalls = UnpackNonEmpty = UnpackThrew = 0; return true; }
+    public static bool Reset_() { lock (Pending) Pending.Clear(); Runs.Clear(); UnpackCalls = UnpackNonEmpty = UnpackThrew = 0; lock (CapLock) { CapCalls.Clear(); CapFShas.Clear(); CapFLens.Clear(); CapSnapshot = null; } return true; }
 
     private static CohFallbackRunResult? Record(CohFallbackRunResult? r, float[] pcm)
     {
@@ -90,9 +90,124 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
         finally { self._i.HashStateRestore(buf); }
     }
 
+    // ── GAP-RESIDUAL capture (QA-owned; qa/ only; NO change under src/ or native/) ──────────────────────────────────────
+    // Pass-through: every captured value is a COPY made before/after the inner call; the inner call's result is returned unchanged (ROW 0b checks this).
+    // Per cycle: the DecodeAll calls in order (index 0 = O the normalised original, 1 = R2 the residual pass, 2 = R3 the third pass), each with a copy of its PCM,
+    // the native results it returned and the hash state saved just BEFORE the call; and the CohFallbackRun calls (PCM SHA-256 + the snapshot bytes).
+    // Message text lives only in the --cap-dir files under _qa-scratch (HK-037); the index file holds hashes and counts.
+    public static string? CapDir;
+    private static readonly object CapLock = new();
+    private sealed class CapCall { public float[] Pcm = Array.Empty<float>(); public Ft8NativeResult[] Res = Array.Empty<Ft8NativeResult>(); public byte[] Hash = Array.Empty<byte>(); }
+    private static readonly List<CapCall> CapCalls = new();
+    private static readonly List<string> CapFShas = new();
+    private static readonly List<int> CapFLens = new();
+    private static byte[]? CapSnapshot;
+
+    private static string Sha(float[] pcm) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pcm.AsSpan())));
+
+    private void CapFallback(float[] pcm, byte[] snapshot)
+    {
+        if (CapDir is null) return;
+        lock (CapLock) { CapFShas.Add(Sha(pcm)); CapFLens.Add(pcm.Length); CapSnapshot ??= (byte[])snapshot.Clone(); }
+    }
+
+    /// <summary>End of cycle: write the buffers, natives, hash states, the eligible-candidate plan of the snapshot and ONE index line (hashes and counts only).</summary>
+    public static void CapFlush(string stamp)
+    {
+        var dir = CapDir; if (dir is null) return;
+        lock (CapLock)
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "buffers")); Directory.CreateDirectory(Path.Combine(dir, "native"));
+            Directory.CreateDirectory(Path.Combine(dir, "hash")); Directory.CreateDirectory(Path.Combine(dir, "plan"));
+            string[] kinds = { "O", "R2", "R3" };
+            var shas = new List<string>(); var lens = new List<int>(); var nres = new List<int>();
+            using (var nw = new StreamWriter(Path.Combine(dir, "native", stamp + ".tsv"), false, new System.Text.UTF8Encoding(false)))
+            {
+                for (int k = 0; k < CapCalls.Count; k++)
+                {
+                    var c = CapCalls[k]; string kind = k < kinds.Length ? kinds[k] : "X" + k;
+                    File.WriteAllBytes(Path.Combine(dir, "buffers", stamp + "_" + kind + ".f32"), System.Runtime.InteropServices.MemoryMarshal.AsBytes(c.Pcm.AsSpan()).ToArray());
+                    File.WriteAllBytes(Path.Combine(dir, "hash", stamp + "_" + kind + ".bin"), c.Hash);
+                    shas.Add(Sha(c.Pcm)); lens.Add(c.Pcm.Length); nres.Add(c.Res.Length);
+                    foreach (var r in c.Res)
+                        nw.WriteLine(string.Join("\t", kind, r.FreqHz.ToString(CultureInfo.InvariantCulture), r.Dt.ToString("R", CultureInfo.InvariantCulture),
+                            r.Snr.ToString(CultureInfo.InvariantCulture), (r.Message ?? "").TrimEnd()));
+                }
+            }
+            string plan = "none";
+            if (CapSnapshot is not null)
+            {
+                try
+                {
+                    var p = Ft8LibInterop.CohFallbackMakePlan(CapSnapshot);
+                    using var pw = new StreamWriter(Path.Combine(dir, "plan", stamp + ".tsv"), false, new System.Text.UTF8Encoding(false));
+                    foreach (var row in p.Rows)
+                        pw.WriteLine(row.FreqHz.ToString("R", CultureInfo.InvariantCulture) + "\t" + row.DtS.ToString("R", CultureInfo.InvariantCulture));
+                    plan = p.Rows.Count.ToString(CultureInfo.InvariantCulture);
+                }
+                catch (Exception ex) { plan = "ERR:" + ex.GetType().Name; }
+            }
+            string F(int i) => i < shas.Count ? shas[i] : "-";
+            string level = CapFShas.Count == 0 ? "none"
+                : (shas.Count > 2 && CapFShas[0] == shas[2]) ? "R3" : (shas.Count > 1 && CapFShas[0] == shas[1]) ? "R2" : (shas.Count > 0 && CapFShas[0] == shas[0]) ? "O" : "other";
+            string second = CapFShas.Count < 2 ? "-" : (shas.Count > 0 && CapFShas[1] == shas[0]) ? "O" : "other";
+            using (var iw = new StreamWriter(Path.Combine(dir, "capture_index.tsv"), true, new System.Text.UTF8Encoding(false)))
+                iw.WriteLine(string.Join("\t", stamp, CapCalls.Count, string.Join("|", lens), string.Join("|", nres), F(0), F(1), F(2),
+                    CapFShas.Count, string.Join("|", CapFLens), level, second, plan));
+            CapCalls.Clear(); CapFShas.Clear(); CapFLens.Clear(); CapSnapshot = null;
+        }
+    }
+
+    /// <summary>ROW 0c(iii) (separate process, after the arm): restore the hash state saved before each captured DecodeAll, decode the captured buffer again, compare
+    /// freq / dt / SNR / count / text with what that call returned. Text is compared INSIDE this function only (the hash state is restored, so it is deterministic); the
+    /// output holds counts and ok flags. Exact; one line per cycle.</summary>
+    public static int Recheck(string dir, IFt8NativeInterop inner, int kMinScorePass2, float osdCorr, int nhard)
+    {
+        inner.SetDecodeParams(kMinScorePass2, osdCorr, nhard);
+        inner.SetOsdSignFix(1);
+        int bad = 0, cycles = 0;
+        using var ow = new StreamWriter(Path.Combine(dir, "recheck.tsv"), false, new System.Text.UTF8Encoding(false));
+        ow.WriteLine("stamp\tkind\texpected_n\tgot_n\tok");
+        foreach (var f in Directory.GetFiles(Path.Combine(dir, "native"), "*.tsv").OrderBy(x => x, StringComparer.Ordinal))
+        {
+            string stamp = Path.GetFileNameWithoutExtension(f);
+            var exp = File.ReadAllLines(f).Where(l => l.Length > 0).Select(l => l.Split('\t')).GroupBy(p => p[0]).ToDictionary(g => g.Key, g => g.ToList());
+            foreach (var kind in new[] { "O", "R2", "R3" })
+            {
+                string bp = Path.Combine(dir, "buffers", stamp + "_" + kind + ".f32");
+                if (!File.Exists(bp)) continue;
+                var raw = File.ReadAllBytes(bp); var pcm = new float[raw.Length / 4]; Buffer.BlockCopy(raw, 0, pcm, 0, raw.Length);
+                inner.HashStateRestore(File.ReadAllBytes(Path.Combine(dir, "hash", stamp + "_" + kind + ".bin")));
+                inner.SetApBits(Array.Empty<byte>(), Array.Empty<byte>());
+                inner.SetDiagnosticsEnabled(kind == "O");
+                var got = inner.DecodeAll(pcm);
+                inner.SetDiagnosticsEnabled(true);
+                var e = exp.TryGetValue(kind, out var l) ? l : new List<string[]>();
+                bool ok = e.Count == got.Length;
+                for (int i = 0; ok && i < got.Length; i++)
+                    ok = e[i][1] == got[i].FreqHz.ToString(CultureInfo.InvariantCulture) && e[i][2] == got[i].Dt.ToString("R", CultureInfo.InvariantCulture)
+                        && e[i][3] == got[i].Snr.ToString(CultureInfo.InvariantCulture) && e[i][4] == (got[i].Message ?? "").TrimEnd();
+                if (!ok) bad++;
+                ow.WriteLine(string.Join("\t", stamp, kind, e.Count, got.Length, ok ? 1 : 0));
+            }
+            cycles++;
+        }
+        Console.WriteLine("recheck cycles=" + cycles + " mismatching_calls=" + bad);
+        return bad == 0 ? 0 : 1;
+    }
+
     // ── forwarding ─────────────────────────────────────────────────────────────────────────────────────────────────
     public int MaxDecodePasses => _i.MaxDecodePasses;
-    public Ft8NativeResult[] DecodeAll(float[] pcm) => _i.DecodeAll(pcm);
+    public Ft8NativeResult[] DecodeAll(float[] pcm)
+    {
+        if (CapDir is null) return _i.DecodeAll(pcm);
+        var copy = (float[])pcm.Clone();
+        var hs = new byte[_i.HashStateSize()];
+        _i.HashStateSave(hs);                                   // the hash state at the capture point: just before this call
+        var res = _i.DecodeAll(pcm);
+        lock (CapLock) CapCalls.Add(new CapCall { Pcm = copy, Res = (Ft8NativeResult[])res.Clone(), Hash = hs });
+        return res;
+    }
     public int[] GetLastPassCounts(int maxPasses) => _i.GetLastPassCounts(maxPasses);
     public int[] GetLastCandidateCounts(int maxPasses) => _i.GetLastCandidateCounts(maxPasses);
     public float GetLastNoiseFloorDb() => _i.GetLastNoiseFloorDb();
@@ -121,9 +236,9 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     public byte[]? CohFallbackSnapshot() => _i.CohFallbackSnapshot();
     public ICohFallbackBackend? CohFallbackBackend => _i.CohFallbackBackend;
     public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
-        => Record(_i.CohFallbackRun(pcm, snapshot, budgetMs, workers, ct), pcm);
+    { CapFallback(pcm, snapshot); return Record(_i.CohFallbackRun(pcm, snapshot, budgetMs, workers, ct), pcm); }
     public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, CancellationToken ct)
-        => Record(_i.CohFallbackRun(pcm, snapshot, budgetMs, workers, multiSet, ct), pcm);
+    { CapFallback(pcm, snapshot); return Record(_i.CohFallbackRun(pcm, snapshot, budgetMs, workers, multiSet, ct), pcm); }
     public string? CohFallbackUnpack(byte[] payload)
     {
         UnpackCalls++;

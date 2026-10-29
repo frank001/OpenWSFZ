@@ -68,6 +68,20 @@ internal static class Program
 #if HAS_THIRDPASS
         if (a.ContainsKey("selftest-batch3")) return SelfTestBatch3();
 #endif
+#if HAS_INTERNALS
+        // GAP-RESIDUAL ROW 0c(iii): separate process, after the arm. --cap-recheck <capdir> [--k-min-score-pass2 10] [--osd-corr 0.10] [--nhard 24]
+        if (a.TryGetValue("cap-recheck", out var rcDir))
+        {
+            if (!rcDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--cap-recheck must be under _qa-scratch (HK-037)");
+            return StageProbeInterop.Recheck(rcDir, new OpenWSFZ.Ft8.Interop.Ft8NativeInteropAdapter(), 10, 0.10f, 24);
+        }
+        if (a.TryGetValue("cap-dir", out var capDir))
+        {
+            if (!capDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--cap-dir must be under _qa-scratch (HK-037)");
+            Directory.CreateDirectory(capDir);
+            StageProbeInterop.CapDir = capDir;
+        }
+#endif
         string selectionPath = Req(a, "selection"), run = Req(a, "run"), stratum = Req(a, "stratum");
         string wavRoot = Req(a, "wav-root"), outCsv = Req(a, "out"), logPath = Req(a, "log");
         OsdNhardMax = ParseNhard(Req(a, "nhard"));
@@ -772,6 +786,7 @@ internal static class Program
 #endif
 #if HAS_INTERNALS
         StageProbeInterop.FlushExtras();
+        StageProbeInterop.CapFlush(stamp);   // GAP-RESIDUAL capture (no-op without --cap-dir)
         _stageOut?.WriteLine(stamp + "," + StageProbeInterop.Line());
 #endif
     }
