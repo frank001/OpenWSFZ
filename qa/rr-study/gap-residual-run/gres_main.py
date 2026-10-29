@@ -260,6 +260,9 @@ def main_analyse():
     out["NR_split"] = {"NR_total": cnt.get("NR", 0), "NR_not_established": nrq_n, "NR_established": cnt.get("NR", 0) - nrq_n,
                        "reasons": dict(collections.Counter(x for w in nrq.values() for x in w))}
 
+    with open(NEW + "/class_rows.jsonl", "w", encoding="utf-8") as fh:        # per-row classes for NR-TAX (stamp + index + class only; scratch)
+        for r in N:
+            fh.write(json.dumps({"stamp": r["stamp"], "idx": r["idx"], "cls": cls[(r["stamp"], r["idx"])]}) + "\n")
     # ── D2-R, D3-R, D4-R ──
     out["D2_R_RP_cell"] = {c: dict(collections.Counter(legs[(r["stamp"], r["idx"])]["fp_cell"] for r in N if cls[(r["stamp"], r["idx"])] == c)) for c in ("RP-native", "RP-search")}
     out["D3_R_by_band"] = {c: {b: sum(1 for r in N if cls[(r["stamp"], r["idx"])] == c and r["band"] == b) for b in "ABCD"} for c in classes}
