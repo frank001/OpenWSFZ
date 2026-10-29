@@ -75,6 +75,14 @@ internal static class Program
             if (!rcDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--cap-recheck must be under _qa-scratch (HK-037)");
             return StageProbeInterop.Recheck(rcDir, new OpenWSFZ.Ft8.Interop.Ft8NativeInteropAdapter(), 10, 0.10f, 24);
         }
+        if (a.TryGetValue("late-sub-dir", out var lsDir))
+        {
+            if (!lsDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--late-sub-dir must be under _qa-scratch (HK-037)");
+            Directory.CreateDirectory(lsDir);
+            LateSub.Dir = lsDir;
+            StageProbeInterop.LsOn = true;
+            LateSub.Workers = a.TryGetValue("threads", out var lsThr) && int.TryParse(lsThr, out var lsThn) ? lsThn : 8;
+        }
         if (a.TryGetValue("cap-dir", out var capDir))
         {
             if (!capDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--cap-dir must be under _qa-scratch (HK-037)");
@@ -305,6 +313,7 @@ internal static class Program
 #if HAS_UNGATED
             // COH-GATE-G R-F4 acceptance: --ungated 0|1 sets decoder.coherentFallbackResidualUngated; ABSENT leaves the decoder at its start value (false = the key absent).
             if (a.TryGetValue("ungated", out var ung)) decoder.SetCoherentFallbackResidualUngated(ung switch { "0" => false, "1" => true, _ => throw new ArgumentException("--ungated must be 0 or 1") });
+            LateSub.Ungated = decoder.CoherentFallbackResidualUngated;   // LATE-SUB: the configuration the new residual-audio runs apply (T1 when false, ungated when true)
 #endif
             if (a.TryGetValue("cohfb-out", out var cohPath))
             {
@@ -698,6 +707,7 @@ internal static class Program
     {
         string exc = "";
         int n1 = -1, n2 = 0, n3 = 0;
+        IReadOnlyList<DecodeResult>? lsB1 = null, lsB2 = null, lsB3 = null, lsB4 = null;   // LATE-SUB: the product's published batches, handed to the arm work after the cycle
         double tb1 = -1;
 #if HAS_COHFB
         double tb2 = -1, tb3 = -1;
@@ -742,6 +752,7 @@ internal static class Program
                 return Task.CompletedTask;
             });
             IReadOnlyList<DecodeResult> none = Array.Empty<DecodeResult>();
+            lsB1 = b1; lsB2 = b2; lsB3 = b3; lsB4 = b4;
             n1 = b1?.Count ?? -1;
             n2 = b2?.Count ?? 0;
             n3 = b3?.Count ?? 0;
@@ -785,6 +796,7 @@ internal static class Program
         _cohOut?.WriteLine(stamp + "," + CohProbe.Line());
 #endif
 #if HAS_INTERNALS
+        await LateSub.RunCycle(stamp, lsB1, lsB2, lsB3, lsB4);   // LATE-SUB arms C and L (no-op without --late-sub-dir); bracketed by the hash state
         StageProbeInterop.FlushExtras();
         StageProbeInterop.CapFlush(stamp);   // GAP-RESIDUAL capture (no-op without --cap-dir)
         _stageOut?.WriteLine(stamp + "," + StageProbeInterop.Line());

@@ -23,7 +23,7 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     private static readonly List<byte[]> Pending = new();
     public static StreamWriter? Dump;   // --stage-dump (scratch only): R = NEW_GATED row of run n (payload, out freq, snr), U = unpack (payload -> text)
     private static void D(string line) { var w = Dump; if (w is null) return; lock (w) w.WriteLine(line); }
-    public static bool Reset_() { lock (Pending) Pending.Clear(); Runs.Clear(); UnpackCalls = UnpackNonEmpty = UnpackThrew = 0; lock (CapLock) { CapCalls.Clear(); CapFShas.Clear(); CapFLens.Clear(); CapSnapshot = null; } return true; }
+    public static bool Reset_() { lock (Pending) Pending.Clear(); Runs.Clear(); UnpackCalls = UnpackNonEmpty = UnpackThrew = 0; lock (CapLock) { CapCalls.Clear(); CapFShas.Clear(); CapFLens.Clear(); CapSnapshot = null; LsRuns.Clear(); LsArmSnaps.Clear(); } return true; }
 
     private static CohFallbackRunResult? Record(CohFallbackRunResult? r, float[] pcm)
     {
@@ -97,8 +97,15 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     // Message text lives only in the --cap-dir files under _qa-scratch (HK-037); the index file holds hashes and counts.
     public static string? CapDir;
     private static readonly object CapLock = new();
-    private sealed class CapCall { public float[] Pcm = Array.Empty<float>(); public Ft8NativeResult[] Res = Array.Empty<Ft8NativeResult>(); public byte[] Hash = Array.Empty<byte>(); }
-    private static readonly List<CapCall> CapCalls = new();
+    internal sealed class CapCall { public float[] Pcm = Array.Empty<float>(); public Ft8NativeResult[] Res = Array.Empty<Ft8NativeResult>(); public byte[] Hash = Array.Empty<byte>(); public byte[]? Snap; }
+    internal static readonly List<CapCall> CapCalls = new();
+    // LATE-SUB: LsOn captures what the arm work needs even without --cap-dir (per-call PCM copy, natives, hash state before the call, and the snapshot taken on the DecodeAll thread right after it);
+    // LsMode 1 = arm work in progress: DecodeAll only records the snapshot of the decode it ran (LsArmSnaps) and does not touch CapCalls.
+    public static bool LsOn; public static int LsMode;
+    internal static readonly List<byte[]?> LsArmSnaps = new();
+    internal sealed class LsRun { public float[] Pcm = Array.Empty<float>(); public CohFallbackRunResult? Result; public byte[] Hash = Array.Empty<byte>(); }
+    internal static readonly List<LsRun> LsRuns = new();
+    internal IFt8NativeInterop Inner => _i;
     private static readonly List<string> CapFShas = new();
     private static readonly List<int> CapFLens = new();
     private static byte[]? CapSnapshot;
@@ -200,12 +207,21 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     public int MaxDecodePasses => _i.MaxDecodePasses;
     public Ft8NativeResult[] DecodeAll(float[] pcm)
     {
-        if (CapDir is null) return _i.DecodeAll(pcm);
+        if (LsMode == 1)
+        {
+            var r0 = _i.DecodeAll(pcm);
+            var sn = _i.CohFallbackSnapshot();                  // same thread, no native decode between
+            lock (CapLock) LsArmSnaps.Add(sn == null ? null : (byte[])sn.Clone());
+            return r0;
+        }
+        if (CapDir is null && !LsOn) return _i.DecodeAll(pcm);
         var copy = (float[])pcm.Clone();
         var hs = new byte[_i.HashStateSize()];
         _i.HashStateSave(hs);                                   // the hash state at the capture point: just before this call
         var res = _i.DecodeAll(pcm);
-        lock (CapLock) CapCalls.Add(new CapCall { Pcm = copy, Res = (Ft8NativeResult[])res.Clone(), Hash = hs });
+        byte[]? snap = null;
+        if (LsOn) { var sn = _i.CohFallbackSnapshot(); snap = sn == null ? null : (byte[])sn.Clone(); }   // LATE-SUB: snap(B), on the DecodeAll thread
+        lock (CapLock) CapCalls.Add(new CapCall { Pcm = copy, Res = (Ft8NativeResult[])res.Clone(), Hash = hs, Snap = snap });
         return res;
     }
     public int[] GetLastPassCounts(int maxPasses) => _i.GetLastPassCounts(maxPasses);
@@ -236,9 +252,17 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     public byte[]? CohFallbackSnapshot() => _i.CohFallbackSnapshot();
     public ICohFallbackBackend? CohFallbackBackend => _i.CohFallbackBackend;
     public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
-    { CapFallback(pcm, snapshot); return Record(_i.CohFallbackRun(pcm, snapshot, budgetMs, workers, ct), pcm); }
+    { CapFallback(pcm, snapshot); return LsRecord(pcm, () => Record(_i.CohFallbackRun(pcm, snapshot, budgetMs, workers, ct), pcm)); }
     public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, CancellationToken ct)
-    { CapFallback(pcm, snapshot); return Record(_i.CohFallbackRun(pcm, snapshot, budgetMs, workers, multiSet, ct), pcm); }
+    { CapFallback(pcm, snapshot); return LsRecord(pcm, () => Record(_i.CohFallbackRun(pcm, snapshot, budgetMs, workers, multiSet, ct), pcm)); }
+    private CohFallbackRunResult? LsRecord(float[] pcm, Func<CohFallbackRunResult?> run)
+    {
+        if (!LsOn) return run();
+        var hs = new byte[_i.HashStateSize()]; _i.HashStateSave(hs);          // state before the run == state at the later unpack (runs do not touch the table)
+        var r = run();
+        lock (CapLock) LsRuns.Add(new LsRun { Pcm = pcm, Result = r, Hash = hs });
+        return r;
+    }
     public string? CohFallbackUnpack(byte[] payload)
     {
         UnpackCalls++;
