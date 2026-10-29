@@ -194,7 +194,10 @@ def build(args):
     row("residual pass, last daemon: n / median / p90 / max ms, abandoned", lambda s: "{} / {} / {} / {}, {}".format(*residual(s["capture_counters"])) if residual(s["capture_counters"]) else "n/a")
     w("\nBar for the residual pass: median <= 4,000 ms and 0 abandoned. The Architect closed the clamp look on 2026-10-23 (board, \"DI7COH2 CLAMP LOOK\"): keep reporting clamp counts and the placebo row; reopen only if clamps fall outside the placebo or the station shows one (the DI7COH-E station run had 0 clamps and 0 channel drops over 12 h).\n")
     w("## Reading rules\n")
-    w("- The series is its own era row (DI7COH: `decoding_improvement` synced with `main`, fallback ON, Deep, `nhard` 24). Never pooled with MAINDEEP, TPDEEP, TPNORMAL, B2CAP, B2BASE or any concurrent S6.")
+    if args.series.upper().startswith("RF4ON"):
+        w("- The series is its own era row (RF4ON: `decoder.coherentFallbackResidualUngated` = true, `Both` audio mode, multi-set ON, Deep, `nhard` 24, build `fa119fe0`, PR #271). Never pooled with FBAUDIO or any earlier series.")
+    else:
+        w("- The series is its own era row (DI7COH: `decoding_improvement` synced with `main`, fallback ON, Deep, `nhard` 24). Never pooled with MAINDEEP, TPDEEP, TPNORMAL, B2CAP, B2BASE or any concurrent S6.")
     w("- The WSJT-X tripwire is the Architect's (ruling 2026-10-17-2218): FLAG iff the WAV-clustered 95 % CI of the WSJT-X consistency excludes 93.9 %. It is a check on the rig, not a result about OpenWSFZ.")
     w("- Sampler rows (audio-setup) are PARTIAL on `sol` by construction (the Windows worker cannot run there).")
     open(os.path.join(args.out, "report.md"), "w", encoding="utf8").write("\n".join(L) + "\n")
