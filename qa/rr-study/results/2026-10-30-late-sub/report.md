@@ -20,7 +20,7 @@ Aggregates only. No callsign or message text in this report. Working files are i
 | **V4** snapshots present; diag-switch check | 0 missing; 5 switch checks, 0 differ | PASS |
 | **V5** nothing abandoned or contained | 0 / 0 / 0; 1,200 fallback lines | PASS |
 
-**Selection:** `selection1200.json`, SHA-256 prefix **`328c85d4`** (checked by the chain before it started). The spec's earlier quoted `81372df5` I could not trace to a file; I did not use it. If the Architect knows what it names, it is a different object from the list that ran.
+**Selection:** `selection1200.json`, SHA-256 prefix **`328c85d4`** (checked by the chain before it started). The spec's `81372df5` is a git **commit** (the COH-MULTISET-BUILD selection freeze), not a file hash; its `selection.json` holds the 2,882 whole-night stamps of `20260925_2010` (SHA-256(LF) `53d9ba4e…`). Checked 2026-10-30: the 1,200 FULL stamps of `selection1200.json` equal the first 1,200 stamps of that list element for element, and the warm-up is its first stamp (`260925_201200`). Same list, different identifiers. (An earlier draft of this report said the identifier was untraceable; corrected.)
 **Levels:** R3 in 1,124 cycles, R2 in 76 (no third pass). L ran in 1,173 cycles, skipped (nothing new to subtract) in 27.
 **Fit list:** 5,020 entries, of which **279 (5.6 %)** were refused by `IsReencodable`/`EncodeMessage` and so not subtracted (same refusal as the product; relates to #273).
 
