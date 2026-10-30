@@ -154,6 +154,9 @@ internal static class Program
 #if HAS_COHFB4
                                    + ",b4_n,tb4_ms"
 #endif
+#if HAS_LATEROUND
+                                   + ",b5_n,tb5_ms"   // L1' build (spec 1322 section 7 F5): batch 5, the late subtraction round; absent in builds without it, so older output is byte-identical
+#endif
                           : _wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
                                   : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
         // Optional outcome keys (S1): per decode only NUMERIC fields plus an 8-hex-digit hash of the message text; the
@@ -605,7 +608,7 @@ internal static class Program
     /// batches (a WSJT-X decode corroborates at most one OpenWSFZ decode). Emits COUNTS per (kind, SNR band); text never leaves.
     /// </summary>
     private static void ScoreTestB(string run, string stamp, IReadOnlyList<DecodeResult> b1, IReadOnlyList<DecodeResult> b2,
-                                   IReadOnlyList<DecodeResult>? b3 = null, IReadOnlyList<DecodeResult>? b4 = null)
+                                   IReadOnlyList<DecodeResult>? b3 = null, IReadOnlyList<DecodeResult>? b4 = null, IReadOnlyList<DecodeResult>? b5 = null)
     {
         if (_testB is null) return;
         var w = _wsjtx.TryGetValue(stamp, out var l) ? l : new List<(int Snr, int Freq, string Msg)>();
@@ -616,6 +619,8 @@ internal static class Program
         if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
         // COH-FALLBACK step 4: the fallback's own batch (4 on Deep) is its OWN kind, never folded into 1-3. b4 == null leaves the output exactly as it was.
         if (b4 is not null) foreach (var r in b4) ows.Add((4, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        // L1' build (F5): the late subtraction round's own batch (5) is its OWN kind, never folded into 1-4. b5 == null leaves the output exactly as it was.
+        if (b5 is not null) foreach (var r in b5) ows.Add((5, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
         var cands = new List<(int Df, int Oi, int Wi)>();
         for (int i = 0; i < ows.Count; i++)
             for (int j = 0; j < w.Count; j++)
@@ -653,13 +658,13 @@ internal static class Program
                     _fbDump.WriteLine(string.Join("	", stamp, ows[i].Kind, usedO[i] ? 1 : 0, ows[i].Freq, ows[i].Dt.ToString("F2", CultureInfo.InvariantCulture), ows[i].Snr,
                         sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Msg));
                 }
-        foreach (int kind in b4 is not null ? new[] { 1, 2, 3, 4 } : b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
+        foreach (int kind in b5 is not null ? new[] { 1, 2, 3, 4, 5 } : b4 is not null ? new[] { 1, 2, 3, 4 } : b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
             foreach (var band in new[] { "A", "B", "C", "D" })
             {
                 int n = 0, c = 0;
                 for (int i = 0; i < ows.Count; i++)
                     if (ows[i].Kind == kind && BandOf(ows[i].Snr) == band) { n++; if (usedO[i]) c++; }
-                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : kind == 3 ? "b3" : "b4", band,
+                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : kind == 3 ? "b3" : kind == 4 ? "b4" : "b5", band,
                     n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
             }
         _matched?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j])));
@@ -720,6 +725,10 @@ internal static class Program
         int n4 = 0;
         double tb4 = -1;
 #endif
+#if HAS_LATEROUND
+        int n5 = 0;
+        double tb5 = -1;
+#endif
         SubfeasProbe.Reset();
         ThirdProbe.Reset();
         _curStamp = stamp;
@@ -729,7 +738,7 @@ internal static class Program
         var sw = Stopwatch.StartNew();
         try
         {
-            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null, b4 = null;
+            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null, b4 = null, b5 = null;
             await d.DecodeStagedAsync(pcm, cycleStart, null, (n, batch) =>
             {
                 ImplEvent("H	" + n + "	" + batch.Count);
@@ -751,6 +760,9 @@ internal static class Program
 #if HAS_COHFB4
                 else if (n == 4) { b4 = batch; tb4 = sw.Elapsed.TotalMilliseconds; }   // step 4: the fallback's own batch on Deep
 #endif
+#if HAS_LATEROUND
+                else if (n == 5) { b5 = batch; tb5 = sw.Elapsed.TotalMilliseconds; }   // L1' build: the late subtraction round's own batch
+#endif
                 else throw new InvalidOperationException("unexpected batch number");
                 return Task.CompletedTask;
             });
@@ -762,12 +774,20 @@ internal static class Program
 #if HAS_COHFB4
             n4 = b4?.Count ?? 0;
 #endif
+#if HAS_LATEROUND
+            n5 = b5?.Count ?? 0;
+#endif
             if (b1 is not null) WriteOutcomes(stamp, "b1", b1);
             WriteOutcomes(stamp, "b2", b2 ?? none);
             WriteOutcomes(stamp, "b3", b3 ?? none);
 #if HAS_COHFB4
             WriteOutcomes(stamp, "b4", b4 ?? none);
+#if HAS_LATEROUND
+            WriteOutcomes(stamp, "b5", b5 ?? none);
+            if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none, b4 ?? none, b5 ?? none);
+#else
             if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none, b4 ?? none);
+#endif
 #else
             if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none);
 #endif
@@ -785,6 +805,9 @@ internal static class Program
 #if HAS_COHFB4
                 + n4
 #endif
+#if HAS_LATEROUND
+                + n5
+#endif
             ).ToString(CultureInfo.InvariantCulture), exc,
             tb1.ToString("F1", CultureInfo.InvariantCulture),
             n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture), n3.ToString(CultureInfo.InvariantCulture)
@@ -793,6 +816,9 @@ internal static class Program
 #endif
 #if HAS_COHFB4
             , n4.ToString(CultureInfo.InvariantCulture), tb4.ToString("F1", CultureInfo.InvariantCulture)
+#endif
+#if HAS_LATEROUND
+            , n5.ToString(CultureInfo.InvariantCulture), tb5.ToString("F1", CultureInfo.InvariantCulture)
 #endif
             ));
 #if HAS_COHFB
@@ -917,6 +943,19 @@ internal static class Program
             ScoreTestB("selftest", S, b1, b2, Array.Empty<DecodeResult>());
             var b3rows = ReadLinesShared(tb).Where(x => x.Contains(",b3,")).ToList();
             Check("an EMPTY batch 3 (Normal / skipped) writes b3 rows with n=0 and corroborated=0", b3rows.Count == 4 && b3rows.All(x => x.EndsWith(",0,0")));
+            // L1' build (F5): batch 5 is its OWN kind (b5), never folded into b1-b4, and tagged 5 in matched-batch-out.
+            _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            _matchedBatch.Dispose(); _matchedBatch = new StreamWriter(mb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            var b4e = Array.Empty<DecodeResult>();
+            var b5 = new[] { R(-14, 2500, "ZZZ ZZZ ZZ99"), R(-16, 3500, "UUU VVV WW55") };   // 1 matched (the last WSJT-X line), 1 OWS-only
+            ScoreTestB("selftest", S, b1, b2, b3, b4e, b5);
+            var tb5 = ReadLinesShared(tb).ToList();
+            Check("a batch 5 writes b5 rows: band C n=1 corroborated=1, band D n=1 corroborated=0", tb5.Contains("selftest," + S + ",b5,C,1,1") && tb5.Contains("selftest," + S + ",b5,D,1,0"));
+            Check("batch 5 never appears under b1-b4 (b4 rows empty)", tb5.Contains("selftest," + S + ",b4,A,0,0") && tb5.Count(x => x.Contains(",b4,")) == 4);
+            Check("matched-batch-out tags the batch-5 match as 5", ReadLinesShared(mb).Last().Contains("3:5"));
+            _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            ScoreTestB("selftest", S, b1, b2, b3, b4e);
+            Check("without a batch 5 no b5 row is written (older output byte-identical)", !ReadLinesShared(tb).Any(x => x.Contains(",b5,")));
             // The third-pass log-line parser.
             ThirdProbe.Reset();
             ThirdProbe.Set("Third pass: newDecodes=2 elapsedMs=1234 outcome=ran fittedSignals=3");
