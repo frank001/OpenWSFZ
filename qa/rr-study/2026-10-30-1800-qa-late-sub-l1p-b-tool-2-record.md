@@ -22,6 +22,10 @@ Cycles 1–60 of the frozen selection (`selection60.json`, its first 60 stamps),
 | **T2-4** cycle 55 carries a `skipped-…` outcome, no round started | **FAIL AS WRITTEN** (see §3) |
 | **T2-5** `nc_dump` and `run.csv` content columns = §3's arms on 1–60 | **PASS**: `run.csv` 0 differ; `nc_dump` OFF 0 of 60 differ (1,624 rows both), ON 0 of 60 differ (1,643 rows both) |
 
+**Note, 2026-10-30 (after the Architect's ruling `2026-10-30-1802-architect-late-sub-l1p-t2-4-ruling.md` on `arch/late-sub`):** T2-4 was changed by the Architect (his predicate named the wrong word, ledger E123) and the corrected row **PASSES** from `t2_analyse.py` on the existing `raw_t2`: cycle 55 shows `no-new`, fit 0, new 0, published 0, `elapsedMs` 0, `startMs` = `endMs` = `fbEndMs`, `batch5PublishMs` -1, no inner `Third pass:` line (checked in `raw_t2`'s own ON log and in the §3 ON arm); fit 0 occurs in exactly 1 of 60 rows. The corrected predicate was written after the data was seen. **The "FAIL AS WRITTEN" above stays; it was the original predicate's result.** `ALL_PASS` true from the tool.
+
+**R6 against the inner line, rows with fit > 0 (ruling §5.3), cycles 1–60:** 59 rows; every one has exactly one inner line. R6 `elapsedMs` median / p90 / max 586 / 694 / 817 ms; inner 586 / 693 / 817 ms; R6 minus inner 0 / 0 / +1 ms (min / median / max), equal on 31 of 59 rows. So the PC's 696 / 848 / 1,194 ms (inner line) and §4's R6 figures are the same quantity to within 1 ms.
+
 T2-2 passing means R6's line exists and has the specified shape: **no product defect against R6.**
 
 ## 3. T2-4, and why I did not relabel it

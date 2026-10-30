@@ -52,6 +52,29 @@ def paired_first_noround(path):
     return [i + 1 for i, c in enumerate(cyc) if c["t"] and not c["r"]][:5], len(cyc)
 
 
+def inner_rounds(path):
+    """Per cycle (after the warm-up), the inner round Third pass line's elapsedMs (None when the cycle has no inner line); log order R T F T C."""
+    trx = re.compile(r"\] Third pass: newDecodes=\d+ elapsedMs=(\d+) ")
+    cyc, cur, seen_f = [], None, False
+    for line in open(path, encoding="utf-8", errors="replace"):
+        if "] Sub-feas residual pass:" in line:
+            cur = {"t": 0, "r": []}
+            cyc.append(cur)
+            seen_f = False
+        elif "] Coherent fallback:" in line:
+            seen_f = True
+        else:
+            m = trx.search(line)
+            if m and cur is not None:
+                if seen_f:
+                    cur["r"].append(int(m.group(1)))
+                else:
+                    cur["t"] += 1
+    if cyc and cyc[0]["t"] == 0 and not cyc[0]["r"]:
+        cyc = cyc[1:]
+    return [(c["r"][0] if len(c["r"]) == 1 else (None if not c["r"] else -1)) for c in cyc]
+
+
 def main():
     sel = json.load(open(S + "/selection60.json"))["runs"]["20260925_2010"]["FULL"]
     stamps = [e if isinstance(e, str) else e[0] for e in sel]
@@ -87,7 +110,19 @@ def main():
                    "cycle_55_is_first_skipped_outcome_in_1_60": next((i + 1 for i, r in enumerate(l_on) if r["outcome"].startswith("skipped")), None),
                    "qa_own_segmentation_s3_on_arm_first_cycles_with_no_inner_line": first_none[:4], "s3_on_arm_cycles_seen": ncyc,
                    "on_outcomes_1_60": dict(collections.Counter(r["outcome"] for r in l_on)),
-                   "PASS": c55["outcome"].startswith("skipped") and c55["elapsedMs"] in ("0", "-0") and (first_none and first_none[0] == 55)}
+                   # Corrected T2-4 (Architect ruling 2026-10-30-1802, s2; the predicate was written after the data was seen and says so): all of the fields below,
+                   # plus no inner Third pass line in that cycle (QA's segmentation, here taken from raw_t2's own ON log and from the s3 ON arm).
+                   "corrected_predicate_fields_c55": {
+                       "outcome_no_new": c55["outcome"] == "no-new", "fit_0": c55["fit"] == "0", "new_0": c55["new"] == "0", "published_0": c55["published"] == "0",
+                       "elapsedMs_0": c55["elapsedMs"] == "0", "startMs_eq_endMs_eq_fbEndMs": c55["startMs"] == c55["endMs"] == c55["fbEndMs"],
+                       "batch5PublishMs_minus1": c55["batch5PublishMs"] == "-1",
+                       "no_inner_third_pass_line_in_raw_t2_on_log": inner_rounds(T2 + "/on/log.log")[54] is None,
+                       "no_inner_line_first_in_s3_on_arm": bool(first_none) and first_none[0] == 55},
+                   "rows_with_fit_0_in_1_60": sum(1 for r in l_on if r["fit"] == "0"),
+                   "PASS": False}
+    f = res["T2-4"]["corrected_predicate_fields_c55"]
+    res["T2-4"]["PASS"] = all(f.values()) and res["T2-4"]["rows_with_fit_0_in_1_60"] == 1
+    res["T2-4"]["as_written_original_predicate_skipped_prefix"] = "FAIL (outcome word is no-new, not skipped-...); kept as the record of the original predicate"
     # T2-5
     content = ["decodes", "b1_n", "b2_n", "b3_n", "b4_n", "b5_n", "exception"]
     r_off3, r_on3 = {r["stamp"]: r for r in rows(LR + "/off/run.csv")}, {r["stamp"]: r for r in rows(LR + "/on/run.csv")}
@@ -103,6 +138,20 @@ def main():
     tot_pub = sum(int(r["published"]) for r in l_on)
     res["s6_descriptive"] = {"inner_new_total_1_60": tot_new, "published_total_1_60": tot_pub,
                               "cycles_new_ne_published": [[r["stamp"], r["new"], r["published"]] for r in l_on if r["new"] != r["published"]]}
+    # ruling s5.3: R6's elapsedMs beside the inner Third pass line's, rows with fit > 0 (the PC figures 696/848/1,194 came from the inner line, sol's will come from R6)
+    inner = inner_rounds(T2 + "/on/log.log")
+    pairs = [(int(r["elapsedMs"]), inner[i]) for i, r in enumerate(l_on) if int(r["fit"]) > 0]
+    diffs = sorted(a - b for a, b in pairs if b is not None and b >= 0)
+
+    def pct(v, p):
+        return v[min(len(v) - 1, int(round(p * (len(v) - 1))))] if v else None
+    r6 = sorted(a for a, b in pairs)
+    inn = sorted(b for a, b in pairs if b is not None and b >= 0)
+    res["elapsedMs_comparability_fit_gt_0"] = {"rows": len(pairs), "rows_without_inner_line": sum(1 for a, b in pairs if b is None), "rows_with_more_than_one_inner_line": sum(1 for a, b in pairs if b == -1),
+                                               "R6_elapsedMs_median_p90_max": [pct(r6, .5), pct(r6, .9), r6[-1] if r6 else None],
+                                               "inner_elapsedMs_median_p90_max": [pct(inn, .5), pct(inn, .9), inn[-1] if inn else None],
+                                               "R6_minus_inner_min_median_max": [diffs[0], pct(diffs, .5), diffs[-1]] if diffs else None,
+                                               "rows_where_R6_equals_inner": sum(1 for d in diffs if d == 0), "rows_compared": len(diffs)}
     res["ALL_PASS"] = all(res[k]["PASS"] for k in ("T2-1", "T2-2", "T2-3", "T2-4", "T2-5"))
     json.dump(res, open(sys.argv[1] if len(sys.argv) > 1 else S + "/t2_result.json", "w"), indent=1)
     print(json.dumps(res, indent=1))
