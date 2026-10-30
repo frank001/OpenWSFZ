@@ -1,0 +1,75 @@
+{
+ "config": "refoff",
+ "kind": "refset",
+ "night": "20260925_2010",
+ "cycles": 1200,
+ "full_selection": true,
+ "n_ref": 35282.0,
+ "cycles_with_ref": 1200,
+ "level_counts": {
+  "R3": 1124,
+  "R2": 76
+ },
+ "l_outcomes": {
+  "ran": 1168,
+  "skipped-no-new": 32
+ },
+ "fit_list": {
+  "entries": 4608,
+  "refused_by_IsReencodable_or_Encode": 266
+ },
+ "classes": {
+  "file": "uprime_orig_classes.json",
+  "testable_classes": 4,
+  "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049"
+ },
+ "TEST_401_1200": {
+  "cycles": 800,
+  "n_ref": 23158.0,
+  "NET_pp": 1.1399948182053719,
+  "NET_CI": [
+   1.009183570754986,
+   1.2777306278923393
+  ],
+  "dU_ta": 0.005,
+  "dU_ta_CI": [
+   0.00125,
+   0.01
+  ],
+  "dU_hu": 0.0,
+  "dU_present": 0.0175,
+  "added_outputs": 282,
+  "added_corroborated": 264,
+  "added_tested_absent": 4,
+  "added_hashed_or_unencodable": 0,
+  "added_hashed_flag": 0,
+  "unconfirmed_in_untestable_class": 0,
+  "hashed_share_of_added": 0.0,
+  "cycles_L_ran": 784,
+  "cycles_L_skipped": 16
+ },
+ "verdict": "none (descriptive)",
+ "timing_ms": {
+  "L1p_round": {
+   "median": 725.0,
+   "p90": 858.6,
+   "max": 1278.1,
+   "n": 1200
+  },
+  "T2_end_of_work_vs_13s": {
+   "product_fallback_end": {
+    "median": 3369.0,
+    "p90": 4167.200000000001,
+    "max": 4936.0,
+    "n": 1200
+   },
+   "with_L1p": {
+    "median": 4076.8,
+    "p90": 4954.740000000001,
+    "max": 5842.6,
+    "n": 1200
+   },
+   "budget_ms": 13000
+  }
+ }
+}

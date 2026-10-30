@@ -1,0 +1,59 @@
+{
+ "arm": "pilot",
+ "night": "20261022_1949",
+ "cycles": 40,
+ "V0": {
+  "dll_sha_matches_pin": true,
+  "PASS": true
+ },
+ "V2": {
+  "b1_not_reproduced": 0,
+  "b2_not_reproduced": 0,
+  "b3_not_reproduced": 0,
+  "B_bytes_not_equal": 0,
+  "PASS": true
+ },
+ "V3": {
+  "b4_not_reproduced": 0,
+  "PASS": true
+ },
+ "V5": {
+  "residual_abandoned": 0,
+  "residual_contained": 0,
+  "third_abandoned_or_failed": 0,
+  "fallback_lines": 40,
+  "fallback_lines_abandoned_gt0": 0,
+  "PASS": true
+ },
+ "V6": {
+  "freeze_given": true,
+  "selection_sha_in_record": true,
+  "classes_sha_in_record": true,
+  "dll_sha_in_record": true,
+  "record_commit_time": 1793344607,
+  "code_unchanged_since_code_commit": true,
+  "first_output_mtime": 1793345130,
+  "record_commit_before_first_output": true,
+  "PASS": true
+ },
+ "V4_info": {
+  "level_counts": {
+   "R3": 35,
+   "R2": 5
+  },
+  "l_outcomes": {
+   "ran": 38,
+   "skipped-no-new": 2
+  },
+  "fit_entries": 136,
+  "fit_refused": 3,
+  "snapB_bad": 0
+ },
+ "V1_descriptive_pointer_vs_sol": {
+  "reference": "sol off",
+  "cycles_compared": 40,
+  "cycles_batch_counts_differ": 0,
+  "share": 0.0
+ },
+ "ALL_PASS": true
+}
