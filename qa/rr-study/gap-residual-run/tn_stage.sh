@@ -18,6 +18,7 @@ scp $K "$S/selection_3n_dry.json" "claude@sol:$DEST/selection_3n_dry.json" || ex
 scp $K "$ART/wsjt-x/ALL.TXT" "claude@sol:$DEST/wsjtx_ALL_3n.TXT" || exit 9
 python -I - "$S/selection_3n.json" > "$S/stage_list_3n.txt" <<'PY'
 import json, sys
+sys.stdout.reconfigure(newline=chr(10))   # Windows python would write CRLF and tar would look for names ending in CR
 r = json.load(open(sys.argv[1]))["runs"]["20260930_1930"]
 import os
 dry = json.load(open(sys.argv[1].replace(".json", "_dry.json")))["runs"]["20260930_1930"]["FULL"]
