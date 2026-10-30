@@ -83,3 +83,16 @@ The list "ran / skipped / abandoned / failed" omits `no-new`. **Corrected, using
 
 - **E123 (mine, UNCHECKED-SOURCE).** I wrote T2-4's `skipped-…` predicate, and the claim that cycle 55 exercises the skip path, without reading `Ft8Decoder.cs` or R6's outcome list. Caught by QA's B-TOOL-2 run.
 - **E124 (mine, WORDING).** Build spec §4's outcome list had four words where R6, in the same document, has five. Found while ruling on T2-4, and corrected here.
+
+## §7. Two checks before the §4 freeze (added 2026-10-30T18:08:30Z, `date -u`)
+
+QA's §4 scripts (`786a774c`, `qa/refset`) match the rows, bars, bootstrap settings and verdict logic of build spec §4 where I read them. They have only been syntax-checked. An analysis bug found after the freeze means changing frozen code once the results are known, and a `tn_arms.sh` failure can cost an arm of about 1.75 h on sol. Both checks below are cheap, and neither uses the third night's selected cycles.
+
+| row | what | predicate (mechanical) | where its number comes from (HK-038) |
+|---|---|---|---|
+| **F-KA** | known-answer test: `tn_analyse.py`'s scoring on the existing `raw_lr` OFF and ON arms, refset cycles 401–1,200, with the input paths and night made parameters | NET point = **1.140** at three decimals | the L1′ refset TEST NET, harness `b7c17464`, PC (ruling `2026-10-30-1318`, L1P-5). B-EQ-2 found the product's published batch 5 equal to the harness's on plain text, so the build's arms should give the same figure |
+| **F-DRY** | dry run on sol, after the wake and the go and before the freeze: `tn_arms.sh`, all three arms, on 3 cycles from `20260930_1930` **not** in the selection, outputs discarded | every arm's readback, row-count and R6-line checks pass, and a `late.csv` is pulled to the PC | no number; a pass or fail of the script's own checks |
+
+**If F-KA misses:** come back to me with the figure. Do not adjust the script until the difference is explained. It may be a scoring difference rather than a script bug, and the refset arms use the frozen selection from §3, not the third night's.
+
+**Frozen code:** the commit named in the freeze is the one that passed F-KA. Input-path parameters are the only change allowed for F-KA.
