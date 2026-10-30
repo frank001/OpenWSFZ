@@ -34,6 +34,11 @@ def main():
     d = {"note": f"L1' third night: systematic sample, stride {STRIDE}, offset {OFFSET}, first {SLOTS} slots of the gap-inclusive 15 s grid; outage slots dropped after selection",
          "outage_dropped": dropped, "run": RUN, "runs": {RUN: {"FULL": full, "warmup": warm}}}
     json.dump(d, open(out, "w"), indent=1, sort_keys=True)
+    # F-DRY (Architect ruling 2026-10-30-1802 s7): 3 cycles of the night that are NOT in the selection (grid slots 2, 3, 5: none is = 1 mod 3), for the dry run on sol; outputs discarded
+    dry = [grid[i] for i in (2, 3, 5)]
+    assert not (set(dry) & set(full)) and all(x in present for x in dry)
+    dd = dict(d, note="F-DRY: 3 cycles of the night outside the selection (outputs discarded)", outage_dropped=0, runs={RUN: {"FULL": dry, "warmup": warm}})
+    json.dump(dd, open(out.replace(".json", "_dry.json"), "w"), indent=1, sort_keys=True)
     sha = hashlib.sha256(open(out, "rb").read()).hexdigest()
     print(json.dumps({"out": out, "wavs": len(have), "grid_slots": len(grid), "first_slot": grid[0], "last_slot": grid[-1], "selected_slots": len(slots),
                       "outage_dropped": dropped, "cycles": len(full), "first": full[0], "last": full[-1], "warmup": warm, "sha256": sha}, indent=1))

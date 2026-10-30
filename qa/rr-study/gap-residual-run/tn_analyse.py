@@ -28,13 +28,19 @@ import gg_lib as L         # noqa: E402
 
 S = "D:/Projects/claude/_qa-scratch/late-sub"
 SOL = S + "/sol3n"
+# F-KA (Architect ruling 2026-10-30-1802 s7): TN_CFG=ka points the SAME scoring at the PC's raw_lr OFF and ON arms, refset 20260925_2010 cycles 401-1,200 (only input paths and the night change).
+KA = os.environ.get("TN_CFG") == "ka"
+SCR_DIR = (S + "/scratch_lr") if KA else (SOL + "/scratch")
+RAW_DIR = (S + "/raw_lr") if KA else (SOL + "/raw")
+ARMS = ("off", "on") if KA else ("off", "on", "orig")
+OUT_JSON = (S + "/ka_result.json") if KA else (S + "/third_night_result.json")
 CF = os.path.join(HERE, "..", "coh-fallback")
 DLL = S + "/bin_dev/libft8.dll"            # the PC's DLL is used only for the U' re-encoder (tones), as in the second night
 WAV_ROOT = "D:/Projects/claude/OpenWSFZ/artefacts"
-RUN = "20260930_1930"
+RUN = "20260925_2010" if KA else "20260930_1930"
 NIGHT = WAV_ROOT + f"/{RUN}_endurance_run-gathered"
-SELF = S + "/selection_3n.json"
-CLASSES = S + "/u3/orig_classes.json"
+SELF = "D:/Projects/claude/_qa-scratch/coh-gate-r-f4/selection1200.json" if KA else S + "/selection_3n.json"
+CLASSES = "D:/Projects/claude/_qa-scratch/coh-gate-g/u/uprime_orig_classes.json" if KA else S + "/u3/orig_classes.json"
 BAR_G, U_BAR_G, H = 0.5, 0.021, 0.5
 B, SEED = 2000, 20261030
 assert (BAR_G, U_BAR_G, H, B, SEED) == (0.5, 0.021, 0.5, 2000, 20261030)
@@ -46,7 +52,7 @@ T_WARN_SHARE = 0.10
 
 def load_nc(arm):
     d = collections.defaultdict(list)
-    for r in C.load_tsv(f"{SOL}/scratch/{arm}/nc_dump.tsv"):
+    for r in C.load_tsv(f"{SCR_DIR}/{arm}/nc_dump.tsv"):
         if len(r) >= 11:
             d[r[0]].append(dict(kind=int(r[1]), matched=int(r[2]), f=int(r[3]), dt=float(r[4]), snr=int(r[5]), text="\t".join(r[10:])))
     for s in d:
@@ -71,6 +77,8 @@ def main():
             assert hashlib.sha256(open(p, "rb").read()).hexdigest() == want, f"{p} differs from the frozen hash"
     sel = json.load(open(SELF))["runs"][RUN]["FULL"]
     stamps = [e if isinstance(e, str) else e[0] for e in sel]
+    if KA:
+        stamps = stamps[400:]                  # TEST = cycles 401-1,200 of a run that began at cycle 1 (one process)
     assert len(stamps) == N_CYCLES
     C.ALLTXT = NIGHT + "/wsjt-x/ALL.TXT"
     ref = C.load_ref(set(stamps))
@@ -81,10 +89,10 @@ def main():
 
     # ---- V-3N-AB: residual pass, third pass (the cycle's FIRST Third pass line) and fallback abandoned = 0 in both arms (and orig) -----------------------------
     ab = {}
-    for arm in ("off", "on", "orig"):
-        c = rows(f"{SOL}/raw/{arm}/coh.csv")
-        ar = [l.rstrip("\n").split(",") for l in open(f"{SOL}/raw/{arm}/abandon.csv") if l[:1].isdigit()]
-        th = rows(f"{SOL}/raw/{arm}/third.csv")
+    for arm in ARMS:
+        c = rows(f"{RAW_DIR}/{arm}/coh.csv")
+        ar = [l.rstrip("\n").split(",") for l in open(f"{RAW_DIR}/{arm}/abandon.csv") if l[:1].isdigit()]
+        th = rows(f"{RAW_DIR}/{arm}/third.csv")
         ab[arm] = {"fallback_abandoned": sum(int(r["abandoned"]) for r in c), "residual_abandoned": sum(int(r[2]) for r in ar),
                    "third_pass_abandoned_or_failed": sum(1 for r in th if r["outcome"] in ("abandoned", "failed"))}
     res["V-3N-AB"] = dict(ab, PASS=all(v == 0 for a in ab.values() for v in a.values()),
@@ -175,7 +183,7 @@ def main():
     res["HK026_untestable_class_outputs_need_refreeze"] = r["untestable_class_outputs"] > 0
 
     # ---- timing (reported; vetoes nothing), from late.csv per the ruling section 4 -------------------------------------------------------------------------
-    late = rows(f"{SOL}/raw/on/late.csv")
+    late = rows(f"{RAW_DIR}/on/late.csv") if os.path.exists(f"{RAW_DIR}/on/late.csv") else []   # raw_lr has no late.csv (F-KA)
     out_ct = collections.Counter()
     for x in late:
         out_ct[x["outcome"] if x["outcome"] != "no-new" else ("no-new(fit=0)" if x["fit"] == "0" else "no-new(fit>0)")] += 1
@@ -198,7 +206,7 @@ def main():
         "skip_reasons": {k: v for k, v in out_ct.items() if k.startswith("skipped-")}}
 
     def fb_end(arm):
-        t = open(f"{SOL}/raw/{arm}/log.log", encoding="utf-8", errors="replace").read()
+        t = open(f"{RAW_DIR}/{arm}/log.log", encoding="utf-8", errors="replace").read()
         e = [int(a) + int(b) for a, b in re.findall(r"fbStartMs=(-?\d+), fbWallMs=(-?\d+)", t) if int(b) >= 0]
         return {"max_fallback_end_ms": max(e), "fallback_lines": len(re.findall("Coherent fallback:", t))}
     res["timing_fallback"] = {"off": fb_end("off"), "on": fb_end("on")}
@@ -206,7 +214,7 @@ def main():
                "FAIL-3N" if rows_["N-STOP"] or rows_["U-FAIL"] else "OPEN-3N")
     res["verdict"] = verdict
     res["verdict_valid_only_if"] = "V-3N-AB PASS and V-3N-REF PASS and HK026_untestable_class_outputs_need_refreeze False (else follow the spec: budget-lifted re-run / Original on the other 600 cycles and re-freeze)"
-    json.dump(res, open(S + "/third_night_result.json", "w"), indent=1, default=float)
+    json.dump(res, open(OUT_JSON, "w"), indent=1, default=float)
     print(json.dumps(res, indent=1, default=float))
 
 

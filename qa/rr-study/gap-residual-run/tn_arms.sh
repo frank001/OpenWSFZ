@@ -19,10 +19,15 @@ WAVROOT=${WAVROOT:-$B/wav}
 G=$WAVROOT/${RUN}_endurance_run-gathered
 SEL=$B/selection_3n.json
 SEL200=$B/selection_3n_200.json
+# F-DRY (Architect ruling 2026-10-30-1802 s7): TN_DRY=1 runs all three arms on the 3 dry cycles (selection_3n_dry.json, outside the selection), outputs under raw_dry / l1p3n_dry, to be discarded.
+# The frozen run is TN_DRY unset: 800 / 800 / 200 rows. The expectations come from N_MAIN / N_ORIG, which TN_DRY sets to 3.
+N_MAIN=800; N_ORIG=200
+if [ "${TN_DRY:-0}" = "1" ]; then N_MAIN=3; N_ORIG=3; SEL=$B/selection_3n_dry.json; SEL200=$SEL; fi
 SEL_SHA=${SEL_SHA:-}      # optional: the selection's SHA-256 from the freeze commit (2575e115378c71c068cd250d26dd002a17d7d365366cd00e6aaa3a99d2329c4f at the time of writing)
 ALLTXT=$B/wsjtx_ALL_3n.TXT
 RAW=$B/raw
 SCR=$HOME/_qa-scratch/l1p3n
+if [ "${TN_DRY:-0}" = "1" ]; then RAW=$B/raw_dry; SCR=$HOME/_qa-scratch/l1p3n_dry; fi
 export PATH=$HOME/.dotnet:$PATH DOTNET_CLI_TELEMETRY_OPTOUT=1
 mkdir -p "$RAW" "$SCR"
 STATUS_ALL=$RAW/chain_status.txt
@@ -36,12 +41,13 @@ python3 - <<PY || die "selected WAVs missing on sol"
 import json, os
 d = json.load(open("$SEL"))
 r = d["runs"]["$RUN"]
-assert len(r["FULL"]) == 800, len(r["FULL"])
+assert len(r["FULL"]) == $N_MAIN, len(r["FULL"])
 miss = [s for s in r["FULL"] + [r["warmup"]] if not os.path.exists("$G/owsfz/wav/" + s + ".wav")]
 assert not miss, f"{len(miss)} WAVs missing"
-d["runs"]["$RUN"] = {"warmup": r["warmup"], "FULL": r["FULL"][:200]}
-d["note"] = "first 200 selected cycles (Original arm for the U-prime classes)"
-json.dump(d, open("$SEL200", "w"), indent=1, sort_keys=True)
+if "$SEL" != "$SEL200":
+    d["runs"]["$RUN"] = {"warmup": r["warmup"], "FULL": r["FULL"][:200]}
+    d["note"] = "first 200 selected cycles (Original arm for the U-prime classes)"
+    json.dump(d, open("$SEL200", "w"), indent=1, sort_keys=True)
 PY
 log "L1' third-night chain start; so=$PIN; selection sha=$(sha $SEL); sel200 sha=$(sha $SEL200)"
 busy() { pgrep -f 'Replay81.dll' > /dev/null || pgrep -x wsjtx > /dev/null || pgrep -x jt9 > /dev/null || pgrep -x OpenWSFZ.Daemon > /dev/null; }
@@ -76,9 +82,9 @@ arm() {   # arm <name> <selection> <rows> <audio> <extra> <expect lateround True
   [ "$rc" = 0 ] && [ "$ok" = 1 ] || die "arm $NAME failed (rc=$rc ok=$ok)"
 }
 
-arm off  $SEL    800 Both     ""                False
-arm on   $SEL    800 Both     "--late-round 1"  True
-arm orig $SEL200 200 Original ""                False
+arm off  $SEL    $N_MAIN Both     ""                False
+arm on   $SEL    $N_MAIN Both     "--late-round 1"  True
+arm orig $SEL200 $N_ORIG Original ""                False
 busy && log "ORPHAN CHECK: a competing process is still running" || log "orphan check clean"
 [ "$(sha "$SO")" = "$PIN" ] && log "END so pin OK" || log "END so pin FAIL"
 log "chain done"
