@@ -29,22 +29,23 @@ import gg_lib as L         # noqa: E402
 S = "D:/Projects/claude/_qa-scratch/late-sub"
 SOL = S + "/sol3n"
 # F-KA (Architect ruling 2026-10-30-1802 s7): TN_CFG=ka points the SAME scoring at the PC's raw_lr OFF and ON arms, refset 20260925_2010 cycles 401-1,200 (only input paths and the night change).
-KA = os.environ.get("TN_CFG") == "ka"
-SCR_DIR = (S + "/scratch_lr") if KA else (SOL + "/scratch")
-RAW_DIR = (S + "/raw_lr") if KA else (SOL + "/raw")
+CFG = os.environ.get("TN_CFG", "")           # "ka" = F-KA on raw_lr; "t2" = timing-block check on raw_t2 (cycles 1-60); "" = the third night
+KA = CFG in ("ka", "t2")
+SCR_DIR = (S + "/scratch_t2") if CFG == "t2" else (S + "/scratch_lr") if KA else (SOL + "/scratch")
+RAW_DIR = (S + "/raw_t2") if CFG == "t2" else (S + "/raw_lr") if KA else (SOL + "/raw")
 ARMS = ("off", "on") if KA else ("off", "on", "orig")
-OUT_JSON = (S + "/ka_result.json") if KA else (S + "/third_night_result.json")
+OUT_JSON = (S + "/t2_timing_result.json") if CFG == "t2" else (S + "/ka_result.json") if KA else (S + "/third_night_result.json")
 CF = os.path.join(HERE, "..", "coh-fallback")
 DLL = S + "/bin_dev/libft8.dll"            # the PC's DLL is used only for the U' re-encoder (tones), as in the second night
 WAV_ROOT = "D:/Projects/claude/OpenWSFZ/artefacts"
 RUN = "20260925_2010" if KA else "20260930_1930"
 NIGHT = WAV_ROOT + f"/{RUN}_endurance_run-gathered"
-SELF = "D:/Projects/claude/_qa-scratch/coh-gate-r-f4/selection1200.json" if KA else S + "/selection_3n.json"
+SELF = S + "/selection60.json" if CFG == "t2" else "D:/Projects/claude/_qa-scratch/coh-gate-r-f4/selection1200.json" if KA else S + "/selection_3n.json"
 CLASSES = "D:/Projects/claude/_qa-scratch/coh-gate-g/u/uprime_orig_classes.json" if KA else S + "/u3/orig_classes.json"
 BAR_G, U_BAR_G, H = 0.5, 0.021, 0.5
 B, SEED = 2000, 20261030
 assert (BAR_G, U_BAR_G, H, B, SEED) == (0.5, 0.021, 0.5, 2000, 20261030)
-N_CYCLES, REF_MIN_CYCLES = 800, 790
+N_CYCLES, REF_MIN_CYCLES = (60, 0) if CFG == "t2" else (800, 790)
 HASHED = re.compile(r"<[^>]*>")
 BUDGET_MS = 13000
 T_WARN_SHARE = 0.10
@@ -77,7 +78,7 @@ def main():
             assert hashlib.sha256(open(p, "rb").read()).hexdigest() == want, f"{p} differs from the frozen hash"
     sel = json.load(open(SELF))["runs"][RUN]["FULL"]
     stamps = [e if isinstance(e, str) else e[0] for e in sel]
-    if KA:
+    if CFG == "ka":
         stamps = stamps[400:]                  # TEST = cycles 401-1,200 of a run that began at cycle 1 (one process)
     assert len(stamps) == N_CYCLES
     C.ALLTXT = NIGHT + "/wsjt-x/ALL.TXT"
