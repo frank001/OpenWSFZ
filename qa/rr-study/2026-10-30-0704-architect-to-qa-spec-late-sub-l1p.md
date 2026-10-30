@@ -108,3 +108,25 @@ The rows are exclusive and are evaluated in this order. The predicate is code, a
 Total: about 4–5 h of PC time, unattended, with the station stopped.
 
 **The run go.** The Captain's "go with your recommendations" covers writing this spec. **The run itself needs his go after QA's (k) review**, as usual.
+
+## §8. Amendment 1 (2026-10-30 07:07:22Z, `date -u`): QA (k) review `2ce7eabc` adopted in full (E1–E5)
+
+QA's review: `qa/rr-study/2026-10-30-0710-qa-to-architect-late-sub-l1p-k-review.md`, verdict APPROVE WITH FIVE AMENDMENTS. None of them changes a bar or the arm.
+
+**QA's answers to my three questions are on record:**
+- **(a) The files are reachable.** The selection is `selection_2n.json` (SHA-256 `cf9908a5dcc6…`; 800 cycles, `outage_dropped` 0) and the classes are `u2/orig_classes.json` (`0d83d685db2a…`). Both are in `_qa-scratch\coh-gate-r-f4\`, and QA holds their deletion until this verdict is ruled.
+- **(b) n_ref 20,753 is on file** (`second_night_result.json`). It is re-derived under E4.
+- **(c) The harness can drop C and L2 with a code change.** The removals are the C call (`LateSub.cs:177`), `pc` from the fit list (`:185`) and the L2 fallback (`:208`). V2/V3 finish before `:177`.
+
+**Adopted:**
+- **E1. The analysis takes the night as a parameter.** `ls_analyse.py`/`ls_check.py` take the night, the reference, the selection, the classes and the baseline as arguments. On the verdict night the baseline is **that run's own published product rows**. Each input is asserted in code against the hashes in the freeze commit. The same code runs the refset leg. This is part of V6's "code commit".
+- **E2. New validity row V7, the regression check.** The L1′ mode on refset cycles 1–40 must reproduce the old pilot's V2/V3 columns (`v2_b1`, `v2_b2`, `v2_b3`, `v2_r3_bytes`, `v3_b4`) and the published batch counts, **identical cycle by cycle**. Also, per cycle, `fit_n_new` = `fit_n_old` − `pubC`. Any difference: stop and report.
+- **E3. The HK-026 re-freeze sits outside §7's estimate.** It is about 1 h more: the Original arm on the other 600 cycles, PC, with the build named in the freeze. The trigger is unchanged. If it fires, the verdict rows are computed once, on the 800-cycle classes only.
+- **E4. New validity row V8.** n_ref derived on the PC must equal 20,753, asserted in code. On a mismatch: stop before any outcome is read.
+- **E5. The platform pointer.** Report (i) the number of cycles where the PC product's batch counts differ from sol's OFF arm, with no threshold. If that is more than 5 % of cycles, it goes in the report's first paragraph. Report (ii) "classes taken as frozen (sol Original arm), platform not re-tested". Neither is a row.
+- **The pilot gets V7 and V8 as well**, since they cost nothing there.
+
+**My §7.5 was wrong (ledger E116).** I wrote that "the R3 buffers QA kept may shorten" the refset leg. The kept captures are GAP-RESIDUAL cycles 1–400. The refset TEST leg is cycles 401–1,200 and runs in full, about 1.4 h. **The total is about 4.5 h, plus about 1 h if E3 fires.**
+
+**Validity rows now:** V0, V2, V3, V5, V6, V7, V8. V1 stays descriptive.
+**Predictions:** L1P-1 is scored against this amended row set. The amendment came before any harness change, so it is a spec change, not a harness failure. L1P-2..5 are unchanged.
