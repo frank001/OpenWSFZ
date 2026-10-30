@@ -110,6 +110,7 @@ def main():
                 harness[r[0]].append((int(r[2]), float(r[3]), int(r[4]), r[5]))
     plain_diff, hashed_diff, first_plain, first_hash = 0, 0, None, None
     hashed_listed, dtsnr_mismatch, plain_rows_h, plain_rows_p = [], 0, 0, 0
+    dtsnr_mismatch_raw = 0
     n5_rows = sum(1 for s in stamps for r in on.get(s, []) if r[0] == 5)
     h_rows = sum(len(harness.get(s, [])) for s in stamps)
     for i, s in enumerate(stamps):
@@ -129,6 +130,9 @@ def main():
                     continue
                 d0, s0 = hd[(f, t)]
                 if abs(d0 - d) > FLOAT_TOL or s0 != sn:
+                    dtsnr_mismatch_raw += 1
+                # Architect ruling 73dc9036 s5: the product publishes DT rounded to 1 dp (Ft8Decoder.cs:817), the harness logged the raw value
+                if abs(round(d0, 1) - d) > FLOAT_TOL or s0 != sn:
                     dtsnr_mismatch += 1
         # hashed text: counts per cycle
         hh = sum(1 for f, d, sn, t in h if "<" in t)
@@ -139,7 +143,8 @@ def main():
             first_hash = first_hash or i + 1
     res["B-EQ-2"] = {"harness_batch5_rows": h_rows, "product_batch5_rows": n5_rows, "plain_rows_harness": plain_rows_h, "plain_rows_product": plain_rows_p,
                      "cycles_differing_on_plain_text": plain_diff, "first_plain_differing_cycle_index": first_plain,
-                     "plain_rows_with_dt_or_snr_mismatch_descriptive": dtsnr_mismatch,
+                     "plain_rows_with_dt_or_snr_mismatch_after_dt_rounding_descriptive": dtsnr_mismatch,
+                     "plain_rows_with_dt_or_snr_mismatch_RAW_dt_descriptive": dtsnr_mismatch_raw,
                      "cycles_with_hashed_count_difference_listed_allowed": hashed_diff, "hashed_count_differences_[stamp,harness,product]": hashed_listed,
                      "PASS": plain_diff == 0}
 
@@ -152,12 +157,58 @@ def main():
                      ("fallback_abandoned", "coh.csv", "abandoned")]:
         a, b = col(f"{RAW}/off/{p}", c), col(f"{RAW}/on/{p}", c)
         ab[nm] = {"off_total": sum(int(a[s] or 0) for s in a), "on_total": sum(int(b[s] or 0) for s in b), "cycles_differing": sum(1 for s in stamps if a.get(s) != b.get(s))}
-    t_off, t_on = open(RAW + "/off/third.csv").read().splitlines(), open(RAW + "/on/third.csv").read().splitlines()
-    hdr = t_off[0].split(",")
-    keep = [i for i, h in enumerate(hdr) if "ms" not in h.lower()]
-    third_diff = sum(1 for a, b in zip(t_off, t_on) if [a.split(",")[i] for i in keep] != [b.split(",")[i] for i in keep]) + abs(len(t_off) - len(t_on))
-    ab["third_pass_rows_differing_excluding_ms_columns"] = third_diff
-    res["B-AB"] = dict(ab, PASS=all(v["cycles_differing"] == 0 for k, v in ab.items() if isinstance(v, dict)) and third_diff == 0)
+    # Third pass lines from the logs, paired by LOG ORDER (Architect ruling 73dc9036 s2): per cycle  R T F T C  (residual, third pass, fallback,
+    # the round's inner third pass, cycle). The third pass proper is the "Third pass:" line BEFORE that cycle's "Coherent fallback:" line,
+    # the round's is the one AFTER it. A cycle starts at its "Sub-feas residual pass:" line. (Segmenting on the Cycle line shifted by one: E122/QA row.)
+    trx = re.compile(r"\] Third pass: newDecodes=(\d+) elapsedMs=(\d+) outcome=(\S+) fittedSignals=(\d+)")
+
+    def paired_third(path):
+        cyc, cur, seen_f = [], None, False
+        for line in open(path, encoding="utf-8", errors="replace"):
+            if "] Sub-feas residual pass:" in line:
+                cur = {"t": None, "r": []}
+                cyc.append(cur)
+                seen_f = False
+            elif "] Coherent fallback:" in line:
+                seen_f = True
+            else:
+                m = trx.search(line)
+                if m and cur is not None:
+                    row = (m.group(1), m.group(3), m.group(4), int(m.group(2)))   # newDecodes, outcome, fittedSignals, elapsedMs
+                    if not seen_f:
+                        cur["t"] = row
+                    else:
+                        cur["r"].append(row)
+        return cyc
+    po, pn = paired_third(RAW + "/off/log.log"), paired_third(RAW + "/on/log.log")
+    # the warm-up (a residual-pass line before cycle 1, with no third pass, fallback or round line) is dropped from the comparison and reported
+    warm = {"off": 0, "on": 0}
+    if po and po[0]["t"] is None and not po[0]["r"]:
+        po, warm["off"] = po[1:], 1
+    if pn and pn[0]["t"] is None and not pn[0]["r"]:
+        pn, warm["on"] = pn[1:], 1
+    n_lines_off = sum((c["t"] is not None) + len(c["r"]) for c in po)
+    n_lines_on = sum((c["t"] is not None) + len(c["r"]) for c in pn)
+    bad_outc = ("abandoned", "failed")
+    ab["third_pass_proper_abandoned_or_failed"] = {"off_total": sum(1 for c in po if c["t"] and c["t"][1] in bad_outc),
+                                                   "on_total": sum(1 for c in pn if c["t"] and c["t"][1] in bad_outc),
+                                                   "cycles_differing": sum(1 for a, b in zip(po, pn) if (a["t"] and a["t"][1] in bad_outc) != (b["t"] and b["t"][1] in bad_outc))}
+    rounds = [r for c in pn for r in c["r"]]
+    round_abandoned = sum(1 for r in rounds if r[1] in bad_outc)
+    ab["late_round_own_abandoned_or_failed_inner_line"] = round_abandoned
+    # the row's predicate (build spec s3): abandoned counts in ON = OFF, for the residual pass, the third pass and the fallback
+    counts_equal = all(v["off_total"] == v["on_total"] and v["cycles_differing"] == 0 for k, v in ab.items() if isinstance(v, dict))
+    # the STRICTER comparison, reported beside it (not the predicate): third pass proper, newDecodes/outcome/fittedSignals, paired
+    strict_diff = sum(1 for a, b in zip(po, pn) if (a["t"][:3] if a["t"] else None) != (b["t"][:3] if b["t"] else None))
+    ab["strict_third_pass_proper_cycles_differing_excluding_ms"] = strict_diff
+    ab["pairing"] = {"warmup_cycles_dropped": warm, "cycles_off": len(po), "cycles_on": len(pn), "third_pass_lines_off": n_lines_off, "third_pass_lines_on": n_lines_on,
+                     "third_pass_proper_on": sum(1 for c in pn if c["t"]), "rounds_on": len(rounds),
+                     "rounds_ran": sum(1 for r in rounds if r[1] == "ran"), "rounds_skipped_no_new": sum(1 for r in rounds if r[1] == "skipped-no-new"),
+                     "rounds_other_outcomes": dict(collections.Counter(r[1] for r in rounds if r[1] not in ("ran", "skipped-no-new"))),
+                     "cycles_on_with_one_line": sum(1 for c in pn if c["t"] and not c["r"]), "cycles_on_with_no_line": sum(1 for c in pn if c["t"] is None and not c["r"]),
+                     "cycles_on_with_two_lines": sum(1 for c in pn if c["t"] and len(c["r"]) == 1),
+                     "cycles_on_with_more_than_one_round_line": sum(1 for c in pn if len(c["r"]) > 1)}
+    res["B-AB"] = dict(ab, PASS=counts_equal and len(po) == len(pn) == len(stamps))
 
     # ---- descriptive: the round's own outcomes and times (the on arm's log, aggregates only) ------------------------------------------------------
     rx = re.compile(r"Late subtraction round: outcome=(\S+), buffer=(\S+), fit=(\d+), refused=(-?\d+), new=(\d+), published=(\d+), fbEndMs=(-?\d+), startMs=(\d+), elapsedMs=(\d+), endMs=(\d+), batch=5, batch5PublishMs=(-?\d+)")
@@ -180,6 +231,16 @@ def main():
     res["round_timing_descriptive"] = {"log_lines": n_lines, "outcomes": dict(outc), "buffer_when_started": dict(buf),
                                        "elapsedMs_median": q(el, .5), "elapsedMs_p90": q(el, .9), "elapsedMs_max": max(el) if el else None,
                                        "endMs_max": max(ends) if ends else None}
+    # descriptive, from data on file (Architect ruling 73dc9036 s3): the round's inner third-pass line and run.csv; the R6 line itself was never captured
+    rd = [r[3] for r in rounds]
+    el_on = [float(r["elapsed_ms"]) for r in rn.values() if r.get("elapsed_ms") not in (None, "")]
+    el_off = [float(r["elapsed_ms"]) for r in ro.values() if r.get("elapsed_ms") not in (None, "")]
+    tb5 = [float(r["tb5_ms"]) for r in rn.values() if r.get("b5_n") not in (None, "", "0") and r.get("tb5_ms") not in (None, "", "-1.0")]
+    res["round_timing_from_data_on_file_descriptive"] = {
+        "inner_round_elapsedMs_over_ran_rounds": {"n": len(rd), "median": q(rd, .5), "p90": q(rd, .9), "max": max(rd) if rd else None},
+        "whole_cycle_elapsed_ms_on": {"median": q(el_on, .5), "max": max(el_on) if el_on else None},
+        "whole_cycle_elapsed_ms_off": {"median": q(el_off, .5), "max": max(el_off) if el_off else None},
+        "tb5_ms_cycles_with_batch5": {"n": len(tb5), "median": q(tb5, .5), "max": max(tb5) if tb5 else None}}
     res["ALL_PASS"] = all(res[k]["PASS"] for k in ("B-OFF", "B-EQ-1", "B-EQ-2", "B-AB"))
     out = sys.argv[1] if len(sys.argv) > 1 else LS + "/lr_result.json"
     json.dump(res, open(out, "w"), indent=1)
