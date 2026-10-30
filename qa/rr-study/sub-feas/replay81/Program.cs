@@ -321,6 +321,10 @@ internal static class Program
             if (a.TryGetValue("ungated", out var ung)) decoder.SetCoherentFallbackResidualUngated(ung switch { "0" => false, "1" => true, _ => throw new ArgumentException("--ungated must be 0 or 1") });
             LateSub.Ungated = decoder.CoherentFallbackResidualUngated;   // LATE-SUB: the configuration the new residual-audio runs apply (T1 when false, ungated when true)
 #endif
+#if HAS_LATEROUND
+            // LATE-SUB L1' acceptance (build commit b1d8a06e): --late-round 0|1 sets decoder.lateSubtractionRound; ABSENT leaves the decoder at its start value (false = the key absent). Read back at start and end.
+            if (a.TryGetValue("late-round", out var lr)) decoder.SetLateSubtractionRound(lr switch { "0" => false, "1" => true, _ => throw new ArgumentException("--late-round must be 0 or 1") });
+#endif
             if (a.TryGetValue("cohfb-out", out var cohPath))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cohPath))!);
@@ -1051,6 +1055,9 @@ internal static class Program
 #endif
 #if HAS_UNGATED
                 + $" ungated={d.CoherentFallbackResidualUngated}"
+#endif
+#if HAS_LATEROUND
+                + $" lateround={d.LateSubtractionRound}"
 #endif
                 );
     }
