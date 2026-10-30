@@ -56,6 +56,8 @@ The check: 1,200 + 1,177 = 2,377, the log's count. QA's figures give 2,375.
 
 The PC has more than 7 s of margin. The inner line's `elapsedMs` covers the native round only, not `MapNative` or publication; the `elapsed_ms` bound covers those.
 
+**Note added 2026-10-30T17:46:48Z (`date -u`):** the PC was not idle for the ON vs OFF comparison. Serena language servers started at 15:49Z and 15:51Z, late in the OFF arm, and stayed up through the ON arm. QA saw them idle (about 5 s of CPU each over their lifetime, not measured under load). So read the whole-cycle ON vs OFF difference as approximate. No row's verdict depends on it: the rows compare content, and this timing row is descriptive.
+
 **Not known from §3:** the skip reason in the 23 cycles without an inner line. B-EQ-2 shows no published row was lost or gained there. B-TOOL-2 shows one such reason.
 
 ## §4. New row B-TOOL-2, before §4 (`qa/` only)
