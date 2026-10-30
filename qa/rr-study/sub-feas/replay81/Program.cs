@@ -234,6 +234,16 @@ internal static class Program
             _third = new StreamWriter(thirdPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
             if (freshTh) _third.WriteLine("stamp,outcome,newDecodes,elapsedMs,fittedSignals");
         }
+#if HAS_LATEROUND
+        // B-TOOL-2: --late-out: one row per cycle with every field of the round's R6 log line (aggregates only).
+        if (a.TryGetValue("late-out", out var latePath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(latePath))!);
+            bool freshLate = !File.Exists(latePath);
+            _lateOut = new StreamWriter(latePath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (freshLate) _lateOut.WriteLine("stamp,outcome,lines,buffer,fit,refused,new,published,fbEndMs,startMs,elapsedMs,endMs,batch,batch5PublishMs,unmatched");
+        }
+#endif
         if (a.TryGetValue("outcomes", out var outcomesPath))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outcomesPath))!);
@@ -551,6 +561,9 @@ internal static class Program
 #endif
     private static bool _wide3;                    // three0 / three1: 12-column CSV with b3_n
     private static StreamWriter? _third;           // --third-out: stamp,outcome,newDecodes,elapsedMs,fittedSignals
+#if HAS_LATEROUND
+    private static StreamWriter? _lateOut;         // --late-out (B-TOOL-2): the LATE-SUB round's R6 line, one row per cycle
+#endif
     private static StreamWriter? _outcomes;
     private static StreamWriter? _dxped;   // #225 phase 2: type-0.1 texts, scratch only (see --dxped-dump)
     private static StreamWriter? _ncDump;   // --nc-dump <path>: stamp,kind,matched,freq,dt,snr,same_any,min_df,wcount,path,text for every scored decode (scratch only)
@@ -735,6 +748,10 @@ internal static class Program
 #endif
         SubfeasProbe.Reset();
         ThirdProbe.Reset();
+#if HAS_LATEROUND
+        LateProbe.Reset();
+        LateProbe.Unmatched = 0;
+#endif
         _curStamp = stamp;
 #if HAS_INTERNALS
         StageProbeInterop.Reset_();
@@ -803,6 +820,9 @@ internal static class Program
         _third?.WriteLine(string.Join(",", stamp, ThirdProbe.Seen ? ThirdProbe.Outcome : "no-line",
             ThirdProbe.NewDecodes.ToString(CultureInfo.InvariantCulture), ThirdProbe.ElapsedMs.ToString(CultureInfo.InvariantCulture),
             ThirdProbe.Fitted.ToString(CultureInfo.InvariantCulture)));
+#if HAS_LATEROUND
+        _lateOut?.WriteLine(stamp + "," + LateProbe.Row());
+#endif
         csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), flag,
             sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
             (n1 < 0 ? -1 : n1 + n2 + n3
@@ -872,6 +892,30 @@ internal static class Program
     }
 #endif
 
+#if HAS_LATEROUND
+    /// <summary>B-TOOL-2: the LATE-SUB round's R6 log line ("Late subtraction round: ..."), one per cycle with the setting ON. Aggregates only. Counts lines so a cycle with 0 or 2 is visible.</summary>
+    private static class LateProbe
+    {
+        public static int Lines;
+        public static string Outcome = "no-line", Buffer = "-", Fit = "", Refused = "", New = "", Published = "", FbEndMs = "", StartMs = "", ElapsedMs = "", EndMs = "", Batch = "", PublishMs = "";
+        public static void Reset() { Lines = 0; Outcome = "no-line"; Buffer = "-"; Fit = Refused = New = Published = FbEndMs = StartMs = ElapsedMs = EndMs = Batch = PublishMs = ""; }
+        private static readonly System.Text.RegularExpressions.Regex Rx = new(
+            @"^Late subtraction round: outcome=([a-z0-9-]+), buffer=(\S+), fit=(\d+), refused=(-?\d+), new=(\d+), published=(\d+), fbEndMs=(-?\d+), startMs=(-?\d+), elapsedMs=(-?\d+), endMs=(-?\d+), batch=(\d+), batch5PublishMs=(-?\d+)\.$");
+        public static bool Set(string rendered)
+        {
+            var m = Rx.Match(rendered);
+            if (!m.Success) return false;            // the writer still counts it as a line seen only when it matches; a non-matching R6 line is reported by Unmatched
+            Lines++;
+            Outcome = m.Groups[1].Value; Buffer = m.Groups[2].Value; Fit = m.Groups[3].Value; Refused = m.Groups[4].Value; New = m.Groups[5].Value;
+            Published = m.Groups[6].Value; FbEndMs = m.Groups[7].Value; StartMs = m.Groups[8].Value; ElapsedMs = m.Groups[9].Value; EndMs = m.Groups[10].Value;
+            Batch = m.Groups[11].Value; PublishMs = m.Groups[12].Value;
+            return true;
+        }
+        public static int Unmatched;
+        public static string Row() => string.Join(",", Lines == 0 ? "no-line" : Outcome, Lines.ToString(CultureInfo.InvariantCulture), Buffer, Fit, Refused, New, Published, FbEndMs, StartMs, ElapsedMs, EndMs, Batch, PublishMs, Unmatched.ToString(CultureInfo.InvariantCulture));
+    }
+#endif
+
     /// <summary>The third-pass line the decoder logged for the cycle being decoded (one line per cycle in which pass 0 had decodes).</summary>
     private static class ThirdProbe
     {
@@ -886,6 +930,9 @@ internal static class Program
         {
             var m = Rx.Match(rendered);
             if (!m.Success) return;                  // anything else is not recorded (and never the text of a decode)
+            // B-TOOL-2 (Architect ruling 73dc9036 s4): the FIRST line of the cycle is the third pass proper; with the LATE-SUB round ON a second
+            // "Third pass:" line follows the fallback (the round's inner pass), and last-line-wins misread it as the third pass (log order R T F T C).
+            if (Seen) return;
             NewDecodes = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
             ElapsedMs = long.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
             Outcome = m.Groups[3].Value;
@@ -970,6 +1017,20 @@ internal static class Program
             ThirdProbe.Reset();
             ThirdProbe.Set("Third pass: something else entirely");
             Check("a non-matching line is ignored", !ThirdProbe.Seen);
+            // B-TOOL-2: the cycle's FIRST Third pass line wins; a second (the round's inner) line must not overwrite it.
+            ThirdProbe.Reset();
+            ThirdProbe.Set("Third pass: newDecodes=2 elapsedMs=1234 outcome=ran fittedSignals=3");
+            ThirdProbe.Set("Third pass: newDecodes=9 elapsedMs=99 outcome=abandoned fittedSignals=8");
+            Check("the first third-pass line of a cycle wins (the round's inner line is ignored)", ThirdProbe.Outcome == "ran" && ThirdProbe.NewDecodes == 2 && ThirdProbe.Fitted == 3 && ThirdProbe.ElapsedMs == 1234);
+#if HAS_LATEROUND
+            LateProbe.Reset();
+            bool lateOk = LateProbe.Set("Late subtraction round: outcome=ran, buffer=R3, fit=12, refused=1, new=3, published=2, fbEndMs=2100, startMs=2200, elapsedMs=690, endMs=2890, batch=5, batch5PublishMs=3010.");
+            Check("the round's R6 line is parsed, every field", lateOk && LateProbe.Lines == 1 && LateProbe.Outcome == "ran" && LateProbe.Buffer == "R3" && LateProbe.Fit == "12" && LateProbe.Refused == "1" && LateProbe.New == "3" && LateProbe.Published == "2" && LateProbe.FbEndMs == "2100" && LateProbe.StartMs == "2200" && LateProbe.ElapsedMs == "690" && LateProbe.EndMs == "2890" && LateProbe.Batch == "5" && LateProbe.PublishMs == "3010");
+            LateProbe.Reset();
+            Check("a skipped round line (buffer -, fbEndMs, publish -1) is parsed", LateProbe.Set("Late subtraction round: outcome=skipped-normal-depth, buffer=-, fit=0, refused=0, new=0, published=0, fbEndMs=2100, startMs=2100, elapsedMs=0, endMs=2100, batch=5, batch5PublishMs=-1.") && LateProbe.Outcome == "skipped-normal-depth");
+            LateProbe.Reset();
+            Check("a non-matching R6 line is not recorded", !LateProbe.Set("Late subtraction round: something else") && LateProbe.Lines == 0 && LateProbe.Row().StartsWith("no-line,0,"));
+#endif
             Console.WriteLine("SELFTEST " + (ok ? "ALL PASS" : "FAILED"));
             return ok ? 0 : 1;
         }
@@ -1191,6 +1252,17 @@ internal static class Program
                 ThirdProbe.Set(rendered);
                 ImplEvent("M	T");
                 _log.Line(level.ToString(), rendered);   // aggregate-only template: counts, ms, a fixed outcome word
+                return;
+            }
+#endif
+#if HAS_LATEROUND
+            // B-TOOL-2: the LATE-SUB round's R6 line (aggregates only: a fixed outcome word, a buffer label, counts and ms)
+            if (template.StartsWith("Late subtraction round: outcome=", StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                string rendered = formatter(state, exception);
+                if (!LateProbe.Set(rendered)) LateProbe.Unmatched++;
+                ImplEvent("M	L");
+                _log.Line(level.ToString(), rendered);
                 return;
             }
 #endif
