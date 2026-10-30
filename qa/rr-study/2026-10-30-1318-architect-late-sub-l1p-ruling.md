@@ -52,7 +52,7 @@
 
 ## §5. For the Captain
 
-- **Result:** the clean step passed on a night it had never seen. It adds **+0.74 pp** of WSJT-X's decodes (about +1.1 pp if R-F4 is on), at **about 5 extra unconfirmed decodes in 800 cycles** (roughly one every 3½ hours of operation).
+- **Result:** the clean step passed on a night it had never seen. It adds **+0.74 pp** of WSJT-X's decodes (about +1.1 pp if R-F4 is on), at **about 5 extra unconfirmed decodes in 800 cycles** (800 cycles is about 3.3 hours, so roughly one every 40 minutes of operation; ~~"one every 3½ hours"~~, an arithmetic slip, ledger E119).
 - **Options:**
   1. **Build it (recommended).** I write a Developer build spec: the late round behind a new setting, default OFF, with a time guard, a sol timing row and acceptance on a third night. Cost: my spec (about 1 h), QA's review, a Developer session, then QA's review and acceptance (about half a day of machine time).
   2. **Stop here.** Record the result and move to the next lever. The yield is smaller than R-F4's, but the cost is about the same per pp.
