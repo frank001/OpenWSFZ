@@ -16,7 +16,7 @@
   - V5: 0 abandoned.
 - **Buffer levels:** R3 in 1,124 cycles, R2 in 76. L ran in 1,173 cycles; in the other 27 there was nothing new to subtract.
 - **The fit list was refused for 279 of its 5,020 entries (5.6 %)**, by the product's own `IsReencodable`/`EncodeMessage`. That matches the product's behaviour, so it is not a deviation.
-- **Selection.** QA ran `selection1200.json` (`328c85d4`), the pin from Amendment 1 (E112). QA could not trace `81372df5`. **It is the COH-MULTISET-BUILD whole-night `selection.json`**, frozen 2026-10-24 15:04:50Z (board). GAP-RELOCATE and COH-GATE-G cite "the first N cycles of `81372df5`". So `328c85d4` should be its first 1,200 stamps. QA can check that with a one-line diff. The check does not affect validity, because V1 matched the on-disk arms cycle by cycle. I have clarified the E112 row.
+- **Selection.** QA ran `selection1200.json` (`328c85d4`), the pin from Amendment 1 (E112). QA could not trace `81372df5`. **It is a git commit**, not a file hash: the COH-MULTISET-BUILD selection freeze of 2026-10-24 15:04:50Z. That commit holds the whole-night `selection.json`: 2,882 stamps, file SHA-256 (LF) `53d9ba4e…`. ~~"It is the … `selection.json`"~~ (I named the commit as if it were the file, ledger E115.) **QA confirmed it on 2026-10-30:** `selection1200.json` (`328c85d4`) equals the first 1,200 stamps of that list, element for element, and the warm-up stamp is its first stamp. So the spec and the run name the same night and the same list. The check does not affect validity, because V1 matched the on-disk arms cycle by cycle.
 - **NET is conservative** (Amendment 1 D3, hash-state bracketing). Hashed outputs are 1.5 % of L's additions, so the bias is small.
 
 ## §2. Verdict (OFF, TEST cycles 401–1,200, n_ref 23,158)
