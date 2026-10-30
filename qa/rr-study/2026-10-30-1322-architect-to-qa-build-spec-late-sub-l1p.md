@@ -210,3 +210,50 @@ QA also shows that, on `main`, the extended instrument's output is byte-identica
 **Predictions:**
 - BL-1..5 stay as registered. QA prices BL-4 at 0.45; that is noted, and my 0.60 is what will be scored.
 - **BL-2 is scored on F1's rule** (the spec's rule from now on). The amendment came before any Developer code, so it is a spec change.
+
+## §8. Amendment 2 (2026-10-30 19:35:21Z, `date -u`): V-3N-AB replaced, Captain's decision
+
+**Captain's choice, 2026-10-30 (his answer to the Architect's question): "Amend, keep real budget".** Where this conflicts with §4 or the freeze record `3275f843`, this wins.
+
+**This changes a frozen rule after it fired, and it is on the record as such.** At the time of writing:
+
+- **Seen:** the OFF arm's abandon and timing counts only (1 abandoned cycle in 361: `260930_200230`; fallback start 12,134 ms, wall 729 ms).
+- **Not seen by anyone:** any ON output. The ON arm has not started, and no NET, U or verdict code has run on this night.
+
+**Why the old rule cannot stand (ledger E125).**
+
+1. **It could not be carried out on the build under test.** `SubtractionCycleBudget` is `static readonly` (`Ft8Decoder.cs:108`), and Replay81 has no budget option. The only override is the unmerged `feat/subtraction-budget-replay-override`, a different binary. QA said so on 2026-10-18 (k review A2) and my own spec of that date records it (`2026-10-18-1205…`, line 124).
+2. **It contradicts §4's own reason for using sol.** A lifted pair also lifts the late round's limit, so NET would no longer pay for what the budget cuts off.
+
+**A2.1. New rows, replacing V-3N-AB.** Let **X** be the selected cycles in which the residual pass, the third pass (the cycle's first line, abandoned or failed) or the fallback abandoned, **in the OFF arm or the ON arm**. The late round's own abandonment does not put a cycle in X; NET prices it.
+
+| row | predicate (mechanical) |
+|---|---|
+| **V-3N-X** | \|X\| ≤ 8 (1 % of 800) |
+| **R-ALL** | N-GO, N-STOP, U-OK, U-FAIL, H-SHARE and the verdict, on all 800 cycles |
+| **R-CLEAN** | the same rows and verdict rule on the 800 minus X |
+
+**Verdict:**
+
+- **V-3N-X fails:** no verdict from this night. Report the counts and come back to the Architect. There is no automatic re-run.
+- **V-3N-X passes, and R-ALL and R-CLEAN give the same verdict:** that verdict.
+- **V-3N-X passes, and they differ:** **OPEN-3N.**
+
+**Unchanged:** bars 0.5 / 0.021 / 0.5, B 2000, seed 20261030, V-3N-REF (on all 800), and the HK-026 condition, which reads the all-800 outputs.
+
+**Why this removes the bias the old row guarded against.** If a base pass abandons in OFF but not in ON, ON gets decodes the late round did not earn. R-CLEAN drops those cycles. R-ALL keeps cycles where both arms lost the same work, which is the real budget's price. Requiring agreement means neither reading alone can carry a verdict.
+
+**Where the bar comes from (HK-038).** 8 is chosen on this night's partial OFF count, so it is not independent of the data and is disclosed as such. At 1 in 361 the projection is about 2 per arm, or at most about 4–5 in X. The bar is a limit on how much of the night the two readings may disagree over, not a measure of the decoder.
+
+**The Original arm:** its abandon counts are reported and do not enter X. It only supplies U′ classes for the first 200 cycles. Cycle `260930_200230` is in those 200 (it is the 43rd), so report whether the Original arm abandoned there.
+
+**A2.2. T-WARN and BL-4 denominator corrected (ledger E126).** The ruling `2026-10-30-1802` §4 said R2-eligible (outcome not starting `skipped-`) was "the denominator already registered". **That was wrong.** Amendment 1 (§7, above) registered "the share of cycles in which the round started". **T-WARN and BL-4 are scored on cycles with fit > 0.** The R2-eligible rate is reported beside it. The rest of `1802` §4 stands.
+
+**A2.3. Owed by QA, before any NET, U or verdict code runs on ON data:**
+
+1. `tn_analyse.py`: X, V-3N-X, R-ALL, R-CLEAN and the verdict rule above; swap the T-WARN and BL-4 denominators. Reading the ON arm's abandon counts to build X is allowed.
+2. **Known-answer check on `raw_lr` refset 401–1,200:** X is empty, R-ALL = R-CLEAN, NET still 1.140 at three decimals. With one stamp injected into X: 799 cycles in R-CLEAN, and R-ALL unchanged.
+3. **Timing re-check on `raw_t2`:** the known values still hold; the started-cycle denominator is 59.
+4. **Freeze addendum commit** naming the new `tn_analyse.py` commit and stating that no ON analysis had run. The binary, selection and arms are unchanged, and the running chain continues.
+
+**Report both readings,** each with its NET, CI and row results, and list X by stamp and by which pass and arm.

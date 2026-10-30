@@ -64,7 +64,7 @@ The list "ran / skipped / abandoned / failed" omits `no-new`. **Corrected, using
 |---|---|
 | outcome counts | `ran`, each `skipped-<reason>`, `abandoned`, `failed`, and `no-new` split into **fit = 0** and **fit > 0** |
 | R2-eligible cycles | every ON cycle whose outcome does not start with `skipped-`. This includes `no-new` with fit 0, which passes R2's gate |
-| T-WARN and BL-4 | **scored on R2-eligible as above, the denominator already registered.** Report the rate on fit > 0 beside it. If the two sides of a threshold differ, say so; the registered one is scored |
+| T-WARN and BL-4 | ~~scored on R2-eligible as above, the denominator already registered. Report the rate on fit > 0 beside it. If the two sides of a threshold differ, say so; the registered one is scored~~ **Corrected 2026-10-30T19:35:21Z (`date -u`), ledger E126: Amendment 1 had registered "cycles in which the round started", so these are scored on fit > 0, with the R2-eligible rate beside it (build spec §8 A2.2)** |
 | `elapsedMs` median, p90, max | **only rows with fit > 0.** Rows with fit 0 carry 0 and did not start a round. This matches §3's population of cycles with an inner line |
 | `endMs` max | all rows |
 
