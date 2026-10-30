@@ -19,6 +19,7 @@ internal static class LateSub
 {
     public static string? Dir;
     public static bool Ungated;
+    public static bool L1pOnly;      // --late-sub-mode l1p (spec 8152d4ce): no Arm C, fit = batch 3 + batch 4, no fallback on R4; V2/V3 run unchanged before this point
     public static int Workers = 8;
     private const double UnlimitedBudgetMs = 600_000.0;            // the extra runs are unlimited offline (spec section 2 step 5); 10 minutes is "unlimited" for one cycle
     private const int DiagCheckCycles = 5;                          // D1: the snapshot-vs-diagnostics-switch check runs on the first 5 cycles
@@ -174,13 +175,17 @@ internal static class LateSub
                 try { Ft8LibInterop.CohFallbackMakePlan(B.Snap); } catch { snapB = false; }
                 // arm C
                 var sw = Stopwatch.StartNew();
-                var resC = inner.CohFallbackRun(B.Pcm, B.Snap, UnlimitedBudgetMs, Workers, true, CancellationToken.None);
-                var pickedC = CoherentFallbackSelector.Select(CohFallbackAudioSelector.Merge(null, resC?.Rows, Ungated).Rows);
-                var nC = FbNatives(pickedC, inner);
-                msC = sw.Elapsed.TotalMilliseconds;
-                var pc = Map(seen, nC);
-                pubC = pc.Count;
-                foreach (var r in pc) _rows.WriteLine(string.Join("\t", stamp, "C", r.Freq, F(r.Nr.Dt), r.Snr, r.Msg));
+                var pc = new List<Pub>();                                  // L1' (spec 8152d4ce): no Arm C, so the fit list below holds batch 3 + batch 4 only
+                if (!L1pOnly)
+                {
+                    var resC = inner.CohFallbackRun(B.Pcm, B.Snap, UnlimitedBudgetMs, Workers, true, CancellationToken.None);
+                    var pickedC = CoherentFallbackSelector.Select(CohFallbackAudioSelector.Merge(null, resC?.Rows, Ungated).Rows);
+                    var nC = FbNatives(pickedC, inner);
+                    msC = sw.Elapsed.TotalMilliseconds;
+                    pc = Map(seen, nC);
+                    pubC = pc.Count;
+                    foreach (var r in pc) _rows.WriteLine(string.Join("\t", stamp, "C", r.Freq, F(r.Nr.Dt), r.Snr, r.Msg));
+                }
                 // arm L: fit = published batch 3 + batch 4 + batch C, built as the product builds natives (unrounded dt)
                 var fit = pub3.Concat(pub4).Concat(pc).Select(p => p.Nr).ToArray();
                 fitN = fit.Length;
@@ -201,7 +206,7 @@ internal static class LateSub
                     foreach (var r in pl1) _rows.WriteLine(string.Join("\t", stamp, "L1", r.Freq, F(r.Nr.Dt), r.Snr, r.Msg));
                     byte[]? snR4 = StageProbeInterop.LsArmSnaps.Count > 0 ? StageProbeInterop.LsArmSnaps[^1] : null;
                     snapR4 = t2.Residual is not null && snR4 is not null;
-                    if (snapR4)
+                    if (snapR4 && !L1pOnly)                                 // L1': no fallback on R4 (the L2 step is not run)
                     {
                         try { Ft8LibInterop.CohFallbackMakePlan(snR4!); } catch { snapR4 = false; }
                         sw.Restart();

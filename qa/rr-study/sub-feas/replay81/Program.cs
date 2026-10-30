@@ -80,6 +80,9 @@ internal static class Program
             if (!lsDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--late-sub-dir must be under _qa-scratch (HK-037)");
             Directory.CreateDirectory(lsDir);
             LateSub.Dir = lsDir;
+            string lsModeArg = a.TryGetValue("late-sub-mode", out var lsModeV) ? lsModeV : "full";
+            if (lsModeArg != "full" && lsModeArg != "l1p") throw new ArgumentException("--late-sub-mode must be full or l1p");
+            LateSub.L1pOnly = lsModeArg == "l1p";
             StageProbeInterop.LsOn = true;
             LateSub.Workers = a.TryGetValue("threads", out var lsThr) && int.TryParse(lsThr, out var lsThn) ? lsThn : 8;
         }
