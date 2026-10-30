@@ -159,3 +159,54 @@ Only ACCEPT-3N lets the Captain be asked about merging and, separately, about de
 - **BL-4:** sol's fallback ends at 11.1 s at worst, but its median is lower. The round needs about 0.75 s median on the PC, and sol is slower.
 
 🔴 **Bias check:** this is a build of a lever that has already passed once on a fresh night. The ledger says acceptance on another night is still a real test (R-F4's second night shrank to 0.70). ACCEPT is held at 0.55.
+
+## §7. Amendment 1 (2026-10-30 13:25:56Z, `date -u`): QA (k) review `106980f8` adopted in full (F1–F5)
+
+QA's review is `qa/rr-study/2026-10-30-1325-qa-to-architect-build-spec-late-sub-l1p-k-review.md`, verdict APPROVE WITH FIVE AMENDMENTS. These replace the named parts of §1 and §3.
+
+**F1. R3's fit list is replaced** (ledger E120, mine).
+- ~~"batch-3 natives (`third.NewResults`) ∪ the batch-4 natives that were published"~~
+- **Now:** the fit list is **the natives behind the decodes `MapNative` published in batches 3 and 4**. That means the first occurrence of each text in the cycle, not already in `seen`, and `IsPlausibleMessage` true. Dt is the unrounded `OutDtS` and `FreqHz = round(OutFreqHz)`.
+- `alsoKnown` = batch-1 natives ∪ the raw batch-2 natives, unchanged (QA confirmed it matches the harness).
+- The Developer may add a `MapNative` helper that returns the natives it kept. This is the harness rule (`b7c17464`). My text took batch 3 raw and would have parted from it.
+
+**F2. R3's buffer rule is replaced.** B is **whatever `CohFallbackAudioSelector.Select(...)` returns** (`:43–64`), the same call the fallback makes, so the two cannot drift:
+- R3 if the third pass `Ran` with a residual;
+- otherwise `report.Residual`, if the residual pass was neither abandoned nor contained and fitted at least one signal.
+
+If `Select` returns the original audio, there is nothing to run the round on, so it is **skipped** (`skipped-no-residual`). R2(d) becomes part of this rule.
+
+**R3 "read-only":** no copy is needed. `SubtractionPass.cs:425` clones, and the documentation at `:215` says the input is not modified (QA). The Developer cites both.
+
+**F3. B-EQ-1 is replaced** (ledger E121, mine). The round's decodes enter the process-global hash table, so a later cycle can legitimately resolve a `<…>` token differently in ON than in OFF. LATE-SUB Amendment 1 D3 named this mechanism, and I did not carry it into the row. **New B-EQ-1:**
+- (i) Up to and including the first cycle in which ON published a batch 5: batches 1–4 are identical to B-OFF's in every field.
+- (ii) After that: identical **modulo hashed tokens**, meaning every `<…>` is wildcarded and the row counts are equal. Every cycle that differs only in a hashed token is listed.
+- Any other difference stops the row.
+
+B-EQ-2 already allows hashed differences and is unchanged.
+
+**F4. R5 is replaced.** Batch 5 goes through the **existing** batch-number delegate (`onFallbackBatch`, `Ft8Decoder.cs:554, :1133`; the pump's staged delegate at `DecodePump.cs:166`) with the number 5.
+- No new callback, and no change to `DecodeStaged`'s signature (`DecodePump.cs:45`).
+- QA found no consumer that switches on a specific batch value:
+  - `DecodePump.cs:166–168` routes every batch number other than 1 to `PublishSecondAsync`;
+  - the QSO services test `BatchNumber > 1`;
+  - `LateBatch` uses it only for logs.
+- The four doc comments that say "2, 3 or 4" are updated.
+- The FR gets one sentence on this: a late batch 5 is published to the panel, `ALL.TXT` and reporting, but can arrive too late to affect that cycle's TX decision, as batch 4 can today.
+
+**F5. New row B-TOOL, before §3** (QA's own instrument, `qa/` only). Replay81/`FitProbe` must carry batch 5 before any §3 row is read:
+- its staged callback;
+- a `b5_n` column in `run.csv`;
+- `nc_dump` kind 5;
+- `StageProbe`.
+
+QA also shows that, on `main`, the extended instrument's output is byte-identical to the current one's on the shared columns (B-OFF compares only those). QA estimates about 1 h.
+
+**Smaller points adopted:**
+- **R6's log line gains `fbEndMs`.** A cycle is **eligible** for the timing shares when the round started; "share of R2-eligible cycles" in §4 now reads "share of cycles in which the round started".
+- **R8 gains a test:** the round's unpack happens after the fallback's, under the decode gate (hash-table ordering). This is a test, not only a Developer confirmation.
+- **§5 cost:** §3 takes about 1.1 h per arm with the product alone (QA).
+
+**Predictions:**
+- BL-1..5 stay as registered. QA prices BL-4 at 0.45; that is noted, and my 0.60 is what will be scored.
+- **BL-2 is scored on F1's rule** (the spec's rule from now on). The amendment came before any Developer code, so it is a spec change.
