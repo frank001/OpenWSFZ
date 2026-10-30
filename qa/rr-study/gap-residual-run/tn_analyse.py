@@ -7,7 +7,7 @@ dU' as on TEST: the new-text, not-corroborated batch-5 outputs, classified by th
 CLASSES come from THIS night's Original arm (first 200 cycles) and must be frozen first:
   python qa/rr-study/coh-fallback/cf_uprime.py off <sol3n/scratch/orig/nc_dump.tsv> <sol3n/raw/orig/testb.csv> <wav_root> 20260930_1930 <libft8.dll> <u3/orig.json>   (writes u3/orig_classes.json)
 Timing (reported, vetoes nothing) from late.csv per the ruling's section 4: outcome counts (no-new split fit = 0 / fit > 0), R2-eligible = outcome does not start with skipped-,
-T-WARN and BL-4 on R2-eligible with the fit > 0 rate beside it, elapsedMs median/p90/max on rows with fit > 0 only, endMs max on all rows, the night's new and published totals,
+T-WARN and BL-4 on cycles with fit > 0 (Amendment 2 A2.2, E126) with the R2-eligible rate beside it, elapsedMs median/p90/max on rows with fit > 0 only, endMs max on all rows, the night's new and published totals,
 and any no-new with fit > 0 (no test pins that label). NOTE for the record: the R6-vs-inner elapsedMs agreement (within 1 ms) was checked on cycles 1-60 of the refset only.
 usage: python tn_analyse.py [classes_sha256] ; counts only leave this script; text lives in memory (HK-037)."""
 import collections
