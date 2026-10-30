@@ -129,4 +129,10 @@ QA's review: `qa/rr-study/2026-10-30-0710-qa-to-architect-late-sub-l1p-k-review.
 **My §7.5 was wrong (ledger E116).** I wrote that "the R3 buffers QA kept may shorten" the refset leg. The kept captures are GAP-RESIDUAL cycles 1–400. The refset TEST leg is cycles 401–1,200 and runs in full, about 1.4 h. **The total is about 4.5 h, plus about 1 h if E3 fires.**
 
 **Validity rows now:** V0, V2, V3, V5, V6, V7, V8. V1 stays descriptive.
+**A1.6 (2026-10-30 07:17:22Z, `date -u`; QA's freeze note `23a35eb4`): the refset leg runs as one process over cycles 1–1,200, and only 401–1,200 is scored.**
+- **Why.** The callsign hash table is process-global. A process that starts at cycle 401 builds a different product baseline (18,844 against LATE-SUB's continuous 18,833 corroborated; E111). L1′ against L1 is only like for like if both come from the same continuous history.
+- **My §2 and §7 said "800 cycles, 401–1,200"**, which repeats exactly the mistake E111 recorded (ledger E117).
+- **Cost:** the refset leg takes about 2.3 h, not 1.4 h. Total unattended: about 5.6 h, plus about 1 h if E3 fires.
+- **The verdict night is unaffected,** because its baseline is the same run's own product rows.
+
 **Predictions:** L1P-1 is scored against this amended row set. The amendment came before any harness change, so it is a spec change, not a harness failure. L1P-2..5 are unchanged.
