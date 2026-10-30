@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LATE-SUB L1' THIRD ACCEPTANCE NIGHT analysis (build spec section 4 + Amendment 1 + the ruling 2026-10-30-1802 section 4). Night 20260930_1930, 40 m; sol records pulled to the PC
 by tn_pull.sh into _qa-scratch/late-sub/sol3n. Adapted from gs_analyze.py (the R-F4 second night), batch 5 in place of batch 4.
-Rows: V-3N-AB, V-3N-REF, N-GO / N-STOP on NET, U-OK / U-FAIL on dU'(tested_absent), H-SHARE; ACCEPT-3N / FAIL-3N / OPEN-3N.
+Rows: V-3N-X (replaces V-3N-AB, Amendment 2), V-3N-REF, R-ALL and R-CLEAN (N-GO / N-STOP on NET, U-OK / U-FAIL on dU-prime tested_absent, H-SHARE); verdict rule of Amendment 2.
 NET = (ON corroborated - OFF corroborated) in pp of the WSJT-X decodes in the selected cycles; both arms are real product outputs (nc dumps) from sol.
 dU' as on TEST: the new-text, not-corroborated batch-5 outputs, classified by the frozen instrument over cycles where WSJT-X decoded something.
 CLASSES come from THIS night's Original arm (first 200 cycles) and must be frozen first:
@@ -88,16 +88,34 @@ def main():
     w = np.array([1.0 if ref.get(s) else 0.0 for s in stamps])
     res = {"night": RUN, "cycles": len(stamps), "n_ref": n_ref, "cycles_with_wsjtx": int(w.sum())}
 
-    # ---- V-3N-AB: residual pass, third pass (the cycle's FIRST Third pass line) and fallback abandoned = 0 in both arms (and orig) -----------------------------
-    ab = {}
+    # ---- X, V-3N-X (build spec section 8, Amendment 2, A2.1; replaces V-3N-AB, Captain: "Amend, keep real budget") ------------------------------------------------
+    # X = selected cycles where the residual pass, the third pass (the cycle's FIRST Third pass line, abandoned or failed) or the fallback abandoned, in the OFF or the ON arm.
+    # The late round's own abandonment does not enter X (NET prices it). The Original arm's counts are reported, not in X.
+    sel_set = set(stamps)
+    xlist = []                   # (stamp, arm, pass)
+    arm_counts = {}
     for arm in ARMS:
         c = rows(f"{RAW_DIR}/{arm}/coh.csv")
-        ar = [l.rstrip("\n").split(",") for l in open(f"{RAW_DIR}/{arm}/abandon.csv") if l[:1].isdigit()]
+        ar = [l.rstrip(chr(10)).split(",") for l in open(f"{RAW_DIR}/{arm}/abandon.csv") if l[:1].isdigit()]
         th = rows(f"{RAW_DIR}/{arm}/third.csv")
-        ab[arm] = {"fallback_abandoned": sum(int(r["abandoned"]) for r in c), "residual_abandoned": sum(int(r[2]) for r in ar),
-                   "third_pass_abandoned_or_failed": sum(1 for r in th if r["outcome"] in ("abandoned", "failed"))}
-    res["V-3N-AB"] = dict(ab, PASS=all(v == 0 for a in ab.values() for v in a.values()),
-                          note="if not PASS: re-run both arms with the budget lifted (R-F4 A2.3) and read the rows from that pair; report this pair's counts")
+        fb_s = {r["stamp"] for r in c if int(r["abandoned"]) > 0}
+        rs_s = {r[0] for r in ar if int(r[2]) > 0}
+        tp_s = {r["stamp"] for r in th if r["outcome"] in ("abandoned", "failed")}
+        arm_counts[arm] = {"fallback_abandoned_cycles": len(fb_s), "residual_abandoned_cycles": len(rs_s), "third_pass_abandoned_or_failed_cycles": len(tp_s),
+                           "fallback_abandoned_candidates_total": sum(int(r["abandoned"]) for r in c)}
+        if arm in ("off", "on"):
+            for nm, st in (("residual", rs_s), ("third", tp_s), ("fallback", fb_s)):
+                for sx in sorted(st & sel_set):
+                    xlist.append((sx, arm, nm))
+        else:
+            arm_counts[arm]["abandoned_at_260930_200230"] = ("260930_200230" in fb_s) or ("260930_200230" in rs_s) or ("260930_200230" in tp_s)
+    inj = os.environ.get("TN_INJECT_X")          # known-answer check only (F-KA): one stamp forced into X
+    if inj:
+        assert inj in sel_set
+        xlist.append((inj, "off", "injected"))
+    X = sorted({t[0] for t in xlist})
+    res["X"] = {"cycles": X, "entries_stamp_arm_pass": xlist, "size": len(X), "per_arm_counts": arm_counts}
+    res["V-3N-X"] = {"size": len(X), "bar_le": 8, "PASS": len(X) <= 8}
     res["V-3N-REF"] = {"n_ref": n_ref, "cycles_with_wsjtx_lines": int(w.sum()), "need_at_least": REF_MIN_CYCLES, "PASS": int(w.sum()) >= REF_MIN_CYCLES}
 
     off, on = load_nc("off"), load_nc("on")
@@ -159,29 +177,41 @@ def main():
     res["baseline_OFF"] = {"corroborated": corr_off, "pct": 100.0 * corr_off / n_ref, "batch5_rows_in_off_arm": b5_off_rows}
     res["ON"] = {"corroborated": corr_on, "pct": 100.0 * corr_on / n_ref, "batch5_rows": b5_on_rows, "batch5_new_text_corroborated": b5_on_conf}
 
-    rng = np.random.default_rng(SEED)
-    idx = rng.integers(0, len(stamps), size=(B, len(stamps)))
-    den = refc[idx].sum(axis=1)
-    net = 100.0 * cols["net"][idx].sum(axis=1) / den
-    wcnt = w[idx].sum(axis=1)
-    pc = lambda a: [float(np.percentile(a, 2.5)), float(np.percentile(a, 97.5))]
-    ta = cols["ta"][idx].sum(axis=1) / wcnt
-    hu = cols["hu"][idx].sum(axis=1) / wcnt
-    pres = cols["pres"][idx].sum(axis=1) / wcnt
-    outs = cols["out"].sum()
-    r = {"NET_pp": 100.0 * cols["net"].sum() / refc.sum(), "NET_CI": pc(net),
-         "dU_ta": cols["ta"].sum() / w.sum(), "dU_ta_CI": pc(ta), "dU_hu": cols["hu"].sum() / w.sum(), "dU_hu_CI": pc(hu),
-         "dU_present": cols["pres"].sum() / w.sum(), "dU_present_CI": pc(pres), "dU_untestable_class": cols["unt"].sum() / w.sum(),
-         "untestable_class_outputs": int(cols["unt"].sum()),
-         "admitted_new_text": int(outs), "admitted_corroborated": int(cols["conf"].sum()),
-         "corroborated_share": float(cols["conf"].sum() / outs) if outs else None,
-         "hashed_share_of_new": float(cols["hashed"].sum() / outs) if outs else None,
-         "by_band": dict(by["band"])}
-    res["L1p-3N"] = r
-    rows_ = {"N-GO": r["NET_CI"][0] >= BAR_G, "N-STOP": r["NET_CI"][1] < BAR_G, "U-OK": r["dU_ta_CI"][1] <= U_BAR_G,
-             "U-FAIL": r["dU_ta_CI"][0] > U_BAR_G, "H-SHARE_fires": (r["hashed_share_of_new"] or 0.0) > H}
-    res["rows"] = rows_
-    res["HK026_untestable_class_outputs_need_refreeze"] = r["untestable_class_outputs"] > 0
+    by_all = dict(by["band"])
+
+    def score(keep):
+        """the registered rows on the kept cycles (indices); bootstrap over the kept cycles, seed SEED"""
+        n = len(keep)
+        rng = np.random.default_rng(SEED)
+        idx = keep[rng.integers(0, n, size=(B, n))]
+        den = refc[idx].sum(axis=1)
+        net = 100.0 * cols["net"][idx].sum(axis=1) / den
+        wcnt = w[idx].sum(axis=1)
+        pc = lambda a_: [float(np.percentile(a_, 2.5)), float(np.percentile(a_, 97.5))]
+        ta = cols["ta"][idx].sum(axis=1) / wcnt
+        hu = cols["hu"][idx].sum(axis=1) / wcnt
+        pres = cols["pres"][idx].sum(axis=1) / wcnt
+        outs = cols["out"][keep].sum()
+        r = {"cycles": n, "n_ref": int(refc[keep].sum()), "NET_pp": 100.0 * cols["net"][keep].sum() / refc[keep].sum(), "NET_CI": pc(net),
+             "dU_ta": cols["ta"][keep].sum() / w[keep].sum(), "dU_ta_CI": pc(ta), "dU_hu": cols["hu"][keep].sum() / w[keep].sum(), "dU_hu_CI": pc(hu),
+             "dU_present": cols["pres"][keep].sum() / w[keep].sum(), "dU_present_CI": pc(pres), "dU_untestable_class": cols["unt"][keep].sum() / w[keep].sum(),
+             "untestable_class_outputs": int(cols["unt"][keep].sum()),
+             "admitted_new_text": int(outs), "admitted_corroborated": int(cols["conf"][keep].sum()),
+             "corroborated_share": float(cols["conf"][keep].sum() / outs) if outs else None,
+             "hashed_share_of_new": float(cols["hashed"][keep].sum() / outs) if outs else None}
+        rw = {"N-GO": r["NET_CI"][0] >= BAR_G, "N-STOP": r["NET_CI"][1] < BAR_G, "U-OK": r["dU_ta_CI"][1] <= U_BAR_G,
+              "U-FAIL": r["dU_ta_CI"][0] > U_BAR_G, "H-SHARE_fires": (r["hashed_share_of_new"] or 0.0) > H}
+        vd = ("ACCEPT-3N" if rw["N-GO"] and rw["U-OK"] and not rw["H-SHARE_fires"] else "FAIL-3N" if rw["N-STOP"] or rw["U-FAIL"] else "OPEN-3N")
+        return {"result": r, "rows": rw, "verdict": vd}
+
+    allk = np.arange(len(stamps))
+    clean = np.array([i for i, s_ in enumerate(stamps) if s_ not in set(X)], dtype=int)
+    res["R-ALL"] = score(allk)
+    res["R-CLEAN"] = score(clean)
+    res["L1p-3N"] = dict(res["R-ALL"]["result"], by_band=by_all)
+    res["rows"] = res["R-ALL"]["rows"]
+    # HK-026 reads the all-800 outputs
+    res["HK026_untestable_class_outputs_need_refreeze"] = res["R-ALL"]["result"]["untestable_class_outputs"] > 0
 
     # ---- timing (reported; vetoes nothing), from late.csv per the ruling section 4 -------------------------------------------------------------------------
     late = rows(f"{RAW_DIR}/on/late.csv") if os.path.exists(f"{RAW_DIR}/on/late.csv") else []   # raw_lr has no late.csv (F-KA)
@@ -198,8 +228,8 @@ def main():
         "late_csv_rows": len(late), "unmatched_lines": sum(int(x["unmatched"]) for x in late), "cycles_with_exactly_one_line": sum(1 for x in late if x["lines"] == "1"),
         "outcome_counts": dict(out_ct), "R2_eligible_cycles": len(elig), "R2_eligible_with_fit_gt_0": len(elig_fit),
         "abandoned_share_of_R2_eligible": share(elig), "abandoned_share_of_fit_gt_0": share(elig_fit),
-        "T-WARN_fires_registered_denominator": (share(elig) or 0.0) > T_WARN_SHARE, "T-WARN_fires_fit_gt_0": (share(elig_fit) or 0.0) > T_WARN_SHARE,
-        "BL-4_abandoned_le_5pct_registered_denominator": (share(elig) or 0.0) <= 0.05, "BL-4_abandoned_le_5pct_fit_gt_0": (share(elig_fit) or 0.0) <= 0.05,
+        "T-WARN_fires_REGISTERED_fit_gt_0": (share(elig_fit) or 0.0) > T_WARN_SHARE, "T-WARN_fires_R2_eligible_beside": (share(elig) or 0.0) > T_WARN_SHARE,
+        "BL-4_abandoned_le_5pct_REGISTERED_fit_gt_0": (share(elig_fit) or 0.0) <= 0.05, "BL-4_abandoned_le_5pct_R2_eligible_beside": (share(elig) or 0.0) <= 0.05,
         "elapsedMs_fit_gt_0_median_p90_max": [q(el, .5), q(el, .9), max(el) if el else None],
         "endMs_all_rows_max": max(ends) if ends else None, "margin_to_13000_ms": (BUDGET_MS - max(ends)) if ends else None,
         "new_total": sum(int(x["new"]) for x in late), "published_total": sum(int(x["published"]) for x in late),
@@ -211,10 +241,15 @@ def main():
         e = [int(a) + int(b) for a, b in re.findall(r"fbStartMs=(-?\d+), fbWallMs=(-?\d+)", t) if int(b) >= 0]
         return {"max_fallback_end_ms": max(e), "fallback_lines": len(re.findall("Coherent fallback:", t))}
     res["timing_fallback"] = {"off": fb_end("off"), "on": fb_end("on")}
-    verdict = ("ACCEPT-3N" if rows_["N-GO"] and rows_["U-OK"] and not rows_["H-SHARE_fires"] else
-               "FAIL-3N" if rows_["N-STOP"] or rows_["U-FAIL"] else "OPEN-3N")
+    # Amendment 2 verdict rule: V-3N-X fails -> no verdict from this night (back to the Architect); same verdict in R-ALL and R-CLEAN -> that verdict; different -> OPEN-3N
+    if not res["V-3N-X"]["PASS"]:
+        verdict = "NO-VERDICT (V-3N-X fails: report the counts and go back to the Architect)"
+    elif res["R-ALL"]["verdict"] == res["R-CLEAN"]["verdict"]:
+        verdict = res["R-ALL"]["verdict"]
+    else:
+        verdict = "OPEN-3N"
     res["verdict"] = verdict
-    res["verdict_valid_only_if"] = "V-3N-AB PASS and V-3N-REF PASS and HK026_untestable_class_outputs_need_refreeze False (else follow the spec: budget-lifted re-run / Original on the other 600 cycles and re-freeze)"
+    res["verdict_valid_only_if"] = "V-3N-X PASS and V-3N-REF PASS and HK026_untestable_class_outputs_need_refreeze False (else Original on the other 600 cycles and re-freeze the classes)"
     json.dump(res, open(OUT_JSON, "w"), indent=1, default=float)
     print(json.dumps(res, indent=1, default=float))
 
