@@ -7,7 +7,7 @@
 # Rules (as tp-one.sh): never before the chain has ended; nothing of the rig is left running when it sleeps; a failing hibernate is logged and leaves
 # the machine on; a failed pull is logged but does not stop the hibernate (the records stay on sol's disk); nothing alerts.
 #   usage: [HOLD_ON_ABANDON=1] [CHAIN_OUT=~/_rf4/chain.out] [SOL_RAW=~/_rf4/raw] [SOL_SCR=~/_qa-scratch/rf4] [TAG=sol] bash gs_finish.sh > finish.out 2>&1 &
-K="-i $HOME/.ssh/id_ed25519_sol -o BatchMode=yes -o ConnectTimeout=15"
+K="-i $HOME/.ssh/claude/id_ed25519_sol -o BatchMode=yes -o ConnectTimeout=15"
 HOLD=${HOLD_ON_ABANDON:-1}
 CHAIN_OUT=${CHAIN_OUT:-'~/_rf4/chain.out'}
 SOL_RAW=${SOL_RAW:-'~/_rf4/raw'}

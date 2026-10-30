@@ -3,7 +3,7 @@
 # Waits for sol's L1' third-night chain (tn_arms.sh) to end, then PULLS its records to the PC (the analysis runs here). It does NOT hibernate sol:
 # hibernation was not asked for this run (the R-F4 watcher gs_finish.sh did it on the Captain's word; add that only if he says so again).
 # Pull checks: nc_dump hashes compared sol vs PC for every arm, like gs_finish.sh. A failed pull is logged and leaves the records on sol.
-K="-i $HOME/.ssh/id_ed25519_sol -o BatchMode=yes -o ConnectTimeout=15"
+K="-i $HOME/.ssh/claude/id_ed25519_sol -o BatchMode=yes -o ConnectTimeout=15"
 CHAIN_OUT=${CHAIN_OUT:-'~/_l1p/chain.out'}
 SOL_RAW=${SOL_RAW:-'~/_l1p/raw'}
 SOL_SCR=${SOL_SCR:-'~/_qa-scratch/l1p3n'}

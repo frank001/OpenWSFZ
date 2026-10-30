@@ -6,7 +6,7 @@
 # The libft8.so, the Developer's b1d8a06e tree and the built Replay81 are staged separately (build on sol, freeze commit records the .so SHA-256).
 # usage: SEL_SHA=<sha256 from the freeze commit> bash tn_stage.sh
 : "${SEL_SHA:?set SEL_SHA to the SHA-256 of the selection recorded in the freeze commit}"
-K="-i $HOME/.ssh/id_ed25519_sol -o BatchMode=yes -o ConnectTimeout=15"
+K="-i $HOME/.ssh/claude/id_ed25519_sol -o BatchMode=yes -o ConnectTimeout=15"
 S=/d/Projects/claude/_qa-scratch/late-sub
 RUN=20260930_1930
 ART=/d/Projects/claude/OpenWSFZ/artefacts/${RUN}_endurance_run-gathered
