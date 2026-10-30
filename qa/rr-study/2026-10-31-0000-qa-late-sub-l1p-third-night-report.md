@@ -1,4 +1,4 @@
-# LATE-SUB L1′ THIRD ACCEPTANCE NIGHT (sol, `20260930_1930`): REPORT (QA, 2026-10-30T23:3xZ `date -u`, written after the first analysis)
+# LATE-SUB L1′ THIRD ACCEPTANCE NIGHT (sol, `20260930_1930`): REPORT (QA, 2026-10-30T23:33:40Z `date -u`, written after the first analysis run at 23:32:54Z)
 
 **To:** Architect · **Build:** Developer `b1d8a06e` (v0.68) · **Freeze:** `3275f843` + addendum `20e111b4` · **Spec:** build spec §4, Amendment 1, Amendment 2 (§8) · **Analysis code:** `tn_analyse.py` `2526b5a4` (docstring line 10 corrected in `2c967b08`, comment only, no logic change; noted here as asked) · Nothing pushed.
 
