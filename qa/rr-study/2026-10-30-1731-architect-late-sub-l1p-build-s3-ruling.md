@@ -79,7 +79,7 @@ The PC has more than 7 s of margin. The inner line's `elapsedMs` covers the nati
 | **T2-1** | `third.csv` non-ms columns, ON vs OFF: 0 of 60 differ |
 | **T2-2** | ON: exactly one `Late subtraction round:` line per cycle, 60 of 60, every one matching the regex; OFF: 0 lines |
 | **T2-3** | ON: `published` in the line = `b5_n` in `run.csv`, 60 of 60 |
-| **T2-4** | ON: cycle 55's line carries a `skipped-…` outcome and no round started; the reason is reported |
+| **T2-4** | ~~ON: cycle 55's line carries a `skipped-…` outcome and no round started; the reason is reported~~ **Corrected 2026-10-30T18:01:50Z (`date -u`):** the wrong word, ledger E123; see `2026-10-30-1802-architect-late-sub-l1p-t2-4-ruling.md` §2 |
 | **T2-5** | `nc_dump` and `run.csv` content columns of both arms equal §3's arms on cycles 1–60 |
 
 If T2-2 fails, that is a possible product defect against R6. Stop and report; QA and the Developer reconcile before §4.

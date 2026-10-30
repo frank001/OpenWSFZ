@@ -120,7 +120,7 @@ If B-EQ-2 fails on plain text, stop and report the first differing cycle. QA and
 Only ACCEPT-3N lets the Captain be asked about merging and, separately, about default ON.
 
 **Timing on sol (reported; it vetoes nothing, because NET already pays for it):**
-- the late round's outcomes: ran / skipped / abandoned / failed, as counts and as a share of R2-eligible cycles;
+- the late round's outcomes: ran / skipped / abandoned / failed, as counts and as a share of R2-eligible cycles; **corrected 2026-10-30T18:01:50Z (`date -u`), ledger E124: R6 has a fifth word, `no-new`; the outcome list, the denominator and the `elapsedMs` population are in `2026-10-30-1802-architect-late-sub-l1p-t2-4-ruling.md` §4;**
 - `elapsedMs` median, p90 and max;
 - `endMs` max against 13,000;
 - **T-WARN**, a stated flag, not a row: fires if > 10 % of eligible cycles abandon.
