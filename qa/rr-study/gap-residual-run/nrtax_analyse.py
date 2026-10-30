@@ -214,6 +214,10 @@ def main():
         prominent = (entry["NR_pp_CI"][0] >= BAR_L_PP and entry["enrichment_CI"][0] > 1 and entry["resamples_excluded_share"] <= EXCL_MAX)
         entry["prominent"] = bool(prominent)
         t1[x] = entry
+    with open(NEW + "/nrtax_row_tags.jsonl", "w", encoding="utf-8") as fh:        # per-row category tags for the LATE-SUB TRAIN mechanism check (stamp + index + labels only; scratch)
+        for r in targets:
+            k = (r["stamp"], r["idx"])
+            fh.write(json.dumps({"stamp": r["stamp"], "idx": r["idx"], "pop": pops[k], "cat": cat[k]}) + "\n")
     out["T1"] = t1
     out["T1_totals"] = {"NR": cnt["NR"], "hit": cnt["hit"], "reach": cnt["reach"]}
     out["co_channel_share_of_NR"] = sum(cnts["NR"][x] for x in ("CS", "CU-d", "CU-u", "CW")) / cnt["NR"]
