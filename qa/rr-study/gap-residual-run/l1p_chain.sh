@@ -12,8 +12,8 @@ SEL=$R4/selection_2n.json
 [ "$(sha256sum $R4/selection1200.json | cut -c1-8)" = "328c85d4" ] || { echo "refset selection pin FAILED"; exit 9; }
 python -I -c "
 import json
-s=json.load(open('$SEL')); r=s['runs']['$NIGHT']; r['FULL']=r['FULL'][:40]
-json.dump(s,open('$S/selection_2n_pilot40.json','w'))" || exit 9
+s=json.load(open('$(cygpath -m $SEL)')); r=s['runs']['$NIGHT']; r['FULL']=r['FULL'][:40]
+json.dump(s,open('$(cygpath -m $S)/selection_2n_pilot40.json','w'))" || exit 9
 gate() { grep -q '"ALL_PASS": true' $S/l1p_check_$1.json 2>/dev/null; }
 bash $HERE/l1p_arm.sh pilot $NIGHT $S/selection_2n_pilot40.json || exit 9
 python -I $HERE/l1p_check.py arm pilot $NIGHT --freeze $FREEZE > $S/l1p_check_pilot.out 2>&1
