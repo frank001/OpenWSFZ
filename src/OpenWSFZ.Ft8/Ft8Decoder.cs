@@ -256,6 +256,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-GATE-G R-F4: whether the residual-run ungating is requested now (the read-back of <see cref="SetCoherentFallbackResidualUngated"/>).</summary>
     public bool CoherentFallbackResidualUngated => _coherentFallbackResidualUngated;
 
+    private volatile bool _lateSubtractionRound;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+
+    /// <summary>
+    /// LATE-SUB L1': sets <c>decoder.lateSubtractionRound</c>. <c>false</c> (the start value, and the configured default when the key is absent) leaves
+    /// every code path as it was. <c>true</c> runs one more subtract-and-decode round after the coherent fallback's batch (Deep only, fallback on, a residual
+    /// buffer available) and publishes its new decodes as batch 5. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetLateSubtractionRound(bool enabled)
+        => _lateSubtractionRound = enabled;
+
+    /// <summary>LATE-SUB L1': whether the late round is requested now (the read-back of <see cref="SetLateSubtractionRound"/>).</summary>
+    public bool LateSubtractionRound => _lateSubtractionRound;
+
     /// <summary>
     /// COH-FALLBACK Stage 2, R7': time held back from the shared 13 s cycle budget for the work after the native fallback returns (the text
     /// unpack, the mapping and the publish of the last batch). The native run stops starting candidates at <c>budget - elapsed - this</c>.
@@ -264,6 +277,21 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     private long _thirdPassRuns, _thirdPassSkippedNoNew, _thirdPassSkippedAbandoned,
                  _thirdPassAbandoned, _thirdPassFailed, _thirdPassDecodes;
+
+    // LATE-SUB L1': the late round's process-lifetime counters, beside the third pass's. All stay 0 while the setting is OFF.
+    private long _lateRoundRuns, _lateRoundSkipped, _lateRoundNoNew, _lateRoundAbandoned, _lateRoundFailed, _lateRoundDecodes;
+
+    /// <summary>LATE-SUB L1': the late round's process-lifetime counters (runs = rounds that started a fit; skipped = every <c>skipped-*</c> outcome).</summary>
+    internal LateRoundCounters GetLateRoundCounters() => new(
+        Interlocked.Read(ref _lateRoundRuns),
+        Interlocked.Read(ref _lateRoundSkipped),
+        Interlocked.Read(ref _lateRoundNoNew),
+        Interlocked.Read(ref _lateRoundAbandoned),
+        Interlocked.Read(ref _lateRoundFailed),
+        Interlocked.Read(ref _lateRoundDecodes));
+
+    /// <summary>LATE-SUB L1': see <see cref="GetLateRoundCounters"/>.</summary>
+    internal readonly record struct LateRoundCounters(long Runs, long Skipped, long NoNew, long Abandoned, long Failed, long Decodes);
 
     /// <summary>
     /// third-pass-deep (B6): the third pass's process-lifetime counters and the depth in use, separate from the residual
@@ -494,6 +522,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     ///   only when non-empty, mapped exactly like batch 2 with the same per-cycle text de-duplication set;</item>
     ///   <item><b>4</b> (step 4) = the coherent fallback's own batch with <c>decoder.coherentFallbackEnabled</c> ON: batch 4 on Deep, batch 3 on
     ///   Normal (where there is no third pass), delivered only when non-empty and after every ordinary batch.</item>
+    ///   <item><b>5</b> (LATE-SUB L1') = the late subtraction round's new decodes with <c>decoder.lateSubtractionRound</c> ON: Deep only, after the
+    ///   fallback's batch, delivered only when non-empty through the same delegate as batch 4.</item>
     /// </list>
     /// With the depth <see cref="DecodingDepth.Normal"/> this delivers exactly what <see cref="DecodeTwoStageAsync"/>
     /// would (batch 1, then batch 2), and the third pass code is not reached. The third pass is all-or-nothing: if it
@@ -502,7 +532,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <param name="pcm">15 s x 12 000 Hz mono PCM samples.</param>
     /// <param name="cycleStart">UTC instant the capture window began accumulating.</param>
     /// <param name="currentBand">The session's current band, or <c>null</c>.</param>
-    /// <param name="publishBatch">Called with the batch number (1, 2, 3 or 4) and the batch. Awaited before the next stage begins.</param>
+    /// <param name="publishBatch">Called with the batch number (1, 2, 3, 4 or 5) and the batch. Awaited before the next stage begins.</param>
     /// <param name="ct">Cancellation token.</param>
     public async Task DecodeStagedAsync(
         float[]                                              pcm,
@@ -571,6 +601,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         var  audioMode     = _coherentFallbackAudio;
         // COH-GATE-G R-F4: read ONCE per cycle too; it acts only in Both mode (Original and Residual are unchanged).
         bool ungatedOn     = _coherentFallbackResidualUngated && audioMode == CoherentFallbackAudio.Both;
+        // LATE-SUB L1': read ONCE per cycle too. A staged cycle only (the round is part of the staged path); whether the fallback ran, the depth is Deep
+        // and a residual buffer exists are checked where each is known, and each failing check is a counted, logged skip (R2/R6).
+        bool lateOn        = twoStage && _lateSubtractionRound;
 
         // ── R2: Pre-condition guard ──────────────────────────────────────────
         // Declared async so that this throw surfaces as a faulted Task rather than
@@ -742,7 +775,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // residual decode whose text already appeared in batch 1 is not published twice.
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
-        List<DecodeResult> MapNative(Ft8NativeResult[] source, int path = PathOrdinary)
+        // LATE-SUB L1' (F1): keptNatives, when supplied, receives the natives behind the decodes this call actually returned (the first occurrence of
+        // each text in the cycle, not already in `seen`, plausible), in order. null (every call with the setting OFF) changes nothing.
+        List<DecodeResult> MapNative(Ft8NativeResult[] source, int path = PathOrdinary, List<Ft8NativeResult>? keptNatives = null)
         {
         var mapped = new List<DecodeResult>(source.Length);
 
@@ -814,6 +849,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 }
             }
 
+            keptNatives?.Add(nr);
             mapped.Add(new DecodeResult(
                 Time:         timeStr,
                 Snr:          nr.Snr,
@@ -927,6 +963,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         bool deepForFallback = false;
         SubtractionPass.ResidualPassReport? reportForFallback = null;
         SubtractionPass.ThirdPassResult? thirdResult = null;
+        // LATE-SUB L1' (F1): the natives behind the decodes MapNative PUBLISHED in batch 3 and batch 4 (only collected while the round is requested).
+        var batch3Kept = new List<Ft8NativeResult>();
+        var batch4Kept = new List<Ft8NativeResult>();
+        double fbEndMs = -1.0;   // LATE-SUB L1': the decode's own clock when the fallback's work (incl. its hand-off) returned; -1 when it did not run
 
         if (twoStage)
         {
@@ -952,7 +992,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             if (native.Length == 0)
             {
                 // Nothing decoded in pass 0: there is no residual pass or third pass, so batch 1 was the last ordinary batch.
-                if (fallbackReady) await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
+                if (fallbackReady)
+                {
+                    await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
+                    fbEndMs = sw.Elapsed.TotalMilliseconds;
+                }
+                if (lateOn) LogLateSkip(deep ? LateSkipNothingDecoded : LateSkipNormalDepth);
                 return [];
             }
 
@@ -971,9 +1016,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             {
                 // Normal: batch 2 is returned (unchanged) unless the fallback is on, in which case batch 2 leaves through its callback and
                 // the fallback follows as batch 3.
-                if (!fallbackReady) return second;
+                if (!fallbackReady)
+                {
+                    if (lateOn) LogLateSkip(LateSkipNormalDepth);
+                    return second;
+                }
                 if (second.Count > 0) await onSecondBatch!(second).ConfigureAwait(false);
                 await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
+                fbEndMs = sw.Elapsed.TotalMilliseconds;
+                if (lateOn) LogLateSkip(LateSkipNormalDepth);
                 return [];
             }
 
@@ -990,8 +1041,103 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             }
 
             // The last ordinary batch is out (or there was none): only now does the fallback start.
-            if (fallbackReady) await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
+            if (fallbackReady)
+            {
+                await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
+                fbEndMs = sw.Elapsed.TotalMilliseconds;
+            }
+
+            // LATE-SUB L1': after the fallback's batch is out (batches 1 to 4 and their timing do not move), one more round, then batch 5.
+            if (lateOn) await RunLateRoundAsync().ConfigureAwait(false);
             return [];
+
+            // -- LATE-SUB L1' (spec R2-R6, Amendment 1 F1/F2/F4) ---------------------------------------------------------------------------
+            // One more SubtractionPass.RunThirdPassAsync, on the buffer CohFallbackAudioSelector.Select hands the fallback (R3 if the third pass ran, else
+            // R2), subtracting the natives behind the decodes MapNative PUBLISHED in batches 3 and 4. Primary decoder only (no fallback on the new buffer).
+            // The buffer is NOT copied: RunCore clones its input before subtracting (SubtractionPass.cs:425, "var residual = (float[])normalisedPcm.Clone()")
+            // and RunThirdPassAsync documents the input as not modified (SubtractionPass.cs:215-216). The round's native decode is the cycle's last
+            // hash-table access: it starts after RunCoherentFallbackBatchAsync returned (the fallback's CohFallbackUnpack is done) and the pump holds the
+            // decode gate until the whole staged decode returns. All-or-nothing on the pass's own deadline: an abandoned round publishes nothing.
+            async Task RunLateRoundAsync()
+            {
+                double startMs = sw.Elapsed.TotalMilliseconds;
+                if (!fallbackReady)
+                {
+                    LogLateSkip(LateSkipFallbackNotRun);
+                    return;
+                }
+
+                var choice = CohFallbackAudioSelector.Select(audioMode, normalisedPcm, deepForFallback, reportForFallback, thirdResult);
+                if (!choice.IsResidual)
+                {
+                    LogLateSkip(LateSkipNoResidual);
+                    return;
+                }
+                string bufferLabel = choice.Level == CohFallbackAudioSelector.LevelResidual3 ? "R3" : "R2";
+
+                // Fit list: batch 3's published natives, then batch 4's. alsoKnown: batch 1's natives and the RAW batch-2 natives (not re-fitted).
+                var fit = new Ft8NativeResult[batch3Kept.Count + batch4Kept.Count];
+                batch3Kept.CopyTo(fit, 0);
+                batch4Kept.CopyTo(fit, batch3Kept.Count);
+                var alsoKnown = new Ft8NativeResult[native.Length + newFromResidual.Length];
+                native.CopyTo(alsoKnown, 0);
+                newFromResidual.CopyTo(alsoKnown, native.Length);
+
+                SubtractionPass.ThirdPassResult? late = null;
+                if (fit.Length > 0)
+                {
+                    late = await SubtractionPass.RunThirdPassAsync(
+                        _interop, choice.Pcm, fit, alsoKnown, EffectiveSubtractionThreads, _logger,
+                        _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct).ConfigureAwait(false);
+                }
+
+                string outcome = late is null ? LateOutcomeNoNew : late.Outcome switch
+                {
+                    SubtractionPass.ThirdPassOutcome.Ran       => LateOutcomeRan,
+                    SubtractionPass.ThirdPassOutcome.Abandoned => LateOutcomeAbandoned,
+                    SubtractionPass.ThirdPassOutcome.Failed    => LateOutcomeFailed,
+                    _                                          => LateOutcomeNoNew,   // SkippedNoNew: nothing re-encodable to subtract
+                };
+                switch (outcome)
+                {
+                    case LateOutcomeRan:
+                        Interlocked.Increment(ref _lateRoundRuns);
+                        break;
+                    case LateOutcomeAbandoned:
+                        Interlocked.Increment(ref _lateRoundRuns);
+                        Interlocked.Increment(ref _lateRoundAbandoned);
+                        break;
+                    case LateOutcomeFailed:
+                        Interlocked.Increment(ref _lateRoundRuns);
+                        Interlocked.Increment(ref _lateRoundFailed);
+                        break;
+                    default:
+                        Interlocked.Increment(ref _lateRoundNoNew);
+                        break;
+                }
+
+                // refused = fit entries the pass could not re-encode (FittedSignals is the re-encodable count); -1 when the pass failed before counting.
+                int refused = late is null ? 0 : outcome == LateOutcomeFailed ? -1 : Math.Max(0, fit.Length - late.FittedSignals);
+                Ft8NativeResult[] newNatives = late is null ? [] : late.NewResults;
+                var batch5 = newNatives.Length == 0 ? [] : MapNative(newNatives, PathResidual);
+                double endMs = sw.Elapsed.TotalMilliseconds;
+
+                double publishMs = -1.0;
+                try
+                {
+                    if (batch5.Count > 0)
+                    {
+                        Interlocked.Add(ref _lateRoundDecodes, batch5.Count);
+                        publishMs = sw.Elapsed.TotalMilliseconds;
+                        await onFallbackBatch!(LateRoundBatch, batch5).ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    // Written even when the caller's publish throws (batch5PublishMs then holds the attempt time). HK-037: aggregates only.
+                    LogLateRound(outcome, bufferLabel, fit.Length, refused, newNatives.Length, batch5.Count, startMs, endMs, publishMs);
+                }
+            }
 
             async Task<List<DecodeResult>> ThirdPassBatchAsync()
             {
@@ -1034,7 +1180,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 Interlocked.Increment(ref _thirdPassRuns);
                 if (third.NewResults.Length == 0) return [];
 
-                return MapNative(third.NewResults, PathResidual);
+                return MapNative(third.NewResults, PathResidual, lateOn ? batch3Kept : null);
             }
         }
 
@@ -1046,6 +1192,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // finished, since the fallback starts after the last ordinary batch, and the pump holds the decode gate), map them like any other
         // decode (R6': the same per-cycle text de-duplication, plausibility filter and region/worked-before bycatch), hand the batch to
         // the caller as batch <paramref name="batchNumber"/> if it is non-empty, and write the R12' log line (one per cycle).
+        void LogLateSkip(string reason)
+        {
+            Interlocked.Increment(ref _lateRoundSkipped);
+            double now = sw.Elapsed.TotalMilliseconds;
+            LogLateRound(reason, "-", 0, 0, 0, 0, now, now, -1.0);
+        }
+
+        void LogLateRound(string outcome, string buffer, int fitCount, int refused, int newCount, int publishedCount, double startMs, double endMs, double publishMs)
+            => _logger?.LogInformation(
+                "Late subtraction round: outcome={Outcome}, buffer={Buffer}, fit={Fit}, refused={Refused}, new={New}, published={Published}, " +
+                "fbEndMs={FbEndMs:F0}, startMs={StartMs:F0}, elapsedMs={ElapsedMs:F0}, endMs={EndMs:F0}, batch={Batch}, batch5PublishMs={PublishMs:F0}.",
+                outcome, buffer, fitCount, refused, newCount, publishedCount, fbEndMs, startMs, endMs - startMs, endMs, LateRoundBatch, publishMs);
+
         async Task RunCoherentFallbackBatchAsync(int batchNumber)
         {
             var fbStart = sw.Elapsed;
@@ -1116,7 +1275,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 admittedByText.TryAdd(text.TrimEnd(), row.Admitted);
             }
 
-            var batch = MapNative(natives.ToArray(), PathFallback);
+            var batch = MapNative(natives.ToArray(), PathFallback, lateOn ? batch4Kept : null);
             int publishedEdge = batch.Count(d => edgeByText.TryGetValue(d.Message, out bool edge) && edge);
             int publishedUngated = batch.Count(d => admittedByText.TryGetValue(d.Message, out bool admitted) && admitted);   // COH-GATE-G R-F4
 
@@ -1156,6 +1315,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     /// <summary>COH-FALLBACK step 4: the number of the fallback's own batch on <see cref="DecodingDepth.Normal"/> (after batches 1 and 2).</summary>
     internal const int FallbackBatchNormal = 3;
+
+    /// <summary>LATE-SUB L1': the number of the late round's own batch (after batches 1 to 4; Deep only).</summary>
+    internal const int LateRoundBatch = 5;
+
+    // LATE-SUB L1': the outcome / skip-reason tokens of the "Late subtraction round:" log line.
+    internal const string LateOutcomeRan = "ran";
+    internal const string LateOutcomeNoNew = "no-new";
+    internal const string LateOutcomeAbandoned = "abandoned";
+    internal const string LateOutcomeFailed = "failed";
+    internal const string LateSkipNormalDepth = "skipped-normal-depth";
+    internal const string LateSkipFallbackNotRun = "skipped-fallback-not-run";
+    internal const string LateSkipNothingDecoded = "skipped-nothing-decoded";
+    internal const string LateSkipNoResidual = "skipped-no-residual";
 
     /// <summary>R11 provenance tag of a decode the ordinary pass 0 / pass 1 produced.</summary>
     internal const int PathOrdinary = 0;

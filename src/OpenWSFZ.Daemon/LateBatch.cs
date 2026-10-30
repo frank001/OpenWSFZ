@@ -1,7 +1,7 @@
 namespace OpenWSFZ.Daemon;
 
 /// <summary>
-/// late-batches-in-qso: the outcome of one supplementary (batch 2, 3 or 4) decision in a QSO service. Logged with exactly
+/// late-batches-in-qso: the outcome of one supplementary (batch 2, 3, 4 or 5) decision in a QSO service. Logged with exactly
 /// one token per decision (<see cref="LateBatch.Token"/>); QA counts these lines over an endurance run.
 /// </summary>
 internal enum LateOutcome
@@ -36,7 +36,7 @@ internal enum DeferredKind
 /// </summary>
 /// <param name="Kind">What to do when it is sent.</param>
 /// <param name="CycleStart">Start of the cycle whose decodes caused it (N). It is sent after a batch 1 of a LATER cycle.</param>
-/// <param name="BatchNumber">The supplementary batch number (2, 3 or 4) that created it; used only for the log line.</param>
+/// <param name="BatchNumber">The supplementary batch number (2, 3, 4 or 5) that created it; used only for the log line.</param>
 /// <param name="Partner">The station to answer (<see cref="DeferredKind.Answer"/> only).</param>
 /// <param name="FreqHz">Its audio frequency (<see cref="DeferredKind.Answer"/> only).</param>
 /// <param name="Grid">Its grid, if the CQ carried one (<see cref="DeferredKind.Answer"/> only).</param>

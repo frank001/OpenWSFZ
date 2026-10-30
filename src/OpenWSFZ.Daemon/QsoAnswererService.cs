@@ -104,7 +104,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     private volatile DecodeBatch? _lastIdleDecodeBatch;
 
     // ── late-batches-in-qso (batch 2 / 3 decodes used in a QSO) ───────────────
-    // Only a batch 1 is a cycle. A supplementary batch (BatchNumber 2, 3 or 4) counts as heard: it may cause a
+    // Only a batch 1 is a cycle. A supplementary batch (BatchNumber 2, 3, 4 or 5) counts as heard: it may cause a
     // message-driven transition, and its reply goes out at once only if it can still start whole (<= S + 2.36 s),
     // otherwise it is held and sent by the first later batch 1 of the reply's parity. These three fields are touched
     // only on the service loop's thread.
@@ -1295,7 +1295,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
     }
 
     /// <summary>
-    /// Handles a supplementary batch (2, 3 or 4). It counts as heard, never as a cycle: nothing here calls the retry path,
+    /// Handles a supplementary batch (2, 3, 4 or 5). It counts as heard, never as a cycle: nothing here calls the retry path,
     /// touches the skip guard or any repeat counter, or fires an operator-armed pending target or jump-in.
     /// </summary>
     private async Task ProcessLateBatchAsync(DecodeBatch batch, TxConfig tx, CancellationToken stoppingToken)

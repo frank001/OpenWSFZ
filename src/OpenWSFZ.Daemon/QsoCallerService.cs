@@ -1045,7 +1045,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
             "QsoCallerService: late batch {BatchNumber} {Outcome}.", batchNumber, LateBatch.Token(outcome));
 
     /// <summary>
-    /// Handles a supplementary batch (2, 3 or 4). It counts as heard, never as a cycle: nothing here calls the retry path,
+    /// Handles a supplementary batch (2, 3, 4 or 5). It counts as heard, never as a cycle: nothing here calls the retry path,
     /// touches the skip guard or any repeat counter, or fires an operator-armed pending responder.
     /// </summary>
     private async Task ProcessLateBatchAsync(DecodeBatch batch, TxConfig tx, CancellationToken stoppingToken)
