@@ -42,6 +42,8 @@ RUN = "20260925_2010" if KA else "20260930_1930"
 NIGHT = WAV_ROOT + f"/{RUN}_endurance_run-gathered"
 SELF = S + "/selection60.json" if CFG == "t2" else "D:/Projects/claude/_qa-scratch/coh-gate-r-f4/selection1200.json" if KA else S + "/selection_3n.json"
 CLASSES = "D:/Projects/claude/_qa-scratch/coh-gate-g/u/uprime_orig_classes.json" if KA else S + "/u3/orig_classes.json"
+# Second freeze (HK-026 re-freeze, 2026-10-31): TN_CLASSES points the third night at the classes frozen from all 800 Original cycles (u3_800/orig800_classes.json). Path only; the SHA is still pinned by argv[1].
+CLASSES = os.environ.get("TN_CLASSES", CLASSES)
 BAR_G, U_BAR_G, H = 0.5, 0.021, 0.5
 B, SEED = 2000, 20261030
 assert (BAR_G, U_BAR_G, H, B, SEED) == (0.5, 0.021, 0.5, 2000, 20261030)
