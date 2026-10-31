@@ -55,7 +55,9 @@ public sealed record DecoderConfig
         // COH-FB-AUDIO: in the constructor with its default (Both), for the same reason as the fields above.
         CoherentFallbackAudio coherentFallbackAudio = CoherentFallbackAudio.Both,
         // COH-GATE-G R-F4: in the constructor with its default (false), for the same reason as the fields above.
-        bool coherentFallbackResidualUngated = false)
+        bool coherentFallbackResidualUngated = false,
+        // LATE-SUB L1': in the constructor with its default (false), for the same reason as the fields above.
+        bool lateSubtractionRound = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -72,6 +74,7 @@ public sealed record DecoderConfig
         CoherentFallbackMultiSet = coherentFallbackMultiSet;
         CoherentFallbackAudio   = coherentFallbackAudio;
         CoherentFallbackResidualUngated = coherentFallbackResidualUngated;
+        LateSubtractionRound = lateSubtractionRound;
     }
 
     /// <summary>
@@ -278,4 +281,15 @@ public sealed record DecoderConfig
     /// decodes with figures from the setting off.
     /// </summary>
     public bool CoherentFallbackResidualUngated { get; init; }
+
+    /// <summary>
+    /// LATE-SUB L1': when <c>true</c>, on <see cref="DecodingDepth.Deep"/> with the coherent fallback on, one more subtract-and-decode round runs after
+    /// the fallback's batch: it subtracts the decodes published in batches 3 and 4 from the cycle's last residual buffer and decodes the result once with
+    /// the primary decoder; its new decodes are published as batch 5. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and every code path
+    /// is as it was. Deep only (no effect on Normal), and it needs <see cref="CoherentFallbackEnabled"/> and a residual buffer. A batch 5 reaches the panel,
+    /// <c>ALL.TXT</c> and reporting but can arrive too late to affect that cycle's TX decision, as batch 4 can. Config file and API only (no Settings-page
+    /// control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on
+    /// starts a new live era: never pool its decodes with figures from the setting off.
+    /// </summary>
+    public bool LateSubtractionRound { get; init; }
 }
