@@ -21,6 +21,8 @@ import urllib.request
 from pathlib import Path
 
 QA_WT = Path(r"D:\Projects\claude\OpenWSFZ\worktrees\qa")
+sys.path.insert(0, str(QA_WT / "qa"))  # station_paths (per-account paths, 2026-11-02)
+import station_paths as _sp  # noqa: E402
 PY = r"D:\Projects\claude\_qa-scratch\rr-main\tree\qa\rr-study\.venv\Scripts\python.exe"
 PUB = Path(r"D:\Projects\claude\_qa-scratch\coh-gate-r-f4-prwt\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\publish")
 EXE = str(PUB / "OpenWSFZ.Daemon.exe")
@@ -31,8 +33,8 @@ B1_NAME = "Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)"
 RADIO_STRIP = 0
 VM = QA_WT / "qa" / "endurance" / "vm_strip.py"
 BASE_CFG = Path(r"D:\Projects\claude\_qa-scratch\rr-main\config")
-STATION_CFG = Path(r"C:\Users\Frank\AppData\Roaming\OpenWSFZ\config.json")     # READ ONLY: its decoder section is the template
-WSJTX_INI = r"C:\Users\Frank\AppData\Local\WSJT-X - FT991A\WSJT-X - FT991A.ini"
+STATION_CFG = _sp.station_config()     # READ ONLY: its decoder section is the template; running account's %APPDATA% (QA_STATION_CONFIG overrides)
+WSJTX_INI = str(_sp.wsjtx_ini("FT991A"))   # running account's %LOCALAPPDATA% (QA_WSJTX_INI overrides)
 CFG_DIR = QA_WT / "qa" / "endurance" / "rf4on-endurance-config"
 PORT = 8080
 LEAD_S = 75
@@ -114,6 +116,10 @@ def main() -> None:
     stamp = start.strftime("%Y%m%d_%H%M")
     corpus = (QA_WT / "artefacts" / f"{stamp}_endurance_run").as_posix()
     cfg = json.loads((BASE_CFG / "config.json").read_text(encoding="utf-8"))
+    for _need in (STATION_CFG, Path(WSJTX_INI)):   # a missing file under a fresh account is a message, not a traceback
+        if not _need.is_file():
+            sys.exit(f"ERROR: {_need} not found for the running account. Copy the station config / WSJT-X settings "
+                     f"over, or point at them with {_sp.ENV_STATION_CONFIG} / {_sp.ENV_WSJTX_INI}.")
     st_dec = json.loads(STATION_CFG.read_text(encoding="utf-8"))["decoder"]
     cfg["decoder"] = dict(st_dec)
     # AUDIO ROUTE (Captain, 2026-10-19): both decoders on Voicemeeter Out B1 (the radio is on Stereo Input 1).
