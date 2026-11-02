@@ -262,7 +262,8 @@ location (`%APPDATA%\OpenWSFZ\config.json` on Windows,
 ### Running the E2E tests
 
 The end-to-end tests launch the daemon as a real subprocess and require a
-published binary to be present first. Run this once before `dotnet test`,
+published binary. `dotnet test` on the E2E project publishes it itself (via `python3`) when it is missing;
+to publish by hand, run this before `dotnet test`,
 substituting your target runtime identifier — this publishes to the default
 `bin/Release/net10.0/<rid>/publish/` and is the one standalone binary this
 project actually ships and expects people to run:
@@ -282,9 +283,9 @@ Windows — that produces an AOT binary with broken audio. Consumed by
 `DaemonE2ETests`, `BackgroundColdStartE2ETests` (`FR-002`, `FR-007`), and
 `SelfContainedNonAotE2ETests`.
 
-`dotnet test` without a prior publish will still succeed for all unit and
-integration tests; only those E2E tests will fail with a
-`FileNotFoundException` indicating the missing binary.
+`dotnet test` without a prior publish is fine: the E2E project's `EnsurePublishedDaemonForE2E`
+target runs `python3 tools/publish_selfcontained.py` first when the binary is missing (so `python3`
+must be on PATH).
 
 Native AOT itself remains deferred (see
 `dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md`). A separate,

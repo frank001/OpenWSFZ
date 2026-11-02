@@ -33,6 +33,8 @@ if str(_QA_ROOT) not in sys.path:
     sys.path.insert(0, str(_QA_ROOT))
 
 from harness.common import parse_all_txt, normalise_slot, SLOT_SECONDS  # noqa: E402
+sys.path.insert(0, str(_QA_ROOT.parent))  # qa/ : station_paths (2026-11-02)
+import station_paths as _sp  # noqa: E402
 from harness.run_scenario import (                                        # noqa: E402
     _select_device,
     _next_cycle_boundary,
@@ -46,7 +48,7 @@ _HERE           = _QA_ROOT
 _RESULTS        = _HERE / "results"
 _DEFAULT_CORPUS = _HERE.parent.parent / "p10-decoder-ground-truth_items" / "save"
 
-WSJT_ALL_TXT  = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
+WSJT_ALL_TXT  = _sp.wsjtx_all_txt()   # running account's %LOCALAPPDATA% (default profile folder)
 OWSFZ_ALL_TXT = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 
 # ── Study parameters ───────────────────────────────────────────────────────────
@@ -384,6 +386,7 @@ def _replay(
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    global WSJT_ALL_TXT
     parser = argparse.ArgumentParser(
         description="S6 corpus replay harness — play off-air WAVs through VB-CABLE"
     )
@@ -400,10 +403,24 @@ def main() -> None:
         help=f"Number of randomised passes over the corpus (default: {_DEFAULT_RUNS})",
     )
     parser.add_argument(
+        "--wsjt-all-txt", type=Path, default=None, metavar="PATH",
+        help=f"WSJT-X ALL.TXT (default, for the running account: {WSJT_ALL_TXT}). Naming it explicitly "
+             "waives the in-profile check only; the must-grow check always applies.",
+    )
+    parser.add_argument(
         "--skip-warmup", action="store_true",
         help="Skip the pre-flight warm-up check (not recommended)",
     )
     args = parser.parse_args()
+
+    # Stale-log guard (Architect task 2026-11-02).
+    if args.wsjt_all_txt is not None:
+        WSJT_ALL_TXT = args.wsjt_all_txt
+    try:
+        _wsjt_growth = _sp.guard_run_start(
+            WSJT_ALL_TXT, explicit=args.wsjt_all_txt is not None)
+    except _sp.StaleLogError as exc:
+        sys.exit(f"ERROR: {exc}")
 
     wavs       = _discover_wavs(args.corpus)
     device_idx = _select_device(args.device)
@@ -431,6 +448,11 @@ def main() -> None:
         _warmup(device_idx)
 
     _replay(wavs, run_dir, device_idx, args.runs)
+    try:
+        _grown = _wsjt_growth.verify()
+    except _sp.StaleLogError as exc:
+        sys.exit(f"ERROR: {exc}")
+    print(f"  WSJT-X ALL.TXT grew by {_grown} bytes during the replay (stale-log check PASS)")
 
     print()
     print("=" * 70)

@@ -42,7 +42,7 @@ Usage:
     # Standalone against the live files, restricted to a sub-window:
     python endurance_anova_wsjtx.py \\
         --ours-all-txt D:/Projects/claude/OpenWSFZ-40m-capture/ALL.TXT \\
-        --wsjtx-all-txt C:/Users/Frank/AppData/Local/WSJT-X/ALL.TXT \\
+        --wsjtx-all-txt "$LOCALAPPDATA/WSJT-X/ALL.TXT" \\
         --start "2026-07-29 18:21" --end "2026-07-30 18:21" \\
         --out anova_report.md
 """

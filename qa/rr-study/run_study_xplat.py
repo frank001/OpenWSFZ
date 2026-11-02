@@ -50,6 +50,8 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 
 from harness.common import make_run_dir  # noqa: E402 (import after sys.path)
+sys.path.insert(0, str(_HERE.parent))  # qa/ : station_paths (2026-11-02)
+import station_paths as _sp  # noqa: E402
 
 _VENV_PYTHON   = _HERE / ".venv" / "Scripts" / "python.exe"
 _SCENARIOS     = _HERE / "scenarios"
@@ -60,7 +62,7 @@ _DEFAULT_WINDOWS_ALL_TXT = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 # Linux daemon writes to this Windows-accessible path (set in daemon config)
 _DEFAULT_LINUX_ALL_TXT   = Path(r"D:\Projects\claude\OpenWSFZ\linux-all.txt")
 # WSJT-X ALL.TXT — appended across sessions; matcher filters by cycle_utc
-_WSJT_ALL_TXT = Path(r"C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT")
+_WSJT_ALL_TXT = _sp.wsjtx_all_txt()   # running account's %LOCALAPPDATA% (default profile folder)
 
 # The WSL2 scenario runner writes truth.csv to the study run_dir (via --run-dir).
 # The Windows daemon receives audio passively via RDPSink/Voicemeeter — no
@@ -202,6 +204,15 @@ def main() -> None:
     win_path  = Path(args.windows_all_txt)
     lin_path  = Path(args.linux_all_txt)
     wsjt_path = Path(args.wsjt_all_txt)
+    # Stale-log guard (2026-11-02). The WSJT-X side stays OPTIONAL here (as before: a WARNING when absent),
+    # but a log that IS used must be this account's own, and must grow during the run (checked at collection).
+    _wsjt_explicit = _sp.is_explicit(wsjt_path, _sp.wsjtx_all_txt())
+    _wsjt_growth = None
+    if wsjt_path.exists():
+        try:
+            _wsjt_growth = _sp.guard_run_start(wsjt_path, explicit=_wsjt_explicit)
+        except _sp.StaleLogError as exc:
+            sys.exit(f"ERROR: {exc}")
 
     # ── Build scenario list ─────────────────────────────────────────────────
     if args.scenarios:
@@ -316,6 +327,11 @@ def main() -> None:
 
     wsjt_dest = run_dir / "wsjt-all.txt"
     if wsjt_path.exists():
+        if _wsjt_growth is not None:
+            try:
+                _wsjt_growth.verify()
+            except _sp.StaleLogError as exc:
+                sys.exit(f"ERROR: {exc}")
         shutil.copy2(wsjt_path, wsjt_dest)
         print(f"  Copied WSJT-X   → {wsjt_dest.name}")
     else:
