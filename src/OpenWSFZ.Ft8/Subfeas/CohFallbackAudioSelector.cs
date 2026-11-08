@@ -29,7 +29,9 @@ internal static class CohFallbackAudioSelector
     /// <summary>The audio the fallback reads and the level of the step-down it came from.</summary>
     /// <param name="Pcm">The decoder's own array (never a copy): read-only for the caller, not to be mutated or pooled while the fallback runs.</param>
     /// <param name="Level">One of the <c>Level*</c> constants.</param>
-    internal readonly record struct Choice(float[] Pcm, string Level)
+    /// <param name="CohSnapshot">COH-RES-CAND: the candidate snapshot taken from the decode of THIS buffer (<c>null</c> for the original audio, or when none was taken).
+    /// Chosen by the same step-down as <paramref name="Pcm"/>, so the list and the audio cannot come from different buffers.</param>
+    internal readonly record struct Choice(float[] Pcm, string Level, byte[]? CohSnapshot = null)
     {
         /// <summary>True when <see cref="Pcm"/> is a residual buffer.</summary>
         public bool IsResidual => Level is LevelResidual3 or LevelResidual2;
@@ -58,9 +60,9 @@ internal static class CohFallbackAudioSelector
             return new Choice(original, LevelUnavailable);
 
         if (third is { Outcome: SubtractionPass.ThirdPassOutcome.Ran, Residual: { } thirdBuffer })
-            return new Choice(thirdBuffer, LevelResidual3);
+            return new Choice(thirdBuffer, LevelResidual3, third.CohSnapshot);
 
-        return new Choice(report.Residual, LevelResidual2);
+        return new Choice(report.Residual, LevelResidual2, report.CohSnapshot);
     }
 
     /// <summary>The <c>audio=</c> log field for a mode and the level its step-down reached.</summary>

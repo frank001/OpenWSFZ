@@ -256,6 +256,20 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-GATE-G R-F4: whether the residual-run ungating is requested now (the read-back of <see cref="SetCoherentFallbackResidualUngated"/>).</summary>
     public bool CoherentFallbackResidualUngated => _coherentFallbackResidualUngated;
 
+    private volatile bool _coherentFallbackResidualCandidates;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+
+    /// <summary>
+    /// COH-RES-CAND (#272): sets <c>decoder.coherentFallbackResidualCandidates</c>. <c>false</c> (the start value, and the configured default when the key is
+    /// absent) leaves every code path as it was and takes no extra snapshot. <c>true</c> gives the fallback run that reads a residual buffer the candidate
+    /// snapshot of that buffer's own decode; the run that reads the original audio keeps the original snapshot. It has no effect in
+    /// <see cref="CoherentFallbackAudio.Original"/> mode or when the fallback or Deep depth is off. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCoherentFallbackResidualCandidates(bool enabled)
+        => _coherentFallbackResidualCandidates = enabled;
+
+    /// <summary>COH-RES-CAND: whether the residual-buffer candidate list is requested now (the read-back of <see cref="SetCoherentFallbackResidualCandidates"/>).</summary>
+    public bool CoherentFallbackResidualCandidates => _coherentFallbackResidualCandidates;
+
     private volatile bool _lateSubtractionRound;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
 
     /// <summary>
@@ -292,6 +306,21 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     /// <summary>LATE-SUB L1': see <see cref="GetLateRoundCounters"/>.</summary>
     internal readonly record struct LateRoundCounters(long Runs, long Skipped, long NoNew, long Abandoned, long Failed, long Decodes);
+
+    // COH-RES-CAND: process-lifetime counters of which candidate list the fallback's residual-side run used, beside the late round's. All stay 0 while the setting is OFF.
+    private long _resCandResidualR2, _resCandResidualR3, _resCandFallbackOrig;
+
+    /// <summary>COH-RES-CAND: cycles (with the setting ON) whose fallback used the R2 buffer's own list, the R3 buffer's own list, or the original list (no residual buffer, or no snapshot of it).</summary>
+    internal ResidualCandidatesCounters GetResidualCandidatesCounters() => new(
+        Interlocked.Read(ref _resCandResidualR2),
+        Interlocked.Read(ref _resCandResidualR3),
+        Interlocked.Read(ref _resCandFallbackOrig));
+
+    /// <summary>COH-RES-CAND: see <see cref="GetResidualCandidatesCounters"/>.</summary>
+    internal readonly record struct ResidualCandidatesCounters(long ResidualR2, long ResidualR3, long FallbackOrig);
+
+    /// <summary>COH-RES-CAND: the <c>resCand=</c> values of the coherent-fallback log line.</summary>
+    internal const string ResCandResidualR2 = "residual-R2", ResCandResidualR3 = "residual-R3", ResCandFallbackOrig = "fallback-orig";
 
     /// <summary>
     /// third-pass-deep (B6): the third pass's process-lifetime counters and the depth in use, separate from the residual
@@ -601,6 +630,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         var  audioMode     = _coherentFallbackAudio;
         // COH-GATE-G R-F4: read ONCE per cycle too; it acts only in Both mode (Original and Residual are unchanged).
         bool ungatedOn     = _coherentFallbackResidualUngated && audioMode == CoherentFallbackAudio.Both;
+        // COH-RES-CAND: read ONCE per cycle too; it acts only while the fallback runs and reads a residual buffer (Both and Residual modes; Original is unchanged).
+        bool resCandOn     = cohOn && _coherentFallbackResidualCandidates && audioMode != CoherentFallbackAudio.Original;
         // LATE-SUB L1': read ONCE per cycle too. A staged cycle only (the round is part of the staged path); whether the fallback ran, the depth is Deep
         // and a residual buffer exists are checked where each is known, and each failing check is a counted, logged skip (R2/R6).
         bool lateOn        = twoStage && _lateSubtractionRound;
@@ -1008,7 +1039,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
             var newFromResidual = await SubtractionPass.RunAsync(
                 _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
-                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report);
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report, captureCohSnapshot: resCandOn && deep);
 
             // Batch 2: nothing when the pass was abandoned, failed, or found nothing new.
             var second = newFromResidual.Length == 0 ? [] : MapNative(newFromResidual, PathResidual);
@@ -1159,7 +1190,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // Same budget, same cancellation/reserve mechanism: what remains of the 13 s measured from the start of this decode.
                 var third = await SubtractionPass.RunThirdPassAsync(
                     _interop, report.Residual, newFromResidual, native, EffectiveSubtractionThreads, _logger,
-                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, captureCohSnapshot: resCandOn);
                 thirdResult = third;
 
                 switch (third.Outcome)
@@ -1215,12 +1246,38 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             // The shared 13 s budget (R7'''): what is left of it when the fallback starts, less the reserve for the work after the native run.
             double budgetMs = Math.Max(0.0, (SubtractionCycleBudget - fbStart - CoherentFallbackPublishReserve).TotalMilliseconds);
             int workers = EffectiveSubtractionThreads;
+            // COH-RES-CAND (R3): the run that reads the buffer Select returned gets the snapshot of THAT buffer's own decode (it travels in the same Choice, so
+            // list and audio cannot come from different buffers). A missing snapshot, or no residual buffer, leaves it on cohSnapshot: today's list, counted and
+            // logged as fallback-orig. OFF: resCand stays null and residualRunSnapshot is cohSnapshot, i.e. every call below is the call as it was.
+            byte[] residualRunSnapshot = cohSnapshot!;
+            string? resCand = null;
+            if (resCandOn)
+            {
+                if (choice.IsResidual && choice.CohSnapshot is { } ownSnapshot)
+                {
+                    residualRunSnapshot = ownSnapshot;
+                    if (choice.Level == CohFallbackAudioSelector.LevelResidual3) { resCand = ResCandResidualR3; Interlocked.Increment(ref _resCandResidualR3); }
+                    else                                                         { resCand = ResCandResidualR2; Interlocked.Increment(ref _resCandResidualR2); }
+                }
+                else
+                {
+                    resCand = ResCandFallbackOrig;
+                    Interlocked.Increment(ref _resCandFallbackOrig);
+                }
+            }
+            CohFallbackRunResult? residualRunSeen = null, originalRunSeen = null;   // COH-RES-CAND: the runs behind resEligible / origEligible (log only)
+            int OrigEligibleCount()
+            {
+                try { return _interop.CohFallbackEligibleCount(cohSnapshot!); }
+                catch (Exception) { return -1; }   // a count for the log line must never cost the cycle its decodes
+            }
             CohFallbackAudioSelector.Merged? merged = null;
             CohFallbackRunResult? outcome;
             if (audioMode != CoherentFallbackAudio.Both)
             {
                 outcome = await Task.Run(
-                    () => RunCoherentFallback(choice.Pcm, cohSnapshot!, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+                    () => RunCoherentFallback(choice.Pcm, residualRunSnapshot, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+                if (choice.IsResidual) residualRunSeen = outcome; else originalRunSeen = outcome;
             }
             else
             {
@@ -1229,18 +1286,28 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // 13 s budget needs) and because a deadline between the runs is then a plain, countable event. If nothing is left for the second run it is not
                 // started and its eligible candidates are counted abandoned. With no usable residual buffer the original audio is run ONCE, never twice.
                 CohFallbackRunResult? first = await Task.Run(
-                    () => RunCoherentFallback(choice.Pcm, cohSnapshot!, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+                    () => RunCoherentFallback(choice.Pcm, residualRunSnapshot, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
                 CohFallbackRunResult? second = null;
                 if (choice.IsResidual && first is not null)
                 {
                     double leftMs = budgetMs - (sw.Elapsed - fbStart).TotalMilliseconds;
                     second = leftMs > 0.0
                         ? await Task.Run(() => RunCoherentFallback(normalisedPcm, cohSnapshot!, leftMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false)
-                        : new CohFallbackRunResult(CohFallbackAudioSelector.NotRun(first.Stats), []) { Workers = first.Workers };
+                        : new CohFallbackRunResult(CohFallbackAudioSelector.NotRun(NotRunBasis(first.Stats)), []) { Workers = first.Workers };
+                }
+
+                // COH-RES-CAND: with the setting ON the original run's eligible count is the ORIGINAL snapshot's, not the residual run's, so a run that was never
+                // started counts its own abandoned candidates. OFF: the basis is the first run's stats, exactly as before.
+                CohFallbackStats NotRunBasis(CohFallbackStats basis)
+                {
+                    if (!resCandOn) return basis;
+                    int e = OrigEligibleCount();
+                    return e >= 0 ? basis with { Eligible = e } : basis;
                 }
 
                 var residualRun = choice.IsResidual ? first : null;
                 var originalRun = choice.IsResidual ? second : first;
+                residualRunSeen = residualRun; originalRunSeen = originalRun;
                 merged = CohFallbackAudioSelector.Merge(originalRun?.Rows, residualRun?.Rows, ungatedOn);
                 outcome = (originalRun, residualRun) switch
                 {
@@ -1284,6 +1351,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             double publishMs = -1.0;
             bool batchPublished = batch.Count > 0;
             var st = outcome.Stats;
+            // COH-RES-CAND (R5): only with the setting ON. resEligible = eligible candidates in the snapshot the residual-side run used (the original snapshot when
+            // that run read the original audio); origEligible = those in cohSnapshot. -1 = not available (a run failed and no count could be made). Aggregates only.
+            string resCandFields = "";
+            if (resCand is not null)
+            {
+                int resEligible  = (choice.IsResidual ? residualRunSeen : originalRunSeen)?.Stats.Eligible ?? -1;
+                int origEligible = originalRunSeen?.Stats.Eligible ?? (choice.IsResidual ? OrigEligibleCount() : resEligible);
+                resCandFields = $", resCand={resCand}, resEligible={resEligible}, origEligible={origEligible}";
+            }
             try
             {
                 if (batchPublished)
@@ -1299,13 +1375,14 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
                     "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
                     "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}, " +
-                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}{UngatedCount}.",
+                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}{UngatedCount}{ResCandFields}.",
                     st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
                     outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs,
                     multiSetOn ? "on" : "off", st.WalkEntered, outcome.CrcValidBySet(1), outcome.CrcValidBySet(2), outcome.CrcValidBySet(3), outcome.CrcValidBySet(4),
                     CohFallbackAudioSelector.Label(audioMode, choice.Level),
                     merged is null ? "" : $", fromOriginal={merged.FromOriginal}, fromResidual={merged.FromResidual}, inBoth={merged.InBoth}",
-                    ungatedOn ? $", ungated={publishedUngated}" : "");   // only while the setting is effective (ON and Both mode)
+                    ungatedOn ? $", ungated={publishedUngated}" : "",   // only while the setting is effective (ON and Both mode)
+                    resCandFields);   // COH-RES-CAND: only while the setting is effective
             }
         }
     }

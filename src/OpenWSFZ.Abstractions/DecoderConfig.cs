@@ -57,7 +57,9 @@ public sealed record DecoderConfig
         // COH-GATE-G R-F4: in the constructor with its default (false), for the same reason as the fields above.
         bool coherentFallbackResidualUngated = false,
         // LATE-SUB L1': in the constructor with its default (false), for the same reason as the fields above.
-        bool lateSubtractionRound = false)
+        bool lateSubtractionRound = false,
+        // COH-RES-CAND: in the constructor with its default (false), for the same reason as the fields above.
+        bool coherentFallbackResidualCandidates = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -75,6 +77,7 @@ public sealed record DecoderConfig
         CoherentFallbackAudio   = coherentFallbackAudio;
         CoherentFallbackResidualUngated = coherentFallbackResidualUngated;
         LateSubtractionRound = lateSubtractionRound;
+        CoherentFallbackResidualCandidates = coherentFallbackResidualCandidates;
     }
 
     /// <summary>
@@ -292,4 +295,15 @@ public sealed record DecoderConfig
     /// starts a new live era: never pool its decodes with figures from the setting off.
     /// </summary>
     public bool LateSubtractionRound { get; init; }
+
+    /// <summary>
+    /// COH-RES-CAND (#272): when <c>true</c>, the coherent fallback's run that reads a residual buffer is offered the candidate list of THAT buffer's own
+    /// decode (the residual pass's, or the third pass's when that buffer is the one chosen) instead of the original audio's list; the run that reads the
+    /// original audio keeps the original list. Nothing is merged. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and every code path is as it
+    /// was (no extra snapshot is taken). It acts only while <see cref="CoherentFallbackEnabled"/> is on, on <see cref="DecodingDepth.Deep"/> (the fallback
+    /// reads a residual buffer only there), and in the <c>Both</c> and <c>Residual</c> modes; in <c>Original</c> mode it has no effect. Config file and API
+    /// only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the
+    /// next window. Turning it on starts a new live era: never pool its decodes with figures from the setting off.
+    /// </summary>
+    public bool CoherentFallbackResidualCandidates { get; init; }
 }

@@ -92,6 +92,7 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     /// <inheritdoc/>
     public byte[]? CohFallbackSnapshot() => Ft8LibInterop.CohFallbackSnapshot();
+    public int CohFallbackEligibleCount(byte[] snapshot) => Ft8LibInterop.CohFallbackMakePlan(snapshot).Stats.Eligible;
 
     /// <inheritdoc/>
     public ICohFallbackBackend? CohFallbackBackend => CohFallbackLibBackend.Instance;

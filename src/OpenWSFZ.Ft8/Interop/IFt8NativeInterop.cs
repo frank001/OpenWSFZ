@@ -250,6 +250,12 @@ internal interface IFt8NativeInterop
     byte[]? CohFallbackSnapshot() => null;
 
     /// <summary>
+    /// COH-RES-CAND: how many candidates of a snapshot are eligible for the fallback (the native plan's own count; nothing runs). Called only while
+    /// <c>decoder.coherentFallbackResidualCandidates</c> is ON and only when a run's own statistics are not available. Default: <c>-1</c> (unknown).
+    /// </summary>
+    int CohFallbackEligibleCount(byte[] snapshot) => -1;
+
+    /// <summary>
     /// COH-FALLBACK step 4 (shim 20260069): the native side of the parallel fallback cycle (plan + one context per worker + one candidate
     /// at a time). Default: <c>null</c> (a fake does not model the fallback, or overrides <see cref="CohFallbackRun"/> itself).
     /// </summary>
