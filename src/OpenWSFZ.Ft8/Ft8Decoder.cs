@@ -105,7 +105,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// (pass-0-only) if it runs out. A hard bound since sub-feas-speed-redesign A5: the native fits are
     /// cancelled at <c>budget - SubtractionPass.SubtractionResidualDecodeReserve</c>.
     /// </summary>
-    private static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
+    internal static readonly TimeSpan SubtractionCycleBudget = TimeSpan.FromSeconds(13);
 
     // Singleton default — stateless adapter; safe to share across instances.
     private static readonly IFt8NativeInterop DefaultInterop = new Ft8NativeInteropAdapter();
@@ -126,6 +126,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     public static int LoadedShimVersion => Ft8LibInterop.LoadedShimVersion;
 
     private readonly IClock                 _clock;
+    // COH-FB-AUDIO N-1: the time source of the cycle's elapsed/budget arithmetic (BudgetClock). System in production; a test injects a fake.
+    private readonly TimeProvider          _timeProvider;
     private readonly ILogger<Ft8Decoder>?   _logger;
     private readonly IFt8NativeInterop      _interop;
     private readonly ICallsignGrammarStore? _grammarStore;
@@ -192,8 +194,104 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>The decoding depth the decoder is using now (what <c>GET /api/v1/status</c> reports).</summary>
     public DecodingDepth DecodingDepth => (DecodingDepth)_decodingDepth;
 
+    // ── COH-FALLBACK (A' step 3) Stage 2 ──────────────────────────────────────
+
+    private volatile bool _coherentFallbackEnabled;   // false at construction
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2 (R10): sets <c>decoder.coherentFallbackEnabled</c>. <c>false</c> (the default of a bare decoder at construction; the daemon applies <c>decoder.coherentFallbackEnabled</c>, default <c>true</c>, at start-up) is the decoder
+    /// as it was before the fallback existed: no extra native call, the same outputs in the same order. <c>true</c> runs the coherent-
+    /// extraction fallback on the candidates the ordinary decode did not decode. Step 4: it STARTS only after the cycle's last ordinary batch
+    /// has been handed off (never during pass 0's follow-on work, the residual pass or the third pass), runs on up to
+    /// <see cref="EffectiveSubtractionThreads"/> worker threads, and publishes as a batch of its own after every ordinary batch: batch 4 on
+    /// <see cref="DecodingDepth.Deep"/>, batch 3 on Normal, only if non-empty. It has an effect only while <see cref="SubtractionEnabled"/> is on
+    /// and only on <see cref="DecodeStagedAsync"/> (the entry with a callback for every batch): <see cref="DecodeTwoStageAsync"/> has no callback
+    /// for a batch of its own, so the flag has no effect there; the early decode never runs it (R9). Read once per decode cycle; takes effect on
+    /// the next cycle. For the replay harness as well as the daemon.
+    /// </summary>
+    public void SetCoherentFallbackEnabled(bool enabled)
+        => _coherentFallbackEnabled = enabled;
+
+    /// <summary>COH-FALLBACK Stage 2: whether the coherent-extraction fallback is on now (the read-back of <see cref="SetCoherentFallbackEnabled"/>).</summary>
+    public bool CoherentFallbackEnabled => _coherentFallbackEnabled;
+
+    private volatile bool _coherentFallbackMultiSet;   // false at construction; the daemon sets the configured value (default true) before the first cycle
+
+    /// <summary>
+    /// COH-MULTISET: sets <c>decoder.coherentFallbackMultiSet</c>. The decoder object itself starts <c>false</c> at construction; the configured default
+    /// (<c>DecoderConfig.CoherentFallbackMultiSet</c>, true when the key is absent) reaches it through this setter, which the daemon calls before
+    /// the first cycle and on every config change. <c>false</c> leaves the fallback exactly as it was: the same native calls, outputs and order. <c>true</c> makes the fallback try C1, J2, J3, N1 on a candidate where V3 gives no CRC-valid
+    /// output. It acts only while <see cref="CoherentFallbackEnabled"/> is on. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCoherentFallbackMultiSet(bool enabled)
+        => _coherentFallbackMultiSet = enabled;
+
+    /// <summary>COH-MULTISET: whether the multi-set walk is requested now (the read-back of <see cref="SetCoherentFallbackMultiSet"/>).</summary>
+    public bool CoherentFallbackMultiSet => _coherentFallbackMultiSet;
+
+    private volatile CoherentFallbackAudio _coherentFallbackAudio = CoherentFallbackAudio.Original;   // the object starts Original; the daemon sets the configured value (default Both) before the first cycle
+
+    /// <summary>
+    /// COH-FB-AUDIO: sets <c>decoder.coherentFallbackAudio</c>. The decoder object itself starts at <see cref="CoherentFallbackAudio.Original"/> (the
+    /// fallback as it was); the configured default (<c>DecoderConfig.CoherentFallbackAudio</c>, <c>Both</c> when the key is absent) reaches it through
+    /// this setter, which the daemon calls before the first cycle and on every config change. Read once per decode cycle; takes effect on the next cycle.
+    /// It acts only while <see cref="CoherentFallbackEnabled"/> is on.
+    /// </summary>
+    public void SetCoherentFallbackAudio(CoherentFallbackAudio audio)
+        => _coherentFallbackAudio = audio;
+
+    /// <summary>COH-FB-AUDIO: the audio mode the fallback uses now (the read-back of <see cref="SetCoherentFallbackAudio"/>).</summary>
+    public CoherentFallbackAudio CoherentFallbackAudio => _coherentFallbackAudio;
+
+    private volatile bool _coherentFallbackResidualUngated;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+
+    /// <summary>
+    /// COH-GATE-G R-F4: sets <c>decoder.coherentFallbackResidualUngated</c>. <c>false</c> (the start value, and the configured default when the key is
+    /// absent) leaves the fallback exactly as it was. <c>true</c> admits the F1b-gated-out rows of the run that read the residual audio, in
+    /// <see cref="CoherentFallbackAudio.Both"/> mode only. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCoherentFallbackResidualUngated(bool enabled)
+        => _coherentFallbackResidualUngated = enabled;
+
+    /// <summary>COH-GATE-G R-F4: whether the residual-run ungating is requested now (the read-back of <see cref="SetCoherentFallbackResidualUngated"/>).</summary>
+    public bool CoherentFallbackResidualUngated => _coherentFallbackResidualUngated;
+
+    private volatile bool _lateSubtractionRound;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+
+    /// <summary>
+    /// LATE-SUB L1': sets <c>decoder.lateSubtractionRound</c>. <c>false</c> (the start value, and the configured default when the key is absent) leaves
+    /// every code path as it was. <c>true</c> runs one more subtract-and-decode round after the coherent fallback's batch (Deep only, fallback on, a residual
+    /// buffer available) and publishes its new decodes as batch 5. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetLateSubtractionRound(bool enabled)
+        => _lateSubtractionRound = enabled;
+
+    /// <summary>LATE-SUB L1': whether the late round is requested now (the read-back of <see cref="SetLateSubtractionRound"/>).</summary>
+    public bool LateSubtractionRound => _lateSubtractionRound;
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2, R7': time held back from the shared 13 s cycle budget for the work after the native fallback returns (the text
+    /// unpack, the mapping and the publish of the last batch). The native run stops starting candidates at <c>budget - elapsed - this</c>.
+    /// </summary>
+    internal static readonly TimeSpan CoherentFallbackPublishReserve = TimeSpan.FromMilliseconds(250);
+
     private long _thirdPassRuns, _thirdPassSkippedNoNew, _thirdPassSkippedAbandoned,
                  _thirdPassAbandoned, _thirdPassFailed, _thirdPassDecodes;
+
+    // LATE-SUB L1': the late round's process-lifetime counters, beside the third pass's. All stay 0 while the setting is OFF.
+    private long _lateRoundRuns, _lateRoundSkipped, _lateRoundNoNew, _lateRoundAbandoned, _lateRoundFailed, _lateRoundDecodes;
+
+    /// <summary>LATE-SUB L1': the late round's process-lifetime counters (runs = rounds that started a fit; skipped = every <c>skipped-*</c> outcome).</summary>
+    internal LateRoundCounters GetLateRoundCounters() => new(
+        Interlocked.Read(ref _lateRoundRuns),
+        Interlocked.Read(ref _lateRoundSkipped),
+        Interlocked.Read(ref _lateRoundNoNew),
+        Interlocked.Read(ref _lateRoundAbandoned),
+        Interlocked.Read(ref _lateRoundFailed),
+        Interlocked.Read(ref _lateRoundDecodes));
+
+    /// <summary>LATE-SUB L1': see <see cref="GetLateRoundCounters"/>.</summary>
+    internal readonly record struct LateRoundCounters(long Runs, long Skipped, long NoNew, long Abandoned, long Failed, long Decodes);
 
     /// <summary>
     /// third-pass-deep (B6): the third pass's process-lifetime counters and the depth in use, separate from the residual
@@ -274,8 +372,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         IFt8NativeInterop       interop,
         ICallsignGrammarStore?  grammarStore      = null,
         ICallsignRegionStore?   regionStore       = null,
-        IWorkedBeforeIndex?     workedBeforeIndex = null)
+        IWorkedBeforeIndex?     workedBeforeIndex = null,
+        TimeProvider?           timeProvider      = null)
     {
+        _timeProvider      = timeProvider ?? TimeProvider.System;
         _clock             = clock;
         _logger            = logger;
         _interop           = interop;
@@ -419,7 +519,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     ///   <item><b>1</b> = pass 0, delivered exactly once, always (an empty batch 1 is a real cycle), as in <see cref="DecodeTwoStageAsync"/>;</item>
     ///   <item><b>2</b> = the residual pass's new decodes, delivered only when non-empty, mapped exactly like batch 1;</item>
     ///   <item><b>3</b> = the third pass's new decodes (decoding depth <see cref="DecodingDepth.Deep"/> only), delivered
-    ///   only when non-empty, mapped exactly like batch 2 with the same per-cycle text de-duplication set.</item>
+    ///   only when non-empty, mapped exactly like batch 2 with the same per-cycle text de-duplication set;</item>
+    ///   <item><b>4</b> (step 4) = the coherent fallback's own batch with <c>decoder.coherentFallbackEnabled</c> ON: batch 4 on Deep, batch 3 on
+    ///   Normal (where there is no third pass), delivered only when non-empty and after every ordinary batch.</item>
+    ///   <item><b>5</b> (LATE-SUB L1') = the late subtraction round's new decodes with <c>decoder.lateSubtractionRound</c> ON: Deep only, after the
+    ///   fallback's batch, delivered only when non-empty through the same delegate as batch 4.</item>
     /// </list>
     /// With the depth <see cref="DecodingDepth.Normal"/> this delivers exactly what <see cref="DecodeTwoStageAsync"/>
     /// would (batch 1, then batch 2), and the third pass code is not reached. The third pass is all-or-nothing: if it
@@ -428,7 +532,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <param name="pcm">15 s x 12 000 Hz mono PCM samples.</param>
     /// <param name="cycleStart">UTC instant the capture window began accumulating.</param>
     /// <param name="currentBand">The session's current band, or <c>null</c>.</param>
-    /// <param name="publishBatch">Called with the batch number (1, 2 or 3) and the batch. Awaited before the next stage begins.</param>
+    /// <param name="publishBatch">Called with the batch number (1, 2, 3, 4 or 5) and the batch. Awaited before the next stage begins.</param>
     /// <param name="ct">Cancellation token.</param>
     public async Task DecodeStagedAsync(
         float[]                                              pcm,
@@ -449,7 +553,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         var rest = await DecodeCoreAsync(
             pcm, cycleStart, currentBand, MarkAndPublish, early: false, ct,
             onSecondBatch: batch2 => publishBatch(2, batch2),
-            onThirdBatch:  batch3 => publishBatch(3, batch3)).ConfigureAwait(false);
+            onThirdBatch:  batch3 => publishBatch(3, batch3),
+            onFallbackBatch: (number, batchF) => publishBatch(number, batchF)).ConfigureAwait(false);
 
         if (!published)
         {
@@ -475,13 +580,30 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         bool                                       early,
         CancellationToken                          ct,
         Func<IReadOnlyList<DecodeResult>, Task>?   onSecondBatch = null,
-        Func<IReadOnlyList<DecodeResult>, Task>?   onThirdBatch  = null)
+        Func<IReadOnlyList<DecodeResult>, Task>?   onThirdBatch  = null,
+        Func<int, IReadOnlyList<DecodeResult>, Task>? onFallbackBatch = null)
     {
         // The flag is read ONCE per cycle. Two-stage only when the caller asked for it AND the flag is on: with the
         // flag off this method is, statement for statement, the pre-change single-batch path (P-9).
         // The EARLY entry (decode-early-batch-panel D3) never reads the flag: it is pass 0 only, whatever the flag says.
         bool subtractionOn = !early && _subtractionEnabled;
         bool twoStage      = onFirstBatch is not null && subtractionOn;
+        // COH-FALLBACK Stage 2 (R10): read ONCE per cycle, like the two flags above. Only a staged cycle can carry it (its output goes in
+        // a batch of its own, after the last ordinary one), the early decode never does (R9), and OFF means no native call that was not there
+        // before (R13).
+        // Step 4 (R6-triple-prime): the fallback's own batch needs the staged callbacks (second, third and the fallback's own): DecodeTwoStageAsync
+        // supplies none, so on that entry the flag has no effect.
+        bool cohOn         = twoStage && _coherentFallbackEnabled
+                             && onSecondBatch is not null && onThirdBatch is not null && onFallbackBatch is not null;
+        // COH-MULTISET: read ONCE per cycle too, and only meaningful while the fallback itself runs.
+        bool multiSetOn    = cohOn && _coherentFallbackMultiSet;
+        // COH-FB-AUDIO: read ONCE per cycle too.
+        var  audioMode     = _coherentFallbackAudio;
+        // COH-GATE-G R-F4: read ONCE per cycle too; it acts only in Both mode (Original and Residual are unchanged).
+        bool ungatedOn     = _coherentFallbackResidualUngated && audioMode == CoherentFallbackAudio.Both;
+        // LATE-SUB L1': read ONCE per cycle too. A staged cycle only (the round is part of the staged path); whether the fallback ran, the depth is Deep
+        // and a residual buffer exists are checked where each is known, and each failing check is a counted, logged skip (R2/R6).
+        bool lateOn        = twoStage && _lateSubtractionRound;
 
         // ── R2: Pre-condition guard ──────────────────────────────────────────
         // Declared async so that this throw surfaces as a faulted Task rather than
@@ -522,7 +644,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // ── Native decode ────────────────────────────────────────────────────
         // Offload to a thread-pool thread so that the blocking P/Invoke call does
         // not pin the async continuation's synchronisation context.
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = BudgetClock.StartNew(_timeProvider);
 
         // ── D-002 PCM normalisation ──────────────────────────────────────────
         // Normalise a copy of the PCM buffer to a fixed target RMS before passing
@@ -541,6 +663,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         int[]             candidateCounts;
         float             noiseFloorDb;
         (float[] LlrMeanAbs, float[] LlrPrenormVariance, int[] LlrFailCount) llrStats;
+        byte[]?           cohSnapshot = null;
 
         // All five calls must be on the same thread — no await between them — because
         // ft8_get_last_pass_counts, ft8_get_last_candidate_counts,
@@ -556,7 +679,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // The exception propagates through Task.Run → await and is caught below.
         try
         {
-            (native, passCounts, candidateCounts, noiseFloorDb, llrStats) = await Task.Run(() =>
+            (native, passCounts, candidateCounts, noiseFloorDb, llrStats, cohSnapshot) = await Task.Run(() =>
             {
                 // decode-early-batch-panel R4 (design.md D4): the EARLY decode saves the process-global decode state
                 // before the native call and restores it in a finally, in THIS lambda (the native TLS is per-thread, and
@@ -585,7 +708,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
                     var n = _interop.GetLastNoiseFloorDb();
                     var l = _interop.GetLastLlrStats(_interop.MaxDecodePasses);
-                    return (r, p, c, n, l);
+                    // COH-FALLBACK Stage 2: the fallback's candidate list and decoded payloads are thread-local to THIS thread and are
+                    // reset by the next ft8_decode_all call on it, so they are copied out here, right after the call, for the fallback to
+                    // read on another thread. Flag OFF: not called.
+                    var cs = cohOn ? _interop.CohFallbackSnapshot() : null;
+                    return (r, p, c, n, l, cs);
                 }
                 finally
                 {
@@ -648,7 +775,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // residual decode whose text already appeared in batch 1 is not published twice.
         var seen    = new HashSet<string>(StringComparer.Ordinal);
 
-        List<DecodeResult> MapNative(Ft8NativeResult[] source)
+        // LATE-SUB L1' (F1): keptNatives, when supplied, receives the natives behind the decodes this call actually returned (the first occurrence of
+        // each text in the cycle, not already in `seen`, plausible), in order. null (every call with the setting OFF) changes nothing.
+        List<DecodeResult> MapNative(Ft8NativeResult[] source, int path = PathOrdinary, List<Ft8NativeResult>? keptNatives = null)
         {
         var mapped = new List<DecodeResult>(source.Length);
 
@@ -720,6 +849,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 }
             }
 
+            keptNatives?.Add(nr);
             mapped.Add(new DecodeResult(
                 Time:         timeStr,
                 Snr:          nr.Snr,
@@ -728,7 +858,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 Message:      msg,
                 Region:       region,
                 WorkedBefore: workedBefore,
-                Band:         currentBand));
+                Band:         currentBand)
+            {
+                Path = path   // R11 provenance tag (COH-FALLBACK Stage 2); not serialised, not in any output format
+            });
         }
 
         return mapped;
@@ -826,6 +959,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             "Cycle {Time}: noise_floor={NoiseFloor:F1} dB (waterfall histogram median).",
             timeStr, noiseFloorDb);
 
+        // coh-fb-residual: what the fallback may read instead of the original audio (set inside the staged path below).
+        bool deepForFallback = false;
+        SubtractionPass.ResidualPassReport? reportForFallback = null;
+        SubtractionPass.ThirdPassResult? thirdResult = null;
+        // LATE-SUB L1' (F1): the natives behind the decodes MapNative PUBLISHED in batch 3 and batch 4 (only collected while the round is requested).
+        var batch3Kept = new List<Ft8NativeResult>();
+        var batch4Kept = new List<Ft8NativeResult>();
+        double fbEndMs = -1.0;   // LATE-SUB L1': the decode's own clock when the fallback's work (incl. its hand-off) returned; -1 when it did not run
+
         if (twoStage)
         {
             // Batch 1 leaves NOW, through the caller's publish path, before any residual work starts. Nothing else
@@ -833,12 +975,34 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             // Debug-guarded), because acceptance row S2 times exactly that gap.
             await onFirstBatch!(results).ConfigureAwait(false);
 
-            if (native.Length == 0) return [];
-
             // third-pass-deep: the depth is read ONCE per cycle, and only a staged caller (one that supplied both
             // callbacks) can receive batch 3. Otherwise this is, statement for statement, the two-stage path as it was.
             bool deep = onSecondBatch is not null && onThirdBatch is not null && DecodingDepth == DecodingDepth.Deep;
+            deepForFallback = deep;
+
+            // COH-FALLBACK step 4 (R6''', R7'''): the fallback does NOT run during pass 0's follow-on work. With the flag ON it starts only
+            // after the cycle's LAST ordinary batch has been handed off (batch 3 on Deep, after the third pass whether or not batch 3 had
+            // decodes; batch 2 on Normal; batch 1 when pass 0 decoded nothing and there is no residual pass), runs on up to
+            // EffectiveSubtractionThreads worker threads (R15) with nothing else left to run, and publishes as a batch of its own after
+            // every ordinary batch: batch 4 on Deep, batch 3 on Normal, only if non-empty. OFF: fallbackBatchNumber is unused and every
+            // branch below is the code as it was.
+            bool fallbackReady = cohOn && cohSnapshot is not null;
+            int  fallbackBatchNumber = deep ? FallbackBatchDeep : FallbackBatchNormal;
+
+            if (native.Length == 0)
+            {
+                // Nothing decoded in pass 0: there is no residual pass or third pass, so batch 1 was the last ordinary batch.
+                if (fallbackReady)
+                {
+                    await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
+                    fbEndMs = sw.Elapsed.TotalMilliseconds;
+                }
+                if (lateOn) LogLateSkip(deep ? LateSkipNothingDecoded : LateSkipNormalDepth);
+                return [];
+            }
+
             var report = deep ? new SubtractionPass.ResidualPassReport() : null;
+            reportForFallback = report;
 
             // The residual pass, after batch 1 is out. Its wall-clock budget is what remains of the cycle budget,
             // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
@@ -847,61 +1011,348 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report);
 
             // Batch 2: nothing when the pass was abandoned, failed, or found nothing new.
-            var second = newFromResidual.Length == 0 ? [] : MapNative(newFromResidual);
-            if (!deep) return second;
+            var second = newFromResidual.Length == 0 ? [] : MapNative(newFromResidual, PathResidual);
+            if (!deep)
+            {
+                // Normal: batch 2 is returned (unchanged) unless the fallback is on, in which case batch 2 leaves through its callback and
+                // the fallback follows as batch 3.
+                if (!fallbackReady)
+                {
+                    if (lateOn) LogLateSkip(LateSkipNormalDepth);
+                    return second;
+                }
+                if (second.Count > 0) await onSecondBatch!(second).ConfigureAwait(false);
+                await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
+                fbEndMs = sw.Elapsed.TotalMilliseconds;
+                if (lateOn) LogLateSkip(LateSkipNormalDepth);
+                return [];
+            }
 
             // ── Deep: batch 2 leaves NOW (before the third pass starts), then the third pass ───────────────────
             if (second.Count > 0) await onSecondBatch!(second).ConfigureAwait(false);
 
-            // Skip rules (spec section 1 step 1): run only when the residual pass returned >= 1 new decode and was not
-            // abandoned. Anything else would only repeat the residual pass on an unchanged buffer.
-            if (report!.DeadlineAbandoned || report.ContainedException)
-            {
-                Interlocked.Increment(ref _thirdPassSkippedAbandoned);
-                SubtractionPass.LogThirdPass(_logger, 0, 0, SubtractionPass.ThirdPassOutcome.SkippedAbandoned, 0);
-                return [];
-            }
-            if (newFromResidual.Length == 0 || report.Residual is null)
-            {
-                Interlocked.Increment(ref _thirdPassSkippedNoNew);
-                SubtractionPass.LogThirdPass(_logger, 0, 0, SubtractionPass.ThirdPassOutcome.SkippedNoNew, 0);
-                return [];
-            }
-
-            // Same budget, same cancellation/reserve mechanism: what remains of the 13 s measured from the start of this decode.
-            var third = await SubtractionPass.RunThirdPassAsync(
-                _interop, report.Residual, newFromResidual, native, EffectiveSubtractionThreads, _logger,
-                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
-
-            switch (third.Outcome)
-            {
-                case SubtractionPass.ThirdPassOutcome.SkippedNoNew:
-                    Interlocked.Increment(ref _thirdPassSkippedNoNew);   // nothing re-encodable: never started a fit
-                    return [];
-                case SubtractionPass.ThirdPassOutcome.Abandoned:
-                    Interlocked.Increment(ref _thirdPassRuns);
-                    Interlocked.Increment(ref _thirdPassAbandoned);
-                    return [];
-                case SubtractionPass.ThirdPassOutcome.Failed:
-                    Interlocked.Increment(ref _thirdPassRuns);
-                    Interlocked.Increment(ref _thirdPassFailed);
-                    return [];
-            }
-
-            Interlocked.Increment(ref _thirdPassRuns);
-            if (third.NewResults.Length == 0) return [];
-
-            // Batch 3: mapped exactly like batch 2 (same per-cycle text de-duplication set), delivered only if non-empty.
-            var batch3 = MapNative(third.NewResults);
+            // Batch 3: the third pass's new decodes (mapped exactly like batch 2, same per-cycle text de-duplication set).
+            // Delivered only if non-empty.
+            var batch3 = await ThirdPassBatchAsync().ConfigureAwait(false);
             if (batch3.Count > 0)
             {
                 Interlocked.Add(ref _thirdPassDecodes, batch3.Count);
                 await onThirdBatch!(batch3).ConfigureAwait(false);
             }
+
+            // The last ordinary batch is out (or there was none): only now does the fallback start.
+            if (fallbackReady)
+            {
+                await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
+                fbEndMs = sw.Elapsed.TotalMilliseconds;
+            }
+
+            // LATE-SUB L1': after the fallback's batch is out (batches 1 to 4 and their timing do not move), one more round, then batch 5.
+            if (lateOn) await RunLateRoundAsync().ConfigureAwait(false);
             return [];
+
+            // -- LATE-SUB L1' (spec R2-R6, Amendment 1 F1/F2/F4) ---------------------------------------------------------------------------
+            // One more SubtractionPass.RunThirdPassAsync, on the buffer CohFallbackAudioSelector.Select hands the fallback (R3 if the third pass ran, else
+            // R2), subtracting the natives behind the decodes MapNative PUBLISHED in batches 3 and 4. Primary decoder only (no fallback on the new buffer).
+            // The buffer is NOT copied: RunCore clones its input before subtracting (SubtractionPass.cs:425, "var residual = (float[])normalisedPcm.Clone()")
+            // and RunThirdPassAsync documents the input as not modified (SubtractionPass.cs:215-216). The round's native decode is the cycle's last
+            // hash-table access: it starts after RunCoherentFallbackBatchAsync returned (the fallback's CohFallbackUnpack is done) and the pump holds the
+            // decode gate until the whole staged decode returns. All-or-nothing on the pass's own deadline: an abandoned round publishes nothing.
+            async Task RunLateRoundAsync()
+            {
+                double startMs = sw.Elapsed.TotalMilliseconds;
+                if (!fallbackReady)
+                {
+                    LogLateSkip(LateSkipFallbackNotRun);
+                    return;
+                }
+
+                var choice = CohFallbackAudioSelector.Select(audioMode, normalisedPcm, deepForFallback, reportForFallback, thirdResult);
+                if (!choice.IsResidual)
+                {
+                    LogLateSkip(LateSkipNoResidual);
+                    return;
+                }
+                string bufferLabel = choice.Level == CohFallbackAudioSelector.LevelResidual3 ? "R3" : "R2";
+
+                // Fit list: batch 3's published natives, then batch 4's. alsoKnown: batch 1's natives and the RAW batch-2 natives (not re-fitted).
+                var fit = new Ft8NativeResult[batch3Kept.Count + batch4Kept.Count];
+                batch3Kept.CopyTo(fit, 0);
+                batch4Kept.CopyTo(fit, batch3Kept.Count);
+                var alsoKnown = new Ft8NativeResult[native.Length + newFromResidual.Length];
+                native.CopyTo(alsoKnown, 0);
+                newFromResidual.CopyTo(alsoKnown, native.Length);
+
+                SubtractionPass.ThirdPassResult? late = null;
+                if (fit.Length > 0)
+                {
+                    late = await SubtractionPass.RunThirdPassAsync(
+                        _interop, choice.Pcm, fit, alsoKnown, EffectiveSubtractionThreads, _logger,
+                        _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct).ConfigureAwait(false);
+                }
+
+                string outcome = late is null ? LateOutcomeNoNew : late.Outcome switch
+                {
+                    SubtractionPass.ThirdPassOutcome.Ran       => LateOutcomeRan,
+                    SubtractionPass.ThirdPassOutcome.Abandoned => LateOutcomeAbandoned,
+                    SubtractionPass.ThirdPassOutcome.Failed    => LateOutcomeFailed,
+                    _                                          => LateOutcomeNoNew,   // SkippedNoNew: nothing re-encodable to subtract
+                };
+                switch (outcome)
+                {
+                    case LateOutcomeRan:
+                        Interlocked.Increment(ref _lateRoundRuns);
+                        break;
+                    case LateOutcomeAbandoned:
+                        Interlocked.Increment(ref _lateRoundRuns);
+                        Interlocked.Increment(ref _lateRoundAbandoned);
+                        break;
+                    case LateOutcomeFailed:
+                        Interlocked.Increment(ref _lateRoundRuns);
+                        Interlocked.Increment(ref _lateRoundFailed);
+                        break;
+                    default:
+                        Interlocked.Increment(ref _lateRoundNoNew);
+                        break;
+                }
+
+                // refused = fit entries the pass could not re-encode (FittedSignals is the re-encodable count); -1 when the pass failed before counting.
+                int refused = late is null ? 0 : outcome == LateOutcomeFailed ? -1 : Math.Max(0, fit.Length - late.FittedSignals);
+                Ft8NativeResult[] newNatives = late is null ? [] : late.NewResults;
+                var batch5 = newNatives.Length == 0 ? [] : MapNative(newNatives, PathResidual);
+                double endMs = sw.Elapsed.TotalMilliseconds;
+
+                double publishMs = -1.0;
+                try
+                {
+                    if (batch5.Count > 0)
+                    {
+                        Interlocked.Add(ref _lateRoundDecodes, batch5.Count);
+                        publishMs = sw.Elapsed.TotalMilliseconds;
+                        await onFallbackBatch!(LateRoundBatch, batch5).ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    // Written even when the caller's publish throws (batch5PublishMs then holds the attempt time). HK-037: aggregates only.
+                    LogLateRound(outcome, bufferLabel, fit.Length, refused, newNatives.Length, batch5.Count, startMs, endMs, publishMs);
+                }
+            }
+
+            async Task<List<DecodeResult>> ThirdPassBatchAsync()
+            {
+                // Skip rules (spec section 1 step 1): run only when the residual pass returned >= 1 new decode and was not
+                // abandoned. Anything else would only repeat the residual pass on an unchanged buffer.
+                if (report!.DeadlineAbandoned || report.ContainedException)
+                {
+                    Interlocked.Increment(ref _thirdPassSkippedAbandoned);
+                    SubtractionPass.LogThirdPass(_logger, 0, 0, SubtractionPass.ThirdPassOutcome.SkippedAbandoned, 0);
+                    return [];
+                }
+                if (newFromResidual.Length == 0 || report.Residual is null)
+                {
+                    Interlocked.Increment(ref _thirdPassSkippedNoNew);
+                    SubtractionPass.LogThirdPass(_logger, 0, 0, SubtractionPass.ThirdPassOutcome.SkippedNoNew, 0);
+                    return [];
+                }
+
+                // Same budget, same cancellation/reserve mechanism: what remains of the 13 s measured from the start of this decode.
+                var third = await SubtractionPass.RunThirdPassAsync(
+                    _interop, report.Residual, newFromResidual, native, EffectiveSubtractionThreads, _logger,
+                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+                thirdResult = third;
+
+                switch (third.Outcome)
+                {
+                    case SubtractionPass.ThirdPassOutcome.SkippedNoNew:
+                        Interlocked.Increment(ref _thirdPassSkippedNoNew);   // nothing re-encodable: never started a fit
+                        return [];
+                    case SubtractionPass.ThirdPassOutcome.Abandoned:
+                        Interlocked.Increment(ref _thirdPassRuns);
+                        Interlocked.Increment(ref _thirdPassAbandoned);
+                        return [];
+                    case SubtractionPass.ThirdPassOutcome.Failed:
+                        Interlocked.Increment(ref _thirdPassRuns);
+                        Interlocked.Increment(ref _thirdPassFailed);
+                        return [];
+                }
+
+                Interlocked.Increment(ref _thirdPassRuns);
+                if (third.NewResults.Length == 0) return [];
+
+                return MapNative(third.NewResults, PathResidual, lateOn ? batch3Kept : null);
+            }
         }
 
         return results;
+
+        // ── COH-FALLBACK step 4 ──────────────────────────────────────────────────────────────────────────────────────
+        // The fallback's batch: run the native cycle on worker threads (R15), choose what to publish (R6''), turn each payload into text
+        // through the ordinary message decode (the fallback's only hash-table access, R9: every other native decode of this cycle has
+        // finished, since the fallback starts after the last ordinary batch, and the pump holds the decode gate), map them like any other
+        // decode (R6': the same per-cycle text de-duplication, plausibility filter and region/worked-before bycatch), hand the batch to
+        // the caller as batch <paramref name="batchNumber"/> if it is non-empty, and write the R12' log line (one per cycle).
+        void LogLateSkip(string reason)
+        {
+            Interlocked.Increment(ref _lateRoundSkipped);
+            double now = sw.Elapsed.TotalMilliseconds;
+            LogLateRound(reason, "-", 0, 0, 0, 0, now, now, -1.0);
+        }
+
+        void LogLateRound(string outcome, string buffer, int fitCount, int refused, int newCount, int publishedCount, double startMs, double endMs, double publishMs)
+            => _logger?.LogInformation(
+                "Late subtraction round: outcome={Outcome}, buffer={Buffer}, fit={Fit}, refused={Refused}, new={New}, published={Published}, " +
+                "fbEndMs={FbEndMs:F0}, startMs={StartMs:F0}, elapsedMs={ElapsedMs:F0}, endMs={EndMs:F0}, batch={Batch}, batch5PublishMs={PublishMs:F0}.",
+                outcome, buffer, fitCount, refused, newCount, publishedCount, fbEndMs, startMs, endMs - startMs, endMs, LateRoundBatch, publishMs);
+
+        async Task RunCoherentFallbackBatchAsync(int batchNumber)
+        {
+            var fbStart = sw.Elapsed;
+            // COH-FB-AUDIO: which audio the fallback reads. Original => normalisedPcm itself (the same reference as before).
+            // The chosen arrays are read-only to the fallback's worker threads; nothing mutates or pools them (the third pass ran to completion
+            // before this point, and the residual pass's array is the pass's own, never returned to a pool).
+            var choice = CohFallbackAudioSelector.Select(audioMode, normalisedPcm, deepForFallback, reportForFallback, thirdResult);
+            // The shared 13 s budget (R7'''): what is left of it when the fallback starts, less the reserve for the work after the native run.
+            double budgetMs = Math.Max(0.0, (SubtractionCycleBudget - fbStart - CoherentFallbackPublishReserve).TotalMilliseconds);
+            int workers = EffectiveSubtractionThreads;
+            CohFallbackAudioSelector.Merged? merged = null;
+            CohFallbackRunResult? outcome;
+            if (audioMode != CoherentFallbackAudio.Both)
+            {
+                outcome = await Task.Run(
+                    () => RunCoherentFallback(choice.Pcm, cohSnapshot!, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+            }
+            else
+            {
+                // Both: SEQUENTIAL, residual first (the run that matters if the budget is short), then the original audio on what is left of the ONE shared
+                // budget. Sequential because each run already uses `workers` threads (parallel would double the thread count for no wall-time that the
+                // 13 s budget needs) and because a deadline between the runs is then a plain, countable event. If nothing is left for the second run it is not
+                // started and its eligible candidates are counted abandoned. With no usable residual buffer the original audio is run ONCE, never twice.
+                CohFallbackRunResult? first = await Task.Run(
+                    () => RunCoherentFallback(choice.Pcm, cohSnapshot!, budgetMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+                CohFallbackRunResult? second = null;
+                if (choice.IsResidual && first is not null)
+                {
+                    double leftMs = budgetMs - (sw.Elapsed - fbStart).TotalMilliseconds;
+                    second = leftMs > 0.0
+                        ? await Task.Run(() => RunCoherentFallback(normalisedPcm, cohSnapshot!, leftMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false)
+                        : new CohFallbackRunResult(CohFallbackAudioSelector.NotRun(first.Stats), []) { Workers = first.Workers };
+                }
+
+                var residualRun = choice.IsResidual ? first : null;
+                var originalRun = choice.IsResidual ? second : first;
+                merged = CohFallbackAudioSelector.Merge(originalRun?.Rows, residualRun?.Rows, ungatedOn);
+                outcome = (originalRun, residualRun) switch
+                {
+                    (null, null) => null,
+                    (not null, null) => originalRun,
+                    (null, not null) => residualRun,
+                    _ => new CohFallbackRunResult(
+                             CohFallbackAudioSelector.CombineStats(originalRun!.Stats, residualRun!.Stats),
+                             residualRun.Rows.Concat(originalRun.Rows).ToList())
+                         { Workers = Math.Max(originalRun.Workers, residualRun.Workers) },
+                };
+            }
+            double fbWallMs = (sw.Elapsed - fbStart).TotalMilliseconds;
+            if (outcome is null) return;   // failed: already logged, nothing published
+
+            var picked = CoherentFallbackSelector.Select(merged?.Rows ?? outcome.Rows);
+            var natives = new List<Ft8NativeResult>(picked.Count);
+            var edgeByText = new Dictionary<string, bool>(StringComparer.Ordinal);
+            var admittedByText = new Dictionary<string, bool>(StringComparer.Ordinal);   // COH-GATE-G R-F4: text -> came from an admitted GatedOut row
+            foreach (var row in picked)
+            {
+                string? text;
+                try { text = _interop.CohFallbackUnpack(row.Payload); }
+                catch (NativeAccessViolationException)
+                {
+                    _logger?.LogWarning("Cycle {Time}: coherent fallback text unpack caught a native access violation — that decode skipped.", timeStr);
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                natives.Add(new Ft8NativeResult { FreqHz = (int)Math.Round(row.OutFreqHz), Dt = row.OutDtS, Snr = row.SnrDb, Message = text });
+                edgeByText[text.TrimEnd()] = row.Edge;
+                admittedByText.TryAdd(text.TrimEnd(), row.Admitted);
+            }
+
+            var batch = MapNative(natives.ToArray(), PathFallback, lateOn ? batch4Kept : null);
+            int publishedEdge = batch.Count(d => edgeByText.TryGetValue(d.Message, out bool edge) && edge);
+            int publishedUngated = batch.Count(d => admittedByText.TryGetValue(d.Message, out bool admitted) && admitted);   // COH-GATE-G R-F4
+
+            // Hand-off: the publish time is read immediately before the caller's callback is called, from the decode's own start (the
+            // same clock as batch 1's hand-off). -1 with batch4Published=0 when there is no fallback batch: never average the -1.
+            double publishMs = -1.0;
+            bool batchPublished = batch.Count > 0;
+            var st = outcome.Stats;
+            try
+            {
+                if (batchPublished)
+                {
+                    publishMs = sw.Elapsed.TotalMilliseconds;
+                    await onFallbackBatch!(batchNumber, batch).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                // The R12' line is written even when the caller's publish throws (batch4Published=1: the hand-off was attempted).
+                _logger?.LogInformation(
+                    "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
+                    "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
+                    "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}, " +
+                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}{UngatedCount}.",
+                    st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
+                    outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs,
+                    multiSetOn ? "on" : "off", st.WalkEntered, outcome.CrcValidBySet(1), outcome.CrcValidBySet(2), outcome.CrcValidBySet(3), outcome.CrcValidBySet(4),
+                    CohFallbackAudioSelector.Label(audioMode, choice.Level),
+                    merged is null ? "" : $", fromOriginal={merged.FromOriginal}, fromResidual={merged.FromResidual}, inBoth={merged.InBoth}",
+                    ungatedOn ? $", ungated={publishedUngated}" : "");   // only while the setting is effective (ON and Both mode)
+            }
+        }
+    }
+
+    /// <summary>COH-FALLBACK step 4: the number of the fallback's own batch on <see cref="DecodingDepth.Deep"/> (after batches 1, 2 and 3).</summary>
+    internal const int FallbackBatchDeep = 4;
+
+    /// <summary>COH-FALLBACK step 4: the number of the fallback's own batch on <see cref="DecodingDepth.Normal"/> (after batches 1 and 2).</summary>
+    internal const int FallbackBatchNormal = 3;
+
+    /// <summary>LATE-SUB L1': the number of the late round's own batch (after batches 1 to 4; Deep only).</summary>
+    internal const int LateRoundBatch = 5;
+
+    // LATE-SUB L1': the outcome / skip-reason tokens of the "Late subtraction round:" log line.
+    internal const string LateOutcomeRan = "ran";
+    internal const string LateOutcomeNoNew = "no-new";
+    internal const string LateOutcomeAbandoned = "abandoned";
+    internal const string LateOutcomeFailed = "failed";
+    internal const string LateSkipNormalDepth = "skipped-normal-depth";
+    internal const string LateSkipFallbackNotRun = "skipped-fallback-not-run";
+    internal const string LateSkipNothingDecoded = "skipped-nothing-decoded";
+    internal const string LateSkipNoResidual = "skipped-no-residual";
+
+    /// <summary>R11 provenance tag of a decode the ordinary pass 0 / pass 1 produced.</summary>
+    internal const int PathOrdinary = 0;
+
+    /// <summary>R11 provenance tag of a decode the residual pass or the third pass produced.</summary>
+    internal const int PathResidual = 1;
+
+    /// <summary>R11 provenance tag of a decode the coherent-extraction fallback produced.</summary>
+    internal const int PathFallback = 2;
+
+    /// <summary>
+    /// COH-FALLBACK Stage 2: the native fallback run on a thread of its own. Contains every failure: a fault is logged and the cycle
+    /// simply has no fallback decodes (batches 1, 2 and 3 as they would have been), never lost.
+    /// </summary>
+    private CohFallbackRunResult? RunCoherentFallback(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, string timeStr, CancellationToken ct)
+    {
+        try
+        {
+            return _interop.CohFallbackRun(pcm, snapshot, budgetMs, workers, multiSet, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Cycle {Time}: coherent fallback failed — no fallback decodes this cycle.", timeStr);
+            return null;
+        }
     }
 
     // ── Early-decode state image (decode-early-batch-panel D4) ────────────────

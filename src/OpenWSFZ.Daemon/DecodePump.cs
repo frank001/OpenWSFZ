@@ -46,6 +46,21 @@ internal sealed record DecodePumpDependencies(
 
     /// <summary>third-pass-deep (#240): whether the decoding depth is Deep. Used only together with <see cref="DecodeStaged"/>.</summary>
     public Func<bool>? DecodingDeep { get; init; }
+
+    /// <summary>
+    /// COH-FALLBACK step 4: optional. Whether <c>decoder.coherentFallbackEnabled</c> is on. Read once per window, together with
+    /// <see cref="DecodingDeep"/>: when it answers <c>true</c> the window is decoded with <see cref="DecodeStaged"/> even on the Normal
+    /// depth, because the fallback's own batch (batch 3 on Normal, 4 on Deep) can only leave through the staged callback.
+    /// <c>null</c> (the default) means never: the pump is the pre-change pump.
+    /// </summary>
+    public Func<bool>? CoherentFallbackOn { get; init; }
+
+    /// <summary>
+    /// psk-reporter-upload (#262): optional. The PSK Reporter upload's own queue (every batch 1 to 4, after noise suppression, never
+    /// early-decode preview rows). <c>null</c> (the default; every existing caller) means the pump writes nothing there and is the
+    /// pre-change pump, call for call.
+    /// </summary>
+    public ChannelWriter<DecodeBatch>? PskReporterChannel { get; init; }
 }
 
 /// <summary>
@@ -65,7 +80,9 @@ internal sealed record DecodePumpDependencies(
 /// published or abandoned.</para>
 ///
 /// <para><b>Who receives batch 2 and 3 (P-4/P-5/P-6, amended by late-batches-in-qso).</b> The decode panel, ALL.TXT,
-/// decode-filter admission, external reporting and, now, the QSO answerer and caller, carrying <c>BatchNumber</c> 2 or 3.
+/// decode-filter admission, external reporting and, now, the QSO answerer and caller, carrying <c>BatchNumber</c> 2, 3, 4 or 5 (4: the
+/// coherent-fallback batch on Deep; on Normal the fallback is batch 3; 5: the LATE-SUB late round's batch, Deep only, which can arrive too late to
+/// affect that cycle's TX decision, as batch 4 can).
 /// The services treat such a batch as <i>heard</i> (it may drive a message-driven transition, and the answerer merges it
 /// into its per-cycle snapshot) but never as a <i>cycle</i> (no retry, no CQ-repeat count). NOT the cycle-audio
 /// archive: it enqueues the window once, at batch 1, with the pass-0 count.</para>
@@ -139,7 +156,8 @@ internal sealed class DecodePump
                         var results = await _d.DecodeSingleBatch(pcmWindow, cycleStart, currentBand, stoppingToken);
                         await PublishFirstAsync(results, pcmWindow, cycleStart, windowClosedUtc, dialFreq);
                     }
-                    else if (_d.DecodeStaged is { } staged && _d.DecodingDeep?.Invoke() == true)
+                    else if (_d.DecodeStaged is { } staged
+                             && (_d.DecodingDeep?.Invoke() == true || _d.CoherentFallbackOn?.Invoke() == true))
                     {
                         // third-pass-deep: batch 1 as ever; batches 2 and 3 go to the same sinks (panel, ALL.TXT, filter
                         // admission, external reporting and, since late-batches-in-qso, the answerer and caller as supplementary
@@ -215,14 +233,18 @@ internal sealed class DecodePump
         // Fan-out to both QSO controller channels (non-blocking; DropOldest when full).
         // QsoControllerRouter activates only one service at a time via IsActive flags;
         // the inactive service's HandleIdleAsync is a no-op, so the extra batches are cheap.
-        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults);
+        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults, DialFrequencyMHz: KnownDial(dialFreq));
         _d.AnswererChannel.TryWrite(batch);
         _d.CallerChannel.TryWrite(batch);
         _d.ExternalReportingChannel.TryWrite(batch);
+        _d.PskReporterChannel?.TryWrite(batch);
     }
 
+    /// <summary>psk-reporter-upload (#262): the dial frequency a batch carries, or <c>null</c> when the pump had none (a 0 fallback).</summary>
+    private static double? KnownDial(double dialFreqMHz) => dialFreqMHz > 0 ? dialFreqMHz : null;
+
     /// <summary>
-    /// Publishes batch 2 (or, on the Deep path, batch 3) of a flag-ON cycle: the panel (appended, never replacing), ALL.TXT
+    /// Publishes batch 2 (or, on the Deep path, batch 3, the coherent fallback's batch 4 / Normal batch 3, or the late round's batch 5) of a flag-ON cycle: the panel (appended, never replacing), ALL.TXT
     /// (appended, same stamp), decode-filter admission, external reporting and, since late-batches-in-qso, the answerer and
     /// caller channels carrying <paramref name="batchNumber"/> (the services treat it as heard but never as a cycle).
     /// Deliberately NOT the cycle-audio archive (P-6; see the class remarks).
@@ -237,10 +259,11 @@ internal sealed class DecodePump
 
         AdmitAndBroadcastFilterState(visibleResults);
 
-        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults, batchNumber);
+        var batch = new DecodeBatch(new DateTimeOffset(cycleStart, TimeSpan.Zero), visibleResults, batchNumber, KnownDial(dialFreq));
         _d.AnswererChannel.TryWrite(batch);
         _d.CallerChannel.TryWrite(batch);
         _d.ExternalReportingChannel.TryWrite(batch);
+        _d.PskReporterChannel?.TryWrite(batch);
     }
 
     /// <summary>

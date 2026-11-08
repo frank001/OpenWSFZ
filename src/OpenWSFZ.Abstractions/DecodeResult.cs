@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace OpenWSFZ.Abstractions;
 
 /// <summary>
@@ -42,4 +44,13 @@ public sealed record DecodeResult(
     string             Message,
     RegionInfo?        Region       = null,
     WorkedBeforeInfo?  WorkedBefore = null,
-    string?            Band         = null);
+    string?            Band         = null)
+{
+    /// <summary>
+    /// COH-FALLBACK Stage 2 (R11): the decode's provenance, <c>0</c> = the ordinary pass 0 / pass 1, <c>1</c> = the residual or third
+    /// pass, <c>2</c> = the coherent-extraction fallback. Internal metadata for the replay harness and the per-cycle log: it is
+    /// <b>not serialised</b> (the decode panel, ALL.TXT and the UDP datagrams are unchanged) and is part of the record's equality.
+    /// </summary>
+    [JsonIgnore]
+    public int Path { get; init; }
+}

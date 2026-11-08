@@ -677,6 +677,18 @@ public static class WebApp
                 }
             }
 
+            // ── PSK Reporter locator validation (FR-096) ───────────────────────────
+            // Only a locator the BODY sent is checked, so a stored (file-edited) bad value never blocks an unrelated save.
+            // Empty is valid (no locator); anything else must be six Maidenhead characters. Nothing is persisted on failure.
+            if (bodyObject["pskReporter"] is JsonObject pskBody
+                && pskBody.ContainsKey("locator")
+                && !PskLocator.IsValidOrEmpty(config.PskReporter?.Locator))
+            {
+                return Results.BadRequest(
+                    "pskReporter.locator must be empty or six Maidenhead characters, for example JO33ed " +
+                    "(two letters A-R, two digits, two letters A-X).");
+            }
+
             // ── Remote access config validation (SEC-001 / D-LAN-006) ──────────────
             // The daemon refuses to start when Enabled = true and Passphrase is absent.
             // Reject the save here so the operator cannot commit an unlaunchable config.
@@ -1035,6 +1047,14 @@ public static class WebApp
                 LastErrorMessage:         regionRefreshLastError,
                 EffectiveSuppressUnknownRegion: DecodeNoiseSuppressionDefaults.ResolveEffectiveSuppressUnknownRegion(
                     configStore.Current.DecodeNoiseSuppression.SuppressUnknownRegion, regionStore))));
+
+        // GET /api/v1/psk-reporter/status (FR-095): read-only status line for the Settings page. Counts and a reason code, never a
+        // callsign. Built from the same per-window counters as the daemon's "PSK Reporter: N decodes seen" log line. When no source is
+        // registered (a host without the upload service) the answer comes from the configuration alone.
+        app.MapGet("/api/v1/psk-reporter/status", (IConfigStore configStore, IPskReporterStatusSource? source) =>
+            TypedResults.Ok(source?.GetStatus() ?? new PskReporterStatus(
+                configStore.Current.PskReporter?.Enabled == true ? PskReporterStates.Waiting : PskReporterStates.Off,
+                null, 0, null, new PskReporterWindowCounts(0, 0, 0, 0, 0, 0, 0, 0))));
 
         // GET /api/v1/region-data/lookup?callsign={token} (f-006 §6.4): read-only diagnostic —
         // resolves a callsign against the active region table using the same longest-prefix-match

@@ -127,6 +127,10 @@ for (const [section, keys] of Object.entries(expected)) {
   });
 }
 
+test('the fixture describes the PSK Reporter group as exactly enabled, antennaInformation and locator (host and port are file-only)', () => {
+  assert.deepEqual(sorted(expected.pskReporter), ['antennaInformation', 'enabled', 'locator']);
+});
+
 test('the fixture describes the Part C archive group in full (all five fields)', () => {
   assert.deepEqual(sorted(expected.cycleAudioArchive),
     ['directory', 'maxAgeHours', 'maxSizeMb', 'mode', 'writeManifest']);

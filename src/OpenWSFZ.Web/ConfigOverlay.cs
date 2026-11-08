@@ -48,6 +48,7 @@ internal static class ConfigOverlay
         "decodeNoiseSuppression",
         "externalReporting",
         "cycleAudioArchive",
+        "pskReporter",
     };
 
     /// <summary>
@@ -78,6 +79,7 @@ internal static class ConfigOverlay
             DecodeNoiseSuppression = config.DecodeNoiseSuppression ?? current.DecodeNoiseSuppression ?? new DecodeNoiseSuppressionConfig(),
             ExternalReporting      = config.ExternalReporting      ?? current.ExternalReporting      ?? new ExternalReportingConfig(),
             CycleAudioArchive      = config.CycleAudioArchive      ?? current.CycleAudioArchive      ?? new CycleAudioArchiveConfig(),
+            PskReporter            = config.PskReporter            ?? current.PskReporter            ?? new PskReporterConfig(),
         };
     }
 

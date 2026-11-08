@@ -58,7 +58,8 @@
       "osdCorrThreshold",
       "osdNhardMax",
       "earlyDecodeEnabled",
-      "earlyDecodeCutSeconds"
+      "earlyDecodeCutSeconds",
+      "coherentFallbackEnabled"
     ],
     "decodeNoiseSuppression": [
       "suppressUnknownRegion",
@@ -69,6 +70,11 @@
       "targets",
       "honourInboundCommands",
       "restrictExternalRepliesToDecodeFilter"
+    ],
+    "pskReporter": [
+      "enabled",
+      "antennaInformation",
+      "locator"
     ],
     "cycleAudioArchive": [
       "mode",

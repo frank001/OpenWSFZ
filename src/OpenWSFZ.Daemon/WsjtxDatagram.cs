@@ -15,12 +15,13 @@ namespace OpenWSFZ.Daemon;
 /// <para>
 /// <strong>Provenance note:</strong> this is a third-party wire format with no negotiation and
 /// no OpenWSFZ-side flexibility. The header framing, <c>Heartbeat</c>, <c>Clear</c>, and
-/// <c>Close</c> layouts are simple and well established. The richer message types
-/// (<c>Status</c>, <c>Decode</c>, <c>QSOLogged</c>, <c>Reply</c>, <c>Halt Tx</c>,
-/// <c>Free Text</c>) are implemented from the publicly documented protocol shape without a live
-/// WSJT-X/GridTracker2 wire capture to verify against byte-for-byte (task 2.6 is optional and
-/// was not available in this environment) — treat those layouts as best-effort until confirmed
-/// against a real capture or a live GridTracker2 session.
+/// <c>Close</c> layouts are simple and well established. <c>Reply</c>, <c>Halt Tx</c> and
+/// <c>Free Text</c> (the inbound types) were checked against WSJT-X's <c>NetworkMessage.hpp</c>,
+/// and <c>Reply</c> also against a real GridTracker2 capture (#257, 2026-10-23). The other richer
+/// message types (<c>Status</c>, <c>Decode</c>, <c>QSOLogged</c>) are implemented from the
+/// publicly documented protocol shape without a live WSJT-X/GridTracker2 wire capture to verify
+/// against byte-for-byte — treat those layouts as best-effort until confirmed against a real
+/// capture or a live GridTracker2 session.
 /// </para>
 /// </summary>
 internal static class WsjtxDatagram
@@ -292,20 +293,25 @@ internal static class WsjtxDatagram
     }
 
     /// <summary>
-    /// The inbound Reply datagram has the same field layout as the outbound Decode datagram
-    /// (WSJT-X echoes back the selected decode line's fields). Only <c>Message</c> (to extract
-    /// the callsign from) and <c>DeltaFrequencyHz</c> are currently consulted by this daemon.
+    /// The inbound Reply (type 4), per WSJT-X <c>NetworkMessage.hpp</c> (Reply, In, 4) and a real
+    /// GridTracker2 capture: Id (already consumed), Time (<c>quint32</c>), snr (<c>qint32</c>),
+    /// delta time (double), delta frequency (<c>quint32</c>), mode (utf8), message (utf8), low
+    /// confidence (bool), modifiers (<c>quint8</c>). Unlike Decode there is <em>no</em> leading
+    /// <c>New</c> flag. Low confidence and Modifiers are optional (older and newer clients differ)
+    /// and bytes after Modifiers are ignored; a truncation inside Time..Message throws and
+    /// <see cref="TryDecode"/> returns <c>false</c>. Only <c>Message</c> (to extract the callsign
+    /// from) and <c>DeltaFrequencyHz</c> are consulted by this daemon; Modifiers is discarded.
     /// </summary>
     private static InboundMessage DecodeReply(ref Reader r)
     {
-        _ = r.TryReadBool(out _);          // New
         _ = r.ReadUInt32();                // Time
         _ = r.ReadInt32();                 // SNR
         _ = r.ReadDouble();                // DeltaTime
         var deltaFreq = r.ReadUInt32();    // DeltaFrequency
         _ = r.ReadString();                // Mode
         var msg = r.ReadString() ?? "";    // Message
-        _ = r.TryReadBool(out _);          // LowConfidence
+        _ = r.TryReadBool(out _);          // LowConfidence (optional)
+        _ = r.TryReadByte(out _);          // Modifiers (optional, read and discarded)
         return new InboundMessage.ReplyMessage(msg, deltaFreq);
     }
 
@@ -434,6 +440,13 @@ internal static class WsjtxDatagram
         {
             if (_pos + 1 > _data.Length) { value = false; return false; }
             value = Take(1)[0] != 0;
+            return true;
+        }
+
+        public bool TryReadByte(out byte value)
+        {
+            if (_pos + 1 > _data.Length) { value = 0; return false; }
+            value = Take(1)[0];
             return true;
         }
 

@@ -22,9 +22,7 @@ import sys
 from datetime import datetime, timezone
 
 RR = "/home/claude/rr-work-b2/qa/rr-study"
-sys.path[:0] = [RR + "/s6", RR]
-import s6_analyse as A      # noqa: E402
-import s6_stats as S        # noqa: E402
+A = S = None    # s6_analyse / s6_stats: sol-only modules, imported in main() so the log walk below can be imported and tested anywhere
 
 SEED, DRAWS = 20261018, 2000
 START = "arecord stdout pipe enlarged"
@@ -32,6 +30,7 @@ CYCLE = re.compile(r"^\[\d\d:\d\d:\d\d \w+\] Cycle (\d\d):(\d\d):(\d\d): (\d+) d
 CLAMP = re.compile(r"Cycle-grid realignment clamped")
 PASS = re.compile(r"Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(True|False) containedException=(True|False)")
 THIRD = re.compile(r"Third pass: newDecodes=(\d+) elapsedMs=(\d+) outcome=(ran|skipped-no-new|skipped-abandoned|abandoned|failed) fittedSignals=(\d+)")
+ROUND = re.compile(r"Late subtraction round: outcome=([\w-]+), buffer=(\S+), fit=(\d+), refused=(-?\d+), new=(\d+), published=(\d+)")
 DROP = re.compile(r"Capture channel dropped a chunk at (\d\d):(\d\d):(\d\d)\.(\d+) UTC")
 
 
@@ -43,7 +42,55 @@ def epoch_of(stamp):
     return datetime.strptime(stamp, "%y%m%d_%H%M%S").replace(tzinfo=timezone.utc).timestamp()
 
 
+def walk_log(lines):
+    """Walk the last daemon's log once: per cycle (by UTC time of day) what followed its Cycle line. Returns (per_cycle, drops).
+    LATE-SUB round (L1', E122): the round writes its own inner 'Third pass:' line immediately before its 'Late subtraction round:' line. That inner line is the
+    ROUND's, not a second third pass: a round line with fit > 0 hands the most recent 'Third pass:' line to per_cycle[..]['late_third'] and restores the cycle's
+    own third-pass record."""
+    per_cycle, drops = {}, []
+    cur, pending_clamp = None, False
+    for x in lines:
+        if CLAMP.search(x):
+            pending_clamp = True
+            continue
+        m = CYCLE.match(x)
+        if m:
+            cur = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+            per_cycle[cur] = {"clamped": 1 if pending_clamp else 0, "resid_ms": None, "resid_abandoned": None, "third": None, "pass0": int(m.group(4)),
+                              "late_third": None, "late_outcome": None, "_prev_third": None, "_claimable": False}
+            pending_clamp = False
+            continue
+        if cur is not None:
+            m = PASS.search(x)
+            if m:
+                per_cycle[cur]["resid_ms"], per_cycle[cur]["resid_abandoned"] = int(m.group(2)), 1 if (m.group(3) == "True" or m.group(4) == "True") else 0
+                continue
+            m = THIRD.search(x)
+            if m:
+                per_cycle[cur]["_prev_third"] = per_cycle[cur]["third"]
+                per_cycle[cur]["third"] = (m.group(3), int(m.group(2)), int(m.group(1)))
+                per_cycle[cur]["_claimable"] = True
+                continue
+            m = ROUND.search(x)
+            if m:
+                per_cycle[cur]["late_outcome"] = m.group(1)
+                if int(m.group(3)) > 0 and per_cycle[cur]["_claimable"]:
+                    per_cycle[cur]["late_third"] = per_cycle[cur]["third"]
+                    per_cycle[cur]["third"] = per_cycle[cur]["_prev_third"]
+                    per_cycle[cur]["_claimable"] = False
+                continue
+        m = DROP.search(x)
+        if m:
+            drops.append(int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)))
+    return per_cycle, drops
+
+
 def main():
+    global A, S
+    sys.path[:0] = [RR + "/s6", RR]
+    import s6_analyse as A_      # noqa: E402
+    import s6_stats as S_        # noqa: E402
+    A, S = A_, S_
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-dir", required=True)
     ap.add_argument("--scratch", required=True)
@@ -59,31 +106,7 @@ def main():
     starts = [i for i, x in enumerate(lines) if START in x]
     lines = lines[starts[-1]:] if starts else lines
 
-    # walk the last daemon's log once: per cycle (by UTC time of day) what followed its Cycle line
-    per_cycle, drops = {}, []
-    cur, pending_clamp = None, False
-    for x in lines:
-        if CLAMP.search(x):
-            pending_clamp = True
-            continue
-        m = CYCLE.match(x)
-        if m:
-            cur = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
-            per_cycle[cur] = {"clamped": 1 if pending_clamp else 0, "resid_ms": None, "resid_abandoned": None, "third": None, "pass0": int(m.group(4))}
-            pending_clamp = False
-            continue
-        if cur is not None:
-            m = PASS.search(x)
-            if m:
-                per_cycle[cur]["resid_ms"], per_cycle[cur]["resid_abandoned"] = int(m.group(2)), 1 if (m.group(3) == "True" or m.group(4) == "True") else 0
-                continue
-            m = THIRD.search(x)
-            if m:
-                per_cycle[cur]["third"] = (m.group(3), int(m.group(2)), int(m.group(1)))
-                continue
-        m = DROP.search(x)
-        if m:
-            drops.append(int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)))
+    per_cycle, drops = walk_log(lines)
 
     polls = []
     if a.statuspoll and os.path.isfile(a.statuspoll):
@@ -119,6 +142,8 @@ def main():
            "plays_with_a_channel_drop": sum(1 for r in table if r["drops_in_window"]), "channel_drops_in_last_daemon_log": len(drops),
            "residual_abandoned_plays": sum(1 for r in table if r["resid_abandoned"]),
            "third_pass_outcomes": _count(r["third_outcome"] for r in table),
+           "late_round_outcomes": _count(per_cycle[c]["late_outcome"] for c in per_cycle if per_cycle[c]["late_outcome"]),
+           "late_round_inner_third_pass_outcomes": _count(per_cycle[c]["late_third"][0] for c in per_cycle if per_cycle[c]["late_third"]),
            "statuspoll_present": bool(polls)}
     if polls:
         rec["overruns_total_over_play_windows"] = sum(r["poll_overruns_delta"] or 0 for r in table)

@@ -456,6 +456,37 @@ public sealed class DecodePumpTests
         external.Select(b => b.BatchNumber).Should().Equal(1, 2, 3);
     }
 
+    [Fact(DisplayName = "FR-102: LATE-SUB L1': a batch 5 (the late round's) reaches the same sinks as batches 2 to 4 and the answerer, caller and reporting see it numbered 5; the archive still runs once")]
+    public async Task Deep_StagedEntry_Batch5GoesWhereBatches2To4Go()
+    {
+        var rig = new Rig { FlagOn = true, Deep = true };
+        var b1 = new[] { R("CQ Q1ABC JO33") };
+        var b2 = new[] { R("CQ Q1DEF EN37", 2100) };
+        var b3 = new[] { R("CQ Q1GHI FN20", 2400) };
+        var b4 = new[] { R("CQ Q1JKL IO91", 900) };
+        var b5 = new[] { R("CQ Q1MNO JN58", 1200) };
+        rig.Staged = async publish =>
+        {
+            await publish(1, b1);
+            await publish(2, b2);
+            await publish(3, b3);
+            await publish(4, b4);
+            await publish(5, b5);
+        };
+
+        await rig.Build().RunAsync(Rig.Windows(Cycle1), CancellationToken.None);
+
+        rig.Panel.Should().HaveCount(5);
+        rig.Panel[4].Should().Equal(b5, "batch 5 is appended to the panel like any supplementary batch");
+        rig.AllTxt.Select(a => a.Results.Count).Should().Equal(1, 1, 1, 1, 1);
+        rig.AllTxt.Select(a => a.Stamp).Should().OnlyContain(t => t == Cycle1, "batch 5 carries the cycle's stamp");
+        rig.Admitted.Should().HaveCount(5);
+        rig.Archive.Should().ContainSingle("the archive runs once per cycle, at batch 1");
+        rig.Drain(rig.Answerer).Select(b => b.BatchNumber).Should().Equal(1, 2, 3, 4, 5);
+        rig.Drain(rig.Caller).Select(b => b.BatchNumber).Should().Equal(1, 2, 3, 4, 5);
+        rig.Drain(rig.External).Select(b => b.BatchNumber).Should().Equal(1, 2, 3, 4, 5);
+    }
+
     [Fact(DisplayName = "Third pass: Deep with no batch 2 or 3 (staged entry delivers batch 1 only) — a single, ordinary batch-1 publish")]
     public async Task Deep_OnlyBatch1_IsOrdinary()
     {

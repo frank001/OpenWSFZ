@@ -804,8 +804,54 @@ extern "C" {
  *              NO new export, NO ABI change, no change to any decode path: the merge brings B2's subfeas_fit.c freq_search
  *              change onto the 20260060 line (OSD sign fix, hash-state exports). 20260059 and
  *              20260060 are both history; 20260061 is held by origin/decoding_improvement, so the merged build takes 20260062.
+ *
+ *   20260066 — COH-FALLBACK (A' step 3) Stage 1: the native core of the coherent-extraction fallback and its diagnostic export.
+ *              NEW file native/ft8_lib_vendor/refine/coherent_fallback.c (a C port of our own clean-room Python reference at QA
+ *              commit 44c70ea2: the Costas fine-sync estimator, F1b, the 174 V3 coherent LLRs) and two NEW exports,
+ *              ft8_coherent_fallback_at (one anchor) and ft8_coherent_fallback_cycle (every eligible candidate of the last
+ *              ft8_decode_all call), with the new structs FT8CohFallbackResult / FT8CohFallbackCycleStats / FT8CohFallbackRow.
+ *              BP only (no OSD), CRC-14. NO product wiring: no flag, no config key, nothing in the managed decode path calls them.
+ *              ft8_decode_all gains only the retention of its candidate list and decoded payloads in thread-local arrays (R2),
+ *              reset at the top of every call; its output, its control flow and every existing export and struct are unchanged.
+ *              20260063 is origin/decoding_improvement's; 20260064 and 20260065 are the #225 branch's (not merged).
+ *
+ *   20260067 — COH-FALLBACK Stage 1, Amendment 3 (Architect R4' / R12'): ft8_coherent_fallback_cycle's DEFAULT order is now output-first
+ *              (estimate + C3 + BP on every eligible candidate; F1b only for a CRC-valid output with a payload not yet decoded in the
+ *              call); the old order is the harness-only FT8_COH_FLAG_GATE_FIRST. FT8CohFallbackCycleStats is 96 bytes (was 80) and
+ *              FT8CohFallbackRow 144 (was 136). ft8_coherent_fallback_at, the F1b code and every other export are unchanged.
+ *              20260066 was the first build of Stage 1 (44f0df4e) and is history.
+ *
+ *   20260068 — COH-FALLBACK Stage 2 (product wiring): three NEW exports and one NEW struct, nothing else changes.
+ *              ft8_coherent_fallback_snapshot_size / ft8_coherent_fallback_snapshot copy the calling thread's retained candidate list
+ *              and decoded payloads into a flat buffer; ft8_coherent_fallback_run (FT8CohFallbackOut rows) is the product cycle: it
+ *              reads that snapshot instead of the thread-local retention (so it can run on another thread, concurrently with the
+ *              residual pass), is output-first, stops BETWEEN candidates at a deadline or when a cancel flag is set (R7', the
+ *              abandoned candidates are counted), computes the coherent SNR (cf_snr_db, a NEW function in coherent_fallback.c that
+ *              reads the tone powers cf_v3_llrs leaves in the context) and writes no shared state; ft8_coherent_fallback_unpack decodes
+ *              one payload to text through the ordinary message decode (the fallback's only hash-table access, R9).
+ *              ft8_coherent_fallback_at, ft8_coherent_fallback_cycle, cf_estimate / cf_f1b_db / cf_v3_llrs, ft8_decode_all and every
+ *              other export and struct are unchanged.
+ *
+ *   20260069 — COH-FALLBACK step 4 (the parallel cycle, R15): four NEW exports, nothing else changes. ft8_coherent_fallback_plan lists the
+ *              eligible candidates of a snapshot (candidate order, each row pre-filled as abandoned); ft8_coherent_fallback_ctx_new /
+ *              _ctx_free give one scratch context per worker thread; ft8_coherent_fallback_process runs ONE eligible candidate into its own
+ *              row, with ft8_coherent_fallback_run's per-candidate body statement for statement. The managed side owns the worker split,
+ *              the deadline and the gather in candidate order. ft8_coherent_fallback_run, _at, _cycle, _snapshot, _unpack, the F1b code
+ *              and every other export and struct are unchanged.
+ *
+ *   20260071 — COH-MULTISET Stage 1 (the native core and a diagnostic export; NO product wiring, nothing in the decode path calls them).
+ *              coherent_fallback.c gains the four further coherent bit-metric sets C1, J2, J3, N1 (cf_multiset_llrs; a C port of our own
+ *              clean-room Python reference qa/rr-study/coh-multiset/ms_metrics.py @ 96aa80d4; method only, no WSJT-X source) and TWO NEW
+ *              exports: ft8_coherent_fallback_sets_at (the estimate, V3's BP outcome and, for each set, its 174 raw values and BP-only
+ *              outcome, plus the walk's result) with the NEW structs FT8CohSetOutcome (32 bytes) and FT8CohSetsResult (216), and
+ *              ft8_coherent_fallback_set_groups (the J2/J3 grouping, for the B2 test). Every existing export and struct is unchanged.
+ *              Stage 2 (same number: Stage 1 was never released): the walk in the product path. ft8_coherent_fallback_run's flags accept
+ *              FT8_COH_RUN_MULTISET; NEW export ft8_coherent_fallback_ctx_set_flags sets the same bit on a scratch context for
+ *              ft8_coherent_fallback_process (a new context is off); FT8CohFallbackCycleStats.reserved0 became n_walk_entered and
+ *              FT8CohFallbackOut.reserved became provenance (layouts and sizes unchanged; both stay 0 with the bit off).
+ *              20260070 is origin/decoding_improvement's (sync 7), not merged here.
  */
-#define FT8_SHIM_VERSION 20260062
+#define FT8_SHIM_VERSION 20260071
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1441,6 +1487,230 @@ void ft8_subfeas_pool_get_stats(int* out);
 int ft8_hash_state_size(void);
 int ft8_hash_state_save(void* buf, int cap);
 int ft8_hash_state_restore(const void* buf, int len);
+
+/*
+ * COH-FALLBACK (A' step 3) Stage 1 -- shim 20260066. DIAGNOSTIC-ONLY, NO PRODUCT WIRING: two new exports; nothing in ft8_decode_all's
+ * output, the managed layer or the config calls them. The method is a C port of OpenWSFZ's own clean-room Python reference (no
+ * WSJT-X source): the data-free Costas fine-sync estimate (df +-2.0 Hz x dt +-0.12 s), the F1b strength feature, C3 coherent
+ * extraction (the 174 V3 LLRs), then BP only (osd_depth -1, 50 iterations, production normalisation) and CRC-14. No OSD.
+ * The anchor (freq_hz, time_offset_s) is in the CANDIDATE convention of ft8_extract_llrs_at / ft8_decode_all (a decode's reported
+ * frequency and dt); the search window is centred on it. pcm_len must be 180 000. Both exports are thread-safe (own context).
+ */
+#define FT8_COH_FLAG_FORCE_C3        1  /* run C3 + BP even when F1b > T1 (harness only; the gate decision is still reported) */
+#define FT8_COH_FLAG_SKIP_F1B        2  /* do not compute F1b (no 24 reference surfaces); C3 + BP then run unconditionally */
+#define FT8_COH_FLAG_ESTIMATE_ONLY   4  /* the fine-sync estimate only: no F1b, no C3, no BP */
+#define FT8_COH_FLAG_INCLUDE_DECODED 8  /* cycle export: also run the ESTIMATE on candidates the ordinary decode DID decode (A2(d)) */
+#define FT8_COH_FLAG_GATE_FIRST     16  /* cycle export, HARNESS ONLY: the old order (F1b on every eligible candidate, C3 + BP only where F1b <= T1).
+                                         * The default is output-first: C3 + BP on every eligible candidate, F1b only for a CRC-valid output with
+                                         * a payload not yet decoded in the call (Amendment 3). Both publish the same payloads. */
+#define FT8_COH_BP_NOT_RUN          99  /* FT8CohFallbackResult.bp_rc when C3/BP did not run */
+
+/* sizeof == 112. Every field is written by every call (zeroed first). */
+typedef struct
+{
+    double  est_df_hz;      /* fine-sync estimate: offset from the anchor frequency (0.1 Hz grid) */
+    double  est_dt_s;       /* ... offset from the anchor time (dt_step x 5 ms) */
+    double  peak;           /* the objective's maximum */
+    double  f1b_db;         /* F1b in dB (NaN when not computed; +inf when there is no usable reference) */
+    double  estimate_ms;    /* wall time of the estimate */
+    double  f1b_ms;         /* ... of F1b (0 when skipped) */
+    double  c3_bp_ms;       /* ... of C3 extraction + BP (0 when not run) */
+    double  elapsed_ms;     /* ... of the whole call */
+    int32_t dt_step;        /* -24 .. +24 */
+    int32_t edge;           /* 1 iff the argmax is on a window edge */
+    int32_t n_refs;         /* usable F1b reference frequencies (0..24) */
+    int32_t gated;          /* 1 iff F1b was computed and F1b <= T1 (17.552446 dB) */
+    int32_t c3_ran;         /* 1 iff C3 + BP ran */
+    int32_t bp_rc;          /* ftx_ldpc_decode_llrs's return (0 ok, -2 degenerate LLR vector), or FT8_COH_BP_NOT_RUN */
+    int32_t bp_path;        /* 0 = BP converged, -1 = no CRC-valid codeword (BP only: never 1) */
+    int32_t bp_crc_ok;      /* 1 iff the CRC-14 of the BP codeword matched */
+    int32_t bp_ldpc_errors; /* bp_decode's own parity-error count */
+    uint8_t a91[12];        /* payload + CRC as ftx_ldpc_decode_llrs packs it (the first 10 bytes are the 77-bit payload) */
+} FT8CohFallbackResult;
+
+/* One anchor. flags: FT8_COH_FLAG_*. out_llr174 (may be NULL) receives the raw V3 LLRs iff C3 ran.
+ * Returns 0; -1 bad arguments or pcm_len; -2 an access violation was contained (MSVC); -3 out of memory. */
+int ft8_coherent_fallback_at(
+    const float* pcm, int pcm_len,
+    double freq_hz, double time_offset_s,
+    int flags,
+    FT8CohFallbackResult* res,
+    float* out_llr174);
+
+/* sizeof == 96. Counts and times of one ft8_coherent_fallback_cycle call (the spec's R12' log line: eligible, attempted, crcOk,
+ * f1bComputed, gated, published, abandoned, elapsedMs). */
+typedef struct
+{
+    int32_t n_candidates;        /* every candidate the last ft8_decode_all call on this thread found, all passes */
+    int32_t n_decoded;           /* ... of which the ordinary decode decoded (CRC-valid) */
+    int32_t n_dup_position;      /* not-decoded candidates at a lattice position an earlier entry already had (not re-attempted) */
+    int32_t n_eligible;          /* not decoded, distinct position: the R2 population */
+    int32_t n_attempted;         /* ... for which C3 + BP ran (output-first: all of them) */
+    int32_t n_crc_ok;            /* ... with a CRC-valid BP output */
+    int32_t n_crc_new;           /* ... CRC-valid with a payload not decoded in the call and not already published by the fallback */
+    int32_t n_f1b_computed;      /* ... for which F1b was computed (output-first: only the n_crc_new ones) */
+    int32_t n_gated;             /* ... F1b computed and <= T1 */
+    int32_t n_published;         /* ... CRC-valid, new payload, F1b <= T1 (with SKIP_F1B: every new CRC-valid output) */
+    int32_t n_abandoned;         /* 0 in Stage 1: there is no deadline yet (Stage 2, R7) */
+    int32_t n_edge;              /* ... whose estimate sits on a window edge */
+    int32_t n_decoded_estimated; /* INCLUDE_DECODED: decoded candidates whose estimate was run */
+    int32_t n_rows;              /* rows produced (may exceed rows_cap) */
+    int32_t n_walk_entered;      /* COH-MULTISET (20260071; was reserved0): candidates that entered the walk (V3 gave no CRC-valid output, multi-set bit on); 0 with it off */
+    int32_t reserved1;
+    double  estimate_ms;         /* summed over the eligible candidates */
+    double  f1b_ms;
+    double  c3_bp_ms;
+    double  total_ms;            /* wall time of the whole call (elapsedMs) */
+} FT8CohFallbackCycleStats;
+
+/* sizeof == 144. One row per eligible candidate (and per decoded one with INCLUDE_DECODED). */
+typedef struct
+{
+    float   freq_hz;             /* the candidate's lattice position (the anchor) */
+    float   dt_s;
+    int32_t pass;                /* 0 or 1: the ft8_decode_all pass that found it */
+    int32_t decoded;             /* 1 for an INCLUDE_DECODED row */
+    int32_t crc_new;             /* 1 iff CRC-valid and a new payload */
+    int32_t f1b_computed;        /* 1 iff F1b was computed for this row (r.f1b_db, r.n_refs, r.gated, r.f1b_ms are then valid) */
+    int32_t published;           /* 1 iff this row would publish: CRC-valid, new payload, F1b <= T1 */
+    int32_t reserved;
+    FT8CohFallbackResult r;
+} FT8CohFallbackRow;
+
+/* Applies the fallback to every eligible candidate of the LAST ft8_decode_all call on the calling thread (R2): the candidates
+ * ftx_find_candidates returned in any pass that no pass decoded, each lattice position once. Pass the SAME pcm. Candidate
+ * order is the decode's (pass 0 then pass 1, score order). Default order is output-first (see FT8_COH_FLAG_GATE_FIRST). rows (may be NULL) receives up to rows_cap rows. Returns the number
+ * of rows written; -1 bad arguments; -2 contained access violation; -3 out of memory. With no ft8_decode_all call on this
+ * thread (or one that failed) the list is empty: 0 rows, all counts 0. */
+int ft8_coherent_fallback_cycle(
+    const float* pcm, int pcm_len, int flags,
+    FT8CohFallbackCycleStats* stats,
+    FT8CohFallbackRow* rows, int rows_cap);
+
+/* ── COH-FALLBACK Stage 2 (shim 20260068): the product entry points ───────────────────────────────────────────────────────── */
+
+/* FT8CohFallbackOut.state */
+#define FT8_COH_STATE_ABANDONED  0   /* eligible, not attempted: the deadline passed or the cancel flag was set (R7') */
+#define FT8_COH_STATE_NO_CRC     1   /* attempted, BP output not CRC-valid */
+#define FT8_COH_STATE_KNOWN      2   /* CRC-valid, the payload is one the ordinary decode produced in the call */
+#define FT8_COH_STATE_GATED_OUT  3   /* CRC-valid, new payload, F1b > T1 */
+#define FT8_COH_STATE_NEW_GATED  4   /* CRC-valid, new payload, F1b <= T1: a candidate for publication */
+
+/* sizeof == 56. One row per eligible candidate of ft8_coherent_fallback_run, in candidate order. */
+typedef struct
+{
+    float   freq_hz;             /* the candidate's lattice position (the anchor), candidate convention */
+    float   dt_s;
+    float   out_freq_hz;         /* the position to report: anchor + the fine-sync estimate (the anchor itself when not attempted) */
+    float   out_dt_s;
+    int32_t pass;                /* 0 or 1: the ft8_decode_all pass that found the candidate */
+    int32_t edge;                /* 1 iff the estimate sits on a window edge (R6'') */
+    int32_t state;               /* FT8_COH_STATE_* */
+    int32_t snr_db;              /* the coherent SNR in dB (2500 Hz reference), valid for states GATED_OUT and NEW_GATED */
+    double  f1b_db;              /* F1b in dB; NaN unless computed (states GATED_OUT and NEW_GATED) */
+    uint8_t payload[12];         /* the CRC-valid BP output (states KNOWN, GATED_OUT, NEW_GATED); the first 10 bytes are the 77-bit payload */
+    int32_t provenance;          /* COH-MULTISET (20260071; was reserved): the set that produced the payload: 0 = V3 (always 0 with the multi-set bit off),
+                                  * 1 = C1, 2 = J2, 3 = J3, 4 = N1, -1 = the walk ran and found nothing. Meaningful for attempted rows. */
+} FT8CohFallbackOut;
+
+/* Bytes needed by ft8_coherent_fallback_snapshot. */
+int ft8_coherent_fallback_snapshot_size(void);
+
+/* Copies the candidate list and decoded payloads retained by the LAST ft8_decode_all call ON THE CALLING THREAD into buf (cap >= the
+ * size). Returns the size, or -1. Call it on the thread that ran ft8_decode_all, with no other call in between. */
+int ft8_coherent_fallback_snapshot(void* buf, int cap);
+
+/* COH-MULTISET (20260071): the one defined bit of ft8_coherent_fallback_run's flags (and of ft8_coherent_fallback_ctx_set_flags): try C1, J2, J3, N1 where V3 fails. */
+#define FT8_COH_RUN_MULTISET  1
+
+/* The product cycle (see the version-20260068 history entry). flags: 0 or FT8_COH_RUN_MULTISET (any other bit is refused, -1). budget_ms < 0: no deadline; otherwise the
+ * deadline is the call's start + budget_ms, checked before each eligible candidate. cancel (may be NULL): a candidate is not started
+ * once *cancel != 0. stats: FT8CohFallbackCycleStats (n_published is left 0: publication is the caller's, R6''). out receives one row
+ * per eligible candidate up to out_cap (size it to the snapshot's candidate count). Returns the number of rows written; -1 bad
+ * arguments; -2 contained access violation; -3 out of memory. Thread-safe with respect to other fallback runs and to the decode (it
+ * touches no shared state). */
+int ft8_coherent_fallback_run(
+    const float* pcm, int pcm_len, const void* snapshot, int snapshot_len, int flags, double budget_ms,
+    const volatile int32_t* cancel,
+    FT8CohFallbackCycleStats* stats, FT8CohFallbackOut* out, int out_cap);
+
+/* Decodes a 77-bit payload (10 bytes) to message text through the ordinary message decode, against the session hash table (which
+ * a standard-message decode may add callsigns to, as any decode does). text_out needs at least 36 bytes. Returns 0, -1 bad arguments,
+ * -2 the message did not decode, -3 contained access violation. NOT thread-safe against ft8_decode_all: the caller must hold the
+ * decode gate and run no other decode at the same time. */
+int ft8_coherent_fallback_unpack(const uint8_t* payload, char* text_out, int cap);
+
+/* ── COH-FALLBACK step 4 (shim 20260069): the per-candidate exports for the parallel cycle ──────────────────────────────────── */
+
+/* Lists the eligible candidates of a snapshot (not decoded, each lattice position once), in candidate order: cand_index[e] is the
+ * snapshot index of eligible candidate e, out[e] the row for it, pre-filled as ABANDONED exactly as ft8_coherent_fallback_run starts
+ * it. cap must be >= the snapshot's candidate count (the same sizing rule as _run); cand_index and out hold cap entries. stats receives
+ * n_candidates, n_decoded, n_dup_position, n_eligible and n_rows (the rest 0). Returns the number of eligible candidates; -1 bad
+ * arguments. Writes no shared state. */
+int ft8_coherent_fallback_plan(
+    const void* snapshot, int snapshot_len, int32_t* cand_index,
+    FT8CohFallbackOut* out, int cap, FT8CohFallbackCycleStats* stats);
+
+/* One scratch context for ft8_coherent_fallback_process: one per worker thread, never shared between threads. NULL when out of memory. */
+void* ft8_coherent_fallback_ctx_new(void);
+void  ft8_coherent_fallback_ctx_free(void* ctx);
+
+/* COH-MULTISET Stage 2 (20260071): sets the per-context flags (FT8_COH_RUN_MULTISET or 0) that ft8_coherent_fallback_process reads. A NEW context is
+ * OFF. The context is long-lived on the managed side while the flag changes at run time, so the caller sets it before each cycle's _process
+ * calls. Returns 0, or -1 for a NULL context or an unknown bit. Existing signatures are unchanged. */
+int ft8_coherent_fallback_ctx_set_flags(void* ctx, int flags);
+
+/* Runs ONE eligible candidate (snapshot index cand_index, as ft8_coherent_fallback_plan gave it) into *out and ADDS its counts and
+ * times to *acc (n_attempted, n_edge, n_crc_ok, n_crc_new, n_f1b_computed, n_gated, estimate_ms, f1b_ms, c3_bp_ms). It does not check a
+ * deadline: the caller decides whether to start a candidate. Returns 0; -1 bad arguments (also a decoded candidate); -2 contained
+ * access violation (the context must then be freed, not reused). Thread-safe: it touches only ctx, *out, *acc and reads the snapshot
+ * and PCM. */
+int ft8_coherent_fallback_process(
+    void* ctx, const float* pcm, int pcm_len, const void* snapshot, int snapshot_len, int cand_index,
+    FT8CohFallbackOut* out, FT8CohFallbackCycleStats* acc);
+
+/* ── COH-MULTISET Stage 1 (shim 20260071): the diagnostic export of the four further coherent bit-metric sets ──────────────────── */
+
+#define FT8_COH_SETS_IDENTITY_GRAY  1   /* TEST ONLY: J2, J3 and N1 use the identity tone map instead of the Gray map (the B2 mutation check) */
+
+/* sizeof == 32. The BP-only outcome of one 174-value vector (V3 or one set), as FT8CohFallbackResult carries it. */
+typedef struct
+{
+    int32_t bp_rc;          /* ftx_ldpc_decode_llrs's return (0 ok, -2 degenerate LLR vector) */
+    int32_t bp_path;        /* 0 = BP converged, -1 = no CRC-valid codeword (BP only: never 1) */
+    int32_t bp_crc_ok;      /* 1 iff the CRC-14 of the BP codeword matched */
+    int32_t bp_ldpc_errors;
+    uint8_t a91[12];        /* payload + CRC as ftx_ldpc_decode_llrs packs it */
+    int32_t reserved;
+} FT8CohSetOutcome;
+
+/* sizeof == 216. Every field is written by every successful call (zeroed first). */
+typedef struct
+{
+    double  est_df_hz;      /* the fine-sync estimate, as FT8CohFallbackResult */
+    double  est_dt_s;
+    double  peak;
+    int32_t dt_step;
+    int32_t edge;
+    int32_t walk_entered;   /* 1 iff V3 had no CRC-valid output (the walk would run) */
+    int32_t walk_set;       /* the walk's result: 0 = V3 had a CRC-valid output (no walk), 1 C1, 2 J2, 3 J3, 4 N1, -1 none */
+    uint8_t walk_a91[12];   /* the payload of walk_set (zero when -1) */
+    int32_t reserved;
+    FT8CohSetOutcome v3;
+    FT8CohSetOutcome sets[4];   /* C1, J2, J3, N1: computed for EVERY call whatever the walk does */
+} FT8CohSetsResult;
+
+/* One anchor, candidate convention as ft8_coherent_fallback_at. out_raw (may be NULL) receives 5 x 174 doubles: V3, C1, J2, J3, N1,
+ * the raw values before the float cast and BP's normalisation. flags: FT8_COH_SETS_IDENTITY_GRAY or 0. Returns 0; -1 bad arguments;
+ * -2 a contained access violation; -3 out of memory. Thread-safe (own context). */
+int ft8_coherent_fallback_sets_at(
+    const float* pcm, int pcm_len, double freq_hz, double time_offset_s, int flags,
+    FT8CohSetsResult* res, double* out_raw);
+
+/* The grouping of J2 (group_size 2) or J3 (3): first_k[g] the first data symbol index (0..57), n_syms[g] its length. cap must be >= 30.
+ * Returns the number of groups; -1 for bad arguments or another group size. */
+int ft8_coherent_fallback_set_groups(int group_size, int32_t* first_k, int32_t* n_syms, int cap);
+
 
 #ifdef __cplusplus
 }

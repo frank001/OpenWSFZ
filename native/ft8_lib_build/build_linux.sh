@@ -48,6 +48,9 @@ $GCC -I"$SRC_DIR" -c "$LIB_SRC/refine/sync_refiner.c" -o "$OBJ_DIR/sync_refiner.
 echo "Compiling coherent_llr.c (r2-coherent-llr-instrument, OpenWSFZ-original, diagnostic-only)..."
 $GCC -I"$SRC_DIR" -c "$LIB_SRC/refine/coherent_llr.c" -o "$OBJ_DIR/coherent_llr.o"
 
+echo "Compiling coherent_fallback.c (COH-FALLBACK Stage 1, OpenWSFZ-original, diagnostic-only)..."
+$GCC -I"$SRC_DIR" -c "$LIB_SRC/refine/coherent_fallback.c" -o "$OBJ_DIR/coherent_fallback.o"
+
 echo "Compiling subfeas_fit.c (sub-feas-native-subtraction, OpenWSFZ-original, no production call site yet)..."
 $GCC -c "$LIB_SRC/subfeas/subfeas_fit.c" -o "$OBJ_DIR/subfeas_fit.o"
 
@@ -66,6 +69,7 @@ gcc -shared -o "$BUILD_DIR/libft8.so" \
     "$OBJ_DIR/ft8_shim.o" \
     "$OBJ_DIR/sync_refiner.o" \
     "$OBJ_DIR/coherent_llr.o" \
+    "$OBJ_DIR/coherent_fallback.o" \
     "$OBJ_DIR/subfeas_fit.o" \
     -lm
 

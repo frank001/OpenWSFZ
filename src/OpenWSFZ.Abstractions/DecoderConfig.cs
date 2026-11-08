@@ -47,7 +47,17 @@ public sealed record DecoderConfig
         bool   earlyDecodeEnabled      = true,
         double earlyDecodeCutSeconds   = DefaultEarlyDecodeCutSeconds,
         // third-pass-deep (#240): in the constructor with its default, for the same reason as the fields above.
-        DecodingDepth decodingDepth    = DecodingDepth.Deep)
+        DecodingDepth decodingDepth    = DecodingDepth.Deep,
+        // COH-FALLBACK Stage 2 (R10): in the constructor with its default (true since 2026-10-22), for the same reason as the fields above.
+        bool coherentFallbackEnabled   = true,
+        // COH-MULTISET: in the constructor with its default (false), for the same reason as the fields above.
+        bool coherentFallbackMultiSet  = true,
+        // COH-FB-AUDIO: in the constructor with its default (Both), for the same reason as the fields above.
+        CoherentFallbackAudio coherentFallbackAudio = CoherentFallbackAudio.Both,
+        // COH-GATE-G R-F4: in the constructor with its default (false), for the same reason as the fields above.
+        bool coherentFallbackResidualUngated = false,
+        // LATE-SUB L1': in the constructor with its default (false), for the same reason as the fields above.
+        bool lateSubtractionRound = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -60,6 +70,11 @@ public sealed record DecoderConfig
         EarlyDecodeEnabled      = earlyDecodeEnabled;
         EarlyDecodeCutSeconds   = earlyDecodeCutSeconds;
         DecodingDepth           = decodingDepth;
+        CoherentFallbackEnabled = coherentFallbackEnabled;
+        CoherentFallbackMultiSet = coherentFallbackMultiSet;
+        CoherentFallbackAudio   = coherentFallbackAudio;
+        CoherentFallbackResidualUngated = coherentFallbackResidualUngated;
+        LateSubtractionRound = lateSubtractionRound;
     }
 
     /// <summary>
@@ -224,4 +239,57 @@ public sealed record DecoderConfig
     /// <c>GET /api/v1/status</c> as <c>thirdPass.decodingDepth</c>. An absent key reads as <c>Deep</c>; an explicit <c>"Normal"</c> stays Normal.
     /// </summary>
     public DecodingDepth DecodingDepth { get; init; } = DecodingDepth.Deep;
+
+    /// <summary>
+    /// COH-FALLBACK (A' step 3) Stage 2, R10: when <c>true</c> the coherent-extraction fallback runs on every candidate the ordinary
+    /// decode did not decode. Step 4: it starts only after the cycle's last ordinary batch has been handed off, runs in parallel over the
+    /// candidates, and its decodes are published as a batch of their own (batch 4 on <see cref="DecodingDepth.Deep"/>, batch 3 on Normal). <b>Default <c>true</c></b> (ON by default, the Captain's decision of 2026-10-22; an absent key therefore reads as <c>true</c>, as does a
+    /// missing <c>decoder</c> section); an explicit <c>false</c> stays <c>false</c>, and with it <c>false</c> the decoder is exactly as it was
+    /// before the fallback existed. It has an effect only while <see cref="SubtractionEnabled"/> is on. Settings page: the "Coherent fallback"
+    /// checkbox in the decoder section; the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes
+    /// effect on the next window. The threshold T1 is a constant, not a setting.
+    /// </summary>
+    public bool CoherentFallbackEnabled { get; init; } = true;
+
+    /// <summary>
+    /// COH-MULTISET: when <c>true</c> (and <see cref="CoherentFallbackEnabled"/> is on) the coherent fallback tries four further coherent
+    /// bit-metric sets (C1, J2, J3, N1, in that order, BP only) on a candidate where its V3 extraction gives no CRC-valid output; the first
+    /// CRC-valid output takes the ordinary path (known check, F1b gate). <b>Default <c>true</c></b>: ON when the key is absent; an explicit <c>false</c>
+    /// turns it off. It has no effect while <see cref="CoherentFallbackEnabled"/> is off. No Settings-page control; the POST is an overlay, so
+    /// a body without the key leaves it as it was. Read once per window; takes effect on the next window. Decodes it produces are a new era
+    /// ("MS ON"): never pool them with flag-off figures.
+    /// </summary>
+    public bool CoherentFallbackMultiSet { get; init; } = true;
+
+    /// <summary>
+    /// COH-FB-AUDIO: which audio the coherent fallback reads: <see cref="Abstractions.CoherentFallbackAudio.Original"/> (the cycle's input audio, the
+    /// fallback as it was), <see cref="Abstractions.CoherentFallbackAudio.Residual"/> (the cycle's last residual buffer, with the decoded signals
+    /// subtracted; steps down to the original audio when none is available) or <see cref="Abstractions.CoherentFallbackAudio.Both"/> (both runs, merged
+    /// by payload, the residual row kept where both found a payload). <b>Default <c>Both</c></b>: an absent key reads <c>Both</c> (as does a
+    /// missing <c>decoder</c> section); an explicit value stays. It has an effect only while <see cref="CoherentFallbackEnabled"/> is on. Config file and
+    /// API only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Serialised by name. Read once per
+    /// window; takes effect on the next window. Decodes it produces are a new era ("FB-AUDIO"): never pool them with figures from another value.
+    /// </summary>
+    public CoherentFallbackAudio CoherentFallbackAudio { get; init; } = CoherentFallbackAudio.Both;
+
+    /// <summary>
+    /// COH-GATE-G R-F4: when <c>true</c> and <see cref="CoherentFallbackAudio"/> is <see cref="Abstractions.CoherentFallbackAudio.Both"/>, a fallback row
+    /// of the run that read the residual audio whose payload is new and CRC-valid but whose F1b is above T1 (state GatedOut) is published as if it were
+    /// at or below T1; the original-audio run keeps T1. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and the fallback is as it was.
+    /// It has no effect in the <c>Original</c> and <c>Residual</c> modes. Config file and API only (no Settings-page control); the POST is an overlay, so a
+    /// body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on starts a new live era: never pool its
+    /// decodes with figures from the setting off.
+    /// </summary>
+    public bool CoherentFallbackResidualUngated { get; init; }
+
+    /// <summary>
+    /// LATE-SUB L1': when <c>true</c>, on <see cref="DecodingDepth.Deep"/> with the coherent fallback on, one more subtract-and-decode round runs after
+    /// the fallback's batch: it subtracts the decodes published in batches 3 and 4 from the cycle's last residual buffer and decodes the result once with
+    /// the primary decoder; its new decodes are published as batch 5. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and every code path
+    /// is as it was. Deep only (no effect on Normal), and it needs <see cref="CoherentFallbackEnabled"/> and a residual buffer. A batch 5 reaches the panel,
+    /// <c>ALL.TXT</c> and reporting but can arrive too late to affect that cycle's TX decision, as batch 4 can. Config file and API only (no Settings-page
+    /// control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on
+    /// starts a new live era: never pool its decodes with figures from the setting off.
+    /// </summary>
+    public bool LateSubtractionRound { get; init; }
 }

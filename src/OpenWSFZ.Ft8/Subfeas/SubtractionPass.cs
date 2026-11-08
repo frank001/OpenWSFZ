@@ -141,6 +141,7 @@ internal static class SubtractionPass
             report.Residual = stats.Residual;
             report.DeadlineAbandoned = stats.DeadlineAbandoned;
             report.ContainedException = stats.ContainedException;
+            report.FittedSignals = stats.FittedSignals;
         }
 
         // HK-037 / NFR-021: aggregates only -- no message text, callsigns or exception text.
@@ -178,6 +179,9 @@ internal static class SubtractionPass
 
         /// <summary>The pass failed with a contained exception.</summary>
         public bool ContainedException { get; internal set; }
+
+        /// <summary>coh-fb-residual: how many signals the pass fitted and subtracted (0 = the residual buffer equals the input).</summary>
+        public int FittedSignals { get; internal set; }
     }
 
     /// <summary>The outcome strings of the third pass, exactly as they appear in the per-cycle log line and the status counters.</summary>
@@ -195,7 +199,8 @@ internal static class SubtractionPass
     /// <param name="Outcome">One of <see cref="ThirdPassOutcome"/>: <c>ran</c>, <c>skipped-no-new</c> (nothing re-encodable to subtract), <c>abandoned</c> or <c>failed</c>.</param>
     /// <param name="ElapsedMs">Wall time of the pass.</param>
     /// <param name="FittedSignals">How many of the residual pass's new signals were fitted and subtracted.</param>
-    internal sealed record ThirdPassResult(Ft8NativeResult[] NewResults, string Outcome, long ElapsedMs, int FittedSignals);
+    /// <param name="Residual">coh-fb-residual: the third pass's own subtracted copy of the residual buffer (the array the pass decoded), or <c>null</c> if it never built one. Read-only for callers; not copied.</param>
+    internal sealed record ThirdPassResult(Ft8NativeResult[] NewResults, string Outcome, long ElapsedMs, int FittedSignals, float[]? Residual = null);
 
     /// <summary>
     /// third-pass-deep (#240, spec section 1): one more subtract-and-decode round, incremental. Starts from the residual
@@ -246,7 +251,7 @@ internal static class SubtractionPass
 
         long ms = (long)wall.Elapsed.TotalMilliseconds;
         LogThirdPass(logger, result.Length, ms, outcome, stats.FittedSignals);
-        return new ThirdPassResult(result, outcome, ms, stats.FittedSignals);
+        return new ThirdPassResult(result, outcome, ms, stats.FittedSignals, stats.Residual);
     }
 
     /// <summary>

@@ -16,7 +16,7 @@ namespace OpenWSFZ.Daemon;
 /// <para>
 /// Extracted out of <c>Program.cs</c>'s top-level statements specifically so this — the
 /// highest-risk logic in this change, the exact two landmines the dev-task's handoff calls out by
-/// name (no double restart per adoption; no deadlock under <c>restartSemaphore</c>) — is directly
+/// name (no double restart per adoption; no deadlock under the <see cref="PipelineController"/>'s semaphore) — is directly
 /// unit-testable with fake collaborators, rather than reachable only through the daemon's real
 /// top-level wiring.
 /// </para>
@@ -32,15 +32,15 @@ namespace OpenWSFZ.Daemon;
 /// calling <c>startCaptureAsync</c> or <see cref="IConfigStore.SaveAsync"/> — resolution always
 /// happens <em>before</em> the caller's own restart-serialising semaphore is (re-)entered, never
 /// from inside it. <c>startCaptureAsync</c> is free to acquire whatever serialisation the caller
-/// needs (in production, <c>Program.cs</c>'s <c>RestartPipelineAsync</c>, which acquires
-/// <c>restartSemaphore</c>) without this class ever holding it first.
+/// needs (in production, <see cref="PipelineController.ReconcileAsync"/>, which acquires
+/// the controller's semaphore) without this class ever holding it first.
 /// </para>
 ///
 /// <para>
 /// <strong>No double restart, by construction.</strong> On <c>Adopt</c>, this class only calls
 /// <see cref="IConfigStore.SaveAsync"/> — it never also calls <c>startCaptureAsync</c> for that
 /// same adoption. In production, <c>IConfigStore.SaveAsync</c> firing <c>OnSaved</c>'s existing
-/// device-change branch (unconditional whenever <c>newDevice != runningDevice</c>, exactly what an
+/// handler (which asks the <see cref="PipelineController"/> to reconcile whenever the device changed, exactly what an
 /// adoption produces) is the one and only start that results.
 /// </para>
 /// </summary>
@@ -64,8 +64,8 @@ public sealed class CaptureAutoStartCoordinator
     /// </param>
     /// <param name="startCaptureAsync">
     /// Starts (or restarts) capture on the given device ID. In production,
-    /// <c>(id, ct) =&gt; RestartPipelineAsync(id, stopCaptureManager: true)</c> — the existing,
-    /// unmodified, <c>restartSemaphore</c>-serialised entry point. Never called for an
+    /// <c>(_, _) =&gt; pipeline.ReconcileAsync("capture-retry", forceRestart: true)</c> — the
+    /// <see cref="PipelineController"/>'s semaphore-serialised entry point. Never called for an
     /// <c>Adopt</c> outcome (see the no-double-restart note above).
     /// </param>
     /// <param name="logger">Logger for the three new Warning lines (design D6).</param>

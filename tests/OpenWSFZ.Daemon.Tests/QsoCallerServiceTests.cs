@@ -51,25 +51,26 @@ public sealed class QsoCallerServiceTests
         var channel     = ObservedDecodeChannel.Create();
         var stopCts     = new CancellationTokenSource();
 
-        var sut = watchdogDuration.HasValue
-            ? new QsoCallerService(
-                channel.Reader, store, ptt, eventBus,
-                resolvedLog, new AudioOffsetEventBus(),
-                NullLogger<QsoCallerService>.Instance,
-                watchdogDurationOverride: watchdogDuration.Value,
-                decoder: decoder,
-                catState: catState,
-                decodeFilterStore: decodeFilterStore,
-                timeProvider: timeProvider,
-                engagementValidator: engagementValidator)
-            : new QsoCallerService(
-                channel.Reader, store, ptt, eventBus,
-                resolvedLog, new AudioOffsetEventBus(),
-                NullLogger<QsoCallerService>.Instance,
-                decoder: decoder,
-                catState: catState,
-                decodeFilterStore: decodeFilterStore,
-                engagementValidator: engagementValidator);
+        // #259: a start at or after 11.25 s into its 15 s slot is not keyed and a pending responder
+        // is retained, so a test that does not inject a clock would behave differently whenever the
+        // wall clock happened to sit in the last 3.75 s of a slot (about one run in four). Default
+        // to a fixed clock at the START of a slot, as QsoAnswererServiceTests does.
+        timeProvider ??= new FakeTimeProvider(new DateTimeOffset(2026, 6, 25, 14, 30, 0, TimeSpan.Zero));
+
+        // The test constructor takes the clock together with a watchdog duration; without an
+        // explicit one use what production computes from the config (StartWatchdog).
+        var watchdog = watchdogDuration ?? TimeSpan.FromMinutes(Math.Clamp(txConfig.WatchdogMinutes, 1, 60));
+
+        var sut = new QsoCallerService(
+            channel.Reader, store, ptt, eventBus,
+            resolvedLog, new AudioOffsetEventBus(),
+            NullLogger<QsoCallerService>.Instance,
+            watchdogDurationOverride: watchdog,
+            decoder: decoder,
+            catState: catState,
+            decodeFilterStore: decodeFilterStore,
+            timeProvider: timeProvider,
+            engagementValidator: engagementValidator);
 
         return (sut, eventBus, resolvedLog, ptt, channel, stopCts);
     }
@@ -350,7 +351,8 @@ public sealed class QsoCallerServiceTests
             channel.Reader, store, ptt, eventBus,
             new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance), new AudioOffsetEventBus(),
             NullLogger<QsoCallerService>.Instance,
-            watchdogDurationOverride: TimeSpan.FromSeconds(30));
+            watchdogDurationOverride: TimeSpan.FromSeconds(30),
+            timeProvider: new FakeTimeProvider(new DateTimeOffset(2026, 6, 25, 14, 30, 0, TimeSpan.Zero))); // #259: fixed early clock
 
         await sut.StartAsync(stopCts.Token);
 
@@ -692,7 +694,11 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 0,
             WatchdogMinutes     = 4,
         };
-        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(tx, watchdogDuration: TimeSpan.FromSeconds(30));
+        // #259: a fixed clock 6 s into the window (the real clock would sometimes be past the
+        // 11.25 s last-start limit, where the responder is retained instead).
+        var fakeTime = new FakeTimeProvider(new DateTimeOffset(2026, 6, 25, 14, 30, 6, TimeSpan.Zero));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), timeProvider: fakeTime);
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
@@ -719,8 +725,8 @@ public sealed class QsoCallerServiceTests
     // ── D-CALLER-021: window-boundary transmission truncation (task 5.5, mirrors ──
     // ── QsoAnswererServiceTests' G/H/I/J) ─────────────────────────────────────────
 
-    [Fact(DisplayName = "D-CALLER-021: TransmitAsync — late in window (9 s in) truncates the buffer to the remaining 6 s")]
-    public async Task TransmitAsync_LateInWindow_TruncatesBufferToRemainingTime()
+    [Fact(DisplayName = "D-CALLER-021 (#259): TransmitAsync — late in window (9 s in) skips the start: 408,000 skipped, 198,720 loaded")]
+    public async Task TransmitAsync_LateInWindow_SkipsTheStartOfTheClip()
     {
         var tx = new TxConfig
         {
@@ -732,9 +738,10 @@ public sealed class QsoCallerServiceTests
             WatchdogMinutes     = 4,
         };
         // FakeTime starts at 0 s into the window (full, untruncated) so the initial CQ TX below
-        // is unaffected; advanced to 9 s in (6.0 s remaining → 6.0 s × 48 000 Hz = 288 000 samples
-        // exactly) only for the pending-responder TX this test actually cares about — otherwise
-        // BOTH transmissions would share the same fixed truncated length and the "exactly 1 call"
+        // is unaffected; advanced to 9 s in only for the pending-responder TX this test actually
+        // cares about (#259: round((9 - 0.5) x 48 000) = 408 000 samples skipped, 606 720 - 408 000 =
+        // 198 720 loaded; before #259 the tail was cut to the remaining 6 s = 288 000) — otherwise
+        // BOTH transmissions would share the same fixed length and the "exactly 1 call"
         // assertion below would see 2 matches.
         var fakeTime = new FakeTimeProvider(new DateTimeOffset(2026, 6, 25, 14, 30, 0, TimeSpan.Zero));
         var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
@@ -751,7 +758,7 @@ public sealed class QsoCallerServiceTests
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
 
         await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
-        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 288_000));
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 198_720));
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -793,8 +800,8 @@ public sealed class QsoCallerServiceTests
         await ptt.DisposeAsync();
     }
 
-    [Fact(DisplayName = "D-CALLER-021: TransmitAsync — zero remaining time skips transmission without throwing")]
-    public async Task TransmitAsync_ZeroRemainingTime_SkipsTransmissionWithoutThrowing()
+    [Fact(DisplayName = "D-CALLER-021 (#259): TransmitAsync — 1 tick before the boundary is not keyed, and a pending responder is retained")]
+    public async Task TransmitAsync_OneTickBeforeBoundary_NotKeyed_PendingResponderRetained()
     {
         var tx = new TxConfig
         {
@@ -805,8 +812,9 @@ public sealed class QsoCallerServiceTests
             RetryCount          = 0,
             WatchdogMinutes     = 4,
         };
-        // 1 tick (100 ns) before the :15 boundary of the :00 A-phase window — truncates to 0
-        // samples at 48 000 Hz (mirrors QsoAnswererServiceTests' identical "I" case).
+        // 1 tick (100 ns) before the :15 boundary of the :00 A-phase window. #259: a start at or
+        // after 11.25 s is not keyed (the initial CQ), and the pending responder is retained at
+        // its fire site instead of reaching TransmitAsync (mirrors QsoAnswererServiceTests' "I").
         var fakeTime = new FakeTimeProvider(
             new DateTimeOffset(2026, 6, 25, 14, 30, 15, TimeSpan.Zero).AddTicks(-1));
         var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
@@ -814,19 +822,62 @@ public sealed class QsoCallerServiceTests
         await sut.StartAsync(stopCts.Token);
 
         Send(channel, Make("CQ Q2NOISE JO00"));
+        // The CQ transmission is not keyed, but the state machine still advances: a transmission
+        // that is not keyed counts as a transmission for retry accounting (the same as the
+        // zero-remaining skip before #259).
         await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
 
         sut.TestSetPendingResponder(PartnerCall, AudioFreqHz, isAPhase: true);
 
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
+        await WaitForBatchDrainedAsync(channel);
 
-        // ExecuteTxReportAsync-equivalent flow still advances to WaitRr73 even though TransmitAsync
-        // skipped the actual keying — the skip must not throw or otherwise abort the state machine.
-        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
-
+        sut.State.Should().Be(QsoState.WaitReport, "the pending responder is retained past 11.25 s, not fired");
         ptt.DidNotReceive().LoadAudio(Arg.Any<float[]>());
         await ptt.DidNotReceive().KeyDownAsync(Arg.Any<CancellationToken>());
+
+        await stopCts.CancelAsync();
+        await sut.StopAsync(CancellationToken.None);
+        await ptt.DisposeAsync();
+    }
+
+    [Fact(DisplayName = "#259 T6: a pending responder consumed 12 s into a correct-phase window is retained, then fires in the next correct-phase window")]
+    public async Task PendingResponder_PastLastStart_IsRetainedThenFiresNextWindow()
+    {
+        var tx = new TxConfig
+        {
+            AutoAnswer          = true,
+            Callsign            = OurCallsign,
+            Grid                = OurGrid,
+            CallerPartnerSelect = CallerPartnerSelectMode.None,
+            RetryCount          = 0,
+            WatchdogMinutes     = 4,
+        };
+        var fakeTime = new FakeTimeProvider(new DateTimeOffset(2026, 6, 25, 14, 30, 0, TimeSpan.Zero));
+        var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
+            tx, watchdogDuration: TimeSpan.FromSeconds(30), timeProvider: fakeTime);
+        await sut.StartAsync(stopCts.Token);
+
+        Send(channel, Make("CQ Q2NOISE JO00"));
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitReport, timeout: TimeSpan.FromSeconds(5));
+        ptt.Received(1).LoadAudio(Arg.Any<float[]>()); // the CQ, on time
+
+        fakeTime.UtcNow = new DateTimeOffset(2026, 6, 25, 14, 30, 12, TimeSpan.Zero);
+        sut.TestSetPendingResponder(PartnerCall, AudioFreqHz, isAPhase: true);
+
+        var response = Make($"{OurCallsign} {PartnerCall} {PartnerGrid}");
+        SendAt(channel, new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero), response);
+        await WaitForBatchDrainedAsync(channel);
+        sut.State.Should().Be(QsoState.WaitReport, "past 11.25 s the responder is retained, not fired");
+        ptt.Received(1).LoadAudio(Arg.Any<float[]>()); // still only the CQ
+
+        // The next correct-phase (A) window: :30, the clock 0.5 s into it.
+        fakeTime.UtcNow = new DateTimeOffset(2026, 6, 25, 14, 30, 30, 500, TimeSpan.Zero);
+        SendAt(channel, new DateTimeOffset(2026, 6, 25, 14, 30, 15, TimeSpan.Zero), response);
+        await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
+        sut.Partner.Should().Be(PartnerCall);
+        ptt.Received(2).LoadAudio(Arg.Is<float[]>(s => s.Length == Ft8AudioSynthesiser.TotalSampleCount));
 
         await stopCts.CancelAsync();
         await sut.StopAsync(CancellationToken.None);
@@ -846,7 +897,7 @@ public sealed class QsoCallerServiceTests
             WatchdogMinutes     = 4,
         };
         // FakeTime starts at 0 s in (full) so the initial CQ TX is untruncated; advanced to 9 s in
-        // only for the pending-responder TX — see TransmitAsync_LateInWindow's identical rationale.
+        // only for the pending-responder TX — see TransmitAsync_LateInWindow_SkipsTheStartOfTheClip's identical rationale.
         var fakeTime = new FakeTimeProvider(new DateTimeOffset(2026, 6, 25, 14, 30, 0, TimeSpan.Zero));
         var (sut, _, _, ptt, channel, stopCts) = BuildIsolatedSut(
             tx, watchdogDuration: TimeSpan.FromSeconds(30), timeProvider: fakeTime);
@@ -861,7 +912,7 @@ public sealed class QsoCallerServiceTests
         var correctPhaseCycleStart = new DateTimeOffset(2026, 6, 25, 14, 29, 45, TimeSpan.Zero);
         SendAt(channel, correctPhaseCycleStart, Make($"{OurCallsign} {PartnerCall} {PartnerGrid}"));
         await Poll.WaitForEqualAsync(() => sut.State, QsoState.WaitRr73, timeout: TimeSpan.FromSeconds(3));
-        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 288_000)); // confirms truncated
+        ptt.Received(1).LoadAudio(Arg.Is<float[]>(s => s.Length == 198_720)); // confirms time-aligned (start skipped)
 
         // A-01 skip-then-retry silence pattern (same convention as QsoAnswererServiceTests' J case
         // and this file's own 6.5/6.6-style retry-exhaustion tests): first silence cycle is
@@ -1332,7 +1383,8 @@ public sealed class QsoCallerServiceTests
             channel.Reader, store, ptt, Substitute.For<ITxEventBus>(),
             adifLog, new AudioOffsetEventBus(),
             NullLogger<QsoCallerService>.Instance,
-            watchdogDurationOverride: TimeSpan.FromSeconds(30));
+            watchdogDurationOverride: TimeSpan.FromSeconds(30),
+            timeProvider: new FakeTimeProvider(new DateTimeOffset(2026, 6, 25, 14, 30, 0, TimeSpan.Zero))); // #259: fixed early clock
 
         await sut.StartAsync(stopCts.Token);
 
@@ -2246,7 +2298,8 @@ public sealed class QsoCallerServiceTests
             channel.Reader, store, ptt, eventBus,
             new AdifLogWriter(store, NullLogger<AdifLogWriter>.Instance), new AudioOffsetEventBus(),
             NullLogger<QsoCallerService>.Instance,
-            watchdogDurationOverride: TimeSpan.FromSeconds(30));
+            watchdogDurationOverride: TimeSpan.FromSeconds(30),
+            timeProvider: new FakeTimeProvider(new DateTimeOffset(2026, 6, 25, 14, 30, 0, TimeSpan.Zero))); // #259: fixed early clock
 
         await sut.StartAsync(stopCts.Token);
 

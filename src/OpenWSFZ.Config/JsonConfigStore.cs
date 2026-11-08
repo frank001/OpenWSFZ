@@ -206,6 +206,11 @@ public sealed class JsonConfigStore : IConfigStore
             if (config.CycleAudioArchive is null)
                 config = config with { CycleAudioArchive = new CycleAudioArchiveConfig() };
 
+            // "pskReporter" key is absent in config files written before the psk-reporter-upload change (#262).
+            // Same STJ source-gen null-vs-initialiser guard as above; the default is inert (enabled = false).
+            if (config.PskReporter is null)
+                config = config with { PskReporter = new PskReporterConfig() };
+
             // "ptt" key is absent in config files written before the cat-tx-ptt change.
             // Same STJ source-gen null-vs-initialiser guard as
             // "logging"/"decodeLog"/"remoteAccess"/"decodeNoiseSuppression"/"externalReporting"

@@ -206,7 +206,7 @@ public sealed class CaptureHealthMonitor : IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// 🔴 Must be called inside the same guard that already protects shutdown from a concurrent
-    /// watchdog restart (<c>restartSemaphore</c> in <c>Program.cs</c>'s <c>ApplicationStopping</c>
+    /// watchdog restart (the <c>PipelineController</c> semaphore, taken by <c>ShutdownAsync</c> in <c>Program.cs</c>'s <c>ApplicationStopping</c>
     /// handler, design.md Risk 4) — and before <c>captureManager</c> is disposed. Otherwise the
     /// watchdog can fire a restart into a pipeline that is mid-teardown.
     /// </remarks>
