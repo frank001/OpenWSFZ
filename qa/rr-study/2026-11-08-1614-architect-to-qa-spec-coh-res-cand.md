@@ -155,3 +155,40 @@ The L1′ round writes its own inner `Third pass:` line, and three QA scripts co
 - **CR-5:** R-F4 and L1′ both stayed inside the U bar, and this change does not loosen any gate. It only offers better-placed candidates.
 
 🔴 **Bias check:** HYPOTHESISED calls lean toward "a localised, findable gain". ACCEPT is held below 0.5 for that reason.
+
+## §9. Amendment 1 (2026-11-08 16:17:43Z, `date -u`): QA (k) review adopted
+
+QA's review (by message, 2026-11-08; not a file): **ACCEPT the rows**, with one added row and two wording fixes. All are adopted. They replace the named parts of §3. No cycles are added.
+
+**A1.1 B-WIRE, restated.** Denominator: the cycles of arm B in which the residual run ran (the setting is ON throughout B).
+- (i) `resCand=residual-*` in ≥ 95 % of them. This is the validity half: it fires if the residual run silently used `cohSnapshot`.
+- (ii) `resEligible` ≠ `origEligible` in ≥ 1 of them. This is a plumbing floor only, **not evidence that the lever works**. NET is that evidence.
+
+**A1.2 B-AB, restated.** Fallback abandoned, **counted per run** (residual run, original run): B ≤ A + 0 for each. A and B run on the same PC load, with nothing else running.
+- The 0-in-400 figure from GAP-RESIDUAL (`20260925_2010`) is a **prior, not the bar's source**. The bar is A itself (HK-038).
+
+**A1.3 New row V1-3N (zero extra cycles).** `20260930_1930` has run only on sol (`libft8.so` `488bfa0b…`), and its classes (`8046a4be…`) were frozen from sol's Original arm. PC-vs-sol equivalence was shown on `20261022_1949` (V1: 0 of 800 cycles differ, OFF arm), **not on this night**.
+- **V1-3N:** arm A (PC, OFF) against the sol OFF-arm records for the same first 400 cycles (already on the PC in `_qa-scratch\late-sub\sol3n`). Published rows per cycle identical in 400 of 400.
+- **Bar source:** V1's 0 of 800 on `20261022_1949`.
+- **Caveat, stated:** sol's OFF arm was built from `b1d8a06e` and A from `fe1454c1`. L1′ is merged with its setting OFF, and B-OFF ties A to `fe1454c1`.
+- **If any cycle differs:** list its rows, and re-check the class reuse on those rows only (do any fall in `untestable_class`?).
+
+**A1.4 The night rule, replacing §3's fallback sentence.**
+- Use `20260930_1930` with V1-3N.
+- Fall back to `20261022_1949` (it has a PC OFF arm and its own classes, so there is no cross-platform assumption) **only if** V1-3N shows differing cycles that reach `untestable_class`.
+- V1-3N is read right after arm A, **before arm B starts**. If it forces the fallback, arm A is re-run on `20261022_1949`, about +45 min, and the Captain is told.
+
+**A1.5 Paths before the freeze.** The L1′ harness tools used here are checked for hard-coded `C:\Users\Frank` paths before the freeze. QA found several older `qa/` tools that still have them.
+- `qa/account-paths` landing removes the question.
+- Otherwise QA lists each tool this arm runs and confirms it is clean, in the freeze commit.
+
+**A1.6 §7, the same-chain check: QA found no Frank-era reference.** No record exists of the same WAVs replayed through AUX → B1 into the daemon on pin `1ba8dc3d…`. What exists:
+- live radio captures, which cannot be replayed;
+- an SDRuno B2 run on an older build;
+- offline Replay81 runs, which don't go through Voicemeeter.
+
+So §7 cannot answer "the same as Frank" without a new Frank-side run. The options go to the Captain:
+- **(a) QA's proposal:** chain against offline under `frans` only, ≤ 40 cycles. The tolerance comes from a repeat of the same chain run (its own repeatability). **A pass means:** `frans`' chain delivers sane, self-consistent audio close to the offline decode. **It cannot show** that it equals Frank's chain.
+- **(b)** The same ≤ 40-cycle run once under Frank as well (a Frank login). This answers the actual question.
+
+Pre-run checks for either: AUX → B1 read back with `vm_strip.py`; B1's capture ID against the restored config; WSJT-X closed; TX disabled.
