@@ -1,0 +1,31 @@
+# COH-GATE-G build spec R-F4: QA's HK-021(k) review
+
+**To:** Architect · **From:** QA · **Date:** 2026-10-28T17:26:56Z (`date -u`) · **Spec reviewed:** `15392e8d` on `arch/coh-gate-g`
+**Verdict: ACCEPTED WITH FIVE AMENDMENTS (KB1-KB5).** No row refused. KB1 and KB2 change what two acceptance rows can say. Nothing is built or run; the Developer session needs the Captain's go.
+
+## Checked and found sound
+- **C#-only is plausible.** The product rows already carry the payload, SNR and positions for `GatedOut` (my TRAIN recording read them through the managed interop without any native change), so B-NAT (empty native diff, DLL pin `1ba8dc3d…`) is a real, mechanical row.
+- **B-3's semantics match my emulation** (`gg_lib.publish`): admitted residual rows join the residual key set, take part in `Select`, then unpack, text de-duplication and plausibility. Order is by candidate index, residual before original, as `CohFallbackAudioSelector.Merge` does.
+- **B-OFF and B-AB are exact, mechanical rows.** The recorded main arms (TRAIN `both`, TEST `test`) can serve as the reference for B-OFF, so only the build's OFF arm has to be run.
+
+## Amendments
+
+**KB1. B-2 is not exercised by any acceptance row (the spec's own question).** On the refset night every one of the 1,200 cycles ran BOTH fallback runs (1,200 of 1,200 two-run cycles; levels `residual3` 1,124 / `residual2` 76 / `unavailable` 0), so B-EQ's "cycles where both runs ran" is all of them and the budget case never occurs. My emulation could not have met it either: it infers the two-run condition from the number of runs recorded, so a lone residual run would be treated as an original run and not admitted. So "still admit" (B-2) is neither confirmed nor contradicted by B-EQ.
+*Required:* a unit test with the existing fake-clock seam (`BudgetClock`, the N-1 tests of COH-FB-AUDIO): residual run complete, original run not started because `leftMs <= 0`, residual `GatedOut` rows present ⇒ they are admitted and the original run's absence changes nothing else; and a test that the lone original run of a `both(unavailable)` cycle admits nothing. I accept "still admit" as the behaviour (the residual rows were produced by a completed run; the gate decision they bypass was made for original audio). B-EQ reports the single-run-cycle count (expected 0).
+
+**KB2. B-EQ cannot be exact on hashed-call text, and the row must say so.** The build unpacks the admitted `GatedOut` payloads when the fallback publishes; the unpack "may add callsigns to the session hash table, as any decode does". My offline emulation unpacked them AFTER the cycle inside a hash-table save and restore, so later cycles saw the unchanged table. In the build, later cycles can see a larger table, so a hashed-call message (`<…>`) in a later cycle can resolve to different text. That is the feature working, not a defect, but "per cycle exact" would then fail for a legitimate reason and would be read as a build bug.
+*Required:* B-EQ = **exact per cycle for every message whose text contains no `<…>`** (zero differences allowed); messages containing `<…>` are compared by count per cycle and any difference is **reported by count with the first differing cycle, not barred**. The bar's source is the mechanism above (the emulation held the table fixed, the build does not). If the non-hashed set differs anywhere, B-EQ fails. The second night's rows use the build's own ON and OFF arms, so they are unaffected.
+
+**KB3. Counters and log (B-3/B-4).** The log line's `fromOriginal / fromResidual / inBoth` count payloads "after the merge". With the setting ON, admitted residual rows are in the merge, so they must be counted in `fromResidual` and in the `inBoth` test (otherwise the line contradicts the published batch). `ungated=N` counts the published rows that were admitted over T1 and is printed only when ON. State this in the spec and as a scenario.
+
+**KB4. Second night: the same-band check is done, and the cost is stated.**
+- **Same-band check on `20261022_1949_endurance_run-gathered` (run now, read-only):** the capture's `cycle-archive.csv` has dial 7.074 MHz in 2,928 of 2,928 rows; WSJT-X `ALL.TXT` has dial 7.074 in every one of the 2,923 cycles that carry WSJT-X lines; **0 mismatches** (0 %). The night is 40 m (`anova_report.meta.json`), `comparable` true, matched share 76.7 % in the archive's own comparison (the refset's TEST baseline is 81.4 %: descriptive).
+- **Selection rule (to be frozen and committed before the replay):** systematic sample over the night's gap-inclusive 15 s slots, stride 3, offset 1, first 800 selected cycles, outage slots dropped after selection (Q-GATE-2's convention); the file's SHA recorded in the freeze commit.
+- **Cost:** 800 cycles × 3 arms (setting OFF, setting ON, and an Original-audio arm to freeze this night's U′ classes as on TRAIN) at about 4 s per cycle is about 2.7 hours; the refset rows B-OFF, B-EQ and B-AB are 1,200 cycles × 2 arms, about 2.7 hours. I propose the Original arm may run on the first 200 selected cycles only if the Architect agrees (the class table samples up to 50 confirmed decodes per class); otherwise the full arm.
+
+**KB5. Station timing row: none gating; one descriptive row, and a note for the default decision.** Admitting rows adds only unpack, de-duplication and plausibility work (no native decode), so I do not ask for a timing gate. Report, beside B-AB, the maximum fallback end time and the minimum margin to the 13 s budget for OFF and ON on the PC (B2: 8,238 ms), descriptive. *For the Captain at the default-ON question, not a build row:* on the refset TEST slice R-F4 adds 522 outputs in 800 cycles, about +18 % on the 2,891 batch-4 outputs, 93 % corroborated, and PSK Reporter ingest has no per-batch filter, so ON means those outputs are uploaded.
+
+*Naming:* `decoder.coherentFallbackResidualUngated` is acceptable; add that it acts only when `coherentFallbackAudio` is `Both`, and that the configuration API overlay (HK-035) can set it.
+
+## Order I will follow, on the Captain's go
+Developer commit → my HK-039 review record (a FILE with `Reviewed-commit:` and `Verdict:`) → B-NAT, B-OFF, B-EQ, B-AB on the PC → second-night freeze commit → second-night replay and rows → `pre_merge_check.py` from a clean checkout (HK-006) → the Captain's push go.

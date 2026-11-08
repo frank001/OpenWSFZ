@@ -1,0 +1,378 @@
+[
+ {
+  "id": "Q01 8-field descriptor: locator and flowStart swapped",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 6,
+    "passed": 57,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q02 block order: 7-field block before the 8-field block",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 4,
+    "passed": 59,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q03 SNR not clamped (wraps)",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 3,
+    "passed": 60,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q04 iMD sent as 1",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 5,
+    "passed": 58,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q05 informationSource 2",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 5,
+    "passed": 58,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q06 sequence counts datagrams, not records",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 3,
+    "passed": 60,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q07 sequence advances on an unsent datagram",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 2,
+    "passed": 61,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q08 5-minute per-call minimum removed",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q09 60-minute per-(call,band) rule removed",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q10 templates only in the first datagram",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q11 templates never repeated hourly",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q12 identity guard: Q-prefix call allowed",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 2,
+    "passed": 61,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q13 identity guard: empty locator allowed",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q14 unknown-region decodes are reported",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 2,
+    "passed": 61,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q15 synthetic decodes are reported",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q16 no-dial batch reported with dial 0",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": null,
+    "passed": null,
+    "total": null,
+    "names": [],
+    "build_error": true
+   }
+  ]
+ },
+ {
+  "id": "Q17 RR73 accepted as a grid",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q18 resolved hashed calls are reported",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 2,
+    "passed": 61,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q19 own call compared on the full string",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 2,
+    "passed": 61,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q20 CQ modifier slot removed (DX read as the call)",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 4,
+    "passed": 59,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q21 service builds the socket even when disabled",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": null,
+    "passed": null,
+    "total": null,
+    "names": [],
+    "build_error": true
+   }
+  ]
+ },
+ {
+  "id": "Q22 disabled batches are processed instead of discarded",
+  "killed": false,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 0,
+    "passed": 63,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q23 pump never gives the batch a dial frequency",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q24 pump feeds only batch 1 to the upload",
+  "error": "pattern found 0 times"
+ },
+ {
+  "id": "Q25 config default: enabled TRUE",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Config.Tests",
+    "failed": 2,
+    "passed": 1,
+    "total": 3,
+    "names": [],
+    "build_error": false
+   },
+   {
+    "project": "tests/OpenWSFZ.Web.Tests",
+    "failed": 1,
+    "passed": 27,
+    "total": 28,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q26 pskReporter missing from the overlay section list",
+  "killed": false,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Web.Tests",
+    "failed": 0,
+    "passed": 28,
+    "total": 28,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q27 overlay fallback: a fresh default replaces the stored block",
+  "killed": false,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Web.Tests",
+    "failed": 0,
+    "passed": 28,
+    "total": 28,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ }
+]

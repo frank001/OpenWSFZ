@@ -1,0 +1,20 @@
+{
+ "dll_sha256": "cf5ee3dea09f55cbbd3a46bd387b3b7eb5510d862282bbf12bda27aa4c15deab",
+ "ext_rows_total": 9576,
+ "V-G1": {
+  "persisted_G_right_path0_rows": 5350,
+  "reproduced": 5350,
+  "share": 1.0,
+  "bar": 0.999,
+  "result": "PASS"
+ },
+ "V-C1": {
+  "first300_rows_used": 300,
+  "old_path0_rows_compared": 172,
+  "identical_ok_crc_path_nbe": 172,
+  "old_path_not_0_rows_not_compared": 128,
+  "bp_path0_agreement_all_rows": "300/300",
+  "result": "PASS"
+ },
+ "seconds": 21
+}

@@ -1,0 +1,9 @@
+{
+ "cycles": 40,
+ "v2_v3_level_calls_snapB_differing_cycles": 0,
+ "fit_n_not_old_minus_pubC": 0,
+ "run_csv_batch_counts_differing": 0,
+ "nc_dump_cycles_differing": 0,
+ "no_C_or_L2_rows_in_new_mode": true,
+ "PASS": true
+}

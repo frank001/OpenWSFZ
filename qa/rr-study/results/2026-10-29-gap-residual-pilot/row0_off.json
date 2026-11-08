@@ -1,0 +1,57 @@
+{
+ "arm": "off",
+ "0a": {
+  "dll_sha_matches_pin": true,
+  "pin": "1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914"
+ },
+ "0b": {
+  "matchedbatch_identical": true,
+  "nc_dump_identical": true,
+  "nc_dump_lines": [
+   10133,
+   10133
+  ],
+  "run_csv_count_columns_identical": true,
+  "batch4_published": 1350,
+  "batch4_published_expected": 1350,
+  "corroborated": 9931,
+  "corroborated_expected": 9931,
+  "PASS": true
+ },
+ "0f": {
+  "residual_abandoned": 0,
+  "residual_contained": 0,
+  "third_outcomes": {
+   "ran": 382,
+   "skipped-no-new": 18
+  },
+  "fallback_lines": 400,
+  "fallback_lines_with_abandoned_gt0": 0,
+  "PASS": true
+ },
+ "0c_i": {
+  "cycles": 400,
+  "O_in_every_cycle": 400,
+  "mismatch_count_rule": 0,
+  "calls_by_third_outcome": {
+   "ran": {
+    "3": 382
+   },
+   "skipped-no-new": {
+    "2": 18
+   }
+  },
+  "PASS": true
+ },
+ "0c_ii": {
+  "level_counts_observed": {
+   "R3": 382,
+   "R2": 18
+  },
+  "level_matches_selector": 400,
+  "second_run_cycles": 400,
+  "second_run_reads_O": 400,
+  "no_residual_usable_cycles": 0,
+  "PASS": true
+ }
+}

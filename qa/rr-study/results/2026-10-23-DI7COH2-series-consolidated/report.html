@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DI7COH2: side-by-side report of 3 sweeps on sol</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="di7coh2-side-by-side-report-of-3-sweeps-on-sol">DI7COH2: side-by-side report of 3 sweeps on <code>sol</code></h1>
+<p>Built by <code>qa/rr-study/linux/build_series_summary.py</code> from each sweep's own <code>report.md</code> and sidecar files. <strong>Nothing is pooled and no new statistic is computed:</strong> every figure is copied from the sweep's own report; the script asserts each one was found and that the depth and flag read-backs are VALID. The comparison column is <code>2026-10-19-b0e23bb-MAINDEEP-sweep1</code> (reference series MAINDEEP, same rig, a different build: the figures differ across a build change, so the comparison is descriptive and not a measurement of one change alone).</p>
+<h2 id="sweeps">Sweeps</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>sweep 1</th>
+<th>sweep 2</th>
+<th>sweep 3</th>
+<th>MAINDEEP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>folder</td>
+<td><code>2026-10-22-b9a82a9-DI7COH2-sweep1</code></td>
+<td><code>2026-10-22-b9a82a9-DI7COH2-sweep2</code></td>
+<td><code>2026-10-23-b9a82a9-DI7COH2-sweep3</code></td>
+<td><code>2026-10-19-b0e23bb-MAINDEEP-sweep1</code></td>
+</tr>
+<tr>
+<td>battery verdict</td>
+<td><strong>PASS</strong></td>
+<td><strong>MARGINAL</strong></td>
+<td><strong>PASS</strong></td>
+<td><strong>MARGINAL</strong></td>
+</tr>
+<tr>
+<td>depth read-back (V-D)</td>
+<td>VALID (9969 polls, Deep)</td>
+<td>VALID (17925 polls, Deep)</td>
+<td>VALID (9975 polls, Deep)</td>
+<td>VALID (9992 polls, Deep)</td>
+</tr>
+<tr>
+<td>fallback line (V-F)</td>
+<td>VALID (668/668 cycles)</td>
+<td>VALID (1199/1199 cycles)</td>
+<td>VALID (668/668 cycles)</td>
+<td>n/a (not in this series)</td>
+</tr>
+<tr>
+<td>scenario attempts / failed</td>
+<td>10/0</td>
+<td>13/3</td>
+<td>10/0</td>
+<td>10/0</td>
+</tr>
+</tbody>
+</table>
+<h2 id="section-6-s6-off-air-replay-sequential-180-plays">Section 6: S6 off-air replay, sequential, 180 plays</h2>
+<table>
+<thead>
+<tr>
+<th>figure</th>
+<th>sweep 1</th>
+<th>sweep 2</th>
+<th>sweep 3</th>
+<th>MAINDEEP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WSJT-X consistency, own universe (%)</td>
+<td>93.9 [92.3, 95.3]</td>
+<td>93.7 [92.2, 95.1]</td>
+<td>93.8 [92.2, 95.2]</td>
+<td>94.5 [93.2, 95.6]</td>
+</tr>
+<tr>
+<td>OpenWSFZ consistency, own universe (%)</td>
+<td>90.9 [88.4, 93.3]</td>
+<td>90.0 [87.1, 92.6]</td>
+<td>89.8 [87.3, 92.2]</td>
+<td>90.8 [88.5, 93.2]</td>
+</tr>
+<tr>
+<td>OpenWSFZ consistency, legacy universe (%)</td>
+<td>93.0 [91.0, 94.9]</td>
+<td>92.4 [90.2, 94.4]</td>
+<td>92.2 [90.2, 94.0]</td>
+<td>93.5 [91.8, 95.2]</td>
+</tr>
+<tr>
+<td>decodes per WAV, WSJT-X / OpenWSFZ</td>
+<td>19.19 / 14.53</td>
+<td>19.27 / 14.41</td>
+<td>19.21 / 14.50</td>
+<td>19.35 / 13.53</td>
+</tr>
+<tr>
+<td>positive agreement (%)</td>
+<td>75.3 [72.8, 77.6]</td>
+<td>74.3 [71.7, 76.8]</td>
+<td>75.0 [72.5, 77.4]</td>
+<td>69.6 [66.5, 72.7]</td>
+</tr>
+<tr>
+<td>SNR delta OpenWSFZ - WSJT-X (dB)</td>
+<td>-2.34 [-2.79, -1.85]</td>
+<td>-2.46 [-2.91, -1.98]</td>
+<td>-2.37 [-2.82, -1.91]</td>
+<td>-2.28 [-2.74, -1.79]</td>
+</tr>
+<tr>
+<td>S6 validity</td>
+<td>S6-V1 S6-V2 S6-V3 S6-V4 S6-V5 S6-V7 PASS; onset PASS</td>
+<td>S6-V1 S6-V2 S6-V3 S6-V4 S6-V5 S6-V7 PASS; onset PASS</td>
+<td>S6-V1 S6-V2 S6-V3 S6-V4 S6-V5 S6-V7 PASS; onset PASS</td>
+<td>S6-V1 S6-V2 S6-V3 S6-V4 S6-V5 S6-V7 PASS; onset PASS</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="S6 consistency per sweep" src="img/s6_consistency.png" /></p>
+<h2 id="battery-summary-rows-verdicts-as-the-report-states-them">Battery summary rows (verdicts as the report states them)</h2>
+<table>
+<thead>
+<tr>
+<th>row</th>
+<th>sweep 1</th>
+<th>sweep 2</th>
+<th>sweep 3</th>
+<th>MAINDEEP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>%GR&amp;R (%StudyVar) / S1</td>
+<td>3.9% (%Contribution 0.1%, no verdict) (PASS)</td>
+<td>4.0% (%Contribution 0.2%, no verdict) (PASS)</td>
+<td>5.9% (%Contribution 0.4%, no verdict) (PASS)</td>
+<td>5.7% (%Contribution 0.3%, no verdict) (PASS)</td>
+</tr>
+<tr>
+<td>%GR&amp;R (%StudyVar) / S2</td>
+<td>0.1% (%Contribution 0.0%, no verdict) (PASS)</td>
+<td>0.1% (%Contribution 0.0%, no verdict) (PASS)</td>
+<td>0.1% (%Contribution 0.0%, no verdict) (PASS)</td>
+<td>0.1% (%Contribution 0.0%, no verdict) (PASS)</td>
+</tr>
+<tr>
+<td>%GR&amp;R (%StudyVar) / S3</td>
+<td>8.7% (%Contribution 0.8%, no verdict) (PASS)</td>
+<td>10.0% (%Contribution 1.0%, no verdict) (MARGINAL)</td>
+<td>8.6% (%Contribution 0.7%, no verdict) (PASS)</td>
+<td>10.7% (%Contribution 1.1%, no verdict) (MARGINAL)</td>
+</tr>
+<tr>
+<td>FP event rate (95% UB), Gate A-W / S5/OpenWSFZ</td>
+<td>0/480 slots (event 0.000%; 95% UB 0.622%) (PASS)</td>
+<td>0/480 slots (event 0.000%; 95% UB 0.622%) (PASS)</td>
+<td>0/480 slots (event 0.000%; 95% UB 0.622%) (PASS)</td>
+<td>0/480 slots (event 0.000%; 95% UB 0.622%) (PASS)</td>
+</tr>
+<tr>
+<td>FP event rate change, Gate A-Δ / S5/OpenWSFZ</td>
+<td>0/120 vs 0/360 (Fisher p=1.0000) (PASS)</td>
+<td>0/120 vs 0/360 (Fisher p=1.0000) (PASS)</td>
+<td>0/120 vs 0/360 (Fisher p=1.0000) (PASS)</td>
+<td>0/120 vs 0/360 (Fisher p=1.0000) (PASS)</td>
+</tr>
+<tr>
+<td>FP events, Check B (narrowband) / S5/OpenWSFZ</td>
+<td>0/60 slots (FAIL iff &gt;= 2) (PASS)</td>
+<td>0/60 slots (FAIL iff &gt;= 2) (PASS)</td>
+<td>0/60 slots (FAIL iff &gt;= 2) (PASS)</td>
+<td>0/60 slots (FAIL iff &gt;= 2) (PASS)</td>
+</tr>
+<tr>
+<td>FP events, Check B (narrowband) / S5/WSJT-X</td>
+<td>0/60 slots (FAIL iff &gt;= 2) (PASS)</td>
+<td>0/60 slots (FAIL iff &gt;= 2) (PASS)</td>
+<td>0/60 slots (FAIL iff &gt;= 2) (PASS)</td>
+<td>0/60 slots (FAIL iff &gt;= 2) (PASS)</td>
+</tr>
+<tr>
+<td>Kappa (advisory) / OpenWSFZ_vs_truth</td>
+<td>0.955 (PASS)</td>
+<td>0.955 (PASS)</td>
+<td>0.955 (PASS)</td>
+<td>0.909 (PASS)</td>
+</tr>
+<tr>
+<td>Kappa (advisory) / WSJT-X_vs_truth</td>
+<td>0.955 (PASS)</td>
+<td>0.955 (PASS)</td>
+<td>0.955 (PASS)</td>
+<td>0.955 (PASS)</td>
+</tr>
+<tr>
+<td>Kappa (advisory) / between_appraisers</td>
+<td>1.000 (PASS)</td>
+<td>1.000 (PASS)</td>
+<td>1.000 (PASS)</td>
+<td>0.954 (PASS)</td>
+</tr>
+<tr>
+<td>SNR bias / S1/OpenWSFZ</td>
+<td>+0.85 dB (PASS)</td>
+<td>+0.88 dB (PASS)</td>
+<td>+1.42 dB (PASS)</td>
+<td>+1.38 dB (PASS)</td>
+</tr>
+<tr>
+<td>SNR bias / S1/WSJT-X</td>
+<td>+0.82 dB (PASS)</td>
+<td>+0.85 dB (PASS)</td>
+<td>+0.85 dB (PASS)</td>
+<td>+0.85 dB (PASS)</td>
+</tr>
+<tr>
+<td>ndc / S1</td>
+<td>36 (PASS)</td>
+<td>35 (PASS)</td>
+<td>23 (PASS)</td>
+<td>24 (PASS)</td>
+</tr>
+<tr>
+<td>ndc / S2</td>
+<td>1536 (PASS)</td>
+<td>1536 (PASS)</td>
+<td>1536 (PASS)</td>
+<td>1536 (PASS)</td>
+</tr>
+<tr>
+<td>ndc / S3</td>
+<td>16 (PASS)</td>
+<td>14 (PASS)</td>
+<td>16 (PASS)</td>
+<td>13 (PASS)</td>
+</tr>
+<tr>
+<td>coverage rows all PASS</td>
+<td>16 rows, all PASS</td>
+<td>16 rows, all PASS</td>
+<td>16 rows, all PASS</td>
+<td>16 rows, all PASS</td>
+</tr>
+</tbody>
+</table>
+<h2 id="other-scenarios-informational">Other scenarios (informational)</h2>
+<table>
+<thead>
+<tr>
+<th>figure</th>
+<th>sweep 1</th>
+<th>sweep 2</th>
+<th>sweep 3</th>
+<th>MAINDEEP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1b decode rate WSJT-X / OpenWSFZ</td>
+<td>66.67% / 75.00%</td>
+<td>75.00% / 75.00%</td>
+<td>66.67% / 75.00%</td>
+<td>75.00% / 50.00%</td>
+</tr>
+<tr>
+<td>S7 recovery, all families, WSJT-X / OpenWSFZ</td>
+<td>97.21% / 83.26%</td>
+<td>97.21% / 81.86%</td>
+<td>98.14% / 81.86%</td>
+<td>97.21% / 83.26%</td>
+</tr>
+<tr>
+<td>S7 co-channel family, WSJT-X / OpenWSFZ</td>
+<td>100.00% / 57.14%</td>
+<td>100.00% / 57.14%</td>
+<td>100.00% / 48.57%</td>
+<td>100.00% / 54.29%</td>
+</tr>
+<tr>
+<td>S8 band scene, WSJT-X / OpenWSFZ</td>
+<td>91.67% / 88.33%</td>
+<td>91.67% / 88.33%</td>
+<td>91.67% / 90.00%</td>
+<td>91.67% / 90.00%</td>
+</tr>
+</tbody>
+</table>
+<h2 id="capture-and-timing-counters-f2">Capture and timing counters (F2)</h2>
+<table>
+<thead>
+<tr>
+<th>figure</th>
+<th>sweep 1</th>
+<th>sweep 2</th>
+<th>sweep 3</th>
+<th>MAINDEEP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>channel drops (daemon log)</td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+<td>0</td>
+</tr>
+<tr>
+<td>clamped grid windows (daemon log)</td>
+<td>2</td>
+<td>11</td>
+<td>5</td>
+<td>0</td>
+</tr>
+<tr>
+<td>plays with a clamped cycle</td>
+<td>2</td>
+<td>10</td>
+<td>5</td>
+<td>0</td>
+</tr>
+<tr>
+<td>placebo check (amendment 1)</td>
+<td>inside the placebo: not flagged (without the clamped WAVs: +0.38 pp)</td>
+<td>inside the placebo: not flagged (without the clamped WAVs: +0.93 pp)</td>
+<td>inside the placebo: not flagged (without the clamped WAVs: +0.41 pp)</td>
+<td>no clamp fell on a play of S6 pass O: recorded, check not owed</td>
+</tr>
+<tr>
+<td>residual pass, last daemon: n / median / p90 / max ms, abandoned</td>
+<td>179 / 3084 / 5052 / 6236, 0</td>
+<td>178 / 3064 / 5192 / 6288, 0</td>
+<td>178 / 3060 / 4933 / 7058, 0</td>
+<td>179 / 3022 / 4900 / 6413, 0</td>
+</tr>
+</tbody>
+</table>
+<p>Bar for the residual pass: median &lt;= 4,000 ms and 0 abandoned. The Architect closed the clamp look on 2026-10-23 (board, "DI7COH2 CLAMP LOOK"): keep reporting clamp counts and the placebo row; reopen only if clamps fall outside the placebo or the station shows one (the DI7COH-E station run had 0 clamps and 0 channel drops over 12 h).</p>
+<h2 id="reading-rules">Reading rules</h2>
+<ul>
+<li>The series is its own era row (DI7COH: <code>decoding_improvement</code> synced with <code>main</code>, fallback ON, Deep, <code>nhard</code> 24). Never pooled with MAINDEEP, TPDEEP, TPNORMAL, B2CAP, B2BASE or any concurrent S6.</li>
+<li>The WSJT-X tripwire is the Architect's (ruling 2026-10-17-2218): FLAG iff the WAV-clustered 95 % CI of the WSJT-X consistency excludes 93.9 %. It is a check on the rig, not a result about OpenWSFZ.</li>
+<li>Sampler rows (audio-setup) are PARTIAL on <code>sol</code> by construction (the Windows worker cannot run there).</li>
+</ul>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

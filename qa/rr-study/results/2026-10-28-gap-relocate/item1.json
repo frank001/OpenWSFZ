@@ -1,0 +1,49 @@
+{
+ "chain_both": {
+  "a3": 0,
+  "dedup_vs_batch2": 162,
+  "dedup_vs_batch3": 97,
+  "impl_all_both": 12,
+  "impl_all_off": 12,
+  "impl_off_not_in_both": 0,
+  "impl_pos": 0,
+  "impl_x": 0,
+  "s1_distinct_run0": 1353,
+  "s1_distinct_run1": 855,
+  "s1_rows_run0": 2717,
+  "s1_rows_run1": 1961,
+  "s1d_merged": 1610,
+  "s2": 1610,
+  "s3": 1609,
+  "s3_empty": 1,
+  "s5": 1350,
+  "unpack_threw": 0
+ },
+ "cycles": 400,
+ "method_agreement": {
+  "agree_within_5pct": true,
+  "off_difference": 0,
+  "position": 0,
+  "rel_diff_of_x": 0.0
+ },
+ "n_ref": 12124,
+ "row0b": {
+  "PASS": true,
+  "b2_expected": 1350,
+  "b2_pct": 81.91,
+  "batch4_outcomes_nc": 1350,
+  "batch4_published_coh_csv": 1350,
+  "matched_ref": 9931,
+  "n_ref_is_b2_W": true,
+  "pct_of_ref": 81.91
+ },
+ "row0e_both": {
+  "PASS": true,
+  "S2_equals_merged_distinct_all_cycles": true,
+  "S3": 1609,
+  "S4_from_S5_plus_implausible": 1350,
+  "dedup_by_subtraction": 259,
+  "dedup_classified": 259
+ },
+ "s2_mismatch_cycles": 0
+}

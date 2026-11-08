@@ -24,7 +24,10 @@ from harness.warmup import _render_warmup_cycle, _WARMUP_MESSAGE, _POST_CYCLE_DE
 from harness.run_scenario import _select_device, _next_cycle_boundary, _wait_for_cycle
 from synth.constants import DEFAULT_SAMPLE_RATE_HZ
 
-WSJT_ALL_TXT = Path(r"C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # qa/
+import station_paths as _sp  # noqa: E402
+
+WSJT_ALL_TXT = _sp.wsjtx_all_txt("FT991A")   # running account's %LOCALAPPDATA%
 OWSFZ_ALL_TXT = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 
 
@@ -42,6 +45,11 @@ def main() -> int:
     device = "Voicemeeter AUX Input"
     device_idx = _select_device(device)
 
+    try:
+        _sp.guard_run_start(WSJT_ALL_TXT, explicit=_sp.is_explicit(WSJT_ALL_TXT, _sp.wsjtx_all_txt("FT991A")))
+    except _sp.StaleLogError as exc:
+        print(f"FAIL: {exc}")
+        return 1
     wsjt_before = len(WSJT_ALL_TXT.read_text(encoding="utf-8", errors="replace").splitlines()) if WSJT_ALL_TXT.exists() else 0
     owsfz_before = len(OWSFZ_ALL_TXT.read_text(encoding="utf-8", errors="replace").splitlines()) if OWSFZ_ALL_TXT.exists() else 0
     print(f"Before: WSJT-X ALL.TXT lines={wsjt_before}, OpenWSFZ ALL.TXT lines={owsfz_before}")

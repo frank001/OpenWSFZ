@@ -1,0 +1,42 @@
+{
+ "V1b": {
+  "pass": true,
+  "rule": "every OSD accept has nhard <= 24 (an accept above 24 makes the verdict VOID)"
+ },
+ "accepts_with_nhard_over_24": 0,
+ "cycles": 975,
+ "cycles_with_truncated_store": 0,
+ "decodes_total": 16543,
+ "max_nhard_among_accepts": 16,
+ "nhard_histogram_0_to_24": {
+  "0": 2,
+  "1": 0,
+  "2": 1,
+  "3": 0,
+  "4": 2,
+  "5": 1,
+  "6": 1,
+  "7": 0,
+  "8": 5,
+  "9": 3,
+  "10": 4,
+  "11": 5,
+  "12": 8,
+  "13": 7,
+  "14": 4,
+  "15": 2,
+  "16": 3,
+  "17": 0,
+  "18": 0,
+  "19": 0,
+  "20": 0,
+  "21": 0,
+  "22": 0,
+  "23": 0,
+  "24": 0
+ },
+ "osd_accepts_stored": 48,
+ "osd_accepts_total": 48,
+ "reason0_nhard_cap_rejects": 7153,
+ "reason1_corr_rejects": 0
+}

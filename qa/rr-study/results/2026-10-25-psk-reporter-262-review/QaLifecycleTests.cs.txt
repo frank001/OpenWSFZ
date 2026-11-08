@@ -1,0 +1,45 @@
+using System.Threading.Channels;
+using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using OpenWSFZ.Abstractions;
+using OpenWSFZ.Daemon.PskReporter;
+using OpenWSFZ.Ft8;
+using Xunit;
+
+namespace OpenWSFZ.Daemon.Tests.PskReporter;
+
+/// <summary>QA review scratch test (not part of the Developer's branch): the service's shutdown must be safe in either order.</summary>
+public sealed class QaLifecycleTests
+{
+    private sealed class Store : IConfigStore
+    {
+        public AppConfig Current { get; } = new();
+        public event Action<AppConfig>? OnSaved { add { } remove { } }
+        public Task SaveAsync(AppConfig config, CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    private static PskReporterService Make() => new(
+        Channel.CreateUnbounded<DecodeBatch>().Reader, new Store(), new SystemClock(),
+        (h, p) => throw new InvalidOperationException("disabled: no transport"), () => new PskIdentity("Q1OFZ", "JO33", "", "t"),
+        NullLogger<PskReporterService>.Instance);
+
+    [Fact(DisplayName = "QA: StopAsync after Dispose does not throw")]
+    public async Task StopAfterDispose_DoesNotThrow()
+    {
+        var s = Make();
+        await s.StartAsync(CancellationToken.None);
+        s.Dispose();
+        var act = async () => await s.StopAsync(CancellationToken.None);
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact(DisplayName = "QA: Dispose twice and StopAsync twice do not throw")]
+    public async Task DoubleStopAndDispose_DoNotThrow()
+    {
+        var s = Make();
+        await s.StartAsync(CancellationToken.None);
+        await s.StopAsync(CancellationToken.None);
+        var act = async () => { await s.StopAsync(CancellationToken.None); s.Dispose(); s.Dispose(); };
+        await act.Should().NotThrowAsync();
+    }
+}

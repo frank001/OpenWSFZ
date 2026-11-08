@@ -68,6 +68,31 @@ internal static class Program
 #if HAS_THIRDPASS
         if (a.ContainsKey("selftest-batch3")) return SelfTestBatch3();
 #endif
+#if HAS_INTERNALS
+        // GAP-RESIDUAL ROW 0c(iii): separate process, after the arm. --cap-recheck <capdir> [--k-min-score-pass2 10] [--osd-corr 0.10] [--nhard 24]
+        if (a.TryGetValue("cap-recheck", out var rcDir))
+        {
+            if (!rcDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--cap-recheck must be under _qa-scratch (HK-037)");
+            return StageProbeInterop.Recheck(rcDir, new OpenWSFZ.Ft8.Interop.Ft8NativeInteropAdapter(), 10, 0.10f, 24);
+        }
+        if (a.TryGetValue("late-sub-dir", out var lsDir))
+        {
+            if (!lsDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--late-sub-dir must be under _qa-scratch (HK-037)");
+            Directory.CreateDirectory(lsDir);
+            LateSub.Dir = lsDir;
+            string lsModeArg = a.TryGetValue("late-sub-mode", out var lsModeV) ? lsModeV : "full";
+            if (lsModeArg != "full" && lsModeArg != "l1p") throw new ArgumentException("--late-sub-mode must be full or l1p");
+            LateSub.L1pOnly = lsModeArg == "l1p";
+            StageProbeInterop.LsOn = true;
+            LateSub.Workers = a.TryGetValue("threads", out var lsThr) && int.TryParse(lsThr, out var lsThn) ? lsThn : 8;
+        }
+        if (a.TryGetValue("cap-dir", out var capDir))
+        {
+            if (!capDir.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--cap-dir must be under _qa-scratch (HK-037)");
+            Directory.CreateDirectory(capDir);
+            StageProbeInterop.CapDir = capDir;
+        }
+#endif
         string selectionPath = Req(a, "selection"), run = Req(a, "run"), stratum = Req(a, "stratum");
         string wavRoot = Req(a, "wav-root"), outCsv = Req(a, "out"), logPath = Req(a, "log");
         OsdNhardMax = ParseNhard(Req(a, "nhard"));
@@ -83,7 +108,12 @@ internal static class Program
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outCsv))!);
         using var log = new ReplayLog(logPath);
         var logger = new ReplayLogger<Ft8Decoder>(log);
+#if HAS_INTERNALS
+        // GAP-RELOCATE item 1: pass-through counting wrapper (StageProbe.cs); built only with -p:HasInternals=true.
+        var decoder = new Ft8Decoder(new WallClock(), logger, new StageProbeInterop(new OpenWSFZ.Ft8.Interop.Ft8NativeInteropAdapter()));
+#else
         var decoder = new Ft8Decoder(new WallClock(), logger);
+#endif
         decoder.SetDecodeParams(KMinScorePass2, OsdCorrThreshold, OsdNhardMax);
 #if HAS_OSDSIGNFIX
         // OSD-FIX (ruling 2026-10-08-1545, A4): the sign switch is REQUIRED so an arm never inherits the library default by accident; read back at start and end (Readback).
@@ -118,6 +148,15 @@ internal static class Program
 #endif
         if (newFile)
             csv.WriteLine(_wide3 ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n,b3_n"
+#if HAS_COHFB
+                                   + ",tb2_ms,tb3_ms"
+#endif
+#if HAS_COHFB4
+                                   + ",b4_n,tb4_ms"
+#endif
+#if HAS_LATEROUND
+                                   + ",b5_n,tb5_ms"   // L1' build (spec 1322 section 7 F5): batch 5, the late subtraction round; absent in builds without it, so older output is byte-identical
+#endif
                           : _wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
                                   : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
         // Optional outcome keys (S1): per decode only NUMERIC fields plus an 8-hex-digit hash of the message text; the
@@ -126,6 +165,29 @@ internal static class Program
         // text hash is OFF by default and only written when the explicit flag --outcome-text-hash true is given, which no
         // standard run sets. Default outcome lines are numeric only: stamp,kind,idx,freqHz,dt,snr.
         _outcomeTextHash = a.TryGetValue("outcome-text-hash", out var oth) && oth == "true";
+        if (a.TryGetValue("fb-dump", out var fbd) && !fbd.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--fb-dump must be under _qa-scratch (HK-037)");
+        if (a.TryGetValue("fb-dump", out var fbd2)) _fbDump = new StreamWriter(fbd2, false, new UTF8Encoding(false)) { AutoFlush = true };
+        // COH-FALLBACK step 4 (U'): working file of EVERY scored decode (all batches, all paths) with its Test-B match flag and text, for the tone-presence instrument. Scratch only (HK-037 amendment 2026-10-10).
+        if (a.TryGetValue("nc-dump", out var ncd) && !ncd.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--nc-dump must be under _qa-scratch (HK-037)");
+        if (a.TryGetValue("nc-dump", out var ncd2)) _ncDump = new StreamWriter(ncd2, false, new UTF8Encoding(false)) { AutoFlush = true };
+        // GAP-RELOCATE: --impl-dump <path> (scratch only; Debug 'filtered implausible message' events WITH text + batch markers) and --stage-out <path> (counts only).
+        if (a.TryGetValue("impl-dump", out var imd) && !imd.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--impl-dump must be under _qa-scratch (HK-037)");
+        if (a.TryGetValue("impl-dump", out var imd2)) _implDump = new StreamWriter(imd2, false, new UTF8Encoding(false)) { AutoFlush = true };
+        if (a.TryGetValue("stage-out", out var sto))
+        {
+#if HAS_INTERNALS
+            _stageOut = new StreamWriter(sto, false, new UTF8Encoding(false)) { AutoFlush = true };
+            if (a.ContainsKey("gate-record")) StageProbeInterop.Gate = true;
+            if (a.TryGetValue("stage-dump", out var sdp))
+            {
+                if (!sdp.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--stage-dump must be under _qa-scratch (HK-037)");
+                StageProbeInterop.Dump = new StreamWriter(sdp, false, new UTF8Encoding(false)) { AutoFlush = true };
+            }
+            _stageOut.WriteLine("stamp,runs(pcmLen:rows:newGatedRows:distinctNewGated:known:gatedOut:abandoned|...),unpackCalls,unpackNonEmpty,unpackThrew");
+#else
+            throw new ArgumentException("--stage-out needs a build with -p:HasInternals=true");
+#endif
+        }
         // Test B (WSJT-X corroboration, Architect's HK-037 ruling): the match is done INSIDE this process, where the decoded
         // text lives in memory, against WSJT-X's ALL.TXT read here; only COUNTS and stamps are written. Needs mode two1.
         if (a.TryGetValue("wsjtx-alltxt", out var wsPath))
@@ -172,10 +234,30 @@ internal static class Program
             _third = new StreamWriter(thirdPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
             if (freshTh) _third.WriteLine("stamp,outcome,newDecodes,elapsedMs,fittedSignals");
         }
+#if HAS_LATEROUND
+        // B-TOOL-2: --late-out: one row per cycle with every field of the round's R6 log line (aggregates only).
+        if (a.TryGetValue("late-out", out var latePath))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(latePath))!);
+            bool freshLate = !File.Exists(latePath);
+            _lateOut = new StreamWriter(latePath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            if (freshLate) _lateOut.WriteLine("stamp,outcome,lines,buffer,fit,refused,new,published,fbEndMs,startMs,elapsedMs,endMs,batch,batch5PublishMs,unmatched");
+        }
+#endif
         if (a.TryGetValue("outcomes", out var outcomesPath))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outcomesPath))!);
             _outcomes = new StreamWriter(outcomesPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+        }
+        // #225 phase 2 (QA, 2026-10-19): optional working file with the TEXT of every type-0.1 DXpedition decode (5 tokens, token 1 "RR73;").
+        // HK-037 as amended 2026-10-10: a per-message working file is allowed ONLY in D:\Projects\claude\_qa-scratch\<job>\ (outside git),
+        // read by code only and deleted at job close; the analysis that reads it publishes aggregates only. Off unless --dxped-dump is given.
+        if (a.TryGetValue("dxped-dump", out var dxpedPath))
+        {
+            if (!Path.GetFullPath(dxpedPath).StartsWith(@"D:\Projects\claude\_qa-scratch\", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("--dxped-dump must be inside the _qa-scratch folder (HK-037)");
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dxpedPath))!);
+            _dxped = new StreamWriter(dxpedPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
         }
 
         // ---- warm-up: one discarded cycle per process start, through the full path ----
@@ -231,6 +313,43 @@ internal static class Program
         {
             SetFlag(decoder, true);
             decoder.SetDecodingDepth(mode == "three1" ? DecodingDepth.Deep : DecodingDepth.Normal);
+#if HAS_COHFB
+            // COH-FALLBACK Stage 2 (spec section 8): the flag is REQUIRED (--cohfb 0|1), set ONCE per process and read back at start and end.
+            _cohfb = Req(a, "cohfb") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohfb must be 0 or 1") };
+            decoder.SetCoherentFallbackEnabled(_cohfb);
+#if HAS_COHMS
+            // COH-MULTISET-BUILD (spec section 6.2): decoder.coherentFallbackMultiSet is REQUIRED (--cohms 0|1), set ONCE per process and read back at start and end.
+            _cohms = Req(a, "cohms") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohms must be 0 or 1") };
+            decoder.SetCoherentFallbackMultiSet(_cohms);
+#endif
+#if HAS_COHAUDIO
+            // COH-FB-AUDIO (scratch patch for the Developer's R0; QA to adopt): --cohaudio Original|Residual|Both is REQUIRED.
+            decoder.SetCoherentFallbackAudio(Enum.Parse<OpenWSFZ.Abstractions.CoherentFallbackAudio>(Req(a, "cohaudio"), ignoreCase: true));
+#endif
+#if HAS_UNGATED
+            // COH-GATE-G R-F4 acceptance: --ungated 0|1 sets decoder.coherentFallbackResidualUngated; ABSENT leaves the decoder at its start value (false = the key absent).
+            if (a.TryGetValue("ungated", out var ung)) decoder.SetCoherentFallbackResidualUngated(ung switch { "0" => false, "1" => true, _ => throw new ArgumentException("--ungated must be 0 or 1") });
+            LateSub.Ungated = decoder.CoherentFallbackResidualUngated;   // LATE-SUB: the configuration the new residual-audio runs apply (T1 when false, ungated when true)
+#endif
+#if HAS_LATEROUND
+            // LATE-SUB L1' acceptance (build commit b1d8a06e): --late-round 0|1 sets decoder.lateSubtractionRound; ABSENT leaves the decoder at its start value (false = the key absent). Read back at start and end.
+            if (a.TryGetValue("late-round", out var lr)) decoder.SetLateSubtractionRound(lr switch { "0" => false, "1" => true, _ => throw new ArgumentException("--late-round must be 0 or 1") });
+#endif
+            if (a.TryGetValue("cohfb-out", out var cohPath))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cohPath))!);
+                _cohOut = new StreamWriter(cohPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+#if HAS_COHFB4
+                if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge,workers,fb_start_ms,fb_wall_ms,batch,batch4_published,batch4_publish_ms"
+#if HAS_COHMS
+                    + ",sets,walk_entered,crc_c1,crc_j2,crc_j3,crc_n1"
+#endif
+                    );
+#else
+                if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge");
+#endif
+            }
+#endif
             Readback(decoder, log, "start", threadsNote);
         }
 #endif
@@ -310,6 +429,16 @@ internal static class Program
         // V2' second probe point: after the last cycle. Recorded; row V2' is judged afterwards by nhard_rep_rows.py.
         if (_probe is not null && !RunProbe("end", log))
             log.Raw("# V2-prime FAIL at the end probe");
+#if HAS_DXPED
+        // #225 phase 2 (shim 20260064): the measure-only (i3, n3) counts of CRC-passing candidates dropped as an unsupported type,
+        // process-lifetime cumulative, cell = i3 * 8 + n3. Counted per decode ATTEMPT (a payload seen again in a later pass counts again).
+        // Numeric only. Written next to --out.
+        {
+            var cells = decoder.GetUnsupportedTypeCounts();
+            File.WriteAllText(Path.ChangeExtension(Path.GetFullPath(outCsv), ".unsupported.json"),
+                "{\"cells_i3_times_8_plus_n3\":[" + string.Join(",", cells) + "],\"total\":" + cells.Sum() + ",\"i0n3_7\":" + cells[7] + "}");
+        }
+#endif
         return 0;
     }
 
@@ -423,9 +552,39 @@ internal static class Program
     private static StreamWriter? _abandon;   // --abandon-out: stamp,ran,abandoned,contained (numeric flags, 0/1)
 
     private static bool _wide;
+#if HAS_COHFB
+    private static bool _cohfb;                    // --cohfb 0|1: decoder.coherentFallbackEnabled, read back at start and end
+#if HAS_COHMS
+    private static bool _cohms;                    // --cohms 0|1: decoder.coherentFallbackMultiSet (COH-MULTISET-BUILD), read back at start and end
+#endif
+    private static StreamWriter? _cohOut;          // --cohfb-out: one aggregate line per cycle (the R12' counters)
+#endif
     private static bool _wide3;                    // three0 / three1: 12-column CSV with b3_n
     private static StreamWriter? _third;           // --third-out: stamp,outcome,newDecodes,elapsedMs,fittedSignals
+#if HAS_LATEROUND
+    private static StreamWriter? _lateOut;         // --late-out (B-TOOL-2): the LATE-SUB round's R6 line, one row per cycle
+#endif
     private static StreamWriter? _outcomes;
+    private static StreamWriter? _dxped;   // #225 phase 2: type-0.1 texts, scratch only (see --dxped-dump)
+    private static StreamWriter? _ncDump;   // --nc-dump <path>: stamp,kind,matched,freq,dt,snr,same_any,min_df,wcount,path,text for every scored decode (scratch only)
+    private static StreamWriter? _implDump;   // --impl-dump: stamp,event[,text] (scratch only; events D = implausible drop WITH text, M = info marker, H = batch hand-off)
+    private static StreamWriter? _stageOut;   // --stage-out: per-cycle counts of the fallback stages (HasInternals build only)
+    private static volatile string _curStamp = "";
+    internal static string CurStamp => _curStamp;
+    internal static void ImplEvent(string ev, string text = "")
+    {
+        var w = _implDump; if (w is null) return;
+        lock (w) w.WriteLine(_curStamp + "	" + ev + (text.Length > 0 ? "	" + text : ""));
+    }
+    private static StreamWriter? _fbDump;   // --fb-dump <path>: working file of fallback outputs with text (scratch only)
+    private static int DecodePath(DecodeResult r)
+    {
+#if HAS_COHFB
+        return r.Path;
+#else
+        return 0;
+#endif
+    }
     private static bool _outcomeTextHash;   // default OFF (HK-037: a text-derived hash is message identity)
 
     // ---- Test B: in-process WSJT-X corroboration (counts only) -----------------------------------------------
@@ -466,15 +625,19 @@ internal static class Program
     /// batches (a WSJT-X decode corroborates at most one OpenWSFZ decode). Emits COUNTS per (kind, SNR band); text never leaves.
     /// </summary>
     private static void ScoreTestB(string run, string stamp, IReadOnlyList<DecodeResult> b1, IReadOnlyList<DecodeResult> b2,
-                                   IReadOnlyList<DecodeResult>? b3 = null)
+                                   IReadOnlyList<DecodeResult>? b3 = null, IReadOnlyList<DecodeResult>? b4 = null, IReadOnlyList<DecodeResult>? b5 = null)
     {
         if (_testB is null) return;
         var w = _wsjtx.TryGetValue(stamp, out var l) ? l : new List<(int Snr, int Freq, string Msg)>();
-        var ows = new List<(int Kind, int Snr, int Freq, string Msg)>();
-        foreach (var r in b1) ows.Add((1, r.Snr, r.FreqHz, r.Message.TrimEnd()));
-        foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd()));
+        var ows = new List<(int Kind, int Snr, int Freq, string Msg, double Dt, int Path)>();
+        foreach (var r in b1) ows.Add((1, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
         // third-pass-deep (#240): batch 3 is its OWN kind, never folded into 1 or 2. b3 == null (every older mode) leaves the output exactly as it was.
-        if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd()));
+        if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        // COH-FALLBACK step 4: the fallback's own batch (4 on Deep) is its OWN kind, never folded into 1-3. b4 == null leaves the output exactly as it was.
+        if (b4 is not null) foreach (var r in b4) ows.Add((4, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        // L1' build (F5): the late subtraction round's own batch (5) is its OWN kind, never folded into 1-4. b5 == null leaves the output exactly as it was.
+        if (b5 is not null) foreach (var r in b5) ows.Add((5, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
         var cands = new List<(int Df, int Oi, int Wi)>();
         for (int i = 0; i < ows.Count; i++)
             for (int j = 0; j < w.Count; j++)
@@ -494,13 +657,31 @@ internal static class Program
             usedW[wi] = true;
             matchBatch[wi] = ows[oi].Kind;
         }
-        foreach (int kind in b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
+        // WORKING FILE (HK-037 amendment 2026-10-10): per-output message text, ONLY under D:\Projects\claude\_qa-scratch\<job>\, read by code only, deleted at job close. Fallback (path 2) outputs only.
+        if (_ncDump is not null)
+            for (int i = 0; i < ows.Count; i++)
+            {
+                bool sameTextAnyFreq = w.Any(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal));
+                int minDf = w.Where(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal)).Select(x => Math.Abs(x.Freq - ows[i].Freq)).DefaultIfEmpty(-1).Min();
+                _ncDump.WriteLine(string.Join("	", stamp, ows[i].Kind, usedO[i] ? 1 : 0, ows[i].Freq, ows[i].Dt.ToString("F2", CultureInfo.InvariantCulture), ows[i].Snr,
+                    sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Path, ows[i].Msg));
+            }
+        if (_fbDump is not null)
+            for (int i = 0; i < ows.Count; i++)
+                if (ows[i].Path == 2)
+                {
+                    bool sameTextAnyFreq = w.Any(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal));
+                    int minDf = w.Where(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal)).Select(x => Math.Abs(x.Freq - ows[i].Freq)).DefaultIfEmpty(-1).Min();
+                    _fbDump.WriteLine(string.Join("	", stamp, ows[i].Kind, usedO[i] ? 1 : 0, ows[i].Freq, ows[i].Dt.ToString("F2", CultureInfo.InvariantCulture), ows[i].Snr,
+                        sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Msg));
+                }
+        foreach (int kind in b5 is not null ? new[] { 1, 2, 3, 4, 5 } : b4 is not null ? new[] { 1, 2, 3, 4 } : b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
             foreach (var band in new[] { "A", "B", "C", "D" })
             {
                 int n = 0, c = 0;
                 for (int i = 0; i < ows.Count; i++)
                     if (ows[i].Kind == kind && BandOf(ows[i].Snr) == band) { n++; if (usedO[i]) c++; }
-                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : "b3", band,
+                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : kind == 3 ? "b3" : kind == 4 ? "b4" : "b5", band,
                     n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
             }
         _matched?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j])));
@@ -523,9 +704,20 @@ internal static class Program
             var fields = new List<string> { stamp, kind, i.ToString(CultureInfo.InvariantCulture),
                 r.FreqHz.ToString(CultureInfo.InvariantCulture), r.Dt.ToString("F1", CultureInfo.InvariantCulture),
                 r.Snr.ToString(CultureInfo.InvariantCulture) };
+#if HAS_COHFB
+            fields.Add(r.Path.ToString(CultureInfo.InvariantCulture));       // R11 provenance: 0 ordinary, 1 residual + third, 2 fallback (7th field; the text hash, if asked for, is the 8th)
+#endif
             if (_outcomeTextHash)
                 fields.Add(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(r.Message.TrimEnd())))[..8]);
             _outcomes.WriteLine(string.Join(",", fields));
+            if (_dxped is not null)
+            {
+                var t = r.Message.TrimEnd();
+                var tk = t.Split(' ');
+                if (tk.Length == 5 && tk[1] == "RR73;")
+                    _dxped.WriteLine(string.Join("	", stamp, kind, r.FreqHz.ToString(CultureInfo.InvariantCulture),
+                        r.Dt.ToString("F1", CultureInfo.InvariantCulture), r.Snr.ToString(CultureInfo.InvariantCulture), t));
+            }
         }
     }
 
@@ -540,29 +732,86 @@ internal static class Program
     {
         string exc = "";
         int n1 = -1, n2 = 0, n3 = 0;
+        IReadOnlyList<DecodeResult>? lsB1 = null, lsB2 = null, lsB3 = null, lsB4 = null;   // LATE-SUB: the product's published batches, handed to the arm work after the cycle
         double tb1 = -1;
+#if HAS_COHFB
+        double tb2 = -1, tb3 = -1;
+        CohProbe.Reset();
+#endif
+#if HAS_COHFB4
+        int n4 = 0;
+        double tb4 = -1;
+#endif
+#if HAS_LATEROUND
+        int n5 = 0;
+        double tb5 = -1;
+#endif
         SubfeasProbe.Reset();
         ThirdProbe.Reset();
+#if HAS_LATEROUND
+        LateProbe.Reset();
+        LateProbe.Unmatched = 0;
+#endif
+        _curStamp = stamp;
+#if HAS_INTERNALS
+        StageProbeInterop.Reset_();
+#endif
         var sw = Stopwatch.StartNew();
         try
         {
-            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null;
+            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null, b4 = null, b5 = null;
             await d.DecodeStagedAsync(pcm, cycleStart, null, (n, batch) =>
             {
+                ImplEvent("H	" + n + "	" + batch.Count);
                 if (n == 1) { tb1 = sw.Elapsed.TotalMilliseconds; b1 = batch; }
-                else if (n == 2) b2 = batch;
-                else if (n == 3) b3 = batch;
+                else if (n == 2)
+                {
+                    b2 = batch;
+#if HAS_COHFB
+                    tb2 = sw.Elapsed.TotalMilliseconds;
+#endif
+                }
+                else if (n == 3)
+                {
+                    b3 = batch;
+#if HAS_COHFB
+                    tb3 = sw.Elapsed.TotalMilliseconds;
+#endif
+                }
+#if HAS_COHFB4
+                else if (n == 4) { b4 = batch; tb4 = sw.Elapsed.TotalMilliseconds; }   // step 4: the fallback's own batch on Deep
+#endif
+#if HAS_LATEROUND
+                else if (n == 5) { b5 = batch; tb5 = sw.Elapsed.TotalMilliseconds; }   // L1' build: the late subtraction round's own batch
+#endif
                 else throw new InvalidOperationException("unexpected batch number");
                 return Task.CompletedTask;
             });
             IReadOnlyList<DecodeResult> none = Array.Empty<DecodeResult>();
+            lsB1 = b1; lsB2 = b2; lsB3 = b3; lsB4 = b4;
             n1 = b1?.Count ?? -1;
             n2 = b2?.Count ?? 0;
             n3 = b3?.Count ?? 0;
+#if HAS_COHFB4
+            n4 = b4?.Count ?? 0;
+#endif
+#if HAS_LATEROUND
+            n5 = b5?.Count ?? 0;
+#endif
             if (b1 is not null) WriteOutcomes(stamp, "b1", b1);
             WriteOutcomes(stamp, "b2", b2 ?? none);
             WriteOutcomes(stamp, "b3", b3 ?? none);
+#if HAS_COHFB4
+            WriteOutcomes(stamp, "b4", b4 ?? none);
+#if HAS_LATEROUND
+            WriteOutcomes(stamp, "b5", b5 ?? none);
+            if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none, b4 ?? none, b5 ?? none);
+#else
+            if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none, b4 ?? none);
+#endif
+#else
             if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none);
+#endif
         }
         catch (Exception ex) { exc = ex.GetType().Name; }
         sw.Stop();
@@ -571,12 +820,101 @@ internal static class Program
         _third?.WriteLine(string.Join(",", stamp, ThirdProbe.Seen ? ThirdProbe.Outcome : "no-line",
             ThirdProbe.NewDecodes.ToString(CultureInfo.InvariantCulture), ThirdProbe.ElapsedMs.ToString(CultureInfo.InvariantCulture),
             ThirdProbe.Fitted.ToString(CultureInfo.InvariantCulture)));
+#if HAS_LATEROUND
+        _lateOut?.WriteLine(stamp + "," + LateProbe.Row());
+#endif
         csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), flag,
             sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
-            (n1 < 0 ? -1 : n1 + n2 + n3).ToString(CultureInfo.InvariantCulture), exc,
+            (n1 < 0 ? -1 : n1 + n2 + n3
+#if HAS_COHFB4
+                + n4
+#endif
+#if HAS_LATEROUND
+                + n5
+#endif
+            ).ToString(CultureInfo.InvariantCulture), exc,
             tb1.ToString("F1", CultureInfo.InvariantCulture),
-            n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture), n3.ToString(CultureInfo.InvariantCulture)));
+            n1.ToString(CultureInfo.InvariantCulture), n2.ToString(CultureInfo.InvariantCulture), n3.ToString(CultureInfo.InvariantCulture)
+#if HAS_COHFB
+            , tb2.ToString("F1", CultureInfo.InvariantCulture), tb3.ToString("F1", CultureInfo.InvariantCulture)
+#endif
+#if HAS_COHFB4
+            , n4.ToString(CultureInfo.InvariantCulture), tb4.ToString("F1", CultureInfo.InvariantCulture)
+#endif
+#if HAS_LATEROUND
+            , n5.ToString(CultureInfo.InvariantCulture), tb5.ToString("F1", CultureInfo.InvariantCulture)
+#endif
+            ));
+#if HAS_COHFB
+        _cohOut?.WriteLine(stamp + "," + CohProbe.Line());
+#endif
+#if HAS_INTERNALS
+        await LateSub.RunCycle(stamp, lsB1, lsB2, lsB3, lsB4);   // LATE-SUB arms C and L (no-op without --late-sub-dir); bracketed by the hash state
+        StageProbeInterop.FlushExtras();
+        StageProbeInterop.CapFlush(stamp);   // GAP-RESIDUAL capture (no-op without --cap-dir)
+        _stageOut?.WriteLine(stamp + "," + StageProbeInterop.Line());
+#endif
     }
+
+#if HAS_COHFB
+    /// <summary>COH-FALLBACK Stage 2: the R12' line the decoder logged for the cycle being decoded (aggregates only: counts and ms, no text).</summary>
+    private static class CohProbe
+    {
+        private static volatile bool _seen;
+        private static string _vals = "";
+        private static readonly System.Text.RegularExpressions.Regex Rx = new(
+            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)(?:, workers=(\d+), fbStartMs=(-?\d+), fbWallMs=(-?\d+), batch=(\d+), batch4Published=([01]), batch4PublishMs=(-?\d+)(?:, sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+)(?:, audio=[a-z0-9()-]+(?:, fromOriginal=\d+, fromResidual=\d+, inBoth=\d+(?:, ungated=\d+)?)?)?)?)?\.$");
+        public static void Reset() { _seen = false; _vals = ""; }
+        public static void Set(string rendered)
+        {
+            var m = Rx.Match(rendered);
+            if (!m.Success) return;
+            _vals = string.Join(",", m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value, m.Groups[4].Value, m.Groups[5].Value, m.Groups[6].Value, m.Groups[7].Value, m.Groups[8].Value, m.Groups[9].Value);
+#if HAS_COHFB4
+            // step 4: the tail is REQUIRED on this build (a line without it is a harness/decoder mismatch, not a cycle to skip silently).
+            if (!m.Groups[11].Success) throw new InvalidOperationException("step-4 build logged a fallback line without the workers/batch tail");
+            _vals += "," + string.Join(",", m.Groups[11].Value, m.Groups[12].Value, m.Groups[13].Value, m.Groups[14].Value, m.Groups[15].Value, m.Groups[16].Value);
+#if HAS_COHMS
+            // COH-MULTISET-BUILD: the multi-set tail is REQUIRED on this build (R10).
+            if (!m.Groups[17].Success) throw new InvalidOperationException("multi-set build logged a fallback line without the sets/walkEntered tail");
+            _vals += "," + string.Join(",", m.Groups[17].Value, m.Groups[18].Value, m.Groups[19].Value, m.Groups[20].Value, m.Groups[21].Value, m.Groups[22].Value);
+#endif
+#endif
+            _seen = true;
+        }
+        #if HAS_COHMS
+        public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,,,,,,,,,,,,,";
+#elif HAS_COHFB4
+        public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,,,,,,,";
+#else
+        public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,";
+#endif
+    }
+#endif
+
+#if HAS_LATEROUND
+    /// <summary>B-TOOL-2: the LATE-SUB round's R6 log line ("Late subtraction round: ..."), one per cycle with the setting ON. Aggregates only. Counts lines so a cycle with 0 or 2 is visible.</summary>
+    private static class LateProbe
+    {
+        public static int Lines;
+        public static string Outcome = "no-line", Buffer = "-", Fit = "", Refused = "", New = "", Published = "", FbEndMs = "", StartMs = "", ElapsedMs = "", EndMs = "", Batch = "", PublishMs = "";
+        public static void Reset() { Lines = 0; Outcome = "no-line"; Buffer = "-"; Fit = Refused = New = Published = FbEndMs = StartMs = ElapsedMs = EndMs = Batch = PublishMs = ""; }
+        private static readonly System.Text.RegularExpressions.Regex Rx = new(
+            @"^Late subtraction round: outcome=([a-z0-9-]+), buffer=(\S+), fit=(\d+), refused=(-?\d+), new=(\d+), published=(\d+), fbEndMs=(-?\d+), startMs=(-?\d+), elapsedMs=(-?\d+), endMs=(-?\d+), batch=(\d+), batch5PublishMs=(-?\d+)\.$");
+        public static bool Set(string rendered)
+        {
+            var m = Rx.Match(rendered);
+            if (!m.Success) return false;            // the writer still counts it as a line seen only when it matches; a non-matching R6 line is reported by Unmatched
+            Lines++;
+            Outcome = m.Groups[1].Value; Buffer = m.Groups[2].Value; Fit = m.Groups[3].Value; Refused = m.Groups[4].Value; New = m.Groups[5].Value;
+            Published = m.Groups[6].Value; FbEndMs = m.Groups[7].Value; StartMs = m.Groups[8].Value; ElapsedMs = m.Groups[9].Value; EndMs = m.Groups[10].Value;
+            Batch = m.Groups[11].Value; PublishMs = m.Groups[12].Value;
+            return true;
+        }
+        public static int Unmatched;
+        public static string Row() => string.Join(",", Lines == 0 ? "no-line" : Outcome, Lines.ToString(CultureInfo.InvariantCulture), Buffer, Fit, Refused, New, Published, FbEndMs, StartMs, ElapsedMs, EndMs, Batch, PublishMs, Unmatched.ToString(CultureInfo.InvariantCulture));
+    }
+#endif
 
     /// <summary>The third-pass line the decoder logged for the cycle being decoded (one line per cycle in which pass 0 had decodes).</summary>
     private static class ThirdProbe
@@ -592,6 +930,9 @@ internal static class Program
         {
             var m = Rx.Match(rendered);
             if (!m.Success) return;                  // anything else is not recorded (and never the text of a decode)
+            // B-TOOL-2 (Architect ruling 73dc9036 s4): the FIRST line of the cycle is the third pass proper; with the LATE-SUB round ON a second
+            // "Third pass:" line follows the fallback (the round's inner pass), and last-line-wins misread it as the third pass (log order R T F T C).
+            if (Seen) return;
             NewDecodes = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
             ElapsedMs = long.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
             Outcome = m.Groups[3].Value;
@@ -653,6 +994,19 @@ internal static class Program
             ScoreTestB("selftest", S, b1, b2, Array.Empty<DecodeResult>());
             var b3rows = ReadLinesShared(tb).Where(x => x.Contains(",b3,")).ToList();
             Check("an EMPTY batch 3 (Normal / skipped) writes b3 rows with n=0 and corroborated=0", b3rows.Count == 4 && b3rows.All(x => x.EndsWith(",0,0")));
+            // L1' build (F5): batch 5 is its OWN kind (b5), never folded into b1-b4, and tagged 5 in matched-batch-out.
+            _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            _matchedBatch.Dispose(); _matchedBatch = new StreamWriter(mb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            var b4e = Array.Empty<DecodeResult>();
+            var b5 = new[] { R(-14, 2500, "ZZZ ZZZ ZZ99"), R(-16, 3500, "UUU VVV WW55") };   // 1 matched (the last WSJT-X line), 1 OWS-only
+            ScoreTestB("selftest", S, b1, b2, b3, b4e, b5);
+            var tb5 = ReadLinesShared(tb).ToList();
+            Check("a batch 5 writes b5 rows: band C n=1 corroborated=1, band D n=1 corroborated=0", tb5.Contains("selftest," + S + ",b5,C,1,1") && tb5.Contains("selftest," + S + ",b5,D,1,0"));
+            Check("batch 5 never appears under b1-b4 (b4 rows empty)", tb5.Contains("selftest," + S + ",b4,A,0,0") && tb5.Count(x => x.Contains(",b4,")) == 4);
+            Check("matched-batch-out tags the batch-5 match as 5", ReadLinesShared(mb).Last().Contains("3:5"));
+            _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            ScoreTestB("selftest", S, b1, b2, b3, b4e);
+            Check("without a batch 5 no b5 row is written (older output byte-identical)", !ReadLinesShared(tb).Any(x => x.Contains(",b5,")));
             // The third-pass log-line parser.
             ThirdProbe.Reset();
             ThirdProbe.Set("Third pass: newDecodes=2 elapsedMs=1234 outcome=ran fittedSignals=3");
@@ -663,12 +1017,26 @@ internal static class Program
             ThirdProbe.Reset();
             ThirdProbe.Set("Third pass: something else entirely");
             Check("a non-matching line is ignored", !ThirdProbe.Seen);
+            // B-TOOL-2: the cycle's FIRST Third pass line wins; a second (the round's inner) line must not overwrite it.
+            ThirdProbe.Reset();
+            ThirdProbe.Set("Third pass: newDecodes=2 elapsedMs=1234 outcome=ran fittedSignals=3");
+            ThirdProbe.Set("Third pass: newDecodes=9 elapsedMs=99 outcome=abandoned fittedSignals=8");
+            Check("the first third-pass line of a cycle wins (the round's inner line is ignored)", ThirdProbe.Outcome == "ran" && ThirdProbe.NewDecodes == 2 && ThirdProbe.Fitted == 3 && ThirdProbe.ElapsedMs == 1234);
+#if HAS_LATEROUND
+            LateProbe.Reset();
+            bool lateOk = LateProbe.Set("Late subtraction round: outcome=ran, buffer=R3, fit=12, refused=1, new=3, published=2, fbEndMs=2100, startMs=2200, elapsedMs=690, endMs=2890, batch=5, batch5PublishMs=3010.");
+            Check("the round's R6 line is parsed, every field", lateOk && LateProbe.Lines == 1 && LateProbe.Outcome == "ran" && LateProbe.Buffer == "R3" && LateProbe.Fit == "12" && LateProbe.Refused == "1" && LateProbe.New == "3" && LateProbe.Published == "2" && LateProbe.FbEndMs == "2100" && LateProbe.StartMs == "2200" && LateProbe.ElapsedMs == "690" && LateProbe.EndMs == "2890" && LateProbe.Batch == "5" && LateProbe.PublishMs == "3010");
+            LateProbe.Reset();
+            Check("a skipped round line (buffer -, fbEndMs, publish -1) is parsed", LateProbe.Set("Late subtraction round: outcome=skipped-normal-depth, buffer=-, fit=0, refused=0, new=0, published=0, fbEndMs=2100, startMs=2100, elapsedMs=0, endMs=2100, batch=5, batch5PublishMs=-1.") && LateProbe.Outcome == "skipped-normal-depth");
+            LateProbe.Reset();
+            Check("a non-matching R6 line is not recorded", !LateProbe.Set("Late subtraction round: something else") && LateProbe.Lines == 0 && LateProbe.Row().StartsWith("no-line,0,"));
+#endif
             Console.WriteLine("SELFTEST " + (ok ? "ALL PASS" : "FAILED"));
             return ok ? 0 : 1;
         }
         finally
         {
-            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose();
+            _testB?.Dispose(); _matchedBatch?.Dispose(); _matched?.Dispose(); _fbDump?.Dispose(); _ncDump?.Dispose(); _implDump?.Dispose(); _stageOut?.Dispose();
             try { Directory.Delete(dir, true); } catch (IOException) { }
         }
     }
@@ -736,6 +1104,21 @@ internal static class Program
 #endif
 #if HAS_THIRDPASS
                 + $" decodingDepth={d.DecodingDepth}"
+#endif
+#if HAS_COHFB
+                + $" cohfb={d.CoherentFallbackEnabled}"
+#endif
+#if HAS_COHMS
+                + $" cohms={d.CoherentFallbackMultiSet}"
+#endif
+#if HAS_COHAUDIO
+                + $" cohaudio={d.CoherentFallbackAudio}"
+#endif
+#if HAS_UNGATED
+                + $" ungated={d.CoherentFallbackResidualUngated}"
+#endif
+#if HAS_LATEROUND
+                + $" lateround={d.LateSubtractionRound}"
 #endif
                 );
     }
@@ -833,12 +1216,22 @@ internal static class Program
         private readonly ReplayLog _log;
         public ReplayLogger(ReplayLog log) { _log = log; }
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information || (logLevel == LogLevel.Debug && _implDump is not null);
 
         public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception,
                                 Func<TState, Exception?, string> formatter)
         {
-            if (level < LogLevel.Information) return;
+            if (level < LogLevel.Information)
+            {
+                // GAP-RELOCATE: ONLY the plausibility-drop Debug line is read, and only when --impl-dump (a scratch file) is given.
+                if (_implDump is not null && level == LogLevel.Debug && state is IReadOnlyList<KeyValuePair<string, object?>> dkv)
+                {
+                    string tpl = "", msg = "";
+                    foreach (var p in dkv) { if (p.Key == "{OriginalFormat}") tpl = p.Value?.ToString() ?? ""; else if (p.Key == "Message") msg = p.Value?.ToString() ?? ""; }
+                    if (tpl.StartsWith("Cycle {Time}: filtered implausible message", StringComparison.Ordinal)) ImplEvent("D", msg.Replace('	', ' '));
+                }
+                return;
+            }
             string template = "";
             if (state is IReadOnlyList<KeyValuePair<string, object?>> kv)
                 foreach (var p in kv) if (p.Key == "{OriginalFormat}") template = p.Value?.ToString() ?? "";
@@ -850,13 +1243,36 @@ internal static class Program
                 string t = formatter(state, exception);
                 SubfeasProbe.Set(t.Contains("deadlineAbandoned=True", StringComparison.OrdinalIgnoreCase),
                                  t.Contains("containedException=True", StringComparison.OrdinalIgnoreCase));
+                ImplEvent("M	S");
             }
 #if HAS_THIRDPASS
             if (template.StartsWith(ThirdPrefix, StringComparison.Ordinal) && level == LogLevel.Information)
             {
                 string rendered = formatter(state, exception);
                 ThirdProbe.Set(rendered);
+                ImplEvent("M	T");
                 _log.Line(level.ToString(), rendered);   // aggregate-only template: counts, ms, a fixed outcome word
+                return;
+            }
+#endif
+#if HAS_LATEROUND
+            // B-TOOL-2: the LATE-SUB round's R6 line (aggregates only: a fixed outcome word, a buffer label, counts and ms)
+            if (template.StartsWith("Late subtraction round: outcome=", StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                string rendered = formatter(state, exception);
+                if (!LateProbe.Set(rendered)) LateProbe.Unmatched++;
+                ImplEvent("M	L");
+                _log.Line(level.ToString(), rendered);
+                return;
+            }
+#endif
+#if HAS_COHFB
+            if (template.StartsWith("Coherent fallback: eligible=", StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                string rendered = formatter(state, exception);
+                CohProbe.Set(rendered);
+                ImplEvent("M	C");
+                _log.Line(level.ToString(), rendered);   // aggregate-only template: counts and ms
                 return;
             }
 #endif

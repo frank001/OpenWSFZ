@@ -1,0 +1,50 @@
+{
+ "arm": "on",
+ "reference": "on",
+ "cycles": 1200,
+ "V0": {
+  "dll_sha_matches_pin": true
+ },
+ "V1": {
+  "cycles_compared": 1200,
+  "nc_dump_cycles_differing": 0,
+  "run_csv_count_cycles_differing": 0,
+  "PASS": true,
+  "first_differing": []
+ },
+ "V2": {
+  "b1_not_reproduced": 0,
+  "b2_not_reproduced": 0,
+  "b3_not_reproduced": 0,
+  "R3_bytes_not_equal": 0,
+  "PASS": true
+ },
+ "V3": {
+  "b4_not_reproduced": 0,
+  "PASS": true
+ },
+ "V4": {
+  "level_counts": {
+   "R3": 1124,
+   "R2": 76
+  },
+  "snapB_missing_or_unparsed": 0,
+  "snapR4_missing_where_decoded": 0,
+  "diag_switch_checks": 5,
+  "diag_switch_snapshot_differs": 0,
+  "l_outcomes": {
+   "ran": 1182,
+   "skipped-no-new": 18
+  },
+  "PASS": true
+ },
+ "V5": {
+  "residual_abandoned": 0,
+  "residual_contained": 0,
+  "third_abandoned_or_failed": 0,
+  "fallback_lines": 1200,
+  "fallback_lines_abandoned_gt0": 0,
+  "PASS": true
+ },
+ "ALL_PASS": true
+}

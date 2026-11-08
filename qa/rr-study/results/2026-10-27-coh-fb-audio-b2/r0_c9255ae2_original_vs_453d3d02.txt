@@ -1,0 +1,13 @@
+run.csv            rows=   21/   21 identical=True sha=b9f862e9d70eae9e
+coh.csv            rows=   21/   21 identical=True sha=834b3c3469302bd9
+outcomes.csv       rows=  505/  505 identical=True sha=434bedf66643b0ca
+nc_dump.tsv        rows=  505/  505 identical=True sha=12425b32044eb9e6
+matched.csv        rows=   21/   21 identical=True sha=8a4c12ac45dacd78
+matchedbatch.csv   rows=   21/   21 identical=True sha=6b3c63c0e60def33
+testb.csv          rows=  341/  341 identical=True sha=72e26d870c925da5
+abandon.csv        rows=   21/   21 identical=True sha=3f77f41e28a5cf63
+third.csv          rows=   21/   21 identical=True sha=465a6cb41d6aa9ef
+fallback log lines 20 20
+probe lines without trailing ', audio=original.': 0
+fallback lines identical after removing the audio field: True
+RESULT R0 PASS

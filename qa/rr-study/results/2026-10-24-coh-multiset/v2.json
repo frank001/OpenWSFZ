@@ -1,0 +1,22 @@
+{
+ "V2a": {
+  "pass": true,
+  "rule": "C1, J2, J3, N1 each >= 0.99"
+ },
+ "V2b": {
+  "pass": true,
+  "rule": "J2 and J3 with the identity Gray map each <= 0.50"
+ },
+ "dll_pin": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef",
+ "n": 200,
+ "success_rate_bp_only": {
+  "C1": 1.0,
+  "C3": 1.0,
+  "J2": 1.0,
+  "J2_identity": 0.0,
+  "J3": 1.0,
+  "J3_identity": 0.0,
+  "N1": 1.0
+ },
+ "synthetic_set_sha256_lf": "ab787588b2a93a3817dc1f4781aee70199e7d6d87255a1ffcc11517c853f6a0e"
+}

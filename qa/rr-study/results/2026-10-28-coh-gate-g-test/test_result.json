@@ -1,0 +1,188 @@
+{
+ "cycles": 800,
+ "V2": {
+  "cycles_not_reproduced": 0,
+  "PASS": true
+ },
+ "V3": {
+  "status_has_pin_and_ok": true,
+  "PASS": true
+ },
+ "V4": {
+  "fallback_abandoned": 0,
+  "residual_ran": 800,
+  "residual_abandoned": 0,
+  "residual_contained": 0,
+  "PASS": true
+ },
+ "test_baseline": {
+  "batch4_published": 2891,
+  "corroborated": 18844,
+  "n_ref": 23158,
+  "pct": 81.37144831159858
+ },
+ "validity_all_pass": true,
+ "rules": {
+  "R-F4": {
+   "NET_pp": 2.1029449866136973,
+   "NET_CI": [
+    1.9189368337190815,
+    2.299008105374124
+   ],
+   "dU_ta": 0.00375,
+   "dU_ta_CI": [
+    0.0,
+    0.00875
+   ],
+   "dU_hu": 0.025,
+   "dU_hu_CI": [
+    0.015,
+    0.03625
+   ],
+   "dU_present": 0.015,
+   "dU_present_CI": [
+    0.00625,
+    0.02375
+   ],
+   "dU_untestable_class": 0.0,
+   "admitted_new_text": 522,
+   "admitted_corroborated": 487,
+   "corroborated_share": 0.9329501915708812,
+   "hashed_share_of_admitted": 0.1839080459770115,
+   "admitted_by": {
+    "band": {
+     "D": 209,
+     "B": 72,
+     "C": 238,
+     "A": 3
+    },
+    "i3": {
+     "4": 68,
+     "1": 453,
+     "2": 1
+    },
+    "run": {
+     "residual": 522
+    }
+   },
+   "stations_corroborated": {
+    "distinct": 179,
+    "top_share": 0.057494866529774126,
+    "top5_share": 0.1806981519507187
+   }
+  },
+  "f1_alone_31.18": {
+   "NET_pp": 2.0554452025218066,
+   "NET_CI": [
+    1.871637607563707,
+    2.2464537443504424
+   ],
+   "dU_ta": 0.005,
+   "dU_ta_CI": [
+    0.00125,
+    0.01
+   ],
+   "dU_hu": 0.025,
+   "dU_hu_CI": [
+    0.015,
+    0.03625
+   ],
+   "dU_present": 0.015,
+   "dU_present_CI": [
+    0.0075,
+    0.02375
+   ],
+   "dU_untestable_class": 0.0,
+   "admitted_new_text": 512,
+   "admitted_corroborated": 476,
+   "corroborated_share": 0.9296875,
+   "hashed_share_of_admitted": 0.18359375,
+   "admitted_by": {
+    "band": {
+     "D": 217,
+     "B": 61,
+     "C": 234
+    },
+    "i3": {
+     "4": 66,
+     "1": 445,
+     "2": 1
+    },
+    "run": {
+     "residual": 496,
+     "original": 16
+    }
+   },
+   "stations_corroborated": {
+    "distinct": 178,
+    "top_share": 0.058823529411764705,
+    "top5_share": 0.18487394957983194
+   }
+  },
+  "no_gate": {
+   "NET_pp": 2.111581310994041,
+   "NET_CI": [
+    1.9256267629510577,
+    2.3070618609876443
+   ],
+   "dU_ta": 0.005,
+   "dU_ta_CI": [
+    0.00125,
+    0.01
+   ],
+   "dU_hu": 0.025,
+   "dU_hu_CI": [
+    0.015,
+    0.03625
+   ],
+   "dU_present": 0.0175,
+   "dU_present_CI": [
+    0.00875,
+    0.02625
+   ],
+   "dU_untestable_class": 0.0,
+   "admitted_new_text": 527,
+   "admitted_corroborated": 489,
+   "corroborated_share": 0.9278937381404174,
+   "hashed_share_of_admitted": 0.18216318785578747,
+   "admitted_by": {
+    "band": {
+     "D": 211,
+     "B": 72,
+     "C": 241,
+     "A": 3
+    },
+    "i3": {
+     "4": 68,
+     "1": 458,
+     "2": 1
+    },
+    "run": {
+     "residual": 522,
+     "original": 5
+    }
+   },
+   "stations_corroborated": {
+    "distinct": 181,
+    "top_share": 0.05725971370143149,
+    "top5_share": 0.17995910020449898
+   }
+  }
+ },
+ "rows_R-F4": {
+  "N-GO": true,
+  "N-STOP": false,
+  "U-OK": true,
+  "U-FAIL": false,
+  "H-SHARE_fires": false,
+  "N": "N-GO",
+  "U": "U-OK"
+ },
+ "verdict": "G-BUILD",
+ "D5": {
+  "train_NET_pp": 1.905311778290993,
+  "test_NET_pp": 2.1029449866136973,
+  "ratio": 1.1037274899439165,
+  "GG6_test_le_0.8_train": 0.0
+ }
+}

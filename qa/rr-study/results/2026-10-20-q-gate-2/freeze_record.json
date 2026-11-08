@@ -1,0 +1,37 @@
+{
+ "frozen_utc": "2026-10-20T15:41:01Z",
+ "corpus": "artefacts/20261019_1905_endurance_run-gathered (owsfz/wav 4663 WAVs, gap-free 15 s grid 261019_190500..261020_143030)",
+ "cycle_list": "cycle_list.txt",
+ "cycle_list_sha256": "aed896e433867cbd5c3ee915cbec08e9cd6dc1d86aef2460dc60d4fc48802201",
+ "slots": 4663,
+ "index": "i = 0-based position in the gap-inclusive slot list; outage stamps dropped AFTER selection",
+ "outage_stamps": [
+  "261019_193200",
+  "261019_195800",
+  "261020_084915",
+  "261020_084930",
+  "261020_084945",
+  "261020_085000"
+ ],
+ "main": {
+  "rule": "i mod 5 == 1",
+  "n_after_outage_drop": 933,
+  "even": 466,
+  "odd": 467,
+  "V-P_diff_pct": 0.11,
+  "V-P": "PASS (<= 2 %)"
+ },
+ "pilot": {
+  "rule": "i mod 5 == 3",
+  "n": 930
+ },
+ "fallback_if_pilot_projects_gt_6h_cpu": {
+  "rule": "i mod 7 == 1",
+  "n": 665,
+  "V-P_diff_pct": 0.15
+ },
+ "U_max": 0.05,
+ "U_max_source": "Captain, 2026-10-20, 'U_max 0.05' (QA window)",
+ "BAR_G_pp": 1.0,
+ "C0": "every artefacts folder with WAVs listed; only 20261019_1905 has OSD fix + nhard 24 + Deep + the B1 chain: 20261009_1752 lacks Deep; 20261018_1646 has Deep and the fix but ran on the direct USB CODEC chain (not B1), cycle-audio stops 21:00Z (1,018 WAVs); older nights pre-date the OSD fix"
+}

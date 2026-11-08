@@ -1,0 +1,18 @@
+# QA code review (HK-039), re-review: COH-MULTISET-BUILD Stage 2 with the B4 increment, Developer commit d7750bde
+
+Reviewer: QA. Written 2026-10-24 (`date -u` 16:2xZ). Branch `feat/coh-multiset-build`, local, not pushed. This record covers the whole of Stage 2: `f5bf099a..d7750bde` = `ea2c1d14` (reviewed in `710b9052`, returned with required change R-1) plus the increment `ea2c1d14..d7750bde`.
+
+Reviewed-commit: d7750bde5d5aac9460e73758ccdcc29aa7a17e15
+
+Verdict: APPROVED. R-1 is met; no further required changes. Stage 2 acceptance on QA's side (B2, B3, B4, A1) is green; the Architect rules.
+
+## What QA verified
+
+1. **The increment.** `ea2c1d14..d7750bde` changes one file, `tests/OpenWSFZ.Ft8.Tests/CoherentMultisetWalkTests.cs` (47 additions, 3 deletions): the synthesiser gains a linear frequency drift and a fade over symbols 30-39, and the new `WalkOrder_IsC1_J2_J3_N1` runs impaired synthetic cycles (Q-prefix message) where V3 fails and two or more sets are CRC-valid, through BOTH `ft8_coherent_fallback_run` (per-call bit) and `ft8_coherent_fallback_process` (a worker context with `SetMultiSet(true)`), requires the two paths to agree row by row, and requires every attempted row's provenance to equal the lowest-numbered CRC-valid set, with `CohFallbackSetsAt` at the row's own anchor as the oracle (0 when V3 is valid, -1 when none). It fails (instead of passing vacuously) if the platform has no row with V3 failing and two or more sets valid. No source or binary change: `libft8.dll` in the tree hashes to `1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914`, the same as at `ea2c1d14`.
+2. **Whole test project, unfiltered,** on a clean detached tree at exactly `d7750bde` (`git status` empty): `dotnet test tests/OpenWSFZ.Ft8.Tests/OpenWSFZ.Ft8.Tests.csproj` = **605 passed, 0 failed, 0 skipped** (604 + the new test). The other projects are untouched by the increment; the unfiltered `dotnet test OpenWSFZ.slnx` of the previous record (Daemon 810, Web 404, Config 174, Rig 41, Audio 40, E2E 9, TraceabilityCheck 34, LicenseInventoryCheck 24, TestSupport 12, all 0 failed) stands for them.
+3. **QA's mutation, repeated (R-1's acceptance test).** In a scratch tree at `d7750bde`, `cf_process_one`'s loop reversed (`for set = CF_SET_N1; set >= CF_SET_C1; set--`), rebuilt with `rebuild_shim.bat` (mutant DLL `244cfd16…` confirmed loaded): the `Coherent*` filter gives **1 failed, 99 passed (100)**, and running `WalkOrder_IsC1_J2_J3_N1` alone fails. The same mutant passed all 99 tests at `ea2c1d14`. The test can fail, and it does.
+4. **Stage 2 acceptance rows, QA's reading.** B2 (grouping, signs, identity-map mutation; Stage 1 tests, run again in the 605); B3 (`_run` against `_process` row by row with the flag ON, provenance in the key, in the 605); **B4** (this increment); A1 (flag off identical: the Developer's characterisation tests in the 605, and QA's independent cross-check on 150 real cycles, P3: 4,882 V3-valid rows equal OFF, OFF provenance 0 and no walk entries); M1 (walk entries = NO_CRC candidates; QA's P4 on real audio: 16,098 = 16,098) and the A1.1 stale-flag test (QA's runner mutation is killed by 8 of 99).
+
+## Limits
+
+The Linux and macOS binaries are not rebuilt (follow-up chore after the Captain's merge decision), so the committed 20260069 binaries do not match `ExpectedShimVersion` 20260071 on those platforms until then. `pre_merge_check.py` has NOT been run (HK-006: it runs from a clean checkout of the exact commit before any push; nothing is being pushed). The build is not byte-reproducible across directories (QA's clean rebuild of `ea2c1d14` gave a different SHA with identical behaviour); the Developer's binary is identified by its SHA.

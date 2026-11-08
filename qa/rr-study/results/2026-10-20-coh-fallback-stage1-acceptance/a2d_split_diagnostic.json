@@ -1,0 +1,21 @@
+{
+ "what": "A2(d) diagnostic split, QA, first 100 selected cycles of 20261009_1752, reworked build d926bdc6 (shim 20260067), flags INCLUDE_DECODED|ESTIMATE_ONLY",
+ "decoded_candidates": 5446,
+ "primary_decodes_matching_a_reported_ft8_decode_all_result(|freq|<=1 Hz,|dt|<0.02 s)": 1975,
+ "other_decoded_candidates(duplicate-payload neighbours)": 3471,
+ "edge_primary": 8,
+ "edge_rate_primary": 0.00405,
+ "edge_other": 365,
+ "edge_rate_other": 0.10516,
+ "edge_total": 373,
+ "edge_rate_total": 0.06849,
+ "edge_kind": {
+  "df_edge(+-2.0 Hz)": 372,
+  "dt_edge": 1
+ },
+ "dt_offset_median_s_primary": 0.0,
+ "dt_offset_abs_median_s_primary": 0.015,
+ "dt_offset_median_s_other": 0.0,
+ "dt_offset_abs_median_s_other": 0.04,
+ "note": "diagnostic only; the literal A2(d) population (all decoded candidates) is in a0_a2d_a2e_d926bdc6.json and FAILS the 2 % edge bar; ruling on the population is the Architect's"
+}

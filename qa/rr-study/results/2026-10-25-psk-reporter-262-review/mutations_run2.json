@@ -1,0 +1,192 @@
+[
+ {
+  "id": "Q16 a batch with no dial frequency is reported on 14.074",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 2,
+    "passed": 61,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q21 service builds the socket even when disabled",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 2,
+    "passed": 61,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q24 pump feeds only batch 1 to the upload",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q26 pskReporter missing from the overlay section list",
+  "killed": false,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Web.Tests",
+    "failed": 0,
+    "passed": 28,
+    "total": 28,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q27 overlay fallback: a fresh default replaces the stored block",
+  "killed": false,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Web.Tests",
+    "failed": 0,
+    "passed": 28,
+    "total": 28,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q28 a callsign leaks into the log line",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 3,
+    "passed": 60,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q29 the pending queue is not bounded",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q30 a full datagram waits for the window",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q31 the random first-send offset is ignored",
+  "killed": false,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 0,
+    "passed": 63,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q32 the socket is IPv6 instead of IPv4",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q33 a failed send drops its records instead of keeping them",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 3,
+    "passed": 60,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q34 overlay: section list AND fallback both removed (an explicit null resets the block)",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Web.Tests",
+    "failed": 1,
+    "passed": 27,
+    "total": 28,
+    "names": [],
+    "build_error": false
+   },
+   {
+    "project": "tests/OpenWSFZ.Config.Tests",
+    "failed": 0,
+    "passed": 3,
+    "total": 3,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ },
+ {
+  "id": "Q35 equivalence check for Q22: read-loop guard AND engine guard both removed",
+  "killed": true,
+  "runs": [
+   {
+    "project": "tests/OpenWSFZ.Daemon.Tests",
+    "failed": 1,
+    "passed": 62,
+    "total": 63,
+    "names": [],
+    "build_error": false
+   }
+  ]
+ }
+]

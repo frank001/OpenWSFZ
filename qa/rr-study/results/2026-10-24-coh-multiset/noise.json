@@ -1,0 +1,25 @@
+{
+ "crc_valid_outputs": {
+  "C1_bp": 0,
+  "C1_bp_or_osd": 0,
+  "C1_osd_path1": 0,
+  "C3_bp": 0,
+  "C3_bp_or_osd": 0,
+  "C3_osd_path1": 0,
+  "J2_bp": 0,
+  "J2_bp_or_osd": 0,
+  "J2_osd_path1": 0,
+  "J3_bp": 0,
+  "J3_bp_or_osd": 0,
+  "J3_osd_path1": 0,
+  "N1_bp": 0,
+  "N1_bp_or_osd": 0,
+  "N1_osd_path1": 0
+ },
+ "dll_pin": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef",
+ "noise_wavs": 200,
+ "positions_per_wav": 10,
+ "positions_total": 2000,
+ "reading": "descriptive only (HK-026): zero here bounds gross failure and cannot rank sets",
+ "seed": 20261024
+}

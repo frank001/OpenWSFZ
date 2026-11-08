@@ -1,0 +1,17 @@
+{
+ "pilot_cycles": 40,
+ "O_identical_to_wav_pcm": 33,
+ "scale_ratio_O_over_wav": {
+  "n": 7,
+  "min": 0.9999998807907104,
+  "max": 1.0000001192092896
+ },
+ "M_rows": 221,
+ "same_class": 221,
+ "agreement": 1.0,
+ "bar": 0.98,
+ "PASS": true,
+ "forced_records": 221,
+ "seconds": 5.558046340942383,
+ "seconds_per_record": 0.02514953095449042
+}

@@ -1,0 +1,306 @@
+# harness label=cohfb-A0:OFF100 run=20261009_1752 stratum=Y40 mode=three1 threads=8 shim=20260062
+2026-10-20T17:14:10.1970712Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1478 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:14:10.1998816Z [Information] Cycle 17:52:00: 20 decode(s) found, elapsed=2039 ms.
+# warm-up cycle decoded and discarded
+# readback start subtractionEnabled=True threadsConfigured=8 threadsResolved=8 cores=16 nhard=24 kMinScorePass2=10 osdCorrThreshold=0.10 shim=20260062 osdSignFixSet=1 osdSignFixRead=1 decodingDepth=Deep
+2026-10-20T17:14:10.7536692Z [Information] Cycle 17:52:15: 20 decode(s) found, elapsed=546 ms.
+2026-10-20T17:14:12.7435312Z [Information] Sub-feas residual pass: residualDecodes=7 elapsedMs=1989 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:14:13.9128129Z [Information] Third pass: newDecodes=0 elapsedMs=1167 outcome=ran fittedSignals=7
+2026-10-20T17:14:14.4521767Z [Information] Cycle 17:53:00: 21 decode(s) found, elapsed=535 ms.
+2026-10-20T17:14:16.9053914Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=2453 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:14:17.8928243Z [Information] Third pass: newDecodes=1 elapsedMs=987 outcome=ran fittedSignals=1
+2026-10-20T17:14:18.4088248Z [Information] Cycle 17:53:45: 20 decode(s) found, elapsed=514 ms.
+2026-10-20T17:14:20.8656361Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=2456 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:14:21.8542789Z [Information] Third pass: newDecodes=0 elapsedMs=988 outcome=ran fittedSignals=1
+2026-10-20T17:14:22.3909122Z [Information] Cycle 17:54:30: 19 decode(s) found, elapsed=535 ms.
+2026-10-20T17:14:24.0896113Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1698 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:14:25.0960037Z [Information] Third pass: newDecodes=1 elapsedMs=1006 outcome=ran fittedSignals=6
+2026-10-20T17:14:25.5763366Z [Information] Cycle 17:55:15: 23 decode(s) found, elapsed=479 ms.
+2026-10-20T17:14:27.5189865Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1942 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:14:28.4715838Z [Information] Third pass: newDecodes=0 elapsedMs=952 outcome=ran fittedSignals=5
+2026-10-20T17:14:29.0165049Z [Information] Cycle 17:56:00: 16 decode(s) found, elapsed=544 ms.
+2026-10-20T17:14:30.3053867Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=1288 deadlineAbandoned=False containedException=False fittedSignals=15
+2026-10-20T17:14:31.2325973Z [Information] Third pass: newDecodes=0 elapsedMs=927 outcome=ran fittedSignals=1
+2026-10-20T17:14:31.7159273Z [Information] Cycle 17:56:45: 23 decode(s) found, elapsed=482 ms.
+2026-10-20T17:14:33.6773875Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1961 deadlineAbandoned=False containedException=False fittedSignals=22
+2026-10-20T17:14:34.6297643Z [Information] Third pass: newDecodes=0 elapsedMs=952 outcome=ran fittedSignals=2
+2026-10-20T17:14:35.1531077Z [Information] Cycle 17:57:30: 21 decode(s) found, elapsed=522 ms.
+2026-10-20T17:14:37.1349838Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1981 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:14:38.1667830Z [Information] Third pass: newDecodes=0 elapsedMs=1031 outcome=ran fittedSignals=5
+2026-10-20T17:14:38.5871520Z [Information] Cycle 17:58:15: 27 decode(s) found, elapsed=419 ms.
+2026-10-20T17:14:41.1737994Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=2586 deadlineAbandoned=False containedException=False fittedSignals=27
+2026-10-20T17:14:42.1807773Z [Information] Third pass: newDecodes=0 elapsedMs=1006 outcome=ran fittedSignals=6
+2026-10-20T17:14:42.6918207Z [Information] Cycle 17:59:00: 20 decode(s) found, elapsed=509 ms.
+2026-10-20T17:14:44.3323010Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=1640 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:14:45.2794385Z [Information] Third pass: newDecodes=0 elapsedMs=947 outcome=ran fittedSignals=1
+2026-10-20T17:14:45.7773252Z [Information] Cycle 17:59:45: 18 decode(s) found, elapsed=496 ms.
+2026-10-20T17:14:47.7112574Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1933 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:14:48.7146277Z [Information] Third pass: newDecodes=0 elapsedMs=1003 outcome=ran fittedSignals=4
+2026-10-20T17:14:49.1952561Z [Information] Cycle 18:00:30: 23 decode(s) found, elapsed=479 ms.
+2026-10-20T17:14:51.1273433Z [Information] Sub-feas residual pass: residualDecodes=7 elapsedMs=1932 deadlineAbandoned=False containedException=False fittedSignals=23
+2026-10-20T17:14:52.1305823Z [Information] Third pass: newDecodes=1 elapsedMs=1003 outcome=ran fittedSignals=7
+2026-10-20T17:14:52.6573118Z [Information] Cycle 18:01:15: 16 decode(s) found, elapsed=525 ms.
+2026-10-20T17:14:54.0634752Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1406 deadlineAbandoned=False containedException=False fittedSignals=16
+2026-10-20T17:14:55.0423026Z [Information] Third pass: newDecodes=0 elapsedMs=978 outcome=ran fittedSignals=3
+2026-10-20T17:14:55.5576467Z [Information] Cycle 18:02:00: 22 decode(s) found, elapsed=514 ms.
+2026-10-20T17:14:57.4817195Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1924 deadlineAbandoned=False containedException=False fittedSignals=22
+2026-10-20T17:14:58.5268645Z [Information] Third pass: newDecodes=0 elapsedMs=1045 outcome=ran fittedSignals=5
+2026-10-20T17:14:59.0336216Z [Information] Cycle 18:02:45: 16 decode(s) found, elapsed=505 ms.
+2026-10-20T17:15:00.3779407Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1344 deadlineAbandoned=False containedException=False fittedSignals=15
+2026-10-20T17:15:01.3050472Z [Information] Third pass: newDecodes=0 elapsedMs=927 outcome=ran fittedSignals=2
+2026-10-20T17:15:01.7951598Z [Information] Cycle 18:03:30: 23 decode(s) found, elapsed=488 ms.
+2026-10-20T17:15:03.7179553Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1922 deadlineAbandoned=False containedException=False fittedSignals=23
+2026-10-20T17:15:04.7297820Z [Information] Third pass: newDecodes=0 elapsedMs=1011 outcome=ran fittedSignals=3
+2026-10-20T17:15:05.2736173Z [Information] Cycle 18:04:15: 19 decode(s) found, elapsed=542 ms.
+2026-10-20T17:15:06.9313073Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1657 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:15:07.9369470Z [Information] Third pass: newDecodes=1 elapsedMs=1005 outcome=ran fittedSignals=6
+2026-10-20T17:15:08.4691675Z [Information] Cycle 18:05:00: 22 decode(s) found, elapsed=531 ms.
+2026-10-20T17:15:10.3861515Z [Information] Sub-feas residual pass: residualDecodes=7 elapsedMs=1916 deadlineAbandoned=False containedException=False fittedSignals=22
+2026-10-20T17:15:11.3293232Z [Information] Third pass: newDecodes=1 elapsedMs=943 outcome=ran fittedSignals=7
+2026-10-20T17:15:11.8745594Z [Information] Cycle 18:05:45: 17 decode(s) found, elapsed=544 ms.
+2026-10-20T17:15:13.2550237Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1380 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:15:14.2540163Z [Information] Third pass: newDecodes=0 elapsedMs=998 outcome=ran fittedSignals=3
+2026-10-20T17:15:14.8159996Z [Information] Cycle 18:06:30: 15 decode(s) found, elapsed=560 ms.
+2026-10-20T17:15:16.2087605Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=1392 deadlineAbandoned=False containedException=False fittedSignals=15
+2026-10-20T17:15:17.2408775Z [Information] Third pass: newDecodes=0 elapsedMs=1032 outcome=ran fittedSignals=1
+2026-10-20T17:15:17.7212009Z [Information] Cycle 18:07:15: 22 decode(s) found, elapsed=479 ms.
+2026-10-20T17:15:19.6178267Z [Information] Sub-feas residual pass: residualDecodes=7 elapsedMs=1896 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:15:20.5832040Z [Information] Third pass: newDecodes=0 elapsedMs=965 outcome=ran fittedSignals=6
+2026-10-20T17:15:21.1652624Z [Information] Cycle 18:08:00: 18 decode(s) found, elapsed=581 ms.
+2026-10-20T17:15:22.8292534Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1663 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:15:23.8167756Z [Information] Third pass: newDecodes=0 elapsedMs=987 outcome=ran fittedSignals=5
+2026-10-20T17:15:24.2807401Z [Information] Cycle 18:08:45: 23 decode(s) found, elapsed=462 ms.
+2026-10-20T17:15:26.1734630Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1892 deadlineAbandoned=False containedException=False fittedSignals=22
+2026-10-20T17:15:27.1382889Z [Information] Third pass: newDecodes=1 elapsedMs=964 outcome=ran fittedSignals=5
+2026-10-20T17:15:27.6608186Z [Information] Cycle 18:09:30: 20 decode(s) found, elapsed=521 ms.
+2026-10-20T17:15:29.3353316Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1674 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:15:30.3025410Z [Information] Third pass: newDecodes=0 elapsedMs=967 outcome=ran fittedSignals=5
+2026-10-20T17:15:30.8240589Z [Information] Cycle 18:10:15: 22 decode(s) found, elapsed=520 ms.
+2026-10-20T17:15:32.4865477Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1662 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:15:33.4480358Z [Information] Third pass: newDecodes=0 elapsedMs=961 outcome=ran fittedSignals=4
+2026-10-20T17:15:33.9994117Z [Information] Cycle 18:11:00: 18 decode(s) found, elapsed=550 ms.
+2026-10-20T17:15:35.9477289Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1948 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:15:36.9731845Z [Information] Third pass: newDecodes=0 elapsedMs=1025 outcome=ran fittedSignals=2
+2026-10-20T17:15:37.4920116Z [Information] Cycle 18:11:45: 20 decode(s) found, elapsed=517 ms.
+2026-10-20T17:15:39.4034799Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1911 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:15:40.3950996Z [Information] Third pass: newDecodes=0 elapsedMs=991 outcome=ran fittedSignals=4
+2026-10-20T17:15:40.9696556Z [Information] Cycle 18:12:30: 19 decode(s) found, elapsed=573 ms.
+2026-10-20T17:15:42.6748485Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1705 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:15:43.6668953Z [Information] Third pass: newDecodes=2 elapsedMs=992 outcome=ran fittedSignals=3
+2026-10-20T17:15:44.1373192Z [Information] Cycle 18:13:15: 22 decode(s) found, elapsed=469 ms.
+2026-10-20T17:15:45.7709147Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1633 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:15:46.7506940Z [Information] Third pass: newDecodes=0 elapsedMs=979 outcome=ran fittedSignals=6
+2026-10-20T17:15:47.2636777Z [Information] Cycle 18:14:00: 18 decode(s) found, elapsed=512 ms.
+2026-10-20T17:15:48.9018174Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1638 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:15:49.9279439Z [Information] Third pass: newDecodes=0 elapsedMs=1026 outcome=ran fittedSignals=5
+2026-10-20T17:15:50.4600048Z [Information] Cycle 18:14:45: 19 decode(s) found, elapsed=519 ms.
+2026-10-20T17:15:52.0590502Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1599 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:15:53.0411651Z [Information] Third pass: newDecodes=0 elapsedMs=982 outcome=ran fittedSignals=6
+2026-10-20T17:15:53.6034463Z [Information] Cycle 18:15:30: 17 decode(s) found, elapsed=561 ms.
+2026-10-20T17:15:54.9954628Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1391 deadlineAbandoned=False containedException=False fittedSignals=16
+2026-10-20T17:15:55.9596005Z [Information] Third pass: newDecodes=0 elapsedMs=964 outcome=ran fittedSignals=6
+2026-10-20T17:15:56.4321533Z [Information] Cycle 18:16:15: 25 decode(s) found, elapsed=471 ms.
+2026-10-20T17:15:58.1538675Z [Information] Sub-feas residual pass: residualDecodes=9 elapsedMs=1721 deadlineAbandoned=False containedException=False fittedSignals=24
+2026-10-20T17:15:59.2452322Z [Information] Third pass: newDecodes=1 elapsedMs=1091 outcome=ran fittedSignals=9
+2026-10-20T17:15:59.7692747Z [Information] Cycle 18:17:00: 19 decode(s) found, elapsed=522 ms.
+2026-10-20T17:16:01.6606411Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1891 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:16:02.5868774Z [Information] Third pass: newDecodes=0 elapsedMs=926 outcome=ran fittedSignals=2
+2026-10-20T17:16:03.1016898Z [Information] Cycle 18:17:45: 22 decode(s) found, elapsed=513 ms.
+2026-10-20T17:16:05.0556929Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1953 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:16:06.0159938Z [Information] Third pass: newDecodes=0 elapsedMs=960 outcome=ran fittedSignals=2
+2026-10-20T17:16:06.5612894Z [Information] Cycle 18:18:30: 18 decode(s) found, elapsed=544 ms.
+2026-10-20T17:16:08.1656506Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1604 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:16:09.1360383Z [Information] Third pass: newDecodes=0 elapsedMs=970 outcome=ran fittedSignals=5
+2026-10-20T17:16:09.6391320Z [Information] Cycle 18:19:15: 17 decode(s) found, elapsed=502 ms.
+2026-10-20T17:16:11.2253808Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1586 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:16:12.1612587Z [Information] Third pass: newDecodes=0 elapsedMs=935 outcome=ran fittedSignals=2
+2026-10-20T17:16:12.7198414Z [Information] Cycle 18:20:00: 17 decode(s) found, elapsed=558 ms.
+2026-10-20T17:16:14.3173295Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1597 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:16:15.2741799Z [Information] Third pass: newDecodes=0 elapsedMs=956 outcome=ran fittedSignals=2
+2026-10-20T17:16:15.8172297Z [Information] Cycle 18:20:45: 16 decode(s) found, elapsed=541 ms.
+2026-10-20T17:16:17.1288154Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1311 deadlineAbandoned=False containedException=False fittedSignals=14
+2026-10-20T17:16:18.0873116Z [Information] Third pass: newDecodes=0 elapsedMs=958 outcome=ran fittedSignals=5
+2026-10-20T17:16:18.6040866Z [Information] Cycle 18:21:30: 17 decode(s) found, elapsed=515 ms.
+2026-10-20T17:16:20.0094104Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1405 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:16:21.0020346Z [Information] Third pass: newDecodes=0 elapsedMs=992 outcome=ran fittedSignals=3
+2026-10-20T17:16:21.4629611Z [Information] Cycle 18:22:15: 23 decode(s) found, elapsed=459 ms.
+2026-10-20T17:16:23.3712266Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1908 deadlineAbandoned=False containedException=False fittedSignals=23
+2026-10-20T17:16:24.2950192Z [Information] Third pass: newDecodes=0 elapsedMs=923 outcome=ran fittedSignals=4
+2026-10-20T17:16:24.8327805Z [Information] Cycle 18:23:00: 16 decode(s) found, elapsed=536 ms.
+2026-10-20T17:16:26.1222543Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=1289 deadlineAbandoned=False containedException=False fittedSignals=16
+2026-10-20T17:16:26.9956528Z [Information] Third pass: newDecodes=0 elapsedMs=873 outcome=ran fittedSignals=1
+2026-10-20T17:16:27.4985371Z [Information] Cycle 18:23:45: 16 decode(s) found, elapsed=501 ms.
+2026-10-20T17:16:28.8072037Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=1308 deadlineAbandoned=False containedException=False fittedSignals=16
+2026-10-20T17:16:29.7127346Z [Information] Third pass: newDecodes=0 elapsedMs=905 outcome=ran fittedSignals=1
+2026-10-20T17:16:30.2547940Z [Information] Cycle 18:24:30: 18 decode(s) found, elapsed=541 ms.
+2026-10-20T17:16:32.1897084Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1934 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:16:33.1928266Z [Information] Third pass: newDecodes=0 elapsedMs=1003 outcome=ran fittedSignals=3
+2026-10-20T17:16:33.7566789Z [Information] Cycle 18:25:15: 17 decode(s) found, elapsed=562 ms.
+2026-10-20T17:16:35.4080460Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1651 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:16:36.4167312Z [Information] Third pass: newDecodes=1 elapsedMs=1008 outcome=ran fittedSignals=5
+2026-10-20T17:16:36.9830379Z [Information] Cycle 18:26:00: 18 decode(s) found, elapsed=565 ms.
+2026-10-20T17:16:38.9282761Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1945 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:16:39.8900026Z [Information] Third pass: newDecodes=0 elapsedMs=961 outcome=ran fittedSignals=2
+2026-10-20T17:16:40.3611385Z [Information] Cycle 18:26:45: 23 decode(s) found, elapsed=470 ms.
+2026-10-20T17:16:42.0560254Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1694 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:16:43.0432721Z [Information] Third pass: newDecodes=0 elapsedMs=987 outcome=ran fittedSignals=4
+2026-10-20T17:16:43.4967923Z [Information] Cycle 18:27:30: 24 decode(s) found, elapsed=452 ms.
+2026-10-20T17:16:45.1342492Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1637 deadlineAbandoned=False containedException=False fittedSignals=23
+2026-10-20T17:16:46.0705865Z [Information] Third pass: newDecodes=0 elapsedMs=936 outcome=ran fittedSignals=2
+2026-10-20T17:16:46.6203433Z [Information] Cycle 18:28:15: 19 decode(s) found, elapsed=548 ms.
+2026-10-20T17:16:48.5407641Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1920 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:16:49.5440579Z [Information] Third pass: newDecodes=1 elapsedMs=1003 outcome=ran fittedSignals=5
+2026-10-20T17:16:50.0422670Z [Information] Cycle 18:29:00: 19 decode(s) found, elapsed=497 ms.
+2026-10-20T17:16:51.6573625Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1615 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:16:52.6196443Z [Information] Third pass: newDecodes=0 elapsedMs=962 outcome=ran fittedSignals=4
+2026-10-20T17:16:53.1577168Z [Information] Cycle 18:29:45: 21 decode(s) found, elapsed=537 ms.
+2026-10-20T17:16:55.1094910Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1951 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:16:56.1026660Z [Information] Third pass: newDecodes=1 elapsedMs=993 outcome=ran fittedSignals=3
+2026-10-20T17:16:56.6025615Z [Information] Cycle 18:30:30: 24 decode(s) found, elapsed=498 ms.
+2026-10-20T17:16:58.3463173Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1743 deadlineAbandoned=False containedException=False fittedSignals=24
+2026-10-20T17:16:59.3237899Z [Information] Third pass: newDecodes=1 elapsedMs=977 outcome=ran fittedSignals=3
+2026-10-20T17:16:59.9094427Z [Information] Cycle 18:31:15: 18 decode(s) found, elapsed=584 ms.
+2026-10-20T17:17:01.5069894Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1597 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:17:02.4238084Z [Information] Third pass: newDecodes=1 elapsedMs=916 outcome=ran fittedSignals=4
+2026-10-20T17:17:02.9309345Z [Information] Cycle 18:32:00: 23 decode(s) found, elapsed=506 ms.
+2026-10-20T17:17:04.8563332Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1925 deadlineAbandoned=False containedException=False fittedSignals=23
+2026-10-20T17:17:05.8593308Z [Information] Third pass: newDecodes=1 elapsedMs=1002 outcome=ran fittedSignals=4
+2026-10-20T17:17:06.3888865Z [Information] Cycle 18:32:45: 15 decode(s) found, elapsed=528 ms.
+2026-10-20T17:17:07.6845394Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1295 deadlineAbandoned=False containedException=False fittedSignals=14
+2026-10-20T17:17:08.5854076Z [Information] Third pass: newDecodes=0 elapsedMs=900 outcome=ran fittedSignals=2
+2026-10-20T17:17:09.0707623Z [Information] Cycle 18:33:30: 23 decode(s) found, elapsed=484 ms.
+2026-10-20T17:17:11.0977724Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=2026 deadlineAbandoned=False containedException=False fittedSignals=23
+2026-10-20T17:17:12.0852361Z [Information] Third pass: newDecodes=0 elapsedMs=987 outcome=ran fittedSignals=2
+2026-10-20T17:17:12.5880912Z [Information] Cycle 18:34:15: 21 decode(s) found, elapsed=502 ms.
+2026-10-20T17:17:14.4849553Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=1896 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:17:15.3683985Z [Information] Third pass: newDecodes=0 elapsedMs=883 outcome=ran fittedSignals=1
+2026-10-20T17:17:15.9399448Z [Information] Cycle 18:35:00: 16 decode(s) found, elapsed=570 ms.
+2026-10-20T17:17:17.3485837Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1408 deadlineAbandoned=False containedException=False fittedSignals=16
+2026-10-20T17:17:18.3917467Z [Information] Third pass: newDecodes=0 elapsedMs=1043 outcome=ran fittedSignals=5
+2026-10-20T17:17:18.9287777Z [Information] Cycle 18:35:45: 20 decode(s) found, elapsed=535 ms.
+2026-10-20T17:17:20.5645423Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1635 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:17:21.4855745Z [Information] Third pass: newDecodes=0 elapsedMs=920 outcome=ran fittedSignals=2
+2026-10-20T17:17:22.0399736Z [Information] Cycle 18:36:30: 20 decode(s) found, elapsed=553 ms.
+2026-10-20T17:17:23.9847860Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1944 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:17:24.9555468Z [Information] Third pass: newDecodes=1 elapsedMs=970 outcome=ran fittedSignals=5
+2026-10-20T17:17:25.4805345Z [Information] Cycle 18:37:15: 18 decode(s) found, elapsed=523 ms.
+2026-10-20T17:17:27.0380165Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1557 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:17:27.9284649Z [Information] Third pass: newDecodes=0 elapsedMs=890 outcome=ran fittedSignals=3
+2026-10-20T17:17:28.4497673Z [Information] Cycle 18:38:00: 19 decode(s) found, elapsed=520 ms.
+2026-10-20T17:17:30.3506593Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1900 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:17:31.3169188Z [Information] Third pass: newDecodes=1 elapsedMs=966 outcome=ran fittedSignals=3
+2026-10-20T17:17:31.8531449Z [Information] Cycle 18:38:45: 17 decode(s) found, elapsed=535 ms.
+2026-10-20T17:17:33.4873028Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1634 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:17:34.5693124Z [Information] Third pass: newDecodes=0 elapsedMs=1081 outcome=ran fittedSignals=3
+2026-10-20T17:17:35.1036060Z [Information] Cycle 18:39:30: 21 decode(s) found, elapsed=533 ms.
+2026-10-20T17:17:37.7198190Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=2616 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:17:38.8573074Z [Information] Third pass: newDecodes=0 elapsedMs=1137 outcome=ran fittedSignals=3
+2026-10-20T17:17:39.4009464Z [Information] Cycle 18:40:15: 18 decode(s) found, elapsed=542 ms.
+2026-10-20T17:17:41.3967295Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1995 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:17:42.5480646Z [Information] Third pass: newDecodes=0 elapsedMs=1151 outcome=ran fittedSignals=6
+2026-10-20T17:17:43.0741148Z [Information] Cycle 18:41:00: 19 decode(s) found, elapsed=524 ms.
+2026-10-20T17:17:44.7763220Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1702 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:17:45.8410200Z [Information] Third pass: newDecodes=0 elapsedMs=1064 outcome=ran fittedSignals=2
+2026-10-20T17:17:46.3455370Z [Information] Cycle 18:41:45: 19 decode(s) found, elapsed=503 ms.
+2026-10-20T17:17:48.6468837Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=2301 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:17:48.6469463Z [Information] Third pass: newDecodes=0 elapsedMs=0 outcome=skipped-no-new fittedSignals=0
+2026-10-20T17:17:49.1697372Z [Information] Cycle 18:42:30: 19 decode(s) found, elapsed=521 ms.
+2026-10-20T17:17:51.4510440Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=2281 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:17:52.5636390Z [Information] Third pass: newDecodes=0 elapsedMs=1112 outcome=ran fittedSignals=5
+2026-10-20T17:17:53.1041827Z [Information] Cycle 18:43:15: 22 decode(s) found, elapsed=537 ms.
+2026-10-20T17:17:55.5144118Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=2410 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:17:56.6166695Z [Information] Third pass: newDecodes=0 elapsedMs=1102 outcome=ran fittedSignals=2
+2026-10-20T17:17:57.1648894Z [Information] Cycle 18:44:00: 23 decode(s) found, elapsed=547 ms.
+2026-10-20T17:17:59.5655877Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=2400 deadlineAbandoned=False containedException=False fittedSignals=22
+2026-10-20T17:18:00.6029491Z [Information] Third pass: newDecodes=1 elapsedMs=1037 outcome=ran fittedSignals=2
+2026-10-20T17:18:01.0917232Z [Information] Cycle 18:44:45: 27 decode(s) found, elapsed=487 ms.
+2026-10-20T17:18:03.8075424Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=2715 deadlineAbandoned=False containedException=False fittedSignals=26
+2026-10-20T17:18:04.7561598Z [Information] Third pass: newDecodes=0 elapsedMs=948 outcome=ran fittedSignals=1
+2026-10-20T17:18:05.2905614Z [Information] Cycle 18:45:30: 20 decode(s) found, elapsed=533 ms.
+2026-10-20T17:18:07.2742662Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1983 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:18:08.4496002Z [Information] Third pass: newDecodes=0 elapsedMs=1175 outcome=ran fittedSignals=6
+2026-10-20T17:18:09.0458575Z [Information] Cycle 18:46:15: 16 decode(s) found, elapsed=595 ms.
+2026-10-20T17:18:10.7111475Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1665 deadlineAbandoned=False containedException=False fittedSignals=14
+2026-10-20T17:18:11.8349980Z [Information] Third pass: newDecodes=2 elapsedMs=1123 outcome=ran fittedSignals=6
+2026-10-20T17:18:12.3622943Z [Information] Cycle 18:47:00: 20 decode(s) found, elapsed=526 ms.
+2026-10-20T17:18:14.4341567Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=2071 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:18:15.5482774Z [Information] Third pass: newDecodes=0 elapsedMs=1114 outcome=ran fittedSignals=3
+2026-10-20T17:18:16.0286131Z [Information] Cycle 18:47:45: 21 decode(s) found, elapsed=479 ms.
+2026-10-20T17:18:18.5286867Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=2500 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:18:19.5456329Z [Information] Third pass: newDecodes=0 elapsedMs=1016 outcome=ran fittedSignals=3
+2026-10-20T17:18:20.0990884Z [Information] Cycle 18:48:30: 20 decode(s) found, elapsed=552 ms.
+2026-10-20T17:18:21.7734915Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1674 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:18:22.9611993Z [Information] Third pass: newDecodes=0 elapsedMs=1187 outcome=ran fittedSignals=4
+2026-10-20T17:18:23.4520080Z [Information] Cycle 18:49:15: 19 decode(s) found, elapsed=489 ms.
+2026-10-20T17:18:25.5757158Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=2123 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:18:26.7321895Z [Information] Third pass: newDecodes=1 elapsedMs=1156 outcome=ran fittedSignals=3
+2026-10-20T17:18:27.2820442Z [Information] Cycle 18:50:00: 22 decode(s) found, elapsed=549 ms.
+2026-10-20T17:18:29.6573976Z [Information] Sub-feas residual pass: residualDecodes=7 elapsedMs=2375 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:18:30.8726554Z [Information] Third pass: newDecodes=0 elapsedMs=1215 outcome=ran fittedSignals=6
+2026-10-20T17:18:31.4328756Z [Information] Cycle 18:50:45: 17 decode(s) found, elapsed=559 ms.
+2026-10-20T17:18:33.1685714Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1735 deadlineAbandoned=False containedException=False fittedSignals=16
+2026-10-20T17:18:34.1282085Z [Information] Third pass: newDecodes=0 elapsedMs=959 outcome=ran fittedSignals=3
+2026-10-20T17:18:34.6118837Z [Information] Cycle 18:51:30: 19 decode(s) found, elapsed=482 ms.
+2026-10-20T17:18:35.8902299Z [Information] Sub-feas residual pass: residualDecodes=5 elapsedMs=1278 deadlineAbandoned=False containedException=False fittedSignals=15
+2026-10-20T17:18:36.8027318Z [Information] Third pass: newDecodes=1 elapsedMs=912 outcome=ran fittedSignals=4
+2026-10-20T17:18:37.2570509Z [Information] Cycle 18:52:15: 23 decode(s) found, elapsed=453 ms.
+2026-10-20T17:18:39.1928272Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=1935 deadlineAbandoned=False containedException=False fittedSignals=22
+2026-10-20T17:18:40.1714266Z [Information] Third pass: newDecodes=0 elapsedMs=978 outcome=ran fittedSignals=5
+2026-10-20T17:18:40.6614568Z [Information] Cycle 18:53:00: 20 decode(s) found, elapsed=489 ms.
+2026-10-20T17:18:42.3131215Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1651 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:18:43.2669225Z [Information] Third pass: newDecodes=0 elapsedMs=953 outcome=ran fittedSignals=3
+2026-10-20T17:18:43.8145527Z [Information] Cycle 18:53:45: 23 decode(s) found, elapsed=546 ms.
+2026-10-20T17:18:45.7352752Z [Information] Sub-feas residual pass: residualDecodes=7 elapsedMs=1920 deadlineAbandoned=False containedException=False fittedSignals=22
+2026-10-20T17:18:46.6930135Z [Information] Third pass: newDecodes=0 elapsedMs=957 outcome=ran fittedSignals=6
+2026-10-20T17:18:47.1871271Z [Information] Cycle 18:54:30: 17 decode(s) found, elapsed=493 ms.
+2026-10-20T17:18:48.4909505Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1303 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:18:49.4202458Z [Information] Third pass: newDecodes=0 elapsedMs=929 outcome=ran fittedSignals=2
+2026-10-20T17:18:49.9171169Z [Information] Cycle 18:55:15: 22 decode(s) found, elapsed=495 ms.
+2026-10-20T17:18:51.7954732Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1878 deadlineAbandoned=False containedException=False fittedSignals=22
+2026-10-20T17:18:52.7047237Z [Information] Third pass: newDecodes=0 elapsedMs=909 outcome=ran fittedSignals=2
+2026-10-20T17:18:53.1623786Z [Information] Cycle 18:56:00: 26 decode(s) found, elapsed=457 ms.
+2026-10-20T17:18:54.8199790Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1657 deadlineAbandoned=False containedException=False fittedSignals=24
+2026-10-20T17:18:55.7164840Z [Information] Third pass: newDecodes=1 elapsedMs=896 outcome=ran fittedSignals=4
+2026-10-20T17:18:56.2211059Z [Information] Cycle 18:56:45: 19 decode(s) found, elapsed=503 ms.
+2026-10-20T17:18:58.1644458Z [Information] Sub-feas residual pass: residualDecodes=3 elapsedMs=1943 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:18:59.1331408Z [Information] Third pass: newDecodes=0 elapsedMs=968 outcome=ran fittedSignals=3
+2026-10-20T17:18:59.6723260Z [Information] Cycle 18:57:30: 19 decode(s) found, elapsed=538 ms.
+2026-10-20T17:19:01.4239455Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1751 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:19:02.4055027Z [Information] Third pass: newDecodes=0 elapsedMs=981 outcome=ran fittedSignals=4
+2026-10-20T17:19:02.8820613Z [Information] Cycle 18:58:15: 22 decode(s) found, elapsed=475 ms.
+2026-10-20T17:19:04.8068017Z [Information] Sub-feas residual pass: residualDecodes=8 elapsedMs=1924 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:19:05.7939162Z [Information] Third pass: newDecodes=0 elapsedMs=987 outcome=ran fittedSignals=7
+2026-10-20T17:19:06.3481506Z [Information] Cycle 18:59:00: 18 decode(s) found, elapsed=553 ms.
+2026-10-20T17:19:08.4779073Z [Information] Sub-feas residual pass: residualDecodes=6 elapsedMs=2129 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:19:09.4287263Z [Information] Third pass: newDecodes=0 elapsedMs=950 outcome=ran fittedSignals=6
+2026-10-20T17:19:09.9932375Z [Information] Cycle 18:59:45: 15 decode(s) found, elapsed=563 ms.
+2026-10-20T17:19:11.4169441Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1423 deadlineAbandoned=False containedException=False fittedSignals=15
+2026-10-20T17:19:12.3875066Z [Information] Third pass: newDecodes=1 elapsedMs=970 outcome=ran fittedSignals=4
+2026-10-20T17:19:12.9326312Z [Information] Cycle 19:00:30: 22 decode(s) found, elapsed=544 ms.
+2026-10-20T17:19:14.6276245Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1694 deadlineAbandoned=False containedException=False fittedSignals=21
+2026-10-20T17:19:15.4914951Z [Information] Third pass: newDecodes=0 elapsedMs=863 outcome=ran fittedSignals=3
+2026-10-20T17:19:15.9975011Z [Information] Cycle 19:01:15: 18 decode(s) found, elapsed=505 ms.
+2026-10-20T17:19:17.6323029Z [Information] Sub-feas residual pass: residualDecodes=1 elapsedMs=1634 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:19:18.5800877Z [Information] Third pass: newDecodes=0 elapsedMs=947 outcome=ran fittedSignals=1
+2026-10-20T17:19:19.0801511Z [Information] Cycle 19:02:00: 20 decode(s) found, elapsed=499 ms.
+2026-10-20T17:19:20.7093413Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1629 deadlineAbandoned=False containedException=False fittedSignals=19
+2026-10-20T17:19:21.6170076Z [Information] Third pass: newDecodes=0 elapsedMs=907 outcome=ran fittedSignals=3
+2026-10-20T17:19:22.0975589Z [Information] Cycle 19:02:45: 18 decode(s) found, elapsed=479 ms.
+2026-10-20T17:19:23.4292803Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1331 deadlineAbandoned=False containedException=False fittedSignals=17
+2026-10-20T17:19:24.3513074Z [Information] Third pass: newDecodes=0 elapsedMs=921 outcome=ran fittedSignals=4
+2026-10-20T17:19:24.8467268Z [Information] Cycle 19:03:30: 21 decode(s) found, elapsed=494 ms.
+2026-10-20T17:19:26.4079452Z [Information] Sub-feas residual pass: residualDecodes=0 elapsedMs=1561 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:19:26.4080300Z [Information] Third pass: newDecodes=0 elapsedMs=0 outcome=skipped-no-new fittedSignals=0
+2026-10-20T17:19:26.9516338Z [Information] Cycle 19:04:15: 21 decode(s) found, elapsed=542 ms.
+2026-10-20T17:19:28.9188804Z [Information] Sub-feas residual pass: residualDecodes=4 elapsedMs=1967 deadlineAbandoned=False containedException=False fittedSignals=20
+2026-10-20T17:19:29.8981549Z [Information] Third pass: newDecodes=0 elapsedMs=979 outcome=ran fittedSignals=3
+2026-10-20T17:19:30.4628246Z [Information] Cycle 19:05:00: 19 decode(s) found, elapsed=563 ms.
+2026-10-20T17:19:32.0556900Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1592 deadlineAbandoned=False containedException=False fittedSignals=18
+2026-10-20T17:19:32.9422912Z [Information] Third pass: newDecodes=0 elapsedMs=886 outcome=ran fittedSignals=2
+2026-10-20T17:19:33.4555660Z [Information] Cycle 19:05:45: 16 decode(s) found, elapsed=512 ms.
+2026-10-20T17:19:34.7405466Z [Information] Sub-feas residual pass: residualDecodes=0 elapsedMs=1284 deadlineAbandoned=False containedException=False fittedSignals=13
+2026-10-20T17:19:34.7405740Z [Information] Third pass: newDecodes=0 elapsedMs=0 outcome=skipped-no-new fittedSignals=0
+2026-10-20T17:19:35.3244529Z [Information] Cycle 19:06:30: 15 decode(s) found, elapsed=583 ms.
+2026-10-20T17:19:36.6711630Z [Information] Sub-feas residual pass: residualDecodes=2 elapsedMs=1346 deadlineAbandoned=False containedException=False fittedSignals=14
+2026-10-20T17:19:37.6373886Z [Information] Third pass: newDecodes=0 elapsedMs=966 outcome=ran fittedSignals=2
+# readback end subtractionEnabled=True threadsConfigured=8 threadsResolved=8 cores=16 nhard=24 kMinScorePass2=10 osdCorrThreshold=0.10 shim=20260062 osdSignFixSet=1 osdSignFixRead=1 decodingDepth=Deep

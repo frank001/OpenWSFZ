@@ -1,0 +1,14 @@
+{
+  "row": "A2(e\u0027)",
+  "build_dll_sha256": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef",
+  "workers_gate": 8,
+  "cycles": 100,
+  "cycles_with_published_output": 95,
+  "list_identical_8": 100,
+  "rows_identical_8": 100,
+  "list_identical_2_descriptive": 100,
+  "list_identical_1_descriptive": 100,
+  "different_stamps_8": [],
+  "count_equals_stage1_export": "98/100",
+  "result": "PASS"
+}

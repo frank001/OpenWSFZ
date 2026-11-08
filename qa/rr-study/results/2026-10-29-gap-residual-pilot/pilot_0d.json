@@ -1,0 +1,42 @@
+{
+ "b23": {
+  "validates": "primary",
+  "n": 50,
+  "recovered": 50,
+  "P": 1.0,
+  "wilson95": [
+   0.9286499658256813,
+   1.0
+  ],
+  "STOP": false,
+  "union_all_legs": {
+   "recovered": 50,
+   "P": 1.0,
+   "wilson95": [
+    0.9286499658256813,
+    1.0
+   ]
+  },
+  "excluded_unencodable": 0
+ },
+ "fb_res": {
+  "validates": "coherent (V3 any gate u walk)",
+  "n": 9,
+  "recovered": 9,
+  "P": 1.0,
+  "wilson95": [
+   0.7008472464490407,
+   1.0
+  ],
+  "STOP": false,
+  "union_all_legs": {
+   "recovered": 9,
+   "P": 1.0,
+   "wilson95": [
+    0.7008472464490407,
+    1.0
+   ]
+  },
+  "excluded_unencodable": 1
+ }
+}

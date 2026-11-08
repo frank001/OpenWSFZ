@@ -1,0 +1,5 @@
+Found 114 requirement IDs in REQUIREMENTS.md
+Found 1881 non-skipped test(s) across 10 assembly(ies)
+Loaded 44 pending requirement ID(s) from debt file: traceability-debt.md
+Report written to: D:/Projects/claude/_qa-scratch/psk-traceability.md
+PASS: all requirements are mapped and all references are valid.

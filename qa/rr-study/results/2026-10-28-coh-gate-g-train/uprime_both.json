@@ -1,0 +1,32 @@
+{
+ "stage": "arm",
+ "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049",
+ "T_frozen": 0.276,
+ "min_n": 10,
+ "min_present_rate": 0.8,
+ "cycles_ws_gt_0": 400,
+ "decodes": 10133,
+ "confirmed": 9931,
+ "not_confirmed": 202,
+ "calibration": {
+  "reused_from": "u/uprime_orig_classes.json",
+  "start_minus_dt_median_s": -0.17999999999999972
+ },
+ "classes_from": "u/uprime_orig_classes.json",
+ "U_prime": {
+  "cycles": 400,
+  "totals": {
+   "tested_absent": 38,
+   "hashed_or_unencodable": 46,
+   "untestable_class": 0,
+   "tested_present": 118,
+   "not_confirmed": 202
+  },
+  "U_prime_per_cycle": 0.21,
+  "split_per_cycle": {
+   "tested_absent": 0.095,
+   "hashed_or_unencodable": 0.115,
+   "untestable_class": 0.0
+  }
+ }
+}

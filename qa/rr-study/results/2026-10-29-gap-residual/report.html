@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GAP-RESIDUAL: how much of GAP-RELOCATE's class N can be decoded on the audio after subtraction?</title>
+  <style>
+/* ================================================================
+   GitHub Dark palette  (mirrors github.com dark-mode variables)
+   ================================================================ */
+:root {
+  --color-canvas-default:  #0d1117;
+  --color-canvas-subtle:   #161b22;
+  --color-canvas-inset:    #010409;
+  --color-fg-default:      #e6edf3;
+  --color-fg-muted:        #848d97;
+  --color-fg-subtle:       #6e7681;
+  --color-border-default:  #30363d;
+  --color-border-muted:    #21262d;
+  --color-accent-fg:       #58a6ff;
+  --color-success-fg:      #3fb950;
+  --color-danger-fg:       #f85149;
+  --color-attention-fg:    #d29922;
+  --color-done-fg:         #a371f7;
+  --color-neutral-muted:   rgba(110,118,129,0.4);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+               Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  word-wrap: break-word;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.markdown-body {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+}
+@media (max-width: 767px) {
+  .markdown-body { padding: 15px; }
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-fg-default);
+}
+.markdown-body h1 {
+  font-size: 2em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h2 {
+  font-size: 1.5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1em;    }
+.markdown-body h5 { font-size: .875em; }
+.markdown-body h6 { font-size: .85em;  color: var(--color-fg-muted); }
+
+/* ── Paragraphs & inline ─────────────────────────────────────────── */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+.markdown-body a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+  background-color: transparent;
+}
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em     { font-style: italic; }
+.markdown-body del    { text-decoration: line-through; color: var(--color-fg-muted); }
+
+/* ── Horizontal rule ─────────────────────────────────────────────── */
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+  height: 0;
+  margin: 24px 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Images ──────────────────────────────────────────────────────── */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+  border-radius: 6px;
+  background-color: var(--color-canvas-subtle);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+}
+
+/* ── Blockquotes ─────────────────────────────────────────────────── */
+.markdown-body blockquote {
+  border-left: .25em solid var(--color-border-default);
+  color: var(--color-fg-muted);
+  margin: 0 0 16px 0;
+  padding: 0 1em;
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child  { margin-bottom: 0; }
+
+/* ── Lists ───────────────────────────────────────────────────────── */
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-left: 2em;
+}
+.markdown-body li { margin-top: .25em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body ul ul, .markdown-body ul ol,
+.markdown-body ol ul, .markdown-body ol ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* ── Inline code ─────────────────────────────────────────────────── */
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 85%;
+  background: var(--color-neutral-muted);
+  border-radius: 6px;
+  padding: .2em .4em;
+  margin: 0;
+  white-space: break-spaces;
+}
+/* Reset inside fenced blocks */
+.markdown-body pre code {
+  background: transparent;
+  border: 0;
+  font-size: 100%;
+  margin: 0;
+  overflow: visible;
+  overflow-wrap: normal;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+  line-height: inherit;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+.markdown-body pre {
+  background: var(--color-canvas-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 85%;
+  line-height: 1.45;
+  margin-bottom: 16px;
+  margin-top: 0;
+  overflow: auto;
+  padding: 16px;
+  tab-size: 4;
+  word-wrap: normal;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+.markdown-body table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 16px;
+  margin-top: 0;
+  max-width: 100%;
+  overflow: auto;
+  width: max-content;
+}
+.markdown-body table th {
+  font-weight: 600;
+}
+.markdown-body table th,
+.markdown-body table td {
+  border: 1px solid var(--color-border-default);
+  padding: 6px 13px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body table thead tr {
+  background-color: var(--color-canvas-subtle);
+  border-top: 1px solid var(--color-border-muted);
+}
+.markdown-body table tbody tr:nth-child(even) {
+  background-color: var(--color-canvas-subtle);
+}
+
+/* ── Verdict badge colours (applied by JS below) ─────────────────── */
+.verdict-pass     { color: var(--color-success-fg);   font-weight: 600; }
+.verdict-fail     { color: var(--color-danger-fg);    font-weight: 600; }
+.verdict-marginal { color: var(--color-attention-fg); font-weight: 600; }
+.verdict-info     { color: var(--color-fg-muted);     font-weight: 600; }
+
+/* ── Syntax highlighting (Pygments, overrides for dark canvas) ───── */
+.highlight {
+  background: var(--color-canvas-subtle) !important;
+  border-radius: 6px;
+  overflow: auto;
+}
+.highlight pre { background: transparent; border: none; margin: 0; }
+pre { line-height: 125%; }
+td.linenos .normal { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #6e7681; background-color: #0d1117; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #e6edf3; background-color: #6e7681; padding-left: 5px; padding-right: 5px; }
+.highlight .hll { background-color: #6e7681 }
+.highlight { background: #0d1117; color: #E6EDF3 }
+.highlight .c { color: #8B949E; font-style: italic } /* Comment */
+.highlight .err { color: #F85149 } /* Error */
+.highlight .esc { color: #E6EDF3 } /* Escape */
+.highlight .g { color: #E6EDF3 } /* Generic */
+.highlight .k { color: #FF7B72 } /* Keyword */
+.highlight .l { color: #A5D6FF } /* Literal */
+.highlight .n { color: #E6EDF3 } /* Name */
+.highlight .o { color: #FF7B72; font-weight: bold } /* Operator */
+.highlight .x { color: #E6EDF3 } /* Other */
+.highlight .p { color: #E6EDF3 } /* Punctuation */
+.highlight .ch { color: #8B949E; font-style: italic } /* Comment.Hashbang */
+.highlight .cm { color: #8B949E; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Preproc */
+.highlight .cpf { color: #8B949E; font-style: italic } /* Comment.PreprocFile */
+.highlight .c1 { color: #8B949E; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #8B949E; font-weight: bold; font-style: italic } /* Comment.Special */
+.highlight .gd { color: #FFA198; background-color: #490202 } /* Generic.Deleted */
+.highlight .ge { color: #E6EDF3; font-style: italic } /* Generic.Emph */
+.highlight .ges { color: #E6EDF3; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.highlight .gr { color: #FFA198 } /* Generic.Error */
+.highlight .gh { color: #79C0FF; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #56D364; background-color: #0F5323 } /* Generic.Inserted */
+.highlight .go { color: #8B949E } /* Generic.Output */
+.highlight .gp { color: #8B949E } /* Generic.Prompt */
+.highlight .gs { color: #E6EDF3; font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #79C0FF } /* Generic.Subheading */
+.highlight .gt { color: #FF7B72 } /* Generic.Traceback */
+.highlight .g-Underline { color: #E6EDF3; text-decoration: underline } /* Generic.Underline */
+.highlight .kc { color: #79C0FF } /* Keyword.Constant */
+.highlight .kd { color: #FF7B72 } /* Keyword.Declaration */
+.highlight .kn { color: #FF7B72 } /* Keyword.Namespace */
+.highlight .kp { color: #79C0FF } /* Keyword.Pseudo */
+.highlight .kr { color: #FF7B72 } /* Keyword.Reserved */
+.highlight .kt { color: #FF7B72 } /* Keyword.Type */
+.highlight .ld { color: #79C0FF } /* Literal.Date */
+.highlight .m { color: #A5D6FF } /* Literal.Number */
+.highlight .s { color: #A5D6FF } /* Literal.String */
+.highlight .na { color: #E6EDF3 } /* Name.Attribute */
+.highlight .nb { color: #E6EDF3 } /* Name.Builtin */
+.highlight .nc { color: #F0883E; font-weight: bold } /* Name.Class */
+.highlight .no { color: #79C0FF; font-weight: bold } /* Name.Constant */
+.highlight .nd { color: #D2A8FF; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #FFA657 } /* Name.Entity */
+.highlight .ne { color: #F0883E; font-weight: bold } /* Name.Exception */
+.highlight .nf { color: #D2A8FF; font-weight: bold } /* Name.Function */
+.highlight .nl { color: #79C0FF; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #FF7B72 } /* Name.Namespace */
+.highlight .nx { color: #E6EDF3 } /* Name.Other */
+.highlight .py { color: #79C0FF } /* Name.Property */
+.highlight .nt { color: #7EE787 } /* Name.Tag */
+.highlight .nv { color: #79C0FF } /* Name.Variable */
+.highlight .ow { color: #FF7B72; font-weight: bold } /* Operator.Word */
+.highlight .pm { color: #E6EDF3 } /* Punctuation.Marker */
+.highlight .w { color: #6E7681 } /* Text.Whitespace */
+.highlight .mb { color: #A5D6FF } /* Literal.Number.Bin */
+.highlight .mf { color: #A5D6FF } /* Literal.Number.Float */
+.highlight .mh { color: #A5D6FF } /* Literal.Number.Hex */
+.highlight .mi { color: #A5D6FF } /* Literal.Number.Integer */
+.highlight .mo { color: #A5D6FF } /* Literal.Number.Oct */
+.highlight .sa { color: #79C0FF } /* Literal.String.Affix */
+.highlight .sb { color: #A5D6FF } /* Literal.String.Backtick */
+.highlight .sc { color: #A5D6FF } /* Literal.String.Char */
+.highlight .dl { color: #79C0FF } /* Literal.String.Delimiter */
+.highlight .sd { color: #A5D6FF } /* Literal.String.Doc */
+.highlight .s2 { color: #A5D6FF } /* Literal.String.Double */
+.highlight .se { color: #79C0FF } /* Literal.String.Escape */
+.highlight .sh { color: #79C0FF } /* Literal.String.Heredoc */
+.highlight .si { color: #A5D6FF } /* Literal.String.Interpol */
+.highlight .sx { color: #A5D6FF } /* Literal.String.Other */
+.highlight .sr { color: #79C0FF } /* Literal.String.Regex */
+.highlight .s1 { color: #A5D6FF } /* Literal.String.Single */
+.highlight .ss { color: #A5D6FF } /* Literal.String.Symbol */
+.highlight .bp { color: #E6EDF3 } /* Name.Builtin.Pseudo */
+.highlight .fm { color: #D2A8FF; font-weight: bold } /* Name.Function.Magic */
+.highlight .vc { color: #79C0FF } /* Name.Variable.Class */
+.highlight .vg { color: #79C0FF } /* Name.Variable.Global */
+.highlight .vi { color: #79C0FF } /* Name.Variable.Instance */
+.highlight .vm { color: #79C0FF } /* Name.Variable.Magic */
+.highlight .il { color: #A5D6FF } /* Literal.Number.Integer.Long */
+  </style>
+</head>
+<body>
+  <div class="markdown-body">
+<h1 id="gap-residual-how-much-of-gap-relocates-class-n-can-be-decoded-on-the-audio-after-subtraction">GAP-RESIDUAL: how much of GAP-RELOCATE's class N can be decoded on the audio after subtraction?</h1>
+<p><strong>Date:</strong> 2026-10-29T17:42:33Z (<code>date -u</code>) · <strong>From:</strong> QA · <strong>Spec:</strong> <code>arch/gap-residual</code> <code>74a38158</code> + Amendment 1 section 9 <code>ea7496d1</code> · <strong>Captain's go:</strong> "run the pilot first", then "go" (2026-10-29)
+<strong>Build:</strong> <code>main</code> <code>c2c85c45</code> (v0.67), R-F4 setting absent (OFF); an ON arm (<code>decoder.coherentFallbackResidualUngated</code> = 1) tags rows only. <code>libft8.dll</code> SHA-256 <code>1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914</code> = the station pin, at the start and end of both arms (and by the forced-leg loader).
+<strong>Corpus:</strong> night <code>20260925_2010</code>, GAP-RELOCATE's 400 cycles in its order (<code>selection400.json</code>, sha <code>42e09239…</code>), n_ref = 12,124. Populations M (2,193), N (1,860), K and U are GAP-RELOCATE's, frozen. PC; the station daemon stopped.
+<strong>Forced legs:</strong> GAP-RELOCATE's own code (<code>gr_forced.force_cycle</code>, frozen δ_p 0.6 s, δ_c 0.7 s, the same comparator); only the PCM argument changed (the captured R2 and R3 buffers). Capture: a <code>qa/</code>-only extension of Replay81 (<code>StageProbe.cs</code>); nothing under <code>src/</code> or <code>native/</code> changed.
+Aggregates only. No callsign or message text in this report. Working files (buffers, native dumps) are in <code>D:\Projects\claude\_qa-scratch\gap-residual\</code> and are deleted at job close.</p>
+<h2 id="result-in-one-paragraph">Result in one paragraph</h2>
+<p><strong>ROW 0 passes in full, so the study stands.</strong> Of the 1,860 class-N rows (15.341 pp), <strong>271 (2.24 pp) are decodable on a buffer the product itself produces</strong>: RC 133 (1.097 pp), RG 51 (0.421 pp), RW 77 (0.635 pp) and RP-search 10 (0.082 pp); RP-native is 0. <strong>1,589 rows (13.106 pp [12.49, 13.71]) are NR</strong>: not decodable by any extractor we have, at the right place, on the original audio or on R2 or R3. <strong>R-RC and R-NR fire; R-RP does not.</strong> Of the 261 RC + RG + RW rows, <strong>153 (58.6 %) were never offered to the fallback</strong> a candidate within its search window (55.2 % at the wider window), so the lever question is the one the spec names. NR is not a floor (section 5).</p>
+<h2 id="row-0-strict-order-all-pass">ROW 0 (strict order; all pass)</h2>
+<table>
+<thead>
+<tr>
+<th>row</th>
+<th>check</th>
+<th>result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0a</td>
+<td>DLL pin at start and end of each arm and of the forced legs</td>
+<td>PASS (<code>1ba8dc3d…</code>)</td>
+</tr>
+<tr>
+<td>0b</td>
+<td>OFF arm with the capture on reproduces GAP-RELOCATE's BOTH arm</td>
+<td><strong>PASS, exact: <code>matchedbatch.csv</code> and the full decode dump are byte-identical</strong> (10,133 lines each); batch 4 published <strong>1,350</strong>; corroborated <strong>9,931 / 12,124</strong>; run counts per cycle identical. One process, GAP-RELOCATE's order</td>
+</tr>
+<tr>
+<td>0c(i)</td>
+<td><code>DecodeAll</code> call count per cycle, from <code>RunCore</code></td>
+<td>PASS: O in 400 / 400. 3 calls in the 382 cycles where the third pass ran, 2 in the 18 <code>skipped-no-new</code> (no third <code>DecodeAll</code> when nothing is re-encodable). Third-pass outcomes: ran 382, skipped-no-new 18, abandoned 0, failed 0. R3 is taken only where the outcome is <code>ran</code></td>
+</tr>
+<tr>
+<td>0c(ii)</td>
+<td><code>F</code>'s PCM is byte-identical to the product selector's choice</td>
+<td>PASS in 400 / 400: level R3 in 382, R2 in 18, O in 0. In all 400 <code>Both</code> cycles the <strong>second</strong> <code>CohFallbackRun</code> reads O byte for byte</td>
+</tr>
+<tr>
+<td>0c(iii)</td>
+<td>offline <code>DecodeAll</code> on the captured buffers reproduces the native results</td>
+<td>PASS: separate process, hash state restored; 400 O + 400 R2 + 382 R3 = 1,182 calls, <strong>0 mismatches</strong> (freq, dt, SNR, count and text compared inside the function, exact)</td>
+</tr>
+<tr>
+<td>0d</td>
+<td><code>P_ctrl,R</code> per stratum, non-pilot 360 cycles, bar 0.90</td>
+<td>PASS, see below. Pilot first (40 cycles): (i) 50 / 50, (ii) 9 / 9, no STOP</td>
+</tr>
+<tr>
+<td>0e</td>
+<td>original buffer</td>
+<td><strong>Implied</strong>: O is byte-identical to the WAV PCM in 33 / 40 pilot cycles, the other 7 differ by under 1.2e-7 relative; the forced legs on O give GAP-RELOCATE's class for <strong>221 / 221</strong> (1.000, bar 0.98)</td>
+</tr>
+<tr>
+<td>0f</td>
+<td>no abandonment, both arms</td>
+<td>PASS: 0 residual abandoned, 0 contained, 0 third-pass abandoned or failed, 0 fallback lines with <code>abandoned&gt;0</code> (OFF and ON)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>One adaptation, stated:</strong> the native <code>DecodeAll</code> result carries freq, dt, SNR and text but no payload bytes, so 0c(iii) compares those and the count exactly (the hash state is restored, so the text is deterministic) instead of payload bytes. It is stricter in the fields it has and no looser in any.</p>
+<h3 id="0d-in-detail-k-rows-360-non-pilot-cycles-legs-on-r2-r3">0d in detail (K rows, 360 non-pilot cycles; legs on R2 ∪ R3)</h3>
+<table>
+<thead>
+<tr>
+<th>stratum</th>
+<th>validates</th>
+<th style="text-align: right;">n</th>
+<th style="text-align: right;">recovered</th>
+<th style="text-align: right;">P</th>
+<th>Wilson 95 %</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(i) batch 2 / 3 K rows</td>
+<td>primary leg</td>
+<td style="text-align: right;">284</td>
+<td style="text-align: right;">273</td>
+<td style="text-align: right;"><strong>0.961</strong></td>
+<td>[0.932, 0.978]</td>
+</tr>
+<tr>
+<td>(ii) residual-only fallback K rows</td>
+<td>coherent legs (V3 any gate ∪ walk)</td>
+<td style="text-align: right;">92</td>
+<td style="text-align: right;">84</td>
+<td style="text-align: right;"><strong>0.913</strong></td>
+<td>[0.838, 0.955]</td>
+</tr>
+</tbody>
+</table>
+<p>Both strata are at or above 0.90, so no leg family is "not established". Descriptive, not judged (all rows of the tags in the 360 cycles, not only K): (i) 1,243 / 1,277 = 0.973 [0.963, 0.981]; (ii) 404 / 460 = 0.878 [0.845, 0.905]. <strong>Stratum (ii) is the thinnest</strong> in both views; its K figure clears the bar by 1.3 pp with a lower interval bound of 0.84.
+- Bands (union of legs): A 0.938 (n 16), B 0.937 (126), C 0.955 (111), D 0.984 (123); no band with n ≥ 50 is below 0.80.
+- REF-SNR terciles (cut points <strong>frozen from the N rows before any forcing</strong>: −18 and −12 dB): 1 (≤ −18) 0.989 (n 91), 2 0.965 (115), 3 0.935 (170); none below 0.80, none empty. Control SNR range −24 to +13 dB, N rows −24 to +17 dB (the control has no row above +13 dB; terciles 1 to 3 are all covered).
+- ⇒ <strong>NR? = 0</strong>: no NR row is marked "not established".</p>
+<h2 id="positive-control-for-the-rp-native-check-hk-026">Positive control for the RP-native check (HK-026)</h2>
+<p>The RP-native predicate reads the captured <code>DecodeAll(R2 / R3)</code> output. To show the check is not blind, I ran it on rows the product certainly decoded there: <strong>334 of 334 K batch-2/3 rows are found in the captured native results</strong>, while 11 of 225 sampled batch-1 rows are (batch-1 signals are mostly subtracted away). The check discriminates, so RP-native = 0 is a real zero.</p>
+<h2 id="d1-r-the-split-of-class-n-adds-to-1860-pp-of-n_ref-12124">D1-R: the split of class N (adds to 1,860), pp of n_ref = 12,124</h2>
+<table>
+<thead>
+<tr>
+<th>class</th>
+<th style="text-align: right;">rows</th>
+<th style="text-align: right;">pp</th>
+<th>95 % CI (bootstrap of the 400 cycles)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RP-native (in the product's own <code>DecodeAll(R2/R3)</code> output, lost afterwards)</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.000</td>
+<td>[0.000, 0.000]</td>
+</tr>
+<tr>
+<td>RP-search (primary decodes it on R2/R3 at the right place, the product's search did not)</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">0.082</td>
+<td>[0.034, 0.136]</td>
+</tr>
+<tr>
+<td>RC (V3 matches, F1b ≤ T1, publishable)</td>
+<td style="text-align: right;">133</td>
+<td style="text-align: right;">1.097</td>
+<td>[0.910, 1.277]</td>
+</tr>
+<tr>
+<td>RG (V3 matches, F1b &gt; T1, gated out)</td>
+<td style="text-align: right;">51</td>
+<td style="text-align: right;">0.421</td>
+<td>[0.309, 0.540]</td>
+</tr>
+<tr>
+<td>RW (walk only)</td>
+<td style="text-align: right;">77</td>
+<td style="text-align: right;">0.635</td>
+<td>[0.505, 0.777]</td>
+</tr>
+<tr>
+<td><strong>NR</strong></td>
+<td style="text-align: right;"><strong>1,589</strong></td>
+<td style="text-align: right;"><strong>13.106</strong></td>
+<td><strong>[12.488, 13.708]</strong></td>
+</tr>
+<tr>
+<td>RC + RG + RW</td>
+<td style="text-align: right;">261</td>
+<td style="text-align: right;">2.153</td>
+<td>[1.914, 2.407]</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Whole map restated (adds to M = 2,193):</strong> P 8, FP 10, FC 26, G 87, FCw 38, U 164 (GAP-RELOCATE), plus N split as above (RP-native 0, RP-search 10, RC 133, RG 51, RW 77, NR 1,589).</p>
+<ul>
+<li><strong>D2-R:</strong> the 10 RP-search rows: 4 centre cell, 6 neighbour only.</li>
+<li><strong>D3-R (band A, B, C, D):</strong> RP-search 0, 1, 2, 7; RC 0, 10, 28, 95; RG 4, 32, 12, 3; RW 3, 27, 22, 25; NR 67, 381, 405, 736.</li>
+<li><strong>D4-R (load quintiles, edges 23 / 28 / 33 / 37):</strong> NR 163, 231, 275, 350, 570; RC 11, 17, 24, 25, 56; RG 2, 1, 10, 15, 23; RW 9, 3, 19, 22, 24; RP-search 0, 0, 2, 4, 4. NR rate q1 to q5, standardised: 0.117, 0.122, 0.126, 0.137, 0.142. <strong>Descriptive; not a DENSITY result</strong> and not re-scored.</li>
+<li><strong>D5-R, <code>F_wrong</code>:</strong> R2: primary 9, V3 19, walk 9; R3: primary 8, V3 18, walk 7. <strong>W rows</strong> (N rows with <code>F_wrong</code> on the original audio, 95): 31 recovered here (32.6 %), against 240 of the other 1,765 N rows (13.6 %). So the "another transmission dominated the cell, subtraction exposed it" reading holds directionally.</li>
+<li><strong>D6-R (candidate offered, window ±2 Hz / ±0.12 s around the candidate's lattice position; constants asserted against <code>coherent_fallback.c:68</code> and <code>:70</code> in code):</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>class</th>
+<th style="text-align: right;">n</th>
+<th style="text-align: right;">offered</th>
+<th style="text-align: right;">never offered</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RC</td>
+<td style="text-align: right;">133</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;"><strong>114</strong></td>
+</tr>
+<tr>
+<td>RG</td>
+<td style="text-align: right;">51</td>
+<td style="text-align: right;">44</td>
+<td style="text-align: right;">7</td>
+</tr>
+<tr>
+<td>RW</td>
+<td style="text-align: right;">77</td>
+<td style="text-align: right;">45</td>
+<td style="text-align: right;">32</td>
+</tr>
+<tr>
+<td>all</td>
+<td style="text-align: right;">261</td>
+<td style="text-align: right;">108</td>
+<td style="text-align: right;"><strong>153 (58.6 %)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>At the wider window (±2.5 Hz / ±0.17 s) the figure is 144 of 261 (55.2 %). Both are at least half. The 153 never-offered rows are <strong>1.262 pp</strong> of n_ref (descriptive).
+- <strong>D7-R (RG rows' F1b against T1 = 17.552 dB):</strong> 51 rows, median 20.34 dB; 10 within 1 dB above T1, 26 within 3 dB.
+- <strong>Per-station clustering</strong> (rows / distinct senders / top sender share / top-5 share): RC 133 / 90 / 4.5 % / 17.3 %; RG 51 / 36 / 9.8 % / 31.4 %; RW 77 / 55 / 5.2 % / 19.5 %; RP-search 10 / 9 / 20 % / 60 %; NR 1,589 / 341 / 2.1 % / 9.6 %. No class is a few senders' output, except the very small RP-search.</p>
+<h2 id="d8-the-on-arm-r-f4-setting-on-tag-only">D8: the ON arm (R-F4 setting on), tag only</h2>
+<p>The ON arm (400 cycles, 17:18Z to 17:42Z; every fallback line carries <code>ungated=</code>; 0 abandoned) <strong>publishes, outcome-matched, 90 of the 1,860 N rows: RG 44, RW 25, RC 6, NR 15.</strong> D1-R with those rows removed: RP-search 10, RC 127, RG 7, RW 52, NR 1,574 (RP-native 0).
+- RG 44 of 51 equals the 44 RG rows that D6-R finds "offered": R-F4 already collects the gated-out rows the fallback is offered.
+- <strong>Fifteen rows this study classes NR are published by the ON arm.</strong> The forced legs at REF + δ miss rows the product does publish (75 of the 90 ON-published N rows are in RC / RG / RW; 83 %). NR is therefore an upper bound on "undecodable", not a measure of it.</p>
+<h2 id="routing-rows-section-5-as-amended-bar_l-05-pp-95-bootstrap-of-the-400-cycles-b-2000-seed-20261029-no-multiplicity-adjustment">Routing rows (section 5, as amended; BAR_L = 0.5 pp; 95 % bootstrap of the 400 cycles, B = 2000, seed 20261029; no multiplicity adjustment)</h2>
+<table>
+<thead>
+<tr>
+<th>row</th>
+<th>predicate</th>
+<th>measured</th>
+<th style="text-align: center;">fires</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>R-RP</strong></td>
+<td>CI_lo(RP-search) ≥ 0.5 pp</td>
+<td>0.082 pp, CI_lo 0.034</td>
+<td style="text-align: center;"><strong>no</strong></td>
+</tr>
+<tr>
+<td><strong>R-RC</strong></td>
+<td>CI_lo(RC + RG + RW) ≥ 0.5 pp</td>
+<td>2.153 pp, CI_lo <strong>1.914</strong></td>
+<td style="text-align: center;"><strong>yes</strong></td>
+</tr>
+<tr>
+<td><strong>R-NR</strong></td>
+<td>CI_lo(NR − NR?) ≥ sum of the point estimates of RP, RC, RG, RW</td>
+<td>NR 13.106 pp, CI_lo <strong>12.488</strong> (NR? = 0) against a sum of 2.235 pp (RP-native + RP-search + RC + RG + RW)</td>
+<td style="text-align: center;"><strong>yes</strong></td>
+</tr>
+<tr>
+<td>R-0</td>
+<td>none of the above</td>
+<td></td>
+<td style="text-align: center;">no</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>R-RC wording (A1.3):</strong> "never offered" is 153 of 261 (58.6 %; 55.2 % at the wider window): at least half in both windows, so the lever question is <strong>give the fallback's residual run a candidate list from the residual buffers</strong> (today it reuses the original audio's list). By class, the never-offered rows are mostly RC (114 of 133 = 86 %); RG (7 of 51) is largely collected by R-F4 already, and RW is 32 of 77. <strong>Upper bound</strong> on what such a lever could buy: the 153 never-offered rows, <strong>1.262 pp</strong> (all 261: 2.153 pp). It is an upper bound: the product also needs the candidate, and a looser path admits wrong payloads (U′ watch in any lever arm; <code>F_wrong</code> is non-zero on both buffers).</li>
+<li><strong>R-NR:</strong> most of N (13.1 of 15.3 pp) is not reachable by any extractor we have on any buffer the product produces. 🛑 <strong>Not a floor:</strong> better subtraction would produce different buffers, and this instrument cannot see them (HK-026); the D8 fifteen rows show it also misses rows the product publishes. The Captain decides: stop the decode-rate programme, or commission an oracle-subtraction instrument (named, not specified).</li>
+<li><strong>R-RP not fired:</strong> the product's residual search misses only 10 rows (0.08 pp) that the primary decoder can decode there; RP-native is 0 (no post-decode loss of a row the product's <code>DecodeAll</code> already had).</li>
+</ul>
+<h2 id="architect-predictions-facts-only-scoring-is-the-architects-at-ruling-time">Architect predictions (facts only; scoring is the Architect's at ruling time)</h2>
+<p>RR-1 ROW 0 passed; the one adaptation is the 0c(iii) field set above. RR-2 <code>P_ctrl,R</code> ≥ 0.90 on the pilot: yes (50 / 50, 9 / 9). RR-3 R-RP fires: no. RR-4 R-RC fires: yes. RR-5 R-NR fires: yes. RR-6 never offered ≥ half: yes (58.6 %). RR-7 W rows recovered at a higher rate: yes (32.6 % against 13.6 %).</p>
+<h2 id="what-this-study-does-not-say">What this study does not say</h2>
+<ul>
+<li>It forces at WSJT-X's position (REF + δ), so it is an upper bound for every routed class.</li>
+<li>0d's stratum (ii) is the weakest validation (0.913, lower bound 0.84): the coherent-leg classes (RC, RG, RW, NR for those legs) rest on it.</li>
+<li>No lever is specified or built. Whether to ask for a residual-candidate lever, or to stop, is the Captain's question.</li>
+<li><code>F_wrong</code> is non-zero (R2: 9 / 19 / 9; R3: 8 / 18 / 7), counted per leg and never a success.</li>
+</ul>
+<h2 id="reproduction">Reproduction</h2>
+<p><code>qa/rr-study/gap-residual-run/</code>: <code>gres_arm.sh</code> (arms; the OFF arm needs <code>CAPARG=1</code>, the ON arm <code>BIN=…\bin_on EXTRA="--ungated 1"</code>), <code>gres_row0.py</code>, <code>gres_pilot.py</code>, <code>gres_main.py force|analyse</code>; Replay81 <code>StageProbe.cs</code> / <code>Program.cs</code> (<code>--cap-dir</code>, <code>--cap-recheck</code>). Filtered-suite note (HK-022): there is no test suite here; the pins are the DLL SHA-256 pair above and the selection sha.</p>
+  </div>
+  <script>
+    // Colour verdict cells: PASS / FAIL / MARGINAL / informational
+    document.querySelectorAll('td, th').forEach(function (cell) {
+      var t = cell.textContent.trim();
+      if (/^(PASS|✅)$/.test(t)) {
+        cell.classList.add('verdict-pass');
+      } else if (/^(FAIL|❌)$/.test(t)) {
+        cell.classList.add('verdict-fail');
+      } else if (/MARGINAL|ABOVE BAND|⚠/.test(t)) {
+        cell.classList.add('verdict-marginal');
+      } else if (/^informational$/i.test(t)) {
+        cell.classList.add('verdict-info');
+      }
+    });
+  </script>
+</body>
+</html>

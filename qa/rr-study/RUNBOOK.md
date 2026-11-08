@@ -760,7 +760,7 @@ with Linux simultaneously.
 4. After the injection window, check the reported SNR from each appraiser:
    - Linux daemon: browser UI or `linux-all.txt` (last 10 entries)
    - Windows daemon: `ALL.TXT` (last 10 entries)
-   - WSJT-X: `C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT` (last 10 entries)
+   - WSJT-X: `%LOCALAPPDATA%\WSJT-X\ALL.TXT` (last 10 entries)
 5. **Compare the three SNR values.** The target is all three within **±2 dB** of
    each other.
 6. **If Windows/WSJT-X SNR < Linux SNR by more than 2 dB:**
@@ -798,7 +798,7 @@ session.
      WSJT-X does not transmit during the study).
 3. Settings → Reporting tab:
    - Confirm **Log file:** uses the default location
-     (`C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT`) or note the actual path.
+     (`%LOCALAPPDATA%\WSJT-X\ALL.TXT`) or note the actual path.
 4. Click **OK** and let WSJT-X begin receiving.
 
 **Per-session checklist:**
@@ -807,7 +807,7 @@ session.
 ☐ WSJT-X is open and showing "Receiving" status
 ☐ WSJT-X Input = Voicemeeter Out B2
 ☐ WSJT-X is decoding (rows appearing in its decode panel) — confirmed by smoke test
-☐ ALL.TXT exists at C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT
+☐ ALL.TXT exists at %LOCALAPPDATA%\WSJT-X\ALL.TXT (the RUNNING account's; `python qa/station_paths.py` prints it)
 ```
 
 **Verify WSJT-X is receiving (add to smoke test after §5.2 Step 5):**
@@ -815,7 +815,7 @@ session.
 After running `smoke_test_null_sink.py`, also confirm:
 ```powershell
 # Check WSJT-X ALL.TXT was updated within the last 5 minutes
-(Get-Item "C:\Users\Frank\AppData\Local\WSJT-X\ALL.TXT").LastWriteTime
+(Get-Item "$env:LOCALAPPDATA\WSJT-X\ALL.TXT").LastWriteTime
 # Should be recent if WSJT-X is running and receiving
 ```
 

@@ -23,11 +23,13 @@ import time
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))  # qa/ : station_paths (2026-11-02)
+import station_paths as _sp  # noqa: E402
 _VENV_PYTHON = _HERE / ".venv" / "Scripts" / "python.exe"
 _SCENARIOS = _HERE / "scenarios"
 _RESULTS = _HERE / "results"
 
-WSJT_ALL_TXT  = Path(r"C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT")
+WSJT_ALL_TXT  = _sp.wsjtx_all_txt("FT991A")   # running account's %LOCALAPPDATA%
 OWSFZ_ALL_TXT = Path(r"D:\Projects\claude\OpenWSFZ\ALL.TXT")
 
 # Full controlled order, excluding S1 (already played before a resume) and S8
@@ -108,6 +110,13 @@ def main() -> None:
                         help="Path to OpenWSFZ's ALL.TXT.")
     args = parser.parse_args()
     WSJT_ALL_TXT, OWSFZ_ALL_TXT = Path(args.wsjt_all_txt), Path(args.owsfz_all_txt)
+    # Stale-log guard (2026-11-02; a resume checks growth across THIS invocation's plays): refuse a WSJT-X log outside this account's profile,
+    # a missing one (clear message), and arm the must-grow check verified before the logs are collected.
+    try:
+        _wsjt_growth = _sp.guard_run_start(
+            WSJT_ALL_TXT, explicit=_sp.is_explicit(WSJT_ALL_TXT, _sp.wsjtx_all_txt("FT991A")))
+    except _sp.StaleLogError as _exc:
+        sys.exit(f"ERROR: {_exc}")
 
     # Derive the play set from the resume point. The match set is NOT
     # derived here -- see the comment above Step 4 below. A resume can
@@ -140,6 +149,10 @@ def main() -> None:
 
     # Step 3: Collect logs
     print("\nCollecting decode logs ...", flush=True)
+    try:
+        _wsjt_growth.verify()
+    except _sp.StaleLogError as _exc:
+        sys.exit(f"ERROR: {_exc}")
     if not WSJT_ALL_TXT.exists():
         sys.exit(f"ERROR: WSJT-X ALL.TXT not found at {WSJT_ALL_TXT}")
     if not OWSFZ_ALL_TXT.exists():

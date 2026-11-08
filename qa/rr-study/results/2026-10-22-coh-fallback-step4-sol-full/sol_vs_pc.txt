@@ -1,0 +1,17 @@
+== OFF: cycles sol 961 pc 961; exceptions sol 0; outcomes (all kinds incl. path) identical to PC: 961/961
+   residual-pass abandoned cycles: sol 0 pc 0
+   tb1_ms: sol n=961 med=1224 p95=1368 max=1506 | pc med=526 p95=589
+   tb2_ms: sol n=909 med=6048 p95=6998 max=8961 | pc med=2323 p95=2886
+   tb3_ms: sol n=238 med=8158 p95=9524 max=11042 | pc med=3259 p95=3889
+   elapsed_ms: sol n=961 med=7758 p95=9223 max=11160 | pc med=3125 p95=3832
+== ON: cycles sol 961 pc 961; exceptions sol 0; outcomes (all kinds incl. path) identical to PC: 961/961
+   residual-pass abandoned cycles: sol 0 pc 0
+   tb1_ms: sol n=961 med=1228 p95=1368 max=1508 | pc med=528 p95=595
+   tb2_ms: sol n=909 med=6027 p95=6965 max=8722 | pc med=2289 p95=2874
+   tb3_ms: sol n=238 med=8187 p95=9383 max=10943 | pc med=3236 p95=3826
+   elapsed_ms: sol n=961 med=8216 p95=9764 max=11640 | pc med=3333 p95=4061
+== ON batch 4: sol published 668 of 961 | pc 668 of 961
+   publish ms from decode start: sol med 8268 p95 9843 max 11640 (min margin to the 13 s budget 1360 ms) | pc med 3350 p95 4110 max 4856
+   fallback wall ms: sol med 485 p95 724 max 1041 | pc med 215 p95 352 max 532
+   fallback abandoned cycles: sol 0 pc 0
+== sol ON vs OFF, batches 1-3 differing cycles: 0 (PC: 0)

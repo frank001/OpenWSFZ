@@ -1,0 +1,70 @@
+{
+ "label": "L1b-d1463230",
+ "log": "openswfz-20261026T193543Z.log",
+ "marks": {
+  "m0": 26,
+  "start1": 46,
+  "stop": 263,
+  "start2": 271,
+  "end": 546
+ },
+ "m0->start1": {
+  "framer_starts": 0,
+  "pipeline_starts": 0,
+  "pipeline_started": 0,
+  "pipeline_stopped": 0,
+  "clamps": 0,
+  "windows": 0,
+  "distinct_stamps": 0,
+  "duplicated_stamps": 0,
+  "extra_windows": 0,
+  "decodes_per_cycle": []
+ },
+ "start1->stop": {
+  "framer_starts": 8,
+  "pipeline_starts": 8,
+  "pipeline_started": 8,
+  "pipeline_stopped": 7,
+  "clamps": 0,
+  "windows": 0,
+  "distinct_stamps": 0,
+  "duplicated_stamps": 0,
+  "extra_windows": 0,
+  "decodes_per_cycle": []
+ },
+ "stop->start2": {
+  "framer_starts": 0,
+  "pipeline_starts": 0,
+  "pipeline_started": 0,
+  "pipeline_stopped": 1,
+  "clamps": 0,
+  "windows": 0,
+  "distinct_stamps": 0,
+  "duplicated_stamps": 0,
+  "extra_windows": 0,
+  "decodes_per_cycle": []
+ },
+ "start2->end": {
+  "framer_starts": 11,
+  "pipeline_starts": 11,
+  "pipeline_started": 11,
+  "pipeline_stopped": 10,
+  "clamps": 0,
+  "windows": 0,
+  "distinct_stamps": 0,
+  "duplicated_stamps": 0,
+  "extra_windows": 0,
+  "decodes_per_cycle": []
+ },
+ "whole": {
+  "framer_starts": 19,
+  "pipeline_starts": 19,
+  "pipeline_started": 19,
+  "pipeline_stopped": 18,
+  "clamps": 0,
+  "windows": 0,
+  "distinct_stamps": 0,
+  "duplicated_stamps": 0,
+  "extra_windows": 0
+ }
+}

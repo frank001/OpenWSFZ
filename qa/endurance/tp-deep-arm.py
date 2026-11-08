@@ -27,14 +27,16 @@ import urllib.request
 from pathlib import Path
 
 QA_WT = Path(r"D:\Projects\claude\OpenWSFZ\worktrees\qa")
+sys.path.insert(0, str(QA_WT / "qa"))  # station_paths (per-account paths, 2026-11-02)
+import station_paths as _sp  # noqa: E402
 PY = r"D:\Projects\claude\_qa-scratch\rr-main\tree\qa\rr-study\.venv\Scripts\python.exe"
 PUB = Path(r"D:\Projects\claude\_qa-scratch\endur-tp\tree\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\publish")
 EXE = str(PUB / "OpenWSFZ.Daemon.exe")
 DLL_SHA = "06e513a4384dd3da118fb02041b040a811cdf6157062de302de5397691f92613"
 COMMIT = "a329cea9db29458c6f9f78e0b235ef1d65f30f34"
 BASE_CFG = Path(r"D:\Projects\claude\_qa-scratch\rr-main\config")
-STATION_CFG = Path(r"C:\Users\Frank\AppData\Roaming\OpenWSFZ\config.json")     # READ ONLY: its decoder section is the template
-WSJTX_INI = r"C:\Users\Frank\AppData\Local\WSJT-X - FT991A\WSJT-X - FT991A.ini"
+STATION_CFG = _sp.station_config()     # READ ONLY: its decoder section is the template; running account's %APPDATA% (QA_STATION_CONFIG overrides)
+WSJTX_INI = str(_sp.wsjtx_ini("FT991A"))   # running account's %LOCALAPPDATA% (QA_WSJTX_INI overrides)
 CFG_DIR = QA_WT / "qa" / "endurance" / "tp-deep-config"
 PORT = 8080
 DIAL_MHZ = 7.074
@@ -69,6 +71,10 @@ def main() -> None:
     stamp = start.strftime("%Y%m%d_%H%M")
     corpus = (QA_WT / "artefacts" / f"{stamp}_endurance_run").as_posix()
     cfg = json.loads((BASE_CFG / "config.json").read_text(encoding="utf-8"))
+    for _need in (STATION_CFG, Path(WSJTX_INI)):   # a missing file under a fresh account is a message, not a traceback
+        if not _need.is_file():
+            sys.exit(f"ERROR: {_need} not found for the running account. Copy the station config / WSJT-X settings "
+                     f"over, or point at them with {_sp.ENV_STATION_CONFIG} / {_sp.ENV_WSJTX_INI}.")
     st_dec = json.loads(STATION_CFG.read_text(encoding="utf-8"))["decoder"]
     cfg["decoder"] = dict(st_dec)
     # AUDIO ROUTE (Captain, 2026-10-09): BOTH decoders on the direct USB CODEC (no Voicemeeter). The device fields are the station's own.

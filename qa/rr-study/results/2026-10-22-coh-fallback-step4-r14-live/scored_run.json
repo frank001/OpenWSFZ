@@ -1,0 +1,419 @@
+{
+ "window": [
+  "2026-10-22T15:14:56+00:00",
+  "2026-10-22T17:20:50+00:00"
+ ],
+ "cycles_total": 504,
+ "cycles_scored": 502,
+ "published_set_vs_ALLTXT": {
+  "determined": 483,
+  "unreconciled": 16,
+  "ambiguous": 3
+ },
+ "cycles_with_determined_published_set": 483,
+ "published_cycles_by_batch": {
+  "2": 318,
+  "3": 72,
+  "4": 193
+ },
+ "L1a": {
+  "QsoAnswererService": {
+   "cycles_matching": 477,
+   "missing_by_batch": {
+    "2": 0,
+    "3": 0,
+    "4": 0
+   },
+   "extra_by_batch": {
+    "2": 0,
+    "3": 3,
+    "4": 3
+   },
+   "in_order": true,
+   "superseded_lines_reported_separately": 0,
+   "first_missing": [],
+   "lines": 589
+  },
+  "QsoCallerService": {
+   "cycles_matching": 477,
+   "missing_by_batch": {
+    "2": 0,
+    "3": 0,
+    "4": 0
+   },
+   "extra_by_batch": {
+    "2": 0,
+    "3": 3,
+    "4": 3
+   },
+   "in_order": true,
+   "superseded_lines_reported_separately": 0,
+   "first_missing": [],
+   "lines": 589
+  }
+ },
+ "L1a_extra_line_cycles": [
+  [
+   "Answer",
+   "15:23:45",
+   4,
+   [
+    2
+   ],
+   [
+    [
+     2,
+     2
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   [
+    2,
+    4
+   ]
+  ],
+  [
+   "Answer",
+   "15:24:45",
+   3,
+   [
+    2,
+    4
+   ],
+   [
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     2
+    ]
+   ],
+   [
+    2,
+    3,
+    4
+   ]
+  ],
+  [
+   "Answer",
+   "16:14:00",
+   3,
+   [
+    2,
+    4
+   ],
+   [
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     2
+    ]
+   ],
+   [
+    2,
+    3,
+    4
+   ]
+  ],
+  [
+   "Answer",
+   "16:14:30",
+   4,
+   [
+    2
+   ],
+   [
+    [
+     2,
+     4
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   [
+    2,
+    4
+   ]
+  ],
+  [
+   "Answer",
+   "17:14:45",
+   4,
+   [
+    2
+   ],
+   [
+    [
+     2,
+     2
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   [
+    2,
+    4
+   ]
+  ],
+  [
+   "Answer",
+   "17:16:45",
+   3,
+   [
+    2,
+    4
+   ],
+   [
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     2
+    ]
+   ],
+   [
+    2,
+    3,
+    4
+   ]
+  ],
+  [
+   "Caller",
+   "15:23:45",
+   4,
+   [
+    2
+   ],
+   [
+    [
+     2,
+     2
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   [
+    2,
+    4
+   ]
+  ],
+  [
+   "Caller",
+   "15:24:45",
+   3,
+   [
+    2,
+    4
+   ],
+   [
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     2
+    ]
+   ],
+   [
+    2,
+    3,
+    4
+   ]
+  ],
+  [
+   "Caller",
+   "16:14:00",
+   3,
+   [
+    2,
+    4
+   ],
+   [
+    [
+     2,
+     5
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     2
+    ]
+   ],
+   [
+    2,
+    3,
+    4
+   ]
+  ],
+  [
+   "Caller",
+   "16:14:30",
+   4,
+   [
+    2
+   ],
+   [
+    [
+     2,
+     4
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   [
+    2,
+    4
+   ]
+  ],
+  [
+   "Caller",
+   "17:14:45",
+   4,
+   [
+    2
+   ],
+   [
+    [
+     2,
+     2
+    ],
+    [
+     4,
+     1
+    ]
+   ],
+   [
+    2,
+    4
+   ]
+  ],
+  [
+   "Caller",
+   "17:16:45",
+   3,
+   [
+    2,
+    4
+   ],
+   [
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     1
+    ],
+    [
+     4,
+     2
+    ]
+   ],
+   [
+    2,
+    3,
+    4
+   ]
+  ]
+ ],
+ "determined_coverage": 0.9621513944223108,
+ "L1a_verdict": "FAIL",
+ "batch4_outcomes": {
+  "QsoAnswererService:applied-immediate": 1,
+  "QsoAnswererService:ignored-answered": 35,
+  "QsoAnswererService:no-match": 160,
+  "QsoCallerService:no-match": 196
+ },
+ "L2": {
+  "defects": [
+   [
+    "QsoAnswererService",
+    "16:48:00",
+    13.895
+   ]
+  ],
+  "ambiguous_within_50ms_not_scored": [],
+  "applied_deferred_on_batch4": 0,
+  "applied_immediate_on_batch4": 1
+ },
+ "L2_verdict": "FAIL",
+ "L3": {
+  "cycles_with_fallback_line": 483,
+  "batch4_cycles": 196,
+  "batch4_rate": 0.4057971014492754,
+  "batch4_publish_ms_from_decode_start": {
+   "median": 2556,
+   "p95": 3001,
+   "max": 3173
+  },
+  "fallback_line_after_slot_start_ms": {
+   "median": 2607.0,
+   "p95": 3046.0,
+   "max": 3194.0
+  },
+  "reply_guard": {
+   "batch4_service_lines": 392,
+   "after_2.36s": 259,
+   "rate": 0.6607142857142857
+  },
+  "fb_wall_ms": {
+   "median": 125,
+   "p95": 204,
+   "max": 315
+  },
+  "workers": [
+   0,
+   1,
+   5,
+   8,
+   14
+  ],
+  "R12": {
+   "eligible": 69751,
+   "attempted": 69751,
+   "crc_ok": 14324,
+   "published": 312,
+   "abandoned": 0,
+   "published_edge": 4
+  },
+  "abandoned_cycles": 0
+ }
+}

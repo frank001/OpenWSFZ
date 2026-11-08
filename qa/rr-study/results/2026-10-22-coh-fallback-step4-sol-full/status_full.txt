@@ -1,0 +1,8 @@
+waiting for audio 2026-10-22T14:36:13Z
+audio ready 962 2026-10-22T14:36:18Z
+full0 start 2026-10-22T14:36:18Z
+full0 exit 0 2026-10-22T16:38:32Z
+full1 start 2026-10-22T16:38:32Z
+full1 exit 0 2026-10-22T18:48:29Z
+END SO PIN OK
+done 2026-10-22T18:48:29Z

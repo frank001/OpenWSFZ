@@ -1,0 +1,52 @@
+{
+ "dll_sha256": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef",
+ "shim": 20260069,
+ "wall_s": 1315,
+ "A0": {
+  "cycles": 100,
+  "fail_cycles": 0,
+  "bar_max_fail_cycles": 5,
+  "result": "PASS",
+  "f_i_ms_median_p95_max": [
+   944.5545,
+   1248.074,
+   1398.551
+  ],
+  "s_i_ms_min_median": [
+   8713.0,
+   9722.95
+  ],
+  "cycles_with_s_le_0": 0,
+  "per_cycle_median": {
+   "n_eligible": 161.5,
+   "n_attempted": 161.5,
+   "n_crc_ok": 44.0,
+   "n_crc_new": 4.0,
+   "n_f1b_computed": 4.0,
+   "n_gated": 3.0,
+   "n_published": 3.0
+  },
+  "stage_ms_median": {
+   "estimate": 442.8175,
+   "f1b": 268.0665,
+   "c3_bp": 241.92149999999998
+  }
+ },
+ "A2d": {
+  "decoded_candidates": 5446,
+  "dt_offset_median_s": 0.0,
+  "dt_offset_abs_median_s": 0.025,
+  "df_offset_median_hz": 0.0,
+  "edge_rate": 0.0684906353286816,
+  "bar_dt_median_s": 0.02,
+  "bar_edge_rate": 0.02,
+  "result": "FAIL"
+ },
+ "A2e": {
+  "cycles": 100,
+  "identical": 100,
+  "different_stamps": [],
+  "result": "PASS",
+  "gate_first_f_i_ms_median": 11160.233
+ }
+}

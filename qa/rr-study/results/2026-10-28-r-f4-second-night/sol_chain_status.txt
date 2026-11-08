@@ -1,0 +1,10 @@
+2026-10-28T17:57:56Z second-night chain start; so=488bfa0b90a570ad0bc9f285d871147f62f4a71165fcf6dc39bd31eb584f58d0; selection sha=cf9908a5dcc66ef8966693b2d29ae5bd04fc357d3e1af5058b0e35d7eea6726e; sel200 sha=28d5741ba11bc42a9c769fbb6971f2f8a7bed357429998b4a2d7501644b9c519
+2026-10-28T17:57:57Z arm off start (audio=Both )
+2026-10-28T19:40:57Z arm off done rc=0 ok=1 rows=800
+2026-10-28T19:40:57Z arm on start (audio=Both --ungated 1)
+2026-10-28T21:24:01Z arm on done rc=0 ok=1 rows=800
+2026-10-28T21:24:01Z arm orig start (audio=Original )
+2026-10-28T21:45:58Z arm orig done rc=0 ok=1 rows=200
+2026-10-28T21:45:58Z orphan check clean
+2026-10-28T21:45:58Z END so pin OK
+2026-10-28T21:45:58Z chain done

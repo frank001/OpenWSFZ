@@ -15,7 +15,7 @@ PARTIAL=0; [ "$2" = "--partial" ] && PARTIAL=1
 DEST=${PULL_DEST:-/d/Projects/claude/OpenWSFZ/qa/rr-study/results}
 RENDER=/d/Projects/claude/OpenWSFZ/worktrees/qa/qa/rr-study/render_report.py
 TRIPWIRE=93.9
-SOL="ssh -i $HOME/.ssh/id_ed25519_sol -o BatchMode=yes -o ConnectTimeout=15 claude@sol"
+SOL="ssh -i $HOME/.ssh/claude/id_ed25519_sol -o BatchMode=yes -o ConnectTimeout=15 claude@sol"
 RES=/home/claude/rr-work-b2/qa/rr-study/results
 LC=$(echo "$ID" | tr 'A-Z' 'a-z')
 

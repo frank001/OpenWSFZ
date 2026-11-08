@@ -1,0 +1,104 @@
+{
+ "window": [
+  "2026-10-22T15:07:30+00:00",
+  "2026-10-22T15:14:00+00:00"
+ ],
+ "cycles_total": 26,
+ "cycles_scored": 24,
+ "published_set_vs_ALLTXT": {
+  "determined": 23,
+  "unreconciled": 1
+ },
+ "cycles_with_determined_published_set": 23,
+ "published_cycles_by_batch": {
+  "2": 22,
+  "3": 6,
+  "4": 8
+ },
+ "L1a": {
+  "QsoAnswererService": {
+   "cycles_matching": 23,
+   "missing_by_batch": {
+    "2": 0,
+    "3": 0,
+    "4": 0
+   },
+   "extra_by_batch": {
+    "2": 0,
+    "3": 0,
+    "4": 0
+   },
+   "in_order": true,
+   "superseded_lines_reported_separately": 0,
+   "first_missing": [],
+   "lines": 36
+  },
+  "QsoCallerService": {
+   "cycles_matching": 23,
+   "missing_by_batch": {
+    "2": 0,
+    "3": 0,
+    "4": 0
+   },
+   "extra_by_batch": {
+    "2": 0,
+    "3": 0,
+    "4": 0
+   },
+   "in_order": true,
+   "superseded_lines_reported_separately": 0,
+   "first_missing": [],
+   "lines": 36
+  }
+ },
+ "determined_coverage": 0.9583333333333334,
+ "L1a_verdict": "PASS",
+ "batch4_outcomes": {
+  "QsoAnswererService:no-match": 8,
+  "QsoCallerService:no-match": 8
+ },
+ "L2": {
+  "defects": [],
+  "ambiguous_within_50ms_not_scored": [],
+  "applied_deferred_on_batch4": 0,
+  "applied_immediate_on_batch4": 0
+ },
+ "L2_verdict": "NOT EXERCISED",
+ "L3": {
+  "cycles_with_fallback_line": 23,
+  "batch4_cycles": 8,
+  "batch4_rate": 0.34782608695652173,
+  "batch4_publish_ms_from_decode_start": {
+   "median": 2117,
+   "p95": 2355,
+   "max": 2355
+  },
+  "fallback_line_after_slot_start_ms": {
+   "median": 2149.0,
+   "p95": 2403.0,
+   "max": 2403.0
+  },
+  "reply_guard": {
+   "batch4_service_lines": 16,
+   "after_2.36s": 2,
+   "rate": 0.125
+  },
+  "fb_wall_ms": {
+   "median": 149,
+   "p95": 187,
+   "max": 197
+  },
+  "workers": [
+   14
+  ],
+  "R12": {
+   "eligible": 5744,
+   "attempted": 5744,
+   "crc_ok": 833,
+   "published": 10,
+   "abandoned": 0,
+   "published_edge": 0
+  },
+  "abandoned_cycles": 0
+ }
+}

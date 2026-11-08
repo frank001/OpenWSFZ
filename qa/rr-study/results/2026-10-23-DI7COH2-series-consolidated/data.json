@@ -1,0 +1,976 @@
+{
+ "sweeps": [
+  {
+   "verdict": "PASS",
+   "summary": {
+    "%GR&R (%StudyVar) / S1": [
+     "3.9% (%Contribution 0.1%, no verdict)",
+     "PASS"
+    ],
+    "ndc / S1": [
+     "36",
+     "PASS"
+    ],
+    "%GR&R (%StudyVar) / S2": [
+     "0.1% (%Contribution 0.0%, no verdict)",
+     "PASS"
+    ],
+    "ndc / S2": [
+     "1536",
+     "PASS"
+    ],
+    "%GR&R (%StudyVar) / S3": [
+     "8.7% (%Contribution 0.8%, no verdict)",
+     "PASS"
+    ],
+    "ndc / S3": [
+     "16",
+     "PASS"
+    ],
+    "Kappa (advisory) / WSJT-X_vs_truth": [
+     "0.955",
+     "PASS"
+    ],
+    "Kappa (advisory) / OpenWSFZ_vs_truth": [
+     "0.955",
+     "PASS"
+    ],
+    "Kappa (advisory) / between_appraisers": [
+     "1.000",
+     "PASS"
+    ],
+    "FP event rate (95% UB), Gate A-W / S5/OpenWSFZ": [
+     "0/480 slots (event 0.000%; 95% UB 0.622%)",
+     "PASS"
+    ],
+    "FP event rate change, Gate A-\u0394 / S5/OpenWSFZ": [
+     "0/120 vs 0/360 (Fisher p=1.0000)",
+     "PASS"
+    ],
+    "FP events, Check B (narrowband) / S5/WSJT-X": [
+     "0/60 slots (FAIL iff >= 2)",
+     "PASS"
+    ],
+    "FP events, Check B (narrowband) / S5/OpenWSFZ": [
+     "0/60 slots (FAIL iff >= 2)",
+     "PASS"
+    ],
+    "SNR bias / S1/WSJT-X": [
+     "+0.82 dB",
+     "PASS"
+    ],
+    "SNR bias / S1/OpenWSFZ": [
+     "+0.85 dB",
+     "PASS"
+    ]
+   },
+   "coverage_all_pass": true,
+   "coverage_rows": 16,
+   "s6": {
+    "wsjtx_own": [
+     93.9,
+     92.3,
+     95.3
+    ],
+    "owsfz_own": [
+     90.9,
+     88.4,
+     93.3
+    ],
+    "wsjtx_legacy": [
+     93.9,
+     92.3,
+     95.3
+    ],
+    "owsfz_legacy": [
+     93.0,
+     91.0,
+     94.9
+    ],
+    "dpw_wsjtx": 19.19,
+    "dpw_owsfz": 14.53,
+    "pos_agree": [
+     75.3,
+     72.8,
+     77.6
+    ],
+    "snr_delta": [
+     -2.34,
+     -2.79,
+     -1.85,
+     3.08
+    ],
+    "validity": "S6-V1 PASS; S6-V2 PASS; S6-V3 PASS; S6-V4 PASS; S6-V5 PASS; S6-V7 PASS",
+    "onset": "PASS"
+   },
+   "s1b": {
+    "wsjtx": "66.67%",
+    "owsfz": "75.00%"
+   },
+   "s7": {
+    "wsjtx": "97.21%",
+    "owsfz": "83.26%"
+   },
+   "s7_co_channel": {
+    "wsjtx": "100.00%",
+    "owsfz": "57.14%"
+   },
+   "s8": {
+    "wsjtx": "91.67%",
+    "owsfz": "88.33%"
+   },
+   "depth_readback": {
+    "config_depth": "Deep",
+    "polls_with_a_readback": 9969,
+    "first": "Deep",
+    "last": "Deep",
+    "distinct": [
+     "Deep"
+    ],
+    "result": "VALID",
+    "reason": "all 9969 read-backs equal the config's Deep, first and last included"
+   },
+   "flag_readback": {
+    "config_flag": true,
+    "cycle_lines": 668,
+    "fallback_lines": 668,
+    "fraction": 1.0,
+    "bar": 0.95,
+    "result": "VALID",
+    "reason": "config flag true; the fallback line in 668 of 668 cycles (1.000 >= 0.95)"
+   },
+   "scenario_retries": {
+    "cap_retries_per_scenario": 3,
+    "scenarios": {
+     "S1": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S1b": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S2": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S3": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S4": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S5": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S7": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S8": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S3c": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S6": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     }
+    },
+    "totals": {
+     "scenario_attempts": 10,
+     "failed_attempts": 0,
+     "replacements": 0
+    }
+   },
+   "f2_record": {
+    "plays": 180,
+    "plays_with_clamped_cycle": 2,
+    "clamped_play_indices": [
+     59,
+     174
+    ],
+    "plays_with_a_channel_drop": 1,
+    "channel_drops_in_last_daemon_log": 1,
+    "residual_abandoned_plays": 0,
+    "third_pass_outcomes": {
+     "ran": 114,
+     "skipped-no-new": 63,
+     "no-pass0-decodes": 3
+    },
+    "statuspoll_present": true,
+    "overruns_total_over_play_windows": 0,
+    "drops_total_over_play_windows_poll": 7,
+    "amendment1_check": {
+     "full_own_pct": 90.93,
+     "without_clamped_wavs_pct": 91.3,
+     "wavs_dropped": 2,
+     "delta_pp": 0.38,
+     "placebo_p2_5_p50_p97_5": [
+      90.6,
+      90.86,
+      91.51
+     ],
+     "draws_seed": [
+      2000,
+      20261018
+     ],
+     "verdict": "inside the placebo: not flagged"
+    }
+   },
+   "folder": "2026-10-22-b9a82a9-DI7COH2-sweep1"
+  },
+  {
+   "verdict": "MARGINAL",
+   "summary": {
+    "%GR&R (%StudyVar) / S1": [
+     "4.0% (%Contribution 0.2%, no verdict)",
+     "PASS"
+    ],
+    "ndc / S1": [
+     "35",
+     "PASS"
+    ],
+    "%GR&R (%StudyVar) / S2": [
+     "0.1% (%Contribution 0.0%, no verdict)",
+     "PASS"
+    ],
+    "ndc / S2": [
+     "1536",
+     "PASS"
+    ],
+    "%GR&R (%StudyVar) / S3": [
+     "10.0% (%Contribution 1.0%, no verdict)",
+     "MARGINAL"
+    ],
+    "ndc / S3": [
+     "14",
+     "PASS"
+    ],
+    "Kappa (advisory) / WSJT-X_vs_truth": [
+     "0.955",
+     "PASS"
+    ],
+    "Kappa (advisory) / OpenWSFZ_vs_truth": [
+     "0.955",
+     "PASS"
+    ],
+    "Kappa (advisory) / between_appraisers": [
+     "1.000",
+     "PASS"
+    ],
+    "FP event rate (95% UB), Gate A-W / S5/OpenWSFZ": [
+     "0/480 slots (event 0.000%; 95% UB 0.622%)",
+     "PASS"
+    ],
+    "FP event rate change, Gate A-\u0394 / S5/OpenWSFZ": [
+     "0/120 vs 0/360 (Fisher p=1.0000)",
+     "PASS"
+    ],
+    "FP events, Check B (narrowband) / S5/WSJT-X": [
+     "0/60 slots (FAIL iff >= 2)",
+     "PASS"
+    ],
+    "FP events, Check B (narrowband) / S5/OpenWSFZ": [
+     "0/60 slots (FAIL iff >= 2)",
+     "PASS"
+    ],
+    "SNR bias / S1/WSJT-X": [
+     "+0.85 dB",
+     "PASS"
+    ],
+    "SNR bias / S1/OpenWSFZ": [
+     "+0.88 dB",
+     "PASS"
+    ]
+   },
+   "coverage_all_pass": true,
+   "coverage_rows": 16,
+   "s6": {
+    "wsjtx_own": [
+     93.7,
+     92.2,
+     95.1
+    ],
+    "owsfz_own": [
+     90.0,
+     87.1,
+     92.6
+    ],
+    "wsjtx_legacy": [
+     93.7,
+     92.2,
+     95.1
+    ],
+    "owsfz_legacy": [
+     92.4,
+     90.2,
+     94.4
+    ],
+    "dpw_wsjtx": 19.27,
+    "dpw_owsfz": 14.41,
+    "pos_agree": [
+     74.3,
+     71.7,
+     76.8
+    ],
+    "snr_delta": [
+     -2.46,
+     -2.91,
+     -1.98,
+     3.11
+    ],
+    "validity": "S6-V1 PASS; S6-V2 PASS; S6-V3 PASS; S6-V4 PASS; S6-V5 PASS; S6-V7 PASS",
+    "onset": "PASS"
+   },
+   "s1b": {
+    "wsjtx": "75.00%",
+    "owsfz": "75.00%"
+   },
+   "s7": {
+    "wsjtx": "97.21%",
+    "owsfz": "81.86%"
+   },
+   "s7_co_channel": {
+    "wsjtx": "100.00%",
+    "owsfz": "57.14%"
+   },
+   "s8": {
+    "wsjtx": "91.67%",
+    "owsfz": "88.33%"
+   },
+   "depth_readback": {
+    "config_depth": "Deep",
+    "polls_with_a_readback": 17925,
+    "first": "Deep",
+    "last": "Deep",
+    "distinct": [
+     "Deep"
+    ],
+    "result": "VALID",
+    "reason": "all 17925 read-backs equal the config's Deep, first and last included"
+   },
+   "flag_readback": {
+    "config_flag": true,
+    "cycle_lines": 1199,
+    "fallback_lines": 1199,
+    "fraction": 1.0,
+    "bar": 0.95,
+    "result": "VALID",
+    "reason": "config flag true; the fallback line in 1199 of 1199 cycles (1.000 >= 0.95)"
+   },
+   "scenario_retries": {
+    "cap_retries_per_scenario": 3,
+    "scenarios": {
+     "S1": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S1b": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S2": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S3": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S4": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S5": {
+      "attempts": 4,
+      "failed": [
+       {
+        "attempt": 1,
+        "kind": "stall",
+        "reason": "no new save WAV for 53 s (limit 45 s)",
+        "utc": "2026-10-23T00:44:07Z",
+        "set_aside": {
+         "truth_rows_set_aside": 140,
+         "moved": [
+          "truth_INVALID_S5_attempt1.csv"
+         ]
+        },
+        "cycles_set_aside": 140,
+        "replaced_by_attempt": 2
+       },
+       {
+        "attempt": 2,
+        "kind": "stall",
+        "reason": "no new save WAV for 56 s (limit 45 s)",
+        "utc": "2026-10-23T01:31:41Z",
+        "set_aside": {
+         "truth_rows_set_aside": 160,
+         "moved": [
+          "truth_INVALID_S5_attempt2.csv"
+         ]
+        },
+        "cycles_set_aside": 160,
+        "replaced_by_attempt": 3
+       },
+       {
+        "attempt": 3,
+        "kind": "stall",
+        "reason": "no new save WAV for 54 s (limit 45 s)",
+        "utc": "2026-10-23T02:13:54Z",
+        "set_aside": {
+         "truth_rows_set_aside": 140,
+         "moved": [
+          "truth_INVALID_S5_attempt3.csv"
+         ]
+        },
+        "cycles_set_aside": 140,
+        "replaced_by_attempt": 4
+       }
+      ],
+      "retries_used": 3
+     },
+     "S7": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S8": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S3c": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S6": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     }
+    },
+    "totals": {
+     "scenario_attempts": 13,
+     "failed_attempts": 3,
+     "replacements": 3
+    }
+   },
+   "f2_record": {
+    "plays": 180,
+    "plays_with_clamped_cycle": 10,
+    "clamped_play_indices": [
+     36,
+     145,
+     146,
+     147,
+     148,
+     175,
+     176,
+     177,
+     178,
+     179
+    ],
+    "plays_with_a_channel_drop": 1,
+    "channel_drops_in_last_daemon_log": 1,
+    "residual_abandoned_plays": 0,
+    "third_pass_outcomes": {
+     "ran": 113,
+     "skipped-no-new": 64,
+     "no-pass0-decodes": 3
+    },
+    "statuspoll_present": true,
+    "overruns_total_over_play_windows": 0,
+    "drops_total_over_play_windows_poll": 20,
+    "amendment1_check": {
+     "full_own_pct": 89.97,
+     "without_clamped_wavs_pct": 90.9,
+     "wavs_dropped": 10,
+     "delta_pp": 0.93,
+     "placebo_p2_5_p50_p97_5": [
+      88.92,
+      89.93,
+      91.32
+     ],
+     "draws_seed": [
+      2000,
+      20261018
+     ],
+     "verdict": "inside the placebo: not flagged"
+    }
+   },
+   "folder": "2026-10-22-b9a82a9-DI7COH2-sweep2"
+  },
+  {
+   "verdict": "PASS",
+   "summary": {
+    "%GR&R (%StudyVar) / S1": [
+     "5.9% (%Contribution 0.4%, no verdict)",
+     "PASS"
+    ],
+    "ndc / S1": [
+     "23",
+     "PASS"
+    ],
+    "%GR&R (%StudyVar) / S2": [
+     "0.1% (%Contribution 0.0%, no verdict)",
+     "PASS"
+    ],
+    "ndc / S2": [
+     "1536",
+     "PASS"
+    ],
+    "%GR&R (%StudyVar) / S3": [
+     "8.6% (%Contribution 0.7%, no verdict)",
+     "PASS"
+    ],
+    "ndc / S3": [
+     "16",
+     "PASS"
+    ],
+    "Kappa (advisory) / WSJT-X_vs_truth": [
+     "0.955",
+     "PASS"
+    ],
+    "Kappa (advisory) / OpenWSFZ_vs_truth": [
+     "0.955",
+     "PASS"
+    ],
+    "Kappa (advisory) / between_appraisers": [
+     "1.000",
+     "PASS"
+    ],
+    "FP event rate (95% UB), Gate A-W / S5/OpenWSFZ": [
+     "0/480 slots (event 0.000%; 95% UB 0.622%)",
+     "PASS"
+    ],
+    "FP event rate change, Gate A-\u0394 / S5/OpenWSFZ": [
+     "0/120 vs 0/360 (Fisher p=1.0000)",
+     "PASS"
+    ],
+    "FP events, Check B (narrowband) / S5/WSJT-X": [
+     "0/60 slots (FAIL iff >= 2)",
+     "PASS"
+    ],
+    "FP events, Check B (narrowband) / S5/OpenWSFZ": [
+     "0/60 slots (FAIL iff >= 2)",
+     "PASS"
+    ],
+    "SNR bias / S1/WSJT-X": [
+     "+0.85 dB",
+     "PASS"
+    ],
+    "SNR bias / S1/OpenWSFZ": [
+     "+1.42 dB",
+     "PASS"
+    ]
+   },
+   "coverage_all_pass": true,
+   "coverage_rows": 16,
+   "s6": {
+    "wsjtx_own": [
+     93.8,
+     92.2,
+     95.2
+    ],
+    "owsfz_own": [
+     89.8,
+     87.3,
+     92.2
+    ],
+    "wsjtx_legacy": [
+     93.8,
+     92.2,
+     95.2
+    ],
+    "owsfz_legacy": [
+     92.2,
+     90.2,
+     94.0
+    ],
+    "dpw_wsjtx": 19.21,
+    "dpw_owsfz": 14.5,
+    "pos_agree": [
+     75.0,
+     72.5,
+     77.4
+    ],
+    "snr_delta": [
+     -2.37,
+     -2.82,
+     -1.91,
+     3.1
+    ],
+    "validity": "S6-V1 PASS; S6-V2 PASS; S6-V3 PASS; S6-V4 PASS; S6-V5 PASS; S6-V7 PASS",
+    "onset": "PASS"
+   },
+   "s1b": {
+    "wsjtx": "66.67%",
+    "owsfz": "75.00%"
+   },
+   "s7": {
+    "wsjtx": "98.14%",
+    "owsfz": "81.86%"
+   },
+   "s7_co_channel": {
+    "wsjtx": "100.00%",
+    "owsfz": "48.57%"
+   },
+   "s8": {
+    "wsjtx": "91.67%",
+    "owsfz": "90.00%"
+   },
+   "depth_readback": {
+    "config_depth": "Deep",
+    "polls_with_a_readback": 9975,
+    "first": "Deep",
+    "last": "Deep",
+    "distinct": [
+     "Deep"
+    ],
+    "result": "VALID",
+    "reason": "all 9975 read-backs equal the config's Deep, first and last included"
+   },
+   "flag_readback": {
+    "config_flag": true,
+    "cycle_lines": 668,
+    "fallback_lines": 668,
+    "fraction": 1.0,
+    "bar": 0.95,
+    "result": "VALID",
+    "reason": "config flag true; the fallback line in 668 of 668 cycles (1.000 >= 0.95)"
+   },
+   "scenario_retries": {
+    "cap_retries_per_scenario": 3,
+    "scenarios": {
+     "S1": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S1b": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S2": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S3": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S4": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S5": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S7": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S8": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S3c": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     },
+     "S6": {
+      "attempts": 1,
+      "failed": [],
+      "retries_used": 0
+     }
+    },
+    "totals": {
+     "scenario_attempts": 10,
+     "failed_attempts": 0,
+     "replacements": 0
+    }
+   },
+   "f2_record": {
+    "plays": 180,
+    "plays_with_clamped_cycle": 5,
+    "clamped_play_indices": [
+     36,
+     37,
+     38,
+     39,
+     119
+    ],
+    "plays_with_a_channel_drop": 1,
+    "channel_drops_in_last_daemon_log": 1,
+    "residual_abandoned_plays": 0,
+    "third_pass_outcomes": {
+     "ran": 112,
+     "skipped-no-new": 65,
+     "no-pass0-decodes": 3
+    },
+    "statuspoll_present": true,
+    "overruns_total_over_play_windows": 0,
+    "drops_total_over_play_windows_poll": 10,
+    "amendment1_check": {
+     "full_own_pct": 89.85,
+     "without_clamped_wavs_pct": 90.25,
+     "wavs_dropped": 5,
+     "delta_pp": 0.41,
+     "placebo_p2_5_p50_p97_5": [
+      89.21,
+      89.8,
+      90.7
+     ],
+     "draws_seed": [
+      2000,
+      20261018
+     ],
+     "verdict": "inside the placebo: not flagged"
+    }
+   },
+   "folder": "2026-10-23-b9a82a9-DI7COH2-sweep3"
+  }
+ ],
+ "reference": {
+  "verdict": "MARGINAL",
+  "summary": {
+   "%GR&R (%StudyVar) / S1": [
+    "5.7% (%Contribution 0.3%, no verdict)",
+    "PASS"
+   ],
+   "ndc / S1": [
+    "24",
+    "PASS"
+   ],
+   "%GR&R (%StudyVar) / S2": [
+    "0.1% (%Contribution 0.0%, no verdict)",
+    "PASS"
+   ],
+   "ndc / S2": [
+    "1536",
+    "PASS"
+   ],
+   "%GR&R (%StudyVar) / S3": [
+    "10.7% (%Contribution 1.1%, no verdict)",
+    "MARGINAL"
+   ],
+   "ndc / S3": [
+    "13",
+    "PASS"
+   ],
+   "Kappa (advisory) / WSJT-X_vs_truth": [
+    "0.955",
+    "PASS"
+   ],
+   "Kappa (advisory) / OpenWSFZ_vs_truth": [
+    "0.909",
+    "PASS"
+   ],
+   "Kappa (advisory) / between_appraisers": [
+    "0.954",
+    "PASS"
+   ],
+   "FP event rate (95% UB), Gate A-W / S5/OpenWSFZ": [
+    "0/480 slots (event 0.000%; 95% UB 0.622%)",
+    "PASS"
+   ],
+   "FP event rate change, Gate A-\u0394 / S5/OpenWSFZ": [
+    "0/120 vs 0/360 (Fisher p=1.0000)",
+    "PASS"
+   ],
+   "FP events, Check B (narrowband) / S5/WSJT-X": [
+    "0/60 slots (FAIL iff >= 2)",
+    "PASS"
+   ],
+   "FP events, Check B (narrowband) / S5/OpenWSFZ": [
+    "0/60 slots (FAIL iff >= 2)",
+    "PASS"
+   ],
+   "SNR bias / S1/WSJT-X": [
+    "+0.85 dB",
+    "PASS"
+   ],
+   "SNR bias / S1/OpenWSFZ": [
+    "+1.38 dB",
+    "PASS"
+   ]
+  },
+  "coverage_all_pass": true,
+  "coverage_rows": 16,
+  "s6": {
+   "wsjtx_own": [
+    94.5,
+    93.2,
+    95.6
+   ],
+   "owsfz_own": [
+    90.8,
+    88.5,
+    93.2
+   ],
+   "wsjtx_legacy": [
+    94.5,
+    93.2,
+    95.6
+   ],
+   "owsfz_legacy": [
+    93.5,
+    91.8,
+    95.2
+   ],
+   "dpw_wsjtx": 19.35,
+   "dpw_owsfz": 13.53,
+   "pos_agree": [
+    69.6,
+    66.5,
+    72.7
+   ],
+   "snr_delta": [
+    -2.28,
+    -2.74,
+    -1.79,
+    2.98
+   ],
+   "validity": "S6-V1 PASS; S6-V2 PASS; S6-V3 PASS; S6-V4 PASS; S6-V5 PASS; S6-V7 PASS",
+   "onset": "PASS"
+  },
+  "s1b": {
+   "wsjtx": "75.00%",
+   "owsfz": "50.00%"
+  },
+  "s7": {
+   "wsjtx": "97.21%",
+   "owsfz": "83.26%"
+  },
+  "s7_co_channel": {
+   "wsjtx": "100.00%",
+   "owsfz": "54.29%"
+  },
+  "s8": {
+   "wsjtx": "91.67%",
+   "owsfz": "90.00%"
+  },
+  "depth_readback": {
+   "config_depth": "Deep",
+   "polls_with_a_readback": 9992,
+   "first": "Deep",
+   "last": "Deep",
+   "distinct": [
+    "Deep"
+   ],
+   "result": "VALID",
+   "reason": "all 9992 read-backs equal the config's Deep, first and last included"
+  },
+  "flag_readback": null,
+  "scenario_retries": {
+   "cap_retries_per_scenario": 3,
+   "scenarios": {
+    "S1": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S1b": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S2": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S3": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S4": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S5": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S7": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S8": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S3c": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    },
+    "S6": {
+     "attempts": 1,
+     "failed": [],
+     "retries_used": 0
+    }
+   },
+   "totals": {
+    "scenario_attempts": 10,
+    "failed_attempts": 0,
+    "replacements": 0
+   }
+  },
+  "f2_record": {
+   "plays": 180,
+   "plays_with_clamped_cycle": 0,
+   "clamped_play_indices": [],
+   "plays_with_a_channel_drop": 0,
+   "channel_drops_in_last_daemon_log": 0,
+   "residual_abandoned_plays": 0,
+   "third_pass_outcomes": {
+    "ran": 114,
+    "skipped-no-new": 63,
+    "no-pass0-decodes": 3
+   },
+   "statuspoll_present": true,
+   "overruns_total_over_play_windows": 0,
+   "drops_total_over_play_windows_poll": 0,
+   "amendment1_check": "no clamp fell on a play of S6 pass O: recorded, check not owed"
+  },
+  "folder": "2026-10-19-b0e23bb-MAINDEEP-sweep1"
+ }
+}

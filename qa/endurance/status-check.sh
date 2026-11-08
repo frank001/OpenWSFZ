@@ -20,7 +20,14 @@ PARENT_DIR="$(dirname "$REPO_ROOT")"
 
 CAPTURE_8080_DIR="${CAPTURE_8080_DIR:-$PARENT_DIR/OpenWSFZ-8080-capture}"
 CAPTURE_8081_DIR="${CAPTURE_8081_DIR:-$PARENT_DIR/OpenWSFZ-8081-capture}"
-WSJTX_DIR="${WSJTX_DIR:-/c/Users/Frank/AppData/Local/WSJT-X}"
+# Default: the RUNNING account's WSJT-X folder (was a hard-coded /c/Users/Frank path). Override with WSJTX_DIR.
+if [ -z "${WSJTX_DIR:-}" ]; then
+  if [ -n "${LOCALAPPDATA:-}" ]; then
+    WSJTX_DIR="$(cygpath -u "$LOCALAPPDATA" 2>/dev/null || echo "$LOCALAPPDATA")/WSJT-X"
+  else
+    WSJTX_DIR="$HOME/AppData/Local/WSJT-X"
+  fi
+fi
 
 echo "=== Status check: $(date -u +"%Y-%m-%dT%H:%M:%SZ") ==="
 

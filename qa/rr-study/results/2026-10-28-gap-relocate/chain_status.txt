@@ -1,0 +1,8 @@
+2026-10-28T13:44:11Z GAP-RELOCATE arms start; dll=1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914; selection sha=42e092395dd5cf8b606c0b411b47f03cfe02fddef6e8d4087d0a5aab40168938
+2026-10-28T13:44:11Z arm both start (cohfb=1)
+2026-10-28T14:04:31Z arm both done rc=0 ok=1 rows=400
+2026-10-28T14:04:31Z arm off start (cohfb=0)
+2026-10-28T14:21:45Z arm off done rc=0 ok=1 rows=400
+2026-10-28T14:21:46Z orphan check clean
+2026-10-28T14:21:46Z END dll pin OK
+2026-10-28T14:21:46Z chain done

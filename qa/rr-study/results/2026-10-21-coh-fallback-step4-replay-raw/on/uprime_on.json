@@ -1,0 +1,32 @@
+{
+ "stage": "arm",
+ "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049",
+ "T_frozen": 0.276,
+ "min_n": 10,
+ "min_present_rate": 0.8,
+ "cycles_ws_gt_0": 960,
+ "decodes": 23488,
+ "confirmed": 23144,
+ "not_confirmed": 344,
+ "calibration": {
+  "reused_from": "D:/Projects/claude/_qa-scratch/coh-fallback/step4/off/uprime_off_classes.json",
+  "start_minus_dt_median_s": -0.17999999999999983
+ },
+ "classes_from": "D:/Projects/claude/_qa-scratch/coh-fallback/step4/off/uprime_off_classes.json",
+ "U_prime": {
+  "cycles": 960,
+  "totals": {
+   "tested_absent": 38,
+   "hashed_or_unencodable": 152,
+   "untestable_class": 8,
+   "tested_present": 146,
+   "not_confirmed": 344
+  },
+  "U_prime_per_cycle": 0.20625,
+  "split_per_cycle": {
+   "tested_absent": 0.03958333333333333,
+   "hashed_or_unencodable": 0.15833333333333333,
+   "untestable_class": 0.008333333333333333
+  }
+ }
+}

@@ -1,0 +1,13 @@
+{
+ "G_success_on_P1": 0.9546587926509187,
+ "G_success_on_batch2plus_only": 0.004647348277747403,
+ "G_success_on_replay_unmatched": 0.005152741994847258,
+ "P1_n": 15240,
+ "bar": 0.9,
+ "batch1_share_of_matches": 0.8064345433379193,
+ "batch2plus_rows_n": 3658,
+ "pass": true,
+ "replay_unmatched_rows_n": 5434,
+ "ws_count_mismatch_cycles": 0,
+ "ws_count_mismatch_examples": []
+}

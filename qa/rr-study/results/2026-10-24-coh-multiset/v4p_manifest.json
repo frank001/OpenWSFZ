@@ -1,0 +1,56 @@
+{
+ "checkout": "main 5a9667eefb570d6aa551a86f95ff5f1683584e9c (clean)",
+ "competing_processes_at_start": 0,
+ "cycles_with_row": 975,
+ "deadline_abandoned_cycles": 0,
+ "ended": "2026-10-24T14:32:36Z",
+ "exit": 0,
+ "libft8_sha256": "aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef",
+ "mode": "three1 (Deep), subtraction ON, threads 8, nhard 24, OSD sign fix 1 (read back 1), coherent fallback ON (as shipped)",
+ "note": "committed BEFORE V4' is evaluated; only matchedbatch.csv (stamps and index:batch) and this manifest are committed, working files stay in _qa-scratch",
+ "outputs": {
+  "abandon.csv": {
+   "bytes": 20506,
+   "sha256": "da9bc3be3679cd6394897701bd3d65344f8eaf56621a2780e70403be00745d3f"
+  },
+  "coh.csv": {
+   "bytes": 59959,
+   "sha256": "351048c3a9dce0a886dd980a2c0bdf801fb224fceea6b230569db6cb069132fa"
+  },
+  "log.log": {
+   "bytes": 641573,
+   "sha256": "5f62c8dd5b77cccecb3bc3ab34030048d9bc4996e7fad645c1545a63b2363d31"
+  },
+  "matched.csv": {
+   "bytes": 65177,
+   "sha256": "a98cf760b87248853892d9e58bcfc19df04941c11a226d7b69e69a5b52fde092"
+  },
+  "matchedbatch.csv": {
+   "bytes": 105071,
+   "sha256": "e135dcd4615a33e2dfa2b9763bb205631322419f06701d91f60a8e5f690b8f7e"
+  },
+  "outcomes.csv": {
+   "bytes": 700541,
+   "sha256": "0f18b32608a15b6797f682c7db19ff641880d28710d74c1c300f39d30a8585ea"
+  },
+  "run.csv": {
+   "bytes": 84349,
+   "sha256": "00fcb7269f3c6240011ac8d100194b81ae3d87db8bcc63d785668fd9756898cd"
+  },
+  "testb.csv": {
+   "bytes": 634059,
+   "sha256": "e7f8282f23e676b71d573eb02d7b28ef88734c99f33c131a0c3ee8a8bf5df348"
+  },
+  "third.csv": {
+   "bytes": 27281,
+   "sha256": "04e7f35b961e8188973b8ee7489e97f80cb5fd81809258f20ce1d2835d6bddb1"
+  },
+  "v4p_selection.json": {
+   "bytes": 21634,
+   "sha256": "af48d9e0f9a28fb618499dccff0c612bb705213a881ad9654ad029630efd138f"
+  }
+ },
+ "preflight_end_ok": 1,
+ "spec": "COH-MULTISET Amendment 1.10 (= COH-GAIN Amendment 3), V4' replay",
+ "started": "2026-10-24T13:44:06Z"
+}

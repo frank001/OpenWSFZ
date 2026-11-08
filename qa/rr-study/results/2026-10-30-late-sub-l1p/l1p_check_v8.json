@@ -1,0 +1,9 @@
+{
+ "selection_sha_matches_freeze": true,
+ "cycles": 800,
+ "n_ref": 20753,
+ "cycles_with_wsjtx": 799,
+ "expected_n_ref": 20753,
+ "expected_cycles_with_wsjtx": 799,
+ "PASS": true
+}

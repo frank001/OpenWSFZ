@@ -1,0 +1,100 @@
+{
+ "machine": "sol",
+ "cycles_with_ws": 2880,
+ "bands": {
+  "A": {
+   "delta_corroborated": 0.0,
+   "NET_pp": {
+    "point": 0.0,
+    "lo": 0.0,
+    "hi": 0.0
+   },
+   "dU_prime": {
+    "sum": 0.0,
+    "per_cycle": 0.0,
+    "lo": 0.0,
+    "hi": 0.0,
+    "U_bar_reference_only": 0.021
+   }
+  },
+  "B": {
+   "delta_corroborated": 20.0,
+   "NET_pp": {
+    "point": 0.025974363303419526,
+    "lo": 0.015512348690570001,
+    "hi": 0.03715234854917856
+   },
+   "dU_prime": {
+    "sum": 1.0,
+    "per_cycle": 0.00034722222222222224,
+    "lo": 0.0,
+    "hi": 0.0010416666666666667,
+    "U_bar_reference_only": 0.021
+   }
+  },
+  "C": {
+   "delta_corroborated": 289.0,
+   "NET_pp": {
+    "point": 0.3753295497344121,
+    "lo": 0.331596744709759,
+    "hi": 0.42016861213541806
+   },
+   "dU_prime": {
+    "sum": 1.0,
+    "per_cycle": 0.00034722222222222224,
+    "lo": 0.0,
+    "hi": 0.0010416666666666667,
+    "U_bar_reference_only": 0.021
+   }
+  },
+  "D": {
+   "delta_corroborated": 807.0,
+   "NET_pp": {
+    "point": 1.0480655592929777,
+    "lo": 0.9589942685474118,
+    "hi": 1.1430439051479784
+   },
+   "dU_prime": {
+    "sum": 12.0,
+    "per_cycle": 0.004166666666666667,
+    "lo": 0.001736111111111111,
+    "hi": 0.006944444444444444,
+    "U_bar_reference_only": 0.021
+   }
+  }
+ },
+ "cost": {
+  "ref": {
+   "cycles_with_fallback_run": 2882,
+   "fb_wall_ms": {
+    "median": 457.0,
+    "p95": 690.9499999999998,
+    "max": 1007.0
+   },
+   "batch4_published_cycles": 1987,
+   "batch4_publish_ms": {
+    "median": 6918.0,
+    "p95": 9147.999999999998,
+    "max": 10399.0
+   },
+   "margin_to_budget_ms_min": 2601.0
+  },
+  "ms": {
+   "cycles_with_fallback_run": 2882,
+   "fb_wall_ms": {
+    "median": 586.0,
+    "p95": 848.8999999999996,
+    "max": 1217.0
+   },
+   "batch4_published_cycles": 2281,
+   "batch4_publish_ms": {
+    "median": 7063.0,
+    "p95": 9276.0,
+    "max": 11314.0
+   },
+   "margin_to_budget_ms_min": 1686.0
+  }
+ },
+ "sum_delta_corroborated_bands": 1116.0,
+ "delta_M_from_ws_rows": 1116
+}

@@ -1,0 +1,174 @@
+{
+ "cycles_off": 1211,
+ "cycles_on": 1211,
+ "cycle_sets_equal": true,
+ "cycles_with_ws_reference": 1210,
+ "V1_pin": {
+  "pinned": "581331da9383bc2d690e0b4146d8737b7f35738917839534d9f88ce72e85f5d1"
+ },
+ "V2_flags": {
+  "off2": [
+   "False"
+  ],
+  "on": [
+   "True"
+  ],
+  "onrep": [
+   "True"
+  ]
+ },
+ "V3": {
+  "off2": {
+   "contained_exc_true": 0,
+   "run_csv_exception_nonempty": 0,
+   "access_violation_mentions": 0
+  },
+  "on": {
+   "contained_exc_true": 0,
+   "run_csv_exception_nonempty": 0,
+   "access_violation_mentions": 0
+  },
+  "onrep": {
+   "contained_exc_true": 0,
+   "run_csv_exception_nonempty": 0,
+   "access_violation_mentions": 0
+  }
+ },
+ "V4_A3_batch1": {
+  "differing_cycles": 0,
+  "first": [],
+  "verdict": "PASS"
+ },
+ "V5": {
+  "abandoned_cycles": 0,
+  "n": 1211,
+  "rate": 0.0,
+  "wilson": [
+   0.0,
+   0.0031622229597669358
+  ],
+  "verdict": "PASS",
+  "log_deadlineAbandoned_true": 0
+ },
+ "A3prime": {
+  "a_batch2_differing": 0,
+  "a_batch2_unexplained": 0,
+  "a_batch3_minus_path2_differing": 0,
+  "a_batch3_unexplained": 0,
+  "abandon_explained_cycles": 0,
+  "b_tb2_on_minus_off_ms": {
+   "n": 1005,
+   "p50": 86.09999999999991,
+   "p95": 496.4599999999998,
+   "max": 756.1999999999998
+  },
+  "noise_tb2_onrep_minus_on_ms": {
+   "n": 326,
+   "p50": -1.650000000000091,
+   "p95": 118.625,
+   "max": 646.5999999999999
+  },
+  "noise_tb3_onrep_minus_on_ms": {
+   "n": 345,
+   "p50": -2.199999999999818,
+   "p95": 139.09999999999977,
+   "max": 1037.9000000000005
+  },
+  "on_only_batch3_cycles": 868,
+  "b_bar_ms": 50.0,
+  "b_pass": false,
+  "c_tb3_on_minus_off_ms": {
+   "n": 154,
+   "p50": 145.35000000000014,
+   "p95": 755.6949999999997,
+   "max": 902.5
+  },
+  "c_bar_ms": 250.0,
+  "c_pass": false,
+  "guard_count": "NOT REPORTED: the replay records per-batch time from decode start, not the live decode-start offset (A2.2)",
+  "verdict": "FAIL"
+ },
+ "V6": {
+  "with_kind_path": {
+   "differing": 0,
+   "unexplained": 0,
+   "first": []
+  },
+  "freq_dt_snr_only": {
+   "differing": 0,
+   "unexplained": 0,
+   "first": []
+  },
+  "n_repeated": 404,
+  "wilson_upper_for_0": 0.009419343195985891,
+  "verdict": "PASS"
+ },
+ "NET_pp": {
+  "point": 6.560357199808643,
+  "lo": 5.954647434050794,
+  "hi": 7.216928434030538,
+  "sum_dM": 2057,
+  "sum_W": 31355,
+  "Moff_pct": 67.72125657789826,
+  "Mon_pct": 74.28161377770691,
+  "verdict": "D-GO"
+ },
+ "DeltaU": {
+  "point": 0.10165289256198347,
+  "lo": 0.08213474025974027,
+  "hi": 0.12419354838709677,
+  "U_max": 0.078,
+  "U0_stage2_off": 0.2603305785123967,
+  "U0_in_0.30_0.65_guard_n_a": "section 8 replaced the guard by U_max",
+  "verdict": "U-FAIL"
+ },
+ "DeltaU_by_band": {
+  "A": {
+   "DeltaU_mean": 0.001652892561983471,
+   "sum_dNC": 2.0
+  },
+  "B": {
+   "DeltaU_mean": -0.001652892561983471,
+   "sum_dNC": -2.0
+  },
+  "C": {
+   "DeltaU_mean": 0.005785123966942148,
+   "sum_dNC": 7.0
+  },
+  "D": {
+   "DeltaU_mean": 0.09586776859504133,
+   "sum_dNC": 116.0
+  }
+ },
+ "NET_by_band": "NOT REPORTED: matched.csv carries WSJT-X indices, not the SNR band of the matched decode",
+ "fallback": {
+  "eligible": 172385,
+  "gated": 5314,
+  "attempted": 172385,
+  "crc_ok": 42176,
+  "published_log": 2180,
+  "path2_rows_in_outcomes": 2180,
+  "published_per_cycle": 1.8016528925619835,
+  "published_edge": 33,
+  "edge_share_of_published": 0.015137614678899083,
+  "abandoned": 0,
+  "elapsed_ms_median": 1402.5,
+  "elapsed_ms_p95": 2298.4999999999995,
+  "delta_decodes_on_minus_off": 2180,
+  "confirmed_share_of_path2": 0.9435779816513762
+ },
+ "FP_watch": {
+  "fallback_nc_rate": 0.056422018348623856,
+  "fallback_wilson": [
+   0.047493509606411466,
+   0.06691112486890945
+  ],
+  "batch1_nc_rate": 0.01444313683534824,
+  "batch1_wilson": [
+   0.012829849443693165,
+   0.016255946213063286
+  ],
+  "flag": true
+ },
+ "OFF_arm_not_confirmed_per_cycle_U0": 0.2603305785123967
+}

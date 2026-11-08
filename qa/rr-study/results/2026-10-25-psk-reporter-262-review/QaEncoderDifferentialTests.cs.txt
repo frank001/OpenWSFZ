@@ -1,0 +1,35 @@
+using System.Text.Json;
+using FluentAssertions;
+using OpenWSFZ.Daemon.PskReporter;
+using Xunit;
+
+namespace OpenWSFZ.Daemon.Tests.PskReporter;
+
+/// <summary>QA review scratch test (NOT part of the Developer's branch): 300 random cases whose expected bytes come from QA's independent
+/// Python builder (qa/rr-study/psk-reporter-262/build_t1_fixture.py via diff_cases.py), compared with the product encoder byte for byte.</summary>
+public sealed class QaEncoderDifferentialTests
+{
+    [Fact(DisplayName = "QA: product encoder equals the independent builder on the random cases")]
+    public void ProductEncoder_EqualsIndependentBuilder()
+    {
+        var path = Environment.GetEnvironmentVariable("QA_PSK_CASES") ?? throw new InvalidOperationException("QA_PSK_CASES not set");
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        int n = 0, bad = 0;
+        var firstBad = new List<string>();
+        foreach (var c in doc.RootElement.EnumerateArray())
+        {
+            var r = c.GetProperty("receiver");
+            var recv = new PskReceiver(r.GetProperty("callsign").GetString()!, r.GetProperty("locator").GetString()!, r.GetProperty("software").GetString()!, r.GetProperty("antenna").GetString()!);
+            var spots = c.GetProperty("spots").EnumerateArray().Select(s => new PskSpot(
+                s.GetProperty("callsign").GetString()!,
+                s.GetProperty("locator").ValueKind == JsonValueKind.Null ? null : s.GetProperty("locator").GetString(),
+                s.GetProperty("freq").GetUInt32(), s.GetProperty("snr").GetInt32(), s.GetProperty("flow").GetUInt32())).ToList();
+            var got = PskReporterEncoder.Encode(recv, spots, c.GetProperty("export").GetUInt32(), c.GetProperty("seq").GetUInt32(), c.GetProperty("session").GetUInt32(), c.GetProperty("templates").GetBoolean());
+            var exp = c.GetProperty("expected").GetString()!;
+            n++;
+            if (!Convert.ToHexString(got).Equals(exp, StringComparison.Ordinal)) { bad++; if (firstBad.Count < 3) firstBad.Add($"case {n}: got {got.Length} bytes, expected {exp.Length / 2}"); }
+        }
+        n.Should().BeGreaterThan(200);
+        bad.Should().Be(0, string.Join("; ", firstBad));
+    }
+}

@@ -41,19 +41,52 @@ log "decoding depth (config $CFG): $DEPTH"
 # that config plus ONLY decoder.decodingDepth (re-serialised in the daemon's own style: indent 2, no trailing newline). Anything else HALTS the sweep before it starts.
 RIGCFG=${TP_RIG_CONFIG:-$HOME/rr-run/config.json}
 PIN=${TP_RIG_CONFIG_SHA:-661de047bc52b833620316c2fe505000584fcde318987f25793a378c37733c9d}
+# 2026-10-19 (PR #248: decoder.decodingDepth now DEFAULTS TO DEEP on main): the pin identifies the rig config MINUS decoder.decodingDepth (661de047..., the config every R&R since B2 ran on, which had
+# no such key), and the rig config must now CARRY the key explicitly, so a key-absent rig config can never silently become Deep. Both files are compared after dropping the key and re-serialising
+# (indent 2, no trailing newline = the daemon's own style); the rig config's own explicit depth is reported beside the result.
 CK=$("$PY" - "$RIGCFG" "$CFG" "$PIN" <<'PYEOF'
 import hashlib, json, sys
 rig, tp, pin = sys.argv[1:4]
-rs = hashlib.sha256(open(rig, "rb").read()).hexdigest()
-c = json.load(open(tp, encoding="utf8"))
-c["decoder"].pop("decodingDepth", None)
-ts = hashlib.sha256(json.dumps(c, indent=2, ensure_ascii=False).encode()).hexdigest()
-ok = rs == pin and ts == pin
-print(("OK" if ok else "FAIL") + " rig=%s tp-minus-depth=%s pin=%s" % (rs[:16], ts[:16], pin[:16]))
+FLAGS = []
+def minus_depth(path):
+    c = json.load(open(path, encoding="utf8"))
+    depth = c["decoder"].pop("decodingDepth", None)
+    # 2026-10-22 (PR #253, DI sync 7: decoder.coherentFallbackEnabled now DEFAULTS TO ON): the sweep config may CARRY the flag explicitly (DI7COH sets it true); like the depth, it is dropped
+    # before the pin comparison and reported beside the result, so an explicit flag is the ONLY other difference allowed between TP_CONFIG and the pinned rig config.
+    flag = c["decoder"].pop("coherentFallbackEnabled", "absent")
+    # 2026-10-27 (COH-FB-AUDIO, build 9ef703d0, v0.66): the sweep config may also CARRY decoder.coherentFallbackMultiSet and decoder.coherentFallbackAudio explicitly; both are dropped
+    # before the pin comparison and reported beside the result (so these three keys are the ONLY differences allowed between TP_CONFIG and the pinned rig config).
+    ms = c["decoder"].pop("coherentFallbackMultiSet", "absent")
+    aud = c["decoder"].pop("coherentFallbackAudio", "absent")
+    # 2026-10-28 (COH-GATE-G R-F4, PR #271, v0.67): the sweep config may also CARRY decoder.coherentFallbackResidualUngated explicitly; dropped before the pin comparison like the three above,
+    # reported beside the result, and pinned by TP_REQUIRE_UNGATED=true below.
+    ung = c["decoder"].pop("coherentFallbackResidualUngated", "absent")
+    FLAGS.append((flag, ms, aud, ung))
+    return hashlib.sha256(json.dumps(c, indent=2, ensure_ascii=False).encode()).hexdigest(), depth
+rs, rig_depth = minus_depth(rig)
+ts, _ = minus_depth(tp)
+ok = rs == pin and ts == pin and rig_depth in ("Normal", "Deep")
+print(("OK" if ok else "FAIL") + " rig-minus-depth=%s tp-minus-depth=%s pin=%s rig-depth=%s rig-flag=%s tp-ms=%s tp-ungated=%s tp-audio=%s tp-flag=%s" % (rs[:16], ts[:16], pin[:16], rig_depth, FLAGS[0][0], FLAGS[1][1], FLAGS[1][3], FLAGS[1][2], FLAGS[1][0]))
 PYEOF
 )
 log "config pin: $CK"
 case "$CK" in OK*) ;; *) halt "CONFIG PIN FAILED ($CK): the rig config or the sweep config differs from the pinned one; nothing was run";; esac
+# FLAG PIN (Architect K3, 2026-10-22): for a series that is about the coherent fallback (DI7COH2) the launcher sets TP_REQUIRE_FLAG=true, and the sweep config must then CARRY
+# decoder.coherentFallbackEnabled = true explicitly; printing it is not enough, so any other value HALTS here, before anything is started.
+if [ "${TP_REQUIRE_FLAG:-}" = "true" ]; then
+  case "$CK" in *" tp-flag=True") ;; *) halt "FLAG PIN FAILED ($CK): TP_REQUIRE_FLAG=true but the sweep config does not carry decoder.coherentFallbackEnabled = true; nothing was run";; esac
+  log "flag pin: OK (sweep config carries decoder.coherentFallbackEnabled = true)"
+fi
+# AUDIO PIN (COH-FB-AUDIO, 2026-10-27): with TP_REQUIRE_AUDIO=<Original|Residual|Both> the sweep config must carry decoder.coherentFallbackAudio equal to it, or the sweep HALTS before anything starts.
+if [ -n "${TP_REQUIRE_AUDIO:-}" ]; then
+  case "$CK" in *" tp-audio=$TP_REQUIRE_AUDIO tp-flag=True") ;; *) halt "AUDIO PIN FAILED ($CK): TP_REQUIRE_AUDIO=$TP_REQUIRE_AUDIO but the sweep config does not carry decoder.coherentFallbackAudio = $TP_REQUIRE_AUDIO (with the flag true); nothing was run";; esac
+  log "audio pin: OK (sweep config carries decoder.coherentFallbackAudio = $TP_REQUIRE_AUDIO)"
+fi
+# UNGATED PIN (R-F4, 2026-10-28): with TP_REQUIRE_UNGATED=true the sweep config must carry decoder.coherentFallbackResidualUngated = true, or the sweep HALTS before anything starts.
+if [ "${TP_REQUIRE_UNGATED:-}" = "true" ]; then
+  case "$CK" in *" tp-ungated=True tp-audio="*) ;; *) halt "UNGATED PIN FAILED ($CK): TP_REQUIRE_UNGATED=true but the sweep config does not carry decoder.coherentFallbackResidualUngated = true; nothing was run";; esac
+  log "ungated pin: OK (sweep config carries decoder.coherentFallbackResidualUngated = true)"
+fi
 log "build under test: $(git -C $TP_REPO rev-parse HEAD); libft8.so $(sha256sum "$(dirname "$DAEMON")/libft8.so" | cut -d' ' -f1); tooling $(git -C $HOME/rr-work-b2 rev-parse HEAD)"
 # S6 pins the OpenWSFZ native library the daemon loads: the one in the daemon's publish folder (added here so no caller has to pass the path)
 S6LIB=""; case ",$SCEN," in *,S6,*) S6LIB="--s6-ows-lib $(dirname "$DAEMON")/libft8.so";; esac

@@ -1,0 +1,76 @@
+{
+ "config": "off",
+ "kind": "verdict",
+ "night": "20261022_1949",
+ "cycles": 800,
+ "full_selection": true,
+ "n_ref": 20753.0,
+ "cycles_with_ref": 799,
+ "level_counts": {
+  "R3": 708,
+  "R2": 92
+ },
+ "l_outcomes": {
+  "ran": 758,
+  "skipped-no-new": 42
+ },
+ "fit_list": {
+  "entries": 2588,
+  "refused_by_IsReencodable_or_Encode": 245
+ },
+ "classes": {
+  "file": "orig_classes.json",
+  "testable_classes": 4,
+  "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049"
+ },
+ "block": {
+  "cycles": 800,
+  "n_ref": 20753.0,
+  "NET_pp": 0.7420613887148846,
+  "NET_CI": [
+   0.6211105395168737,
+   0.8588037397728009
+  ],
+  "dU_ta": 0.006257822277847309,
+  "dU_ta_CI": [
+   0.0012515644555694619,
+   0.012515644555694618
+  ],
+  "dU_hu": 0.0,
+  "dU_present": 0.010012515644555695,
+  "added_outputs": 167,
+  "added_corroborated": 154,
+  "added_tested_absent": 5,
+  "added_hashed_or_unencodable": 0,
+  "added_hashed_flag": 0,
+  "unconfirmed_in_untestable_class": 0,
+  "hashed_share_of_added": 0.0,
+  "cycles_L_ran": 758,
+  "cycles_L_skipped": 42
+ },
+ "HK026_REFREEZE_REQUIRED": false,
+ "verdict": "L1p-GO",
+ "timing_ms": {
+  "L1p_round": {
+   "median": 748.3,
+   "p90": 912.71,
+   "max": 1308.1,
+   "n": 800
+  },
+  "T2_end_of_work_vs_13s": {
+   "product_fallback_end": {
+    "median": 3246.5,
+    "p90": 3914.2,
+    "max": 4906.0,
+    "n": 800
+   },
+   "with_L1p": {
+    "median": 3950.3,
+    "p90": 4761.33,
+    "max": 5836.8,
+    "n": 800
+   },
+   "budget_ms": 13000
+  }
+ }
+}

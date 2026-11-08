@@ -1,0 +1,55 @@
+{
+ "calibration": {
+  "coh_gain_binomial_half_width_pp_at_5.25": 0.448,
+  "coh_gain_published_half_width_pp": 0.54,
+  "coh_gain_rows_json_rows": 9524,
+  "design_effect": 1.453,
+  "note": "indicative: calibrated on G-union-C3 NET, a different statistic and a different night; rows.json may be only part of the 5.25 pp sample"
+ },
+ "delta": {
+  "abs_dev_from_0.7_s": 0.0,
+  "exact_matches": 1869,
+  "median_s": 0.7,
+  "pass": true,
+  "pilot_cycles": 100,
+  "pilot_wsjtx_lines": 2433,
+  "q1_s": 0.6,
+  "q3_s": 0.7,
+  "tolerance_s": 0.05
+ },
+ "half_width_by_true_net_x_pp": {
+  "0.20": {
+   "binomial_half_width_pp": 0.054,
+   "with_COH_GAIN_design_effect_pp": 0.065
+  },
+  "0.50": {
+   "binomial_half_width_pp": 0.085,
+   "with_COH_GAIN_design_effect_pp": 0.103
+  },
+  "0.75": {
+   "binomial_half_width_pp": 0.104,
+   "with_COH_GAIN_design_effect_pp": 0.126
+  },
+  "1.00": {
+   "binomial_half_width_pp": 0.121,
+   "with_COH_GAIN_design_effect_pp": 0.145
+  },
+  "1.50": {
+   "binomial_half_width_pp": 0.147,
+   "with_COH_GAIN_design_effect_pp": 0.177
+  },
+  "2.00": {
+   "binomial_half_width_pp": 0.17,
+   "with_COH_GAIN_design_effect_pp": 0.204
+  }
+ },
+ "structure": {
+  "blocks_of_8": 122,
+  "cycles_with_zero_rows": 1,
+  "rows_per_cycle_max": 44,
+  "rows_per_cycle_mean": 26.86,
+  "rows_per_cycle_median": 27,
+  "sample_cycles": 975,
+  "wsjtx_rows_incl_unencodable": 26190
+ }
+}

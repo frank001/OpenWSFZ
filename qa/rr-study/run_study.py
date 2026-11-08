@@ -29,6 +29,8 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from harness.common import make_run_dir  # noqa: E402
+sys.path.insert(0, str(_HERE.parent))  # qa/ : station_paths (per-account paths + stale-log guard, 2026-11-02)
+import station_paths as _sp  # noqa: E402
 from harness import liveness as _lv  # noqa: E402  (M2/M3, 2026-10-14)
 from harness import scenario_retry as _sr  # noqa: E402  (scenario-level retry, Captain 2026-10-14)
 
@@ -50,7 +52,7 @@ _VENV_PYTHON = _HERE / ".venv" / "Scripts" / "python.exe"
 _SCENARIOS = _HERE / "scenarios"
 _RESULTS = _HERE / "results"
 
-WSJT_ALL_TXT    = Path(r"C:\Users\Frank\AppData\Local\WSJT-X - FT991A\ALL.TXT")
+WSJT_ALL_TXT    = _sp.wsjtx_all_txt("FT991A")   # running account's %LOCALAPPDATA% (was a hard-coded Frank path)
 # 2026-08-05 (repeat of 2026-06-22-f11f438 on newest build): the Captain now runs WSJT-X
 # under the multi-instance "WSJT-X - FT991A" profile (three-decoder antenna-split setup),
 # not the bare default profile this constant used to point at. See
@@ -344,6 +346,13 @@ def main() -> None:
                         help="Do NOT stop on a WSJT-X stall (DANGEROUS; recorded in the run folder). The coverage slots are still written.")
     args = parser.parse_args()
     WSJT_ALL_TXT, OWSFZ_ALL_TXT = Path(args.wsjt_all_txt), Path(args.owsfz_all_txt)
+    # Stale-log guard (Architect task 2026-11-02): refuse a WSJT-X log outside this account's profile,
+    # a missing one (clear message), and arm the must-grow check verified before the logs are collected.
+    try:
+        _wsjt_growth = _sp.guard_run_start(
+            WSJT_ALL_TXT, explicit=_sp.is_explicit(WSJT_ALL_TXT, _sp.wsjtx_all_txt("FT991A")))
+    except _sp.StaleLogError as _exc:
+        sys.exit(f"ERROR: {_exc}")
     if args.scenario_retries > 0 and not args.wsjtx_restart_cmd:
         sys.exit("ERROR: --scenario-retries > 0 needs --wsjtx-restart-cmd (the command that restarts WSJT-X).")
     if args.scenario_retries > 0 and not args.liveness_save_dir:
@@ -651,6 +660,11 @@ def main() -> None:
 
     # ── Step 3: Collect log files ──────────────────────────────────────────
     print("\nCollecting decode logs ...")
+    try:
+        _grown = _wsjt_growth.verify()
+    except _sp.StaleLogError as _exc:
+        sys.exit(f"ERROR: {_exc}")
+    print(f"  WSJT-X ALL.TXT grew by {_grown} bytes during the run (stale-log check PASS)")
     if not WSJT_ALL_TXT.exists():
         sys.exit(
             f"ERROR: WSJT-X ALL.TXT not found at {WSJT_ALL_TXT}\n"

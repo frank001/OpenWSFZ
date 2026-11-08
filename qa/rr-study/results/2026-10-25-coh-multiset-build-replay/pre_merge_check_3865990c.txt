@@ -1,0 +1,557 @@
+Expected FT8_SHIM_VERSION = 20260071 (from Ft8LibInterop.cs)
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\check_native_version.py D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll 20260071
+Binary : D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\Native\win-x64\libft8.dll
+Size   : 292,864 bytes
+Format : pe
+Expect : FT8_SHIM_VERSION = 20260071
+Result : OK — binary contains shim version 20260071
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\check_native_version.py D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\Native\linux-x64\libft8.so 20260071
+Result : STALE — binary does NOT contain shim version 20260071
+
+The committed native binary is out of date with FT8_SHIM_VERSION in ft8_shim.h / Ft8LibInterop.cs (expected 20260071).
+Rebuild the library locally and commit the updated binary, then re-push.  See src/OpenWSFZ.Ft8/Native/BUILD.md for instructions.
+Binary : D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\Native\linux-x64\libft8.so
+Size   : 109,592 bytes
+Format : elf
+Expect : FT8_SHIM_VERSION = 20260071
+
+Linux .so is STALE (expected 20260071) — attempting a rebuild...
+$ C:\WINDOWS\system32\wsl.EXE -d Debian -- bash /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_build/build_linux.sh
+Compiling ft8_lib sources...
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_build/patched/ft8/decode.c:1324:13: warning: â€˜ft8_decode_multi_symbolsâ€™ defined but not used [-Wunused-function]
+ 1324 | static void ft8_decode_multi_symbols(const WF_ELEM_T* wf, int num_bins, int n_syms, int bit_idx, float* log174)
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_build/patched/ft8/decode.c:83:20: warning: â€˜db_power_sumâ€™ defined but not used [-Wunused-const-variable=]
+   83 | static const float db_power_sum[40] = {
+      |                    ^~~~~~~~~~~~
+In file included from /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:7:
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c: In function â€˜ftx_message_decode_nonstdâ€™:
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:423:20: warning: format â€˜%llxâ€™ expects argument of type â€˜long long unsigned intâ€™, but argument 4 has type â€˜uint64_tâ€™ {aka â€˜long unsigned intâ€™} [-Wformat=]
+  423 |     LOG(LOG_DEBUG, "decode_nonstd() n12=%04x n58=%08llx iflip=%d nrpt=%d icq=%d i3=%d\n", n12, n58, iflip, nrpt, icq, i3);
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~       ~~~
+      |                                                                                                |
+      |                                                                                                uint64_t {aka long unsigned int}
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/debug.h:13:41: note: in definition of macro â€˜LOG_PRINTFâ€™
+   13 | #define LOG_PRINTF(...) fprintf(stderr, __VA_ARGS__)
+      |                                         ^~~~~~~~~~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:423:5: note: in expansion of macro â€˜LOGâ€™
+  423 |     LOG(LOG_DEBUG, "decode_nonstd() n12=%04x n58=%08llx iflip=%d nrpt=%d icq=%d i3=%d\n", n12, n58, iflip, nrpt, icq, i3);
+      |     ^~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:423:55: note: format string is defined here
+  423 |     LOG(LOG_DEBUG, "decode_nonstd() n12=%04x n58=%08llx iflip=%d nrpt=%d icq=%d i3=%d\n", n12, n58, iflip, nrpt, icq, i3);
+      |                                                  ~~~~~^
+      |                                                       |
+      |                                                       long long unsigned int
+      |                                                  %08lx
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c: In function â€˜pack28â€™:
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:693:23: warning: unused variable â€˜nletâ€™ [-Wunused-variable]
+  693 |         int nnum = 0, nlet = 0;
+      |                       ^~~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:693:13: warning: unused variable â€˜nnumâ€™ [-Wunused-variable]
+  693 |         int nnum = 0, nlet = 0;
+      |             ^~~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c: In function â€˜pack58â€™:
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:868:20: warning: format â€˜%llxâ€™ expects argument of type â€˜long long unsigned intâ€™, but argument 4 has type â€˜uint64_tâ€™ {aka â€˜long unsigned intâ€™} [-Wformat=]
+  868 |     LOG(LOG_DEBUG, "pack58('%s')=%016llx\n", callsign, *n58);
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~            ~~~~
+      |                                                        |
+      |                                                        uint64_t {aka long unsigned int}
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/debug.h:13:41: note: in definition of macro â€˜LOG_PRINTFâ€™
+   13 | #define LOG_PRINTF(...) fprintf(stderr, __VA_ARGS__)
+      |                                         ^~~~~~~~~~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:868:5: note: in expansion of macro â€˜LOGâ€™
+  868 |     LOG(LOG_DEBUG, "pack58('%s')=%016llx\n", callsign, *n58);
+      |     ^~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:868:40: note: format string is defined here
+  868 |     LOG(LOG_DEBUG, "pack58('%s')=%016llx\n", callsign, *n58);
+      |                                  ~~~~~~^
+      |                                        |
+      |                                        long long unsigned int
+      |                                  %016lx
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c: In function â€˜unpack58â€™:
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:888:20: warning: format â€˜%llxâ€™ expects argument of type â€˜long long unsigned intâ€™, but argument 3 has type â€˜uint64_tâ€™ {aka â€˜long unsigned intâ€™} [-Wformat=]
+  888 |     LOG(LOG_DEBUG, "unpack58(%016llx)=%s\n", n58_backup, callsign);
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~  ~~~~~~~~~~
+      |                                              |
+      |                                              uint64_t {aka long unsigned int}
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/debug.h:13:41: note: in definition of macro â€˜LOG_PRINTFâ€™
+   13 | #define LOG_PRINTF(...) fprintf(stderr, __VA_ARGS__)
+      |                                         ^~~~~~~~~~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:888:5: note: in expansion of macro â€˜LOGâ€™
+  888 |     LOG(LOG_DEBUG, "unpack58(%016llx)=%s\n", n58_backup, callsign);
+      |     ^~~
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:888:36: note: format string is defined here
+  888 |     LOG(LOG_DEBUG, "unpack58(%016llx)=%s\n", n58_backup, callsign);
+      |                              ~~~~~~^
+      |                                    |
+      |                                    long long unsigned int
+      |                              %016lx
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c: At top level:
+/mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/native/ft8_lib_vendor/ft8/message.c:533:13: warning: â€˜trim_bracketsâ€™ defined but not used [-Wunused-function]
+  533 | static bool trim_brackets(char* result, const char* original, int length)
+      |             ^~~~~~~~~~~~~
+Compiling ft8_shim.c...
+Compiling sync_refiner.c (r1-sync-refiner-instrument-validation, OpenWSFZ-original, diagnostic-only)...
+Compiling coherent_llr.c (r2-coherent-llr-instrument, OpenWSFZ-original, diagnostic-only)...
+Compiling coherent_fallback.c (COH-FALLBACK Stage 1, OpenWSFZ-original, diagnostic-only)...
+Compiling subfeas_fit.c (sub-feas-native-subtraction, OpenWSFZ-original, no production call site yet)...
+Linking libft8.so...
+Verifying exports...
+000000000000d130 T ft8_coherent_fallback_at
+000000000000e540 T ft8_coherent_fallback_ctx_free
+000000000000e530 T ft8_coherent_fallback_ctx_new
+000000000000e560 T ft8_coherent_fallback_ctx_set_flags
+000000000000d510 T ft8_coherent_fallback_cycle
+000000000000e370 T ft8_coherent_fallback_plan
+000000000000e590 T ft8_coherent_fallback_process
+000000000000dcc0 T ft8_coherent_fallback_run
+000000000000d430 T ft8_coherent_fallback_set_groups
+000000000000d1d0 T ft8_coherent_fallback_sets_at
+000000000000dbb0 T ft8_coherent_fallback_snapshot
+000000000000dba0 T ft8_coherent_fallback_snapshot_size
+000000000000e240 T ft8_coherent_fallback_unpack
+000000000000f280 T ft8_coherent_llr_at
+000000000000bdc0 T ft8_decode_all
+00000000000067e0 T ft8_encode
+000000000000b7b0 T ft8_encode_message
+000000000000cf60 T ft8_extract_llrs_at
+000000000000b660 T ft8_get_h12_ambiguous_count
+000000000000b690 T ft8_get_h12_by_code
+000000000000b650 T ft8_get_h12_displaying_count
+000000000000b670 T ft8_get_h12_divergent_count
+000000000000b680 T ft8_get_h12_suppressed_count
+000000000000b740 T ft8_get_h12_unresolved_by_code
+000000000000b640 T ft8_get_hash_table_reject_count
+000000000000ba80 T ft8_get_last_candidate_counts
+000000000000bad0 T ft8_get_last_llr_stats
+000000000000b620 T ft8_get_last_noise_floor_db
+000000000000b8b0 T ft8_get_last_osd_diag
+000000000000b860 T ft8_get_last_pass_counts
+000000000000bb80 T ft8_get_last_snr_terms
+000000000000b610 T ft8_get_max_passes
+000000000000b320 T ft8_get_osd_sign_fix
+000000000000b500 T ft8_hash_state_restore
+000000000000b3e0 T ft8_hash_state_save
+000000000000b3d0 T ft8_hash_state_size
+000000000000d100 T ft8_ldpc_decode_llrs
+000000000000b600 T ft8_lib_version_check
+000000000000b330 T ft8_osd_diag_accept
+000000000000b390 T ft8_osd_diag_reject
+000000000000eeb0 T ft8_refine_candidate
+000000000000bcd0 T ft8_set_ap_bits
+000000000000b2e0 T ft8_set_decode_params
+000000000000bcb0 T ft8_set_diagnostics_enabled
+000000000000b300 T ft8_set_osd_sign_fix
+00000000000127b0 T ft8_subfeas_compute_analytic
+0000000000012a00 T ft8_subfeas_fit_signal
+0000000000012450 T ft8_subfeas_pool_configure
+00000000000126b0 T ft8_subfeas_pool_get_stats
+00000000000125b0 T ft8_subfeas_pool_shutdown
+Copying to repo...
+Linux build SUCCESS
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\check_native_version.py D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\Native\linux-x64\libft8.so 20260071
+Binary : D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\Native\linux-x64\libft8.so
+Size   : 113,992 bytes
+Format : elf
+Expect : FT8_SHIM_VERSION = 20260071
+Result : OK — binary contains shim version 20260071
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\check_native_version.py D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\Native\osx-arm64\libft8.dylib 20260071
+Result : STALE — binary does NOT contain shim version 20260071
+
+The committed native binary is out of date with FT8_SHIM_VERSION in ft8_shim.h / Ft8LibInterop.cs (expected 20260071).
+Rebuild the library locally and commit the updated binary, then re-push.  See src/OpenWSFZ.Ft8/Native/BUILD.md for instructions.
+Binary : D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\Native\osx-arm64\libft8.dylib
+Size   : 162,992 bytes
+Format : macho-arm64
+Expect : FT8_SHIM_VERSION = 20260071
+
+macOS .dylib is STALE (expected 20260071) — attempting a rebuild...
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\check_version_docs.py
+Canonical VERSION : 0.63
+README.md       : OK — cites v0.63
+REQUIREMENTS.md : OK — cites v0.63
+Result : OK — all docs cite v0.63
+$ git fetch origin main
+From https://github.com/frank001/OpenWSFZ
+ * branch              main       -> FETCH_HEAD
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\check_version_bump.py origin/main
+Base ref : origin/main
+Newly-introduced proposals (1):
+  - openspec/changes/coh-multiset-build/proposal.md: User-facing = yes
+User-facing changes newly introduced: 1
+VERSION differs from origin/main — bump present.
+Result : OK — user-facing change(s) introduced with a VERSION bump in this same pull request.
+$ dotnet build OpenWSFZ.slnx -c Release
+  Determining projects to restore...
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tools\TraceabilityCheck\TraceabilityCheck.csproj (in 79 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj (in 79 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj (in 182 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj (in 78 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.TestSupport\OpenWSFZ.TestSupport.csproj (in 182 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tools\GenerateFt8Fixture\GenerateFt8Fixture.csproj (in 78 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\TraceabilityCheck.Tests\TraceabilityCheck.Tests.csproj (in 188 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.E2E.Tests\OpenWSFZ.E2E.Tests.csproj (in 188 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Config.Tests\OpenWSFZ.Config.Tests.csproj (in 188 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\LicenseInventoryCheck.Tests\LicenseInventoryCheck.Tests.csproj (in 188 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tools\SigHupProbe\SigHupProbe.csproj (in 1 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Config\OpenWSFZ.Config.csproj (in 3 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\Ft8.FitProbe\Ft8.FitProbe.csproj (in 5 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.TestSupport.Tests\OpenWSFZ.TestSupport.Tests.csproj (in 189 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tools\LicenseInventoryCheck\LicenseInventoryCheck.csproj (in 2 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Audio.Tests\OpenWSFZ.Audio.Tests.csproj (in 6 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Rig.Tests\OpenWSFZ.Rig.Tests.csproj (in 252 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj (in 252 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Web\OpenWSFZ.Web.csproj (in 252 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj (in 277 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Daemon.Tests\OpenWSFZ.Daemon.Tests.csproj (in 277 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Web.Tests\OpenWSFZ.Web.Tests.csproj (in 278 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Ft8.Tests\OpenWSFZ.Ft8.Tests.csproj (in 277 ms).
+  OpenWSFZ.TestSupport -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.TestSupport\bin\Release\net10.0\OpenWSFZ.TestSupport.dll
+  OpenWSFZ.Abstractions -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Abstractions\bin\Release\net10.0\OpenWSFZ.Abstractions.dll
+  SigHupProbe -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tools\SigHupProbe\bin\Release\net10.0\SigHupProbe.dll
+  TraceabilityCheck.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\TraceabilityCheck.Tests\bin\Release\net10.0\TraceabilityCheck.Tests.dll
+  LicenseInventoryCheck -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tools\LicenseInventoryCheck\bin\Release\net10.0\LicenseInventoryCheck.dll
+  TraceabilityCheck -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tools\TraceabilityCheck\bin\Release\net10.0\TraceabilityCheck.dll
+  LicenseInventoryCheck.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\LicenseInventoryCheck.Tests\bin\Release\net10.0\LicenseInventoryCheck.Tests.dll
+  OpenWSFZ.TestSupport.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.TestSupport.Tests\bin\Release\net10.0\OpenWSFZ.TestSupport.Tests.dll
+  OpenWSFZ.E2E.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.E2E.Tests\bin\Release\net10.0\OpenWSFZ.E2E.Tests.dll
+  OpenWSFZ.Rig -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Rig\bin\Release\net10.0\OpenWSFZ.Rig.dll
+  OpenWSFZ.Audio -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Audio\bin\Release\net10.0\OpenWSFZ.Audio.dll
+  OpenWSFZ.Ft8 -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\bin\Release\net10.0\OpenWSFZ.Ft8.dll
+  OpenWSFZ.Config -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Config\bin\Release\net10.0\OpenWSFZ.Config.dll
+  OpenWSFZ.Rig.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Rig.Tests\bin\Release\net10.0\OpenWSFZ.Rig.Tests.dll
+  GenerateFt8Fixture -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tools\GenerateFt8Fixture\bin\Release\net10.0\GenerateFt8Fixture.dll
+  OpenWSFZ.Audio.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Audio.Tests\bin\Release\net10.0\OpenWSFZ.Audio.Tests.dll
+  Ft8.FitProbe -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\Ft8.FitProbe\bin\Release\net10.0\Ft8.FitProbe.dll
+  OpenWSFZ.Config.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Config.Tests\bin\Release\net10.0\OpenWSFZ.Config.Tests.dll
+  OpenWSFZ.Web -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Web\bin\Release\net10.0\OpenWSFZ.Web.dll
+  OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\bin\Release\net10.0\OpenWSFZ.Daemon.dll
+  OpenWSFZ.Web.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Web.Tests\bin\Release\net10.0\OpenWSFZ.Web.Tests.dll
+  OpenWSFZ.Ft8.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Ft8.Tests\bin\Release\net10.0\OpenWSFZ.Ft8.Tests.dll
+  OpenWSFZ.Daemon.Tests -> D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Daemon.Tests\bin\Release\net10.0\OpenWSFZ.Daemon.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:11.44
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\check_udp_capture_margin.py
+Scanned 256 file(s).
+
+Result : OK — every capture asserting a specific datagram type documents its margin.
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\check_test_delay_sync.py
+Scanned 253 file(s) under tests/ (excluding tests/OpenWSFZ.TestSupport/); 15 bare-delay site(s) found across 10 file(s).
+
+Result : OK — every bare-delay site is either migrated or explicitly tracked as debt.
+$ dotnet test OpenWSFZ.slnx -c Release --no-build --filter Category!=AwgnFpReplay
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Web.Tests\bin\Release\net10.0\OpenWSFZ.Web.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Config.Tests\bin\Release\net10.0\OpenWSFZ.Config.Tests.dll (.NETCoreApp,Version=v10.0)
+  E2E precondition: publishing self-contained Daemon (win-x64) before running OpenWSFZ.E2E.Tests -- see tools/publish_selfcontained.py and TESTING_STRATEGY.md.
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Daemon.Tests\bin\Release\net10.0\OpenWSFZ.Daemon.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Audio.Tests\bin\Release\net10.0\OpenWSFZ.Audio.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\TraceabilityCheck.Tests\bin\Release\net10.0\TraceabilityCheck.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Rig.Tests\bin\Release\net10.0\OpenWSFZ.Rig.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\LicenseInventoryCheck.Tests\bin\Release\net10.0\LicenseInventoryCheck.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Ft8.Tests\bin\Release\net10.0\OpenWSFZ.Ft8.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.TestSupport.Tests\bin\Release\net10.0\OpenWSFZ.TestSupport.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+    Determining projects to restore...
+    Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj (in 308 ms).
+    Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj (in 352 ms).
+    Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Config\OpenWSFZ.Config.csproj (in 339 ms).
+    Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj (in 358 ms).
+    Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj (in 411 ms).
+    Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj (in 433 ms).
+    Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Web\OpenWSFZ.Web.csproj (in 405 ms).
+
+Passed!  - Failed:     0, Passed:    34, Skipped:     0, Total:    34, Duration: 158 ms - TraceabilityCheck.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:    24, Skipped:     0, Total:    24, Duration: 199 ms - LicenseInventoryCheck.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:    41, Skipped:     0, Total:    41, Duration: 439 ms - OpenWSFZ.Rig.Tests.dll (net10.0)
+    OpenWSFZ.Abstractions -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Abstractions\bin\Release\net10.0\OpenWSFZ.Abstractions.dll
+    OpenWSFZ.Rig -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Rig\bin\Release\net10.0\OpenWSFZ.Rig.dll
+    OpenWSFZ.Ft8 -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\bin\Release\net10.0\OpenWSFZ.Ft8.dll
+    OpenWSFZ.Config -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Config\bin\Release\net10.0\OpenWSFZ.Config.dll
+    OpenWSFZ.Audio -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Audio\bin\Release\net10.0\OpenWSFZ.Audio.dll
+
+Passed!  - Failed:     0, Passed:   175, Skipped:     0, Total:   175, Duration: 1 s - OpenWSFZ.Config.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 2 s - OpenWSFZ.TestSupport.Tests.dll (net10.0)
+    OpenWSFZ.Web -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Web\bin\Release\net10.0\OpenWSFZ.Web.dll
+
+Passed!  - Failed:     0, Passed:    40, Skipped:     0, Total:    40, Duration: 2 s - OpenWSFZ.Audio.Tests.dll (net10.0)
+    OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\OpenWSFZ.Daemon.dll
+    OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\publish\
+  $ dotnet publish src\OpenWSFZ.Daemon -c Release -r win-x64 --self-contained -p:PublishAot=false
+Test run for D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.E2E.Tests\bin\Release\net10.0\OpenWSFZ.E2E.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 4 s - OpenWSFZ.E2E.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   404, Skipped:     0, Total:   404, Duration: 13 s - OpenWSFZ.Web.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   810, Skipped:     0, Total:   810, Duration: 22 s - OpenWSFZ.Daemon.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   605, Skipped:     0, Total:   605, Duration: 2 m 45 s - OpenWSFZ.Ft8.Tests.dll (net10.0)
+$ dotnet run --project tools\TraceabilityCheck -c Release --no-build -- --requirements REQUIREMENTS.md --assemblies D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\LicenseInventoryCheck.Tests\bin\Release\net10.0\LicenseInventoryCheck.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Audio.Tests\bin\Release\net10.0\OpenWSFZ.Audio.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Config.Tests\bin\Release\net10.0\OpenWSFZ.Config.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Daemon.Tests\bin\Release\net10.0\OpenWSFZ.Daemon.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.E2E.Tests\bin\Release\net10.0\OpenWSFZ.E2E.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Ft8.Tests\bin\Release\net10.0\OpenWSFZ.Ft8.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Rig.Tests\bin\Release\net10.0\OpenWSFZ.Rig.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.TestSupport.Tests\bin\Release\net10.0\OpenWSFZ.TestSupport.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\OpenWSFZ.Web.Tests\bin\Release\net10.0\OpenWSFZ.Web.Tests.dll D:\Projects\claude\_qa-scratch\premerge-3865990c\tests\TraceabilityCheck.Tests\bin\Release\net10.0\TraceabilityCheck.Tests.dll --report traceability.md --debt-file traceability-debt.md
+Found 107 requirement IDs in REQUIREMENTS.md
+Found 1839 non-skipped test(s) across 10 assembly(ies)
+Loaded 44 pending requirement ID(s) from debt file: traceability-debt.md
+Report written to: traceability.md
+PASS: all requirements are mapped and all references are valid.
+$ C:\WINDOWS\system32\wsl.EXE -d Debian -- bash /mnt/c/Users/Frank/AppData/Local/Temp/owsfz_pre_merge_wsl_hxa4mazg.sh
+  Determining projects to restore...
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tools/LicenseInventoryCheck/LicenseInventoryCheck.csproj (in 201 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tools/TraceabilityCheck/TraceabilityCheck.csproj (in 201 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Abstractions/OpenWSFZ.Abstractions.csproj (in 201 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tools/SigHupProbe/SigHupProbe.csproj (in 201 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Config/OpenWSFZ.Config.csproj (in 1.11 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tools/GenerateFt8Fixture/GenerateFt8Fixture.csproj (in 781 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/TraceabilityCheck.Tests/TraceabilityCheck.Tests.csproj (in 1.12 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/LicenseInventoryCheck.Tests/LicenseInventoryCheck.Tests.csproj (in 1.12 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Config.Tests/OpenWSFZ.Config.Tests.csproj (in 1.12 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Audio/OpenWSFZ.Audio.csproj (in 1.11 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Ft8/OpenWSFZ.Ft8.csproj (in 1.11 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/Ft8.FitProbe/Ft8.FitProbe.csproj (in 800 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Audio.Tests/OpenWSFZ.Audio.Tests.csproj (in 1.12 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Web/OpenWSFZ.Web.csproj (in 1.16 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Rig.Tests/OpenWSFZ.Rig.Tests.csproj (in 1.17 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Daemon/OpenWSFZ.Daemon.csproj (in 1.17 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Ft8.Tests/OpenWSFZ.Ft8.Tests.csproj (in 838 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Daemon.Tests/OpenWSFZ.Daemon.Tests.csproj (in 1.17 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Web.Tests/OpenWSFZ.Web.Tests.csproj (in 847 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Rig/OpenWSFZ.Rig.csproj (in 1.16 sec).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.TestSupport.Tests/OpenWSFZ.TestSupport.Tests.csproj (in 25 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.TestSupport/OpenWSFZ.TestSupport.csproj (in 27 ms).
+  Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.E2E.Tests/OpenWSFZ.E2E.Tests.csproj (in 21 ms).
+  OpenWSFZ.TestSupport -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.TestSupport/bin/Release/net10.0/OpenWSFZ.TestSupport.dll
+  OpenWSFZ.Abstractions -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Abstractions/bin/Release/net10.0/OpenWSFZ.Abstractions.dll
+  LicenseInventoryCheck -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tools/LicenseInventoryCheck/bin/Release/net10.0/LicenseInventoryCheck.dll
+  TraceabilityCheck.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/TraceabilityCheck.Tests/bin/Release/net10.0/TraceabilityCheck.Tests.dll
+  TraceabilityCheck -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tools/TraceabilityCheck/bin/Release/net10.0/TraceabilityCheck.dll
+  LicenseInventoryCheck.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/LicenseInventoryCheck.Tests/bin/Release/net10.0/LicenseInventoryCheck.Tests.dll
+  SigHupProbe -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tools/SigHupProbe/bin/Release/net10.0/SigHupProbe.dll
+  OpenWSFZ.Rig -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Rig/bin/Release/net10.0/OpenWSFZ.Rig.dll
+  OpenWSFZ.Audio -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Audio/bin/Release/net10.0/OpenWSFZ.Audio.dll
+  OpenWSFZ.Ft8 -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Ft8/bin/Release/net10.0/OpenWSFZ.Ft8.dll
+  OpenWSFZ.TestSupport.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.TestSupport.Tests/bin/Release/net10.0/OpenWSFZ.TestSupport.Tests.dll
+  OpenWSFZ.Config -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Config/bin/Release/net10.0/OpenWSFZ.Config.dll
+  OpenWSFZ.Rig.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Rig.Tests/bin/Release/net10.0/OpenWSFZ.Rig.Tests.dll
+  OpenWSFZ.E2E.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.E2E.Tests/bin/Release/net10.0/OpenWSFZ.E2E.Tests.dll
+  Ft8.FitProbe -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/Ft8.FitProbe/bin/Release/net10.0/Ft8.FitProbe.dll
+  GenerateFt8Fixture -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tools/GenerateFt8Fixture/bin/Release/net10.0/GenerateFt8Fixture.dll
+  OpenWSFZ.Audio.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Audio.Tests/bin/Release/net10.0/OpenWSFZ.Audio.Tests.dll
+  OpenWSFZ.Config.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Config.Tests/bin/Release/net10.0/OpenWSFZ.Config.Tests.dll
+  OpenWSFZ.Web -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Web/bin/Release/net10.0/OpenWSFZ.Web.dll
+  OpenWSFZ.Daemon -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Daemon/bin/Release/net10.0/OpenWSFZ.Daemon.dll
+  OpenWSFZ.Web.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Web.Tests/bin/Release/net10.0/OpenWSFZ.Web.Tests.dll
+  OpenWSFZ.Ft8.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Ft8.Tests/bin/Release/net10.0/OpenWSFZ.Ft8.Tests.dll
+  OpenWSFZ.Daemon.Tests -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Daemon.Tests/bin/Release/net10.0/OpenWSFZ.Daemon.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:25.97
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Rig.Tests/bin/Release/net10.0/OpenWSFZ.Rig.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Config.Tests/bin/Release/net10.0/OpenWSFZ.Config.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Daemon.Tests/bin/Release/net10.0/OpenWSFZ.Daemon.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Audio.Tests/bin/Release/net10.0/OpenWSFZ.Audio.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Ft8.Tests/bin/Release/net10.0/OpenWSFZ.Ft8.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/LicenseInventoryCheck.Tests/bin/Release/net10.0/LicenseInventoryCheck.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.TestSupport.Tests/bin/Release/net10.0/OpenWSFZ.TestSupport.Tests.dll (.NETCoreApp,Version=v10.0)
+  E2E precondition: publishing self-contained Daemon (linux-x64) before running OpenWSFZ.E2E.Tests -- see tools/publish_selfcontained.py and TESTING_STRATEGY.md.
+A total of 1 test files matched the specified pattern.A total of 1 test files matched the specified pattern.
+
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/TraceabilityCheck.Tests/bin/Release/net10.0/TraceabilityCheck.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.Web.Tests/bin/Release/net10.0/OpenWSFZ.Web.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    37, Skipped:     0, Total:    37, Duration: 168 ms - OpenWSFZ.Audio.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:    41, Skipped:     0, Total:    41, Duration: 188 ms - OpenWSFZ.Rig.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:    24, Skipped:     0, Total:    24, Duration: 252 ms - LicenseInventoryCheck.Tests.dll (net10.0)
+    Determining projects to restore...
+
+Passed!  - Failed:     0, Passed:    34, Skipped:     0, Total:    34, Duration: 96 ms - TraceabilityCheck.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   175, Skipped:     0, Total:   175, Duration: 247 ms - OpenWSFZ.Config.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 937 ms - OpenWSFZ.TestSupport.Tests.dll (net10.0)
+    Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Abstractions/OpenWSFZ.Abstractions.csproj (in 192 ms).
+    Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Ft8/OpenWSFZ.Ft8.csproj (in 209 ms).
+    Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Config/OpenWSFZ.Config.csproj (in 209 ms).
+    Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Audio/OpenWSFZ.Audio.csproj (in 209 ms).
+    Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Rig/OpenWSFZ.Rig.csproj (in 276 ms).
+    Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Web/OpenWSFZ.Web.csproj (in 276 ms).
+    Restored /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Daemon/OpenWSFZ.Daemon.csproj (in 282 ms).
+    OpenWSFZ.Abstractions -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Abstractions/bin/Release/net10.0/OpenWSFZ.Abstractions.dll
+    OpenWSFZ.Config -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Config/bin/Release/net10.0/OpenWSFZ.Config.dll
+    OpenWSFZ.Rig -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Rig/bin/Release/net10.0/OpenWSFZ.Rig.dll
+    OpenWSFZ.Audio -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Audio/bin/Release/net10.0/OpenWSFZ.Audio.dll
+    OpenWSFZ.Ft8 -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Ft8/bin/Release/net10.0/OpenWSFZ.Ft8.dll
+    OpenWSFZ.Web -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Web/bin/Release/net10.0/OpenWSFZ.Web.dll
+    OpenWSFZ.Daemon -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Daemon/bin/Release/net10.0/linux-x64/OpenWSFZ.Daemon.dll
+    OpenWSFZ.Daemon -> /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/src/OpenWSFZ.Daemon/bin/Release/net10.0/linux-x64/publish/
+  $ dotnet publish src/OpenWSFZ.Daemon -c Release -r linux-x64 --self-contained -p:PublishAot=false
+Test run for /mnt/d/Projects/claude/_qa-scratch/premerge-3865990c/tests/OpenWSFZ.E2E.Tests/bin/Release/net10.0/OpenWSFZ.E2E.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 2 s - OpenWSFZ.E2E.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   404, Skipped:     0, Total:   404, Duration: 14 s - OpenWSFZ.Web.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   778, Skipped:     0, Total:   778, Duration: 21 s - OpenWSFZ.Daemon.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:   605, Skipped:     0, Total:   605, Duration: 2 m 18 s - OpenWSFZ.Ft8.Tests.dll (net10.0)
+$ C:\Users\Frank\AppData\Local\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\node-v24.15.0-win-x64\openspec.CMD validate --strict --all
+- Validating...
+âœ“ spec/adif-log
+âœ“ spec/ap-assist-callsign-packing
+âœ“ spec/audio-capture
+âœ“ spec/audio-device
+âœ“ spec/audio-offset-state
+âœ“ spec/audio-output-device
+âœ“ spec/build-pipeline
+âœ“ spec/callsign-structure-validation
+âœ“ change/capture-loss-instrument
+âœ“ change/capture-pipe-headroom
+âœ“ spec/cat-control
+âœ“ spec/ci-quality-gates
+âœ“ change/coh-fallback-default-on-setting
+âœ“ change/coh-multiset-build
+âœ“ spec/configuration
+âœ“ spec/cycle-audio-archive
+âœ“ spec/daemon-background-mode
+âœ“ spec/daemon-host
+âœ“ spec/daemon-status-visibility
+âœ“ spec/decode-control
+âœ“ change/decode-early-batch-panel
+âœ“ spec/decode-log
+âœ“ spec/decode-noise-suppression
+âœ“ spec/decode-panel-filtering
+âœ“ spec/decoder-ground-truth
+âœ“ spec/decoder-settings
+âœ“ spec/dependency-licence-policy
+âœ“ spec/engagement-target-validation
+âœ“ spec/external-reporting
+âœ“ change/external-reporting-ephemeral-client-socket
+âœ“ spec/file-logging
+âœ“ spec/frequency-management
+âœ“ spec/ft8-coherent-llr
+âœ“ spec/ft8-decoder
+âœ“ spec/ft8-sync-refiner
+âœ“ spec/ft8-tx
+âœ“ spec/ft8lib-interop
+âœ“ change/gui-state-preservation
+âœ“ spec/hashed-callsign-resolution
+âœ“ change/inbound-reply-wire-layout
+âœ“ spec/iterative-subtraction
+âœ“ change/late-start-time-alignment
+âœ“ spec/log-viewer
+âœ“ spec/native-build-provenance
+âœ“ change/plausibility-filter-forms
+âœ“ spec/prop-mode-store
+âœ“ spec/qso-answerer
+âœ“ spec/qso-caller
+âœ“ spec/qso-confirmation
+âœ“ spec/qso-controller
+âœ“ spec/qso-log-dialog
+âœ“ spec/region-lookup
+âœ“ spec/region-lookup-data-refresh
+âœ“ spec/release-versioning
+âœ“ spec/remote-access
+âœ“ spec/remote-daemon-restart
+âœ“ spec/requirement-traceability
+âœ“ spec/rr-band-scene
+âœ“ spec/rr-corpus-replay
+âœ“ spec/rr-density-qrm-scenario
+âœ“ spec/rr-linked-cycle-effectiveness-scenario
+âœ“ spec/rr-synth-channel
+âœ“ spec/rr-synth-nonstandard-callsign-packing
+âœ“ spec/siggen
+âœ“ change/sub-feas-native-subtraction
+âœ“ change/sub-feas-speed-redesign
+âœ“ change/subtraction-budget-replay-override
+âœ“ spec/synth-cli
+âœ“ spec/test-synchronization-reliability
+âœ“ spec/tx-state-indicators
+âœ“ spec/waterfall-cursors
+âœ“ spec/web-frontend
+âœ“ spec/web-server
+Totals: 73 passed, 0 failed (73 items)
+$ C:\Users\Frank\AppData\Local\Python\pythoncore-3.14-64\python.exe tools\publish_selfcontained.py --rid win-x64
+  Determining projects to restore...
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj (in 181 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj (in 197 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Config\OpenWSFZ.Config.csproj (in 197 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj (in 197 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Web\OpenWSFZ.Web.csproj (in 230 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj (in 230 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj (in 231 ms).
+  OpenWSFZ.Abstractions -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Abstractions\bin\Release\net10.0\OpenWSFZ.Abstractions.dll
+  OpenWSFZ.Rig -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Rig\bin\Release\net10.0\OpenWSFZ.Rig.dll
+  OpenWSFZ.Audio -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Audio\bin\Release\net10.0\OpenWSFZ.Audio.dll
+  OpenWSFZ.Ft8 -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\bin\Release\net10.0\OpenWSFZ.Ft8.dll
+  OpenWSFZ.Config -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Config\bin\Release\net10.0\OpenWSFZ.Config.dll
+  OpenWSFZ.Web -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Web\bin\Release\net10.0\OpenWSFZ.Web.dll
+  OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\OpenWSFZ.Daemon.dll
+  OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\publish\
+$ dotnet publish src\OpenWSFZ.Daemon -c Release -r win-x64 --self-contained -p:PublishAot=false
+$ dotnet publish src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj -c Release -r win-x64 --self-contained -p:PublishAot=true -o src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\publish-aot\
+  Determining projects to restore...
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Config\OpenWSFZ.Config.csproj (in 235 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Audio\OpenWSFZ.Audio.csproj (in 235 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj (in 235 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj (in 235 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Rig\OpenWSFZ.Rig.csproj (in 265 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Web\OpenWSFZ.Web.csproj (in 267 ms).
+  Restored D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj (in 268 ms).
+  OpenWSFZ.Abstractions -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Abstractions\bin\Release\net10.0\OpenWSFZ.Abstractions.dll
+  OpenWSFZ.Rig -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Rig\bin\Release\net10.0\OpenWSFZ.Rig.dll
+  OpenWSFZ.Audio -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Audio\bin\Release\net10.0\OpenWSFZ.Audio.dll
+  OpenWSFZ.Config -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Config\bin\Release\net10.0\OpenWSFZ.Config.dll
+  OpenWSFZ.Ft8 -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Ft8\bin\Release\net10.0\OpenWSFZ.Ft8.dll
+  OpenWSFZ.Web -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Web\bin\Release\net10.0\OpenWSFZ.Web.dll
+  OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\OpenWSFZ.Daemon.dll
+  Generating native code
+D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\Program.cs(77): warning IL3000: Program.<<Main>$>d__0.MoveNext(): 'System.Reflection.Assembly.Location.get' always returns an empty string for assemblies embedded in a single-file app. If the path to the app directory is needed, consider calling 'System.AppContext.BaseDirectory'. [D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj]
+D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\DaemonRelauncher.cs(49): warning IL3000: OpenWSFZ.Daemon.DaemonRelauncher.TrySpawnReplacement(): 'System.Reflection.Assembly.Location.get' always returns an empty string for assemblies embedded in a single-file app. If the path to the app directory is needed, consider calling 'System.AppContext.BaseDirectory'. [D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj]
+C:\Users\Frank\.nuget\packages\serilog\4.2.0\lib\net9.0\Serilog.dll : warning IL2104: Assembly 'Serilog' produced trim warnings. For more information see https://aka.ms/il2104 [D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj]
+  ILC: Method '[NAudio.Wasapi]NAudio.CoreAudioApi.Interfaces.MMDeviceEnumeratorComObject..ctor()' will always throw because: Invalid IL or CLR metadata in 'Void NAudio.CoreAudioApi.Interfaces.MMDeviceEnumeratorComObject..ctor()'
+  ILC: Method '[NAudio.Wasapi]NAudio.Dmo.ResamplerMediaComObject..ctor()' will always throw because: Invalid IL or CLR metadata in 'Void NAudio.Dmo.ResamplerMediaComObject..ctor()'
+  OpenWSFZ.Daemon -> D:\Projects\claude\_qa-scratch\premerge-3865990c\src\OpenWSFZ.Daemon\bin\Release\net10.0\win-x64\publish-aot\
+
+========================================================================
+PRE-MERGE CHECK SUMMARY
+========================================================================
+[WARN ] Native binary freshness (check + auto-rebuild) — Windows DLL: already current (20260071); Linux .so: was STALE — rebuilt, now current (20260071). REVIEW AND COMMIT src\OpenWSFZ.Ft8\Native\linux-x64\libft8.so before pushing.; macOS .dylib: STALE, could not rebuild here — not running on macOS (this machine is Windows)
+[PASS ] G9a — doc/VERSION consistency
+[PASS ] G9b — mandatory VERSION bump on user-facing change
+[PASS ] Solution build (Release)
+[PASS ] Lint — UDP capture margin check
+[PASS ] G10 — test-delay-synchronization lint
+[PASS ] Full test suite (Release)
+[PASS ] G3 — requirement traceability
+[PASS ] WSL Debian compile + test — compiled and the full test suite passed under a real Linux/glibc runtime (WSL Debian) — same kernel family as CI's ubuntu-latest runner, minutes faster than waiting on GitHub's own queue. See the module docstring's step 9 for what this does and does not guarantee.
+[PASS ] G8 — OpenSpec strict validation
+[PASS ] Self-contained non-AOT publish (local platform) — publish succeeded locally; the functional proof (banner, /api/v1/status, both audio-device endpoints against this binary) runs in CI, not here.
+[PASS ] AOT publish (local platform) — compiles only — does NOT verify Windows WASAPI audio works under AOT (known-broken; see dev-tasks/2026-07-18-aot-comwrappers-audio-migration.md). The self-contained non-AOT gate above is the binary that actually works.
+========================================================================
+Result : PASS WITH WARNINGS — no gate failed outright, but 1 could not be conclusively verified on this machine (see WARN lines above). Use judgement before declaring ready for merge.

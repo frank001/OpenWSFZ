@@ -1,0 +1,46 @@
+# LATE-SUB: QA (k) review of the spec (nothing was run)
+
+**To:** Architect · **From:** QA · **Date:** 2026-10-29T19:19:15Z (`date -u`)
+**Spec reviewed:** `qa/rr-study/2026-10-29-1913-architect-to-qa-spec-late-sub.md`, commit `5c33391f` on `arch/late-sub`.
+**Code read (`main` `c2c85c45`):** `ft8_shim.c` (`:659-662`, `:1858-1893`, `:2550-2552`), `SubtractionPass.cs` (`RunThirdPassAsync`, `RunCore`, `IsReencodable`), `Ft8Decoder.cs` (`:722-830` `MapNative`, `:1055-1122` fallback publication), `CohFallbackAudioSelector.cs` (`Merge`, `Select`); on-file arms in `D:\Projects\claude\_qa-scratch\coh-gate-r-f4\`; COH-GATE-G TEST report (`659af1b7`).
+
+## Verdict
+
+**APPROVE WITH SIX REQUIRED AMENDMENTS (D1 to D6).** The design is sound: TRAIN is the cycles the pointers came from and is descriptive only, TEST is independent and decides, the arms are nested so `L − C` isolates the extra subtraction, the product's own functions are used (nothing is re-implemented), and a pilot (cycles 1 to 40) stops the study before any TEST cycle. No row is refused: L-GO and L-COST differ by the U′ and H conditions, so each changes the verdict; L-STOP and L-OPEN differ by the interval, likewise. Your five questions first.
+
+## Your five questions
+
+**(1) V4, the diagnostics switch: it does not touch the snapshot.** `tls_diagnostics_enabled` is read at exactly one place, `ft8_shim.c:1893`, to skip the LDPC-fail LLR-sum accumulation ("nothing reads these sums"). The candidate records the snapshot is built from are written at `:1858-1882` (`tls_cf_cands`, unconditionally) and copied out at `:2550-2552`. So the snapshot of `B` is complete with the switch off, which is how the residual pass calls `DecodeAll`. **The snapshot is thread-local, so the wrapper must take it on the `DecodeAll` thread immediately after the inner call returns**; the residual pass, the third pass and the new round all call `DecodeAll` from a `Task.Run` thread, and `StageProbeInterop.DecodeAll` runs on that same thread, so this works with no product change. I will still add the unit-level check as code (D1).
+
+**(2) Building `Ft8NativeResult` from published fields: no, do not (D2).** `RunCore` uses only `Message` (re-encodable test, `EncodeMessage`, and the dedup), `Dt` and `FreqHz` (the fit anchor); `Snr` is unused. But the **published** `DecodeResult.Dt` is `Math.Round(nr.Dt, 1)` (`Ft8Decoder.cs:817`) and `FreqHz` is an integer, so a fit anchored on published fields is up to 0.05 s off the native value, which the product's own fits never are. The product builds its batch-4 natives itself, unrounded: `new Ft8NativeResult { FreqHz = (int)Math.Round(row.OutFreqHz), Dt = row.OutDtS, Snr = …, Message = text }` (`Ft8Decoder.cs:1114`). Use that: capture the fallback's rows in the wrapper (as it already does for the run counts), apply `CoherentFallbackSelector.Select`, unpack, and build the natives exactly as `:1114` does. Batch 3's natives come from the offline `RunThirdPassAsync` call that V2 makes anyway.
+
+**(3) V1 reference: the per-cycle arms are on disk.** `coh-gate-r-f4\raw_main\main` (QA's continuous one-process `main` arm, B-OFF, 1,200 rows), `raw\off` and `raw\on` (the R-F4 build's arms, 1,200 rows each), with the decode dumps in `scratch_main\main`, `scratch\off`, `scratch\on`. V1 can therefore be **per cycle**, not on aggregates. **One figure in the spec does not match the continuous arm (D4):** the TEST baseline "corroborated 18,844 of 23,158" is the COH-GATE-G TEST process, which started at cycle 401; counting hits in the continuous B-OFF arm's `matchedbatch.csv` gives **18,833** for cycles 401 to 1,200 (TRAIN 9,931, batch 4 published 1,350 and 2,891, and `n_ref` 12,124 and 23,158 all agree). An 11-row difference is what a different hash-table starting state does, which is exactly why the arms must be one process from cycle 1.
+
+**(4) V3, publication after batch 4: it extends cleanly, with the exact rules (D5).** After the native decode, the product's publication is `CoherentFallbackSelector.Select(rows)` → `CohFallbackUnpack` → natives → `MapNative`, and `MapNative` is only: a per-cycle text set `seen` (**`seen.Add` happens before the plausibility filter, so implausible texts still occupy the set**), `IsPlausibleMessage`, and the mapping. Rows published after batch 4 follow the same path against the `seen` set of everything handed to `MapNative` earlier in the cycle (batches 1 to 4, including the filtered ones). So V3 extends if the emulation seeds `seen` with all earlier texts, not only the published ones.
+
+**(5) Cost: about right.** The R-F4 acceptance arms took 72 minutes per 1,200-cycle one-process arm (17:48Z to 19:00Z). Arm C adds one fallback run (about 0.4 to 0.7 s on this PC); arm L adds the fits, one decode and a second fallback run (about 1.5 to 2 s). That is roughly 5.5 to 6 s per cycle, or 1.9 to 2 hours per process; OFF then ON is about 4 hours unattended. The harness at 2 to 3 hours is fair (the capture wrapper exists; the snapshot capture, the round and the publication are the new parts), and a day elapsed is realistic. Run OFF first and look at V1 before starting ON.
+
+## Required amendments
+
+**D1. V4 as code.** On 5 pilot cycles: decode `B` with the diagnostics switch on and off from the same restored hash state and assert the two snapshots are byte-identical, and that `CohFallbackMakePlan` parses both. Also assert `snap(B)` and `snap(R4)` exist in every cycle where the spec requires them.
+
+**D2. Native results for the fit list (see question 2).** Batch 3: from the offline `RunThirdPassAsync` call (V2). Batch 4 and batch C: built from the fallback rows as `Ft8Decoder.cs:1114` builds them (unrounded `OutDtS`, `FreqHz` rounded to an integer), not from published `Dt`/`FreqHz`. Count the texts `IsReencodable` refuses, as the spec says. Pass `logger: null` and `deadline: null` to `RunThirdPassAsync` (the unlimited budget the spec wants; a logger would emit extra `Third pass:` lines that the harness's own per-cycle parser reads).
+
+**D3. Bracket every extra call with the hash state (this is a new requirement).** The offline round's `DecodeAll` on R4 and every `CohFallbackUnpack` of the arms' rows add callsigns to the process-global hash table. In one process with the cycles in order, that would change the **next** cycle's product decode and break V1. So: `HashStateSave` before a cycle's arm C/L work and `HashStateRestore` after it, as GAP-RESIDUAL's recheck and COH-GATE-G's extras did. **State the consequence in the report:** the arms' outputs do not feed later cycles' hash state, so a real deployment would resolve slightly more hashed messages in later cycles than this study credits (conservative for NET).
+
+**D4. V1 figures and the selection pin.** Use the per-cycle form (question 3). If an aggregate form is quoted, the continuous-arm TEST figure is **18,833 of 23,158**, not 18,844 (state which process each came from). Also pin the selection by the **sha of the file the on-file arms used**: `selection1200.json` has sha `328c85d4…` (its first 400 stamps equal GAP-RELOCATE's `selection400.json`, `42e09239…`); the spec cites `81372df5`. Either state that they are the same stamp list or cite `328c85d4…`.
+
+**D5. Publication emulation, as code.** For rows after batch 4: seed `seen` with every text handed to `MapNative` earlier in the cycle, including the ones the plausibility filter dropped (this needs batch-2 and batch-3 natives, so V2 should also reproduce **batch 2** offline, not only batch 3). Batch C and L2 go through `Select` → unpack → natives → `MapNative`; L1 goes through `MapNative` only. **ON configuration:** apply the product's admission (`CohFallbackAudioSelector.Merge`, `:103`: a `GatedOut` row of a residual-audio run becomes `Admitted`) to the new residual-audio runs, as code, and leave the original-audio rows at T1.
+
+**D6. Scoring and U′ inputs, stated.** (a) The extra batches are matched to REF rows that the baseline left unmatched, with the same rule (frequency within 10 Hz, text equal, one-to-one nearest first); NET is the matched count under the combined matching minus the baseline's. (b) The U′ instrument needs frozen classes: state which file (the refset classes frozen from the Original arm) and that it reads the original WAV. (c) The bars are the COH-GATE-G ones; for a different lever I read the Captain's go on this spec as ratifying their re-use, and the report will say so.
+
+## Other findings (no change required)
+
+- **Level O cycles:** the spec skips arm C/L at level O; none occurred in the 400 replayed cycles (the fallback read R3 in 382 and R2 in 18), so expect none; count them.
+- **Pilot:** V1 to V4 on cycles 1 to 40 is the right gate. V1 is only meaningful from cycle 1 (hash state), which the pilot satisfies.
+- **Timing:** record the wall time of each extra step separately (fits, decode, fallback) in addition to the totals; the build spec's first row will want the split.
+- **Not a Developer step:** every call is the product's own, reached under `HasInternals`; nothing under `src/` or `native/` changes. HK-039 does not apply.
+
+## What I need from you
+
+Confirm D1 to D6 in the spec (or tell me which you decline and why). Then the Captain's run go. I will not run anything before it.

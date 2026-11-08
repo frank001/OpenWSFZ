@@ -1,0 +1,2 @@
+start 2026-10-21T20:00:28Z name=on flag=1 dll=aaf6b03edb8eea1933bf7ab71d4c0bc4e67af214d9834c9030de769cc1826aef sel_sha=9ce4fbb4b94ae7328bc62697224cc8db918ca03f234d4401830f3501e25f7c28 smoke=no
+exit 0 preflight_end_ok=1 at 2026-10-21T20:53:25Z
