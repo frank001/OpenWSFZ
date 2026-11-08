@@ -13,15 +13,38 @@ import sys
 from collections import Counter
 
 LINE = re.compile(r"Third pass: newDecodes=(\d+) elapsedMs=(\d+) outcome=(ran|skipped-no-new|skipped-abandoned|abandoned|failed) fittedSignals=(\d+)")
+ROUND = re.compile(r"Late subtraction round: outcome=([\w-]+), buffer=(\S+), fit=(\d+), refused=(-?\d+), new=(\d+), published=(\d+)")
 START = "arecord stdout pipe enlarged"
-path = sys.argv[1]
-lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
-starts = [i for i, x in enumerate(lines) if START in x]
-last = starts[-1] if starts else 0
+
+
+def split_third_pass(chunk):
+    """LATE-SUB round (L1', E122): the round calls the same routine and writes its own inner 'Third pass:' line immediately before its 'Late subtraction round:'
+    line. Counting it as a second third pass double-counts, so a round line with fit > 0 claims the most recent unclaimed 'Third pass:' line (a round with
+    fit = 0, or a skipped one, writes no inner line). Self-contained on purpose: this file is fed to python3 on sol over stdin, so it cannot import a helper.
+    Returns (third_pass_groups, round_inner_groups, round_lines)."""
+    own, inner, rounds = [], [], []
+    last = None
+    for x in chunk:
+        m = LINE.search(x)
+        if m:
+            own.append(m.groups())
+            last = own[-1]
+            continue
+        r = ROUND.search(x)
+        if r:
+            rounds.append(r.groups())
+            if int(r.group(3)) > 0 and last is not None:
+                own.remove(last)
+                inner.append(last)
+                last = None
+    return own, inner, rounds
 
 
 def summarise(label, chunk):
-    recs = [m.groups() for m in (LINE.search(x) for x in chunk) if m]
+    recs, inner, rounds = split_third_pass(chunk)
+    if rounds:
+        print(f"late round ({label}): lines {len(rounds)}; outcomes {dict(Counter(r[0] for r in rounds))}; inner third-pass lines {len(inner)} "
+              f"{dict(Counter(r[2] for r in inner))} (reported here, NOT counted as third passes)")
     if not recs:
         print(f"third pass ({label}): no third-pass lines")
         return
@@ -37,5 +60,13 @@ def summarise(label, chunk):
         print(f"  wall time where it ran: n={len(ms)} median={q(ms, .5)} ms p90={q(ms, .9)} ms max={ms[-1]} ms (bar for context: the 13 s cycle budget; sol T-REF 2026-10-18: median 1607, p90 2286, max 3189)")
 
 
-summarise("whole sweep", lines)
-summarise("LAST daemon = S6 pass O", lines[last:])
+def main():
+    lines = open(sys.argv[1], encoding="utf-8", errors="replace").read().splitlines()
+    starts = [i for i, x in enumerate(lines) if START in x]
+    last = starts[-1] if starts else 0
+    summarise("whole sweep", lines)
+    summarise("LAST daemon = S6 pass O", lines[last:])
+
+
+if __name__ == "__main__":
+    main()

@@ -22,7 +22,31 @@ CLAMP = re.compile(r"Cycle-grid realignment clamped")
 DROP = re.compile(r"Capture channel dropped a chunk at (\d\d):(\d\d):(\d\d)\.\d+ UTC")
 PASS = re.compile(r"Sub-feas residual pass: residualDecodes=(\d+) elapsedMs=(\d+) deadlineAbandoned=(True|False)")
 THIRD = re.compile(r"Third pass: newDecodes=(\d+) elapsedMs=(\d+) outcome=(ran|skipped-no-new|skipped-abandoned|abandoned|failed)")
+ROUND = re.compile(r"Late subtraction round: outcome=([\w-]+), buffer=(\S+), fit=(\d+), refused=(-?\d+), new=(\d+), published=(\d+)")
 STAMP = re.compile(r"^\[?(\d{4}-\d\d-\d\d)[ T](\d\d):\d\d:\d\d")
+
+
+def split_third_pass(lines):
+    """Split the 'Third pass:' lines into the third pass's own and the LATE-SUB round's (L1', E122). The round calls the same routine, so it writes its own
+    inner 'Third pass:' line immediately before its 'Late subtraction round:' line; counting that one as a second third pass double-counts. Key on the round's
+    own line: a round line with fit > 0 claims the most recent unclaimed 'Third pass:' line. A round with fit = 0 (or a skipped one) writes no inner line.
+    Returns (third_pass_matches, round_inner_matches, round_lines)."""
+    own, inner, rounds = [], [], []
+    last = None
+    for ln in lines:
+        m = THIRD.search(ln)
+        if m:
+            own.append(m)
+            last = m
+            continue
+        r = ROUND.search(ln)
+        if r:
+            rounds.append(r.groups())
+            if int(r.group(3)) > 0 and last is not None:
+                own.remove(last)
+                inner.append(last)
+                last = None
+    return own, inner, rounds
 
 
 def pct(v, p):
@@ -41,7 +65,7 @@ def main() -> None:
     res = {"log_lines": len(lines)}
     per_hour_clamp, per_hour_drop = Counter(), Counter()
     clamps = drops = 0
-    resid, third = [], []
+    resid = []
     last_hour = "unknown"
     for ln in lines:
         m = STAMP.match(ln)
@@ -56,9 +80,8 @@ def main() -> None:
         m = PASS.search(ln)
         if m:
             resid.append((int(m.group(2)), m.group(3) == "True"))
-        m = THIRD.search(ln)
-        if m:
-            third.append((int(m.group(1)), int(m.group(2)), m.group(3)))
+    own, inner, rounds = split_third_pass(lines)
+    third = [(int(m.group(1)), int(m.group(2)), m.group(3)) for m in own]
     res["clamped_windows"] = clamps
     res["clamped_per_hour"] = dict(sorted(per_hour_clamp.items()))
     res["channel_drop_lines"] = drops
@@ -73,6 +96,9 @@ def main() -> None:
                          "ran_ms_median": statistics.median(ran_ms) if ran_ms else None,
                          "ran_ms_p90": pct(ran_ms, 0.9), "ran_ms_max": max(ran_ms, default=None),
                          "batch3_decodes": sum(t[0] for t in third)}
+    # The LATE-SUB round, reported beside the third pass and never folded into it (an OFF run has no round lines: both are empty).
+    res["late_round"] = {"lines": len(rounds), "outcomes": dict(Counter(r[0] for r in rounds)),
+                         "inner_third_pass_lines": len(inner), "inner_outcomes": dict(Counter(m.group(3) for m in inner))}
     pol = os.path.join(a.corpus, "f2_status.jsonl")
     recs = []
     if os.path.exists(pol):
