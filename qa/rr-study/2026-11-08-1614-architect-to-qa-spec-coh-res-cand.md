@@ -197,3 +197,25 @@ Pre-run checks for either: AUX → B1 read back with `vm_strip.py`; B1's capture
 - §7 runs as **(a)**: chain against offline under `frans`, ≤ 40 cycles, plus one repeat for the tolerance.
 - QA unmutes AUX for the run and mutes it afterwards itself (`vm_strip.py`), with no separate word needed.
 - The report says plainly that the check cannot show equality with Frank's chain. **Live figures are still not pooled across the cutover.**
+
+## §10. Amendment 2 (2026-11-08 17:13:26Z, `date -u`): §7 first attempt ruled FAIL-INSTRUMENT; one second attempt, thresholds unchanged
+
+**What happened.** QA froze the predicates in `d6720d97` (`qa/same-chain`) before any result, then ran (a) under `frans`.
+- The chain leg was clean: daemon v0.68 `fe1454c1` with the DLL = pin, AUX → B1, 24 WAVs × 2 trials = 48 plays, 0 slips, 0 overruns, drops or restarts. AUX was muted again afterwards and the daemon stopped.
+- V-SNR passed: p95 |ΔSNR| 1 dB (= the floor), median 0.
+- V-PLAY, V-SIG and V-COUNT failed.
+
+**Ruling: the first attempt's verdict is recorded as FAIL-INSTRUMENT, not as a statement about the chain.** Two causes, both in the instrument:
+- **(1) The reference was the wrong decoder path.** RefSet gives batches 1–2 only (299 + 39 decodes). The daemon runs the full path (third pass, coherent fallback), so 98 chain-only decodes (86 in both trials, median SNR −17 dB) are decodes RefSet cannot produce. **This is my error (ledger E135):** §7 said "offline" without naming the offline instrument. MEMORY's standing fact is that a raw replay is not the live path.
+- **(2) V-PLAY counted a WAV that has 0 decodes offline** as a lost play, when there is nothing to log. That is a predicate flaw (QA's ledger).
+
+**One second attempt is allowed, under these rules:**
+- **Reference:** the full-path harness (the LateSub/Replay81 OFF arm) on the same 24 WAVs, ×2. Its config must equal the daemon's as read back from that run: Deep, `nhard` 24, OSD fix, multi-set ON, `Both`, R-F4 OFF, late round OFF, the same thread count. QA records the read-back beside the reference.
+- **The chain data is reused as it is.** There is no new chain run, no station use and no AUX.
+- **Predicates:** V-SIG, V-COUNT and V-SNR are **unchanged**, as are their tolerance derivation (the chain's own repeat) and the 1 dB floor. **V-PLAY:** a WAV is exempt only if it has 0 decodes in the reference **and** 0 in both chain trials. Every other play must have its slot.
+- **Freeze:** this change, and nothing else, is committed before the reference leg's output is read.
+- 🔴 **Post-data, stated:** the chain results have been seen. That is why nothing numeric may change, and only the instrument and the V-PLAY exemption move.
+- **Report:** both attempts and both verdicts, side by side.
+- **If the second attempt also fails, stop.** It goes to the Captain with the numbers. **No third attempt.**
+
+This is not a re-read of a closed gate with a better metric (standing prohibition). The gate's metric and bars are unchanged; the first attempt compared against an instrument that cannot measure the quantity the gate defines.
