@@ -218,4 +218,14 @@ Pre-run checks for either: AUX → B1 read back with `vm_strip.py`; B1's capture
 - **Report:** both attempts and both verdicts, side by side.
 - **If the second attempt also fails, stop.** It goes to the Captain with the numbers. **No third attempt.**
 
+**Result (QA):** the second attempt PASSED. V-PLAY 0 lost, V-SIG 47/48, V-COUNT 46/48, V-SNR p95 1 dB (the floor). Chain-vs-reference mean symmetric difference 0.77 per play, against chain-vs-chain 0.79.
+
+## §11. Amendment 3: clarifications from QA's HK-039 review of `b0d01f4f` (APPROVED with notes N-1 to N-3)
+
+- **N-1, B-WIRE's denominator:** arm-B cycles whose fallback `audio=` field shows a **residual level** (R2 or R3). `fallback-orig` also appears when there was no residual buffer, and those cycles are outside the denominator. A cycle with a residual level **and** `fallback-orig` (snapshot missing) stays in it and counts against (i), which is the failure (i) exists to catch.
+- **N-2:** with the setting ON, the existing `eligible=` field is the larger of the two runs' counts. B-WIRE (ii) and the descriptive lines use the new `resEligible`/`origEligible` fields only, never `eligible=`.
+- **N-3:** a batch-1 payload can be re-offered on the residual run. That is expected (R2's last bullet), and the guard is the text de-duplication. B-DUP checks it, unchanged.
+
+None of these changes a bar, an arm or a cycle count.
+
 This is not a re-read of a closed gate with a better metric (standing prohibition). The gate's metric and bars are unchanged; the first attempt compared against an instrument that cannot measure the quantity the gate defines.
