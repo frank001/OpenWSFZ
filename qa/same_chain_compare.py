@@ -16,7 +16,8 @@ reporting resolution of SNR (whole dB, so 1 dB is the floor below which a differ
   V-SIG   : share of (trial, w) pairs with |S_ct symmetric-difference S_o| <= T_sig  is  >= 0.95
   V-COUNT : share of (trial, w) pairs with | |S_ct| - |S_o| | <= T_count            is  >= 0.95
   V-SNR   : 95th percentile of |snr_c - snr_o| over texts in both (chain trial, offline)  <=  T_snr
-  V-PLAY  : every one of the 48 plays has its slot in the daemon's ALL.TXT window (no play lost to the chain), and 24 WAVs matched.
+  V-PLAY  : every one of the 48 plays has its slot in the daemon's ALL.TXT window (no play lost to the chain), and 24 WAVs matched. AMENDMENT 2: a WAV is exempt
+            only if it has 0 decodes in the reference AND 0 in both chain trials.
   VERDICT : PASS iff V-PLAY, V-SIG, V-COUNT and V-SNR all hold. Anything else is FAIL, with the numbers. PASS means the frans chain delivers audio the decoder
             reads like the offline decode of the same WAVs, within the chain's own repeatability. It CANNOT show equality with Frank's chain: no Frank-era record
             of the same WAVs through the same chain exists (A1.6).
@@ -77,12 +78,16 @@ def compare(playlog: Path, all_txt: Path, offline: Path, offline2: Path | None, 
     stamp_of = {p["wav_id"]: p["wav_id"].split(":")[1] for p in plays}
     # chain decodes per (wav, trial)
     c: dict[tuple, list] = {}
-    lost = 0
+    missing_slots = []
     for p in plays:
         if p["slot_stamp"] not in chain:
-            lost += 1
+            missing_slots.append(stamp_of[p["wav_id"]])
         c[(stamp_of[p["wav_id"]], p["trial"])] = chain.get(p["slot_stamp"], [])
     wavs = sorted({w for w, _t in c})
+    # AMENDMENT 2 (spec section 10, Architect 2026-11-08): a play with no slot in the chain log counts as LOST unless its WAV has 0 decodes in the reference AND
+    # 0 in both chain trials (a WAV with nothing decodable writes no line; that is not a lost play).
+    lost = sum(1 for w in missing_slots
+               if not (len(off[w]) == 0 and len(c[(w, 0)]) == 0 and len(c[(w, 1)]) == 0))
     S = lambda lst: {t for t, _s in lst}
     snr = lambda lst: {t: s for t, s in lst}
 
