@@ -147,3 +147,36 @@ Fitting at published values would misplace by up to 50 ms and make O★ a worse 
 - SC-2 to SC-4 are unchanged.
 
 **QA may proceed to the freeze with this text.**
+
+## §7. Amendment 2 (2026-11-08 19:33:07Z, `date -u`): freeze-time facts; O-CTRL re-ruled before any O★ output
+
+**No O★ output exists** (QA stopped before building it). Everything here is fixed **before** the readout.
+
+**Freeze-time results (QA):**
+- **O-BUILD PASS.** R2 is reproduced bit-identically in 400 of 400 cycles (max relative diff 0.0; 6,877 fits).
+- **O-REPRO PASS.** Exact: RC 133, RG 51, RW 77, RP-search 10, NR 1,589.
+- **O-ROUND:** −0.014 pp [−0.042, 0.000] on 7,239 batch-1 hits, ≪ 0.5 pp. **The batch-4 stratum is NOT read as a lower bound** for placement reasons.
+- **A1.1's re-decode is replaced.** The capture already stores the product's own unrounded natives (`cap/off/native/<stamp>.tsv`, in production order), and they are read directly (QA Q39).
+
+**QA's correction (QA ledger Q40):** the shares quoted in its (k) review were keyed per cycle index only, so cycles overwrote each other. **Corrected**, keyed by (stamp, idx), "still decodes" = either leg:
+- batch-1 hits: O 93.12 %, R2 2.82 %, R3 2.87 % (6,978 rows with R3);
+- **drift R3 − R2 = +0.10 pp [+0.03, +0.18]**;
+- batch-2 hits on R3: 3.44 %.
+
+The "−2.69 pp" in A1.4(b) is **withdrawn**. The on-file drift is slightly positive, so A1.4's bar `CI_hi ≤ 0` has no support and could fire on a correct builder.
+
+**A2.1 O-CTRL, final (replaces A1.4's bar; pairing and strata kept):**
+- the 7,239 batch-1 hits: **CI_hi(share_O★ − share_R2) ≤ +2.0 pp**;
+- the 1,339 batch-2 hits: **CI_hi(share_O★ − share_R3) ≤ +2.0 pp**;
+- batches 3–4 and oracle-rescued decodes: reported, not gated.
+- "Still decodes" = primary found or coherent `v3_match`.
+
+**Where +2.0 pp comes from (HK-038),** all from QA's corrected on-file figures, `main` `c2c85c45` capture, `20260925_2010`, PC:
+- An unsubtracted hit still decodes at about 93 % (O 93.12 %), and a subtracted one at about 2.8 %. A builder that fails to subtract a fraction f of the hits therefore shows about **+0.90 pp per 1 % of f**, so +2.0 pp catches a failure on about ≥ 2.2 % of the hits.
+- The legitimate drift from removing more neighbours is +0.10 pp for +1,339 subtracted signals (+19 %). O★ subtracts roughly +5,000 more than R2 (QA's estimate, to be stated in the report). A linear extrapolation of the drift gives about +0.4 pp, well inside the bar.
+- **Stated honestly:** the number equals my original margin, but its first justification (single-pass vs sequential) was wrong. E138 stands for that justification, not for the number.
+- The batch-1 check is nearly redundant with O-BUILD. **The informative gate is batch-2 against R3.**
+
+**A2.2 O-ENC, final:** the bar is **R2's own fit-zero share, 160 of 6,877 = 2.33 %**. My original 2 % would have fired on R2 itself (E139). `unencodable` is reported beside it.
+
+**QA proceeds:** freeze commit, O★ build (about 7 min), forced legs (about 5 min), report.
