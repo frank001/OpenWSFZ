@@ -99,3 +99,51 @@ Working files go in `_qa-scratch\sub-cover\` (HK-037: no message text leaves the
 - So G273 is more likely small than large.
 
 🔴 **Bias check:** HYPOTHESISED calls lean toward "a findable gain". BUILD-WORTH is held at 0.25.
+
+## §6. Amendment 1 (2026-11-08 19:09:23Z, `date -u`): QA (k) review adopted in full
+
+QA (by message): **ACCEPT** the question, the decision rule and the readout; three row changes and one premise correction. All are adopted, and they replace the named parts of §1 and §2. **Buffers: intact** (1,182 files, every SHA-256 matching `capture_index.tsv`; `forced_all.jsonl` 35,493 records; dumps present). No re-capture.
+
+**A1.1 Premise corrected (ledger E137, mine).** §1 said the dump gives unrounded natives. **It does not:**
+- `nc_dump` has dt to 0.01 s and integer freq;
+- the population rows carry the published 0.1 s dt;
+- the product feeds the fitter the **unrounded** native dt (`SubtractionPass.cs:395`).
+
+Fitting at published values would misplace by up to 50 ms and make O★ a worse subtractor than R2. **Now:**
+- **Batches 1–3:** re-run native `DecodeAll` on the stored O, R2 and R3 buffers (the product's own inputs) to recover unrounded dt and freq. Hash state is bracketed.
+- **Batch 4** (fallback rows, 1,227 of 9,931 hits = 12.4 %) has no stored natives. Place them from the published values and let the fitter refine. The report says so, and O-ROUND decides whether that stratum reads as a lower bound.
+
+**A1.2 New row O-BUILD** (the builder is the new instrument, and O-REPRO does not test it).
+- Given only the batch-1 re-encodable decodes with their recovered natives, the builder reproduces the stored R2 for all 400 cycles. The test is bit-identical, or, if the fitter's parallel order matters, **max |diff| ≤ 1e-5 × the buffer's peak**. The observed figure is stated in the freeze.
+- **If O-BUILD fails, stop and report. No retries beyond that.**
+
+**A1.3 New row O-ROUND** (a freeze-time sensitivity, on the same batch-1 set).
+- Rebuild with dt rounded to 0.1 s and freq to integer, and report the change in the still-decoded share.
+- **If it exceeds 0.5 pp, the batch-4 stratum (placed from rounded values) is read as a lower bound.**
+
+**A1.4 O-CTRL replaced (ledger E138, mine).** My +2 pp margin was unsupported on three counts, and the data on file runs the other way:
+- (a) R2 is built by the same single-pass procedure, so my justification does not apply.
+- (b) On the same 7,239 batch-1 hits, the share still decoded is: O 88.16 %, R2 17.16 % [16.42, 17.88], R3 14.46 %. So R3 − R2 = −2.69 pp [−2.97, −2.41]: subtracting more neighbours **lowers** it, and +2 pp would let a degraded builder through.
+- (c) The populations differed.
+
+**New O-CTRL, paired and stratified:**
+- the 7,239 batch-1 hits: CI_hi(share_O★ − share_R2) ≤ 0;
+- the 1,339 batch-2 hits: CI_hi(share_O★ − share_R3) ≤ 0 (R3 subtracted them, and the records are on file);
+- batches 3–4 and oracle-rescued decodes have no on-file comparator, so they are **reported, not gated**.
+
+**Bar source (HK-038):** the on-file R3 − R2 drift, stated in the freeze. **"Still decodes at its own position"** = primary leg found **or** coherent `v3_match` (either leg). The definition is frozen, because the legs alone give 5.11 % vs 16.2 %.
+
+**A1.5 O-ENC's bar (ledger E139, mine).** The 2 % had no data behind it.
+- The freeze states the **fit-zero share of R2's own fits** (from `stage.csv` or the residual-pass counts) as the bar's source.
+- The bar is that figure. 2 % is kept only if the figure supports it.
+- `unencodable` is reported beside it. The oracle text should make it tiny, given today's 4.4 % `IsReencodable` failures.
+
+**A1.6 Paths.** The Frank-path check on `gr_forced`, `gr_common` and `nrtax_force` goes in the freeze commit (as COH-RES-CAND A1.5).
+
+**A1.7 Cost.** Machine time is about 30–60 min (QA measures the `DecodeAll` rate in the freeze). QA's own effort is the builder: a few hours, Python/ctypes or a small C# tool through the interop, **no `src/` or `native/` change**, and O-BUILD is its test. It is within the size rule: no replay, no new night.
+
+**A1.8 Prediction SC-1, revised pre-data** (the rows changed):
+- now "O-REPRO, O-BUILD and O-CTRL (as amended) pass on the first run", **P 0.60** (was 0.70 for two rows);
+- SC-2 to SC-4 are unchanged.
+
+**QA may proceed to the freeze with this text.**
