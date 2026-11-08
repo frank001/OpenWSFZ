@@ -192,3 +192,8 @@ So §7 cannot answer "the same as Frank" without a new Frank-side run. The optio
 - **(b)** The same ≤ 40-cycle run once under Frank as well (a Frank login). This answers the actual question.
 
 Pre-run checks for either: AUX → B1 read back with `vm_strip.py`; B1's capture ID against the restored config; WSJT-X closed; TX disabled.
+
+**A1.7 Decided (Captain, 2026-11-08): "option a it is. qa can switch aux muted theirselfes".**
+- §7 runs as **(a)**: chain against offline under `frans`, ≤ 40 cycles, plus one repeat for the tolerance.
+- QA unmutes AUX for the run and mutes it afterwards itself (`vm_strip.py`), with no separate word needed.
+- The report says plainly that the check cannot show equality with Frank's chain. **Live figures are still not pooled across the cutover.**
