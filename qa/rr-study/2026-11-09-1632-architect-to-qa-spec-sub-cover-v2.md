@@ -100,3 +100,27 @@ The decision is on **Δ273p**, the only thing v1 did not test. G273v2 is reporte
 5. My ruling.
 
 Working files: `_qa-scratch\sub-cover\v2\` (HK-037). Aggregates only in the report.
+
+## §6. Amendment 1 (2026-11-09 16:41:30Z, `date -u`): QA (k) review adopted in full, before any freeze
+
+QA's (k) review: **ACCEPT** the question and the readout. Buffers and O★v1's per-row results are on disk (`_qa-scratch\sub-cover\`: 800 buffers, `forced_*.jsonl`, `sc_result.json`; natives `gap-residual\cap\off\native\`, 400 files). Effort is about 2 h, and machine time about 20 min. **These rows replace the named parts of §1–§3.**
+
+**A1.1 O-ORC fires only on a demonstrable excess (ledger E143, mine).** As written (CI_hi ≤ 5.44 %), it fails a **correct** builder more often than not:
+- The baseline is 3.44 %. At n ≈ 300 route-2 decodes, the binomial half-width alone is ≈ 2.1 pp, so a clean CI_hi sits near 5.5 %.
+- **New predicate:** O-ORC **fails** only if **CI_lo > 5.44 %** (the share still decoding is demonstrably above the R3 baseline + 2 pp). Otherwise it passes and is reported with its CI.
+- A wrong-hash or wrong-payload failure leaves tens of percent still decoding, so it still fires. The < 50 report-only floor stays.
+
+**A1.2 O-ENC is report-only (ledger E142, mine).** The 2.33 % bar fires by construction:
+- v1's fit-zero **alone** was 251 of 10,133 = 2.48 %, with `unencodable` excluded, from v1's report.
+- R2's 2.33 % is a different population (batch-1 re-encodables only).
+- **New rule:** report `unencodable` and `fit-zero` with their shares. As in v1, every figure is read as "≥".
+
+**A1.3 Candidate pool (clarification).** A WSJT-X decode already text-matched to another of our decodes is **excluded** from route 2's candidates. It belongs to that decode.
+
+**A1.4 The true ceiling, stated at freeze (computable from v1's data, so it is not an O★v2 output).**
+- QA counts how many of the 112 #273-proper rows have at least one neighbour that **route 1 rejects** (the 0.92 pp includes rows whose neighbour already re-encodes), and states it in pp of n_ref.
+- **If that ceiling is < 0.40 pp, BUILD-WORTH cannot fire.** The freeze says so, and the outcomes are CLOSE or BETWEEN. **No bar is moved.**
+
+**SC-wise:** V2-1 now reads "O-V1 and O-ORC (as amended) pass on the first run". I raise its P from 0.65 to **0.75** pre-data, because the amended O-ORC no longer fails a clean build by chance. V2-2..4 are unchanged.
+
+**QA may freeze with this text.**
