@@ -34,8 +34,12 @@ internal static class Program
 {
     private const int PcmSamples = 180_000;
     private const int SampleRateHz = 12_000;
-    private const int KMinScorePass2 = 10;
-    private const float OsdCorrThreshold = 0.10f;
+    // KMIN-OSD-RECAL (spec A1.1): the two pass-1 settings are per-process values. Defaults = the previous constants (10 and 0.10), so every earlier arm reproduces;
+    // --kmin <int 5..30> and --osd-corr <float 0..1> set them, and the "# readback" lines print what SetDecodeParams was given.
+    private const int DefaultKMinScorePass2 = 10;
+    private const float DefaultOsdCorrThreshold = 0.10f;
+    private static int KMinScorePass2 = DefaultKMinScorePass2;
+    private static float OsdCorrThreshold = DefaultOsdCorrThreshold;
     // NHARD-REP (spec 2026-10-06-1430, section 3): the OSD nhard cap is a REQUIRED --nhard argument, 40 or 60 only, and the
     // "# readback" lines log the value the decoder object was actually given. (Was a hard-coded const 40.)
     private static int OsdNhardMax;
@@ -96,6 +100,10 @@ internal static class Program
         string selectionPath = Req(a, "selection"), run = Req(a, "run"), stratum = Req(a, "stratum");
         string wavRoot = Req(a, "wav-root"), outCsv = Req(a, "out"), logPath = Req(a, "log");
         OsdNhardMax = ParseNhard(Req(a, "nhard"));
+        if (a.TryGetValue("kmin", out var kminArg))
+            KMinScorePass2 = int.TryParse(kminArg, NumberStyles.Integer, CultureInfo.InvariantCulture, out int kmin) && kmin >= 5 && kmin <= 30 ? kmin : throw new ArgumentException("--kmin must be an integer in [5, 30]");
+        if (a.TryGetValue("osd-corr", out var osdArg))
+            OsdCorrThreshold = float.TryParse(osdArg, NumberStyles.Float, CultureInfo.InvariantCulture, out float osd) && osd >= 0f && osd <= 1f ? osd : throw new ArgumentException("--osd-corr must be a number in [0, 1]");
         string mode = a.TryGetValue("mode", out var m) ? m : "off";
         string label = a.TryGetValue("label", out var l) ? l : "unlabelled";
 
