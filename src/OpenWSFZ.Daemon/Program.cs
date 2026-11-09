@@ -852,8 +852,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetCoherentFallbackEnabled(initialDecoder.CoherentFallbackEnabled);
     ft8Decoder.SetCoherentFallbackMultiSet(initialDecoder.CoherentFallbackMultiSet);   // COH-MULTISET: default true (key absent = ON)
     ft8Decoder.SetCoherentFallbackAudio(initialDecoder.CoherentFallbackAudio);   // COH-FB-AUDIO: default Both (key absent = Both); read once per cycle
-    ft8Decoder.SetCoherentFallbackResidualUngated(initialDecoder.CoherentFallbackResidualUngated);   // COH-GATE-G R-F4: default false (key absent = off); read once per cycle
-    ft8Decoder.SetLateSubtractionRound(initialDecoder.LateSubtractionRound);   // LATE-SUB L1': default false (key absent = off); read once per cycle
+    ft8Decoder.SetCoherentFallbackResidualUngated(initialDecoder.CoherentFallbackResidualUngated);   // COH-GATE-G R-F4: default true (key absent = ON; explicit false = off); read once per cycle
+    ft8Decoder.SetLateSubtractionRound(initialDecoder.LateSubtractionRound);   // LATE-SUB L1': default true (key absent = ON; explicit false = off); read once per cycle
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),

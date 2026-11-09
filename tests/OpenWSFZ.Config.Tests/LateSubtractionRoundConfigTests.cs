@@ -7,7 +7,7 @@ using Xunit;
 namespace OpenWSFZ.Config.Tests;
 
 /// <summary>
-/// LATE-SUB L1': <c>decoder.lateSubtractionRound</c> defaults to <c>false</c> (an absent key, and a missing decoder section, read false);
+/// LATE-SUB L1': <c>decoder.lateSubtractionRound</c> defaults to <c>true</c> (an absent key, and a missing decoder section, read true; default ON since v0.69, Captain 2026-11-09); an explicit <c>false</c> stays false;
 /// an explicit value survives a load, an unrelated save and a reload. HK-035: what an ABSENT key deserialises to is checked through the real
 /// source-generated deserialisation and the real <see cref="JsonConfigStore"/> path.
 /// </summary>
@@ -27,14 +27,16 @@ public sealed class LateSubtractionRoundConfigTests
     // Both markers true so no migration rewrites the decoder section: the file under test is read as written.
     private const string MarkersOnly = "\"nhard40MigrationApplied\":true,\"subtractionOnMigrationApplied\":true";
 
-    [Fact(DisplayName = "FR-102: LATE-SUB L1': the code default is false, an absent key reads false, explicit values are read, the wire name is camelCase")]
-    public void CodeDefault_IsFalse_AbsentKeyReadsFalse()
+    [Fact(DisplayName = "FR-102: LATE-SUB L1': the code default is true, an absent key reads true, an explicit false stays false, explicit values are read, the wire name is camelCase")]
+    public void CodeDefault_IsTrue_AbsentKeyReadsTrue()
     {
-        new DecoderConfig().LateSubtractionRound.Should().BeFalse();
+        new DecoderConfig().LateSubtractionRound.Should().BeTrue();
         JsonSerializer.Deserialize("""{"decoder":{}}""", ConfigJsonContext.Default.AppConfig)!
-            .Decoder!.LateSubtractionRound.Should().BeFalse();
+            .Decoder!.LateSubtractionRound.Should().BeTrue();
+        JsonSerializer.Deserialize("""{}""", ConfigJsonContext.Default.AppConfig)!
+            .Decoder.Should().BeNull("no decoder section: the daemon falls back to a new DecoderConfig, which is true");
         JsonSerializer.Deserialize("""{"decoder":{"coherentFallbackAudio":"Both"}}""", ConfigJsonContext.Default.AppConfig)!
-            .Decoder!.LateSubtractionRound.Should().BeFalse("a body for another key leaves this one at its default");
+            .Decoder!.LateSubtractionRound.Should().BeTrue("a body for another key leaves this one at its default");
         JsonSerializer.Deserialize("""{"decoder":{"lateSubtractionRound":true}}""", ConfigJsonContext.Default.AppConfig)!
             .Decoder!.LateSubtractionRound.Should().BeTrue();
         JsonSerializer.Deserialize("""{"decoder":{"lateSubtractionRound":false}}""", ConfigJsonContext.Default.AppConfig)!
@@ -44,26 +46,26 @@ public sealed class LateSubtractionRoundConfigTests
         doc.RootElement.GetProperty("lateSubtractionRound").GetBoolean().Should().BeTrue();
     }
 
-    [Fact(DisplayName = "FR-102: LATE-SUB L1': a stored decoder section without the key loads false; saved back it carries the key as false")]
-    public async Task StoredWithoutTheKey_LoadsFalse_SavesFalse()
+    [Fact(DisplayName = "FR-102: LATE-SUB L1': a stored decoder section without the key loads true; saved back it carries the key as true")]
+    public async Task StoredWithoutTheKey_LoadsTrue_SavesTrue()
     {
         using var dir = new TempDirectory();
         File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10," + MarkersOnly + "}}");
 
         var store = new JsonConfigStore(ConfigPath(dir));
-        Effective(store).Should().BeFalse();
+        Effective(store).Should().BeTrue();
 
         await store.SaveAsync(store.Current with { ShowCycleCountdown = !store.Current.ShowCycleCountdown });
         using var written = JsonDocument.Parse(File.ReadAllText(ConfigPath(dir)));
-        written.RootElement.GetProperty("decoder").GetProperty("lateSubtractionRound").GetBoolean().Should().BeFalse();
+        written.RootElement.GetProperty("decoder").GetProperty("lateSubtractionRound").GetBoolean().Should().BeTrue();
     }
 
-    [Fact(DisplayName = "FR-102: LATE-SUB L1': a config file with no decoder section at all reads false")]
-    public void NoDecoderSection_ReadsFalse()
+    [Fact(DisplayName = "FR-102: LATE-SUB L1': a config file with no decoder section at all reads true")]
+    public void NoDecoderSection_ReadsTrue()
     {
         using var dir = new TempDirectory();
         File.WriteAllText(ConfigPath(dir), "{\"showCycleCountdown\":true," + MarkersOnly + "}");
-        Effective(new JsonConfigStore(ConfigPath(dir))).Should().BeFalse();
+        Effective(new JsonConfigStore(ConfigPath(dir))).Should().BeTrue();
     }
 
     [Theory(DisplayName = "FR-102: LATE-SUB L1': an explicit value survives a load, an unrelated save and a reload")]

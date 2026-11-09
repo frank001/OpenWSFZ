@@ -256,13 +256,18 @@ public sealed class LateSubtractionRoundTests
 
     // ── the setting ──────────────────────────────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-102: LATE-SUB L1': the setting defaults to false (config record and bare decoder) and the setter and getter round-trip")]
-    public void Setting_DefaultsOff_RoundTrips()
+    [Fact(DisplayName = "FR-102: LATE-SUB L1': the config record defaults to true (an absent key: the daemon's decoder reads true; an explicit false reads false); the setter and getter round-trip")]
+    public void Setting_ConfigDefaultsOn_BareDecoderOff_RoundTrips()
     {
-        new DecoderConfig().LateSubtractionRound.Should().BeFalse();
-        new DecoderConfig { LateSubtractionRound = true }.LateSubtractionRound.Should().BeTrue();
+        var cfg = new DecoderConfig();
+        cfg.LateSubtractionRound.Should().BeTrue();
+        new DecoderConfig { LateSubtractionRound = false }.LateSubtractionRound.Should().BeFalse();
         var d = Build(Standard(), late: false);
-        d.LateSubtractionRound.Should().BeFalse();
+        d.LateSubtractionRound.Should().BeFalse("Build(late: false) sets it off; the configured default reaches a decoder only through the setter");
+        d.SetLateSubtractionRound(cfg.LateSubtractionRound);   // the daemon's wiring (Program.cs)
+        d.LateSubtractionRound.Should().BeTrue("an absent key: the daemon's decoder reads true");
+        d.SetLateSubtractionRound(new DecoderConfig { LateSubtractionRound = false }.LateSubtractionRound);
+        d.LateSubtractionRound.Should().BeFalse("an explicit false: the daemon's decoder reads false");
         d.SetLateSubtractionRound(true);
         d.LateSubtractionRound.Should().BeTrue();
         d.SetLateSubtractionRound(false);

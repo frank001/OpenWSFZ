@@ -243,11 +243,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-FB-AUDIO: the audio mode the fallback uses now (the read-back of <see cref="SetCoherentFallbackAudio"/>).</summary>
     public CoherentFallbackAudio CoherentFallbackAudio => _coherentFallbackAudio;
 
-    private volatile bool _coherentFallbackResidualUngated;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+    private volatile bool _coherentFallbackResidualUngated;   // the object itself starts false; the daemon sets the configured value (default true) before the first cycle and on every config change
 
     /// <summary>
-    /// COH-GATE-G R-F4: sets <c>decoder.coherentFallbackResidualUngated</c>. <c>false</c> (the start value, and the configured default when the key is
-    /// absent) leaves the fallback exactly as it was. <c>true</c> admits the F1b-gated-out rows of the run that read the residual audio, in
+    /// COH-GATE-G R-F4: sets <c>decoder.coherentFallbackResidualUngated</c>. The decoder object starts <c>false</c>; the configured default
+    /// (<c>DecoderConfig.CoherentFallbackResidualUngated</c>, true when the key is absent) reaches it through this setter. <c>false</c> leaves the fallback exactly as it was. <c>true</c> admits the F1b-gated-out rows of the run that read the residual audio, in
     /// <see cref="CoherentFallbackAudio.Both"/> mode only. Read once per decode cycle; takes effect on the next cycle.
     /// </summary>
     public void SetCoherentFallbackResidualUngated(bool enabled)
@@ -256,10 +256,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-GATE-G R-F4: whether the residual-run ungating is requested now (the read-back of <see cref="SetCoherentFallbackResidualUngated"/>).</summary>
     public bool CoherentFallbackResidualUngated => _coherentFallbackResidualUngated;
 
-    private volatile bool _lateSubtractionRound;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+    private volatile bool _lateSubtractionRound;   // the object itself starts false; the daemon sets the configured value (default true) before the first cycle and on every config change
 
     /// <summary>
-    /// LATE-SUB L1': sets <c>decoder.lateSubtractionRound</c>. <c>false</c> (the start value, and the configured default when the key is absent) leaves
+    /// LATE-SUB L1': sets <c>decoder.lateSubtractionRound</c>. The decoder object starts <c>false</c>; the configured default
+    /// (<c>DecoderConfig.LateSubtractionRound</c>, true when the key is absent) reaches it through this setter. <c>false</c> leaves
     /// every code path as it was. <c>true</c> runs one more subtract-and-decode round after the coherent fallback's batch (Deep only, fallback on, a residual
     /// buffer available) and publishes its new decodes as batch 5. Read once per decode cycle; takes effect on the next cycle.
     /// </summary>

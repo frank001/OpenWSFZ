@@ -54,10 +54,10 @@ public sealed record DecoderConfig
         bool coherentFallbackMultiSet  = true,
         // COH-FB-AUDIO: in the constructor with its default (Both), for the same reason as the fields above.
         CoherentFallbackAudio coherentFallbackAudio = CoherentFallbackAudio.Both,
-        // COH-GATE-G R-F4: in the constructor with its default (false), for the same reason as the fields above.
-        bool coherentFallbackResidualUngated = false,
-        // LATE-SUB L1': in the constructor with its default (false), for the same reason as the fields above.
-        bool lateSubtractionRound = false)
+        // COH-GATE-G R-F4: in the constructor with its default (true since v0.69), for the same reason as the fields above.
+        bool coherentFallbackResidualUngated = true,
+        // LATE-SUB L1': in the constructor with its default (true since v0.69), for the same reason as the fields above.
+        bool lateSubtractionRound = true)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -275,21 +275,23 @@ public sealed record DecoderConfig
     /// <summary>
     /// COH-GATE-G R-F4: when <c>true</c> and <see cref="CoherentFallbackAudio"/> is <see cref="Abstractions.CoherentFallbackAudio.Both"/>, a fallback row
     /// of the run that read the residual audio whose payload is new and CRC-valid but whose F1b is above T1 (state GatedOut) is published as if it were
-    /// at or below T1; the original-audio run keeps T1. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and the fallback is as it was.
-    /// It has no effect in the <c>Original</c> and <c>Residual</c> modes. Config file and API only (no Settings-page control); the POST is an overlay, so a
-    /// body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on starts a new live era: never pool its
-    /// decodes with figures from the setting off.
+    /// at or below T1; the original-audio run keeps T1. <b>Default <c>true</c></b> (since v0.69, the Captain's decision of 2026-11-09): an absent key reads
+    /// <c>true</c> (as does a missing <c>decoder</c> section); an explicit <c>false</c> stays off and leaves the fallback as it was before the setting existed.
+    /// It has no effect in the <c>Original</c> and <c>Residual</c> modes (default is <c>Both</c>). Config file and API only (no Settings-page control); the POST is an overlay, so a
+    /// body without the key leaves it as it was. Read once per window; takes effect on the next window. Its default turning on starts a new live era
+    /// ("RF4+L1' ON"): never pool its decodes with figures from the setting off.
     /// </summary>
-    public bool CoherentFallbackResidualUngated { get; init; }
+    public bool CoherentFallbackResidualUngated { get; init; } = true;
 
     /// <summary>
     /// LATE-SUB L1': when <c>true</c>, on <see cref="DecodingDepth.Deep"/> with the coherent fallback on, one more subtract-and-decode round runs after
     /// the fallback's batch: it subtracts the decodes published in batches 3 and 4 from the cycle's last residual buffer and decodes the result once with
-    /// the primary decoder; its new decodes are published as batch 5. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and every code path
-    /// is as it was. Deep only (no effect on Normal), and it needs <see cref="CoherentFallbackEnabled"/> and a residual buffer. A batch 5 reaches the panel,
+    /// the primary decoder; its new decodes are published as batch 5. <b>Default <c>true</c></b> (since v0.69, the Captain's decision of 2026-11-09): an absent
+    /// key reads <c>true</c> (as does a missing <c>decoder</c> section); an explicit <c>false</c> stays off and every code path is as it was before the setting
+    /// existed. Deep only (no effect on Normal), and it needs <see cref="CoherentFallbackEnabled"/> and a residual buffer. A batch 5 reaches the panel,
     /// <c>ALL.TXT</c> and reporting but can arrive too late to affect that cycle's TX decision, as batch 4 can. Config file and API only (no Settings-page
-    /// control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on
-    /// starts a new live era: never pool its decodes with figures from the setting off.
+    /// control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the next window. Its default
+    /// turning on starts a new live era ("RF4+L1' ON"): never pool its decodes with figures from the setting off.
     /// </summary>
-    public bool LateSubtractionRound { get; init; }
+    public bool LateSubtractionRound { get; init; } = true;
 }
