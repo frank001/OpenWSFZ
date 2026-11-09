@@ -8,7 +8,9 @@
         S : the whole set ordered by OUR published snr descending (ties freq ascending, then batch); start from O; for each signal the analytic signal of the CURRENT residual is recomputed, that
             signal is fitted on it and subtracted.
         I : start from the stored R3 (R2 in the 18 cycles); every signal of the set fitted once more on R3's analytic signal at the same tones and natives, all corrections subtracted together.
-Set (A1.1): exactly what the product subtracted = batch-1 natives of O (re-encodable, encodable, native order) + batch-2 natives of R2 under the same test; in the 18 cycles without a stored R3 batch 1 ONLY.
+Set (A1.1 + Amendment 2 A2.1): exactly what the product subtracted = batch-1 natives of O (re-encodable, encodable, native order) + the batch-2 set = the R2-buffer natives that EncodeMessage accepts, are
+NOT SameQso (ported unchanged from SubfeasPayload.cs:152-168) with the payload of any batch-1 candidate, and then pass IsReencodable + EncodeMessage (SubtractionPass.cs:457-491, :331-343); in the 18 cycles
+without a stored R3 batch 1 ONLY. The FIRST L-REPRO run (batch-2 set = every re-encodable R2 native) FAILED, see the freeze record.
 Fit return codes counted (-3 = fit-zero). Per-cycle wall time of the product-procedure rebuild and of S on the SAME worker (A1.4: only the ratio is reported).
 HK-037: message text is read in memory and never written; outputs are float32 buffers and counts under _qa-scratch\\cs-refit."""
 from __future__ import annotations
@@ -34,7 +36,54 @@ REL_TOL = 1e-5
 assert REL_TOL == 1e-5 and B.PCM == 180000
 
 
+COSTAS = ((0, 7), (36, 43), (72, 79))          # SubfeasPayload.CostasBlocks
+GRAY_MAP = (0, 1, 3, 2, 5, 6, 4, 7)            # SubfeasPayload.GrayMap
+INV_GRAY = [0] * 8
+for _v, _t in enumerate(GRAY_MAP):
+    INV_GRAY[_t] = _v
+MAX_GRID4 = 32400
+RR73_STD_IGRID4 = MAX_GRID4 + 3                # SubfeasPayload.Rr73Std (ir false, igrid4 MaxGrid4 + 3)
+RR73_ONAIR_IGRID4 = 32373                      # SubfeasPayload.Rr73OnAirIgrid4
+assert INV_GRAY == [0, 1, 3, 2, 6, 4, 5, 7] and RR73_STD_IGRID4 == 32403
+
+
+def payload77(tones):
+    """SubfeasPayload.ExtractPayload77: the first 77 of the 174 codeword bits (Costas symbols skipped, inverse Gray, 3 bits per data symbol MSB first)."""
+    bits = []
+    for sym in range(79):
+        if any(a <= sym < b for a, b in COSTAS):
+            continue
+        v = INV_GRAY[tones[sym]]
+        bits += [bool((v >> 2) & 1), bool((v >> 1) & 1), bool(v & 1)]
+    return bits[:77]
+
+
+def _pack(bits, lo, hi):
+    v = 0
+    for i in range(lo, hi):
+        v = (v << 1) | (1 if bits[i] else 0)
+    return v
+
+
+def std_fields(bits):
+    """SubfeasPayload.ExtractStdFields: (I3, Call1, Call2, Ir, Igrid4)."""
+    return (_pack(bits, 74, 77), _pack(bits, 0, 29), _pack(bits, 29, 58), bool(bits[58]), _pack(bits, 59, 74))
+
+
+def same_qso(ref, cand):
+    """SubfeasPayload.SameQso, ported unchanged (SubfeasPayload.cs:152-168): exact 77-bit match, or ref is our own RR73-standard encoding and cand carries the on-air RR73 sentinel
+    with the same call1/call2 (and I3 = 1, Ir false)."""
+    if ref == cand:
+        return True
+    r = std_fields(ref)
+    if not (r[0] == 1 and r[3] is False and r[4] == RR73_STD_IGRID4):
+        return False
+    c = std_fields(cand)
+    return c[0] == 1 and c[1] == r[1] and c[2] == r[2] and c[3] is False and c[4] == RR73_ONAIR_IGRID4
+
+
 def cands(nat, kind, batch):
+    """batch 1: the re-encodable decodes of the O buffer that EncodeMessage accepts (SubtractionPass.cs:331-343)."""
     out = []
     for freq, dt, snr, text in nat.get(kind, []):
         t = text.rstrip()
@@ -43,7 +92,26 @@ def cands(nat, kind, batch):
         tones = B.encode(t)
         if tones is None:
             continue
-        out.append({"tones": tones, "dt": dt, "f": freq, "snr": snr, "b": batch})
+        out.append({"tones": tones, "dt": dt, "f": freq, "snr": snr, "b": batch, "bits": payload77(tones)})
+    return out
+
+
+def cands2(nat, c1):
+    """Amendment 2 (A2.1), the product's batch-2 set = the residual pass's NEW decodes (SubtractionPass.cs:457-491, then :331-343):
+    (1) EncodeMessage accepts the native's text; (2) its payload is NOT SameQso with the payload of any batch-1 CANDIDATE; (3) then IsReencodable + EncodeMessage."""
+    out = []
+    refs = [c["bits"] for c in c1]
+    for freq, dt, snr, text in nat.get("R2", []):
+        t = text.rstrip()
+        tones = B.encode(t)
+        if tones is None:
+            continue
+        bits = payload77(tones)
+        if any(same_qso(r, bits) for r in refs):
+            continue
+        if not D.reencodable(t):
+            continue
+        out.append({"tones": tones, "dt": dt, "f": freq, "snr": snr, "b": 2, "bits": bits})
     return out
 
 
@@ -76,7 +144,8 @@ def job(args):
     r3s = B.load_buf(stamp, "R3")
     has_r3 = r3s is not None
     nat = B.load_natives(stamp)
-    c1, c2 = cands(nat, "O", 1), cands(nat, "R2", 2)
+    c1 = cands(nat, "O", 1)
+    c2 = cands2(nat, c1)
     rec = {"stamp": stamp, "has_r3": has_r3, "n_c1": len(c1), "n_c2_candidates": len(c2), "n_c2_used": len(c2) if has_r3 else 0}
     t0 = time.perf_counter()
     r2, r3, z = product(o, c1, c2 if has_r3 else [])
