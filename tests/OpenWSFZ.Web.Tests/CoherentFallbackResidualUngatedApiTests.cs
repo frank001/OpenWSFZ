@@ -21,20 +21,21 @@ public sealed class CoherentFallbackResidualUngatedApiTests : IClassFixture<WebT
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
-    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4: serialised as a boolean; an absent key reads false")]
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4: serialised as a boolean; an absent key reads true, an explicit false reads false")]
     public void WireFormat()
     {
         var json = JsonSerializer.Serialize(new DecoderConfig { CoherentFallbackResidualUngated = true }, AppJsonContext.Default.DecoderConfig);
         json.Should().Contain("\"coherentFallbackResidualUngated\":true");
         JsonSerializer.Deserialize(json, AppJsonContext.Default.DecoderConfig)!.CoherentFallbackResidualUngated.Should().BeTrue();
-        JsonSerializer.Deserialize("""{"kMinScorePass2":10}""", AppJsonContext.Default.DecoderConfig)!.CoherentFallbackResidualUngated.Should().BeFalse();
+        JsonSerializer.Deserialize("""{"kMinScorePass2":10}""", AppJsonContext.Default.DecoderConfig)!.CoherentFallbackResidualUngated.Should().BeTrue("an absent key reads true (default ON since v0.69)");
+        JsonSerializer.Deserialize("""{"coherentFallbackResidualUngated":false}""", AppJsonContext.Default.DecoderConfig)!.CoherentFallbackResidualUngated.Should().BeFalse("an explicit false stays off");
     }
 
     [Fact(DisplayName = "FR-101: COH-GATE-G R-F4: POST /api/v1/config is an overlay - posting only the key changes only that key; a body without it keeps it")]
     public async Task PostConfig_Overlay_ChangesOnlyThatKey()
     {
         var store = _factory.Services.GetRequiredService<IConfigStore>();
-        await store.SaveAsync(new AppConfig() with { Decoder = new DecoderConfig { KMinScorePass2 = 11, CoherentFallbackAudio = CoherentFallbackAudio.Residual } });
+        await store.SaveAsync(new AppConfig() with { Decoder = new DecoderConfig { KMinScorePass2 = 11, CoherentFallbackAudio = CoherentFallbackAudio.Residual, CoherentFallbackResidualUngated = false } });
         var client = _factory.CreateClient();
 
         var r1 = await client.PostAsync("/api/v1/config", Json("""{"decoder":{"coherentFallbackResidualUngated":true}}"""));
@@ -52,5 +53,11 @@ public sealed class CoherentFallbackResidualUngatedApiTests : IClassFixture<WebT
         var r3 = await client.PostAsync("/api/v1/config", Json("""{"decoder":{"coherentFallbackResidualUngated":false}}"""));
         r3.StatusCode.Should().Be(HttpStatusCode.OK);
         store.Current.Decoder!.CoherentFallbackResidualUngated.Should().BeFalse();
+
+        // Default ON (v0.69): an overlay that does not mention the key must keep an explicit false, not reset it to the new default.
+        var r4 = await client.PostAsync("/api/v1/config", Json("""{"decoder":{"kMinScorePass2":13}}"""));
+        r4.StatusCode.Should().Be(HttpStatusCode.OK);
+        store.Current.Decoder!.KMinScorePass2.Should().Be(13);
+        store.Current.Decoder.CoherentFallbackResidualUngated.Should().BeFalse("an overlay without the key keeps an explicit false");
     }
 }
