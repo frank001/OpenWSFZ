@@ -16,6 +16,10 @@ Spec `arch/cs-refit` `ad74a8a0` + Amendment 1 `5a971659`. The study stops at its
 - The 19 failures are **real differences of 0.6 to 12 % of the peak, not rounding**: in those cycles the product's batch-2 SET is not the set the spec (and my builder) assumed, "every re-encodable native of the R2 buffer". The failing cycles carry more candidates on average (mean 4.95 vs 3.91 in the matching cycles), and none of them has an empty set. So the likeliest reading is that the product leaves out some batch-2 natives (or fits some extra ones); which rule it uses is **not tested here** and I have not read it into this report as established.
 - This is exactly the case the Architect's (a) asked me about: I said the bit-identical reproduction was "plausible" and that "only L-REPRO can say". It said.
 
+## Cause located (QA read the code after the failure; no run, no new build)
+
+`SubtractionPass.RunCoreUnguarded` (`src/OpenWSFZ.Ft8/Subfeas/SubtractionPass.cs`): for the **third pass** the signals to fit are `pass0Results` = **the residual pass's NEW decodes** (comment at `:300-304`), not every decode of the R2 buffer. The residual pass keeps only decodes whose payload is **not the same transmission as a pass-0 decode**: Step 5, `:457-491`, `SubfeasPayload.SameQso(refPayload, candPayload77)` (exact 77-bit match, or the RR73-aware variant, `SubfeasPayload.cs:152-168`) against the re-encodable pass-0 candidates' payloads. The stored R2-buffer natives are the raw decode list **before** that dedup, so my builder also fitted the R2-buffer natives that re-found a batch-1 payload. In the 19 failing cycles that happened; in the other 363 it did not. The rule is a payload dedup, not a text one.
+
 ## Options (the Architect's; the study is stopped until he rules)
 
 1. Read the product's batch-2 candidate selection in `SubtractionPass.cs` (the third pass), state its rule in an amendment, and re-run L-REPRO once with it (an amendment, no change of bars; it costs about 8 minutes of machine time).
