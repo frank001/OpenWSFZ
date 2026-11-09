@@ -108,3 +108,29 @@ Applied to **each leg separately**. Two legs means two chances; I accept that mi
 5. My ruling.
 
 Working files: `_qa-scratch\cs-refit\` (HK-037: no message text leaves the functions that read it). Aggregates only in the report.
+
+## §7. Amendment 1 (2026-11-09 17:30:31Z, `date -u`): QA (k) review adopted in full, before any freeze
+
+QA's (k) review: **ACCEPT with two amendments**. These replace the named parts of §1–§3. Neither G_CS bar fires by construction, as QA checked: O★v2 reaches 58 of 700 CS rows (0.48 pp), so CI_lo ≥ 1.0 pp (≈ 121 rows) is high but reachable. L-CTRL can fire: against R3's batch-1 share (2.87 %, 200 of 6,978, on file), a 2.2 % failure to subtract exceeds +2.0 pp.
+
+**A1.1 R3 exists for 382 of 400 cycles (ledger E145, mine).** The third pass ran in 382 of the 400 cycles (it was on the board: "third pass ran 382/400"). §1 assumed a stored R3 everywhere.
+- **L-REPRO:** bit-identical or ≤ 1e-5 × peak on the **382** stored R3 buffers.
+- **In the 18 cycles without R3, the reference is R3 := R2, in every row that needs R3.** The product subtracted only batch 1 there, so **the subtraction set for S and I in those cycles is batch 1 only**. The set stays "exactly what the product subtracted".
+- For those 18 cycles QA reports the builder's batch-2 candidate count (the R2-buffer natives hold 36 entries in them) as descriptive, not used.
+
+**A1.2 The R3 baseline is run on all rows.** On file, R3 forced records cover 11,573 rows: 164 unmatched rows have no record in any buffer, and the 18 cycles have no R3. **QA runs the forced legs on the R3 baseline (R3 := R2 in the 18 cycles) for all 12,124 rows**, so the baseline and the legs are paired on the same rows by the same code. About 5 min more machine time.
+
+**A1.3 NET_all and L-LOSS exclude the subtraction set (ledger E144, mine).** As written, NET_all counted the set's own incompletely subtracted hits:
+- 246 of them still decode on R3: batch 1, 200 of 6,978 (2.87 %); batch 2, 46 of 1,339 (3.44 %). That is 2.03 pp of n_ref.
+- A **better** fit would lose those rows (up to ≈ −2 pp) and a **worse** one would gain them. So CI_lo(NET_all) > 0 worked against the lever's purpose, which is the bar not meaning what it says.
+- **New definition:** NET_all and L-LOSS are computed over the rows **not in the subtraction set**: batch-3/4 hits, misses, NR. The subtracted-set hits are judged by **L-CTRL only**.
+- Batch-3/4 hits decodable on R3 (124 of 126 batch 3, 756 of 1,170 batch 4) are real product decodes. Losing them is real damage, and it stays in.
+- §3's BUILD-WORTH reads with this NET_all; the bar itself is unchanged (CI_lo > 0).
+
+**A1.4 Time row.** QA's fit pool runs 8 workers, not the product's `Parallel.For`, so only the **ratio** of sequential to parallel time on the same machine and pool is reported. It stays descriptive.
+
+**Cost (QA):** effort ≈ 3–3.5 h, machine ≈ 40 min. Under the 4 h line.
+
+**Predictions:** unchanged (no pre-data revision; A1.3 changes NET_all's population, and none of CR-1..5 is about NET_all).
+
+**QA may freeze with this text.**
