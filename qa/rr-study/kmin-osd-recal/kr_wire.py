@@ -5,11 +5,13 @@ QA tooling, no src/ or native/ change, no station, no replay, no arm output. DLL
     python kr_wire.py [dll]
 
 10 non-arm cycles: the 3 dry-run cycles (selection_3n_dry.json) and cycles 401-407 of L1's 800-cycle selection (selection_3n.json FULL[400:407]; the arms use the first 400).
-For each cycle, in ONE process and one thread, A then B: ft8_set_decode_params(kmin, osd_corr, nhard 24); ft8_decode_all; then ft8_get_last_candidate_counts (pass-1 candidates BEFORE any LDPC) and
+For each cycle, in ONE process and one thread, A then B: ft8_set_decode_params(kmin, osd_corr, nhard 24); ft8_decode_all; then ft8_get_last_candidate_counts (candidates of both internal passes BEFORE any LDPC) and
 ft8_get_last_osd_diag (accepted OSD candidates and the OSD candidates rejected by the correlation gate, per pass). Decode counts are recorded too.
   A = kMinScorePass2 10, osdCorrThreshold 0.10;  B = 5, 0.05;  nhard 24 (OSD sign fix 1) in both.
 Predicates (frozen here, before any output):
-  V-WIRE-CAND : pass-1 candidates B > A in 10 of 10 cycles.
+  V-WIRE-CAND : candidates of the SECOND internal pass (index 1, the pass whose floor is s_k_min_score_pass2; cap 200, ft8_shim.c:1815-1840) B > A in 10 of 10 cycles.
+                CORRECTION (disclosed in the freeze): the first version of this predicate read pass index 0 (fixed floor K_MIN_SCORE 10, cap 140) and so could not differ; the first run (commit 7122404e)
+                gave 1,400 = 1,400 and failed for that reason, not because of the library. Index 0 is kept as the control V-WIRE-CTRL: A == B in 10 of 10 (nothing else changed).
   V-WIRE-OSD  : accepted OSD candidates B >= A in 10 of 10 AND B > A in at least one; if the accepted count is 0 in ALL ten cycles (both arms), this wire is reported UNTESTED, not passed.
   (descriptive) rejected-by-correlation OSD candidates A vs B (the gate's own counter: a looser gate must reject fewer), decodes A vs B.
 HK-037: no message text is read or written; counts only."""
@@ -73,18 +75,21 @@ def main():
             nh, cn, dp, bt = (C.c_int * CAP)(), (C.c_float * CAP)(), (C.c_int * CAP)(), (C.c_int * CAP)()
             total, rn, rc = C.c_int(0), (C.c_int * PASSES)(), (C.c_int * PASSES)()
             stored = d.ft8_get_last_osd_diag(CAP, nh, cn, dp, bt, C.byref(total), rn, rc, PASSES)
-            rec[name] = {"decodes": n, "cand_p1": cc[0], "cand_got": got, "osd_accepted_total": total.value, "osd_stored": stored, "rej_corr": [rc[0], rc[1]], "rej_nhard": [rn[0], rn[1]]}
+            rec[name] = {"decodes": n, "cand_p0": cc[0], "cand_p1": cc[1], "cand_got": got, "osd_accepted_total": total.value, "osd_stored": stored, "rej_corr": [rc[0], rc[1]], "rej_nhard": [rn[0], rn[1]]}
         rows.append(rec)
     cand_ok = sum(1 for r in rows if r["B"]["cand_p1"] > r["A"]["cand_p1"])
+    ctrl_ok = sum(1 for r in rows if r["B"]["cand_p0"] == r["A"]["cand_p0"])
     acc_ge = sum(1 for r in rows if r["B"]["osd_accepted_total"] >= r["A"]["osd_accepted_total"])
     acc_gt = sum(1 for r in rows if r["B"]["osd_accepted_total"] > r["A"]["osd_accepted_total"])
     all_zero = all(r["A"]["osd_accepted_total"] == 0 and r["B"]["osd_accepted_total"] == 0 for r in rows)
     osd_status = "UNTESTED" if all_zero else ("PASS" if acc_ge == 10 and acc_gt >= 1 else "FAIL")
     res = {"dll_sha256_start": sha0, "dll_sha256_end": hashlib.sha256(open(dll, "rb").read()).hexdigest(), "cycles": len(rows),
-           "V-WIRE-CAND": {"B_gt_A_cycles": cand_ok, "of": 10, "PASS": cand_ok == 10},
+           "V-WIRE-CAND": {"B_gt_A_cycles": cand_ok, "of": 10, "PASS": cand_ok == 10, "pass_index": 1},
+           "V-WIRE-CTRL": {"pass0_equal_cycles": ctrl_ok, "of": 10, "PASS": ctrl_ok == 10},
            "V-WIRE-OSD": {"B_ge_A_cycles": acc_ge, "B_gt_A_cycles": acc_gt, "of": 10, "status": osd_status},
            "descriptive": {"rej_corr_A_total": sum(sum(r["A"]["rej_corr"]) for r in rows), "rej_corr_B_total": sum(sum(r["B"]["rej_corr"]) for r in rows),
                            "decodes_A": sum(r["A"]["decodes"] for r in rows), "decodes_B": sum(r["B"]["decodes"] for r in rows),
+                           "cand_p0_A": sum(r["A"]["cand_p0"] for r in rows), "cand_p0_B": sum(r["B"]["cand_p0"] for r in rows),
                            "cand_p1_A": sum(r["A"]["cand_p1"] for r in rows), "cand_p1_B": sum(r["B"]["cand_p1"] for r in rows),
                            "osd_accepted_A": sum(r["A"]["osd_accepted_total"] for r in rows), "osd_accepted_B": sum(r["B"]["osd_accepted_total"] for r in rows)},
            "rows": rows}
