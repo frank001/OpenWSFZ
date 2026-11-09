@@ -11,6 +11,6 @@
 
 ## 3. Verification
 
-- [ ] 3.1 Full unfiltered `dotnet test OpenWSFZ.slnx`; `openspec validate --all --strict`; `python tools/check_version_bump.py origin/main`.
-- [ ] 3.2 QA: HK-039 review record before anything is deployed; four mutations (each new default back to `false` fails its D1(a); each `false` branch forced to ignore the explicit key fails its D1(b)).
+- [x] 3.1 Full unfiltered `dotnet test OpenWSFZ.slnx`; `openspec validate --all --strict`; `python tools/check_version_bump.py origin/main`.
+- [x] 3.2 QA: HK-039 review record before anything is deployed; four mutations (each new default back to `false` fails its D1(a); each `false` branch forced to ignore the explicit key fails its D1(b)).
 - [ ] 3.3 QA at deploy: read the station configuration back under `frans` (no explicit `false` for either key; `coherentFallbackAudio` `Both`, `decodingDepth` `Deep`, fallback on); stamp the new era.

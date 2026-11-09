@@ -33,5 +33,9 @@ Reviewed 2026-11-09 17:29Z (`date -u`). Spec: `arch/rf4-l1p-default-on` `qa/rr-s
 - **N-3 (the key is written back).** A save writes both keys explicitly as `true` (tests pin it), so after the station's first config save the keys are explicit and a later change of the default would not reach it. Turning either lever off is an explicit `false` POST (overlay), as the spec says.
 - **N-4.** `tasks.md` 3.1 to 3.3 are open (normal mid-change); 3.3 is QA's, at deploy.
 
+## Addendum 2026-11-09 20:13Z (`date -u`): the Linux gate and the remaining gaps
+- **WSL Debian compile + test: PASS** on the exact commit (clean checkout `_qa-scratch\premerge-51069e34`, Debian 13 under WSL2, SDK 10.0.201, 178 s): a real Release build and the full suite with `Category!=AwgnFpReplay`, 0 failures in every project (Ft8 683, Daemon 898, Web 441, Config 195, Rig 41, Audio 37, LicenseInventory 24, Traceability 34, E2E 9, TestSupport 12). It had returned WARN in the first run (no `Debian` distro on the `frans` account); the distro was installed afterwards.
+- **Not run locally:** the AOT publish (the MSVC C++ build tools and a Windows SDK are not installed under `frans`; the gate is compile-only, CI runs the same compile check) and macOS (CI only). The self-contained non-AOT publish passed.
+
 ## Still to do (QA, at deploy, after the Captain merges)
 Read the station configuration back under `frans` (last read 2026-11-09 16:39Z: no explicit key for either setting; `coherentFallbackAudio` Both, `decodingDepth` Deep, `coherentFallbackEnabled` true), stamp the new era "RF4+L1' ON" with `date -u`, then report the first live session (not gated).
