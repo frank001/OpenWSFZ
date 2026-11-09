@@ -152,3 +152,26 @@ QA: **ACCEPT with three amendments.** No bar fires by construction. Effort ≈ 3
 **Predictions:** unchanged. KO-1 now reads "V-NAT, V-SET and V-WIRE (as amended) pass on the first run", with P unchanged at 0.70, revised before any data. The amended row is harder: two wires plus an untested branch.
 
 **QA may build the flags, run the wiring check and freeze with this text.**
+
+## §7. Amendment 2 (2026-11-09 19:15:03Z, `date -u`): the wiring check moved to the buffers where the floor acts; before any freeze or arm
+
+**What QA found** (`qa/rr-study/2026-11-09-1915-qa-kmin-osd-recal-wire-check.md`, `59923c13`; harness Replay81 `7122404e`):
+- `kMinScorePass2` is the floor of the decoder's **second internal pass** (index 1, the spectrogram-suppressed pass), with a cap of `K_MAX_CANDIDATES_PASS2` = 200 (`ft8_shim.c:1815–1821`). Pass 0 has the fixed floor `K_MIN_SCORE` (10) and a cap of 140. I read the shim's table myself; QA is right. My §0 and §2 said "pass-1 candidate", which is the doc comment's wording (`DecoderConfig.cs:84`), not the code's.
+- **On original audio the floor does nothing:** pass index 1 is cap-bound at 200 in **10 of 10** cycles at both 10 and 5; decodes 203 = 203. So A1.2's check (i) **could not fire on that population** (ledger E151, mine).
+- **On subtracted buffers it acts.** Descriptive probe on 10 stored R2 buffers of `20260925_2010`: index-1 candidates A 59–98 vs B 200, in 10 of 10; pass 0 equal; decodes 53 vs 54; accepted OSD 0 vs 1.
+- **What this means for the arms:** the setting acts on the residual side (residual pass, third pass, the fallback's inputs, the late round), not on the first decode. NET_B−A, if any, comes from there.
+- QA's own slip on the way (read index 0 first, Q45) was corrected before anything else and disclosed.
+
+**A2.1 V-WIRE (replaces A1.2's (ii); (i), V-SET's readbacks, stays):**
+- **V-WIRE-CAND:** on **10 stored residual (R2) buffers** (the SUB-COVER set, `20260925_2010`, not arm output), index-1 candidates **B > A in 10 of 10**, with the pass-0 control equal in 10 of 10. QA's probe already ran exactly this predicate; it is adopted **as the row's result**, because it ran before any arm and the predicate is the one stated here. The freeze records it as such.
+- **V-WIRE-OSD:** accepted-OSD count B ≥ A in every cycle and B > A in ≥ 1, on **up to 60** stored R2 buffers. QA stops at the first cycle that shows B > A.
+  - If the OSD count is still 0 in all 60, the OSD wire is **UNTESTED**. That does **not** void the arms, since V-SET shows the value was set. But the ruling then reads any verdict as **"the pair, with `osdCorrThreshold`'s effect unverified"**.
+- Wording fix: "pass-1 candidate" in §0/§2 means **the second internal pass (index 1)**.
+
+**A2.2 Arms, rows and verdict:** unchanged.
+
+**Why this is not a retry of a failed row:** the first check was a wiring check run before any freeze or arm. Its population could not show the effect by construction (the cap binds), which is my design error, not a failed wire. The new population comes from the code, not from the arms' data, and none exists yet.
+
+**Predictions:** KO-1 (P 0.70) is **scored MISS now**: V-WIRE did not pass on the first run. KO-2..5 are unchanged.
+
+**QA may freeze with this text.**
