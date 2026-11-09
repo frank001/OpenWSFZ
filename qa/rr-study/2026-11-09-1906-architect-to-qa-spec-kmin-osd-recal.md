@@ -110,3 +110,45 @@ Working files: `_qa-scratch\kmin-osd-recal\` (HK-037). Aggregates only in the re
 - So the NET point leans slightly positive, while REVERT-10 (U-FAIL) is as likely as KEEP-5, or more.
 
 🔴 **Bias check:** HYPOTHESISED calls lean toward "a findable gain"; KEEP-5 is held at 0.25.
+
+## §6. Amendment 1 (2026-11-09 19:10:01Z, `date -u`): QA (k) review adopted in full, before any freeze
+
+QA: **ACCEPT with three amendments.** No bar fires by construction. Effort ≈ 3–3.5 h; machine ≈ 1 h 45 min of arms plus ≈ 10 min for the wiring check. These replace the named parts of §1–§2.
+
+**A1.1 Harness.** Replay81 (`Ft8.FitProbe.exe`) hard-codes `KMinScorePass2 = 10` and `OsdCorrThreshold = 0.10f` (`qa/rr-study/sub-feas/replay81/Program.cs:37–38`, passed at `:117`).
+- QA adds `--kmin` and `--osd-corr`, defaulting to those constants so the old arms still reproduce.
+- V-SET reads the existing `# readback` line (`:1104`).
+- R-F4 and L1′ ON use `--ungated 1 --late-round 1` (`:329–336`), built against `ef2fc84b` with the `crc_arms.sh` build switches.
+- The harness commit goes in the freeze. The arm script's OFF checks are inverted for these arms: `ungated=True`, `lateround=True`, and `Late subtraction round:` lines are expected.
+
+**A1.2 V-WIRE replaced (ledger E148, mine).** The per-pass candidate line (`Ft8Decoder.cs:883`) is Debug level and absent from the arms' logs. My row also tested only `kMin`, so it could not show that `osdCorrThreshold` arrived. **New V-WIRE** = (i) V-SET's readbacks **and** (ii) an in-process native check **outside the arms** (DLL = pin, `cf_native.py`):
+- 10 cycles: the 3 dry cycles plus 7 warm-up cycles of the selection, none of them arm output.
+- Params A, then B, on each cycle:
+  - `ft8_get_last_candidate_counts` pass 1: **B > A in 10 of 10** (the `kMin` wire);
+  - `ft8_get_last_osd_diag` accepted-OSD count: **B ≥ A in 10 of 10 and B > A in ≥ 1** (the OSD wire). If the OSD count is 0 in all ten, the OSD wire is **reported untested**, not passed.
+- QA confirms both calls in the freeze.
+
+**A1.3 The U′ rows' blind spot (HK-026; ledger E149, mine).** `tn_analyse.py` counts as tested-absent only outputs that are not hashed or unencodable **and** whose shape class is in the frozen set. The set was frozen from sol's Original arm (10 / 0.10, R-F4 and L1′ OFF; classes `8046a4be…`).
+- A lower floor and a looser OSD gate can push more of B's unconfirmed output into `untestable_class` or hashed. Those outputs leave ΔU′_ta, so **U-OK could pass by blindness**.
+- **New rule, as in L1′'s ACCEPT-3N:** `HK026_untestable_class_outputs_need_refreeze` must be **False** for B−A, meaning **no output of B in a class absent from the frozen set**. If it is True, there is **no KEEP-5**; the result comes back to me.
+- U-OK and U-FAIL are reported with B's `untestable_class` and hashed counts beside A's.
+- **New descriptive row V-REF:** arm A's published decodes per cycle against the frozen Original arm on the same 400 cycles (they will differ: R-F4 and L1′ add rows). The count of differing cycles is reported; no bar.
+- The classes' `c_off` and `T_FROZEN` do not depend on the arm (QA), so the reuse otherwise stands.
+
+**A1.4 Verdict table: a fifth cell (HK-025; ledger E150, mine).** "NO-DIFF = otherwise" swallowed the case where N-BETTER fires but the U interval straddles 0.021.
+
+| verdict | condition |
+|---|---|
+| **KEEP-5** | V-rows pass, N-BETTER, U-OK, **and** A1.3's flag False |
+| **REVERT-10** | V-rows pass, and N-WORSE **or** U-FAIL (unchanged; either one dominates) |
+| **OPEN** (new) | V-rows pass, N-BETTER fires, and neither U-OK nor U-FAIL; **or** N-BETTER and U-OK with A1.3's flag True. To the Captain with the numbers |
+| **NO-DIFF** | V-rows pass, and none of the above |
+| **VOID** | a V-row fails after its one re-run |
+
+**A1.5 Data note (QA).** A lower floor may widen the 400-cycle interval beyond COH-RES-CAND's ±0.22 pp. QA reports the width; no bar changes.
+
+**A1.6 Scheduling.** The arms need the PC exclusive with the station daemon stopped, and they cannot share the PC with the default-ON deploy's live session. **The deploy goes first** (the Captain has said "deploy"). The arms run when he frees the PC; QA asks him once, when the arms are ready.
+
+**Predictions:** unchanged. KO-1 now reads "V-NAT, V-SET and V-WIRE (as amended) pass on the first run", with P unchanged at 0.70, revised before any data. The amended row is harder: two wires plus an untested branch.
+
+**QA may build the flags, run the wiring check and freeze with this text.**
