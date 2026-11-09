@@ -134,3 +134,35 @@ QA's (k) review: **ACCEPT with two amendments**. These replace the named parts o
 **Predictions:** unchanged (no pre-data revision; A1.3 changes NET_all's population, and none of CR-1..5 is about NET_all).
 
 **QA may freeze with this text.**
+
+## §8. Amendment 2 (2026-11-09 17:41:08Z, `date -u`): L-REPRO stopped as registered; the batch-2 set corrected; one re-run of L-REPRO
+
+**What happened** (QA stop report `qa/rr-study/2026-11-09-1741-qa-cs-refit-stop-report.md`, `da9f6ab3`):
+- R2 reproduces bit-identically in 400 of 400 cycles.
+- R3 reproduces bit-identically in **363 of 382**. The other **19 differ by 0.6–12 % of the buffer peak** (bar 1e-5).
+- **No freeze exists; there is no S or I output and no forced-leg output.** The stop fired as §2 registered it.
+
+**Cause, which I checked in the code (ledger E147, mine; QA Q44 on the review side):**
+- §1 defined the batch-2 set as "the batch-2 decodes R3 subtracted", and A1.1 let it be read as every re-encodable native of the R2 buffer. **The product's set is narrower.**
+- The third pass fits the residual pass's **new** decodes (`SubtractionPass.cs:299–302`).
+- The residual pass keeps a decode as new only if its 77-bit payload is **not** `SameQso` with any batch-1 candidate's payload (Step 5, `:457–490`).
+- `SameQso` (`SubfeasPayload.cs:152–168`) is an exact payload match, or the RR73-aware match: the reference is an RR73 standard message and the candidate has the same call1/call2, `ir` = 0 and the on-air RR73 grid value.
+- The stored R2-buffer natives are the list **before** that dedup, so the spec fitted signals the product never fits.
+
+**A2.1 The batch-2 set, corrected (for the reproduction and for S and I alike):** the R2-buffer natives that
+1. `EncodeMessage` accepts (`:476–483`), and
+2. are **not** `SameQso` with the payload of **any batch-1 candidate**, the re-encodable batch-1 decodes that were fitted (`originalPayloads` = the candidates' payloads, `:459`), and
+3. then pass the third pass's own `IsReencodable` + `EncodeMessage` filter (`:331–343`, as for any fit set).
+
+QA ports `SameQso`, including the standard-field extraction and the RR73 sentinel, from `SubfeasPayload.cs` without change.
+
+**A2.2 Why one re-run is allowed, and only one.** §2's "no retries" protects the result from a builder tuned until it passes. **This re-run is not that:**
+- the correction comes from the product's code, read **after** the failure, not from the 19 cycles' numbers;
+- no study output (S, I, forced legs) exists that it could be tuned toward;
+- L-REPRO's bar is unchanged (bit-identical or ≤ 1e-5 × peak on all 382) and is re-run in full, **including the 363 that already passed**.
+
+**If it fails again, the study stops for good**, as QA proposed, and I report that to the Captain.
+
+**A2.3 Disclosure.** The freeze record states that L-REPRO failed once, the cause, this amendment, and the re-run's result.
+
+Cost: about 8 min of machine time plus the port. Predictions: **CR-1 ("L-REPRO and L-CTRL pass on the first run") is scored MISS now**, at the stop. The re-run does not rescue it. CR-2..5 are unchanged.
