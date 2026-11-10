@@ -1311,6 +1311,14 @@ internal static class Program
                 return;
             }
 #endif
+#if HAS_CQAP
+            // CQ-AP: the per-cycle 'cq-ap: attempts=N decodes=M' line (counts only; the decoder writes it only while the flag is ON).
+            if (template.StartsWith("Cycle {Time}: cq-ap:", StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                _log.Line(level.ToString(), formatter(state, exception));
+                return;
+            }
+#endif
             if (template.StartsWith(SubfeasPrefix, StringComparison.Ordinal) && level == LogLevel.Information
                 || template.StartsWith(CyclePrefix, StringComparison.Ordinal))
             {

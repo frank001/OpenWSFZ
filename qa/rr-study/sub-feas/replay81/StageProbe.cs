@@ -234,6 +234,12 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     public int GetH12SuppressedCount() => _i.GetH12SuppressedCount();
     public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses) => _i.GetLastLlrStats(maxPasses);
     public void SetApBits(byte[] mycallBits, byte[] hiscallBits) => _i.SetApBits(mycallBits, hiscallBits);
+#if HAS_CQAP
+    // CQ-AP: IFt8NativeInterop's two CQ-AP members are DEFAULT interface members (no-ops). This wrapper MUST forward them, or the flag never reaches native in this harness
+    // (the 40-cycle dry run of 2026-11-10 caught it: ON and OFF came out identical).
+    public void SetCqApEnabled(bool enabled) => _i.SetCqApEnabled(enabled);
+    public (int Attempts, int Decodes, int OsdEntries) GetLastCqApStats() => _i.GetLastCqApStats();
+#endif
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) => _i.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
     public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(float[] pcm, int coarseFreqHz, float coarseTimeOffsetS)
         => _i.RefineCandidate(pcm, coarseFreqHz, coarseTimeOffsetS);
