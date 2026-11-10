@@ -130,3 +130,21 @@ QA confirmed the D1 positions (`[0,29)` call 1, `[29,58)` call 2, `[58,74)` ir +
 - **A1.7 Two descriptive lines (QA note).** An AP decode is subtracted, so ON changes the residual. Report **ON-only decodes with `apKind = none`** (gains via the residual) and **OFF-only decodes** (losses), per 100 cycles. K_C and K_N are unchanged by this.
 - **A1.8 Scope.** `i3 = 1` only: CQs from `/P` callers (`i3 = 2`) are out of reach in this build.
 - **Predictions:** CB-1 is **restated before any build** from 0.55 to **0.45** (the build now has a new injection point, a BP-only variant and a sweep to pass). CB-2 to CB-5 are unchanged.
+
+## §9. Amendment 2 (2026-11-10 18:12:14Z, `date -u`): the live daemon runs the CQ-AP build, CQ-AP OFF (Captain's direction)
+
+At 18:09:33Z QA started the live session on `main` `98332f2a` from `_run-main`, as §2 said. At about 18:11Z the Captain stopped it because he wants the **latest build** on the station. The 2 minutes of data are discarded. §2's "our daemon on `main` as deployed" is replaced by the following.
+
+- **A2.1 Build.** The live daemon runs **`7ca00264`** (`feat/cq-ap`, v0.70, shim 20260072).
+  - It is `main` `98332f2a` plus one commit (`git log main..feat/cq-ap` = `7ca00264` alone), so "CQ-AP merged onto main" is the same tree. No merge is needed or authorised.
+  - It is HK-039 APPROVED and passed the A1.3 sweep.
+- **A2.2 Publish location.** Publish to a **new folder `D:\Projects\claude\_qa-scratch\run-cq-ap\`**. `_run-main` stays pinned to `main` and is not overwritten. Before the start:
+  - assert that the published `libft8.dll` SHA-256 equals the freeze pin `bbde6eb6…6528`;
+  - run the **full test suite** on a clean checkout of `7ca00264`. If it fails, report it and do not start.
+- **A2.3 Flag.** `decoder.cqApEnabled` is **absent or false**, i.e. **OFF**, read back before the stamp.
+  - §3 Risk and the CQ-AP-PSK ruling said the station runs CQ-AP only after the measured upper bound is acceptable to the Captain.
+  - The arms replay the archived audio, so the live flag does not affect them.
+  - Turning it ON live is the Captain's choice. If he makes it: stamp a new era "CQ-AP ON live", never pool it, and note that the station's own `ALL.TXT` then contains AP decodes (they are not uploaded, D7).
+- **A2.4 Era.** With the flag OFF, D2 makes outcomes identical to `98332f2a`, which the arms check by replay (V-OFF). The live era stays **"RF4+L1′ ON"**, and the stamp records the build `7ca00264`/v0.70.
+- **A2.5 Freeze.** Unchanged: build `7ca00264`, DLL `bbde6eb6…6528`, seed 20261111. The live daemon and the arms now run the same DLL.
+- Not an Architect error: §2 named `main` explicitly. This records a change of direction.
