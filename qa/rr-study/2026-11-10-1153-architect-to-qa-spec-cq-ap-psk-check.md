@@ -123,3 +123,15 @@ The window and tolerance are fixed here.
 - A random `c28` is almost never a callsign that is on the air near that frequency within the half-hour, so G-GHOST should pass easily.
 - The hourly dedup (§1) cuts coverage for stations with few listeners. That is the second reason the weak bin may come in below 0.40.
 - 🔴 **Bias check:** HYPOTHESISED calls lean toward "the instrument works / a findable gain". USABLE is held below even odds.
+
+## §7. Amendment 1 (2026-11-10 11:57:42Z, `date -u`): QA (k) review part 1 adopted; a reference-free truth population added; before any freeze
+
+QA's findings (message received after 11:56:28Z): payload keys `b f md ra sa rc rl sc sl rp sq t t_tx`; **`t_tx` is the transmission slot start** (94.6 % on 15 s boundaries); `t` − `t_tx` is 0 to 20 s in the sample; the accounting line reaches `daemon.out` at INF; 🔴 **WSJT-X is not running today** (no process, no `ALL.TXT`), so P_T would be empty and the check VOID.
+
+- **A1.1 Time key.** The match window keys on **`t_tx`**; `t` is used only when `t_tx` is missing, and those spots are counted. The ±1800 s window stays: QA's 0–20 s figure concerns how fast one report reaches the feed, not how often a receiver reports a callsign (once per hour, §1).
+- **A1.2 V-SELF scope.** V-SELF counts only the send windows when our daemon was running inside the capture.
+- **A1.3 A truth population that needs no WSJT-X: P_R (repeat-confirmed).** A CQ decode of ours belongs to P_R when **the same sender is decoded by us in at least 2 other cycles within ±600 s of it, each within ±10 Hz of its audio offset**. A false decode is a random callsign, so the chance of it recurring twice more at the same frequency within 10 min is negligible. P_R is binned by **our** SNR (`ALL.TXT` field [4]); the ghosts (P_G) and the shuffle (P_S) take their donors from P_R instead of P_T.
+- **A1.4 Which population gates (mechanical, fixed now).** If V-REF passes, P_T gates as in §3 and P_R is descriptive. **If V-REF fails, the verdict is NOT VOID: P_R takes P_T's place in N-INSUFF, G-COVER, G-SLOPE and NOT-USABLE, with the same bars and bins**, and the report labels the verdict **"(P_R)"**.
+- **A1.5 What P_R costs (stated, not gated).** P_R holds only stations steady enough at our end to decode three times in 20 min. At the weak bin these are steady weak signals, which is close to what CQ-AP would target, but it misses one-off weak CQs. The P_R verdict therefore speaks for repeat callers. A USABLE (P_R) carries that limit into any CQ-AP build spec. The weak bin on our SNR scale (≤ −19 dB) may hold few decodes, since we decode less deep than WSJT-X; N-INSUFF catches that.
+- **A1.6 Still owed from QA:** the `c28` unpack (part 2 of the review).
+- **Predictions:** unchanged. CA-5 (INSUFFICIENT) was priced on P_T; it is not restated, and the ruling notes which population scored it.
