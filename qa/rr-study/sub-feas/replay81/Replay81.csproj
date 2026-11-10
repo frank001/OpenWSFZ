@@ -38,6 +38,8 @@
       <DefineConstants Condition="'$(HasCohAudio)' == 'true'">$(DefineConstants);HAS_COHAUDIO</DefineConstants>
     <!-- COH-RES-CAND (#272, build b0d01f4f): only the build with Ft8Decoder.SetCoherentFallbackResidualCandidates; the cohrescand argument (0 or 1) is then REQUIRED and read back. Needs HasCohAudio too. -->
     <DefineConstants Condition="'$(HasCohResCand)' == 'true'">$(DefineConstants);HAS_COHRESCAND</DefineConstants>
+    <!-- CQ-AP (build 7ca00264): only the build with Ft8Decoder.SetCqApEnabled and DecodeResult.ApKind; the cq-ap argument (0 or 1) is then REQUIRED and read back, and the nc-dump gains a trailing apKind column. Needs HasLateRound and HasUngated (the default-ON build line). -->
+    <DefineConstants Condition="'$(HasCqAp)' == 'true'">$(DefineConstants);HAS_CQAP</DefineConstants>
     <!-- GAP-RELOCATE item 1: build as assembly Ft8.FitProbe (already in OpenWSFZ.Ft8's InternalsVisibleTo) to use the internal Ft8Decoder constructor with a counting pass-through interop (StageProbe.cs). -->
     <DefineConstants Condition="'$(HasUngated)' == 'true'">$(DefineConstants);HAS_UNGATED</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>

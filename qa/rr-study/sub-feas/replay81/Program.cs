@@ -343,6 +343,10 @@ internal static class Program
             // LATE-SUB L1' acceptance (build commit b1d8a06e): --late-round 0|1 sets decoder.lateSubtractionRound; ABSENT leaves the decoder at its start value (false = the key absent). Read back at start and end.
             if (a.TryGetValue("late-round", out var lr)) decoder.SetLateSubtractionRound(lr switch { "0" => false, "1" => true, _ => throw new ArgumentException("--late-round must be 0 or 1") });
 #endif
+#if HAS_CQAP
+            // CQ-AP (build 7ca00264): --cq-ap 0|1 is REQUIRED on this build and read back at start and end (the arm's one change: OFF = 0, ON = 1).
+            decoder.SetCqApEnabled(Req(a, "cq-ap") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cq-ap must be 0 or 1") });
+#endif
 #if HAS_COHRESCAND
             // COH-RES-CAND (#272, build b0d01f4f): --cohrescand 0|1 is REQUIRED on this build and read back at start and end (the arm's one change: A = 0, B = 1).
             decoder.SetCoherentFallbackResidualCandidates(Req(a, "cohrescand") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohrescand must be 0 or 1") });
@@ -589,6 +593,15 @@ internal static class Program
         lock (w) w.WriteLine(_curStamp + "	" + ev + (text.Length > 0 ? "	" + text : ""));
     }
     private static StreamWriter? _fbDump;   // --fb-dump <path>: working file of fallback outputs with text (scratch only)
+    // CQ-AP (build 7ca00264): the decode's apKind (0 none, 1 cq) for the nc-dump's trailing column; 0 on builds without it, so older output is byte-identical.
+    private static int ApKindOf(DecodeResult r)
+    {
+#if HAS_CQAP
+        return (int)r.ApKind;
+#else
+        return 0;
+#endif
+    }
     private static int DecodePath(DecodeResult r)
     {
 #if HAS_COHFB
@@ -641,15 +654,15 @@ internal static class Program
     {
         if (_testB is null) return;
         var w = _wsjtx.TryGetValue(stamp, out var l) ? l : new List<(int Snr, int Freq, string Msg)>();
-        var ows = new List<(int Kind, int Snr, int Freq, string Msg, double Dt, int Path)>();
-        foreach (var r in b1) ows.Add((1, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
-        foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        var ows = new List<(int Kind, int Snr, int Freq, string Msg, double Dt, int Path, int Ap)>();
+        foreach (var r in b1) ows.Add((1, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r), ApKindOf(r)));
+        foreach (var r in b2) ows.Add((2, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r), ApKindOf(r)));
         // third-pass-deep (#240): batch 3 is its OWN kind, never folded into 1 or 2. b3 == null (every older mode) leaves the output exactly as it was.
-        if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        if (b3 is not null) foreach (var r in b3) ows.Add((3, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r), ApKindOf(r)));
         // COH-FALLBACK step 4: the fallback's own batch (4 on Deep) is its OWN kind, never folded into 1-3. b4 == null leaves the output exactly as it was.
-        if (b4 is not null) foreach (var r in b4) ows.Add((4, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        if (b4 is not null) foreach (var r in b4) ows.Add((4, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r), ApKindOf(r)));
         // L1' build (F5): the late subtraction round's own batch (5) is its OWN kind, never folded into 1-4. b5 == null leaves the output exactly as it was.
-        if (b5 is not null) foreach (var r in b5) ows.Add((5, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r)));
+        if (b5 is not null) foreach (var r in b5) ows.Add((5, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r), ApKindOf(r)));
         var cands = new List<(int Df, int Oi, int Wi)>();
         for (int i = 0; i < ows.Count; i++)
             for (int j = 0; j < w.Count; j++)
@@ -676,7 +689,11 @@ internal static class Program
                 bool sameTextAnyFreq = w.Any(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal));
                 int minDf = w.Where(x => string.Equals(x.Msg, ows[i].Msg, StringComparison.Ordinal)).Select(x => Math.Abs(x.Freq - ows[i].Freq)).DefaultIfEmpty(-1).Min();
                 _ncDump.WriteLine(string.Join("	", stamp, ows[i].Kind, usedO[i] ? 1 : 0, ows[i].Freq, ows[i].Dt.ToString("F2", CultureInfo.InvariantCulture), ows[i].Snr,
-                    sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Path, ows[i].Msg));
+                    sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Path, ows[i].Msg
+#if HAS_CQAP
+                    , ows[i].Ap   // CQ-AP: trailing column after the text (older consumers read fixed positions up to the text)
+#endif
+                    ));
             }
         if (_fbDump is not null)
             for (int i = 0; i < ows.Count; i++)
@@ -1131,6 +1148,9 @@ internal static class Program
 #endif
 #if HAS_LATEROUND
                 + $" lateround={d.LateSubtractionRound}"
+#endif
+#if HAS_CQAP
+                + $" cqap={d.CqApEnabled}"
 #endif
 #if HAS_COHRESCAND
                 + $" cohrescand={d.CoherentFallbackResidualCandidates}"
