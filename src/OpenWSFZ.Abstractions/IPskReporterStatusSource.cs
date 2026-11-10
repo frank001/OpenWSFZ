@@ -29,9 +29,12 @@ public static class PskReporterReasons
     public const string Region = "region";
 }
 
-/// <summary>Counts of one send window (no callsign, ever).</summary>
+/// <summary>
+/// Counts of one send window (no callsign, ever). <paramref name="Ap"/> (CQ-AP): decodes the CQ a-priori attempt made (<see cref="ApKind.Cq"/>), which are never
+/// uploaded; it counts only and is not a refusal reason (a window of only such decodes is not "refused"). Defaults to 0 so earlier constructions stand.
+/// </summary>
 public sealed record PskReporterWindowCounts(
-    int Seen, int Reported, int Region, int NoDial, int Identity, int Hashed, int OwnCall, int Dedup);
+    int Seen, int Reported, int Region, int NoDial, int Identity, int Hashed, int OwnCall, int Dedup, int Ap = 0);
 
 /// <summary>
 /// The read-only status body of <c>GET /api/v1/psk-reporter/status</c>: counts and a reason code, no callsign.

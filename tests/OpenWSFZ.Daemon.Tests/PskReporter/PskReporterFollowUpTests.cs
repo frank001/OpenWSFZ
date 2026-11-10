@@ -54,8 +54,8 @@ public sealed class PskReporterFollowUpTests
 
     private static string Cq(int i) => $"CQ Q{1 + i % 9}A{(char)('A' + i / 26 % 26)}{(char)('A' + i % 26)} JO22";
 
-    private static string Line(int seen, int reported, int region = 0, int noDial = 0, int identity = 0, int hashed = 0, int own = 0, int dedup = 0)
-        => $"PSK Reporter: {seen} decodes seen, {reported} reported: region={region}, no-dial={noDial}, identity={identity}, hashed={hashed}, own-call={own}, dedup={dedup}";
+    private static string Line(int seen, int reported, int region = 0, int noDial = 0, int identity = 0, int hashed = 0, int own = 0, int dedup = 0, int ap = 0)
+        => $"PSK Reporter: {seen} decodes seen, {reported} reported: region={region}, no-dial={noDial}, identity={identity}, hashed={hashed}, own-call={own}, dedup={dedup}, ap={ap}";
 
     // ── FR-095: T17 the accounting line, sent or not ─────────────────────────────────────────────────────────────────
 

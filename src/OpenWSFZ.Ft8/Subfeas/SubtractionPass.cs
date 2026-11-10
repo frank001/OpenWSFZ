@@ -118,7 +118,8 @@ internal static class SubtractionPass
         Ft8ApConstraints? ap = null,
         TimeSpan? deadline = null,
         CancellationToken ct = default,
-        ResidualPassReport? report = null)
+        ResidualPassReport? report = null,
+        CqApCycleCounters? cqAp = null)
     {
         if (normalisedPcm.Length != PcmLength)
             throw new ArgumentException(
@@ -131,7 +132,7 @@ internal static class SubtractionPass
         var stats = new PassStats();
         var wall = System.Diagnostics.Stopwatch.StartNew();
         Ft8NativeResult[] result = await Task.Run(
-            () => RunCore(interop, normalisedPcm, pass0Results, null, maxDegreeOfParallelism, logger, ap, deadline, stats, ct), ct);
+            () => RunCore(interop, normalisedPcm, pass0Results, null, maxDegreeOfParallelism, logger, ap, deadline, stats, ct, cqAp), ct);
         wall.Stop();
 
         // third-pass-deep: hand the caller what the Deep pass needs (the residual buffer and how the pass ended).
@@ -229,7 +230,8 @@ internal static class SubtractionPass
         ILogger? logger,
         Ft8ApConstraints? ap,
         TimeSpan? deadline,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        CqApCycleCounters? cqAp = null)
     {
         if (residualBuffer.Length != PcmLength)
             throw new ArgumentException(
@@ -239,7 +241,7 @@ internal static class SubtractionPass
         var stats = new PassStats();
         var wall = System.Diagnostics.Stopwatch.StartNew();
         Ft8NativeResult[] result = await Task.Run(
-            () => RunCore(interop, residualBuffer, residualNewResults, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, stats, ct), ct);
+            () => RunCore(interop, residualBuffer, residualNewResults, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, stats, ct, cqAp), ct);
         wall.Stop();
 
         string outcome =
@@ -273,11 +275,12 @@ internal static class SubtractionPass
         Ft8ApConstraints? ap,
         TimeSpan? deadline,
         PassStats stats,
-        CancellationToken ct)
+        CancellationToken ct,
+        CqApCycleCounters? cqAp)
     {
         try
         {
-            return RunCoreUnguarded(interop, normalisedPcm, pass0Results, alsoKnown, maxDegreeOfParallelism, logger, ap, deadline, stats, ct);
+            return RunCoreUnguarded(interop, normalisedPcm, pass0Results, alsoKnown, maxDegreeOfParallelism, logger, ap, deadline, stats, ct, cqAp);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -310,7 +313,8 @@ internal static class SubtractionPass
         Ft8ApConstraints? ap,
         TimeSpan? deadline,
         PassStats stats,
-        CancellationToken ct)
+        CancellationToken ct,
+        CqApCycleCounters? cqAp)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         bool Expired() => deadline is { } d && clock.Elapsed >= d;
@@ -441,14 +445,18 @@ internal static class SubtractionPass
         // native switch is thread-local too: same thread, restored in the finally). The noise floor is kept: it
         // feeds the local-noise SNR fallback. Decode output does not depend on this switch.
         interop.SetDiagnosticsEnabled(false);
+        // CQ-AP: the per-thread flag in the same bracket, on the same thread, as the AP bits (the cycle's flag, read once by the decoder).
+        interop.SetCqApEnabled(cqAp?.Enabled ?? false);
         try
         {
             pass2Results = interop.DecodeAll(residual);
+            if (cqAp is { Enabled: true }) cqAp.AddAttempts(interop.GetLastCqApStats().Attempts);
         }
         finally
         {
             interop.SetDiagnosticsEnabled(true);
             interop.SetApBits([], []);
+            interop.SetCqApEnabled(false);
         }
 
         if (pass2Results.Length == 0) return [];

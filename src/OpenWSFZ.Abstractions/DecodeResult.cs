@@ -53,4 +53,13 @@ public sealed record DecodeResult(
     /// </summary>
     [JsonIgnore]
     public int Path { get; init; }
+
+    /// <summary>
+    /// CQ-AP: where the decode came from, <see cref="OpenWSFZ.Abstractions.ApKind.None"/> for every ordinary decode (always, with
+    /// <c>decoder.cqApEnabled</c> off) and <see cref="OpenWSFZ.Abstractions.ApKind.Cq"/> for one the CQ a-priori attempt made. Internal metadata for the
+    /// replay harness, the per-cycle log and the PSK Reporter exclusion: it is <b>not serialised</b> (the decode panel, ALL.TXT and the UDP datagrams are
+    /// unchanged) and is part of the record's equality.
+    /// </summary>
+    [JsonIgnore]
+    public ApKind ApKind { get; init; }
 }

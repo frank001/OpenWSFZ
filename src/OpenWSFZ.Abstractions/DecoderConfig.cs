@@ -57,7 +57,9 @@ public sealed record DecoderConfig
         // COH-GATE-G R-F4: in the constructor with its default (true since v0.69), for the same reason as the fields above.
         bool coherentFallbackResidualUngated = true,
         // LATE-SUB L1': in the constructor with its default (true since v0.69), for the same reason as the fields above.
-        bool lateSubtractionRound = true)
+        bool lateSubtractionRound = true,
+        // CQ-AP: in the constructor with its default (false), for the same reason as the fields above.
+        bool cqApEnabled = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -75,6 +77,7 @@ public sealed record DecoderConfig
         CoherentFallbackAudio   = coherentFallbackAudio;
         CoherentFallbackResidualUngated = coherentFallbackResidualUngated;
         LateSubtractionRound = lateSubtractionRound;
+        CqApEnabled = cqApEnabled;
     }
 
     /// <summary>
@@ -294,4 +297,16 @@ public sealed record DecoderConfig
     /// turning on starts a new live era ("RF4+L1' ON"): never pool its decodes with figures from the setting off.
     /// </summary>
     public bool LateSubtractionRound { get; init; } = true;
+
+    /// <summary>
+    /// CQ-AP: when <c>true</c>, a candidate whose normal decode attempt failed (the QSO-context AP attempt included) gets ONE more attempt, a CQ a-priori
+    /// one: payload bits 0-28 (the first call field, the token <c>CQ</c>) and 74-76 (<c>i3</c> = 1) are forced, belief propagation only (OSD is never run
+    /// on it), in every pass and on every buffer the native decode runs on. It only adds: a decode the normal attempt makes is never replaced. A decode it
+    /// makes carries the tag <see cref="ApKind.Cq"/>, passes the same CRC, plausibility filter and text de-duplication as any other, and is <b>not
+    /// uploaded to PSK Reporter</b>. <b>Default <c>false</c></b>: an absent key reads <c>false</c> (as does a missing <c>decoder</c> section) and the decoder
+    /// is exactly as it was before the setting existed. Turning it on starts a new era: never pool its decodes with figures from the setting off. CQs from
+    /// <c>/P</c> callers (<c>i3</c> = 2) are out of reach. Config file and API only (no Settings-page control); the POST is an overlay, so a body without the
+    /// key leaves it as it was. Read once per window; takes effect on the next window.
+    /// </summary>
+    public bool CqApEnabled { get; init; } = false;
 }

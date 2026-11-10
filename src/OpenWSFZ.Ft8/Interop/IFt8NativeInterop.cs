@@ -114,6 +114,21 @@ internal interface IFt8NativeInterop
     void SetApBits(byte[] mycallBits, byte[] hiscallBits);
 
     /// <summary>
+    /// CQ-AP (shim 20260072): sets the per-thread CQ a-priori flag of the NEXT <see cref="DecodeAll"/> calls on the calling thread
+    /// (<c>ft8_set_cq_ap</c>; thread-local, like <see cref="SetApBits"/>, so it is set on the decoding thread right before every
+    /// <see cref="DecodeAll"/> and cleared where the thread is reused). Default interface member (a no-op) so the many test fakes of this
+    /// interface need no change; the real adapter overrides it. Each decode it produces carries <see cref="Ft8NativeResult.ApKind"/>.
+    /// </summary>
+    void SetCqApEnabled(bool enabled) { }
+
+    /// <summary>
+    /// CQ-AP: the counters of the most recent <see cref="DecodeAll"/> on this thread (<c>ft8_get_last_cq_ap_stats</c>): CQ-AP attempts made,
+    /// CQ-AP decodes that reached the results, and OSD entries from the CQ-AP path (0 in production by construction). All 0 with the flag off.
+    /// MUST be called on the same thread as <see cref="DecodeAll"/>. Default interface member (all zero) for the same reason as <see cref="SetCqApEnabled"/>.
+    /// </summary>
+    (int Attempts, int Decodes, int OsdEntries) GetLastCqApStats() => (0, 0, 0);
+
+    /// <summary>
     /// Update the three runtime-configurable OSD gate parameters (decoder-settings-page,
     /// shim 20260030).  Values take effect on the next <see cref="DecodeAll"/> call.
     /// Safe to call before the first <see cref="DecodeAll"/> invocation.
