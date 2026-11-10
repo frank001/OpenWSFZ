@@ -96,7 +96,7 @@ Both arms use the session's live configuration (Deep, `nhard` 24, 5 / 0.05, mult
 1. QA's (k) review of this spec, rows only (in particular D1's test, D3's placement in the pass loop, and whether Replay81 can carry D8).
 2. QA writes the Developer task; the Developer builds (a separate session, HK-011); QA reviews D1–D10 (HK-039).
 3. **The live session (§2)** can happen **before or after** the build: it does not need it. It is the Captain's: radio on, WSJT-X alongside with PSK spotting off, about 3 h.
-4. Freeze, OFF arm, ON arm: about 600–800 window cycles each at about 7 s per cycle, so about 1.5 h per arm, PC exclusive.
+4. Freeze, OFF arm, ON arm: ~~about 600–800~~ **about 480–500 (a 3 h capture leaves a ~2 h window = ~480 cycles; the actual window is 500; E158, A3.2)** window cycles each at about 7 s per cycle, so about 1.5 h per arm, PC exclusive.
 5. QA's report; my ruling; the programme page's top updated in the same edit.
 
 **Cost:** one native + C# change of moderate size, one review, one 3 h live session that also serves candidate #3, about 3 h of PC replay.
@@ -156,3 +156,12 @@ At 18:09:33Z QA started the live session on `main` `98332f2a` from `_run-main`, 
   - The arms are **unchanged**: OFF and ON are both replays of the archived audio, and the freeze is the same.
   - Any live figure from this run (the station's `ALL.TXT` against WSJT-X) is ON-era only. Cite it only as descriptive, never as the arm result.
   - At session end, return the flag to absent/false along with the config backup. An OFF live run is a later session.
+
+## §10. Amendment 3 (2026-11-10 21:30:24Z, `date -u`): the freeze in two parts; cycle-count estimate corrected
+
+- **A3.1 The freeze is accepted in two parts.** QA's Part 1 (`342d320b`, `qa/same-chain`) holds every §4 item except the analysis code. A Part 2 addendum completes it. A freeze exists to fix every choice before any arm output is seen, and that purpose survives a split in time. These conditions hold:
+  - **Part 1 stays as committed.** Any change to it means redoing the whole freeze as one record.
+  - **Part 2** gives the commit and hash of the analysis code (match, bootstrap, arm driver, V-OFF diff). It records the passing self-test and the Replay81 dry-run repeat on DLL `bbde6eb6…6528`. It states that no arm output exists yet.
+  - **The freeze is complete only when Part 2 is committed.** No arm runs before then.
+  - **The disclosure stands:** QA saw the live per-cycle `cq-ap:` counts (739 cycles) and the spot and cycle counts. These are live ON-era operational counts, not arm outputs. The registered rows are computed on replay outcomes and the feed match only, so these counts cannot steer them.
+- **A3.2 Cycle count (E158).** §6 step 4 estimated 600–800 window cycles. §2's own 3 h capture with ±1800 s trims gives about 2 h, about 480 cycles; the actual window is 500. No row depends on this number. Arm time is about 1 h each.
