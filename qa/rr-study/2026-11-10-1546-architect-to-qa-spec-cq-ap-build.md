@@ -148,3 +148,11 @@ At 18:09:33Z QA started the live session on `main` `98332f2a` from `_run-main`, 
 - **A2.4 Era.** With the flag OFF, D2 makes outcomes identical to `98332f2a`, which the arms check by replay (V-OFF). The live era stays **"RF4+L1′ ON"**, and the stamp records the build `7ca00264`/v0.70.
 - **A2.5 Freeze.** Unchanged: build `7ca00264`, DLL `bbde6eb6…6528`, seed 20261111. The live daemon and the arms now run the same DLL.
 - Not an Architect error: §2 named `main` explicitly. This records a change of direction.
+- **A2.6 The Captain's decision (received after 18:12:14Z): CQ-AP is ON for this run** ("we will do off later. on for this run."). This replaces A2.3's OFF.
+  - Set `decoder.cqApEnabled = true` and read it back before the stamp.
+  - The live era is **"CQ-AP ON live"**, stamped with the build `7ca00264`/v0.70. Never pool it with "RF4+L1′ ON".
+  - The station's own `ALL.TXT` and decode panel contain CQ-AP decodes for this run.
+  - They are not uploaded (D7). The PSK accounting line shows them as `ap=N`, and V-SELF stays against `{Reported}`.
+  - The arms are **unchanged**: OFF and ON are both replays of the archived audio, and the freeze is the same.
+  - Any live figure from this run (the station's `ALL.TXT` against WSJT-X) is ON-era only. Cite it only as descriptive, never as the arm result.
+  - At session end, return the flag to absent/false along with the config backup. An OFF live run is a later session.
