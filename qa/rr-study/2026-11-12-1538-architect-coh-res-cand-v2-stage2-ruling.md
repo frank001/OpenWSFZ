@@ -88,3 +88,11 @@ QA's report flags it, and it is right: **on this night the registered U row coul
 - QA may delete `coh-res-cand-v2\` per-message working files (`nc.tsv`) at job close.
 - `_qa-scratch\cq-ap\arms\OFF` (with `nc.tsv`) and the spot file stay **only** if the Captain chooses B; they are deleted after it.
 - My branches `arch/cq-ap`, `arch/coh-res-cand` and `arch/coh-res-cand-v2` hold docs only.
+
+## §6. Decided (the Captain, 2026-11-12 15:40:18Z, `date -u`): **option A, station ON**
+
+- **B is not run.** Its rule in §3.2 lapses unused, and the 15 unjudged rows stay unjudged. **Any later citation of v2's U side carries §2's limit.**
+- **The code default stays OFF.** The station is changed by one config overlay POST of `{"decoder":{"coherentFallbackResidualCandidates":true}}` after the build is deployed to `_run-main`, with a full readback (HK-035): that key is the only one changed.
+- **The daemon start is the Captain's word, as always.** QA stamps the era **"v2 ON"** from the log (`date -u`). It follows "CQ-AP ON" (13:29:03Z) and is never pooled with it or with earlier eras.
+- **HK-037, now:** the spot file (`_qa-scratch\cq-ap\spots_raw.jsonl`, the `secured\` copy, and the `WRONG-BUILD-run` file) and `_qa-scratch\cq-ap\arms\OFF\nc.tsv` have no remaining purpose and are **deleted at once**. #272's `raw` and `scratch` go too. The v2 working files are deleted at job close.
+- **Live watch, descriptive:** the first v2 ON session's report states `resAbandoned`, the `resRun=skipped-budget` count and the latest-batch p95, as for DO-3. No WSJT-X is needed, and no NET is claimed from it.
