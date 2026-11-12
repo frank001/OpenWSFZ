@@ -1419,7 +1419,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             var st = outcome.Stats;
             // COH-RES-CAND v2 (R6): only while the setting is effective (ON, Both mode, fallback running); OFF leaves the line byte-identical. Aggregates only.
             string resFields = resRun is null ? ""
-                : $", resRun={resRun}, resCand={resCand}, resEligible={(thirdRun is null ? 0 : thirdRun.Stats.Eligible)}, resNew={resNew}, resNewGated={resNewGated}, resNewKept={resNewKept}, resWallMs={resWallMs:F0}";
+                : $", resRun={resRun}, resCand={resCand}, resEligible={(thirdRun is null ? 0 : thirdRun.Stats.Eligible)}, resNew={resNew}, resNewGated={resNewGated}, resNewKept={resNewKept}, resAbandoned={(thirdRun is null ? 0 : thirdRun.Stats.Abandoned)}, resWallMs={resWallMs:F0}";
             try
             {
                 if (batchPublished)

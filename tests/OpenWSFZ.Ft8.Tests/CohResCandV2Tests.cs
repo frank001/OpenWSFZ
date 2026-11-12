@@ -40,6 +40,9 @@ public sealed class CohResCandV2Tests
         [9] = "Q1KKK Q1LLL RR73",
         [10] = "Q1MMM Q1NNN RR73",
         [11] = "Q1RRR Q1SSS RR73",
+        [12] = P0B,                     // a text batch 1 published, under a payload the first two runs do not publish
+        [13] = ResidMsg,                // a text batch 2 published
+        [14] = ThirdMsg,                // a text batch 3 published
     };
 
     private static Ft8NativeResult Msg(string message, int freqHz = 1500, float dt = 0.2f)
@@ -67,8 +70,10 @@ public sealed class CohResCandV2Tests
         return new CohFallbackRow(outFreqHz - 0.3f, 0.3f, outFreqHz, 0.31f, 0, false, state, -21, 12.0, payload);
     }
 
-    private static CohFallbackRunResult RunOf(params CohFallbackRow[] rows)
-        => new(new CohFallbackStats(rows.Length + 5, 5, 0, rows.Length, rows.Length, rows.Length, rows.Length, rows.Length, 0, 0, 0, 1, 2, 3, 123.4),
+    private static CohFallbackRunResult RunOf(params CohFallbackRow[] rows) => RunOfAbandoned(0, rows);
+
+    private static CohFallbackRunResult RunOfAbandoned(int abandoned, params CohFallbackRow[] rows)
+        => new(new CohFallbackStats(rows.Length + 5, 5, 0, rows.Length, rows.Length, rows.Length, rows.Length, rows.Length, 0, abandoned, 0, 1, 2, 3, 123.4),
                rows) { Workers = 4 };
 
     private sealed class ManualTimeProvider : TimeProvider
@@ -112,6 +117,9 @@ public sealed class CohResCandV2Tests
         public TimeProvider? Clock { get; init; }
         public int AdvanceAtRun { get; init; } = -1;                        // the run index during which the manual clock advances
         public TimeSpan Advance { get; init; }
+        public int Advance2AtRun { get; init; } = -1;                       // a second run index during which the manual clock advances, by Advance2
+        public TimeSpan Advance2 { get; init; }
+        public int ThirdAbandoned { get; init; }                            // the third run's Stats.Abandoned
         public int NullRunIndex { get; init; } = -1;                        // the run index whose result is null (the run "failed")
         public CohFallbackRow[] FirstTwoRows { get; init; } = [Row(6, 1300f), Row(7, 1400f)];
         public CohFallbackRow[] ThirdRows { get; init; } = [Row(3, 900f)];
@@ -140,8 +148,9 @@ public sealed class CohResCandV2Tests
             int index;
             lock (_gate) { index = Runs.Count; Runs.Add(new RunCall(pcm, snapshot[0], budgetMs)); }
             if (index == AdvanceAtRun && Clock is ManualTimeProvider m && Advance > TimeSpan.Zero) m.Advance(Advance);
+            if (index == Advance2AtRun && Clock is ManualTimeProvider m2 && Advance2 > TimeSpan.Zero) m2.Advance(Advance2);
             if (index == NullRunIndex) return null;
-            return index < 2 ? RunOf(FirstTwoRows) : RunOf(ThirdRows);
+            return index < 2 ? RunOf(FirstTwoRows) : RunOfAbandoned(ThirdAbandoned, ThirdRows);
         }
 
         public string? CohFallbackUnpack(byte[] payload) => TextOfId.GetValueOrDefault(payload[0]);
@@ -223,6 +232,9 @@ public sealed class CohResCandV2Tests
         public TimeProvider? Clock;
         public int AdvanceAtRun = -1;
         public TimeSpan Advance;
+        public int Advance2AtRun = -1;
+        public TimeSpan Advance2;
+        public int ThirdAbandoned;
         public int NullRunIndex = -1;
         public CohFallbackRow[]? FirstTwoRows;
         public CohFallbackRow[]? ThirdRows;
@@ -235,6 +247,7 @@ public sealed class CohResCandV2Tests
         return new V2Interop(decodes)
         {
             MissingMode = b.MissingMode, MissingAt = b.MissingAt, Clock = b.Clock, AdvanceAtRun = b.AdvanceAtRun, Advance = b.Advance, NullRunIndex = b.NullRunIndex,
+            Advance2AtRun = b.Advance2AtRun, Advance2 = b.Advance2, ThirdAbandoned = b.ThirdAbandoned,
             FirstTwoRows = b.FirstTwoRows ?? [Row(6, 1300f), Row(7, 1400f)],
             ThirdRows = b.ThirdRows ?? [Row(3, 900f)],
         };
@@ -267,7 +280,7 @@ public sealed class CohResCandV2Tests
 
         interop.SnapshotCalls.Should().Be(1, "only pass 0's snapshot: the residual and third-pass buffers are not snapshotted");
         interop.Runs.Select(r => r.Snapshot).Should().Equal([1, 1], "two runs of today, no third");
-        log.FallbackLine.Should().NotMatchRegex(@"resRun|resCand|resEligible|resNew|resWallMs", "the new fields are written only while the setting is effective");
+        log.FallbackLine.Should().NotMatchRegex(@"resRun|resCand|resEligible|resNew|resAbandoned|resWallMs", "the new fields are written only while the setting is effective");
         Regex.IsMatch(log.FallbackLine, @"crcN1=\d+, audio=both\(residual3\), fromOriginal=\d+, fromResidual=\d+, inBoth=\d+\.$").Should().BeTrue(
             "the line ends exactly as it did before this change: " + Regex.Replace(log.FallbackLine, @"^.*crcN1", "crcN1"));
     }
@@ -313,7 +326,7 @@ public sealed class CohResCandV2Tests
         interop.Runs[1].BudgetMs.Should().Be(offInterop.Runs[1].BudgetMs, "the second run's budget arithmetic is unchanged");
         got.Select(p => p.Message).Should().Contain(TextOfId[3], "a candidate only the third run's list offered is published");
         log.FallbackLine.Should().Contain("resRun=ran").And.Contain("resCand=residual-R3").And.Contain("resEligible=1")
-            .And.Contain("resNew=1").And.Contain("resNewGated=0").And.Contain("resNewKept=1").And.MatchRegex(@"resWallMs=\d+\.$");
+            .And.Contain("resNew=1").And.Contain("resNewGated=0").And.Contain("resNewKept=1").And.Contain("resAbandoned=0, resWallMs=").And.MatchRegex(@"resWallMs=\d+\.$");
     }
 
     [Fact(DisplayName = "FR-104: COH-RES-CAND v2: ON, R2 - the third run reads the residual pass's buffer with the residual pass's snapshot; the first two keep pass 0's")]
@@ -544,5 +557,58 @@ public sealed class CohResCandV2Tests
         var got = await RunStaged(decoder);
 
         got.Where(p => p.Message == TextOfId[3]).Select(p => p.Batch).Should().Equal([Ft8Decoder.FallbackBatchDeep]);
+    }
+
+    [Fact(DisplayName = "FR-104: COH-RES-CAND v2: ON - a third-run row whose payload the first two runs did NOT publish but whose text batch 1, 2 or 3 did is not new text, above or below 1097 Hz (pins the `seen` guard)")]
+    public async Task On_TextPublishedInBatches1To3_UnderANewPayload_NotNew()
+    {
+        var log = new LineLog();
+        // ids 12, 13, 14 carry the texts of batches 1, 2, 3 under payloads no first-two row has; each appears below and above the gate. id 3 is genuinely new, below the gate.
+        var interop = R3Cycle(b => b.ThirdRows = [Row(12, 900f), Row(13, 2000f), Row(14, 900f), Row(12, 2100f), Row(3, 900f)]);
+        var decoder = Build(interop, resCand: true, log: log);
+
+        var got = await RunStaged(decoder);
+
+        var all = got.Select(p => p.Message).ToList();
+        all.Should().OnlyHaveUniqueItems("no text twice in a cycle");
+        log.FallbackLine.Should().Contain("resNew=1", "a text already published in batches 1 to 3 is not new, whatever its payload").And.Contain("resNewGated=0").And.Contain("resNewKept=1");
+    }
+
+    [Fact(DisplayName = "FR-104: COH-RES-CAND v2: ON - the third run's budget is the budget left after the second run (budgetMs minus the fallback time already spent), smaller than the second run's")]
+    public async Task On_ThirdRunBudget_IsWhatIsLeftAfterTheSecondRun()
+    {
+        var clock = new ManualTimeProvider();
+        var interop = R3Cycle(b =>
+        {
+            b.Clock = clock;
+            b.AdvanceAtRun = 0; b.Advance = TimeSpan.FromSeconds(3);
+            b.Advance2AtRun = 1; b.Advance2 = TimeSpan.FromSeconds(2);
+        });
+        var decoder = Build(interop, resCand: true, time: clock);
+
+        await RunStaged(decoder);
+
+        interop.Runs.Should().HaveCount(3);
+        double budget = interop.Runs[0].BudgetMs;
+        interop.Runs[1].BudgetMs.Should().BeApproximately(budget - 3000.0, 0.5, "the second run gets what the first left (unchanged)");
+        interop.Runs[2].BudgetMs.Should().BeApproximately(budget - 5000.0, 0.5, "the third run gets what both left");
+        interop.Runs[2].BudgetMs.Should().BeLessThan(interop.Runs[1].BudgetMs);
+    }
+
+    [Fact(DisplayName = "FR-104: COH-RES-CAND v2: ON - resAbandoned is the third run's own abandoned count (0 when it did not run); with the setting OFF the line has no such field")]
+    public async Task On_ResAbandoned_IsTheThirdRunsCount()
+    {
+        var ran = new LineLog();
+        await RunStaged(Build(R3Cycle(b => b.ThirdAbandoned = 4), resCand: true, log: ran));
+        ran.FallbackLine.Should().Contain("resRun=ran").And.Contain("resAbandoned=4, resWallMs=").And.Contain(", abandoned=0,", "the combined abandoned= field still counts the first two runs only");
+
+        var skipped = new LineLog();
+        var clock = new ManualTimeProvider();
+        await RunStaged(Build(R3Cycle(b => { b.Clock = clock; b.AdvanceAtRun = 1; b.Advance = TimeSpan.FromSeconds(14); b.ThirdAbandoned = 4; }), resCand: true, log: skipped, time: clock));
+        skipped.FallbackLine.Should().Contain("resRun=skipped-budget").And.Contain("resAbandoned=0, resWallMs=");
+
+        var off = new LineLog();
+        await RunStaged(Build(R3Cycle(b => b.ThirdAbandoned = 4), resCand: false, log: off));
+        off.FallbackLine.Should().NotContain("resAbandoned");
     }
 }
