@@ -264,3 +264,39 @@ QA's review: `qa/rr-study/2026-11-12-1350-qa-k-review-coh-res-cand-v2.md` (`qa/s
 - CV-2, CV-3 and CV-5 are unchanged.
 
 **Next:** QA runs Stage 0 (step 1: the 19 / 9 / 2 re-derivation; step 2: the selection; step 3: `p_perm`) and commits the record. Then I write the triple in, or recommend closing #272.
+
+## §9. Amendment 2 (2026-11-12 13:49:31Z, `date -u`): Stage 0 is FEASIBLE; the gate is frozen
+
+**Record:** `qa/rr-study/2026-11-12-1352-qa-coh-res-cand-v2-stage0-record.md` (`qa/same-chain` `271b5562`, local).
+- Script frozen first at `3fd08b02`. `stage0.py` blob `18f230e7…`, `p0_null.py` blob `7935a226…` (= `1fe6b588`'s).
+- `p0_rows.csv` prefix `5a4ff618…`, `stage0_result.json` prefix `b31e81eb…`.
+
+| step | result |
+|---|---|
+| 1 (stop rule) | P0 149 = C 119 / TA 19 / tested_present 9 / hashed 2 / untestable 0. Identical to #272's report in every cell, so it does not stop |
+| 2 (selection) | **`freq ≤ 1097` Hz.** kept_C **57** of 119, kept_TA **4** of 19 (at the cap), kept_other 5 of 11 |
+| 3 (`p_perm`) | **0.0476** (238 of 5,000; limit 0.05, met by 12 permutations; MC standard error ≈ 0.003) |
+| verdict | **FEASIBLE** by the registered rows |
+
+**A2.1 The gate, frozen. It replaces "the Stage 0 triple (f, d, t)" everywhere in §2–§3.**
+- A row of the new run that is new text (R4) is **kept iff its frequency, as the published integer Hz of that row, is ≤ 1097.** Otherwise it is dropped and counted in `resNewGated`.
+- **The Developer cites the file:line where the published integer Hz is formed**, and applies the gate to that same value (not to an unrounded internal frequency). R8's boundary test uses 1097 (kept) and 1098 (dropped).
+- `freq` is the audio offset in the passband. It means the same on 20 m and 40 m.
+
+**A2.2 What the verdict is worth, said plainly (no rule changes).**
+- FEASIBLE is **narrow**: `p_perm` sits about 0.8 MC standard errors under the limit. A different seed could have landed on either side. The seed was frozen, and no other seed is run.
+- **No mechanism is known** for wrong payloads sitting above 1,097 Hz. `snr` came within 2 rows (55), so the data does not really prefer frequency over SNR.
+- A frequency threshold also depends on where stations sit in the passband on a given night. **On 40 m that is different activity, so the gate may not transfer.**
+- kept_TA is at its cap, and the gate drops 62 of 119 good rows on P0.
+- **Stage 2 exists to answer exactly this.** It is one arm on a night the gate never saw. I do not overrule a registered FEASIBLE with doubts formed after its data, and I do not add a row now.
+
+**A2.3 Predictions.** CV-1 is scored: **HIT (P 0.30)**, but my reasoning (an SNR gate) was not borne out. These are restated **before any build or Stage 2 data**, on Stage 0's evidence of a fitted, mechanism-less, at-chance-margin gate:
+- **CV-4 (U-OK): 0.45 → 0.35, H.**
+- **CV-5 (ACCEPT): 0.35 → 0.25, H.**
+- CV-2 and CV-3 are unchanged.
+
+**A2.4 The ceiling, for the Captain's go.** On P0, the 57 kept good rows are ≈ **+0.46 pp** at #272's n_ref (57 / 12,292). With "add, don't replace", no A-row is lost by design. Stage 2's NET on 40 m will differ, and only it counts.
+
+**Next: the Captain's go (or not) for the Developer session (Stage 1).**
+- The cost if he says go: one Developer session, QA's HK-039 review, and about 50 min of PC (B-OFF about 3.5 min + arm B about 45 min, per QA's stamps).
+- If he declines, v2 closes at this record, and I recommend closing #272 on the issue.
