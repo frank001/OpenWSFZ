@@ -58,6 +58,7 @@ internal static class Program
                 "armcounts" => await ArmCounts(a),
                 "prod" => await Prod(a),
                 "verdict" => Verdict(a),
+                "drift" => await Drift(a),
                 _ => 2,
             };
         }
@@ -445,6 +446,31 @@ internal static class Program
         bool pass = cycles.Count >= ProdMinCycles && rows > 0 && disagree == 0;
         return Emit(a, new { row = "T-PROD (live daemon route; the replay does not expose Region)", distinctCyclesSeen = cycles.Count, publishedRows = rows, productResolved, toolExcluded = tally.Excluded,
                              toolImplausible = tally.Implausible, toolResolved = tally.Resolved, disagreements = disagree, regionFilesEqual = true, PASS = pass }, pass);
+    }
+
+    // ---- drift: DIAGNOSTIC ONLY (not a registered row; added after the registered rows ran, in a separate commit and a separate build folder) ----------------------------------
+    // Does the sensitivity s change as ghosts are unpacked in one process (the native call-hash table fills)? Reports kept / N / I per window of generated ghosts.
+    private static async Task<int> Drift(Dictionary<string, string> a)
+    {
+        var (regions, grammar) = await LoadStores(a);
+        int seed = a.TryGetValue("seed", out var sd) ? int.Parse(sd, Inv) : SeedPos;
+        int window = a.TryGetValue("window", out var ws) ? int.Parse(ws, Inv) : 1000;
+        int windows = a.TryGetValue("windows", out var wn) ? int.Parse(wn, Inv) : 20;
+        var rng = new Random(seed); var rows = new List<object>();
+        long gen = 0;
+        for (int w = 0; w < windows; w++)
+        {
+            var t = new Tally(); long inWindow = 0;
+            for (int k = 0; k < window; k++)
+            {
+                gen++; inWindow++;
+                string? text = Ft8LibInterop.CohFallbackUnpack(Payload(rng, false))?.TrimEnd();
+                if (string.IsNullOrWhiteSpace(text) || !Ft8Decoder.IsPlausibleMessage(text, grammar)) continue;
+                t.Add(Classify(text, regions));
+            }
+            rows.Add(new { window = w + 1, generatedFrom = gen - inWindow + 1, generatedTo = gen, N = t.N, I = t.Implausible, excluded = t.Excluded, s = t.N == 0 ? double.NaN : (double)t.Implausible / t.N });
+        }
+        return Emit(a, new { row = "drift (diagnostic)", seed, window, windows = rows }, true);
     }
 
     // ---- verdict -----------------------------------------------------------------------------------------------------------------------------------------
