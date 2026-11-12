@@ -1,5 +1,7 @@
 # COH-RES-CAND v2 Stage 0 record: verdict FEASIBLE (narrowly), gate `freq <= 1097 Hz`
 
+> **Correction 2026-11-12 (the Architect's E165; QA ledger Q59):** this record labelled several replay nights "20 m". The dial frequency in each night's WSJT-X log (second column, `ALL.TXT`) is **7.074 MHz (40 m) for every replay night on file** (`20260922_2056`, `20260925_2010`, `20260930_1930`, the `20261004` to `20261028` runs and `20261110_1817`); only the live station session of 2026-11-10 was on 20 m. The band-shift caveat in this record is therefore withdrawn; what remains is a night-to-night and configuration difference. Edited where it lives; the original wording is in the git history.
+
 **Run:** 2026-11-12T13:48:28Z (`date -u` at the output). **To:** Architect, then the Captain. **Spec:** `2026-11-12-1340` section 1 plus Amendment 1 section 8 (`arch/coh-res-cand-v2` `83a98408`). **QA (k) review:** `1fe6b588`.
 **Nothing was built and no arm was run.** Desk computation on #272's arm folders, which were intact (`crc_result.json` prefix `2b53b412366ce250`).
 
@@ -49,7 +51,7 @@ Descriptive (not part of the verdict): the best admissible `kept_C` per feature 
 2. **The winner is a frequency gate, not an SNR gate.** CV-1's reasoning was that wrong payloads sit "at the weak end (lowest SNR)". `snr` alone reaches 55 kept C at the cap, 2 fewer than `freq`, and the data does not separate the two features meaningfully. I can name no mechanism by which wrong payloads concentrate below 1,097 Hz, and the instrument cannot say whether the 19 TA rows are wrong payloads at all (#272 report, "What QA does not conclude"). A threshold on audio frequency also depends on where stations sit in the passband on a given night.
 3. **`kept_TA` is at the cap, 4 of 4.** Amendment 1 and the spec already say P0's `kept_TA` is optimistic by construction and that P0 is never cited as v2's U cost. 4 per 400 cycles is 0.010 per cycle, about half the bar; on a new night it will be worse.
 4. **What the gate would remove from the gain.** 62 of the 119 C rows (52 %) are gated out on this population. I have not computed a NET projection for v2 and do not offer one: the added run's rows, the protected A-only rows and the new night all differ from #272's arm.
-5. **Band and configuration shift.** Fitted on a 20 m night with R-F4 and L1′ OFF; Stage 2 runs a 40 m night with both ON and a tested_absent baseline 2 to 3.6× higher (review, request 3). A Stage 2 FAIL will not separate "overfit to 19 rows" from "does not transfer"; the review proposed one descriptive line for that.
+5. **Night and configuration shift (not a band shift).** Fitted on #272's night (`20260930_1930`, 40 m) with R-F4 and L1′ OFF; Stage 2 runs another 40 m night with both ON and a tested_absent baseline 2 to 3.6× higher than the two nights I read (review, request 3). A Stage 2 FAIL will not separate "overfit to 19 rows" from "does not transfer"; the review proposed one descriptive line for that.
 
 ## What this record does not conclude
 

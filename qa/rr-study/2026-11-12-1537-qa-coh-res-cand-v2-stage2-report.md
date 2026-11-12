@@ -1,5 +1,7 @@
 # COH-RES-CAND v2 Stage 2: QA report (2026-11-12, `date -u` 15:36:12Z at the last check): verdict by the registered rows **ACCEPT**
 
+> **Correction 2026-11-12 (the Architect's E165; QA ledger Q59):** this record labelled several replay nights "20 m". The dial frequency in each night's WSJT-X log (second column, `ALL.TXT`) is **7.074 MHz (40 m) for every replay night on file** (`20260922_2056`, `20260925_2010`, `20260930_1930`, the `20261004` to `20261028` runs and `20261110_1817`); only the live station session of 2026-11-10 was on 20 m. The band-shift caveat in this record is therefore withdrawn; what remains is a night-to-night and configuration difference. Edited where it lives; the original wording is in the git history.
+
 Build `59eb5a8f4d9321b608b410f3d9226c1c927bb1db` (v0.71, `feat/coh-res-cand-v2` on `70bc72b1`), harness `17dcb1fc`, freeze record `7064738a` (code first `17dcb1fc`). Night `20261110_1817` (40 m), the 500 cycles of `qa/cq-ap/live-session-cycle-list.txt`, PC, `libft8.dll` `bbde6eb6…6528` (the pin) at the start and the end of every leg. **No `--filter`** (this is a replay study; the unit suite was run unfiltered at the review). Arm A = the CQ-AP OFF arm, reused (`cq-ap/arms/OFF`, folder hashes in the freeze). **Analysis run once:** `python -I qa/coh-res-cand-v2/crc2_analyse.py main` (blob `c6e48546d09e478e72d9540ae006ecf4a8f5b4d5`, unchanged since the freeze), 2026-11-12T15:35:25Z; the result is `crc2_result.json` beside this report. The Architect rules on it.
 
 ## Runs (QA's stamps)
@@ -39,7 +41,7 @@ Both legs: pin at start and end, all readback tokens at start and end (`cqap=Fal
 ## What QA does not conclude
 
 - It does not say v2 is free of wrong decodes (see the thin-U point), nor that the gate is *why* the U side is clean: the third run's wrong-payload rate without the gate was not measured, and 113 of 179 rows were dropped.
-- One night, one arm. The gate was fitted on a 20 m night (R-F4 and L1′ OFF) and tested on 40 m (both ON); this result does not say it transfers to other bands or stations.
+- One night, one arm. The gate was fitted on #272's night (R-F4 and L1′ OFF) and tested on another night on the same band, 40 m (both ON); this result does not say it transfers to other bands, nights or stations.
 - **CQ-AP was OFF in both arms** (A already existed that way); the interaction with CQ-AP ON, which the station runs, is **unmeasured**. Any v2 ON on the station starts a new era.
 - No timing figure here is a sol-class timing (PC only).
 - The dry run and the smoke tests of the freeze are not results.

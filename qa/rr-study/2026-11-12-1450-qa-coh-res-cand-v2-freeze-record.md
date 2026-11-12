@@ -1,5 +1,7 @@
 # COH-RES-CAND v2 freeze record (QA): build, DLL pin, inputs, arm A manifest, bars with their sources, analysis code and self-test, dry run. **No arm output exists.**
 
+> **Correction 2026-11-12 (the Architect's E165; QA ledger Q59):** this record labelled several replay nights "20 m". The dial frequency in each night's WSJT-X log (second column, `ALL.TXT`) is **7.074 MHz (40 m) for every replay night on file** (`20260922_2056`, `20260925_2010`, `20260930_1930`, the `20261004` to `20261028` runs and `20261110_1817`); only the live station session of 2026-11-10 was on 20 m. The band-shift caveat in this record is therefore withdrawn; what remains is a night-to-night and configuration difference. Edited where it lives; the original wording is in the git history.
+
 **Written:** 2026-11-12, `date -u` read 14:46:44Z at the last check. **To:** Architect, then the Captain. **Spec:** `arch/coh-res-cand-v2` §3 with Amendments 1 (A1.2, A1.3), 2 (A2.1), 3 (A3.1) (`53cf80a6`). **Build review:** `qa/rr-study/2026-11-12-1432-qa-code-review-coh-res-cand-v2-59eb5a8f-APPROVED.md` (`b5e65309`).
 This is ONE complete record: the analysis code, its self-test, the instrument classes and the dry run are all committed **before** this record, in `17dcb1fc`. Nothing below changes after an arm's output exists. Any change to a frozen item after that point is a complete redo (the CQ-AP rule), not an amendment.
 
@@ -47,7 +49,7 @@ Predicates are the code in `qa/coh-res-cand-v2/crc2_analyse.py` (header docstrin
 | B-DUP | no text twice in a cycle of arm B | spec §3 |
 | **PRECISION** | | |
 | N-GO / N-STOP | CI_lo(NET_B−A) > 0 pp / CI_hi ≤ 0 pp | **0 pp: the Captain's bar for #272 (2026-11-08, "fine with me"), carried unchanged**; he may change it only before arm B |
-| U-OK / U-FAIL | CI_hi(ΔU′_ta) ≤ 0.021 / CI_lo > 0.021 | **0.021: U_bar_G, ratified 2026-10-28 (COH-GATE-G) on 20 m nights; ruled absolute for this 40 m night (A1.3)**; the baseline is 2.05× higher on tested_absent here, so the test is harder than the bar's origin (stated) |
+| U-OK / U-FAIL | CI_hi(ΔU′_ta) ≤ 0.021 / CI_lo > 0.021 | **0.021: U_bar_G, ratified 2026-10-28 (COH-GATE-G) on the replay nights of that study (all 40 m); ruled absolute for this night (A1.3)**; the baseline is 2.05× higher on tested_absent here than on the two nights I read, a night-to-night difference and not a band effect (stated) |
 | B-AB | arm-B cycles with `abandoned > 0` OR `resabandoned > 0` ≤ arm-A cycles with `abandoned > 0` | Amendment 3 (A3.1); data on file: 0 fallback abandons in #272's arms and in both CQ-AP arms |
 | B-LATE | arm-B cycles with the L1′ round abandoned ≤ arm-A's + 5 | **+5: the Architect's choice (1 % of 500), stated as a choice, not derived**; data on file 0 of 940 and 0 in both CQ-AP arms |
 | verdict | VOID iff a validity row fails; else ACCEPT iff N-GO, U-OK, B-AB, B-LATE; FAIL iff N-STOP or U-FAIL; else OPEN | A1.2 |
