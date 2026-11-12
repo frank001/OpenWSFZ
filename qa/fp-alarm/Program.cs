@@ -188,43 +188,70 @@ internal static class Program
 
     // ---- T-CLASS: the expected class of every vector is fixed HERE by hand, from the documented forms of ExtractPrimaryCallsignToken -----------------------------------
     // (CQ forms: token 1 for 2/3 tokens, token 2 for 4+; QSO form: token 1, falling back to token 0 when token 1 is hashed or RRR/73/RR73; <...> is EXCLUDED.)
-    // 🔒 NFR-021: Q-prefix calls (never allocated, so no region: IMPLAUSIBLE) and PD2FZ (the documented exception, RESOLVED) only.
+    // 🔒 NFR-021: the committed vectors use Q-prefix calls and PD2FZ (the documented exception). The station's region table has an explicit entry, prefix "Q" ->
+    // "Synthetic (R&R Study)" (the NFR-021 carve-out), so a Q-prefix call is RESOLVED, and so is PD2FZ. IMPLAUSIBLE (shape-valid, no region) vectors use the placeholders
+    // {U1} and {U2}: tokens built IN PROCESS at run time from letter-letter-digit-AAA shapes whose TryMatchPrefix is null, never printed and never committed.
+    // (First version of this table, committed 34eaad5e, expected Q-calls to be IMPLAUSIBLE: wrong, found by this very row; the corrected expectation comes from the
+    // table entry above, a fact on the pinned file, not from the tool's answers. The tool's logic did not change.)
     private static readonly (string text, Cls expected, string why)[] Vectors =
     [
         ("CQ", Cls.Excluded, "CQ alone: no candidate token"),
-        ("CQ Q1ABC", Cls.Implausible, "2 tokens: token 1"),
-        ("CQ Q1ABC JO22", Cls.Implausible, "3 tokens: token 1"),
-        ("CQ DX Q1ABC JO22", Cls.Implausible, "4 tokens: token 2"),
         ("CQ DX <...> JO22", Cls.Excluded, "4 tokens, token 2 hashed"),
         ("CQ <...> JO22", Cls.Excluded, "3 tokens, token 1 hashed"),
-        ("<...> Q1ABC -07", Cls.Implausible, "QSO form: token 1"),
-        ("Q1ABC <...> RR73", Cls.Implausible, "token 1 hashed: falls back to token 0"),
         ("<...> <...> -07", Cls.Excluded, "both calls hashed"),
-        ("Q1ABC RRR", Cls.Implausible, "token 1 is RRR: falls back to token 0"),
-        ("Q1ABC RR73", Cls.Implausible, "token 1 is RR73: falls back to token 0"),
         ("RRR 73", Cls.Excluded, "two terminal keywords"),
-        ("Q1ABC Q2DEF R-10", Cls.Implausible, "QSO form: token 1"),
-        ("Q1ABC/P Q2DEF/P -05", Cls.Implausible, "portable suffix stripped, still no region"),
+        ("CQ {U1}", Cls.Implausible, "2 tokens: token 1, no region"),
+        ("CQ {U1} JO22", Cls.Implausible, "3 tokens: token 1, no region"),
+        ("CQ DX {U1} JO22", Cls.Implausible, "4 tokens: token 2, no region"),
+        ("<...> {U1} -07", Cls.Implausible, "QSO form: token 1, no region"),
+        ("{U1} <...> RR73", Cls.Implausible, "token 1 hashed: falls back to token 0, no region"),
+        ("{U1} RRR", Cls.Implausible, "token 1 is RRR: falls back to token 0, no region"),
+        ("{U1} RR73", Cls.Implausible, "token 1 is RR73: falls back to token 0, no region"),
+        ("{U1} {U2} R-10", Cls.Implausible, "QSO form: token 1, no region"),
+        ("{U1}/P {U2}/P -05", Cls.Implausible, "portable suffix stripped, still no region"),
+        ("PD2FZ {U1} -10", Cls.Implausible, "QSO form: token 1 is the sender, no region"),
         ("CQ PD2FZ JO22", Cls.Resolved, "CQ 3 tokens, region found"),
         ("CQ POTA PD2FZ JO22", Cls.Resolved, "CQ with a modifier, region found"),
-        ("Q1ABC PD2FZ R-12", Cls.Resolved, "QSO form: token 1 is the resolved call"),
+        ("{U1} PD2FZ R-12", Cls.Resolved, "QSO form: token 1 is the resolved call"),
         ("PD2FZ <...> RR73", Cls.Resolved, "token 1 hashed: token 0 resolves"),
         ("<...> PD2FZ 73", Cls.Resolved, "QSO form: token 1 resolves"),
         ("CQ PD2FZ/P JO22", Cls.Resolved, "portable suffix stripped, region found"),
-        ("PD2FZ Q1ABC -10", Cls.Implausible, "QSO form: token 1 is the sender, no region"),
+        ("CQ Q1ABC JO22", Cls.Resolved, "Q-prefix: the synthetic region entry (NFR-021 carve-out)"),
+        ("Q1ABC Q2DEF R-10", Cls.Resolved, "Q-prefix, QSO form: token 1, the synthetic region entry"),
+        ("Q1ABC RRR", Cls.Resolved, "Q-prefix: token 1 is RRR, falls back to token 0, the synthetic region entry"),
     ];
+
+    /// <summary>Shape-valid tokens (letter, letter, digit, "AAA") that the pinned table does NOT match; built in process, never printed (NFR-021).</summary>
+    private static List<string> FindUnmatched(ICallsignRegionStore regions, int n)
+    {
+        var found = new List<string>();
+        const string L = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        foreach (char c1 in L)
+            foreach (char c2 in L)
+                foreach (char d in "0123456789")
+                {
+                    if (c1 == 'Q') continue;
+                    string tok = $"{c1}{c2}{d}AAA";
+                    if (regions.TryMatchPrefix(tok) is null) { found.Add(tok); if (found.Count >= n) return found; }
+                }
+        return found;
+    }
 
     private static async Task<int> TClass(Dictionary<string, string> a)
     {
         var (regions, _) = await LoadStores(a);
+        var u = FindUnmatched(regions, 2);
         int agree = 0; var bad = new List<string>();
-        for (int i = 0; i < Vectors.Length; i++)
-        {
-            var got = Classify(Vectors[i].text, regions);
-            if (got == Vectors[i].expected) agree++; else bad.Add($"#{i + 1} expected {Vectors[i].expected} got {got} ({Vectors[i].why})");
-        }
+        if (u.Count < 2) bad.Add($"fewer than 2 unmatched shape-valid tokens exist ({u.Count}): the IMPLAUSIBLE class cannot be constructed from the pinned table");
+        else
+            for (int i = 0; i < Vectors.Length; i++)
+            {
+                string text = Vectors[i].text.Replace("{U1}", u[0]).Replace("{U2}", u[1]);
+                var got = Classify(text, regions);
+                if (got == Vectors[i].expected) agree++; else bad.Add($"#{i + 1} expected {Vectors[i].expected} got {got} ({Vectors[i].why})");
+            }
         bool pass = agree == Vectors.Length;
-        return Emit(a, new { row = "T-CLASS", vectors = Vectors.Length, agree, disagreements = bad, PASS = pass }, pass);
+        return Emit(a, new { row = "T-CLASS", vectors = Vectors.Length, agree, unmatchedTokensFound = u.Count, disagreements = bad, PASS = pass }, pass);
     }
 
     // ---- s: ghost sensitivity ------------------------------------------------------------------------------------------------------------------------------
