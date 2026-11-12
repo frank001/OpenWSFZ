@@ -1,0 +1,9 @@
+sel_40_live.json sha256 3140e223132bfd2f9cc4603ae857d8baf8474d8ba9d8d1199e35b18477f6d550
+2026-11-12T14:53:24Z arm B_OFF start (cohrescand 0)
+2026-11-12T14:56:32Z arm B_OFF done rc=0 ok=1 rows=40
+2026-11-12T14:56:32Z orphan check clean
+2026-11-12T14:56:32Z boff done
+2026-11-12T14:56:57Z arm B start (cohrescand 1)
+2026-11-12T15:35:10Z arm B done rc=0 ok=1 rows=500
+2026-11-12T15:35:10Z orphan check clean
+2026-11-12T15:35:10Z armb done
