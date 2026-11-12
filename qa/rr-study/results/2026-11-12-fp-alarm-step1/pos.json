@@ -1,0 +1,20 @@
+{
+  "row": "T-POS (arithmetic control: s comes from the same G-ANY model it injects; passes whether or not OSD false accepts look like G-ANY)",
+  "baseN": 18445,
+  "baseI": 0,
+  "baseExcluded": 0,
+  "s": 0.1444,
+  "fa": 0.000613410088236682,
+  "stepGhostsEnteringN": 184,
+  "ghostsGenerated": 2068,
+  "fHat0": -78.68848607139796,
+  "fHat1": 101.35008748160483,
+  "fHat2": 399.61943631366734,
+  "increase1": 180.03857355300278,
+  "increase2": 298.2693488320625,
+  "ratio1": 0.9784705084402325,
+  "ratio2": 1.6210290697394703,
+  "step1InBand": true,
+  "step2InBand": false,
+  "PASS": false
+}

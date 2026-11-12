@@ -1,0 +1,10 @@
+{
+  "row": "T-PIN",
+  "regionsSha256": "bcf0bee2302c21c54fb66c6bcec3f6aa432352e424e32b3740413aa2658c98e6",
+  "grammarSha256": "7b581f31b7f0f65191da247eda6568e2f919d96c1414f9b268c39f4943bba37e",
+  "regionEntries": 29013,
+  "regionsIsSeedData": false,
+  "regionsShaMatches": true,
+  "grammarShaMatches": true,
+  "PASS": true
+}

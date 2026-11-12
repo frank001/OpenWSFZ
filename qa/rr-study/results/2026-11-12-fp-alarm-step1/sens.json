@@ -1,0 +1,30 @@
+{
+  "row": "s",
+  "gates": {
+    "model": "G-ANY",
+    "seed": 20261112,
+    "generated": 52650,
+    "keptPlausible": 10011,
+    "excluded": 11,
+    "N": 10000,
+    "I": 1444,
+    "s": 0.1444,
+    "wilsonLo": 0.13764734645361218,
+    "wilsonHi": 0.15142575319191973
+  },
+  "descriptive": {
+    "model": "G-CQ",
+    "seed": 20261112,
+    "generated": 11098,
+    "keptPlausible": 10075,
+    "excluded": 75,
+    "N": 10000,
+    "I": 796,
+    "s": 0.0796,
+    "wilsonLo": 0.07445490333412723,
+    "wilsonHi": 0.08506796250102917
+  },
+  "sGAny": 0.1444,
+  "sGAnyWilsonLo": 0.13764734645361218,
+  "sGCq": 0.0796
+}
