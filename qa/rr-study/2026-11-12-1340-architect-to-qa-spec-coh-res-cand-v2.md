@@ -300,3 +300,20 @@ QA's review: `qa/rr-study/2026-11-12-1350-qa-k-review-coh-res-cand-v2.md` (`qa/s
 **Next: the Captain's go (or not) for the Developer session (Stage 1).**
 - The cost if he says go: one Developer session, QA's HK-039 review, and about 50 min of PC (B-OFF about 3.5 min + arm B about 45 min, per QA's stamps).
 - If he declines, v2 closes at this record, and I recommend closing #272 on the issue.
+
+## §10. Amendment 3 (2026-11-12 14:25:33Z, `date -u`): B-AB sees the third run; QA's HK-039 notes recorded
+
+QA's HK-039 review of the Developer's build `a943512e` (record `qa/rr-study/2026-11-12-1430-qa-code-review-coh-res-cand-v2-a943512e-RETURNED.md`, `qa/same-chain` `158d610a`): **RETURNED with three small required changes.**
+- Suite green, `native/` empty, DLL = pin.
+- §2 + A2.1 are implemented: the gate sits at the one place the published integer Hz is formed, and R-F4 cannot reach the third run's rows.
+- **(1) and (2)** pin, by tests, the batch 1–3 new-text guard (R4) and the third run's budget arithmetic (R3). No row changes.
+- **(3) adds `resAbandoned={n}`** to R6's ON-only fields: the third run's own abandoned count.
+
+**A3.1 B-AB, restated (my error E162).**
+- The line's `abandoned=` is `CombineStats` of the **first two runs only** (`Subfeas/CohFallbackAudioSelector.cs:137`, called at `Ft8Decoder.cs:1299`). As written in §3, B-AB could never see the new run's deadline.
+- #272's report had already noted that the line carries one figure for both runs. I did not carry that over to a design with a third run.
+- **B-AB:** the number of arm-B cycles with `abandoned > 0` **or** `resAbandoned > 0` is ≤ the number of arm-A cycles with `abandoned > 0`.
+- **Data on file:** 0 fallback abandons in both arms of #272 (400 PC cycles each), and 0 in both CQ-AP arms on this night.
+- **Descriptive line added:** `resAbandoned` total and cycle count, and `resRun=skipped-budget` count.
+
+No other row, bar, arm or cycle count changes.
