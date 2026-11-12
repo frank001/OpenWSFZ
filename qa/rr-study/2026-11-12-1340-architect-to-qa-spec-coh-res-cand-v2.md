@@ -317,3 +317,18 @@ QA's HK-039 review of the Developer's build `a943512e` (record `qa/rr-study/2026
 - **Descriptive line added:** `resAbandoned` total and cycle count, and `resRun=skipped-budget` count.
 
 No other row, bar, arm or cycle count changes.
+
+## §11. Amendment 4 (2026-11-12 14:48:38Z, `date -u`): one descriptive line withdrawn; freeze noted
+
+**Freeze:** QA record `qa/rr-study/2026-11-12-1450-qa-coh-res-cand-v2-freeze-record.md` (`qa/same-chain` `7064738a`; code first at `17dcb1fc`), **before any arm output.**
+- Build `59eb5a8f`, DLL = pin, cycle list `842e6790…`, analysis blob `c6e48546…`, self-test ALL PASSED (15 mutations killed).
+- U′ classes frozen from arm A (`84ec02ba…`, byte-identical over two runs).
+- This night's null p99 is 0.2931 (|Δ| 0.017 ≤ 0.03, so no exit 4).
+- **Harness fix, also before any run:** Replay81's fallback-line regex did not know v2's tail. Without the fix, arm B's `coh.csv` (B-AB's source) would have been blank. QA fixed it and showed with a 3-cycle dry run on the old night that the columns now fill.
+
+**A4.1 Withdrawn: §3's descriptive line "the gated-out rows' C / TA split" (my error E163).**
+- A gated-out row is dropped before publication, so no output holds its text, and the U′ instrument cannot classify it.
+- Computing the split would need an extra arm with the gate off. That is not worth one under the size rule, for a line that carries no verdict.
+- The line is removed. The `resNewGated` counts stay.
+
+No row, bar, arm or cycle count changes.
