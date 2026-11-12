@@ -119,7 +119,8 @@ internal static class SubtractionPass
         TimeSpan? deadline = null,
         CancellationToken ct = default,
         ResidualPassReport? report = null,
-        CqApCycleCounters? cqAp = null)
+        CqApCycleCounters? cqAp = null,
+        bool captureCohSnapshot = false)
     {
         if (normalisedPcm.Length != PcmLength)
             throw new ArgumentException(
@@ -129,7 +130,7 @@ internal static class SubtractionPass
         // tasks.md 4.2: one aggregate-only Information line per invocation (never on caller
         // cancellation -- that propagates out of Task.Run/RunCore before reaching the log call).
         // Observability only: RunCore's return value is passed through unchanged.
-        var stats = new PassStats();
+        var stats = new PassStats { CaptureCohSnapshot = captureCohSnapshot };
         var wall = System.Diagnostics.Stopwatch.StartNew();
         Ft8NativeResult[] result = await Task.Run(
             () => RunCore(interop, normalisedPcm, pass0Results, null, maxDegreeOfParallelism, logger, ap, deadline, stats, ct, cqAp), ct);
@@ -143,6 +144,7 @@ internal static class SubtractionPass
             report.DeadlineAbandoned = stats.DeadlineAbandoned;
             report.ContainedException = stats.ContainedException;
             report.FittedSignals = stats.FittedSignals;
+            report.CohSnapshot = stats.CohSnapshot;
         }
 
         // HK-037 / NFR-021: aggregates only -- no message text, callsigns or exception text.
@@ -164,6 +166,10 @@ internal static class SubtractionPass
         public bool ContainedException;
         /// <summary>The buffer after every fitted signal was subtracted, set just before the residual decode (null if the pass ended earlier).</summary>
         public float[]? Residual;
+        /// <summary>COH-RES-CAND: set by the caller before the run. <c>true</c> takes the fallback's candidate snapshot of the residual decode's own buffer.</summary>
+        public bool CaptureCohSnapshot;
+        /// <summary>COH-RES-CAND: the snapshot taken right after the residual decode's <c>DecodeAll</c>, on that call's thread; <c>null</c> when not requested, not reached, or the snapshot call failed.</summary>
+        public byte[]? CohSnapshot;
     }
 
     /// <summary>
@@ -183,6 +189,9 @@ internal static class SubtractionPass
 
         /// <summary>coh-fb-residual: how many signals the pass fitted and subtracted (0 = the residual buffer equals the input).</summary>
         public int FittedSignals { get; internal set; }
+
+        /// <summary>COH-RES-CAND: the fallback's candidate snapshot of the residual buffer's own decode, or <c>null</c> (not requested, not reached, or the snapshot call failed).</summary>
+        public byte[]? CohSnapshot { get; internal set; }
     }
 
     /// <summary>The outcome strings of the third pass, exactly as they appear in the per-cycle log line and the status counters.</summary>
@@ -201,7 +210,8 @@ internal static class SubtractionPass
     /// <param name="ElapsedMs">Wall time of the pass.</param>
     /// <param name="FittedSignals">How many of the residual pass's new signals were fitted and subtracted.</param>
     /// <param name="Residual">coh-fb-residual: the third pass's own subtracted copy of the residual buffer (the array the pass decoded), or <c>null</c> if it never built one. Read-only for callers; not copied.</param>
-    internal sealed record ThirdPassResult(Ft8NativeResult[] NewResults, string Outcome, long ElapsedMs, int FittedSignals, float[]? Residual = null);
+    /// <param name="CohSnapshot">COH-RES-CAND: the fallback's candidate snapshot of that buffer's own decode (taken right after its <c>DecodeAll</c>), or <c>null</c> (not requested, not reached, or the snapshot call failed).</param>
+    internal sealed record ThirdPassResult(Ft8NativeResult[] NewResults, string Outcome, long ElapsedMs, int FittedSignals, float[]? Residual = null, byte[]? CohSnapshot = null);
 
     /// <summary>
     /// third-pass-deep (#240, spec section 1): one more subtract-and-decode round, incremental. Starts from the residual
@@ -231,14 +241,15 @@ internal static class SubtractionPass
         Ft8ApConstraints? ap,
         TimeSpan? deadline,
         CancellationToken ct = default,
-        CqApCycleCounters? cqAp = null)
+        CqApCycleCounters? cqAp = null,
+        bool captureCohSnapshot = false)
     {
         if (residualBuffer.Length != PcmLength)
             throw new ArgumentException(
                 $"residualBuffer must be exactly {PcmLength} samples. Got {residualBuffer.Length}.",
                 nameof(residualBuffer));
 
-        var stats = new PassStats();
+        var stats = new PassStats { CaptureCohSnapshot = captureCohSnapshot };
         var wall = System.Diagnostics.Stopwatch.StartNew();
         Ft8NativeResult[] result = await Task.Run(
             () => RunCore(interop, residualBuffer, residualNewResults, pass0Results, maxDegreeOfParallelism, logger, ap, deadline, stats, ct, cqAp), ct);
@@ -253,7 +264,7 @@ internal static class SubtractionPass
 
         long ms = (long)wall.Elapsed.TotalMilliseconds;
         LogThirdPass(logger, result.Length, ms, outcome, stats.FittedSignals);
-        return new ThirdPassResult(result, outcome, ms, stats.FittedSignals, stats.Residual);
+        return new ThirdPassResult(result, outcome, ms, stats.FittedSignals, stats.Residual, stats.CohSnapshot);
     }
 
     /// <summary>
@@ -451,6 +462,19 @@ internal static class SubtractionPass
         {
             pass2Results = interop.DecodeAll(residual);
             if (cqAp is { Enabled: true }) cqAp.AddAttempts(interop.GetLastCqApStats().Attempts);
+            // COH-RES-CAND (R2): the fallback's candidate list and decoded payloads of THIS buffer are thread-local to this thread and are reset by the
+            // next ft8_decode_all on it, so they are copied out here, immediately after the call and on its thread, with the diagnostics switch as it is
+            // (the shim records the candidates and payloads before that switch is consulted: ft8_shim.c:1858-1884 against :1893). Requested only with the
+            // setting ON; OFF takes no snapshot. A failed snapshot must not cost the residual pass its decodes: it is left null (the caller falls back).
+            if (stats.CaptureCohSnapshot)
+            {
+                try { stats.CohSnapshot = interop.CohFallbackSnapshot(); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    stats.CohSnapshot = null;
+                    logger?.LogWarning("Residual-buffer candidate snapshot failed ({ExceptionType}) - the third fallback run is not started this cycle (resRun=no-snapshot).", ex.GetType().Name);
+                }
+            }
         }
         finally
         {

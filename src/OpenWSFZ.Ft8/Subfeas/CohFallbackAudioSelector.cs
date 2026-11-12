@@ -29,7 +29,9 @@ internal static class CohFallbackAudioSelector
     /// <summary>The audio the fallback reads and the level of the step-down it came from.</summary>
     /// <param name="Pcm">The decoder's own array (never a copy): read-only for the caller, not to be mutated or pooled while the fallback runs.</param>
     /// <param name="Level">One of the <c>Level*</c> constants.</param>
-    internal readonly record struct Choice(float[] Pcm, string Level)
+    /// <param name="CohSnapshot">COH-RES-CAND: the candidate snapshot taken from the decode of THIS buffer (<c>null</c> for the original audio, or when none was taken).
+    /// Chosen by the same step-down as <paramref name="Pcm"/>, so the list and the audio cannot come from different buffers.</param>
+    internal readonly record struct Choice(float[] Pcm, string Level, byte[]? CohSnapshot = null)
     {
         /// <summary>True when <see cref="Pcm"/> is a residual buffer.</summary>
         public bool IsResidual => Level is LevelResidual3 or LevelResidual2;
@@ -58,9 +60,39 @@ internal static class CohFallbackAudioSelector
             return new Choice(original, LevelUnavailable);
 
         if (third is { Outcome: SubtractionPass.ThirdPassOutcome.Ran, Residual: { } thirdBuffer })
-            return new Choice(thirdBuffer, LevelResidual3);
+            return new Choice(thirdBuffer, LevelResidual3, third.CohSnapshot);
 
-        return new Choice(report.Residual, LevelResidual2);
+        return new Choice(report.Residual, LevelResidual2, report.CohSnapshot);
+    }
+
+    /// <summary>
+    /// COH-RES-CAND v2 (R4, Amendment 2 A2.1): the highest published integer frequency, in Hz, at which a new-text row of the third (residual-candidates) fallback
+    /// run is kept. Frozen from #272's arm-B data by QA's Stage 0 (record <c>qa/rr-study/2026-11-12-1352-qa-coh-res-cand-v2-stage0-record.md</c>, script
+    /// <c>stage0.py</c>; kept_C 57 of 119, kept_TA 4 of 19, p_perm 0.0476) and written into the spec by the Architect's Amendment 2 (<c>538ecc29</c>). Never
+    /// re-fitted: a pinned gate (HK-021(p)).
+    /// </summary>
+    internal const int ResidualRunMaxFreqHz = 1097;
+
+    /// <summary>
+    /// The integer frequency, in Hz, a fallback row is PUBLISHED with: the one place it is formed (the native result's <c>FreqHz</c>, which <c>MapNative</c> copies
+    /// unchanged into <c>DecodeResult.FreqHz</c>, the value the replay harness writes as <c>freq</c>). Banker's rounding, as it has always been.
+    /// </summary>
+    internal static int PublishedFreqHz(CohFallbackRow row) => (int)Math.Round(row.OutFreqHz);
+
+    /// <summary>COH-RES-CAND v2 (R4): whether a new-text row of the third run with this published integer frequency is kept (<c>&lt;=</c> <see cref="ResidualRunMaxFreqHz"/>).</summary>
+    internal static bool PassesResidualRunGate(int publishedFreqHz) => publishedFreqHz <= ResidualRunMaxFreqHz;
+
+    /// <summary>
+    /// COH-RES-CAND v2 (R3, R-F4): the rows of the third run that may be considered for publication: those whose F1b gate PASSED
+    /// (<see cref="CohFallbackState.NewGated"/>), one per payload by the selector's own rule (first non-edge, in candidate order). A
+    /// <see cref="CohFallbackState.GatedOut"/> row is never taken, <b>whatever its <see cref="CohFallbackRow.Admitted"/> flag says</b>, so R-F4 (which sets that
+    /// flag only inside <see cref="Merge"/>, on the first two runs' rows) can never ungate them. The third run's rows never enter <see cref="Merge"/>.
+    /// </summary>
+    internal static IReadOnlyList<CohFallbackRow> ThirdRunCandidates(IReadOnlyList<CohFallbackRow>? thirdRows)
+    {
+        if (thirdRows is null || thirdRows.Count == 0) return [];
+        var f1bPassed = thirdRows.Where(static r => r.State == CohFallbackState.NewGated).ToList();
+        return CoherentFallbackSelector.Select(f1bPassed);
     }
 
     /// <summary>The <c>audio=</c> log field for a mode and the level its step-down reached.</summary>

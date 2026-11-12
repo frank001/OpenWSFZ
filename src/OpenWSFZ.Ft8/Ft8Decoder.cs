@@ -270,6 +270,28 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>LATE-SUB L1': whether the late round is requested now (the read-back of <see cref="SetLateSubtractionRound"/>).</summary>
     public bool LateSubtractionRound => _lateSubtractionRound;
 
+    private volatile bool _coherentFallbackResidualCandidates;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+
+    /// <summary>
+    /// COH-RES-CAND v2: sets <c>decoder.coherentFallbackResidualCandidates</c>. <c>false</c> (the start value, and the configured default when the key is
+    /// absent) leaves every code path as it was: no extra snapshot is taken and no third run is made. <c>true</c> takes the candidate snapshot of the residual
+    /// buffer's own decode and, in <see cref="CoherentFallbackAudio.Both"/> mode with a residual buffer, adds a THIRD, last coherent-fallback run (the residual
+    /// audio with that snapshot) whose new-text rows are published only when their integer frequency is at most
+    /// <see cref="CohFallbackAudioSelector.ResidualRunMaxFreqHz"/> Hz. The two runs of today are unchanged. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCoherentFallbackResidualCandidates(bool enabled)
+        => _coherentFallbackResidualCandidates = enabled;
+
+    /// <summary>COH-RES-CAND v2: whether the third fallback run is requested now (the read-back of <see cref="SetCoherentFallbackResidualCandidates"/>).</summary>
+    public bool CoherentFallbackResidualCandidates => _coherentFallbackResidualCandidates;
+
+    /// <summary>COH-RES-CAND v2: the <c>resRun=</c> values of the coherent-fallback log line (only written with the setting effective).</summary>
+    internal const string ResRunRan = "ran", ResRunSkippedBudget = "skipped-budget", ResRunNoSnapshot = "no-snapshot", ResRunNoResidual = "no-residual",
+        ResRunFailed = "failed";
+
+    /// <summary>COH-RES-CAND v2: the <c>resCand=</c> values (the buffer whose own candidate list the third run read; <c>none</c> when there is no residual buffer).</summary>
+    internal const string ResCandResidualR2 = "residual-R2", ResCandResidualR3 = "residual-R3", ResCandNone = "none";
+
     private volatile bool _cqApEnabled;   // CQ-AP: false at construction (and by default in the config); the daemon sets the configured value before the first cycle and on every config change
 
     /// <summary>
@@ -644,6 +666,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         var  audioMode     = _coherentFallbackAudio;
         // COH-GATE-G R-F4: read ONCE per cycle too; it acts only in Both mode (Original and Residual are unchanged).
         bool ungatedOn     = _coherentFallbackResidualUngated && audioMode == CoherentFallbackAudio.Both;
+        // COH-RES-CAND v2: read ONCE per cycle too; it acts only while the fallback runs in Both mode (Original and Residual are unchanged).
+        bool resCandOn     = cohOn && _coherentFallbackResidualCandidates && audioMode == CoherentFallbackAudio.Both;
         // LATE-SUB L1': read ONCE per cycle too. A staged cycle only (the round is part of the staged path); whether the fallback ran, the depth is Deep
         // and a residual buffer exists are checked where each is known, and each failing check is a counted, logged skip (R2/R6).
         bool lateOn        = twoStage && _lateSubtractionRound;
@@ -1056,7 +1080,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
             var newFromResidual = await SubtractionPass.RunAsync(
                 _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
-                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report, cq);
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report, cq, captureCohSnapshot: resCandOn && deep);
 
             // Batch 2: nothing when the pass was abandoned, failed, or found nothing new.
             var second = newFromResidual.Length == 0 ? [] : MapNative(newFromResidual, PathResidual);
@@ -1207,7 +1231,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // Same budget, same cancellation/reserve mechanism: what remains of the 13 s measured from the start of this decode.
                 var third = await SubtractionPass.RunThirdPassAsync(
                     _interop, report.Residual, newFromResidual, native, EffectiveSubtractionThreads, _logger,
-                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, cq);
+                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, cq, captureCohSnapshot: resCandOn);
                 thirdResult = third;
 
                 switch (third.Outcome)
@@ -1265,6 +1289,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             int workers = EffectiveSubtractionThreads;
             CohFallbackAudioSelector.Merged? merged = null;
             CohFallbackRunResult? outcome;
+            string? resRun = null, resCand = null;          // COH-RES-CAND v2: log tokens; null while the setting is not effective
+            CohFallbackRunResult? thirdRun = null;          // COH-RES-CAND v2: the third run's own result (its rows never enter Merge)
+            double resWallMs = 0.0;
             if (audioMode != CoherentFallbackAudio.Both)
             {
                 outcome = await Task.Run(
@@ -1287,6 +1314,29 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                         : new CohFallbackRunResult(CohFallbackAudioSelector.NotRun(first.Stats), []) { Workers = first.Workers };
                 }
 
+                // COH-RES-CAND v2 (R3): the THIRD, last run, after the two of today (unchanged above). The residual audio with the snapshot of THAT buffer's own
+                // decode. OFF: resRun stays null and nothing in this block runs, so every call and every value is as it was.
+                if (resCandOn)
+                {
+                    resCand = !choice.IsResidual ? ResCandNone : choice.Level == CohFallbackAudioSelector.LevelResidual3 ? ResCandResidualR3 : ResCandResidualR2;
+                    if (!choice.IsResidual) resRun = ResRunNoResidual;
+                    else if (first is null) { /* the first run failed: nothing is published this cycle (outcome is null below) and no line is written, so there is no token */ }
+                    else if (choice.CohSnapshot is not { } ownSnapshot) resRun = ResRunNoSnapshot;
+                    else
+                    {
+                        double leftAfterSecondMs = budgetMs - (sw.Elapsed - fbStart).TotalMilliseconds;
+                        if (leftAfterSecondMs <= 0.0) resRun = ResRunSkippedBudget;
+                        else
+                        {
+                            var thirdStart = sw.Elapsed;
+                            thirdRun = await Task.Run(
+                                () => RunCoherentFallback(choice.Pcm, ownSnapshot, leftAfterSecondMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+                            resWallMs = (sw.Elapsed - thirdStart).TotalMilliseconds;
+                            resRun = thirdRun is null ? ResRunFailed : ResRunRan;
+                        }
+                    }
+                }
+
                 var residualRun = choice.IsResidual ? first : null;
                 var originalRun = choice.IsResidual ? second : first;
                 merged = CohFallbackAudioSelector.Merge(originalRun?.Rows, residualRun?.Rows, ungatedOn);
@@ -1306,6 +1356,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
             var picked = CoherentFallbackSelector.Select(merged?.Rows ?? outcome.Rows);
             var natives = new List<Ft8NativeResult>(picked.Count);
+            var firstTwoTexts = resCandOn ? new HashSet<string>(StringComparer.Ordinal) : null;   // COH-RES-CAND v2: the texts of the first two runs, for "new text" below
             var edgeByText = new Dictionary<string, bool>(StringComparer.Ordinal);
             var admittedByText = new Dictionary<string, bool>(StringComparer.Ordinal);   // COH-GATE-G R-F4: text -> came from an admitted GatedOut row
             foreach (var row in picked)
@@ -1318,9 +1369,43 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     continue;
                 }
                 if (string.IsNullOrWhiteSpace(text)) continue;
-                natives.Add(new Ft8NativeResult { FreqHz = (int)Math.Round(row.OutFreqHz), Dt = row.OutDtS, Snr = row.SnrDb, Message = text });
+                natives.Add(new Ft8NativeResult { FreqHz = CohFallbackAudioSelector.PublishedFreqHz(row), Dt = row.OutDtS, Snr = row.SnrDb, Message = text });
                 edgeByText[text.TrimEnd()] = row.Edge;
                 admittedByText.TryAdd(text.TrimEnd(), row.Admitted);
+                firstTwoTexts?.Add(text.TrimEnd());
+            }
+
+            // COH-RES-CAND v2 (R3, R4, R5): the third run's rows, appended AFTER the rows above so they can never displace one. They came straight from the run, never
+            // through Merge, so R-F4's ungating (which only Merge applies, to the first two runs' rows) cannot reach them: ThirdRunCandidates takes F1b-passed rows only.
+            // A row is "new text" when its text is neither published already in this cycle (`seen`: batches 1 to 3) nor a text of the first two runs; only a new-text row
+            // meets the gate, on the PUBLISHED integer Hz (the same PublishedFreqHz the rows above are published with). MapNative's text de-duplication still applies.
+            int resNew = 0, resNewGated = 0, resNewKept = 0;
+            if (thirdRun is not null)
+            {
+                var firstTwoKeys = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var r in picked) firstTwoKeys.Add(Convert.ToHexString(r.Payload, 0, 10));
+                foreach (var row in CohFallbackAudioSelector.ThirdRunCandidates(thirdRun.Rows))
+                {
+                    if (firstTwoKeys.Contains(Convert.ToHexString(row.Payload, 0, 10))) continue;   // the same payload as a published row: not new, not unpacked again
+                    string? text;
+                    try { text = _interop.CohFallbackUnpack(row.Payload); }
+                    catch (NativeAccessViolationException)
+                    {
+                        _logger?.LogWarning("Cycle {Time}: coherent fallback text unpack caught a native access violation — that decode skipped.", timeStr);
+                        continue;
+                    }
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    string trimmed = text.TrimEnd();
+                    if (seen.Contains(trimmed) || firstTwoTexts!.Contains(trimmed)) continue;      // already published in this cycle: not new text
+                    resNew++;
+                    int publishedHz = CohFallbackAudioSelector.PublishedFreqHz(row);
+                    if (!CohFallbackAudioSelector.PassesResidualRunGate(publishedHz)) { resNewGated++; continue; }
+                    resNewKept++;
+                    natives.Add(new Ft8NativeResult { FreqHz = publishedHz, Dt = row.OutDtS, Snr = row.SnrDb, Message = text });
+                    edgeByText[trimmed] = row.Edge;
+                    admittedByText.TryAdd(trimmed, false);
+                    firstTwoTexts.Add(trimmed);
+                }
             }
 
             var batch = MapNative(natives.ToArray(), PathFallback, lateOn ? batch4Kept : null);
@@ -1332,6 +1417,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             double publishMs = -1.0;
             bool batchPublished = batch.Count > 0;
             var st = outcome.Stats;
+            // COH-RES-CAND v2 (R6): only while the setting is effective (ON, Both mode, fallback running); OFF leaves the line byte-identical. Aggregates only.
+            string resFields = resRun is null ? ""
+                : $", resRun={resRun}, resCand={resCand}, resEligible={(thirdRun is null ? 0 : thirdRun.Stats.Eligible)}, resNew={resNew}, resNewGated={resNewGated}, resNewKept={resNewKept}, resAbandoned={(thirdRun is null ? 0 : thirdRun.Stats.Abandoned)}, resWallMs={resWallMs:F0}";
             try
             {
                 if (batchPublished)
@@ -1347,13 +1435,14 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
                     "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
                     "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}, " +
-                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}{UngatedCount}.",
+                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}{UngatedCount}{ResFields}.",
                     st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
                     outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs,
                     multiSetOn ? "on" : "off", st.WalkEntered, outcome.CrcValidBySet(1), outcome.CrcValidBySet(2), outcome.CrcValidBySet(3), outcome.CrcValidBySet(4),
                     CohFallbackAudioSelector.Label(audioMode, choice.Level),
                     merged is null ? "" : $", fromOriginal={merged.FromOriginal}, fromResidual={merged.FromResidual}, inBoth={merged.InBoth}",
-                    ungatedOn ? $", ungated={publishedUngated}" : "");   // only while the setting is effective (ON and Both mode)
+                    ungatedOn ? $", ungated={publishedUngated}" : "",   // only while the setting is effective (ON and Both mode)
+                    resFields);   // COH-RES-CAND v2: only while the setting is effective
             }
         }
     }
