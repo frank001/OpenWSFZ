@@ -359,6 +359,9 @@ internal static class Program
                 if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge,workers,fb_start_ms,fb_wall_ms,batch,batch4_published,batch4_publish_ms"
 #if HAS_COHMS
                     + ",sets,walk_entered,crc_c1,crc_j2,crc_j3,crc_n1"
+#if HAS_COHRESCAND
+                    + ",resrun,rescand,reselig,resnew,resnewgated,resnewkept,resabandoned,reswallms"
+#endif
 #endif
                     );
 #else
@@ -892,8 +895,19 @@ internal static class Program
         private static volatile bool _seen;
         private static string _vals = "";
         private static readonly System.Text.RegularExpressions.Regex Rx = new(
-            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)(?:, workers=(\d+), fbStartMs=(-?\d+), fbWallMs=(-?\d+), batch=(\d+), batch4Published=([01]), batch4PublishMs=(-?\d+)(?:, sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+)(?:, audio=[a-z0-9()-]+(?:, fromOriginal=\d+, fromResidual=\d+, inBoth=\d+(?:, ungated=\d+)?)?(?:, resCand=(residual-R2|residual-R3|fallback-orig), resEligible=(-?\d+), origEligible=(-?\d+))?)?)?)?\.$");
-        public static void Reset() { _seen = false; _vals = ""; }
+            @"^Coherent fallback: eligible=(\d+), attempted=(\d+), crcOk=(\d+), f1bComputed=(\d+), gated=(\d+), published=(\d+), abandoned=(\d+), elapsedMs=(\d+), publishedEdge=(\d+), path=(\d+)(?:, workers=(\d+), fbStartMs=(-?\d+), fbWallMs=(-?\d+), batch=(\d+), batch4Published=([01]), batch4PublishMs=(-?\d+)(?:, sets=(on|off), walkEntered=(\d+), crcC1=(\d+), crcJ2=(\d+), crcJ3=(\d+), crcN1=(\d+)(?:, audio=[a-z0-9()-]+(?:, fromOriginal=\d+, fromResidual=\d+, inBoth=\d+(?:, ungated=\d+)?)?(?:, resCand=(residual-R2|residual-R3|fallback-orig), resEligible=(-?\d+), origEligible=(-?\d+))?(?:, resRun=([a-z-]+), resCand=(residual-R2|residual-R3|none), resEligible=(-?\d+), resNew=(\d+), resNewGated=(\d+), resNewKept=(\d+), resAbandoned=(\d+), resWallMs=(\d+))?)?)?)?\.$");
+        public static void Reset()
+        {
+            _seen = false; _vals = "";
+#if HAS_COHRESCAND
+            _res = ",,,,,,,";
+#endif
+        }
+#if HAS_COHRESCAND
+        // COH-RES-CAND v2: the third run's ON-only fields (resRun, resCand, resEligible, resNew, resNewGated, resNewKept, resAbandoned, resWallMs), appended as the LAST eight coh.csv columns; blank when the line has none.
+        private static string _res = ",,,,,,,";
+        public static string ResTail() => "," + _res;
+#endif
         public static void Set(string rendered)
         {
             var m = Rx.Match(rendered);
@@ -909,10 +923,17 @@ internal static class Program
             _vals += "," + string.Join(",", m.Groups[17].Value, m.Groups[18].Value, m.Groups[19].Value, m.Groups[20].Value, m.Groups[21].Value, m.Groups[22].Value);
 #endif
 #endif
+#if HAS_COHRESCAND
+            _res = m.Groups[26].Success ? string.Join(",", m.Groups[26].Value, m.Groups[27].Value, m.Groups[28].Value, m.Groups[29].Value, m.Groups[30].Value, m.Groups[31].Value, m.Groups[32].Value, m.Groups[33].Value) : ",,,,,,,";
+#endif
             _seen = true;
         }
         #if HAS_COHMS
-        public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,,,,,,,,,,,,,";
+        public static string Line() => (_seen ? "1," + _vals : "0,,,,,,,,,,,,,,,,,,,,,")
+#if HAS_COHRESCAND
+            + ResTail()
+#endif
+            ;
 #elif HAS_COHFB4
         public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,,,,,,,";
 #else
