@@ -59,7 +59,9 @@ public sealed record DecoderConfig
         // LATE-SUB L1': in the constructor with its default (true since v0.69), for the same reason as the fields above.
         bool lateSubtractionRound = true,
         // CQ-AP: in the constructor with its default (false), for the same reason as the fields above.
-        bool cqApEnabled = false)
+        bool cqApEnabled = false,
+        // COH-RES-CAND v2: in the constructor with its default (false), for the same reason as the fields above.
+        bool coherentFallbackResidualCandidates = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -78,6 +80,7 @@ public sealed record DecoderConfig
         CoherentFallbackResidualUngated = coherentFallbackResidualUngated;
         LateSubtractionRound = lateSubtractionRound;
         CqApEnabled = cqApEnabled;
+        CoherentFallbackResidualCandidates = coherentFallbackResidualCandidates;
     }
 
     /// <summary>
@@ -309,4 +312,16 @@ public sealed record DecoderConfig
     /// key leaves it as it was. Read once per window; takes effect on the next window.
     /// </summary>
     public bool CqApEnabled { get; init; } = false;
+
+    /// <summary>
+    /// COH-RES-CAND v2: when <c>true</c>, the coherent fallback in <c>Both</c> mode with a residual buffer makes a THIRD, last run: the residual audio with
+    /// THAT buffer's own candidate snapshot, on whatever budget is left after today's two runs (which are unchanged). Its new-text rows (text not already
+    /// published in the cycle) are kept only when their published integer frequency is at most 1097 Hz (the gate frozen from #272's data, Stage 0 record
+    /// and Amendment 2 of the COH-RES-CAND v2 spec) and always pass F1b: R-F4's ungating never applies to them. <b>Default <c>false</c></b>: an absent key
+    /// reads <c>false</c> and every code path is as it was (no extra snapshot is taken, no third run). It acts only while <see cref="CoherentFallbackEnabled"/>
+    /// is on, on <see cref="DecodingDepth.Deep"/>, in <c>Both</c> mode; in <c>Original</c> and <c>Residual</c> modes it has no effect. Config file and API
+    /// only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the
+    /// next window. Turning it on starts a new live era: never pool its decodes with figures from the setting off.
+    /// </summary>
+    public bool CoherentFallbackResidualCandidates { get; init; }
 }
