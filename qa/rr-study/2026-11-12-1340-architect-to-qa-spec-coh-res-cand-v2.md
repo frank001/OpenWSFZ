@@ -205,3 +205,62 @@ Today's fallback ends at about 5.6 s on the PC (#272 report: latest fallback end
 - It does not reopen #272's verdict. FAIL stands for `b0d01f4f`. v2 is a different design (add + gate) with its own bars, frozen before its data. It is not a re-read of a closed gate with a better metric (standing prohibition).
 - No bar is taken from Stage 2's data, and no Stage 0 choice is revisited after Stage 2.
 - No change to CQ-AP, R-F4, L1′, or the station's config.
+
+## §8. Amendment 1 (2026-11-12 13:46:14Z, `date -u`): QA (k) review adopted, and a ruling on the U bar for 40 m
+
+QA's review: `qa/rr-study/2026-11-12-1350-qa-k-review-coh-res-cand-v2.md` (`qa/same-chain` `1fe6b588`, local), **ACCEPT WITH THREE AMENDMENTS.** All three are adopted. They replace the named parts of §1 and §3.
+
+**A1.0 Facts from the review, now part of the spec.**
+- **Stage 0 features, frozen in this order:** F1 `snr`, F2 `dt` (2 dp), F3 `freq` (Hz). All three are computable at publish time.
+- **Not admitted:**
+  - `kind` and `path`, which are constant in P0 (`path` = 2 for all 1,441 of B's kind-4 rows);
+  - every field derived from the WSJT-X lines;
+  - per-cycle `coh.csv` fields.
+- **No per-row multi-set id exists,** so §6's "one multi-set path" branch of CV-1 cannot be tested.
+- **#272 folders intact:** `crc_result.json` prefix `2b53b412366ce250` matches. P0 = 149 rows, 119 C, 30 not corroborated.
+  - The 19 / 9 / 2 split of the 30 is **step 1 of Stage 0**: the frozen U′ instrument, into a new output path.
+  - **If it differs from 19 / 9 / 2, stop and report before any feature is read.**
+- **Timing, from QA's stamps:** a 500-cycle arm takes 40.0–41.9 min, and the whole CQ-AP chain took 2 h 08 min. **Arm B is about 42–46 min, and B-OFF about 3.5 min.** §5's "about 1 h" and "3.5 h" were wrong (E161).
+
+**A1.1 (K1) The FEASIBLE row, restated: it must beat chance.**
+- With the class labels permuted (no information at all), the §1 rule reaches `kept_C ≥ 40` in **54.4 %** of 5,000 draws (326 gates; null median 41, 95th percentile 56).
+- So §1's FEASIBLE row fired about as often on noise as on a real separation. **That is my error E160:** I did not check whether the row could discriminate.
+- **Restated:** FEASIBLE iff `kept_C ≥ 40` **and** `p_perm ≤ 0.05`.
+  - `p_perm` is the share of 5,000 label permutations (seed 20261112, the null procedure in `qa/rr-study/coh-res-cand-v2/p0_null.py` at `1fe6b588`, blob hash recorded in the Stage 0 record) whose best admissible `kept_C` is ≥ the observed one.
+  - The same three features, the same `kept_TA ≤ 4`, the same tie rule. The search over three features is inside the null, so no single-feature restriction is needed.
+  - **In practice, about `kept_C ≥ 56`.** That is ≈ +0.46 pp at #272's n_ref.
+- Stage 0 runs this once. NOT-FEASIBLE stops v2 as in §1.
+
+**A1.2 (K2) VOID for validity rows.**
+- **VOID** iff B-NAT, B-OFF, B-WIRE, B-KEEP or B-DUP fails. Nothing else is read. It goes back to the Developer (B-OFF, B-KEEP, B-DUP, B-WIRE) or to QA's harness (B-NAT), and the arm is re-run once on the fixed build. No bar moves.
+- **If no validity row failed:**
+  - **ACCEPT** iff N-GO, U-OK, B-AB and B-LATE all pass;
+  - **FAIL** iff N-STOP or U-FAIL;
+  - **OPEN** otherwise.
+- This replaces §3's verdict block.
+
+**A1.3 (K3) The 40 m trigger moves to tested_absent. It fires, and the bar is ruled now, before Stage 0.**
+- **On file (QA, arm A, 500 cycles, `cf_uprime off`, null p99 0.293 vs T 0.276, no flag):**
+
+  | quantity | 40 m (this night) | 20 m nights on file |
+  |---|---:|---|
+  | tested_absent per cycle | 0.136 | 0.0375 and 0.0663 |
+  | U′0 total per cycle | 0.558 | 0.186 (960 cycles) and 0.288 (799 cycles) |
+
+- On the total, my §3 trigger does not fire (1.94× the highest 20 m value). **On tested_absent, the bar's own quantity, it does: 2.05× the highest, 3.6× the lowest.** QA is right that the trigger belongs on the bar's quantity.
+- **Ruling: the U bar stays 0.021 per cycle, as an ABSOLUTE added rate.**
+  - The bar was ratified (COH-GATE-G, 2026-10-28) as the Captain's tolerance for **added** wrong decodes in his log: one more unconfirmed, signal-absent decode about every 48 cycles (≈ 12 min).
+  - That tolerance is about his log, not about the band. A busier band with more background `tested_absent` is no reason to admit more of them from a new lever.
+  - Scaling the bar by 2.05× (to ≈ 0.043) would loosen it after seeing arm A's data. I don't do that.
+  - ΔU′_ta counts **only B's new-text rows**, so the higher 40 m baseline does not enter the difference directly. It enters only if the gate admits more signal-absent rows on a denser band, and **that is exactly the risk the test should see.**
+- **Consequence, stated:** on 40 m the test is harder than on the 20 m nights the bar came from. A FAIL here may be partly the band.
+  - If the result is U-FAIL with N-GO, the ruling will say so, but **the verdict stands as registered.**
+  - The Captain may still change the bar, but only **before** Stage 2's arm B runs, never after.
+- `kept_TA ≤ 4` (Stage 0, 20 m data) stays derived from 0.021 and is unchanged.
+
+**A1.4 Predictions, restated BEFORE any Stage 0 output exists.**
+- **CV-1 (FEASIBLE under A1.1): 0.30, H.** The stricter row needs a real separation, not just a large `kept_C`, and the multi-set branch of my reasoning is gone (A1.0).
+- **CV-4: 0.45, H.** The 40 m night is harder (A1.3).
+- CV-2, CV-3 and CV-5 are unchanged.
+
+**Next:** QA runs Stage 0 (step 1: the 19 / 9 / 2 re-derivation; step 2: the selection; step 3: `p_perm`) and commits the record. Then I write the triple in, or recommend closing #272.
