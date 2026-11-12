@@ -222,6 +222,11 @@ link /DLL ^
   /EXPORT:ft8_coherent_fallback_sets_at ^
   /EXPORT:ft8_coherent_fallback_set_groups ^
   /EXPORT:ft8_hash_state_restore ^
+  /EXPORT:ft8_set_cq_ap ^
+  /EXPORT:ft8_get_last_ap_kinds ^
+  /EXPORT:ft8_get_last_cq_ap_stats ^
+  /EXPORT:ft8_cq_ap_pattern ^
+  /EXPORT:ft8_cq_ap_probe_llrs ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\decode.obj" ^

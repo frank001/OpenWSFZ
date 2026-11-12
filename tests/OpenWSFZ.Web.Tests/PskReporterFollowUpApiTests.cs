@@ -93,7 +93,7 @@ public sealed class PskReporterFollowUpApiTests : IClassFixture<WebTestFactory>
             doc.RootElement.EnumerateObject().Select(p => p.Name).Should().BeEquivalentTo(
                 ["state", "lastDatagramUtc", "lastDatagramRecords", "reason", "window"], "counts and a reason code only: no member could carry a callsign");
             doc.RootElement.GetProperty("window").EnumerateObject().Select(p => p.Name).Should().BeEquivalentTo(
-                ["seen", "reported", "region", "noDial", "identity", "hashed", "ownCall", "dedup"]);
+                ["seen", "reported", "region", "noDial", "identity", "hashed", "ownCall", "dedup", "ap"]);
         }
     }
 

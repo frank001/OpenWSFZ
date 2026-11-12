@@ -291,7 +291,7 @@ public sealed class OsdSignFixTests : IDisposable
             window.Should().MatchRegex($@"osd_prepare_llr\(\s*{arr}\s*\)",
                 $"decode.c:{i + 1}: osd_decode({arr}, ...) must be preceded by osd_prepare_llr({arr}) so OSD and its gate read the SAME corrected array");
         }
-        callers.Should().Be(3, "ftx_decode_candidate, ft8_ldpc_decode_llrs' implementation and the AP path are the three callers");
+        callers.Should().Be(4, "ftx_decode_candidate, ft8_ldpc_decode_llrs' implementation, the AP path and cq_ap_core (the CQ-AP attempt's test-only OSD hook, cq-ap D4: production passes allow_osd = 0, so it never reaches osd_decode) are the four callers");
     }
 
     // ── 3.5 interop round trip ──────────────────────────────────────────────

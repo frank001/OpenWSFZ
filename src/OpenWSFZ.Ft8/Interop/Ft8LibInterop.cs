@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
+using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Ft8.Interop;
 
@@ -490,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260071;
+    private const int ExpectedShimVersion = 20260072;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -580,8 +581,37 @@ internal static class Ft8LibInterop
     private static extern int NativeDecodeAll(
         [In] float[]            pcm,
         int                     pcmLen,
-        [Out] Ft8NativeResult[] results,
+        [Out] Ft8NativeResultWire[] results,
         int                     maxResults);
+
+    /// <summary>
+    /// cq-ap (shim 20260072): sets the per-thread CQ a-priori flag of the next <see cref="NativeDecodeAll"/> calls on this thread.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_set_cq_ap", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSetCqAp(int enabled);
+
+    /// <summary>cq-ap: apKind (0 none, 1 cq) of each decode of the most recent <see cref="NativeDecodeAll"/> on this thread, index-aligned with its results.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_ap_kinds", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeGetLastApKinds([Out] byte[] kinds, int capacity);
+
+    /// <summary>cq-ap: CQ-AP attempts, decodes and OSD entries of the most recent <see cref="NativeDecodeAll"/> on this thread.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_get_last_cq_ap_stats", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeGetLastCqApStats(out int attempts, out int decodes, out int osdEntries);
+
+    /// <summary>cq-ap (test export): the CQ-AP forcing pattern, 174 bytes (0 = not forced, 1 = forced to bit 0, 2 = forced to bit 1); returns the forced count or -1.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_cq_ap_pattern", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCqApPattern([Out] byte[] force174);
+
+    /// <summary>cq-ap (test export): the CQ-AP core on a raw 174-LLR vector.</summary>
+    [DllImport("libft8.dll", EntryPoint = "ft8_cq_ap_probe_llrs", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCqApProbeLlrs(
+        [In] float[]  rawLlr174,
+        int           maxIters,
+        int           allowOsd,
+        int           flipSign,
+        [Out] float[] outFinalLlr174,
+        [Out] byte[]  outA91,
+        out int       outLdpcErrors);
 
     /// <summary>
     /// Return per-pass new-decode counts from the most recent
@@ -921,8 +951,8 @@ internal static class Ft8LibInterop
 
         EnsureInitialized();
 
-        var results = new Ft8NativeResult[MaxResults];
-        int count = NativeDecodeAll(pcm, pcm.Length, results, MaxResults);
+        var wire = new Ft8NativeResultWire[MaxResults];
+        int count = NativeDecodeAll(pcm, pcm.Length, wire, MaxResults);
 
         // -2 = access violation caught by the SEH wrapper in ft8_decode_all
         //      (MSVC / Windows only).  Throw NativeAccessViolationException so
@@ -938,9 +968,82 @@ internal static class Ft8LibInterop
 
         if (count == 0) return [];
 
-        // Return only the populated slice.
-        return results[..count];
+        // cq-ap (shim 20260072): the apKind of each decode comes from the index-aligned TLS getter, read here on the thread that
+        // made the call (same-thread contract, as the other ft8_get_last_* getters). It is all zero with the flag off.
+        var kinds = new byte[count];
+        int kindCount = NativeGetLastApKinds(kinds, count);
+        if (kindCount != count)
+            throw new InvalidOperationException(
+                $"ft8_get_last_ap_kinds returned {kindCount} entries for {count} decodes — the count contract is broken.");
+
+        var results = new Ft8NativeResult[count];
+        for (int i = 0; i < count; i++)
+        {
+            results[i] = new Ft8NativeResult
+            {
+                FreqHz  = wire[i].FreqHz,
+                Dt      = wire[i].Dt,
+                Snr     = wire[i].Snr,
+                Message = wire[i].Message,
+                ApKind  = kinds[i] == (byte)ApKind.Cq ? ApKind.Cq : ApKind.None,
+            };
+        }
+        return results;
     }
+
+    /// <summary>
+    /// cq-ap (shim 20260072): sets the per-thread CQ a-priori flag for the next <see cref="DecodeAll"/> calls on the calling thread.
+    /// Call it on the decoding thread right before every <see cref="DecodeAll"/> (as <see cref="SetApBits"/>), and clear it where the thread is reused.
+    /// </summary>
+    public static void SetCqApEnabled(bool enabled)
+    {
+        EnsureInitialized();
+        NativeSetCqAp(enabled ? 1 : 0);
+    }
+
+    /// <summary>cq-ap: the CQ-AP counters of the most recent <see cref="DecodeAll"/> on this thread: attempts, decodes reaching the results, OSD entries from the CQ-AP path (0 in production).</summary>
+    public static (int Attempts, int Decodes, int OsdEntries) GetLastCqApStats()
+    {
+        EnsureInitialized();
+        NativeGetLastCqApStats(out int attempts, out int decodes, out int osd);
+        return (attempts, decodes, osd);
+    }
+
+    /// <summary>
+    /// cq-ap (test export): the CQ-AP forcing pattern, one entry per codeword position (0 = not forced, 1 = forced to bit 0, 2 = forced to
+    /// bit 1). Throws if the native encoder rejects the pattern message.
+    /// </summary>
+    internal static byte[] CqApPattern()
+    {
+        EnsureInitialized();
+        var force = new byte[FtxLdpcN];
+        if (NativeCqApPattern(force) < 0)
+            throw new InvalidOperationException("ft8_cq_ap_pattern failed (the encoder rejected the pattern message).");
+        return force;
+    }
+
+    /// <summary>
+    /// cq-ap (test export): the CQ-AP core (normalise, force, BP) on a RAW 174-LLR vector (bit 1 = positive).
+    /// <paramref name="flipSign"/> forces the opposite sign at every forced position; <paramref name="allowOsd"/> lets the attempt fall back to
+    /// OSD (the OSD counter's sensitivity hook; production never sets it).
+    /// </summary>
+    internal static (bool Decoded, float[] FinalLlr, byte[] A91, int LdpcErrors) CqApProbeLlrs(
+        float[] rawLlr174, int maxIters, bool allowOsd, bool flipSign)
+    {
+        EnsureInitialized();
+        var final = new float[FtxLdpcN];
+        var a91   = new byte[Ft8NativeA91Bytes];
+        int rc = NativeCqApProbeLlrs(rawLlr174, maxIters, allowOsd ? 1 : 0, flipSign ? 1 : 0, final, a91, out int errors);
+        if (rc < 0)
+            throw new InvalidOperationException("ft8_cq_ap_probe_llrs rejected its arguments.");
+        return (rc == 1, final, a91, errors);
+    }
+
+    /// <summary>Codeword length (FTX_LDPC_N).</summary>
+    internal const int FtxLdpcN = 174;
+
+    /// <summary>Packed codeword length (FTX_LDPC_K_BYTES).</summary>
+    private const int Ft8NativeA91Bytes = 12;
 
     /// <summary>
     /// Return per-pass new-decode counts from the most recent
@@ -1794,11 +1897,11 @@ internal static class Ft8LibInterop
         // Step 4: verify managed struct size matches native. Runs exactly once during lazy init
         // so the reflection cost (Marshal.SizeOf uses internal caching, not a compile-time
         // constant) is paid only at first load, not on every decode call.
-        int managedSize = Marshal.SizeOf<Ft8NativeResult>();
-        if (managedSize != Ft8NativeResult.ExpectedNativeSizeBytes)
+        int managedSize = Marshal.SizeOf<Ft8NativeResultWire>();
+        if (managedSize != Ft8NativeResultWire.ExpectedNativeSizeBytes)
             throw new InvalidOperationException(
-                $"Ft8NativeResult managed struct size ({managedSize}) does not match " +
-                $"native FT8Result size ({Ft8NativeResult.ExpectedNativeSizeBytes}). " +
+                $"Ft8NativeResultWire managed struct size ({managedSize}) does not match " +
+                $"native FT8Result size ({Ft8NativeResultWire.ExpectedNativeSizeBytes}). " +
                 "This is a build configuration error — recheck [StructLayout].");
     }
 }

@@ -273,6 +273,8 @@ public sealed class HashStateCompletenessTests(ITestOutputHelper output)
         "ft8_decode_all", "ft8_set_ap_bits", "ft8_get_last_pass_counts", "ft8_get_last_candidate_counts",
         "ft8_get_last_noise_floor_db", "ft8_get_last_llr_stats", "ft8_hash_state_size", "ft8_hash_state_save",
         "ft8_hash_state_restore",
+        // cq-ap (20260072): the early decode also sets the per-thread CQ flag before its DecodeAll and reads the apKind and counter getters after it.
+        "ft8_set_cq_ap", "ft8_get_last_ap_kinds", "ft8_get_last_cq_ap_stats",
     ];
 
     /// <summary>

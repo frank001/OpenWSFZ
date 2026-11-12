@@ -270,6 +270,20 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>LATE-SUB L1': whether the late round is requested now (the read-back of <see cref="SetLateSubtractionRound"/>).</summary>
     public bool LateSubtractionRound => _lateSubtractionRound;
 
+    private volatile bool _cqApEnabled;   // CQ-AP: false at construction (and by default in the config); the daemon sets the configured value before the first cycle and on every config change
+
+    /// <summary>
+    /// CQ-AP: sets <c>decoder.cqApEnabled</c>. The decoder object starts <c>false</c> and so does the configured default
+    /// (<c>DecoderConfig.CqApEnabled</c>, false when the key is absent). <c>false</c> leaves every code path as it was. <c>true</c> gives every candidate whose
+    /// normal attempt failed one more, CQ a-priori attempt (bits 0-28 and 74-76 forced, belief propagation only) in every native decode of the cycle; its decodes
+    /// carry <see cref="ApKind.Cq"/>. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCqApEnabled(bool enabled)
+        => _cqApEnabled = enabled;
+
+    /// <summary>CQ-AP: whether the CQ a-priori attempt is requested now (the read-back of <see cref="SetCqApEnabled"/>).</summary>
+    public bool CqApEnabled => _cqApEnabled;
+
     /// <summary>
     /// COH-FALLBACK Stage 2, R7': time held back from the shared 13 s cycle budget for the work after the native fallback returns (the text
     /// unpack, the mapping and the publish of the last batch). The native run stops starting candidates at <c>budget - elapsed - this</c>.
@@ -584,6 +598,34 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         Func<IReadOnlyList<DecodeResult>, Task>?   onThirdBatch  = null,
         Func<int, IReadOnlyList<DecodeResult>, Task>? onFallbackBatch = null)
     {
+        // CQ-AP: the flag is read ONCE per cycle, here, and travels in `cq` to every native decode of the cycle (pass 0, the residual pass, the third
+        // pass and the late round). With it off `cq.Enabled` is false, nothing is counted and no line is written. The per-cycle line is written
+        // after the whole staged decode returned (the early decode, a partial-audio pass 0, writes none: it would be a second line for one cycle).
+        var cq = new CqApCycleCounters(_cqApEnabled);
+        var decoded = await DecodeCoreInnerAsync(pcm, cycleStart, currentBand, onFirstBatch, early, ct,
+            onSecondBatch, onThirdBatch, onFallbackBatch, cq).ConfigureAwait(false);
+        if (cq.Enabled && !early)
+        {
+            // HK-037 / NFR-021: counts only, never message text or a callsign.
+            _logger?.LogInformation(
+                "Cycle {Time}: cq-ap: attempts={Attempts} decodes={Decodes}",
+                cycleStart.ToString("HH:mm:ss"), cq.Attempts, cq.Decodes);
+        }
+        return decoded;
+    }
+
+    private async Task<IReadOnlyList<DecodeResult>> DecodeCoreInnerAsync(
+        float[]                                    pcm,
+        DateTime                                   cycleStart,
+        string?                                    currentBand,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onFirstBatch,
+        bool                                       early,
+        CancellationToken                          ct,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onSecondBatch,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onThirdBatch,
+        Func<int, IReadOnlyList<DecodeResult>, Task>? onFallbackBatch,
+        CqApCycleCounters                          cq)
+    {
         // The flag is read ONCE per cycle. Two-stage only when the caller asked for it AND the flag is on: with the
         // flag off this method is, statement for statement, the pre-change single-batch path (P-9).
         // The EARLY entry (decode-early-batch-panel D3) never reads the flag: it is pass 0 only, whatever the flag says.
@@ -703,8 +745,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                         _interop.SetApBits(ap.MycallBits, ap.HiscallBits);
                     else
                         _interop.SetApBits([], []);  // explicitly clear any TLS residue from a prior cycle
+                    // CQ-AP: the per-thread flag, set in the same bracket and on the same thread, EVERY time (a pool thread may carry a stale value).
+                    _interop.SetCqApEnabled(cq.Enabled);
 
                     var r = _interop.DecodeAll(normalisedPcm);
+                    if (cq.Enabled) cq.AddAttempts(_interop.GetLastCqApStats().Attempts);   // before anything else touches the thread-local counters
                     var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
                     var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
                     var n = _interop.GetLastNoiseFloorDb();
@@ -757,7 +802,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         {
             var newFromResidual = await SubtractionPass.RunAsync(
                 _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
-                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, cqAp: cq);
             if (newFromResidual.Length > 0)
             {
                 var combined = new Ft8NativeResult[native.Length + newFromResidual.Length];
@@ -851,6 +896,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             }
 
             keptNatives?.Add(nr);
+            if (nr.ApKind == ApKind.Cq) cq.AddDecode();   // CQ-AP: counted here, where the decode is PUBLISHED (past the plausibility filter and the text de-duplication)
             mapped.Add(new DecodeResult(
                 Time:         timeStr,
                 Snr:          nr.Snr,
@@ -861,7 +907,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 WorkedBefore: workedBefore,
                 Band:         currentBand)
             {
-                Path = path   // R11 provenance tag (COH-FALLBACK Stage 2); not serialised, not in any output format
+                Path   = path,       // R11 provenance tag (COH-FALLBACK Stage 2); not serialised, not in any output format
+                ApKind = nr.ApKind   // CQ-AP provenance tag; not serialised, not in any output format
             });
         }
 
@@ -1009,7 +1056,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
             var newFromResidual = await SubtractionPass.RunAsync(
                 _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
-                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report);
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report, cq);
 
             // Batch 2: nothing when the pass was abandoned, failed, or found nothing new.
             var second = newFromResidual.Length == 0 ? [] : MapNative(newFromResidual, PathResidual);
@@ -1089,7 +1136,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 {
                     late = await SubtractionPass.RunThirdPassAsync(
                         _interop, choice.Pcm, fit, alsoKnown, EffectiveSubtractionThreads, _logger,
-                        _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct).ConfigureAwait(false);
+                        _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, cq).ConfigureAwait(false);
                 }
 
                 string outcome = late is null ? LateOutcomeNoNew : late.Outcome switch
@@ -1160,7 +1207,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // Same budget, same cancellation/reserve mechanism: what remains of the 13 s measured from the start of this decode.
                 var third = await SubtractionPass.RunThirdPassAsync(
                     _interop, report.Residual, newFromResidual, native, EffectiveSubtractionThreads, _logger,
-                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, cq);
                 thirdResult = third;
 
                 switch (third.Outcome)
