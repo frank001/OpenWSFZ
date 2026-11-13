@@ -131,6 +131,29 @@ def self_test() -> int:
         expect("a non-ELF file is refused", False)
     except ValueError:
         expect("a non-ELF file is refused", True)
+    # main() end to end: CI acts on the EXIT CODE only, so each outcome is asserted through it.
+    import contextlib, io, os, tempfile
+
+    def run_main(argv: list[str]) -> int:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return main(argv)
+
+    def run_on(blob: bytes) -> int:
+        fd, path = tempfile.mkstemp(suffix=".so")
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(blob)
+            return run_main([path])
+        finally:
+            os.remove(path)
+
+    expect("main: above the floor exits 1", run_on(above) == 1)
+    expect("main: at the floor exits 0", run_on(at) == 0)
+    expect("main: below the floor exits 0", run_on(below) == 0)
+    expect("main: a missing file exits 2", run_main([os.path.join(tempfile.gettempdir(), "no-such-libft8-guard-test.so")]) == 2)
+    expect("main: a non-ELF file exits 2", run_on(b"MZ not an elf") == 2)
+    expect("main: no argument exits 2", run_main([]) == 2)
+    expect("main: an unknown option exits 2", run_main(["--bogus"]) == 2)
     print("self-test:", "FAILED" if failures else "all passed")
     return 1 if failures else 0
 
