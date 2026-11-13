@@ -142,10 +142,14 @@ def t_rate_and_g():
 def t_decide():
     ok = {"v_null_n_ok": True, "v_pos_ci": [0.9, 1.0], "g_ci": [1.0, 2.0]}
     assert L.decide(ok) == "BUILD-WORTH"
-    assert L.decide(dict(ok, v_null_n_ok=False)) == "VOID" and L.decide(dict(ok, v_pos_ci=[0.79, 1.0])) == "VOID" and L.decide(dict(ok, v_pos_ci=[0.80, 1.0])) == "BUILD-WORTH"
-    assert L.decide(dict(ok, g_ci=[0.1, 0.39])) == "CLOSE" and L.decide(dict(ok, g_ci=[0.1, 0.4])) == "BETWEEN"
-    assert L.decide(dict(ok, g_ci=[0.4, 1.0])) == "BUILD-WORTH" and L.decide(dict(ok, g_ci=[0.39, 1.0])) == "BETWEEN"
-    assert L.decide(dict(ok, g_ci=[0.0, 0.1], v_pos_ci=[0.2, 0.5])) == "VOID"            # VOID before CLOSE
+    assert L.decide(dict(ok, v_null_n_ok=False)) == "VOID"                                # V-NULL-N gates everything, BUILD-WORTH included
+    assert L.decide(dict(ok, v_null_n_ok=False, g_ci=[0.0, 0.1])) == "VOID"
+    assert L.decide(dict(ok, v_pos_ci=[0.2, 0.5])) == "BUILD-WORTH"                       # A2: V-POS does not gate BUILD-WORTH
+    assert L.decide(dict(ok, v_pos_ci=[0.79, 1.0], g_ci=[0.1, 0.39])) == "VOID"           # V-POS fails and not BUILD-WORTH: VOID before CLOSE
+    assert L.decide(dict(ok, v_pos_ci=[0.79, 1.0], g_ci=[0.1, 0.9])) == "VOID"
+    assert L.decide(dict(ok, v_pos_ci=[0.80, 1.0], g_ci=[0.1, 0.39])) == "CLOSE"
+    assert L.decide(dict(ok, g_ci=[0.1, 0.4])) == "BETWEEN" and L.decide(dict(ok, g_ci=[0.39, 1.0])) == "BETWEEN"
+    assert L.decide(dict(ok, g_ci=[0.4, 1.0])) == "BUILD-WORTH" and L.decide(dict(ok, g_ci=[0.0, 0.0])) == "CLOSE"
 
 
 TESTS = [t_grids, t_s_e_values, t_shift_matches_direct, t_search_finds_signal_and_rejects_wrong_message, t_truth_check_gate, t_threshold, t_fa_and_floor, t_split_half_and_boot, t_rate_and_g, t_decide]
@@ -196,8 +200,9 @@ MUTS = [
     ("V-POS bar 0.80 -> 0.70", src_mut("V_POS = 0.80 ", "V_POS = 0.70 ")),
     ("decide: CLOSE non-strict", src_mut('if r["g_ci"][1] < CLOSE_PP:', 'if r["g_ci"][1] <= CLOSE_PP:')),
     ("decide: BUILD strict", src_mut('if r["g_ci"][0] >= BUILD_PP:', 'if r["g_ci"][0] > BUILD_PP:')),
-    ("decide: CLOSE before VOID", src_mut('    if (not r["v_null_n_ok"]) or r["v_pos_ci"][0] < V_POS:\n        return "VOID"\n    if r["g_ci"][1] < CLOSE_PP:\n        return "CLOSE"\n', '    if r["g_ci"][1] < CLOSE_PP:\n        return "CLOSE"\n    if (not r["v_null_n_ok"]) or r["v_pos_ci"][0] < V_POS:\n        return "VOID"\n')),
-    ("decide: V-NULL-N dropped", src_mut('(not r["v_null_n_ok"]) or ', "")),
+    ("decide: CLOSE before V-POS VOID", src_mut('    if r["v_pos_ci"][0] < V_POS:\n        return "VOID"\n    if r["g_ci"][1] < CLOSE_PP:\n        return "CLOSE"\n', '    if r["g_ci"][1] < CLOSE_PP:\n        return "CLOSE"\n    if r["v_pos_ci"][0] < V_POS:\n        return "VOID"\n')),
+    ("decide: V-POS gates BUILD-WORTH", src_mut('    if r["g_ci"][0] >= BUILD_PP:\n        return "BUILD-WORTH"\n    if r["v_pos_ci"][0] < V_POS:\n        return "VOID"\n', '    if r["v_pos_ci"][0] < V_POS:\n        return "VOID"\n    if r["g_ci"][0] >= BUILD_PP:\n        return "BUILD-WORTH"\n')),
+    ("decide: V-NULL-N dropped", src_mut('    if not r["v_null_n_ok"]:\n        return "VOID"\n', "")),
 ]
 
 

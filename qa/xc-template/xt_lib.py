@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XC-TEMPLATE library (spec arch/cross-cycle-prior 2e133bc0 + Amendment 1 section 10; QA (k) review f1fb7125).  QA tooling: no src/ or native/ change, no replay, no station.
+"""XC-TEMPLATE library (spec arch/cross-cycle-prior 2e133bc0 + Amendment 1 section 10 + Amendment 2 section 11; QA (k) review f1fb7125).  QA tooling: no src/ or native/ change, no replay, no station.
 Pure functions plus the grid search on a decimated baseband (the self-test drives them on synthetic audio).  HK-037: message text is read inside the scorer for tones only, never persisted.
 
 THE DETECTOR.  A known message fixes all 79 tones.  At a position (f, t): X = correlate_symbols(downconvert_decimate(pcm, f), start(t)) (qa/rr-study/n2-coherent-llr-extractor/coherent_extract.py, as cf_fbid),
@@ -153,11 +153,15 @@ def g_pp(d_share):
 
 
 def decide(r: dict) -> str:
-    """Section 5, first match wins.  r: v_null_n_ok, v_pos_ci ([lo, hi] of D(P) on O), g_ci ([lo, hi] in pp)."""
-    if (not r["v_null_n_ok"]) or r["v_pos_ci"][0] < V_POS:
+    """Section 5 as amended (A2, section 11): 1 VOID (V-NULL-N fails)  2 BUILD-WORTH (CI_lo(G) >= 0.4)  3 VOID (V-POS fails: CI_lo(D(P on O)) < 0.80)  4 CLOSE (CI_hi(G) < 0.4)  5 BETWEEN.
+    V-POS gates only CLOSE and BETWEEN: a broken detector cannot fake a BUILD-WORTH that clears the null-calibrated T_E and the truth-position gate.
+    r: v_null_n_ok, v_pos_ci ([lo, hi] of D(P) on O), g_ci ([lo, hi] in pp)."""
+    if not r["v_null_n_ok"]:
+        return "VOID"
+    if r["g_ci"][0] >= BUILD_PP:
+        return "BUILD-WORTH"
+    if r["v_pos_ci"][0] < V_POS:
         return "VOID"
     if r["g_ci"][1] < CLOSE_PP:
         return "CLOSE"
-    if r["g_ci"][0] >= BUILD_PP:
-        return "BUILD-WORTH"
     return "BETWEEN"

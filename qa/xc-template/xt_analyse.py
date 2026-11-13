@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XC-TEMPLATE analysis (spec 2e133bc0 + A1).  Reads frozen\\xt_tasks.json, frozen\\te.json (T_E), own.json; numbers only.   python xt_analyse.py   (run ONCE per frozen scoring)"""
+"""XC-TEMPLATE analysis (spec 2e133bc0 + A1 + A2).  Reads frozen\\xt_tasks.json, frozen\\te.json (T_E), own.json; numbers only.   python xt_analyse.py   (run ONCE per frozen scoring)"""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,10 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "ta-check"))
 import xt_lib as L          # noqa: E402
+import tc_groups as G       # noqa: E402
+import tc_lib as TCL        # noqa: E402
 
 OUT = "D:/Projects/claude/_qa-scratch/xc-template"
 
@@ -82,6 +85,20 @@ def main():
         pb.setdefault(P[i]["batch"], []).append(pdet_r[k])
     desc["P_on_residual_by_matched_batch"] = {str(b): {"n": len(v), "D": rate(v)} for b, v in sorted(pb.items())}
     desc["P_on_O_by_matched_batch"] = {str(b): {"n": len(v), "D": rate(v)} for b, v in sorted({b: [pdet_o[k] for k, i in enumerate(pi) if P[i]["batch"] == b] for b in set(P[i]["batch"] for i in pi)}.items())}
+    ref = G.load_ref_night(set(stamps))
+    pgroups = {}
+    for k, i in enumerate(pi):
+        r = P[i]
+        rows = [(x[0], x[1], x[2]) for x in ref[r["stamp"]]]
+        bur = "buried" if TCL.is_buried(r["idx"], rows) else "isolated"
+        pgroups.setdefault(("band", band(r["snr"])), []).append(pdet_o[k])
+        pgroups.setdefault(("bur", bur), []).append(pdet_o[k])
+    desc["P_on_O_by_band"] = {k[1]: {"n": len(v), "D": rate(v)} for k, v in sorted(pgroups.items()) if k[0] == "band"}
+    desc["P_on_O_buried_vs_isolated"] = {k[1]: {"n": len(v), "D": rate(v)} for k, v in sorted(pgroups.items()) if k[0] == "bur"}
+    sh = te["split_half"]
+    desc["T_E_split_half_spread"] = {"even_to_odd_T": sh["even_to_odd"]["T"], "odd_to_even_T": sh["odd_to_even"]["T"], "exceedance_even_to_odd": sh["even_to_odd"]["exceedance_on_other_half"], "exceedance_odd_to_even": sh["odd_to_even"]["exceedance_on_other_half"],
+                                    "ratio_of_false_rates": (sh["odd_to_even"]["exceedance_on_other_half"] / sh["even_to_odd"]["exceedance_on_other_half"]) if sh["even_to_odd"]["exceedance_on_other_half"] else None,
+                                    "note": "about 10 exceedances in the pool: the false rate at T_E is known to about a factor of 2"}
     desc["tone_share_baseline_E1_resid_ge_0.276"] = rate([r["base"] >= 0.276 for r in own["E1_resid"]])
     desc["tone_share_baseline_P_O_ge_0.276"] = rate([r["base"] >= 0.276 for r in own["P_O"]])
     desc["E1_S_pctl_5_25_50_75_95_resid"] = [float(x) for x in np.percentile([r["S"] for r in own["E1_resid"]], [5, 25, 50, 75, 95])]
