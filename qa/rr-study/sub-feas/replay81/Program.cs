@@ -121,8 +121,14 @@ internal static class Program
         var logger = new ReplayLogger<Ft8Decoder>(log);
 #if HAS_INTERNALS
         // GAP-RELOCATE item 1: pass-through counting wrapper (StageProbe.cs); built only with -p:HasInternals=true.
-        var decoder = new Ft8Decoder(new WallClock(), logger, new StageProbeInterop(new OpenWSFZ.Ft8.Interop.Ft8NativeInteropAdapter()));
+        // --clock system|frozen (optional; default system = the production clock, so every older arm is unchanged). "frozen" gives the decoder's BudgetClock a TimeProvider that never advances: the
+        // 13 s cycle budget (late round, fallback, template stage) never expires, so a host slower than the station cannot abandon work the station would finish. QA harness only, no src/ change.
+        ClockMode = a.TryGetValue("clock", out var clockArg) ? clockArg : "system";
+        if (ClockMode != "system" && ClockMode != "frozen") throw new ArgumentException("--clock must be system or frozen");
+        var decoder = new Ft8Decoder(new WallClock(), logger, new StageProbeInterop(new OpenWSFZ.Ft8.Interop.Ft8NativeInteropAdapter()),
+                                     timeProvider: ClockMode == "frozen" ? new FrozenTimeProvider() : null);
 #else
+        if (a.TryGetValue("clock", out var clockArgNoInt) && clockArgNoInt != "system") throw new ArgumentException("--clock frozen needs a build with -p:HasInternals=true");
         var decoder = new Ft8Decoder(new WallClock(), logger);
 #endif
         decoder.SetDecodeParams(KMinScorePass2, OsdCorrThreshold, OsdNhardMax);
@@ -656,6 +662,16 @@ internal static class Program
         if (!int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || n < NhardMin || n > NhardMax)
             throw new ArgumentException($"--nhard must be an integer in [{NhardMin}, {NhardMax}]");
         return n;
+    }
+
+    /// <summary>The replay clock mode read back in every "# readback" line: system (default) or frozen (the decoder's cycle budget never expires).</summary>
+    private static string ClockMode = "system";
+
+    /// <summary>A TimeProvider whose timestamp never advances: every elapsed time the decoder's BudgetClock reads is zero, so no budget check can fire.</summary>
+    private sealed class FrozenTimeProvider : TimeProvider
+    {
+        public override long GetTimestamp() => 0;
+        public override long TimestampFrequency => global::System.Diagnostics.Stopwatch.Frequency;
     }
 
     private static string BandOf(int snr) => snr >= 0 ? "A" : snr >= -10 ? "B" : snr >= -15 ? "C" : "D";
@@ -1268,7 +1284,7 @@ internal static class Program
             resolved = SubtractionThreads.Resolve(t, Environment.ProcessorCount, out _).ToString(CultureInfo.InvariantCulture);
 #endif
         log.Raw($"# readback {tag} subtractionEnabled={d.SubtractionEnabled} threadsConfigured={threadsNote} " +
-                $"threadsResolved={resolved} cores={Environment.ProcessorCount} nhard={OsdNhardMax} " +
+                $"threadsResolved={resolved} cores={Environment.ProcessorCount} clock={ClockMode} nhard={OsdNhardMax} " +
                 $"kMinScorePass2={KMinScorePass2} osdCorrThreshold={OsdCorrThreshold.ToString("F2", CultureInfo.InvariantCulture)} " +
                 $"shim={Ft8Decoder.LoadedShimVersion}"
 #if HAS_OSDSIGNFIX
