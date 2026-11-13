@@ -165,6 +165,9 @@ internal static class Program
 #if HAS_LATEROUND
                                    + ",b5_n,tb5_ms"   // L1' build (spec 1322 section 7 F5): batch 5, the late subtraction round; absent in builds without it, so older output is byte-identical
 #endif
+#if HAS_XCPRIOR
+                                   + ",b6_n,tb6_ms"   // XC-BUILD: batch 6, the cross-cycle template stage; absent in builds without it, so older output is byte-identical
+#endif
                           : _wide ? "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n"
                                   : "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception");
         // Optional outcome keys (S1): per decode only NUMERIC fields plus an 8-hex-digit hash of the message text; the
@@ -350,6 +353,27 @@ internal static class Program
 #if HAS_COHRESCAND
             // COH-RES-CAND (#272, build b0d01f4f): --cohrescand 0|1 is REQUIRED on this build and read back at start and end (the arm's one change: A = 0, B = 1).
             decoder.SetCoherentFallbackResidualCandidates(Req(a, "cohrescand") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohrescand must be 0 or 1") });
+#endif
+#if HAS_XCPRIOR
+            // XC-BUILD (dev task 2026-11-13-xc-template-build): --xc-prior 0|1, --xc-shadow 0|1 and --xc-te <double|inf> are REQUIRED on this build and read back at start and end.
+            // TR: --xc-prior 1 --xc-shadow 1 --xc-te inf (nothing published); OFF: 0 0 inf; ON: 1 1 <the frozen T_E>.  --xc-probe-out: the per-test numbers sink (numbers only).
+            decoder.SetCrossCyclePrior(Req(a, "xc-prior") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--xc-prior must be 0 or 1") });
+            decoder.SetCrossCyclePriorShadow(Req(a, "xc-shadow") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--xc-shadow must be 0 or 1") });
+            string xcTe = Req(a, "xc-te");
+            decoder.SetCrossCyclePriorThreshold(xcTe == "inf" ? double.PositiveInfinity : double.TryParse(xcTe, NumberStyles.Float, CultureInfo.InvariantCulture, out double xcTeV) && xcTeV > 0 ? xcTeV : throw new ArgumentException("--xc-te must be inf or a positive number"));
+            if (a.TryGetValue("xc-out", out var xcOutPath))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(xcOutPath))!);
+                _xcOut = new StreamWriter(xcOutPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+            }
+            if (a.TryGetValue("xc-probe-out", out var xcProbePath))
+            {
+                if (!xcProbePath.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--xc-probe-out must be under _qa-scratch (HK-037)");
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(xcProbePath))!);
+                _xcProbe = new StreamWriter(xcProbePath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+                if (new FileInfo(xcProbePath).Length == 0) _xcProbe.WriteLine("stamp,kind,s_e_star,prior_age_cycles,argmax_df_hz,argmax_dt_s");
+                decoder.CrossCyclePriorProbe = new XcProbeSink();
+            }
 #endif
             if (a.TryGetValue("cohfb-out", out var cohPath))
             {
@@ -653,7 +677,7 @@ internal static class Program
     /// batches (a WSJT-X decode corroborates at most one OpenWSFZ decode). Emits COUNTS per (kind, SNR band); text never leaves.
     /// </summary>
     private static void ScoreTestB(string run, string stamp, IReadOnlyList<DecodeResult> b1, IReadOnlyList<DecodeResult> b2,
-                                   IReadOnlyList<DecodeResult>? b3 = null, IReadOnlyList<DecodeResult>? b4 = null, IReadOnlyList<DecodeResult>? b5 = null)
+                                   IReadOnlyList<DecodeResult>? b3 = null, IReadOnlyList<DecodeResult>? b4 = null, IReadOnlyList<DecodeResult>? b5 = null, IReadOnlyList<DecodeResult>? b6 = null)
     {
         if (_testB is null) return;
         var w = _wsjtx.TryGetValue(stamp, out var l) ? l : new List<(int Snr, int Freq, string Msg)>();
@@ -666,6 +690,8 @@ internal static class Program
         if (b4 is not null) foreach (var r in b4) ows.Add((4, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r), ApKindOf(r)));
         // L1' build (F5): the late subtraction round's own batch (5) is its OWN kind, never folded into 1-4. b5 == null leaves the output exactly as it was.
         if (b5 is not null) foreach (var r in b5) ows.Add((5, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r), ApKindOf(r)));
+        // XC-BUILD: the cross-cycle template stage's own batch (6) is its OWN kind, never folded into 1-5. b6 == null leaves the output exactly as it was.
+        if (b6 is not null) foreach (var r in b6) ows.Add((6, r.Snr, r.FreqHz, r.Message.TrimEnd(), r.Dt, DecodePath(r), ApKindOf(r)));
         var cands = new List<(int Df, int Oi, int Wi)>();
         for (int i = 0; i < ows.Count; i++)
             for (int j = 0; j < w.Count; j++)
@@ -707,13 +733,13 @@ internal static class Program
                     _fbDump.WriteLine(string.Join("	", stamp, ows[i].Kind, usedO[i] ? 1 : 0, ows[i].Freq, ows[i].Dt.ToString("F2", CultureInfo.InvariantCulture), ows[i].Snr,
                         sameTextAnyFreq ? 1 : 0, minDf, w.Count, ows[i].Msg));
                 }
-        foreach (int kind in b5 is not null ? new[] { 1, 2, 3, 4, 5 } : b4 is not null ? new[] { 1, 2, 3, 4 } : b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
+        foreach (int kind in b6 is not null ? new[] { 1, 2, 3, 4, 5, 6 } : b5 is not null ? new[] { 1, 2, 3, 4, 5 } : b4 is not null ? new[] { 1, 2, 3, 4 } : b3 is null ? new[] { 1, 2 } : new[] { 1, 2, 3 })
             foreach (var band in new[] { "A", "B", "C", "D" })
             {
                 int n = 0, c = 0;
                 for (int i = 0; i < ows.Count; i++)
                     if (ows[i].Kind == kind && BandOf(ows[i].Snr) == band) { n++; if (usedO[i]) c++; }
-                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : kind == 3 ? "b3" : kind == 4 ? "b4" : "b5", band,
+                _testB.WriteLine(string.Join(",", run, stamp, kind == 1 ? "b1" : kind == 2 ? "b2" : kind == 3 ? "b3" : kind == 4 ? "b4" : kind == 5 ? "b5" : "b6", band,
                     n.ToString(CultureInfo.InvariantCulture), c.ToString(CultureInfo.InvariantCulture)));
             }
         _matched?.WriteLine(stamp + "," + string.Join(";", Enumerable.Range(0, usedW.Length).Where(j => usedW[j])));
@@ -778,6 +804,11 @@ internal static class Program
         int n5 = 0;
         double tb5 = -1;
 #endif
+#if HAS_XCPRIOR
+        int n6 = 0;
+        double tb6 = -1;
+        XcProbe.Reset();
+#endif
         SubfeasProbe.Reset();
         ThirdProbe.Reset();
 #if HAS_LATEROUND
@@ -791,7 +822,7 @@ internal static class Program
         var sw = Stopwatch.StartNew();
         try
         {
-            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null, b4 = null, b5 = null;
+            IReadOnlyList<DecodeResult>? b1 = null, b2 = null, b3 = null, b4 = null, b5 = null, b6 = null;
             await d.DecodeStagedAsync(pcm, cycleStart, null, (n, batch) =>
             {
                 ImplEvent("H	" + n + "	" + batch.Count);
@@ -816,6 +847,9 @@ internal static class Program
 #if HAS_LATEROUND
                 else if (n == 5) { b5 = batch; tb5 = sw.Elapsed.TotalMilliseconds; }   // L1' build: the late subtraction round's own batch
 #endif
+#if HAS_XCPRIOR
+                else if (n == 6) { b6 = batch; tb6 = sw.Elapsed.TotalMilliseconds; }   // XC-BUILD: the cross-cycle template stage's own batch
+#endif
                 else throw new InvalidOperationException("unexpected batch number");
                 return Task.CompletedTask;
             });
@@ -830,6 +864,9 @@ internal static class Program
 #if HAS_LATEROUND
             n5 = b5?.Count ?? 0;
 #endif
+#if HAS_XCPRIOR
+            n6 = b6?.Count ?? 0;
+#endif
             if (b1 is not null) WriteOutcomes(stamp, "b1", b1);
             WriteOutcomes(stamp, "b2", b2 ?? none);
             WriteOutcomes(stamp, "b3", b3 ?? none);
@@ -837,7 +874,12 @@ internal static class Program
             WriteOutcomes(stamp, "b4", b4 ?? none);
 #if HAS_LATEROUND
             WriteOutcomes(stamp, "b5", b5 ?? none);
+#if HAS_XCPRIOR
+            WriteOutcomes(stamp, "b6", b6 ?? none);
+            if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none, b4 ?? none, b5 ?? none, b6 ?? none);
+#else
             if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none, b4 ?? none, b5 ?? none);
+#endif
 #else
             if (b1 is not null) ScoreTestB(run, stamp, b1, b2 ?? none, b3 ?? none, b4 ?? none);
 #endif
@@ -855,6 +897,9 @@ internal static class Program
 #if HAS_LATEROUND
         _lateOut?.WriteLine(stamp + "," + LateProbe.Row());
 #endif
+#if HAS_XCPRIOR
+        _xcOut?.WriteLine(stamp + "," + XcProbe.Row());
+#endif
         csv.WriteLine(string.Join(",", run, stratum, stamp, seq.ToString(CultureInfo.InvariantCulture), flag,
             sw.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
             (n1 < 0 ? -1 : n1 + n2 + n3
@@ -863,6 +908,9 @@ internal static class Program
 #endif
 #if HAS_LATEROUND
                 + n5
+#endif
+#if HAS_XCPRIOR
+                + n6
 #endif
             ).ToString(CultureInfo.InvariantCulture), exc,
             tb1.ToString("F1", CultureInfo.InvariantCulture),
@@ -875,6 +923,9 @@ internal static class Program
 #endif
 #if HAS_LATEROUND
             , n5.ToString(CultureInfo.InvariantCulture), tb5.ToString("F1", CultureInfo.InvariantCulture)
+#endif
+#if HAS_XCPRIOR
+            , n6.ToString(CultureInfo.InvariantCulture), tb6.ToString("F1", CultureInfo.InvariantCulture)
 #endif
             ));
 #if HAS_COHFB
@@ -940,6 +991,37 @@ internal static class Program
         public static string Line() => _seen ? "1," + _vals : "0,,,,,,,,,";
 #endif
     }
+#endif
+
+#if HAS_XCPRIOR
+    /// <summary>XC-BUILD R10: the stage's counts-only log line, one per cycle with the stage ON: kept as written (the format is the Developer's; stored raw so no field is lost). Numbers only.</summary>
+    private static class XcProbe
+    {
+        public const string Prefix = "Cross-cycle prior";
+        public static int Lines;
+        private static string _raw = "";
+        public static void Reset() { Lines = 0; _raw = ""; }
+        public static bool Set(string rendered)
+        {
+            if (!rendered.StartsWith(Prefix, StringComparison.Ordinal)) return false;
+            Lines++;
+            _raw = rendered.Substring(Prefix.Length).Trim().TrimEnd('.').Replace(' ', '|').Replace(",", "");   // "k=v|k=v": no commas, no spaces, so the row stays one CSV field
+            return true;
+        }
+        public static string Row() => Lines == 0 ? "0,no-line" : Lines.ToString(CultureInfo.InvariantCulture) + "," + _raw;
+    }
+
+    /// <summary>XC-BUILD R13: the diagnostic sink the decoder calls once per tested template (numbers only: kind, S_E*, the prior's age in cycles, the argmax offsets). Written to --xc-probe-out under _qa-scratch.</summary>
+    private sealed class XcProbeSink : ICrossCyclePriorProbe
+    {
+        public void Tested(string kind, double sEStar, int priorAgeCycles, double argmaxDfHz, double argmaxDtS)
+        {
+            var w = _xcProbe; if (w is null) return;
+            lock (w) w.WriteLine(string.Join(",", _curStamp, kind, sEStar.ToString("R", CultureInfo.InvariantCulture), priorAgeCycles.ToString(CultureInfo.InvariantCulture),
+                argmaxDfHz.ToString("R", CultureInfo.InvariantCulture), argmaxDtS.ToString("R", CultureInfo.InvariantCulture)));
+        }
+    }
+    private static StreamWriter? _xcOut, _xcProbe;
 #endif
 
 #if HAS_LATEROUND
@@ -1057,6 +1139,19 @@ internal static class Program
             _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
             ScoreTestB("selftest", S, b1, b2, b3, b4e);
             Check("without a batch 5 no b5 row is written (older output byte-identical)", !ReadLinesShared(tb).Any(x => x.Contains(",b5,")));
+            // XC-BUILD: batch 6 (the cross-cycle template stage) is its OWN kind (b6), never folded into b1-b5, and tagged 6 in matched-batch-out.
+            _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            _matchedBatch.Dispose(); _matchedBatch = new StreamWriter(mb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            var b6 = new[] { R(-14, 2500, "ZZZ ZZZ ZZ99"), R(-16, 3500, "UUU VVV WW55") };   // 1 matched (the last WSJT-X line), 1 OWS-only
+            ScoreTestB("selftest", S, b1, b2, b3, b4e, b5Empty(), b6);
+            var tb6 = ReadLinesShared(tb).ToList();
+            Check("a batch 6 writes b6 rows: band C n=1 corroborated=1, band D n=1 corroborated=0", tb6.Contains("selftest," + S + ",b6,C,1,1") && tb6.Contains("selftest," + S + ",b6,D,1,0"));
+            Check("batch 6 never appears under b1-b5 (b5 rows empty)", tb6.Contains("selftest," + S + ",b5,A,0,0") && tb6.Count(x => x.Contains(",b5,")) == 4);
+            Check("matched-batch-out tags the batch-6 match as 6", ReadLinesShared(mb).Last().Contains("3:6"));
+            _testB.Dispose(); _testB = new StreamWriter(tb, false, new UTF8Encoding(false)) { AutoFlush = true };
+            ScoreTestB("selftest", S, b1, b2, b3, b4e, b5Empty());
+            Check("without a batch 6 no b6 row is written (older output byte-identical)", !ReadLinesShared(tb).Any(x => x.Contains(",b6,")));
+            static IReadOnlyList<DecodeResult> b5Empty() => Array.Empty<DecodeResult>();
             // The third-pass log-line parser.
             ThirdProbe.Reset();
             ThirdProbe.Set("Third pass: newDecodes=2 elapsedMs=1234 outcome=ran fittedSignals=3");
@@ -1175,6 +1270,9 @@ internal static class Program
 #endif
 #if HAS_COHRESCAND
                 + $" cohrescand={d.CoherentFallbackResidualCandidates}"
+#if HAS_XCPRIOR
+                + $" xcprior={d.CrossCyclePrior} xcshadow={d.CrossCyclePriorShadow} xcte={d.CrossCyclePriorThreshold.ToString("R", CultureInfo.InvariantCulture)}"
+#endif
 #endif
                 );
     }
@@ -1308,6 +1406,17 @@ internal static class Program
                 ThirdProbe.Set(rendered);
                 ImplEvent("M	T");
                 _log.Line(level.ToString(), rendered);   // aggregate-only template: counts, ms, a fixed outcome word
+                return;
+            }
+#endif
+#if HAS_XCPRIOR
+            // XC-BUILD R10: the cross-cycle stage's counts-only line (no text, no callsign)
+            if (template.StartsWith(XcProbe.Prefix, StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                string rendered = formatter(state, exception);
+                XcProbe.Set(rendered);
+                ImplEvent("M\tX");
+                _log.Line(level.ToString(), rendered);
                 return;
             }
 #endif
