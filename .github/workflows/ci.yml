@@ -26,7 +26,11 @@ jobs:
         include:
           - os: windows-latest
             rid: win-x64
-          - os: ubuntu-latest
+          # Pinned, NOT ubuntu-latest: the committed libft8.so needs the BUILD HOST's glibc symbol versions, so the
+          # image sets the floor every consumer must meet. ubuntu-latest moved to glibc 2.43 and the bot committed a
+          # .so that WSL Debian 13 (2.41) and Ubuntu 24.04 (2.39) cannot load. 24.04 = glibc 2.39 = the declared floor;
+          # the guard step after the Linux build (tools/check_glibc_floor.py, constant GLIBC_FLOOR) enforces it.
+          - os: ubuntu-24.04
             rid: linux-x64
           - os: macos-latest
             rid: osx-arm64
@@ -293,6 +297,18 @@ jobs:
           nm -D libft8.so | grep "ft8_"
           cp libft8.so \
             "$GITHUB_WORKSPACE/src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so"
+
+      # -----------------------------------------------------------------
+      # glibc floor guard: the .so just built must not need a glibc newer than
+      # tools/check_glibc_floor.py's GLIBC_FLOOR (2.39). Self-test first, so a
+      # broken guard cannot pass a bad blob. Runs before the artifact upload, so
+      # commit-native-binaries can never receive a .so above the floor.
+      # -----------------------------------------------------------------
+      - name: Guard - Linux .so glibc floor
+        if: runner.os == 'Linux'
+        run: |
+          python3 tools/check_glibc_floor.py --self-test
+          python3 tools/check_glibc_floor.py src/OpenWSFZ.Ft8/Native/linux-x64/libft8.so
 
       - name: Upload Linux .so artifact
         if: runner.os == 'Linux'
