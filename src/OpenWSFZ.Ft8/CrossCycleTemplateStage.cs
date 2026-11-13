@@ -8,6 +8,12 @@ namespace OpenWSFZ.Ft8;
 /// </summary>
 internal static class CrossCycleTemplateStage
 {
+    /// <summary>
+    /// The product's published dt minus WSJT-X's dt, seconds (GAP-RELOCATE's DELTA_P, the offset the forced legs use; measured on the TRAIN night as the median of our dt minus WSJT-X's dt over the matched rows).
+    /// The detector and its 0.48 s calibration are in WSJT-X's dt convention, so a prior's published dt is converted with this on the way in and the argmax is converted back on the way out.
+    /// </summary>
+    internal const double PublishedMinusWsjtxDtS = 0.6;
+
     /// <summary>A prior that survived the exclusions: its text, its 79 tones (from the encoder) and its position and age.</summary>
     internal sealed record Template(string Text, byte[] Tones, double FreqHz, double Dt, int AgeCycles);
 
@@ -70,10 +76,11 @@ internal static class CrossCycleTemplateStage
                 int i = Interlocked.Increment(ref next);
                 if (i >= n) return;
                 var t = templates[i];
-                var r = CrossCycleTemplateDetector.Search(pcm, t.FreqHz, t.Dt, t.Tones);
+                // The detector works in WSJT-X's dt convention: convert the prior's published dt in, and the argmax back out (so Outcome.Dt, the published dt and the probe offsets are all in the published convention).
+                var r = CrossCycleTemplateDetector.Search(pcm, t.FreqHz, t.Dt - PublishedMinusWsjtxDtS, t.Tones);
                 bool detected = r.SStar >= threshold;
                 int snr = detected ? CrossCycleTemplateDetector.CoherentSnrDb(pcm, r.FreqHz, r.Dt, t.Tones) : 0;
-                outcomes[i] = new Outcome(true, r.SStar, r.FreqHz, r.Dt, detected, snr);
+                outcomes[i] = new Outcome(true, r.SStar, r.FreqHz, r.Dt + PublishedMinusWsjtxDtS, detected, snr);
             }
         }
 

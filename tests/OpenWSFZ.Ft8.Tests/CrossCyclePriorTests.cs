@@ -43,7 +43,8 @@ public sealed class CrossCyclePriorTests
     private static float[] Audio(uint seed, params (string Text, double FreqHz, double Dt)[] messages)
     {
         var x = XcSynth.Noise(seed, 1.0);
-        foreach (var m in messages) XcSynth.AddMessage(x, Tones(m.Text), m.FreqHz, m.Dt, 0.5);
+        // m.Dt is in the PUBLISHED convention; the recipe (and the detector) are in WSJT-X's: published = WSJT-X + 0.6 s.
+        foreach (var m in messages) XcSynth.AddMessage(x, Tones(m.Text), m.FreqHz, m.Dt - CrossCycleTemplateStage.PublishedMinusWsjtxDtS, 0.5);
         return XcSynth.ToFloat(x);
     }
 
@@ -262,7 +263,7 @@ public sealed class CrossCyclePriorTests
         b6[0].Path.Should().Be(Ft8Decoder.PathTemplate).And.Be(3);
         b6[0].FreqHz.Should().Be(MFreq, "the argmax frequency, rounded to the published integer Hz");
         b6[0].Dt.Should().BeApproximately(MDt, 0.051, "the argmax dt, rounded to 0.1 s as every batch is");
-        int expectedSnr = CrossCycleTemplateDetector.CoherentSnrDb(audio, MFreq, MDt, Tones(M));
+        int expectedSnr = CrossCycleTemplateDetector.CoherentSnrDb(audio, MFreq, MDt - CrossCycleTemplateStage.PublishedMinusWsjtxDtS, Tones(M));
         b6[0].Snr.Should().BeInRange(expectedSnr - 1, expectedSnr + 1, "the managed cf_snr_db at the argmax (scale-free, so the cycle's RMS normalisation does not change it)");
         rows.Where(p => p.Batch < Ft8Decoder.TemplateBatch).Select(p => p.Message).Should().Equal(new[] { Other2 }, "batches 1 to 5 hold what pass 0 decoded and nothing else");
 
@@ -636,5 +637,28 @@ public sealed class CrossCyclePriorTests
         ex.AlreadyDecoded.Should().Be(1);
         ex.Hashed.Should().Be(1);
         ex.Refused.Should().Be(2);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R5/R7 (QA B1): the prior's PUBLISHED dt is converted to WSJT-X's (minus 0.6 s): a signal whose symbol 0 starts at dt_published - 0.12 s is found at its published dt, and one placed at dt_published + 0.48 s (the unconverted reading) is missed")]
+    public void PublishedDt_IsConvertedToWsjtxConvention()
+    {
+        const double publishedDt = 0.50;
+        var tones = Tones(M);
+        float[] Place(double startSeconds)
+        {
+            var x = XcSynth.Noise(11, 1.0);
+            XcSynth.AddMessage(x, tones, 1500, startSeconds - CrossCycleTemplateDetector.CalibrationStartMinusDtS, 0.5);   // AddMessage starts at (dt + 0.48)
+            return XcSynth.ToFloat(x);
+        }
+        var tpl = new[] { Tpl("t", 1500, publishedDt, 2) };
+
+        var right = CrossCycleTemplateStage.Run(tpl, Place(publishedDt - 0.12), 4.0, 1, () => false, CancellationToken.None);
+        right.Outcomes[0].SStar.Should().BeGreaterThan(7.0);
+        right.Outcomes[0].Detected.Should().BeTrue();
+        right.Outcomes[0].Dt.Should().BeApproximately(publishedDt, 1e-9, "the argmax is reported back in the published convention");
+
+        var wrong = CrossCycleTemplateStage.Run(tpl, Place(publishedDt + 0.48), 4.0, 1, () => false, CancellationToken.None);
+        wrong.Outcomes[0].Detected.Should().BeFalse("a signal at published dt + 0.48 s is 0.6 s from where a published-dt prior puts it");
+        wrong.Outcomes[0].SStar.Should().BeLessThan(2.0);
     }
 }
