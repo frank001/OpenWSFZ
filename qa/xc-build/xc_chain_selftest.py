@@ -38,7 +38,8 @@ def arm(d, n=4, late=("ran", "ran", "ran", "ran"), b6=False, text="x"):
     hdr = "run,stratum,stamp,seq,flag,elapsed_ms,decodes,exception,tb1_ms,b1_n,b2_n,b3_n,tb2_ms,tb3_ms,b4_n,tb4_ms,b5_n,tb5_ms\n"
     w(d + "/run.csv", hdr + "".join(f"r,FULL,S{i},{i},DEEP,5000.0,{20 + i},,1.0,{10 + i},2,1,1.0,1.0,3,1.0,1,1.0\n" for i in range(n)))
     w(d + "/matchedbatch.csv", "stamp,b\n" + "".join(f"S{i},1:{i}\n" for i in range(n)))
-    w(d + "/testb.csv", "run,stamp\n" + "".join(f"r,S{i}\n" for i in range(n)))
+    w(d + "/testb.csv", "run,stamp,kind,band,n,corroborated\n" + "".join(f"r,S{i},b1,A,{3 + i},{1 + i}\nr,S{i},ws,A,{4 + i},0\n" for i in range(n))
+      + ("".join(f"r,S{i},b6,A,0,0\nr,S{i},b6,B,0,0\n" for i in range(n)) if b6 else ""))
     w(d + "/outcomes.csv", "o\n" * 3)
     w(d + "/late.csv", "stamp,outcome\n" + "".join(f"S{i},{late[i]}\n" for i in range(n)))
     w(d + "/nc.tsv", "".join(f"S{i}\t1\t{text}\n" for i in range(n)))
@@ -99,6 +100,15 @@ with tempfile.TemporaryDirectory() as tmp:
     expect("voff: the same difference INSIDE the listed stamps fails", run(T.cmd_voff, a, b, tmp + "/v.json", a + "/nc.tsv", b + "/nc.tsv", (w(tmp + "/st2.txt", "S2\n") or tmp + "/st2.txt")) == 5)
     w(tmp + "/e.tsv", "")
     expect("voff: an empty text file is not a pass (0 rows)", run(T.cmd_voff, a, b, tmp + "/v.json", tmp + "/e.tsv", tmp + "/e.tsv", None) == 5)
+
+    # --- testb.csv: the batch-6 rows of the new harness
+    arm(a, b6=True); arm(b)
+    expect("voff: all-zero b6 rows in the new testb.csv are excluded -> PASS (the dry run's real case)", run(T.cmd_voff, a, b, tmp + "/v.json") == 0)
+    w(a + "/testb.csv", open(a + "/testb.csv").read().replace("r,S1,b6,A,0,0", "r,S1,b6,A,2,1"))
+    expect("voff: a NON-zero b6 row with the stage OFF -> FAIL", run(T.cmd_voff, a, b, tmp + "/v.json") == 5)
+    arm(a, b6=True)
+    w(a + "/testb.csv", open(a + "/testb.csv").read().replace("r,S1,b1,A,4,2", "r,S1,b1,A,4,3"))
+    expect("voff: a real b1 difference is still a FAIL when b6 rows are present", run(T.cmd_voff, a, b, tmp + "/v.json") == 5)
 
     # --- nccmp (the 100-cycle text leg: the new build's first-100 rows against the pre-change run)
     def nc(path, *rows):

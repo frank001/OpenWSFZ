@@ -79,11 +79,32 @@ def _perm_cols(path):
     return keep, {r["stamp"]: tuple(r[c] for c in keep) for r in rows}
 
 
+def _testb_split(path):
+    """(lines without the batch-6 rows, [(n, corroborated) of every b6 row]); the header names the columns."""
+    lines = _lines(path)
+    hdr = lines[0].split(",")
+    ki, ni, ci = hdr.index("kind"), hdr.index("n"), hdr.index("corroborated")
+    keep, b6 = [lines[0]], []
+    for ln in lines[1:]:
+        f = ln.split(",")
+        if f[ki] == "b6":
+            b6.append((f[ni], f[ci]))
+        else:
+            keep.append(ln)
+    return keep, b6
+
+
 def cmd_voff(new_dir, ref_dir, out, nc_new=None, nc_ref=None, stamps=None):
     res = {}
-    for f in ("matchedbatch.csv", "testb.csv"):
-        a, b = _lines(os.path.join(new_dir, f)), _lines(os.path.join(ref_dir, f))
-        res[f] = {"lines_new": len(a), "lines_ref": len(b), "lines_differing": _ndiff(a, b)}
+    a, b = _lines(os.path.join(new_dir, "matchedbatch.csv")), _lines(os.path.join(ref_dir, "matchedbatch.csv"))
+    res["matchedbatch.csv"] = {"lines_new": len(a), "lines_ref": len(b), "lines_differing": _ndiff(a, b)}
+    # testb.csv: the new harness also writes batch-6 rows (kind b6; an older harness has none). They are EXCLUDED from the comparison only when every one has n = 0 and corroborated = 0
+    # (with the stage OFF there is no batch 6); a non-zero b6 row counts as a difference. The Architect's rule (Amendment 5): shared columns/rows compared, the exclusion stated in the report.
+    a, a6 = _testb_split(os.path.join(new_dir, "testb.csv"))
+    b, b6 = _testb_split(os.path.join(ref_dir, "testb.csv"))
+    nonzero_b6 = sum(1 for f in a6 + b6 if f[0] != "0" or f[1] != "0")
+    res["testb.csv"] = {"lines_new": len(a), "lines_ref": len(b), "lines_differing": _ndiff(a, b) + nonzero_b6,
+                        "b6_rows_excluded_new": len(a6), "b6_rows_excluded_ref": len(b6), "b6_rows_nonzero": nonzero_b6}
     kn, rn = _perm_cols(os.path.join(new_dir, "run.csv"))
     kr, rr = _perm_cols(os.path.join(ref_dir, "run.csv"))
     common = [c for c in kn if c in kr]
