@@ -25,7 +25,7 @@ MIN_SCORABLE = 20                  # design floor (section 2 item 6); the pilot 
 K_NULL = 20
 AGREE_MAX = 0.3
 BAR_PRESENT = 0.80                 # cf_uprime.MIN_PRESENT_RATE
-BAR_GHOST = 0.05                   # A-GHOST: CI_hi(PR_M(ghost)) <= 0.05 (no data on file; challenged if the pilot's masked rate is above 0.02)
+BAR_GHOST = 0.05                   # A-GHOST (Amendment 2, A2.1): CI_hi(PR_M(ghost) - PR_U(ghost)) <= 0.05, paired by row; the registered 0.05 reused as the allowed worsening
 GHOST_CHALLENGE = 0.02
 V_N_TBUR = 100
 DF_GRID_HZ = (-3.125, 0.0, 3.125)  # cf_fbid.DF_GRID_HZ (asserted in tm_run)
@@ -129,12 +129,25 @@ def ci(v):
     return [float(np.percentile(v, 2.5)), float(np.percentile(v, 97.5))] if len(v) else [float("nan"), float("nan")]
 
 
+def paired_diff(pm, pu, n_cyc, cix, idx):
+    """per replicate: share of the SAME rows (paired) that read present masked minus unmasked.  pm, pu: [(stamp, band, present)] in the same row order."""
+    assert [x[0] for x in pm] == [x[0] for x in pu] and len(pm) == len(pu), "ghost rows are not paired"
+    n, km = np.zeros(n_cyc), np.zeros(n_cyc)
+    ku = np.zeros(n_cyc)
+    for (s, _, a), (_, _, b) in zip(pm, pu):
+        c = cix[s]
+        n[c] += 1
+        km[c] += bool(a)
+        ku[c] += bool(b)
+    return (km[idx].sum(axis=1) - ku[idx].sum(axis=1)) / np.where(n[idx].sum(axis=1) > 0, n[idx].sum(axis=1), np.nan)
+
+
 def decide(r):
-    """Section 5 (pre-registered, first match wins).  r: ci_B1, ci_B1m, ci_Tbur, ci_ghost ([lo, hi]), n_Tbur.
-    1 VOID (A-KEEP fails or V-N fails)   2 CREDULOUS (A-GHOST fails: CI_hi > 0.05)   3 REPAIRED (A-SEE: CI_lo(PR_M(T_bur)) >= 0.80)   4 NOT-REPAIRED."""
+    """Section 5 + Amendment 2 (pre-registered, first match wins).  r: ci_B1, ci_B1m, ci_Tbur, ci_ghost_diff ([lo, hi] of PR_M(ghost) - PR_U(ghost), paired), n_Tbur.
+    1 VOID (A-KEEP fails or V-N fails)   2 CREDULOUS (A-GHOST fails: CI_hi of the paired difference > 0.05)   3 REPAIRED (A-SEE: CI_lo(PR_M(T_bur)) >= 0.80)   4 NOT-REPAIRED."""
     if r["ci_B1"][0] < BAR_PRESENT or r["ci_B1m"][0] < BAR_PRESENT or r["n_Tbur"] < V_N_TBUR:
         return "VOID"
-    if r["ci_ghost"][1] > BAR_GHOST:
+    if r["ci_ghost_diff"][1] > BAR_GHOST:
         return "CREDULOUS"
     if r["ci_Tbur"][0] >= BAR_PRESENT:
         return "REPAIRED"

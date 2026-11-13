@@ -103,14 +103,27 @@ def t_threshold():
 
 def t_decide():
     ok = [0.9, 1.0]
-    base = {"ci_B1": ok, "ci_B1m": ok, "ci_Tbur": [0.82, 0.9], "ci_ghost": [0.0, 0.04], "n_Tbur": 237}
+    base = {"ci_B1": ok, "ci_B1m": ok, "ci_Tbur": [0.82, 0.9], "ci_ghost_diff": [0.0, 0.04], "n_Tbur": 237}
     assert M.decide(base) == "REPAIRED"
     assert M.decide(dict(base, ci_B1=[0.79, 1.0])) == "VOID" and M.decide(dict(base, ci_B1m=[0.79, 1.0])) == "VOID" and M.decide(dict(base, n_Tbur=99)) == "VOID"
     assert M.decide(dict(base, ci_B1=[0.80, 1.0])) == "REPAIRED"
-    assert M.decide(dict(base, ci_ghost=[0.0, 0.051])) == "CREDULOUS" and M.decide(dict(base, ci_ghost=[0.0, 0.05])) == "REPAIRED"
+    assert M.decide(dict(base, ci_ghost_diff=[0.0, 0.051])) == "CREDULOUS" and M.decide(dict(base, ci_ghost_diff=[0.0, 0.05])) == "REPAIRED"
     assert M.decide(dict(base, ci_Tbur=[0.79, 0.9])) == "NOT-REPAIRED" and M.decide(dict(base, ci_Tbur=[0.80, 0.9])) == "REPAIRED"
-    assert M.decide(dict(base, ci_B1=[0.5, 1.0], ci_ghost=[0, 0.5])) == "VOID"          # first match wins
-    assert M.decide(dict(base, ci_ghost=[0, 0.5], ci_Tbur=[0.1, 0.2])) == "CREDULOUS"
+    assert M.decide(dict(base, ci_B1=[0.5, 1.0], ci_ghost_diff=[0, 0.5])) == "VOID"          # first match wins
+    assert M.decide(dict(base, ci_ghost_diff=[0, 0.5], ci_Tbur=[0.1, 0.2])) == "CREDULOUS"
+
+
+def t_paired_ghost_diff():
+    cix = {f"c{i}": i for i in range(4)}
+    pm = [("c0", "A", True), ("c1", "A", False), ("c2", "A", True), ("c3", "A", False)]
+    pu = [("c0", "A", True), ("c1", "A", True), ("c2", "A", False), ("c3", "A", False)]
+    d = M.paired_diff(pm, pu, 4, cix, np.array([[0, 1, 2, 3], [0, 0, 0, 0], [1, 1, 1, 1]]))
+    assert abs(d[0]) < 1e-12 and abs(d[1]) < 1e-12 and abs(d[2] + 1.0) < 1e-12        # (1+0+1+0 - 1+1+0+0)/4 = 0; c0 only: 1 - 1 = 0; c1 only: 0 - 1 = -1
+    try:
+        M.paired_diff(pm, pu[:3], 4, cix, np.array([[0, 1, 2, 3]]))
+        raise RuntimeError("unpaired rows accepted")
+    except AssertionError:
+        pass
 
 
 def t_bootstrap():
@@ -120,7 +133,7 @@ def t_bootstrap():
     assert abs(r[0] - 2 / 3) < 1e-12 and np.isnan(r[1])
 
 
-TESTS = [t_mask_geometry, t_mask_time_overlap, t_calibration_offsets_neighbour, t_masked_argmax_and_scores, t_sync_share, t_present_rule, t_threshold, t_decide, t_bootstrap]
+TESTS = [t_mask_geometry, t_mask_time_overlap, t_calibration_offsets_neighbour, t_masked_argmax_and_scores, t_sync_share, t_present_rule, t_threshold, t_decide, t_paired_ghost_diff, t_bootstrap]
 
 
 def run_tests():
@@ -167,10 +180,11 @@ MUTS = [
     ("p99 -> p95", src_mut("np.percentile(v, 99.0)", "np.percentile(v, 95.0)")),
     ("VOID drops B1m", src_mut('r["ci_B1m"][0] < BAR_PRESENT or ', "")),
     ("VOID drops V-N", src_mut(' or r["n_Tbur"] < V_N_TBUR', "")),
+    ("diff uses M only", src_mut("return (km[idx].sum(axis=1) - ku[idx].sum(axis=1)) / np.where(n[idx].sum(axis=1) > 0, n[idx].sum(axis=1), np.nan)", "return km[idx].sum(axis=1) / np.where(n[idx].sum(axis=1) > 0, n[idx].sum(axis=1), np.nan)")),
     ("ghost bar 0.05 -> 0.10", src_mut("BAR_GHOST = 0.05 ", "BAR_GHOST = 0.10 ")),
     ("REPAIRED on CI_hi", src_mut('if r["ci_Tbur"][0] >= BAR_PRESENT:', 'if r["ci_Tbur"][1] >= BAR_PRESENT:')),
-    ("CREDULOUS after REPAIRED", src_mut('    if r["ci_ghost"][1] > BAR_GHOST:\n        return "CREDULOUS"\n    if r["ci_Tbur"][0] >= BAR_PRESENT:\n        return "REPAIRED"\n',
-                                         '    if r["ci_Tbur"][0] >= BAR_PRESENT:\n        return "REPAIRED"\n    if r["ci_ghost"][1] > BAR_GHOST:\n        return "CREDULOUS"\n')),
+    ("CREDULOUS after REPAIRED", src_mut('    if r["ci_ghost_diff"][1] > BAR_GHOST:\n        return "CREDULOUS"\n    if r["ci_Tbur"][0] >= BAR_PRESENT:\n        return "REPAIRED"\n',
+                                         '    if r["ci_Tbur"][0] >= BAR_PRESENT:\n        return "REPAIRED"\n    if r["ci_ghost_diff"][1] > BAR_GHOST:\n        return "CREDULOUS"\n')),
 ]
 
 
