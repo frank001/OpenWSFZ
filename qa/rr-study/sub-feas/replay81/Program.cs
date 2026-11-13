@@ -71,6 +71,9 @@ internal static class Program
         var a = ParseArgs(args);
 #if HAS_THIRDPASS
         if (a.ContainsKey("selftest-batch3")) return SelfTestBatch3();
+#if HAS_XCPRIOR
+        if (a.ContainsKey("xc-verify")) return XcVerify(a["xc-verify"], a["xc-verify-out"]);
+#endif
 #endif
 #if HAS_INTERNALS
         // GAP-RESIDUAL ROW 0c(iii): separate process, after the arm. --cap-recheck <capdir> [--k-min-score-pass2 10] [--osd-corr 0.10] [--nhard 24]
@@ -1014,11 +1017,11 @@ internal static class Program
     /// <summary>XC-BUILD R13: the diagnostic sink the decoder calls once per tested template (numbers only: kind, S_E*, the prior's age in cycles, the argmax offsets). Written to --xc-probe-out under _qa-scratch.</summary>
     private sealed class XcProbeSink : ICrossCyclePriorProbe
     {
-        public void Tested(string kind, double sEStar, int priorAgeCycles, double argmaxDfHz, double argmaxDtS)
+        public void OnTemplateTested(in CrossCycleTestRecord r)
         {
             var w = _xcProbe; if (w is null) return;
-            lock (w) w.WriteLine(string.Join(",", _curStamp, kind, sEStar.ToString("R", CultureInfo.InvariantCulture), priorAgeCycles.ToString(CultureInfo.InvariantCulture),
-                argmaxDfHz.ToString("R", CultureInfo.InvariantCulture), argmaxDtS.ToString("R", CultureInfo.InvariantCulture)));
+            lock (w) w.WriteLine(string.Join(",", r.CycleStart.ToString("yyMMdd_HHmmss", CultureInfo.InvariantCulture), r.Kind == CrossCycleKind.Live ? "live" : "shadow", r.SStar.ToString("R", CultureInfo.InvariantCulture),
+                r.AgeCycles.ToString(CultureInfo.InvariantCulture), r.OffsetHz.ToString("R", CultureInfo.InvariantCulture), r.OffsetS.ToString("R", CultureInfo.InvariantCulture)));
         }
     }
     private static StreamWriter? _xcOut, _xcProbe;
@@ -1086,6 +1089,30 @@ internal static class Program
         for (string? line; (line = sr.ReadLine()) is not null;) l.Add(line);
         return l;
     }
+
+#if HAS_XCPRIOR
+    /// <summary>XC-BUILD review: the Developer's managed detector on tasks written by QA's Python (CSV: path-to-f32-buffer, centre Hz, centre dt in WSJT-X's convention, 79 tones separated by spaces); writes S_E*, argmax Hz, argmax dt. Numbers only.</summary>
+    private static int XcVerify(string tasks, string outPath)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using var w = new StreamWriter(outPath, false, new UTF8Encoding(false));
+        w.WriteLine("row,s_e_star,argmax_hz,argmax_dt");
+        int row = 0;
+        foreach (var line in File.ReadLines(tasks))
+        {
+            var p = line.Split(',');
+            if (p.Length < 4) continue;
+            var raw = File.ReadAllBytes(p[0]);
+            var pcm = new float[raw.Length / 4];
+            Buffer.BlockCopy(raw, 0, pcm, 0, raw.Length);
+            var tones = p[3].Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => byte.Parse(x, CultureInfo.InvariantCulture)).ToArray();
+            var r = OpenWSFZ.Ft8.Dsp.CrossCycleTemplateDetector.Search(pcm, double.Parse(p[1], CultureInfo.InvariantCulture), double.Parse(p[2], CultureInfo.InvariantCulture), tones);
+            w.WriteLine(string.Join(",", row++, r.SStar.ToString("R", CultureInfo.InvariantCulture), r.FreqHz.ToString("R", CultureInfo.InvariantCulture), r.Dt.ToString("R", CultureInfo.InvariantCulture)));
+        }
+        Console.WriteLine("xc-verify rows=" + row);
+        return 0;
+    }
+#endif
 
     private static int SelfTestBatch3()
     {
