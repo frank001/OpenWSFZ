@@ -226,7 +226,7 @@ def key(r):
 
 def main():
     stage = sys.argv[1] if len(sys.argv) > 1 else ""
-    if stage not in ("prep", "pilot", "null", "own"):
+    if stage not in ("prep", "pilot", "null", "own", "ours"):
         sys.exit(__doc__)
     os.makedirs(OUT + "/frozen", exist_ok=True)
     grp = json.load(open(TCOUT + "/frozen/tc_groups.json"))
@@ -263,16 +263,23 @@ def main():
         return
     if not os.path.isfile(OUT + "/frozen/tr.json"):
         sys.exit("REFUSED: frozen/tr.json (T_R) does not exist")
+    if stage == "ours":
+        # DESCRIPTIVE ONLY (spec section 2): the T rows scored at OUR published position.  Our dt is WSJT-X's + 0.6 s (DELTA_P, 0.6 to 0.7 observed), converted before the search.
+        res = {}
+        for k in sorted(rows):
+            if k in pil or not GROW[k]["in_T"] or "our_f" not in rows[k]:
+                continue
+            o, _, _, _ = row_ctx(W, rows[k])
+            res[f"{k[0]}:{k[1]}"] = share(W, buf(W, k[0], rows[k]["source"]), rows[k]["our_f"], rows[k]["our_dt"] - 0.6, [o[q] for q in W["F"].SYNC_IDX], [o])[0]
+        json.dump({"rows": res}, open(OUT + "/ours.json", "w"))
+        print("our-position rows scored:", len(res))
+        return
     acc = sorted(k for k in rows if k not in pil and (GROW[k]["in_B1"] or GROW[k]["in_B1m"] or GROW[k]["in_T"]))
     rng = np.random.default_rng(L.SEED + 2)
     own = {}
     for k in acc:
         r = score_row(W, ctl, rows[k], rng, False, True, GROW[k]["in_Tbur"])
         rec = rows[k]
-        # our-position descriptive (T rows): the own sequence at OUR published position on the same source buffer
-        if GROW[k]["in_T"] and "our_f" in rec:
-            o, _, _, _ = row_ctx(W, rec)
-            r["own_at_our_position"] = share(W, buf(W, k[0], rec["source"]), rec["our_f"], rec["our_dt"], [o[q] for q in W["F"].SYNC_IDX], [o])[0]
         own[f"{k[0]}:{k[1]}"] = dict(r, source=rec["source"])
     # V-O (descriptive): the captured O against the WAV-derived PCM TA-CHECK scored, on a seeded sample of B1 rows
     b1 = sorted(k for k in acc if GROW[k]["in_B1"])

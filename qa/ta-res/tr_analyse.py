@@ -74,9 +74,11 @@ def main():
         lab = lambda r, q=q, k_=k_: int(np.searchsorted(q, r["g"]["nbr"][k_], side="right"))
         desc[nm + "_quartile"] = {"cuts": [float(x) for x in q], "q": {str(i): {"n": sum(1 for r in tb if lab(r) == i), "PR_R": rate([r["pr"] for r in tb if lab(r) == i]), "PR_U": rate([r["pu"] for r in tb if lab(r) == i]),
                                                                                   "PR_M": rate([r["pm"] for r in tb if lab(r) == i])} for i in range(4)}}
-    ours = [r for r in R if "own_at_our_position" in r["o"]]
-    desc["our_position_descriptive"] = {"rows": len(ours), "PR_R_at_WSJTX_position": rate([r["pr"] for r in ours]), "PR_R_at_our_position": rate([r["o"]["own_at_our_position"] >= t_r for r in ours]),
-                                        "median_abs_df_Hz": float(np.median([abs(r["rec"]["our_f"] - r["g"]["freq"]) for r in ours])) if ours else None}
+    oursf = json.load(open(OUT + "/ours.json"))["rows"] if os.path.isfile(OUT + "/ours.json") else {}
+    ours = [r for r in R if f"{r['k'][0]}:{r['k'][1]}" in oursf]
+    desc["our_position_descriptive"] = {"rows": len(ours), "PR_R_at_WSJTX_position": rate([r["pr"] for r in ours]), "PR_R_at_our_position": rate([oursf[f"{r['k'][0]}:{r['k'][1]}"] >= t_r for r in ours]),
+                                        "both_present_share": rate([r["pr"] and oursf[f"{r['k'][0]}:{r['k'][1]}"] >= t_r for r in ours]), "our_dt_minus_wsjtx_dt_converted_by_0.6_s": True,
+                                        "our_f_minus_wsjtx_f_Hz_pctl_5_50_95": [float(x) for x in np.percentile([r["rec"]["our_f"] - r["g"]["freq"] for r in ours], [5, 50, 95])] if ours else None}
     rin = {"v_repro_ok": prep["V_REPRO"]["PASS"], "n_Tbur": res["T_bur"]["rows"], "ci_B1": res["B1"]["CI"], "ci_B1m": res["B1m"]["CI"], "ci_Tiso": res["T_iso"]["CI"], "ci_Tbur": res["T_bur"]["CI"],
            "ci_ghost_diff": res["ghost"]["diff"]["CI"], "n_resid": res["residue"]["rows_eligible"], "ci_resid": res["residue"]["CI"]}
     out = {"verdict": L.decide(rin), "rule_inputs": rin, "T_R": t_r, "prep": {k: prep[k] for k in ("V_REPRO", "V_PROV", "multi_source_counts_all_batch4_rows", "excluded", "included_rows")},
