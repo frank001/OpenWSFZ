@@ -130,16 +130,17 @@ def chk(sel, run, wdir, n):
     miss = [s for s in st if not os.path.exists(wdir + "/" + s + ".wav")]
     assert not miss, (sel, len(miss))
     t = [datetime.datetime.strptime(s, "%y%m%d_%H%M%S") for s in st]
-    gaps = sum(1 for a, b in zip(t, t[1:]) if (b - a).total_seconds() != 15)
+    gaps = sum(1 for a, b in zip(t[1:], t[2:]) if (b - a).total_seconds() != 15)   # FULL cycles only
+    print("preflight: warmup to first FULL cycle:", (t[1] - t[0]).total_seconds(), "s; run", run)
     return gaps
-g1 = chk("$SEL500", "$TRAIN_RUN", "$TRAIN/owsfz/wav", 500)
-g2 = chk("$SEL_TEST", "$TEST_RUN", "$TEST/owsfz/wav", 1000)
+g1 = chk(r"$(w $SEL500)", "$TRAIN_RUN", r"$(w $TRAIN/owsfz/wav)", 500)
+g2 = chk(r"$(w $SEL_TEST)", "$TEST_RUN", r"$(w $TEST/owsfz/wav)", 1000)
 print("preflight: TRAIN 500 gaps of the 15 s grid:", g1, "; TEST 1000 gaps:", g2)
 assert g2 == 0, "TEST segment is not contiguous"
 PY
   python -I -c "
 import json
-r=json.load(open(r'$SEL100'))['runs']['$TRAIN_RUN']; open(r'$R/stamps100.txt','w').write(' '.join(r['FULL']))
+r=json.load(open(r'$(w $SEL100)'))['runs']['$TRAIN_RUN']; open(r'$(w $R/stamps100.txt)','w').write(' '.join(r['FULL']))
 " || die "could not write the first-100 stamp list"
   python -I "$TOOLS/xc_chain_selftest.py" > "$R/tools_selftest.txt" 2>&1 && log "tools self-test ALL PASS" || die "tools self-test FAILED"
   free=$(df -m /d | tail -1 | awk '{print $4}'); [ "$free" -gt 20000 ] || die "less than 20 GB free on D:"
@@ -174,7 +175,7 @@ log "V-OFF text leg (first 100 cycles, new OFF vs pre-change): PASS"
 # ---- 4 TR, then T_E
 arm TR $BIN_NEW $SEL500 500 $TRAIN_RUN $TRAIN/owsfz/wav $TRAIN/wsjt-x/ALL.TXT "1 1 inf" "xcprior=True xcshadow=True xcte=Infinity clock=system"
 python -I "$TOOLS/xc_chain_tools.py" te "$(w $R/TR)" "$(w $R/te.json)" --k-source $K_SOURCE >> "$LOG" 2>&1 || die "T_E: V-TR-N fails or no shadow tests (spec section 4 row 2: VOID); see the TE line above"
-TE=$(python -I -c "import json;print(repr(json.load(open(r'$R/te.json'))['T_E']))")
+TE=$(python -I -c "import json;print(repr(json.load(open(r'$(w $R/te.json)'))['T_E']))")
 [ -n "$TE" ] && [ "$TE" != None ] || die "T_E is empty"
 log "T_E frozen: $TE (te.json sha256 $(sha $R/te.json | cut -c1-16))"
 
