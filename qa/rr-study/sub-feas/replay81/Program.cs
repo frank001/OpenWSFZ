@@ -664,7 +664,8 @@ internal static class Program
         return n;
     }
 
-    /// <summary>The replay clock mode read back in every "# readback" line: system (default) or frozen (the decoder's cycle budget never expires).</summary>
+    /// <summary>The replay clock mode read back in every "# readback" line: system (default) or frozen (the decoder's cycle budget never expires).
+    /// STANDING GUARD (Architect, 2026-11-13): a frozen-clock arm measures the decoder with NO budget, so its NET, ABANDON and LATE are never cited as station figures; every row from one names "clock: frozen" beside the host and the libft8 SHA-256.</summary>
     private static string ClockMode = "system";
 
     /// <summary>A TimeProvider whose timestamp never advances: every elapsed time the decoder's BudgetClock reads is zero, so no budget check can fire.</summary>
