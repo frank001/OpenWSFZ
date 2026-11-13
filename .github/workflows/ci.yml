@@ -18,7 +18,9 @@ permissions:
 
 jobs:
   build-test:
-    name: Build & Test (${{ matrix.os }})
+    # The check name stays "(ubuntu-latest)" for the Linux leg although it runs on ubuntu-24.04: branch protection requires
+    # that exact name, and a matrix rename would leave the required check pending forever. Rename both together.
+    name: Build & Test (${{ matrix.label || matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -32,6 +34,7 @@ jobs:
           # the guard step after the Linux build (tools/check_glibc_floor.py, constant GLIBC_FLOOR) enforces it.
           - os: ubuntu-24.04
             rid: linux-x64
+            label: ubuntu-latest
           - os: macos-latest
             rid: osx-arm64
 
