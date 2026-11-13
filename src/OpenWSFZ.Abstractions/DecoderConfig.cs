@@ -61,7 +61,10 @@ public sealed record DecoderConfig
         // CQ-AP: in the constructor with its default (false), for the same reason as the fields above.
         bool cqApEnabled = false,
         // COH-RES-CAND v2: in the constructor with its default (false), for the same reason as the fields above.
-        bool coherentFallbackResidualCandidates = false)
+        bool coherentFallbackResidualCandidates = false,
+        // XC-BUILD: in the constructor with their defaults (false), for the same reason as the fields above.
+        bool crossCyclePrior = false,
+        bool crossCyclePriorShadow = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -81,6 +84,8 @@ public sealed record DecoderConfig
         LateSubtractionRound = lateSubtractionRound;
         CqApEnabled = cqApEnabled;
         CoherentFallbackResidualCandidates = coherentFallbackResidualCandidates;
+        CrossCyclePrior = crossCyclePrior;
+        CrossCyclePriorShadow = crossCyclePriorShadow;
     }
 
     /// <summary>
@@ -324,4 +329,21 @@ public sealed record DecoderConfig
     /// next window. Turning it on starts a new live era: never pool its decodes with figures from the setting off.
     /// </summary>
     public bool CoherentFallbackResidualCandidates { get; init; }
+
+    /// <summary>
+    /// XC-BUILD (cross-cycle template stage): when <c>true</c>, the decoder keeps the messages published in batches 1 to 5 of each staged cycle for 90 s and, on a staged cycle with a residual buffer, tests the
+    /// messages published 30, 60 and 90 s earlier as known 79-tone templates on that buffer (a managed energy detector searched in a window around each prior's position), publishing detections as <b>batch 6</b>
+    /// after every other batch. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and every code path, every published row and every log line is as it was (nothing is stored, nothing is written).
+    /// Needs the coherent fallback on and Deep depth to have a residual buffer; otherwise the stage is a counted, logged skip. The detection threshold is a shipped constant, not a setting. Config file and API
+    /// only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on starts a new live era: never
+    /// pool its decodes with figures from the setting off.
+    /// </summary>
+    public bool CrossCyclePrior { get; init; }
+
+    /// <summary>
+    /// XC-BUILD (shadow null): when <c>true</c> <b>and</b> <see cref="CrossCyclePrior"/> is on, the same detector, window and threshold also run on the OPPOSITE-parity priors (published 15, 45 and 75 s earlier)
+    /// against the same buffer; those detections are counted and logged, never published and never stored, so an arm can measure the false rate instead of inheriting it. <b>Default <c>false</c></b> and it stays
+    /// off at the station unless the Captain turns it on. No effect while <see cref="CrossCyclePrior"/> is off. Config file and API only; the POST is an overlay. Read once per window.
+    /// </summary>
+    public bool CrossCyclePriorShadow { get; init; }
 }
