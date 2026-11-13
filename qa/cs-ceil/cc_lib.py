@@ -7,15 +7,13 @@ RELOCATION (spec 1): for a row, fit ITS OWN signal on the stored R3 (R2 in the 1
 start (dt + DELTA_P, freq); take the real part of the frequency-shifted analytic waveform; add it into the nearest qualifying empty 60 Hz slot of the SAME cycle; run gr_forced.force_cycle
 UNCHANGED at (freq + delta, same dt).  Decodable = forced primary found OR forced coherent v3_match (sc_analyse.either).
 
-SLOT RULE (frozen as code, spec 1 + A1.3 + F1):
+SLOT RULE (Amendment 2, section 9, arch/cs-model-ceiling e3e5feca; the tail floor of section 1 / A1.3 / F1 is REMOVED, it does not exist on these buffers, E177):
   window [f_s, f_s + 60) on a 6.25 Hz grid inside [300, 2700]; blocked if ANY n_ref row or ANY decode of ours (any batch) of the cycle has a frequency in [f_s - 60, f_s + 120);
-  the copy's base frequency = f_s + COPY_OFFSET_HZ, so delta = f_s + 5 - f_row; the row's own band = [f_row - 5, f_row + 55).
-  TAIL (F1, measured on these buffers: per-cycle max WSJT-X dt has median 1.7 s, so a fixed 13.2-14.8 s window is inside late signals): the tail window starts at
-  t0 = max(13.2 s, latest END of any n_ref row whose 50 Hz signal overlaps the row's own band, end = dt + DELTA_P + 12.64 s) and runs to 14.9 s; it must be >= TAIL_MIN_S long, else the row has NO SLOT.
-  The slot's tail PSD and the row's own-band tail PSD, both over that same window, must be within +-1.0 dB.
-  IN-WINDOW (A1.3): the slot's PSD over [0.5, 13.1] s minus its own tail PSD must be <= X dB, X = median of that difference over every (row, slot) pair passing the blocker and tail
-  conditions + 1.0 dB (the no-copy pilot, at freeze).
-  The qualifying slot NEAREST in frequency to the row (centre to centre; ties: the lower frequency).  No slot => the row is excluded and counted (A1.2).
+  the copy's base frequency = f_s + COPY_OFFSET_HZ, so delta = f_s + 5 - f_row.
+  CYCLE FLOOR = median, over the cycle's blocker-free slots, of the slot's mean in-window PSD (window [IN_LO, IN_HI], fixed at freeze from the measured dt range, defaults 0.5 to 13.1 s).
+  A slot QUALIFIES iff blocker-free and its in-window PSD is within +-TOL_DB (1.0 dB, section 1's own tolerance, HK-038) of the cycle floor  (rule "two-sided");
+  PRE-REGISTERED FALLBACK (decided mechanically on the no-copy pilot): if the two-sided rule gives V-SLOT < 90 % in ANY group, the rule becomes "upper" (in-window PSD - floor <= +1.0 dB).
+  The qualifying slot NEAREST in frequency to the row (centre to centre; ties: the lower frequency).  No slot (no blocker-free slot, or none in the band) => A1.2 counting.
 PSD = Hann periodogram, 2|X|^2 / (fs sum w^2), mean over the band's bins, in dB, so windows of different lengths compare."""
 from __future__ import annotations
 
@@ -41,17 +39,15 @@ SLOT_W, F_LO, F_HI, STEP = 60.0, 300.0, 2700.0, 6.25
 BLOCK_LO, BLOCK_HI = 60.0, 120.0               # blocked if a freq in [f_s - 60, f_s + 120)
 COPY_OFFSET_HZ = 5.0
 ROW_LO, ROW_HI = 5.0, 55.0                     # row's own band [f - 5, f + 55)
-TAIL_FLOOR_START, TAIL_END, TAIL_MIN_S = 13.2, 14.9, 0.4
 IN_LO, IN_HI = 0.5, 13.1
-TOL_DB = 1.0                                   # spec 1: tail floor within +-1.0 dB
-X_PLUS_DB = 1.0                                # A1.3: X = median + 1.0 dB
+TOL_DB = 1.0                                   # section 1's own registered tolerance (+-1.0 dB), reused by A2.1 as the level band around the cycle floor
 BAR_PP = 1.0                                   # CS-REFIT's BUILD-WORTH bar (spec 4, HK-038: a prize threshold)
 V_REPRO, V_SLOT, V_REL = 0.98, 0.90, 0.80
 N_CTRL_HIT = 300
 BANDS = ("A", "B", "C", "D")
 assert (SEED, B_BOOT, N_REF, N_CYCLES, PCM) == (20261112, 2000, 12124, 400, 180000)
 assert abs(SIGNAL_S - 12.64) < 1e-9 and (BAR_PP, V_REPRO, V_SLOT, V_REL, N_CTRL_HIT) == (1.0, 0.98, 0.90, 0.80, 300)
-assert (DELTA_P, DELTA_C, TOL_DB, X_PLUS_DB) == (0.6, 0.7, 1.0, 1.0) and SLOT_W == 60.0 and STEP == 6.25 and (F_LO, F_HI) == (300.0, 2700.0)
+assert (DELTA_P, DELTA_C, TOL_DB) == (0.6, 0.7, 1.0) and SLOT_W == 60.0 and STEP == 6.25 and (F_LO, F_HI) == (300.0, 2700.0)
 
 
 # --------------------------------------------------------------------------------------------- PSD and slots
@@ -84,38 +80,32 @@ def blocked(f_s, freqs):
     return any(f_s - BLOCK_LO <= f < f_s + BLOCK_HI for f in freqs)
 
 
-def tail_start(row_f, others):
-    """others = [(freq, dt)] of every n_ref row of the cycle (the row itself included).  Latest END of a signal overlapping the row's own band."""
-    lo, hi = row_f - ROW_LO, row_f + ROW_HI
-    t0 = TAIL_FLOOR_START
-    for f, dt in others:
-        if f < hi and f + SIGNAL_HZ > lo:
-            t0 = max(t0, dt + DELTA_P + SIGNAL_S)
-    return t0
+def cycle_floor(in_slot_db: dict, freqs_block):
+    """median over the cycle's blocker-free slots of the slot's in-window PSD (dB); None if there is no blocker-free slot."""
+    v = [d for f, d in in_slot_db.items() if d is not None and not blocked(f, freqs_block)]
+    return float(np.median(v)) if v else None
 
 
-def choose_slot(row_f, tail_row_db, tail_slot_db, in_slot_db, freqs_block, x_db, collect=None):
-    """tail_slot_db / in_slot_db: dict f_s -> dB (or None).  Returns the nearest qualifying f_s or None.  collect (list) receives in-tail differences of pairs passing blocker + tail."""
+def qualifies(level_db, floor_db, rule):
+    if level_db is None or floor_db is None:
+        return False
+    d = level_db - floor_db
+    return abs(d) <= TOL_DB if rule == "two-sided" else d <= TOL_DB
+
+
+def choose_slot(row_f, in_slot_db, freqs_block, rule="two-sided"):
+    """in_slot_db: dict f_s -> in-window dB.  Returns (f_s or None, floor_db).  Nearest qualifying slot (centre to centre), ties: the lower f_s."""
+    assert rule in ("two-sided", "upper")
+    floor = cycle_floor(in_slot_db, freqs_block)
     best = None
     row_c = row_f + SIGNAL_HZ / 2.0
     for f_s in slot_grid():
-        if blocked(f_s, freqs_block):
+        if blocked(f_s, freqs_block) or not qualifies(in_slot_db.get(f_s), floor, rule):
             continue
-        ts, tin = tail_slot_db.get(f_s), in_slot_db.get(f_s)
-        if ts is None or tin is None or tail_row_db is None:
-            continue
-        if abs(ts - tail_row_db) > TOL_DB:
-            continue
-        diff = tin - ts
-        if collect is not None:
-            collect.append(diff)
-        if x_db is not None and diff > x_db:
-            continue
-        d = abs((f_s + SLOT_W / 2.0) - row_c)
-        key = (d, f_s)
+        key = (abs((f_s + SLOT_W / 2.0) - row_c), f_s)
         if best is None or key < best[0]:
             best = (key, f_s)
-    return None if best is None else best[1]
+    return (None if best is None else best[1]), floor
 
 
 def relocation_delta(f_s, row_f):
