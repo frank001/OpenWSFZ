@@ -1,0 +1,29 @@
+{
+ "matchedbatch.csv": {
+  "lines_new": 1001,
+  "lines_ref": 1001,
+  "lines_differing": 0
+ },
+ "testb.csv": {
+  "lines_new": 21001,
+  "lines_ref": 21001,
+  "lines_differing": 0,
+  "b6_rows_excluded_new": 4000,
+  "b6_rows_excluded_ref": 4000,
+  "b6_rows_nonzero": 0
+ },
+ "per_cycle_counts": {
+  "columns": [
+   "stamp",
+   "decodes",
+   "b1_n",
+   "b2_n",
+   "b3_n",
+   "b4_n",
+   "b5_n"
+  ],
+  "cycles": 1000,
+  "cycles_differing": 0
+ },
+ "verdict": "PASS"
+}

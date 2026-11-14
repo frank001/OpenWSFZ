@@ -1,0 +1,28 @@
+{
+ "T_E": 3.076041980658299,
+ "n_shadow_tests": 23219,
+ "mapping": {
+  "live_ge_te": 927,
+  "mapped": 927
+ },
+ "units": 927,
+ "n_COR_like": 264,
+ "n_SUP_like": 342,
+ "n_FREE_like": 321,
+ "dt_offset_median_s": 0.6099999523162842,
+ "dt_offset_ok": true,
+ "V_TE": true,
+ "V_TR_P": true,
+ "mapping_complete": true,
+ "T_P": 2.2220253019230114,
+ "descriptive": {
+  "COR_kept": 0.8977272727272727,
+  "SUP_removed": 0.9649122807017544,
+  "FREE_removed": 0.38006230529595014
+ },
+ "valid": true,
+ "K": 36.0,
+ "FA_star": 0.0005833333333333334,
+ "V_TR_N": true,
+ "version": 2
+}
