@@ -950,6 +950,10 @@ public sealed class CrossCyclePriorTests
     [InlineData(3.2, 0.19, false)]
     [InlineData(0.00, -0.60, false)]
     [InlineData(0.00, 0.00, true)]
+    [InlineData(0.00, 0.20, true)]
+    [InlineData(0.00, -0.20, true)]
+    [InlineData(3.125, 0.00, true)]
+    [InlineData(-3.125, 0.00, true)]
     public void Veto_Boundary_InOurOwnDt(double dFreq, double dDt, bool expectVeto)
     {
         var tpl = new[] { Tpl(M, MFreq, MDt, 2) };
@@ -1081,5 +1085,17 @@ public sealed class CrossCyclePriorTests
         off.Rows.Should().NotContain(p => p.Batch >= Ft8Decoder.TemplateBatch);
         on.Log.XcLines.Should().HaveCount(2, "the ON control");
         on.Rows.Should().Equal(off.Rows, "ON with T_E = +infinity changes no published row even with the veto ON and T_P set");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14 (QA R05): a decode exactly ON the window edge (0.20 s, 3.125 Hz) is co-located, even where the double difference is a few ulps over 0.2 (0.1 + 0.2 - 0.1), which only the edge tolerance admits; a hair beyond the tolerance is not")]
+    public void Colocation_ExactEdge_IsInside()
+    {
+        double dtOver = (0.1 + 0.2) - 0.1;
+        dtOver.Should().BeGreaterThan(0.2, "the arithmetic puts the difference an ulp over 0.2: the edge tolerance is what lets it in");
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500, 0.1 + 0.2).Should().BeTrue();
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500 + 3.125, 0.1).Should().BeTrue();
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500 - 3.125, 0.1).Should().BeTrue();
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500, 0.1 + 0.2 + 1e-6).Should().BeFalse("beyond the tolerance");
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500 + 3.125 + 1e-6, 0.1).Should().BeFalse();
     }
 }
