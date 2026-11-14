@@ -44,6 +44,15 @@ internal static class CrossCycleTemplateDetector
     /// <summary>Tones (bins) per symbol.</summary>
     internal const int ToneCount = 8;
 
+    /// <summary>
+    /// XC-BUILD R15: the first and last frame symbol (inclusive) of the SECOND data block of the 79-symbol frame (S 0-6, D 7-35, S 36-42, <b>D 43-71</b>, S 72-78): codeword bits 87 to 173, the CRC's tail and the
+    /// LDPC parity. Any change of the message re-draws this block almost at random, so a stale template matches about 1/8 of its symbols here (QA's XC-PARITY P0: 3.94 of 29 equal tones, chance 3.63).
+    /// </summary>
+    internal const int ParityBlockFirstSymbol = 43, ParityBlockLastSymbol = 71;
+
+    /// <summary>The number of symbols in the second data block (29).</summary>
+    internal const int ParityBlockSymbols = ParityBlockLastSymbol - ParityBlockFirstSymbol + 1;
+
     /// <summary>The low-pass length (<c>REFINE_LP_TAPS_FINE</c>).</summary>
     internal const int LowPassTaps = 61;
 
@@ -78,7 +87,8 @@ internal static class CrossCycleTemplateDetector
     /// <param name="SStar">S_E*, the maximum of S_E over the window.</param>
     /// <param name="FreqHz">The frequency of the argmax, Hz.</param>
     /// <param name="Dt">The dt of the argmax, seconds.</param>
-    internal readonly record struct SearchResult(double SStar, double FreqHz, double Dt);
+    /// <param name="SP">XC-BUILD R15: S_P, the same statistic restricted to frame symbols 43 to 71 (the mean of those 29 ratios), AT the S_E* argmax. From the same correlations: no second search.</param>
+    internal readonly record struct SearchResult(double SStar, double FreqHz, double Dt, double SP);
 
     private static readonly double[] Taps = DesignLowPassHann(LowPassTaps, LowPassCutoffHz, SampleRateHz);
 
@@ -142,7 +152,7 @@ internal static class CrossCycleTemplateDetector
 
     /// <summary>
     /// S_E* over the window around (<paramref name="centreFreqHz"/>, <paramref name="centreDt"/>) on <paramref name="pcm"/> for the message whose 79 tones are <paramref name="tones"/>,
-    /// and the argmax. The search order and the strict greater-than are the reference's (frequency outer, start time inner, the first maximum wins).
+    /// and the argmax, with S_P at that argmax (R15). The search order and the strict greater-than are the reference's (frequency outer, start time inner, the first maximum wins); S_P never takes part in the search.
     /// </summary>
     /// <param name="pcm">The cycle buffer, 180 000 samples at 12 kHz. Read only.</param>
     /// <param name="centreFreqHz">The prior's frequency, Hz (the carrier of the one downconvert).</param>
@@ -151,7 +161,8 @@ internal static class CrossCycleTemplateDetector
     internal static SearchResult Search(ReadOnlySpan<float> pcm, double centreFreqHz, double centreDt, ReadOnlySpan<byte> tones)
     {
         var grid = new double[FreqSteps * DtSteps];
-        Grid(pcm, centreFreqHz, centreDt, tones, grid);
+        var parityGrid = new double[FreqSteps * DtSteps];
+        Grid(pcm, centreFreqHz, centreDt, tones, grid, parityGrid);
 
         double best = -1.0;
         int bestF = 0, bestK = 0;
@@ -163,17 +174,19 @@ internal static class CrossCycleTemplateDetector
                 if (v > best) { best = v; bestF = fi; bestK = k; }
             }
         }
-        return new SearchResult(best, centreFreqHz + FreqOffsetHz(bestF), centreDt + DtOffsetS(bestK));
+        return new SearchResult(best, centreFreqHz + FreqOffsetHz(bestF), centreDt + DtOffsetS(bestK), parityGrid[bestF * DtSteps + bestK]);
     }
 
     /// <summary>
     /// S_E at every position of the window, row-major <c>[frequency index * 25 + start-time index]</c> (13 x 25 = 325 values), by one downconvert at the centre and the shifted baseband for the other
-    /// frequencies. <see cref="Search"/> takes the maximum; the tests compare cells with a direct computation.
+    /// frequencies. <see cref="Search"/> takes the maximum; the tests compare cells with a direct computation. When <paramref name="parityGridOut"/> is given it receives, in the same layout, S_P (the
+    /// mean over frame symbols 43 to 71 of the same per-symbol ratios) from the SAME correlations: no second pass over the buffer.
     /// </summary>
-    internal static void Grid(ReadOnlySpan<float> pcm, double centreFreqHz, double centreDt, ReadOnlySpan<byte> tones, double[] gridOut)
+    internal static void Grid(ReadOnlySpan<float> pcm, double centreFreqHz, double centreDt, ReadOnlySpan<byte> tones, double[] gridOut, double[]? parityGridOut = null)
     {
         if (tones.Length != SymbolCount) throw new ArgumentException("A message has exactly 79 tones.", nameof(tones));
         if (gridOut.Length < FreqSteps * DtSteps) throw new ArgumentException("gridOut must hold 13 x 25 values.", nameof(gridOut));
+        if (parityGridOut is not null && parityGridOut.Length < FreqSteps * DtSteps) throw new ArgumentException("parityGridOut must hold 13 x 25 values.", nameof(parityGridOut));
 
         int n2k = (pcm.Length + Decimation - 1) / Decimation;
         double[] bbRe = ArrayPool<double>.Shared.Rent(n2k), bbIm = ArrayPool<double>.Shared.Rent(n2k);
@@ -191,9 +204,13 @@ internal static class CrossCycleTemplateDetector
             {
                 var row = gridOut.AsSpan(fi * DtSteps, DtSteps);
                 row.Clear();
+                var parityRow = parityGridOut is null ? default : parityGridOut.AsSpan(fi * DtSteps, DtSteps);
+                parityRow.Clear();
                 ShiftBaseband(bbRe, bbIm, n2k, FreqOffsetHz(fi), sbRe, sbIm);
-                AccumulateRatios(sbRe, sbIm, n2k, starts, tones, row);
+                AccumulateRatios(sbRe, sbIm, n2k, starts, tones, row, parityRow);
                 for (int k = 0; k < DtSteps; k++) row[k] /= SymbolCount;
+                if (parityGridOut is not null)
+                    for (int k = 0; k < DtSteps; k++) parityRow[k] /= ParityBlockSymbols;
             }
         }
         finally
@@ -243,6 +260,14 @@ internal static class CrossCycleTemplateDetector
         double sum = 0.0;
         for (int k = 0; k < SymbolCount; k++) sum += Ratio(p.Slice(k * ToneCount, ToneCount), tones[k]);
         return sum / SymbolCount;
+    }
+
+    /// <summary>XC-BUILD R15: S_P from the 79 x 8 powers: the mean over frame symbols 43 to 71 (29 of them) of the same per-symbol ratio as <see cref="StatisticFromPowers"/>; a symbol without power counts 1.</summary>
+    internal static double ParityStatisticFromPowers(ReadOnlySpan<double> p, ReadOnlySpan<byte> tones)
+    {
+        double sum = 0.0;
+        for (int k = ParityBlockFirstSymbol; k <= ParityBlockLastSymbol; k++) sum += Ratio(p.Slice(k * ToneCount, ToneCount), tones[k]);
+        return sum / ParityBlockSymbols;
     }
 
     private static double Ratio(ReadOnlySpan<double> bins, int tone)
@@ -375,9 +400,10 @@ internal static class CrossCycleTemplateDetector
 
     /// <summary>
     /// For one frequency (the shifted baseband): add, into <paramref name="ratioSum"/>[k] (k = start time index), the per-symbol ratios of all 79 symbols. A symbol whose chunks stay inside the
-    /// buffer for every start time is ROLLED from one start to the next; any other symbol is computed directly with zero padding.
+    /// buffer for every start time is ROLLED from one start to the next; any other symbol is computed directly with zero padding. A symbol of the second data block (43 to 71) also adds its ratio into
+    /// <paramref name="parityRatioSum"/> when that is non-empty (R15): the same ratio, so S_P costs 29 x 25 additions per frequency and no extra correlation.
     /// </summary>
-    private static void AccumulateRatios(double[] re, double[] im, int n, ReadOnlySpan<int> starts, ReadOnlySpan<byte> tones, Span<double> ratioSum)
+    private static void AccumulateRatios(double[] re, double[] im, int n, ReadOnlySpan<int> starts, ReadOnlySpan<byte> tones, Span<double> ratioSum, Span<double> parityRatioSum)
     {
         Span<double> xr = stackalloc double[ToneCount], xi = stackalloc double[ToneCount];
         Span<double> bins = stackalloc double[ToneCount];
@@ -385,6 +411,7 @@ internal static class CrossCycleTemplateDetector
         {
             int tone = tones[sym];
             int offset = sym * SymbolSamples;
+            bool inParityBlock = sym >= ParityBlockFirstSymbol && sym <= ParityBlockLastSymbol;
             for (int k = 0; k < DtSteps; k++)
             {
                 int s = starts[k] + offset;
@@ -400,7 +427,9 @@ internal static class CrossCycleTemplateDetector
                 }
                 if (!rolled) ChunkDft(re, im, n, s, xr, xi);
                 for (int b = 0; b < ToneCount; b++) bins[b] = xr[b] * xr[b] + xi[b] * xi[b];
-                ratioSum[k] += Ratio(bins, tone);
+                double ratio = Ratio(bins, tone);
+                ratioSum[k] += ratio;
+                if (inParityBlock && !parityRatioSum.IsEmpty) parityRatioSum[k] += ratio;
             }
         }
     }

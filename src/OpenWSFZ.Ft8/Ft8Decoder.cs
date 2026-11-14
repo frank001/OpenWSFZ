@@ -312,6 +312,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     private double _crossCyclePriorThreshold = CrossCyclePriorThresholdDefault;   // read with Volatile.Read: a double cannot be volatile
     private readonly CrossCyclePriorStore _crossCycleStore = new();
     private volatile ICrossCyclePriorProbe? _crossCycleProbe;
+    private volatile bool _crossCycleColocationVeto = CrossCyclePriorColocationVetoDefault;   // R14: ON in the product
+    private double _crossCyclePriorParityThreshold = CrossCyclePriorParityThresholdDefault;   // R15, read with Volatile.Read
 
     /// <summary>
     /// XC-BUILD R6: T_E, the shipped threshold on S_E* above which a template is detected. <b>A placeholder: <see cref="double.PositiveInfinity"/> in this build</b> (nothing is ever detected). QA's TRAIN arm measures the
@@ -346,6 +348,30 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     /// <summary>XC-BUILD R6: the T_E in force now (the read-back of <see cref="SetCrossCyclePriorThreshold"/>; <see cref="CrossCyclePriorThresholdDefault"/> until set).</summary>
     internal double CrossCyclePriorThreshold => Volatile.Read(ref _crossCyclePriorThreshold);
+
+    /// <summary>
+    /// XC-BUILD R15: T_P, the shipped threshold on S_P (the statistic over frame symbols 43 to 71 at the S_E* argmax) that a template must also clear to be detected. <b>A placeholder: 0.0 in this build</b>
+    /// (S_P is never negative, so nothing is gated). QA's TR2 arm on the TRAIN night measures the real value, which goes in before any merge; a value chosen on the TEST night is not allowed.
+    /// Replay sets it through <see cref="SetCrossCyclePriorParityThreshold"/>.
+    /// </summary>
+    internal const double CrossCyclePriorParityThresholdDefault = 0.0;
+
+    /// <summary>XC-BUILD R14: the co-location veto is ON in the product (the build is default OFF as a whole, but when it is on, the veto is on).</summary>
+    internal const bool CrossCyclePriorColocationVetoDefault = true;
+
+    /// <summary>XC-BUILD R15: sets T_P for replay (TR2 runs with the veto off and T_E +infinity, the ON arms with the frozen values). Internal: visible to the harness through <c>InternalsVisibleTo</c>.</summary>
+    internal void SetCrossCyclePriorParityThreshold(double threshold)
+        => Volatile.Write(ref _crossCyclePriorParityThreshold, threshold);
+
+    /// <summary>XC-BUILD R15: the T_P in force now (the read-back of <see cref="SetCrossCyclePriorParityThreshold"/>; <see cref="CrossCyclePriorParityThresholdDefault"/> until set). The harness's read-back line shows it as <c>xctp</c>.</summary>
+    internal double CrossCyclePriorParityThreshold => Volatile.Read(ref _crossCyclePriorParityThreshold);
+
+    /// <summary>XC-BUILD R14: sets the co-location veto for replay (TR2 turns it off so every live test is scored; every other arm leaves it on). Internal, like the T_E setter. Read once per decode cycle.</summary>
+    internal void SetCrossCyclePriorColocationVeto(bool enabled)
+        => _crossCycleColocationVeto = enabled;
+
+    /// <summary>XC-BUILD R14: whether the veto is applied now (the read-back of <see cref="SetCrossCyclePriorColocationVeto"/>; <c>true</c> until set). The harness's read-back line shows it as <c>xcveto</c>.</summary>
+    internal bool CrossCyclePriorColocationVeto => _crossCycleColocationVeto;
 
     /// <summary>XC-BUILD R13: the numbers-only diagnostic sink, <c>null</c> by default (the shipped build has no subscriber). Replay81 sets it through <c>InternalsVisibleTo</c>.</summary>
     internal ICrossCyclePriorProbe? CrossCyclePriorProbe
@@ -727,6 +753,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         bool xcOn          = cohOn && _crossCyclePrior;
         bool xcShadowOn    = xcOn && _crossCyclePriorShadow;
         double xcThreshold = xcOn ? Volatile.Read(ref _crossCyclePriorThreshold) : CrossCyclePriorThresholdDefault;
+        double xcParityThreshold = xcOn ? Volatile.Read(ref _crossCyclePriorParityThreshold) : CrossCyclePriorParityThresholdDefault;   // R15: read once per cycle
+        bool xcVetoOn      = xcOn && _crossCycleColocationVeto;                                                                          // R14: read once per cycle
         // The texts this cycle published in batches 1 to 5 (R3's first exclusion). Allocated only while the stage is on.
         HashSet<string>? xcPublished = xcOn ? new HashSet<string>(StringComparer.Ordinal) : null;
 
@@ -1363,6 +1391,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             var exLive = default(CrossCycleTemplateStage.Exclusions);
             var exShadow = default(CrossCycleTemplateStage.Exclusions);
             int testedLive = 0, testedShadow = 0, detectedLive = 0, detectedShadow = 0, abandonedLive = 0, abandonedShadow = 0, publishedCount = 0;
+            int parityRejectedLive = 0, parityRejectedShadow = 0, vetoedLive = 0, vetoedShadow = 0;
+            // R14: the cycle's batch 1 to 5 publishes (text, position in our own dt, batch), after all of them are out. The same list serves live and shadow.
+            var cycleDecodes = _crossCycleStore.CurrentCycleDecodes();
             double publishMs = -1.0;
             try
             {
@@ -1379,7 +1410,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 try
                 {
                     live = await Task.Run(
-                        () => CrossCycleTemplateStage.Run(liveTemplates, choice.Pcm, xcThreshold, workers, Expired, ct), CancellationToken.None).ConfigureAwait(false);
+                        () => CrossCycleTemplateStage.Run(liveTemplates, choice.Pcm, xcThreshold, workers, Expired, ct, xcParityThreshold, cycleDecodes, xcVetoOn), CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -1389,7 +1420,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
                 if (live is not null)
                 {
-                    testedLive = live.Tested; detectedLive = live.Detected; abandonedLive = live.Abandoned;
+                    testedLive = live.Tested; detectedLive = live.Detected; abandonedLive = live.Abandoned; parityRejectedLive = live.ParityRejected; vetoedLive = live.VetoRejected;
                     ReportXcProbe(CrossCycleKind.Live, live);
 
                     // R7: detections are mapped like any other batch (the same per-cycle text de-duplication and plausibility filter) and published as batch 6 only if non-empty.
@@ -1419,8 +1450,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     try
                     {
                         var shadow = await Task.Run(
-                            () => CrossCycleTemplateStage.Run(shadowTemplates, choice.Pcm, xcThreshold, workers, Expired, ct), CancellationToken.None).ConfigureAwait(false);
-                        testedShadow = shadow.Tested; detectedShadow = shadow.Detected; abandonedShadow = shadow.Abandoned;
+                            () => CrossCycleTemplateStage.Run(shadowTemplates, choice.Pcm, xcThreshold, workers, Expired, ct, xcParityThreshold, cycleDecodes, xcVetoOn), CancellationToken.None).ConfigureAwait(false);
+                        testedShadow = shadow.Tested; detectedShadow = shadow.Detected; abandonedShadow = shadow.Abandoned; parityRejectedShadow = shadow.ParityRejected; vetoedShadow = shadow.VetoRejected;
                         ReportXcProbe(CrossCycleKind.Shadow, shadow);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
@@ -1437,9 +1468,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     "Cross-cycle prior: outcome={Outcome}, priorsLive={PriorsLive}, priorsShadow={PriorsShadow}, excludedDecoded={ExcludedDecoded}, excludedHashed={ExcludedHashed}, " +
                     "excludedRefused={ExcludedRefused}, shadowExcludedDecoded={ShadowExcludedDecoded}, shadowExcludedHashed={ShadowExcludedHashed}, shadowExcludedRefused={ShadowExcludedRefused}, " +
                     "testedLive={TestedLive}, testedShadow={TestedShadow}, detected={Detected}, shadowDetected={ShadowDetected}, abandoned={Abandoned}, shadowAbandoned={ShadowAbandoned}, " +
+                    "vetoedColocated={VetoedColocated}, shadowVetoedColocated={ShadowVetoedColocated}, parityRejected={ParityRejected}, shadowParityRejected={ShadowParityRejected}, " +
+                    "veto={Veto}, parityThreshold={ParityThreshold}, " +
                     "published={Published}, threshold={Threshold}, startMs={StartMs:F0}, stageMs={StageMs:F0}, endMs={EndMs:F0}, batch={Batch}, batch6PublishMs={PublishMs:F0}.",
                     outcome, liveCandidates.Count, shadowCandidates.Count, exLive.AlreadyDecoded, exLive.Hashed, exLive.Refused, exShadow.AlreadyDecoded, exShadow.Hashed, exShadow.Refused,
                     testedLive, testedShadow, detectedLive, detectedShadow, abandonedLive, abandonedShadow,
+                    vetoedLive, vetoedShadow, parityRejectedLive, parityRejectedShadow, xcVetoOn, xcParityThreshold,
                     publishedCount, xcThreshold, startMs, endMs - startMs, endMs, TemplateBatch, publishMs);
             }
         }
@@ -1454,7 +1488,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 var o = run.Outcomes[i];
                 if (!o.Tested) continue;
                 var t = run.Templates[i];
-                try { probe.OnTemplateTested(new CrossCycleTestRecord(kind, o.SStar, t.AgeCycles, o.FreqHz - t.FreqHz, o.Dt - t.Dt, cycleStart)); }
+                try { probe.OnTemplateTested(new CrossCycleTestRecord(kind, o.SStar, t.AgeCycles, o.FreqHz - t.FreqHz, o.Dt - t.Dt, cycleStart, o.SP, t.FreqHz, t.Dt, t.Batch, o.Vetoed)); }
                 catch (Exception ex) { _logger?.LogWarning(ex, "Cycle {Time}: the cross-cycle diagnostic sink threw - ignored.", timeStr); }
             }
         }

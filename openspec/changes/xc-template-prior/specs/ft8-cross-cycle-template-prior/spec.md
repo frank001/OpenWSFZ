@@ -98,3 +98,27 @@ While `decoder.crossCyclePrior` is `true` the decoder SHALL write one Informatio
 
 - **WHEN** the sink throws on every call
 - **THEN** the cycle's batch 6 SHALL still be published
+
+### Requirement: A template is detected only if its second data block matches (R15, T_P) and no decode of another text sits next to it (R14)
+
+The template stage SHALL compute S_P, the template statistic restricted to frame symbols 43 to 71 (the mean of the same per-symbol ratios over those 29 symbols; a symbol with no power counts 1), from the same correlations at the S_E* argmax with no second search, and SHALL detect a template only when S_E* >= T_E and S_P >= T_P. T_P SHALL be a named constant with the placeholder value 0.0 in this build, settable for replay through an internal setter with a read-back. A template that clears T_E and fails T_P SHALL be counted as parity-rejected, live and shadow separately. A detection SHALL NOT be published when batches 1 to 5 of the same cycle hold a decode with a different text within 3.125 Hz and 0.2 s of the argmax, both in the product's own dt convention (the argmax converted back from WSJT-X's by the 0.6 s offset before the comparison); it SHALL be counted as vetoed-colocated, live and shadow separately. The veto SHALL be on by default and settable for replay through an internal setter with a read-back, and with it off the sink SHALL still say whether it would have vetoed. With both flags off nothing in this requirement SHALL run.
+
+#### Scenario: The same station's next, different message
+
+- **WHEN** the buffer holds the next message of the station whose previous message is the prior, at the prior's position, and T_P is 1.9
+- **THEN** the old template SHALL clear T_E, fail T_P, be counted parity-rejected and not be published, and with T_P 0.0 it SHALL be published
+
+#### Scenario: The same message repeated
+
+- **WHEN** the buffer holds the same message at the prior's position and T_P is 1.9
+- **THEN** it SHALL be published
+
+#### Scenario: A different text beside the argmax
+
+- **WHEN** a decode of batches 1 to 5 with a different text lies 0.19 s or 3.0 Hz from the argmax
+- **THEN** the detection SHALL be vetoed and counted, and at 0.21 s or 3.2 Hz it SHALL NOT be
+
+#### Scenario: The sink and the line
+
+- **WHEN** a template is tested
+- **THEN** the sink record SHALL carry S_P, the prior's frequency, dt and batch and the veto flag, and no text, and the log line SHALL carry the vetoed-colocated and parity-rejected counts, live and shadow, and no text

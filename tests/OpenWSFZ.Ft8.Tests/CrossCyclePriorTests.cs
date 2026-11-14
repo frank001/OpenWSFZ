@@ -499,8 +499,8 @@ public sealed class CrossCyclePriorTests
         records.Single(r => r.SStar <= TestThreshold).SStar.Should().BeGreaterThan(0.9, "the decoy is not in the audio: noise-level S_E*");
 
         typeof(CrossCycleTestRecord).GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Select(p => p.PropertyType).Should().OnlyContain(t => t == typeof(double) || t == typeof(int) || t == typeof(DateTime) || t == typeof(CrossCycleKind),
-                "numbers only: no string, no array, no payload (HK-037, NFR-021)");
+            .Select(p => p.PropertyType).Should().OnlyContain(t => t == typeof(double) || t == typeof(int) || t == typeof(DateTime) || t == typeof(CrossCycleKind) || t == typeof(bool),
+                "numbers and flags only: no string, no array, no payload (HK-037, NFR-021)");
     }
 
     [Fact(DisplayName = "FR-105: XC-BUILD R10: the log line carries counts and numbers only: no message text, no callsign")]
@@ -813,5 +813,273 @@ public sealed class CrossCyclePriorTests
 
             StoreCycleCount(d).Should().Be(expectedCycles, xc ? "ON: one entry per staged cycle" : "OFF: BeginCycle is never called");
         }
+    }
+
+    // ── Amendment 6 (the remedy build): R14 co-location veto, R15 parity-block gate, the sink and the log line ──────────────────────
+
+    private const string NextRr73 = "Q1ABC Q1XYZ RR73";       // the same station's next, different message: the stale-template case
+    private const string OtherStation = "Q1AAA Q1BBB RR73";   // a different message, from a different pair of stations
+    private const double SaneTp = 1.9;                         // a T_P of the size QA's desk figure suggests; NOT a shipped value (the shipped placeholder is 0.0)
+    private const double StaleTestThreshold = 3.0;             // S_E* of the stale template is about 4 to 5 here, noise about 1.2: it clears this, so only S_P can stop it
+
+    private static CrossCyclePriorStore.Prior Dec(string text, double freq, double dt, int batch = 1) => new(text, freq, dt, batch);
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live")]
+    public async Task Stale_NextMessage_IsGatedByTp_AndPassesWithoutIt()
+    {
+        async Task<(List<Published> Rows, LineLog Log, RecordingProbe Probe)> Go(double tp)
+        {
+            var log = new LineLog(); var probe = new RecordingProbe(); var io = new XcInterop();
+            var d = Build(io, xc: true, threshold: StaleTestThreshold, log: log, probe: probe);
+            d.SetCrossCyclePriorParityThreshold(tp);
+            await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+            var rows = await Cycle(d, io, At(30), Audio(2, (NextRr73, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+            return (rows, log, probe);
+        }
+
+        var gated = await Go(SaneTp);
+        gated.Rows.Should().NotContain(p => p.Batch == Ft8Decoder.TemplateBatch, "the stale template fails the parity gate");
+        LineLog.Field(gated.Log.LastXc, "parityRejected").Should().Be(1);
+        LineLog.Field(gated.Log.LastXc, "detected").Should().Be(0);
+        LineLog.Field(gated.Log.LastXc, "vetoedColocated").Should().Be(0);
+        var rec = gated.Probe.Records.Single(r => r.SStar > StaleTestThreshold);
+        rec.SP.Should().BeLessThan(SaneTp, "S_P of the stale template is low; S_E* is high");
+
+        var open = await Go(0.0);
+        open.Rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch && p.Message == M, "with T_P = 0.0 nothing is gated: the stale template is published (the control that lets the test above fail)");
+        LineLog.Field(open.Log.LastXc, "parityRejected").Should().Be(0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R15: the SAME message repeated at the prior's position is published at T_P 1.9, with S_P near S_E*")]
+    public async Task Repeat_PassesTp()
+    {
+        var probe = new RecordingProbe(); var io = new XcInterop(); var log = new LineLog();
+        var d = Build(io, xc: true, threshold: StaleTestThreshold, log: log, probe: probe);
+        d.SetCrossCyclePriorParityThreshold(SaneTp);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch && p.Message == M);
+        LineLog.Field(log.LastXc, "parityRejected").Should().Be(0);
+        var rec = probe.Records.Single(r => r.SStar > StaleTestThreshold);
+        rec.SP.Should().BeGreaterThan(SaneTp).And.BeApproximately(rec.SStar, 0.5);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed")]
+    public async Task DifferentTextDecode_InTheWindow_Vetoes()
+    {
+        async Task<(List<Published> Rows, LineLog Log, RecordingProbe Probe)> Go(bool veto)
+        {
+            var log = new LineLog(); var probe = new RecordingProbe(); var io = new XcInterop();
+            var d = Build(io, xc: true, log: log, probe: probe);
+            d.SetCrossCyclePriorColocationVeto(veto);
+            await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+            // Cycle t: M's signal is at its place, and pass 0 decodes ANOTHER message 1 Hz and 0.05 s away from it.
+            var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq + 1, MDt + 0.05f)));
+            return (rows, log, probe);
+        }
+
+        var vetoed = await Go(true);
+        vetoed.Rows.Should().NotContain(p => p.Batch == Ft8Decoder.TemplateBatch);
+        LineLog.Field(vetoed.Log.LastXc, "vetoedColocated").Should().Be(1);
+        LineLog.Field(vetoed.Log.LastXc, "shadowVetoedColocated").Should().Be(0, "no shadow in this run: counted separately");
+        LineLog.Field(vetoed.Log.LastXc, "detected").Should().Be(0);
+        LineLog.Field(vetoed.Log.LastXc, "published").Should().Be(0);
+        vetoed.Probe.Records.Single(r => r.SStar > TestThreshold).Vetoed.Should().BeTrue();
+
+        var off = await Go(false);
+        off.Rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch && p.Message == M, "veto OFF: counted in the sink, not applied");
+        LineLog.Field(off.Log.LastXc, "vetoedColocated").Should().Be(0, "the log counts APPLIED vetoes");
+        off.Log.LastXc.Should().Contain("veto=False");
+        off.Probe.Records.Single(r => r.SStar > TestThreshold).Vetoed.Should().BeTrue("the flag is R14's verdict whether or not it is applied");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14: a decode with the SAME text is not a veto (the 'already decoded' exclusion applies first: the template is not even tested), and a decode far from the argmax is not a veto")]
+    public async Task SameTextOrFarDecode_DoesNotVeto()
+    {
+        var log = new LineLog(); var io = new XcInterop();
+        var d = Build(io, xc: true, log: log);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        // Cycle t: M itself is decoded (same text, at its place): excluded before testing, never a veto.
+        await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(M)));
+        LineLog.Field(log.LastXc, "excludedDecoded").Should().Be(1);
+        LineLog.Field(log.LastXc, "testedLive").Should().Be(1, "only the decoy is tested");
+        LineLog.Field(log.LastXc, "vetoedColocated").Should().Be(0);
+
+        var io2 = new XcInterop(); var log2 = new LineLog();
+        var d2 = Build(io2, xc: true, log: log2);
+        await Cycle(d2, io2, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        var rows = await Cycle(d2, io2, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq + 40, MDt)));
+        rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch, "a different text 40 Hz away does not veto");
+        LineLog.Field(log2.LastXc, "vetoedColocated").Should().Be(0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones")]
+    public async Task Shadow_IsGatedAndVetoedLikeLive_WithSeparateCounts()
+    {
+        // Shadow, parity: M published at t-15; cycle t holds the stale next message at M's position.
+        var logP = new LineLog(); var ioP = new XcInterop();
+        var dP = Build(ioP, xc: true, shadow: true, threshold: StaleTestThreshold, log: logP);
+        dP.SetCrossCyclePriorParityThreshold(SaneTp);
+        await Cycle(dP, ioP, At(0), Audio(1), null, Pass0(Msg(M)));
+        await Cycle(dP, ioP, At(15), Audio(2, (NextRr73, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+        LineLog.Field(logP.LastXc, "shadowParityRejected").Should().Be(1);
+        LineLog.Field(logP.LastXc, "shadowDetected").Should().Be(0);
+        LineLog.Field(logP.LastXc, "parityRejected").Should().Be(0, "no live prior this cycle: the counts are separate");
+
+        // Shadow, veto: a different text is decoded next to the true repeat.
+        var logV = new LineLog(); var ioV = new XcInterop();
+        var dV = Build(ioV, xc: true, shadow: true, log: logV);
+        await Cycle(dV, ioV, At(0), Audio(1), null, Pass0(Msg(M)));
+        await Cycle(dV, ioV, At(15), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq, MDt)));
+        LineLog.Field(logV.LastXc, "shadowVetoedColocated").Should().Be(1);
+        LineLog.Field(logV.LastXc, "shadowDetected").Should().Be(0);
+        LineLog.Field(logV.LastXc, "vetoedColocated").Should().Be(0);
+    }
+
+    [Theory(DisplayName = "FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)")]
+    [InlineData(0.00, 0.19, true)]
+    [InlineData(0.00, 0.21, false)]
+    [InlineData(0.00, -0.19, true)]
+    [InlineData(0.00, -0.21, false)]
+    [InlineData(3.0, 0.00, true)]
+    [InlineData(3.2, 0.00, false)]
+    [InlineData(-3.0, 0.00, true)]
+    [InlineData(-3.2, 0.00, false)]
+    [InlineData(3.0, 0.19, true)]
+    [InlineData(3.2, 0.19, false)]
+    [InlineData(0.00, -0.60, false)]
+    [InlineData(0.00, 0.00, true)]
+    public void Veto_Boundary_InOurOwnDt(double dFreq, double dDt, bool expectVeto)
+    {
+        var tpl = new[] { Tpl(M, MFreq, MDt, 2) };
+        var decodes = new[] { Dec(OtherStation, MFreq + dFreq, MDt + dDt) };
+
+        var r = CrossCycleTemplateStage.Run(tpl, Audio(7, (M, MFreq, MDt)), TestThreshold, 1, () => false, CancellationToken.None, 0.0, decodes, applyVeto: true);
+
+        var o = r.Outcomes[0];
+        o.SStar.Should().BeGreaterThan(7.0, "the signal is at the prior's position");
+        o.FreqHz.Should().BeApproximately(MFreq, 1e-9);
+        o.Dt.Should().BeApproximately(MDt, 1e-9, "the argmax is back in OUR dt before the comparison");
+        o.Vetoed.Should().Be(expectVeto);
+        o.VetoRejected.Should().Be(expectVeto);
+        o.Detected.Should().Be(!expectVeto);
+        r.VetoRejected.Should().Be(expectVeto ? 1 : 0);
+        r.Detected.Should().Be(expectVeto ? 0 : 1);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14: the same text at the argmax never vetoes; a different one does; no decode list (null) vetoes nothing; the veto off sets the flag but removes nothing")]
+    public void Veto_TextRule_AndTheFlag()
+    {
+        var tpl = new[] { Tpl(M, MFreq, MDt, 2) };
+        var audio = Audio(7, (M, MFreq, MDt));
+        CrossCycleTemplateStage.Run(tpl, audio, TestThreshold, 1, () => false, CancellationToken.None, 0.0, [Dec(M, MFreq, MDt)], true).Outcomes[0].Vetoed.Should().BeFalse("same text");
+        CrossCycleTemplateStage.Run(tpl, audio, TestThreshold, 1, () => false, CancellationToken.None, 0.0, [Dec(OtherStation, MFreq, MDt)], true).Outcomes[0].Vetoed.Should().BeTrue();
+        CrossCycleTemplateStage.Run(tpl, audio, TestThreshold, 1, () => false, CancellationToken.None, 0.0, null, true).Outcomes[0].Vetoed.Should().BeFalse("no decode list");
+        var off = CrossCycleTemplateStage.Run(tpl, audio, TestThreshold, 1, () => false, CancellationToken.None, 0.0, [Dec(OtherStation, MFreq, MDt)], false);
+        off.Outcomes[0].Vetoed.Should().BeTrue("the verdict is computed either way");
+        off.Outcomes[0].Detected.Should().BeTrue("and not applied");
+        off.VetoRejected.Should().Be(0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14/R15: the outcomes partition the templates that clear T_E: detected, parity-rejected and veto-rejected are exclusive, parity first; a template below T_E is none of them")]
+    public void Outcomes_Partition()
+    {
+        var audio = Audio(7, (M, MFreq, MDt), (NextRr73, 2000, MDt));
+        var tpl = new[] { Tpl(M, MFreq, MDt, 2), Tpl(M, 2000, MDt, 2), Tpl(Other, 2500, MDt, 2) };      // true repeat; stale (RR73 at 2000); absent
+        var decodes = new[] { Dec(OtherStation, MFreq, MDt), Dec(OtherStation, 2000, MDt) };            // both clear signals have a different text beside them
+
+        var r = CrossCycleTemplateStage.Run(tpl, audio, StaleTestThreshold, 1, () => false, CancellationToken.None, SaneTp, decodes, applyVeto: true);
+
+        r.Outcomes[0].Should().Match<CrossCycleTemplateStage.Outcome>(o => o.VetoRejected && !o.Detected && !o.ParityRejected, "clears E and P, vetoed");
+        r.Outcomes[1].Should().Match<CrossCycleTemplateStage.Outcome>(o => o.ParityRejected && !o.Detected && !o.VetoRejected && o.Vetoed, "clears E, fails P first (it is also co-located)");
+        r.Outcomes[2].Should().Match<CrossCycleTemplateStage.Outcome>(o => !o.Detected && !o.ParityRejected && !o.VetoRejected, "below T_E");
+        (r.Detected, r.ParityRejected, r.VetoRejected, r.Tested).Should().Be((0, 1, 1, 3));
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14/R15: defaults: the veto is ON, T_P is the 0.0 placeholder, the setters and read-backs round-trip, and neither is a config key")]
+    public void Defaults_Veto_On_Tp_Placeholder()
+    {
+        var bare = new Ft8Decoder(new FakeClock(T0));
+        bare.CrossCyclePriorColocationVeto.Should().BeTrue("the veto is on in the product");
+        Ft8Decoder.CrossCyclePriorColocationVetoDefault.Should().BeTrue();
+        bare.CrossCyclePriorParityThreshold.Should().Be(0.0, "the shipped placeholder: QA's TR2 on TRAIN measures the real value");
+        Ft8Decoder.CrossCyclePriorParityThresholdDefault.Should().Be(0.0);
+
+        bare.SetCrossCyclePriorColocationVeto(false); bare.SetCrossCyclePriorParityThreshold(1.899);
+        bare.CrossCyclePriorColocationVeto.Should().BeFalse();
+        bare.CrossCyclePriorParityThreshold.Should().Be(1.899);
+        bare.SetCrossCyclePriorColocationVeto(true);
+        bare.CrossCyclePriorColocationVeto.Should().BeTrue();
+
+        typeof(DecoderConfig).GetProperties().Select(p => p.Name).Should().NotContain(n => n.Contains("Veto") || n.Contains("Parity"), "replay settings only: no config key, no Settings page");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R13: the sink record carries S_P, the prior's own position (Hz, dt in our convention) and batch, and a vetoed flag; one per tested template; numbers and flags only, no text")]
+    public async Task Probe_CarriesSP_PriorPosition_Batch_AndVetoed()
+    {
+        var probe = new RecordingProbe(); var io = new XcInterop();
+        var d = Build(io, xc: true, probe: probe);
+        // M is published in batch 1 of cycle 0 (position 1500 / 0.30); Other by the residual pass, batch 2 (1800 / 0.30).
+        await Cycle(d, io, At(0), Audio(1), null, [Msg(M)], [Msg(Other, 1800)]);
+        probe.Clear();
+        await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq + 1, MDt)));
+
+        var recs = probe.Records;
+        recs.Should().HaveCount(2);
+        var hit = recs.Single(r => r.SStar > TestThreshold);
+        hit.PriorFreqHz.Should().Be(MFreq);
+        hit.PriorDt.Should().BeApproximately(MDt, 1e-6, "the prior's dt in OUR convention (as published), not WSJT-X's");
+        hit.PriorBatch.Should().Be(1);
+        hit.SP.Should().BeGreaterThan(5.0);
+        hit.Vetoed.Should().BeTrue();
+        var miss = recs.Single(r => r.SStar <= TestThreshold);
+        miss.PriorFreqHz.Should().Be(1800);
+        miss.PriorBatch.Should().Be(2, "the decoy was published by the residual pass, batch 2");
+        miss.Vetoed.Should().BeFalse("nothing decoded near 1800 Hz");
+        miss.SP.Should().BeGreaterThan(0.0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R10: the log line gains the veto and parity counts (live and shadow), the veto state and T_P, still counts and numbers only")]
+    public async Task LogLine_HasTheNewCounts_AndNoText()
+    {
+        var log = new LineLog(); var io = new XcInterop();
+        var d = Build(io, xc: true, shadow: true, log: log);
+        d.SetCrossCyclePriorParityThreshold(1.25);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        foreach (var line in log.XcLines)
+        {
+            foreach (var name in new[] { "vetoedColocated", "shadowVetoedColocated", "parityRejected", "shadowParityRejected" })
+                LineLog.Field(line, name);
+            line.Should().Contain("veto=True").And.Contain("parityThreshold=1.25");
+            line.Should().NotContain("Q1").And.NotContain("JO33");
+        }
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R11: OFF with the veto ON and T_P set writes nothing new (no store write, no line, no batch 6) and every published row equals the ON run with T_E = +infinity")]
+    public async Task Off_WithTheNewSettings_WritesNothing()
+    {
+        async Task<(List<Published> Rows, LineLog Log, Ft8Decoder D)> Go(bool xc)
+        {
+            var log = new LineLog(); var io = new XcInterop();
+            var d = Build(io, xc, shadow: xc, threshold: double.PositiveInfinity, log: log);
+            d.SetCrossCyclePriorColocationVeto(true);
+            d.SetCrossCyclePriorParityThreshold(SaneTp);
+            var rows = new List<Published>();
+            rows.AddRange(await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800))));
+            rows.AddRange(await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq + 1, MDt))));
+            return (rows, log, d);
+        }
+
+        var off = await Go(false);
+        var on = await Go(true);
+        off.D.CrossCyclePriorStoreCount.Should().Be(0);
+        StoreCycleCount(off.D).Should().Be(0);
+        off.Log.XcLines.Should().BeEmpty();
+        off.Rows.Should().NotContain(p => p.Batch >= Ft8Decoder.TemplateBatch);
+        on.Log.XcLines.Should().HaveCount(2, "the ON control");
+        on.Rows.Should().Equal(off.Rows, "ON with T_E = +infinity changes no published row even with the veto ON and T_P set");
     }
 }

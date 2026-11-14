@@ -30,7 +30,13 @@ internal enum CrossCycleKind
 /// <param name="OffsetHz">The argmax's frequency minus the prior's frequency, Hz.</param>
 /// <param name="OffsetS">The argmax's dt minus the prior's dt, seconds.</param>
 /// <param name="CycleStart">The cycle's start stamp (UTC).</param>
-internal readonly record struct CrossCycleTestRecord(CrossCycleKind Kind, double SStar, int AgeCycles, double OffsetHz, double OffsetS, DateTime CycleStart);
+/// <param name="SP">R15: S_P, the statistic over frame symbols 43 to 71 at the S_E* argmax.</param>
+/// <param name="PriorFreqHz">The prior's own frequency, Hz (as published in its cycle). With <see cref="PriorDt"/> and <see cref="PriorBatch"/> this lets a reader tell which test carried which text (QA's K1) without the text.</param>
+/// <param name="PriorDt">The prior's own dt, seconds, in OUR dt convention (the one batches 1 to 5 publish).</param>
+/// <param name="PriorBatch">The batch (1 to 5) the prior was published in.</param>
+/// <param name="Vetoed">R14's verdict: a decode of batches 1 to 5 of this cycle with a different text is co-located with the argmax. True whether or not the veto is applied (a run with the veto off counts it, does not apply it).</param>
+internal readonly record struct CrossCycleTestRecord(CrossCycleKind Kind, double SStar, int AgeCycles, double OffsetHz, double OffsetS, DateTime CycleStart,
+                                                     double SP = 0.0, double PriorFreqHz = 0.0, double PriorDt = 0.0, int PriorBatch = 0, bool Vetoed = false);
 
 /// <summary>
 /// XC-BUILD R2/R3: the per-decoder-instance store of the messages PUBLISHED in batches 1 to 5 of each cycle, keyed by the cycle's 15 s slot, keeping the last 6 cycles (90 s, both parities).
@@ -108,6 +114,15 @@ internal sealed class CrossCyclePriorStore
             if (!_byCycle.TryGetValue(_currentSlot, out var list)) return;
             list.Add(prior);
         }
+    }
+
+    /// <summary>
+    /// R14: a snapshot of the messages published so far in batches 1 to 5 of the CURRENT cycle (text, position in our own dt convention, batch), in publish order. Called once per staged cycle, only with the
+    /// stage ON, after batches 1 to 5 are out.
+    /// </summary>
+    internal List<Prior> CurrentCycleDecodes()
+    {
+        lock (_lock) return _byCycle.TryGetValue(_currentSlot, out var list) ? [.. list] : [];
     }
 
     /// <summary>The number of cycles held (the current cycle's entry included), for the tests.</summary>
