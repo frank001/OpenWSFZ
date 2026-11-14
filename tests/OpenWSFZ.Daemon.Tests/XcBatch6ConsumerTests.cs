@@ -177,4 +177,38 @@ public sealed class XcBatch6ConsumerTests
         yield return (new float[180_000], T0, Dial);
         await Task.CompletedTask;
     }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD D2: the per-datagram template count restarts after each datagram: a template row in the first datagram and none in the second gives template=1 then template=0")]
+    public void DatagramLine_TemplateCount_RestartsAfterEachDatagram()
+    {
+        var (engine, log) = NewEngine();
+        engine.Ingest(Batch(T0, Dial, Decode("CQ Q1ABC JO22"), Template("CQ Q2DEF JO22")), T0);
+        Send(engine, T0);
+        var later = T0 + PskReporterEngine.SendWindow;
+        engine.Ingest(Batch(later, Dial, Decode("CQ Q4JKL JO22")), later);
+        Send(engine, later);
+
+        var lines = log.Entries.Where(e => e.Level == LogLevel.Information && e.Message.Contains("datagram sent")).Select(e => e.Message).ToList();
+        lines.Should().HaveCount(2);
+        lines[0].Should().Contain("template=1");
+        lines[1].Should().Contain("template=0");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD D2: ending an enabled period clears the template count: after a template row, Deactivate and Activate, the next datagram line and the status show template=0")]
+    public void Reset_ClearsTheTemplateCount()
+    {
+        var (engine, log) = NewEngine();
+        engine.Ingest(Batch(T0, Dial, Template("CQ Q2DEF JO22")), T0);
+        engine.GetStatus().Window.Template.Should().Be(1, "the control: it was counted");
+
+        engine.Deactivate();
+        engine.Activate(T0, TimeSpan.Zero);
+        engine.GetStatus().Window.Template.Should().Be(0, "the window restarted");
+
+        engine.Ingest(Batch(T0, Dial, Decode("CQ Q4JKL JO22")), T0);
+        Send(engine, T0).Should().NotBeNull();
+        log.Entries.Single(e => e.Level == LogLevel.Information && e.Message.Contains("datagram sent")).Message
+            .Should().Contain("template=0", "the since-last-datagram counter was reset with the period");
+    }
+
 }
