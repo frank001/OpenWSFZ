@@ -47,6 +47,19 @@ This is a QA mechanical reading. The ruling, and any default-ON, are the Archite
 4. **Owed by the Architect before default-ON:** PSK Reporter template tag; `BatchesPerCycleFallbackOn = 4`.
 5. The committed Linux `libft8.so` on `main` still needs GLIBC_2.43 (the rebuild is skipped when no native file changes); not related to the arms.
 
+## 5b. Lead 2, where the 904 come from (`qa/xc-build/xc_where.py`, counts only, `where.json`)
+
+| SNR band | n_ref | matched OFF | matched ON | batch-6 gain | gain in pp of all n_ref | share of the OFF-unreached recovered |
+|---|---|---|---|---|---|---|
+| A (>= 0 dB) | 3,902 | 3,673 | 3,693 | 20 | 0.08 | 8.7 % |
+| B (-1 to -10) | 9,895 | 8,594 | 8,865 | 271 | 1.06 | 20.8 % |
+| C (-11 to -15) | 6,895 | 5,246 | 5,571 | 325 | 1.27 | 19.7 % |
+| D (< -15) | 4,801 | 2,822 | 3,110 | 288 | 1.13 | 14.6 % |
+
+- 893 of 904 (98.8 %) are in bands B, C and D, the weak signals; band A has almost nothing left to recover. That is the direction a cross-cycle prior should pull, and it does not look like an artefact of the strong rows.
+- By 100-cycle block (0 to 9): 147, 161, 153, 111, 96, 68, 36, 14, 37, 81. The first block (right after the recording hole) is not anomalous; the shape follows the night's activity. No cycle after the hole is special.
+- The prior-age split (2/4/6) is not done; the sink holds the ages of the tests, not of the published matches.
+
 ## 6. Housekeeping
 
 - Message-text working files (`nc.tsv`, `matched.csv`) remain under `_qa-scratch\xc-chain\full\*` until the lead analysis is done; they are deleted at job close (HK-037).
