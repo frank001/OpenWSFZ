@@ -44,6 +44,8 @@
     <DefineConstants Condition="'$(HasUngated)' == 'true'">$(DefineConstants);HAS_UNGATED</DefineConstants>
     <!-- XC-BUILD (dev task 2026-11-13-xc-template-build): only the build with Ft8Decoder.SetCrossCyclePrior / SetCrossCyclePriorShadow / SetCrossCyclePriorThreshold, CrossCyclePriorProbe and batch 6; the xc-prior, xc-shadow and xc-te arguments are then REQUIRED and read back. Needs HasCohResCand, HasCqAp and HasInternals too. -->
     <DefineConstants Condition="'$(HasXcPrior)' == 'true'">$(DefineConstants);HAS_XCPRIOR</DefineConstants>
+    <!-- XC-BUILD remedy (Amendment 6, dev task 2026-11-14-xc-template-remedy, build 4b70e418): only the build with SetCrossCyclePriorColocationVeto / SetCrossCyclePriorParityThreshold and the extended sink record (SP, PriorFreqHz, PriorDt, PriorBatch, Vetoed). Needs HasXcPrior too. The xc-veto and xc-tp arguments are then REQUIRED and read back as xcveto= and xctp=. -->
+    <DefineConstants Condition="'$(HasXcRemedy)' == 'true'">$(DefineConstants);HAS_XCREMEDY</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>

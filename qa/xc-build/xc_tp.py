@@ -36,6 +36,7 @@ COLUMNS = {"stamp": "stamp", "kind": "kind", "s_e": "s_e_star", "s_p": "s_p", "a
 CYCLE_S = 15
 DF_SUP, DDT_SUP, DF_COR = 3.125, 0.2, 10.0
 DT_CONV, DT_CONV_TOL = 0.6, 0.05
+JOIN_DT_TOL = 0.06                               # the sink's prior dt is the store's unrounded value; nc.tsv carries the published dt rounded to 0.1 s (error <= 0.05): found on the remedy dry run
 PCTL_KEEP = 10                                   # T_P = the 10th percentile: keeps 90 % (a decision value, the keep fraction that sized the build, A6.3)
 N_COR_MIN = 100                                  # V-TR-P
 TE_TR1, N_SHADOW_TR1, TE_TOL = 3.076041980658299, 23219, 1e-6
@@ -63,14 +64,19 @@ def load_wsjtx(alltxt, stamps):
 
 
 def load_nc_prior(path):
-    """(stamp, kind, freq, dt rounded to 2 places) -> [text] for the batch 1 to 5 rows; text stays here."""
+    """(stamp, kind, freq) -> [(published dt, text)] for the batch 1 to 5 rows; text stays here."""
     idx = collections.defaultdict(list)
     for line in open(path, encoding="utf-8", errors="replace"):
         f = line.rstrip("\n").split("\t")
         if len(f) < 11 or int(f[1]) not in (1, 2, 3, 4, 5):
             continue
-        idx[(f[0], int(f[1]), int(f[3]), round(float(f[4]), 2))].append(f[10].strip())
+        idx[(f[0], int(f[1]), int(f[3]))].append((float(f[4]), f[10].strip()))
     return idx
+
+
+def find_prior_text(idx, pstamp, batch, freq, dt):
+    """K1 join: the distinct texts of the batch 1 to 5 rows of the prior's cycle at the same integer frequency whose published dt is within JOIN_DT_TOL of the sink's prior dt."""
+    return sorted({t for d, t in idx.get((pstamp, batch, int(round(freq))), []) if abs(d - dt) <= JOIN_DT_TOL})
 
 
 def units_from_sink(probe_csv, nc_index, t_e):
@@ -82,8 +88,7 @@ def units_from_sink(probe_csv, nc_index, t_e):
             continue
         stats["live_ge_te"] += 1
         pstamp = stamp_minus(r[COLUMNS["stamp"]], int(r[COLUMNS["age"]]))
-        key = (pstamp, int(r[COLUMNS["prior_batch"]]), int(round(float(r[COLUMNS["prior_f"]]))), round(float(r[COLUMNS["prior_dt"]]), 2))
-        texts = nc_index.get(key, [])
+        texts = find_prior_text(nc_index, pstamp, int(r[COLUMNS["prior_batch"]]), float(r[COLUMNS["prior_f"]]), float(r[COLUMNS["prior_dt"]]))
         if len(texts) != 1:
             stats["mapping_not_unique" if texts else "mapping_missing"] += 1
             continue
@@ -174,10 +179,10 @@ def selftest():
             ps = stamps[i - age]
             f, dt = 1000 + 50 * j, 0.5 + 0.1 * j
             text = f"Q{i - age}AAA Q{j}BBB -10"
-            nc.append("\t".join([ps, "1", "1", str(f), f"{dt:.2f}", "-12", "1", "0", "5", "0", text, "0"]))
+            nc.append("\t".join([ps, "1", "1", str(f), f"{round(dt, 1):.2f}", "-12", "1", "0", "5", "0", text, "0"]))   # published dt: rounded to 0.1 s
             kind = (i + j) % 3                                       # 0 COR-like, 1 SUP-like, 2 FREE-like
             sp = float(rng.uniform(2.0, 6.0)) if kind == 0 else float(rng.uniform(0.3, 1.5))
-            probe.append(f"{s},live,{4.0 + rng.uniform(0, 1):.4f},{sp:.4f},{age},{f},{dt:.2f},1,0,0.00,0")
+            probe.append(f"{s},live,{4.0 + rng.uniform(0, 1):.4f},{sp:.4f},{age},{f},{dt + 0.04:.2f},1,0,0.00,0")   # the sink's prior dt is unrounded
             if kind == 0:
                 wsj.append(f"{s} 7.074 Rx FT8 -10 {dt - 0.6:.1f} {f + 2} {text}")
                 expect["COR"] += 1

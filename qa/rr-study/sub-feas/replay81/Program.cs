@@ -370,6 +370,12 @@ internal static class Program
             decoder.SetCrossCyclePriorShadow(Req(a, "xc-shadow") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--xc-shadow must be 0 or 1") });
             string xcTe = Req(a, "xc-te");
             decoder.SetCrossCyclePriorThreshold(xcTe == "inf" ? double.PositiveInfinity : double.TryParse(xcTe, NumberStyles.Float, CultureInfo.InvariantCulture, out double xcTeV) && xcTeV > 0 ? xcTeV : throw new ArgumentException("--xc-te must be inf or a positive number"));
+#if HAS_XCREMEDY
+            // XC-BUILD remedy (Amendment 6): --xc-veto 0|1 (R14; 0 only in TR2) and --xc-tp <double> (R15; 0 in TR2 and the OFF arms) are REQUIRED on this build and read back as xcveto= and xctp=.
+            decoder.SetCrossCyclePriorColocationVeto(Req(a, "xc-veto") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--xc-veto must be 0 or 1") });
+            string xcTp = Req(a, "xc-tp");
+            decoder.SetCrossCyclePriorParityThreshold(double.TryParse(xcTp, NumberStyles.Float, CultureInfo.InvariantCulture, out double xcTpV) && xcTpV >= 0 ? xcTpV : throw new ArgumentException("--xc-tp must be a number >= 0"));
+#endif
             if (a.TryGetValue("xc-out", out var xcOutPath))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(xcOutPath))!);
@@ -380,7 +386,11 @@ internal static class Program
                 if (!xcProbePath.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--xc-probe-out must be under _qa-scratch (HK-037)");
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(xcProbePath))!);
                 _xcProbe = new StreamWriter(xcProbePath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+#if HAS_XCREMEDY
+                if (new FileInfo(xcProbePath).Length == 0) _xcProbe.WriteLine("stamp,kind,s_e_star,s_p,prior_age_cycles,prior_freq_hz,prior_dt_s,prior_batch,vetoed,argmax_df_hz,argmax_dt_s");   // = xc_tp.py COLUMNS
+#else
                 if (new FileInfo(xcProbePath).Length == 0) _xcProbe.WriteLine("stamp,kind,s_e_star,prior_age_cycles,argmax_df_hz,argmax_dt_s");
+#endif
                 decoder.CrossCyclePriorProbe = new XcProbeSink();
             }
 #endif
@@ -1037,8 +1047,14 @@ internal static class Program
         public void OnTemplateTested(in CrossCycleTestRecord r)
         {
             var w = _xcProbe; if (w is null) return;
+#if HAS_XCREMEDY
+            lock (w) w.WriteLine(string.Join(",", r.CycleStart.ToString("yyMMdd_HHmmss", CultureInfo.InvariantCulture), r.Kind == CrossCycleKind.Live ? "live" : "shadow", r.SStar.ToString("R", CultureInfo.InvariantCulture),
+                r.SP.ToString("R", CultureInfo.InvariantCulture), r.AgeCycles.ToString(CultureInfo.InvariantCulture), r.PriorFreqHz.ToString("R", CultureInfo.InvariantCulture), r.PriorDt.ToString("R", CultureInfo.InvariantCulture),
+                r.PriorBatch.ToString(CultureInfo.InvariantCulture), r.Vetoed ? "1" : "0", r.OffsetHz.ToString("R", CultureInfo.InvariantCulture), r.OffsetS.ToString("R", CultureInfo.InvariantCulture)));
+#else
             lock (w) w.WriteLine(string.Join(",", r.CycleStart.ToString("yyMMdd_HHmmss", CultureInfo.InvariantCulture), r.Kind == CrossCycleKind.Live ? "live" : "shadow", r.SStar.ToString("R", CultureInfo.InvariantCulture),
                 r.AgeCycles.ToString(CultureInfo.InvariantCulture), r.OffsetHz.ToString("R", CultureInfo.InvariantCulture), r.OffsetS.ToString("R", CultureInfo.InvariantCulture)));
+#endif
         }
     }
     private static StreamWriter? _xcOut, _xcProbe;
@@ -1316,6 +1332,9 @@ internal static class Program
                 + $" cohrescand={d.CoherentFallbackResidualCandidates}"
 #if HAS_XCPRIOR
                 + $" xcprior={d.CrossCyclePrior} xcshadow={d.CrossCyclePriorShadow} xcte={d.CrossCyclePriorThreshold.ToString("R", CultureInfo.InvariantCulture)}"
+#if HAS_XCREMEDY
+                + $" xcveto={d.CrossCyclePriorColocationVeto} xctp={d.CrossCyclePriorParityThreshold.ToString("R", CultureInfo.InvariantCulture)}"
+#endif
 #endif
 #endif
                 );
