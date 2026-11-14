@@ -316,10 +316,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     private double _crossCyclePriorParityThreshold = CrossCyclePriorParityThresholdDefault;   // R15, read with Volatile.Read
 
     /// <summary>
-    /// XC-BUILD R6: T_E, the shipped threshold on S_E* above which a template is detected. <b>A placeholder: <see cref="double.PositiveInfinity"/> in this build</b> (nothing is ever detected). QA's TRAIN arm measures the
-    /// real value on the shadow null, and it replaces this constant before any merge; replay sets it through <see cref="SetCrossCyclePriorThreshold"/>.
+    /// XC-BUILD R6: T_E, the shipped threshold on S_E* above which a template is detected: 3.076041980658299, frozen on the TRAIN night by QA's TR2 (T_E from the shadow null at FA* = 0.021 / K with K = 36, T_P the 10th percentile of the corroborated detections' S_P), committed before any acceptance arm; qa/xc-build/results/xc_te_v2_full_2026-11-14.json.
+    /// Replay can set it (for example <see cref="double.PositiveInfinity"/>, which detects nothing) through <see cref="SetCrossCyclePriorThreshold"/>.
     /// </summary>
-    internal const double CrossCyclePriorThresholdDefault = double.PositiveInfinity;
+    internal const double CrossCyclePriorThresholdDefault = 3.076041980658299;
 
     /// <summary>
     /// XC-BUILD R1: sets <c>decoder.crossCyclePrior</c>. <c>false</c> (the start value, and the configured default when the key is absent) leaves every code path as it was: no store write, no log line, no new
@@ -350,11 +350,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     internal double CrossCyclePriorThreshold => Volatile.Read(ref _crossCyclePriorThreshold);
 
     /// <summary>
-    /// XC-BUILD R15: T_P, the shipped threshold on S_P (the statistic over frame symbols 43 to 71 at the S_E* argmax) that a template must also clear to be detected. <b>A placeholder: 0.0 in this build</b>
-    /// (S_P is never negative, so nothing is gated). QA's TR2 arm on the TRAIN night measures the real value, which goes in before any merge; a value chosen on the TEST night is not allowed.
-    /// Replay sets it through <see cref="SetCrossCyclePriorParityThreshold"/>.
+    /// XC-BUILD R15: T_P, the shipped threshold on S_P (the statistic over frame symbols 43 to 71 at the S_E* argmax) that a template must also clear to be detected: 2.2220253019230114, frozen on the TRAIN night by QA's TR2 (T_E from the shadow null at FA* = 0.021 / K with K = 36, T_P the 10th percentile of the corroborated detections' S_P), committed before any acceptance arm; qa/xc-build/results/xc_te_v2_full_2026-11-14.json.
+    /// A value chosen on the TEST night is not allowed. Replay can set it (0.0 gates nothing) through <see cref="SetCrossCyclePriorParityThreshold"/>.
     /// </summary>
-    internal const double CrossCyclePriorParityThresholdDefault = 0.0;
+    internal const double CrossCyclePriorParityThresholdDefault = 2.2220253019230114;
 
     /// <summary>XC-BUILD R14: the co-location veto is ON in the product (the build is default OFF as a whole, but when it is on, the veto is on).</summary>
     internal const bool CrossCyclePriorColocationVetoDefault = true;

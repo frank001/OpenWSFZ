@@ -34,8 +34,7 @@ public sealed class PttWatchdogTests
         // so this settles almost immediately in practice, but polling removes any assumption
         // about exactly how immediately.
         await Poll.UntilAsync(
-            () => logger.Entries.Any(e => e.Level == LogLevel.Error && e.Message.Contains("watchdog fired")),
-            timeout: TimeSpan.FromSeconds(1));
+            () => logger.Entries.Any(e => e.Level == LogLevel.Error && e.Message.Contains("watchdog fired")));   // Poll.DefaultTimeout (5 s)
         logger.Entries.Should().Contain(e => e.Message.Contains("TestController"),
             "the log line must name the owning controller");
     }

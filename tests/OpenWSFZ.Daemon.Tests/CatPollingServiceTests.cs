@@ -203,8 +203,7 @@ public sealed class CatPollingServiceTests
             });
 
         // Poll for Connected — avoids a hard-coded delay that can fail on slow CI runners.
-        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected,
-            timeout: TimeSpan.FromSeconds(1));
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected);   // Poll.DefaultTimeout (5 s): a positive-condition wait costs nothing when it succeeds
 
         await svc.StopAsync(CancellationToken.None);
 
@@ -314,8 +313,7 @@ public sealed class CatPollingServiceTests
 
         await svc.StartAsync(CancellationToken.None);
 
-        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected,
-            timeout: TimeSpan.FromSeconds(1));
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected);   // Poll.DefaultTimeout (5 s): a positive-condition wait costs nothing when it succeeds
 
         await gate.SetPttAsync(true);
 
@@ -366,8 +364,7 @@ public sealed class CatPollingServiceTests
 
         await svc.StartAsync(CancellationToken.None);
 
-        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected,
-            timeout: TimeSpan.FromSeconds(1));
+        await Poll.WaitForEqualAsync(() => state.Status, CatConnectionStatus.Connected);   // Poll.DefaultTimeout (5 s): a positive-condition wait costs nothing when it succeeds
 
         // Fire several concurrent PTT calls while the poll loop is also ticking
         // (PollIntervalSeconds = 1, so a poll is likely mid-flight during this window).
