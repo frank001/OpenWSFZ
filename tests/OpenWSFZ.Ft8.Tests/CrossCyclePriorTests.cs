@@ -193,7 +193,7 @@ public sealed class CrossCyclePriorTests
 
     // ── R1: the settings ───────────────────────────────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-105: XC-BUILD R1/R6: both flags default to false (config record and bare decoder), the setters and read-backs round-trip, and T_E is a shipped +infinity placeholder that replay can set")]
+    [Fact(DisplayName = "FR-105: XC-BUILD R1/R6: both flags default to false (config record and bare decoder), the setters and read-backs round-trip, and replay can set T_E")]
     public void Settings_Default_RoundTrip_AndThreshold()
     {
         new DecoderConfig().CrossCyclePrior.Should().BeFalse();
@@ -203,8 +203,7 @@ public sealed class CrossCyclePriorTests
         var bare = new Ft8Decoder(new FakeClock(T0));
         bare.CrossCyclePrior.Should().BeFalse("the decoder object starts false");
         bare.CrossCyclePriorShadow.Should().BeFalse();
-        bare.CrossCyclePriorThreshold.Should().Be(double.PositiveInfinity, "the shipped placeholder: QA's TRAIN arm measures the real value");
-        Ft8Decoder.CrossCyclePriorThresholdDefault.Should().Be(double.PositiveInfinity);
+        bare.CrossCyclePriorThreshold.Should().Be(Ft8Decoder.CrossCyclePriorThresholdDefault, "the read-back of an object nobody has set is the shipped T_E (the frozen value, pinned by its own test)");
         bare.CrossCyclePriorProbe.Should().BeNull("the shipped build has no subscriber");
 
         bare.SetCrossCyclePrior(true); bare.SetCrossCyclePriorShadow(true); bare.SetCrossCyclePriorThreshold(3.25);
@@ -1001,20 +1000,21 @@ public sealed class CrossCyclePriorTests
         (r.Detected, r.ParityRejected, r.VetoRejected, r.Tested).Should().Be((0, 1, 1, 3));
     }
 
-    [Fact(DisplayName = "FR-105: XC-BUILD R14/R15: defaults: the veto is ON, T_P is the 0.0 placeholder, the setters and read-backs round-trip, and neither is a config key")]
-    public void Defaults_Veto_On_Tp_Placeholder()
+    [Fact(DisplayName = "FR-105: XC-BUILD R14/R15: defaults: the veto is ON, T_P is the shipped frozen value, the setters and read-backs round-trip (0.0 included), and neither is a config key")]
+    public void Defaults_Veto_On_Tp_Shipped()
     {
         var bare = new Ft8Decoder(new FakeClock(T0));
         bare.CrossCyclePriorColocationVeto.Should().BeTrue("the veto is on in the product");
         Ft8Decoder.CrossCyclePriorColocationVetoDefault.Should().BeTrue();
-        bare.CrossCyclePriorParityThreshold.Should().Be(0.0, "the shipped placeholder: QA's TR2 on TRAIN measures the real value");
-        Ft8Decoder.CrossCyclePriorParityThresholdDefault.Should().Be(0.0);
+        bare.CrossCyclePriorParityThreshold.Should().Be(Ft8Decoder.CrossCyclePriorParityThresholdDefault, "an unset object reads the shipped T_P");
 
         bare.SetCrossCyclePriorColocationVeto(false); bare.SetCrossCyclePriorParityThreshold(1.899);
         bare.CrossCyclePriorColocationVeto.Should().BeFalse();
         bare.CrossCyclePriorParityThreshold.Should().Be(1.899);
         bare.SetCrossCyclePriorColocationVeto(true);
         bare.CrossCyclePriorColocationVeto.Should().BeTrue();
+        bare.SetCrossCyclePriorParityThreshold(0.0);
+        bare.CrossCyclePriorParityThreshold.Should().Be(0.0, "replay can turn the gate off (the TR-style arms do)");
 
         typeof(DecoderConfig).GetProperties().Select(p => p.Name).Should().NotContain(n => n.Contains("Veto") || n.Contains("Parity"), "replay settings only: no config key, no Settings page");
     }
@@ -1103,5 +1103,17 @@ public sealed class CrossCyclePriorTests
     public void PathTemplate_MirrorsAbstractions()
     {
         Ft8Decoder.PathTemplate.Should().Be(OpenWSFZ.Abstractions.DecodeResult.PathTemplate).And.Be(3);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R6/R15: the shipped T_E and T_P are the values QA's TR2 froze on the TRAIN night (3.076041980658299 and 2.2220253019230114): a later edit cannot move them unnoticed")]
+    public void ShippedThresholds_AreTheFrozenTr2Values()
+    {
+        // Source of both literals: qa/xc-build/results/xc_te_v2_full_2026-11-14.json (QA's TR2: T_E from the shadow null at FA* = 0.021 / K, K = 36; T_P the 10th percentile of the corroborated detections' S_P),
+        // frozen on TRAIN before any acceptance arm. Spec R6 and Amendment 6 A6.3. Do not re-point these to make a check pass; a new value needs a new TR and a ruling.
+        Ft8Decoder.CrossCyclePriorThresholdDefault.Should().Be(3.076041980658299);
+        Ft8Decoder.CrossCyclePriorParityThresholdDefault.Should().Be(2.2220253019230114);
+        var bare = new Ft8Decoder(new FakeClock(T0));
+        bare.CrossCyclePriorThreshold.Should().Be(3.076041980658299, "the product read-back (xcte)");
+        bare.CrossCyclePriorParityThreshold.Should().Be(2.2220253019230114, "the product read-back (xctp)");
     }
 }
