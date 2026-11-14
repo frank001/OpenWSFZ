@@ -368,14 +368,20 @@ internal static class Program
             // TR: --xc-prior 1 --xc-shadow 1 --xc-te inf (nothing published); OFF: 0 0 inf; ON: 1 1 <the frozen T_E>.  --xc-probe-out: the per-test numbers sink (numbers only).
             decoder.SetCrossCyclePrior(Req(a, "xc-prior") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--xc-prior must be 0 or 1") });
             decoder.SetCrossCyclePriorShadow(Req(a, "xc-shadow") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--xc-shadow must be 0 or 1") });
-            string xcTe = Req(a, "xc-te");
-            decoder.SetCrossCyclePriorThreshold(xcTe == "inf" ? double.PositiveInfinity : double.TryParse(xcTe, NumberStyles.Float, CultureInfo.InvariantCulture, out double xcTeV) && xcTeV > 0 ? xcTeV : throw new ArgumentException("--xc-te must be inf or a positive number"));
+            // --xc-defaults 1 (the shipped-defaults check, spec 'freeze the thresholds'): the three setters below are NOT called, so the product's own defaults for T_E, T_P and the veto are in force and read back
+            // as xcte=, xctp= and xcveto=. The other XC options (xc-prior, xc-shadow) are still required. Any other value, or absent: the setters are required as before.
+            bool xcDefaults = a.TryGetValue("xc-defaults", out var xcDefaultsArg) && xcDefaultsArg == "1";
+            if (!xcDefaults)
+            {
+                string xcTe = Req(a, "xc-te");
+                decoder.SetCrossCyclePriorThreshold(xcTe == "inf" ? double.PositiveInfinity : double.TryParse(xcTe, NumberStyles.Float, CultureInfo.InvariantCulture, out double xcTeV) && xcTeV > 0 ? xcTeV : throw new ArgumentException("--xc-te must be inf or a positive number"));
 #if HAS_XCREMEDY
-            // XC-BUILD remedy (Amendment 6): --xc-veto 0|1 (R14; 0 only in TR2) and --xc-tp <double> (R15; 0 in TR2 and the OFF arms) are REQUIRED on this build and read back as xcveto= and xctp=.
-            decoder.SetCrossCyclePriorColocationVeto(Req(a, "xc-veto") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--xc-veto must be 0 or 1") });
-            string xcTp = Req(a, "xc-tp");
-            decoder.SetCrossCyclePriorParityThreshold(double.TryParse(xcTp, NumberStyles.Float, CultureInfo.InvariantCulture, out double xcTpV) && xcTpV >= 0 ? xcTpV : throw new ArgumentException("--xc-tp must be a number >= 0"));
+                // XC-BUILD remedy (Amendment 6): --xc-veto 0|1 (R14; 0 only in TR2) and --xc-tp <double> (R15; 0 in TR2 and the OFF arms) are REQUIRED on this build and read back as xcveto= and xctp=.
+                decoder.SetCrossCyclePriorColocationVeto(Req(a, "xc-veto") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--xc-veto must be 0 or 1") });
+                string xcTp = Req(a, "xc-tp");
+                decoder.SetCrossCyclePriorParityThreshold(double.TryParse(xcTp, NumberStyles.Float, CultureInfo.InvariantCulture, out double xcTpV) && xcTpV >= 0 ? xcTpV : throw new ArgumentException("--xc-tp must be a number >= 0"));
 #endif
+            }
             if (a.TryGetValue("xc-out", out var xcOutPath))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(xcOutPath))!);
