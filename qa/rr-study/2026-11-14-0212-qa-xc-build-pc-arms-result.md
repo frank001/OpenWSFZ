@@ -60,6 +60,21 @@ This is a QA mechanical reading. The ruling, and any default-ON, are the Archite
 - By 100-cycle block (0 to 9): 147, 161, 153, 111, 96, 68, 36, 14, 37, 81. The first block (right after the recording hole) is not anomalous; the shape follows the night's activity. No cycle after the hole is special.
 - The prior-age split (2/4/6) is not done; the sink holds the ages of the tests, not of the published matches.
 
+## 5c. Descriptive delta U' (`cf_uprime.py`, frozen instrument `ecc4c5e7`, T 0.276; OFF stage then ARM stage; counts only; files `_qa-scratch\xc-u\`)
+
+| | OFF | ON | ON - OFF |
+|---|---|---|---|
+| cycles with WSJT-X rows | 998 | 998 | |
+| Test-B not-confirmed decodes | 683 | 2,356 | +1,673 |
+| shown present (tested_present) | 317 | 1,681 | +1,364 |
+| tested absent | 79 | 361 | **+282** |
+| hashed or unencodable | 287 | 314 | +27 |
+| **U' per cycle** | **0.3667** | **0.6764** | **+0.3097** |
+
+- Instrument validity: the night's own null p99 is 0.293 against T 0.276 (difference 0.017, inside the 0.03 tolerance; no flag); the testable classes are `report` and `report CQ`. The 0.6 s offset is not involved here (the instrument carries its own calibration, `start_minus_dt` from the controls).
+- **Cite angle A's statement beside every U' row: U' on O is blind under burial (0.742 against 0.993).** ON's +0.31 per cycle is therefore a proxy, not a false-decode rate; its direction agrees with XC-SUP: the tested-absent rows rise by 282 per 998 cycles, the size of the stale class found (641 SUP-W publishes, of which the sender-sharing ones share their sync and callsign symbols and so are only partly "absent" on the 58-symbol tone test).
+- The line it is held against is 0.042 per cycle (2 x 0.021); ON is far above it, which agrees with the build not being turnable on.
+
 ## 6. Housekeeping
 
 - Message-text working files (`nc.tsv`, `matched.csv`) remain under `_qa-scratch\xc-chain\full\*` until the lead analysis is done; they are deleted at job close (HK-037).
