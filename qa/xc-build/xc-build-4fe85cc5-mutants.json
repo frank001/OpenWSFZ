@@ -1,0 +1,49 @@
+{
+ "T01": {
+  "desc": "T_E default 3.08 (rounded)",
+  "status": "KILLED",
+  "failing": [
+   "Failed FR-105: XC-BUILD R6/R15: the shipped T_E and T_P are the values QA's TR2 froze on the TRAIN night (3.076041980658299 and 2.2220253019230114): a"
+  ]
+ },
+ "T02": {
+  "desc": "T_E default off in the last digit",
+  "status": "KILLED",
+  "failing": [
+   "Failed FR-105: XC-BUILD R6/R15: the shipped T_E and T_P are the values QA's TR2 froze on the TRAIN night (3.076041980658299 and 2.2220253019230114): a"
+  ]
+ },
+ "T03": {
+  "desc": "T_E default back to +infinity",
+  "status": "KILLED",
+  "failing": [
+   "Failed FR-105: XC-BUILD R6/R15: the shipped T_E and T_P are the values QA's TR2 froze on the TRAIN night (3.076041980658299 and 2.2220253019230114): a"
+  ]
+ },
+ "T04": {
+  "desc": "T_P default 2.23 (rounded)",
+  "status": "KILLED",
+  "failing": [
+   "Failed FR-105: XC-BUILD R6/R15: the shipped T_E and T_P are the values QA's TR2 froze on the TRAIN night (3.076041980658299 and 2.2220253019230114): a"
+  ]
+ },
+ "T05": {
+  "desc": "T_P default off in the last digit",
+  "status": "SURVIVED",
+  "failing": []
+ },
+ "T06": {
+  "desc": "T_P default back to 0.0",
+  "status": "KILLED",
+  "failing": [
+   "Failed FR-105: XC-BUILD R6/R15: the shipped T_E and T_P are the values QA's TR2 froze on the TRAIN night (3.076041980658299 and 2.2220253019230114): a"
+  ]
+ },
+ "T07": {
+  "desc": "T_P default the desk value 1.899",
+  "status": "KILLED",
+  "failing": [
+   "Failed FR-105: XC-BUILD R6/R15: the shipped T_E and T_P are the values QA's TR2 froze on the TRAIN night (3.076041980658299 and 2.2220253019230114): a"
+  ]
+ }
+}
