@@ -1,0 +1,152 @@
+{
+ "D01": {
+  "desc": "capacity 6 -> 5 batches (12)",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/LateBatch.cs",
+  "failing": [
+   "Failed FR-091: T11: the service's own queue has the QSO sizing - 14 batches with the coherent fallback on, 8 off, DropOldest - and is not the capacity-2 channel [184 ms]",
+   "Failed FR-105: XC-BUILD D1: the QSO queue holds two full cycles of six batches (14) while the service is blocked and drops nothing; a third cycle drops the OLDEST; the flag-OFF capacity is still 8 [131 ms]",
+   "Failed R14: capacity arithmetic - batches x 2 cycles + 2 spare: 3 batches = 8 (flag OFF, unchanged), 6 batches = 14 (flag ON; XC-BUILD batch 6) [< 1 ms]",
+   "Failed R14: the effective capacity follows the flag at run time - ON holds 14, the 15th write drops the OLDEST; OFF again trims to 8 on the next write [< 1 ms]"
+  ]
+ },
+ "D02": {
+  "desc": "capacity 6 -> 7 batches (16)",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/LateBatch.cs",
+  "failing": [
+   "Failed FR-091: T11: the service's own queue has the QSO sizing - 14 batches with the coherent fallback on, 8 off, DropOldest - and is not the capacity-2 channel [70 ms]",
+   "Failed FR-105: XC-BUILD D1: the QSO queue holds two full cycles of six batches (14) while the service is blocked and drops nothing; a third cycle drops the OLDEST; the flag-OFF capacity is still 8 [15 ms]",
+   "Failed R14: capacity arithmetic - batches x 2 cycles + 2 spare: 3 batches = 8 (flag OFF, unchanged), 6 batches = 14 (flag ON; XC-BUILD batch 6) [< 1 ms]",
+   "Failed R14: the effective capacity follows the flag at run time - ON holds 14, the 15th write drops the OLDEST; OFF again trims to 8 on the next write [< 1 ms]"
+  ]
+ },
+ "D03": {
+  "desc": "flag ON still gets the OFF capacity",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/LateBatch.cs",
+  "failing": [
+   "Failed FR-091: T11: the service's own queue has the QSO sizing - 14 batches with the coherent fallback on, 8 off, DropOldest - and is not the capacity-2 channel [76 ms]",
+   "Failed FR-105: XC-BUILD D1: the QSO queue holds two full cycles of six batches (14) while the service is blocked and drops nothing; a third cycle drops the OLDEST; the flag-OFF capacity is still 8 [14 ms]",
+   "Failed R14: control - with 4 batches a cycle, two cycles queued fill the flag-OFF capacity of 8 exactly: the next cycle's batch 1 drops cycle 0's batch 1 at 8, not at 14 (why the capacity follows the flag; 14 since XC-BUILD) [3 ms]",
+   "Failed R14: the effective capacity follows the flag at run time - ON holds 14, the 15th write drops the OLDEST; OFF again trims to 8 on the next write [< 1 ms]"
+  ]
+ },
+ "D04": {
+  "desc": "flag OFF gets the ON capacity",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/LateBatch.cs",
+  "failing": [
+   "Failed FR-091: T11: the service's own queue has the QSO sizing - 14 batches with the coherent fallback on, 8 off, DropOldest - and is not the capacity-2 channel [74 ms]",
+   "Failed FR-105: XC-BUILD D1: the QSO queue holds two full cycles of six batches (14) while the service is blocked and drops nothing; a third cycle drops the OLDEST; the flag-OFF capacity is still 8 [13 ms]",
+   "Failed R13/R14: flag OFF - the queue behaves exactly as the old bounded DropOldest channel of 8, for many seeded write/read schedules (overflow included)(seed: 6) [< 1 ms]",
+   "Failed R13/R14: flag OFF - the queue behaves exactly as the old bounded DropOldest channel of 8, for many seeded write/read schedules (overflow included)(seed: 5) [1 ms]"
+  ]
+ },
+ "D05": {
+  "desc": "no spare slots at the ON capacity",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/LateBatch.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D1: the QSO queue holds two full cycles of six batches (14) while the service is blocked and drops nothing; a third cycle drops the OLDEST; the flag-OFF capacity is still 8 [16 ms]",
+   "Failed FR-091: T11: the service's own queue has the QSO sizing - 14 batches with the coherent fallback on, 8 off, DropOldest - and is not the capacity-2 channel [81 ms]",
+   "Failed R14: capacity arithmetic - batches x 2 cycles + 2 spare: 3 batches = 8 (flag OFF, unchanged), 6 batches = 14 (flag ON; XC-BUILD batch 6) [< 1 ms]",
+   "Failed R14: the effective capacity follows the flag at run time - ON holds 14, the 15th write drops the OLDEST; OFF again trims to 8 on the next write [< 1 ms]"
+  ]
+ },
+ "D06": {
+  "desc": "template filter inverted",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-096: T19: a mismatching (JO22AB), 5-character (JO33E), out-of-range (JO33ZZ) or malformed (ZZ33ab) locator sends tx.grid with exactly one Warning naming the reason(locator: \"JO33E\", reason: \"invalid\") [43 ms]",
+   "Failed FR-093: each datagram logs one Information line (UTC time, records, exclusions by reason, sequence after) and no callsign appears in any line at any level [59 ms]",
+   "Failed FR-105: XC-BUILD D2: the constant the daemon uses for 'template' (DecodeResult.PathTemplate, Abstractions) is 3, and a Path-3 row is the only one excluded [39 ms]",
+   "Failed FR-103: CQ-AP D7: an ApKind.Cq decode is not uploaded and is counted under ap=; ordinary decodes in the same batch still go [59 ms]"
+  ]
+ },
+ "D07": {
+  "desc": "template counted but still uploaded",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: a template row that would also be excluded for another reason (unknown region) is counted under template only; an AP template row is counted under ap (the AP rule is first) [62 ms]",
+   "Failed FR-105: XC-BUILD D2: a mixed batch (one ordinary row, one template row, both otherwise uploadable) uploads ONLY the ordinary row and counts template=1 on both accounting lines and in the status; Path 0 and 2 rows still upload [20 ms]"
+  ]
+ },
+ "D09": {
+  "desc": "datagram-line template count not incremented",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: a mixed batch (one ordinary row, one template row, both otherwise uploadable) uploads ONLY the ordinary row and counts template=1 on both accounting lines and in the status; Path 0 and 2 rows still upload [76 ms]"
+  ]
+ },
+ "D10": {
+  "desc": "window template count not incremented",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: a template row that would also be excluded for another reason (unknown region) is counted under template only; an AP template row is counted under ap (the AP rule is first) [66 ms]",
+   "Failed FR-105: XC-BUILD D2: a mixed batch (one ordinary row, one template row, both otherwise uploadable) uploads ONLY the ordinary row and counts template=1 on both accounting lines and in the status; Path 0 and 2 rows still upload [28 ms]"
+  ]
+ },
+ "D11": {
+  "desc": "constant 3 -> 4",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Abstractions/DecodeResult.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: the constant the daemon uses for 'template' (DecodeResult.PathTemplate, Abstractions) is 3, and a Path-3 row is the only one excluded [62 ms]"
+  ]
+ },
+ "D12": {
+  "desc": "status window omits template",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: a template row that would also be excluded for another reason (unknown region) is counted under template only; an AP template row is counted under ap (the AP rule is first) [61 ms]",
+   "Failed FR-105: XC-BUILD D2: a mixed batch (one ordinary row, one template row, both otherwise uploadable) uploads ONLY the ordinary row and counts template=1 on both accounting lines and in the status; Path 0 and 2 rows still upload [26 ms]"
+  ]
+ },
+ "D13": {
+  "desc": "combined window drops the last window's template count",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: a mixed batch (one ordinary row, one template row, both otherwise uploadable) uploads ONLY the ordinary row and counts template=1 on both accounting lines and in the status; Path 0 and 2 rows still upload [89 ms]"
+  ]
+ },
+ "D14": {
+  "desc": "datagram line's template count never reset",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": []
+ },
+ "D15": {
+  "desc": "template count not reset on engine reset",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": []
+ },
+ "D16": {
+  "desc": "window log line drops template",
+  "status": "UNKNOWN",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": []
+ },
+ "D17": {
+  "desc": "datagram line: template and queue-dropped swapped",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-093: T9: a queue held across failures is bounded: the oldest records are dropped and counted [73 ms]",
+   "Failed FR-105: XC-BUILD D2: a mixed batch (one ordinary row, one template row, both otherwise uploadable) uploads ONLY the ordinary row and counts template=1 on both accounting lines and in the status; Path 0 and 2 rows still upload [80 ms]"
+  ]
+ },
+ "D18": {
+  "desc": "template default 1",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Abstractions/IPskReporterStatusSource.cs",
+  "failing": []
+ }
+}
