@@ -1,0 +1,1107 @@
+using System.Collections.Concurrent;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using OpenWSFZ.Abstractions;
+using OpenWSFZ.Ft8.Dsp;
+using OpenWSFZ.Ft8.Interop;
+using Xunit;
+
+namespace OpenWSFZ.Ft8.Tests;
+
+/// <summary>
+/// XC-BUILD (FR-105): the prior store (R2, R3), the stage runner (R6, R8) and the decoder wiring (R1, R4, R7, R9 to R13), with the native decode calls faked and the template stage run for real on synthetic
+/// cycle audio (QA's xorshift32 noise plus a phase-continuous 8-FSK message at a known position), so "found inside the window, missed outside it" is an assertion on a real detection. Every test must be able
+/// to fail (QA mutates). TESTING_STRATEGY section 11: no fixed sleeps (the budget is a manual clock or a counting predicate), no wall-clock assertion, no randomness (every buffer is derived from a fixed seed).
+///
+/// <para>🔒 NFR-021 / HK-037: synthetic Q-prefix messages only; assertions on counts, positions and the published rows of a fake.</para>
+/// </summary>
+public sealed class CrossCyclePriorTests
+{
+    private static readonly DateTime T0 = new(2026, 11, 13, 12, 0, 0, DateTimeKind.Utc);
+    private static DateTime At(int seconds) => T0.AddSeconds(seconds);
+
+    private const string M = "Q1ABC Q1XYZ JO33";            // the message that repeats
+    private const string Other = "Q1GHI Q1JKL FN20";         // a decoy decoded by pass 0 so a residual buffer exists
+    private const string Other2 = "Q1MNO Q1PQR IO91";
+    private const int MFreq = 1500;
+    private const float MDt = 0.30f;
+    private const double TestThreshold = 4.0;               // between noise (S_E* about 1.2) and a clean signal (about 7.5)
+
+    private static byte[] Tones(string message)
+    {
+        var tones = new byte[79];
+        Ft8LibInterop.EncodeMessage(message, tones);
+        return tones;
+    }
+
+    private static Ft8NativeResult Msg(string message, int freqHz = MFreq, float dt = MDt)
+        => new() { FreqHz = freqHz, Dt = dt, Snr = -12, Message = message };
+
+    /// <summary>One cycle's audio: seeded noise plus any number of known messages at known positions (the true position, in the published dt convention).</summary>
+    private static float[] Audio(uint seed, params (string Text, double FreqHz, double Dt)[] messages)
+    {
+        var x = XcSynth.Noise(seed, 1.0);
+        // m.Dt is in the PUBLISHED convention; the recipe (and the detector) are in WSJT-X's: published = WSJT-X + 0.6 s.
+        foreach (var m in messages) XcSynth.AddMessage(x, Tones(m.Text), m.FreqHz, m.Dt - CrossCycleTemplateStage.PublishedMinusWsjtxDtS, 0.5);
+        return XcSynth.ToFloat(x);
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        private long _ticks;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => Interlocked.Read(ref _ticks);
+        public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, by.Ticks);
+    }
+
+    private sealed class LineLog : ILogger<Ft8Decoder>
+    {
+        private readonly ConcurrentQueue<string> _q = new();
+        public List<string> Lines => _q.ToList();
+        public List<string> XcLines => Lines.Where(l => l.StartsWith("Cross-cycle prior:")).ToList();
+        public string LastXc => XcLines.Last();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => _q.Enqueue(formatter(state, exception));
+
+        public static int Field(string line, string name)
+        {
+            var m = Regex.Match(line, name + @"=(-?\d+)");
+            m.Success.Should().BeTrue($"the line has {name}=: {line}");
+            return int.Parse(m.Groups[1].Value);
+        }
+    }
+
+    private sealed class RecordingProbe : ICrossCyclePriorProbe
+    {
+        public ConcurrentQueue<CrossCycleTestRecord> Seen { get; } = new();
+        public List<CrossCycleTestRecord> Records => Seen.ToList();
+        public bool Throw { get; init; }
+        public void Clear() { while (Seen.TryDequeue(out _)) { } }
+        public void OnTemplateTested(in CrossCycleTestRecord record)
+        {
+            Seen.Enqueue(record);
+            if (Throw) throw new InvalidOperationException("the sink threw (test double)");
+        }
+    }
+
+    /// <summary>
+    /// DecodeAll answers by call number within the cycle (1 = pass 0, 2 = the residual pass); the fallback finds nothing; the fits subtract nothing, so the residual buffer is a copy of the cycle audio.
+    /// <see cref="AdvanceInFallback"/> moves the manual clock during the fallback run (a stand-in for a slow cycle).
+    /// </summary>
+    private sealed class XcInterop : IFt8NativeInterop
+    {
+        private readonly object _gate = new();
+        private int _call;
+        private int _advanced;
+        private Ft8NativeResult[][] _script = [];
+        public ManualTimeProvider? Clock { get; init; }
+        public TimeSpan AdvanceInFallback { get; init; }
+        public int MaxDecodePasses => 2;
+
+        /// <summary>Rows the fallback run returns (batch 4 on Deep): payload byte 0 is the id <see cref="Texts"/> maps to a message.</summary>
+        public CohFallbackRow[] Rows { get; init; } = [];
+        public Dictionary<byte, string> Texts { get; init; } = new();
+
+        /// <summary>Messages the encoder answers with a 79-long array of out-of-range tones (a length-valid template the detector cannot run: a stand-in for a stage failure).</summary>
+        public HashSet<string> BadTones { get; init; } = [];
+
+        public void NextCycle(params Ft8NativeResult[][] decodes) { lock (_gate) { _script = decodes; _call = 0; _advanced = 0; } }
+
+        public Ft8NativeResult[] DecodeAll(float[] pcm)
+        {
+            int n;
+            lock (_gate) n = ++_call;
+            return n <= _script.Length ? _script[n - 1] : [];
+        }
+
+        public byte[]? CohFallbackSnapshot() => [1];
+
+        public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, CancellationToken ct)
+            => CohFallbackRun(pcm, snapshot, budgetMs, workers, ct);
+
+        public CohFallbackRunResult? CohFallbackRun(float[] pcm, byte[] snapshot, double budgetMs, int workers, CancellationToken ct)
+        {
+            // Once per cycle, however many fallback runs the audio mode makes (Both runs twice): the clock moves by exactly AdvanceInFallback.
+            if (Clock is not null && AdvanceInFallback > TimeSpan.Zero && Interlocked.Exchange(ref _advanced, 1) == 0) Clock.Advance(AdvanceInFallback);
+            return new CohFallbackRunResult(new CohFallbackStats(5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 123.4), Rows) { Workers = 1 };
+        }
+
+        public string? CohFallbackUnpack(byte[] payload) => Texts.TryGetValue(payload[0], out var t) ? t : null;
+        public byte[] EncodeMessage(string message)
+        {
+            if (!BadTones.Contains(message)) return Tones(message);
+            var bad = new byte[79];
+            Array.Fill(bad, (byte)200);
+            return bad;
+        }
+        public (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm) => (new float[pcm.Length], new float[pcm.Length]);
+        public (int ReturnCode, float[] Shat) SubfeasFitSignal(float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
+            => (0, new float[180_000]);
+        public int[] GetLastPassCounts(int maxPasses) => new int[maxPasses];
+        public int[] GetLastCandidateCounts(int maxPasses) => new int[maxPasses];
+        public float GetLastNoiseFloorDb() => 0f;
+        public int GetHashTableRejectCount() => 0;
+        public int GetH12DisplayingCount() => 0;
+        public int GetH12AmbiguousCount() => 0;
+        public int GetH12DivergentCount() => 0;
+        public int GetH12SuppressedCount() => 0;
+        public (float[] MeanAbs, float[] PrenormVariance, int[] FailCount) GetLastLlrStats(int maxPasses)
+            => (new float[maxPasses], new float[maxPasses], new int[maxPasses]);
+        public void SetApBits(byte[] mycallBits, byte[] hiscallBits) { }
+        public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) { }
+        public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(float[] pcm, int coarseFreqHz, float coarseTimeOffsetS) => (0f, 0f, 0f, 0, 0);
+        public float[] CoherentLlrAt(float[] pcm, float freqHz, float timeOffsetS) => new float[174];
+        public (float[] SignalDb, float[] LocalNoiseDb) GetLastSnrTerms(int maxDecoded) => (Array.Empty<float>(), Array.Empty<float>());
+    }
+
+    private static Ft8Decoder Build(XcInterop io, bool xc, bool shadow = false, double threshold = TestThreshold, ILogger<Ft8Decoder>? log = null,
+                                    TimeProvider? time = null, bool late = false, ICrossCyclePriorProbe? probe = null)
+    {
+        var d = new Ft8Decoder(new FakeClock(T0), log, interop: io, timeProvider: time ?? io.Clock ?? new ManualTimeProvider());
+        d.SetSubtractionEnabled(true);
+        d.SetDecodingDepth(DecodingDepth.Deep);
+        d.SetCoherentFallbackEnabled(true);
+        d.SetCoherentFallbackAudio(CoherentFallbackAudio.Both);
+        d.SetLateSubtractionRound(late);
+        d.SetCrossCyclePrior(xc);
+        d.SetCrossCyclePriorShadow(shadow);
+        d.SetCrossCyclePriorThreshold(threshold);
+        d.CrossCyclePriorProbe = probe;
+        return d;
+    }
+
+    private sealed record Published(int Batch, string Message, int FreqHz, int Snr, double Dt, int Path);
+
+    private static async Task<List<Published>> Cycle(Ft8Decoder d, XcInterop io, DateTime start, float[] audio, string? band = null, params Ft8NativeResult[][] script)
+    {
+        io.NextCycle(script);
+        var got = new List<Published>();
+        await d.DecodeStagedAsync(audio, start, band, (n, b) =>
+        {
+            got.AddRange(b.Select(r => new Published(n, r.Message, r.FreqHz, r.Snr, r.Dt, r.Path)));
+            return Task.CompletedTask;
+        });
+        return got;
+    }
+
+    /// <summary>Pass 0 decodes the given messages; the residual pass finds nothing new (so a residual buffer, the R2 one, exists).</summary>
+    private static Ft8NativeResult[][] Pass0(params Ft8NativeResult[] decodes) => [decodes, []];
+
+    // ── R1: the settings ───────────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R1/R6: both flags default to false (config record and bare decoder), the setters and read-backs round-trip, and T_E is a shipped +infinity placeholder that replay can set")]
+    public void Settings_Default_RoundTrip_AndThreshold()
+    {
+        new DecoderConfig().CrossCyclePrior.Should().BeFalse();
+        new DecoderConfig().CrossCyclePriorShadow.Should().BeFalse();
+        new DecoderConfig { CrossCyclePrior = true, CrossCyclePriorShadow = true }.CrossCyclePriorShadow.Should().BeTrue();
+
+        var bare = new Ft8Decoder(new FakeClock(T0));
+        bare.CrossCyclePrior.Should().BeFalse("the decoder object starts false");
+        bare.CrossCyclePriorShadow.Should().BeFalse();
+        bare.CrossCyclePriorThreshold.Should().Be(double.PositiveInfinity, "the shipped placeholder: QA's TRAIN arm measures the real value");
+        Ft8Decoder.CrossCyclePriorThresholdDefault.Should().Be(double.PositiveInfinity);
+        bare.CrossCyclePriorProbe.Should().BeNull("the shipped build has no subscriber");
+
+        bare.SetCrossCyclePrior(true); bare.SetCrossCyclePriorShadow(true); bare.SetCrossCyclePriorThreshold(3.25);
+        bare.CrossCyclePrior.Should().BeTrue();
+        bare.CrossCyclePriorShadow.Should().BeTrue();
+        bare.CrossCyclePriorThreshold.Should().Be(3.25);
+        bare.SetCrossCyclePrior(false);
+        bare.CrossCyclePrior.Should().BeFalse();
+    }
+
+    // ── R11: OFF is unchanged ──────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R11: OFF writes nothing (no store write, no log line, no batch 6) and every published row equals the ON run with T_E = +infinity")]
+    public async Task Off_WritesNothing_AndRowsEqualOnWithInfiniteThreshold()
+    {
+        async Task<(List<Published> Rows, LineLog Log, Ft8Decoder D)> Run(bool xc)
+        {
+            var log = new LineLog();
+            var io = new XcInterop();
+            var d = Build(io, xc, shadow: xc, threshold: double.PositiveInfinity, log: log);
+            var rows = new List<Published>();
+            rows.AddRange(await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800))));
+            rows.AddRange(await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100))));
+            return (rows, log, d);
+        }
+
+        var off = await Run(false);
+        var on = await Run(true);
+
+        off.D.CrossCyclePriorStoreCount.Should().Be(0, "OFF: not one store write");
+        off.Log.XcLines.Should().BeEmpty("OFF: no log line");
+        off.Rows.Should().NotContain(p => p.Batch >= Ft8Decoder.TemplateBatch, "OFF: no batch 6");
+        off.Rows.Should().NotBeEmpty();
+        on.D.CrossCyclePriorStoreCount.Should().BeGreaterThan(0, "ON writes the store (a control: the OFF assertion above can fail)");
+        on.Log.XcLines.Should().HaveCount(2, "one line per staged cycle while ON");
+        on.Rows.Should().Equal(off.Rows, "ON with T_E = +infinity publishes the rows OFF publishes: the stage adds nothing and changes no existing batch");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R1/R11: with the stage ON, a call without the staged callbacks (DecodeAsync) and the early decode write nothing: no store write, no line")]
+    public async Task NonStagedEntries_NeverTouchTheStore()
+    {
+        var log = new LineLog();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, log: log);
+
+        io.NextCycle(Pass0(Msg(M)));
+        await d.DecodeAsync(Audio(3), At(0), currentBand: null);
+        io.NextCycle(Pass0(Msg(M)));
+        await d.DecodeEarlyAsync(Audio(4), At(15), currentBand: null);
+
+        d.CrossCyclePriorStoreCount.Should().Be(0, "the early decode and the single-batch path never read or write the store");
+        log.XcLines.Should().BeEmpty();
+    }
+
+    // ── R4, R5, R7: found inside the window, published as batch 6 ──────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R5/R7: a message published 30 s earlier is found at its place on the residual and published as batch 6 with PathTemplate, its own position and a coherent SNR; the cycle's batches 1 to 5 are unchanged")]
+    public async Task KnownMessage_FoundInsideWindow_PublishedAsBatch6()
+    {
+        var log = new LineLog();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, log: log);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+
+        var audio = Audio(2, (M, MFreq, MDt));
+        var rows = await Cycle(d, io, At(30), audio, null, Pass0(Msg(Other2, 2100)));
+
+        var b6 = rows.Where(p => p.Batch == Ft8Decoder.TemplateBatch).ToList();
+        b6.Should().ContainSingle();
+        b6[0].Message.Should().Be(M);
+        b6[0].Path.Should().Be(Ft8Decoder.PathTemplate).And.Be(3);
+        b6[0].FreqHz.Should().Be(MFreq, "the argmax frequency, rounded to the published integer Hz");
+        b6[0].Dt.Should().BeApproximately(MDt, 0.051, "the argmax dt, rounded to 0.1 s as every batch is");
+        int expectedSnr = CrossCycleTemplateDetector.CoherentSnrDb(audio, MFreq, MDt - CrossCycleTemplateStage.PublishedMinusWsjtxDtS, Tones(M));
+        b6[0].Snr.Should().BeInRange(expectedSnr - 1, expectedSnr + 1, "the managed cf_snr_db at the argmax (scale-free, so the cycle's RMS normalisation does not change it)");
+        rows.Where(p => p.Batch < Ft8Decoder.TemplateBatch).Select(p => p.Message).Should().Equal(new[] { Other2 }, "batches 1 to 5 hold what pass 0 decoded and nothing else");
+
+        var line = log.LastXc;
+        line.Should().Contain("outcome=ran");
+        LineLog.Field(line, "priorsLive").Should().Be(2, "M and the decoy were published 30 s earlier");
+        LineLog.Field(line, "testedLive").Should().Be(2);
+        LineLog.Field(line, "detected").Should().Be(1);
+        LineLog.Field(line, "published").Should().Be(1);
+        line.Should().Contain("batch=6");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R5: the same prior is MISSED when its position is outside the window (12 Hz, or 0.4 s, away from where the message really is)")]
+    public async Task KnownMessage_MissedOutsideWindow()
+    {
+        foreach (var (priorFreq, priorDt) in new[] { (MFreq + 12, MDt), (MFreq, MDt + 0.40f) })
+        {
+            var log = new LineLog();
+            var io = new XcInterop();
+            var d = Build(io, xc: true, log: log);
+            await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M, priorFreq, priorDt), Msg(Other, 1800)));   // the prior was published at a different position than the true one
+
+            var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+            rows.Should().NotContain(p => p.Batch == Ft8Decoder.TemplateBatch, $"prior at {priorFreq} Hz / {priorDt} s: the message is outside the +-3 Hz x +-0.12 s window");
+            LineLog.Field(log.LastXc, "detected").Should().Be(0);
+            LineLog.Field(log.LastXc, "testedLive").Should().Be(2, "it was tested, and missed");
+        }
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R4: a cycle with no residual buffer (pass 0 decoded nothing) skips the stage, counted: outcome=skipped-no-residual, nothing tested or published")]
+    public async Task NoResidual_SkipsAndCounts()
+    {
+        var log = new LineLog();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, log: log);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M)));
+
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, [[], []]);
+
+        rows.Should().BeEmpty();
+        var line = log.LastXc;
+        line.Should().Contain("outcome=skipped-no-residual");
+        LineLog.Field(line, "priorsLive").Should().Be(1);
+        LineLog.Field(line, "testedLive").Should().Be(0);
+        LineLog.Field(line, "published").Should().Be(0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R7/R8: with the late round ON the template batch is the last batch of the cycle (after batches 1 to 5), and still only when non-empty")]
+    public async Task LateRoundOn_Batch6IsLast()
+    {
+        var io = new XcInterop();
+        var d = Build(io, xc: true, late: true);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        rows.Select(p => p.Batch).Should().Equal(1, Ft8Decoder.TemplateBatch);
+        rows.Last().Message.Should().Be(M);
+    }
+
+    // ── R2: the store ──────────────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R2: a batch-6 publish never enters the store (no chaining): the store holds exactly what batches 1 to 5 published")]
+    public async Task Batch6_NeverEntersTheStore()
+    {
+        var log = new LineLog();
+        var probe = new RecordingProbe();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, log: log, probe: probe);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        d.CrossCyclePriorStoreCount.Should().Be(2);
+
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch && p.Message == M, "control: batch 6 DID publish M");
+        d.CrossCyclePriorStoreCount.Should().Be(3, "2 from t0 and 1 (the decoy) from t0 + 30 s; the batch-6 M is not stored");
+
+        // The consequence: at t0 + 60, age 2 is the t0 + 30 cycle, which published only Other2 in batch 1; M is a prior only through t0's batch 1 (age 4). Were the batch-6 M stored, M would be at age 2.
+        probe.Clear();
+        await Cycle(d, io, At(60), Audio(3, (M, MFreq, MDt)), null, Pass0(Msg(Other, 1800)));
+        LineLog.Field(log.LastXc, "priorsLive").Should().Be(3, "Other2 (age 2), and M and Other (age 4)");
+        probe.Records.Select(r => r.AgeCycles).Should().Equal(new[] { 2, 4 }, "tested: Other2 (age 2) and M (age 4, from t0), never M at age 2 (the batch-6 publish); Other is excluded, this cycle decodes it itself");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R2/R3: priors count only at exactly -30, -60 and -90 s; a prior 45 s back, or beyond 90 s, is not live (the gap rule), and the ages the probe reports are 2, 4 and 6")]
+    public async Task GapRule_OnlyExactAges_AndProbeAges()
+    {
+        var log = new LineLog();
+        var probe = new RecordingProbe();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, threshold: double.PositiveInfinity, log: log, probe: probe);
+
+        // t0, t0 + 30 and t0 + 60 each publish one distinct message, at three different places; t0 + 15 and t0 + 45 are missing (a gap of one cycle between each).
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg("Q1AAA Q1BBB JO33", 1000)));
+        await Cycle(d, io, At(30), Audio(2), null, Pass0(Msg("Q1CCC Q1DDD JO33", 1100)));
+        await Cycle(d, io, At(60), Audio(3), null, Pass0(Msg("Q1EEE Q1FFF JO33", 1200)));
+        probe.Clear();
+
+        // t0 + 90 sees the three at ages 2, 4, 6.
+        await Cycle(d, io, At(90), Audio(4), null, Pass0(Msg(Other, 1800)));
+        probe.Records.Where(r => r.Kind == CrossCycleKind.Live).Select(r => r.AgeCycles).Should().Equal(2, 4, 6);
+        LineLog.Field(log.LastXc, "priorsLive").Should().Be(3);
+
+        // t0 + 105 (the t0 + 15 cycle is missing): age 1, 3, 5 are the opposite parity; the live ages 2, 4, 6 are t0 + 75 (missing), t0 + 45 (missing), t0 + 15 (missing) -> none.
+        await Cycle(d, io, At(105), Audio(5), null, Pass0(Msg(Other, 1800)));
+        LineLog.Field(log.LastXc, "priorsLive").Should().Be(0, "no cycle exists at exactly -30, -60 or -90 s of t0 + 105");
+
+        // t0 + 150 is 90 s after t0 + 60 (age 6) and 120 s after t0 + 30 (age 8: gone).
+        probe.Clear();
+        await Cycle(d, io, At(150), Audio(6), null, Pass0(Msg(Other2, 2100)));
+        LineLog.Field(log.LastXc, "priorsLive").Should().Be(2, "t0 + 90 (its decoy) is exactly -60 s and t0 + 60 is exactly -90 s; t0 + 30 is 120 s back and has aged out of the 90 s the store keeps");
+        probe.Records.Where(r => r.Kind == CrossCycleKind.Live).Select(r => r.AgeCycles).Should().Equal(4, 6);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R2: a band change clears the store; the same band, and null on both cycles, keep it")]
+    public async Task BandChange_ClearsTheStore()
+    {
+        foreach (var (first, second, expectedPriors) in new (string?, string?, int)[] { ("20m", "20m", 1), (null, null, 1), ("20m", "40m", 0), ("20m", null, 0), (null, "20m", 0) })
+        {
+            var log = new LineLog();
+            var io = new XcInterop();
+            var d = Build(io, xc: true, threshold: double.PositiveInfinity, log: log);
+            await Cycle(d, io, At(0), Audio(1), first, Pass0(Msg(M)));
+
+            await Cycle(d, io, At(30), Audio(2), second, Pass0(Msg(Other, 1800)));
+
+            LineLog.Field(log.LastXc, "priorsLive").Should().Be(expectedPriors, $"bands '{first}' then '{second}'");
+        }
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R3: texts already published in batches 1 to 5 of the cycle, and hashed texts, are excluded and counted separately and never tested")]
+    public async Task Exclusions_AlreadyDecoded_AndHashed_AreCounted()
+    {
+        var log = new LineLog();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, log: log);
+        const string Hashed = "<Q1AAA> Q1BBB RR73";
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800), Msg(Hashed, 2000)));
+        d.CrossCyclePriorStoreCount.Should().Be(3, "control: the hashed text passed the plausibility filter and was stored");
+
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(M), Msg(Other2, 2100)));   // pass 0 decodes M itself this cycle
+
+        var line = log.LastXc;
+        LineLog.Field(line, "priorsLive").Should().Be(3);
+        LineLog.Field(line, "excludedDecoded").Should().Be(1, "M is already published in batch 1 of this cycle");
+        LineLog.Field(line, "excludedHashed").Should().Be(1);
+        LineLog.Field(line, "testedLive").Should().Be(1, "only the decoy remains");
+        rows.Should().NotContain(p => p.Batch == Ft8Decoder.TemplateBatch);
+    }
+
+    // ── R9, R13: the shadow null and the sink ──────────────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R9: the shadow tests the opposite-parity priors (15, 45, 75 s) against this cycle's buffer, counts and logs its detections, and publishes nothing and stores nothing")]
+    public async Task Shadow_CountsDetections_PublishesNothing_StoresNothing()
+    {
+        var log = new LineLog();
+        var probe = new RecordingProbe();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, shadow: true, log: log, probe: probe);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M)));
+        int storeBefore = d.CrossCyclePriorStoreCount;
+
+        var rows = await Cycle(d, io, At(15), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        rows.Should().NotContain(p => p.Batch == Ft8Decoder.TemplateBatch, "a shadow detection is never published");
+        var line = log.LastXc;
+        LineLog.Field(line, "priorsLive").Should().Be(0, "nothing is 30, 60 or 90 s back");
+        LineLog.Field(line, "priorsShadow").Should().Be(1);
+        LineLog.Field(line, "testedShadow").Should().Be(1);
+        LineLog.Field(line, "shadowDetected").Should().Be(1);
+        LineLog.Field(line, "detected").Should().Be(0);
+        d.CrossCyclePriorStoreCount.Should().Be(storeBefore + 1, "only the decoy this cycle published in batch 2; the shadow detection is not stored");
+        var rec = probe.Records.Should().ContainSingle(r => r.Kind == CrossCycleKind.Shadow).Subject;
+        rec.AgeCycles.Should().Be(1);
+        rec.SStar.Should().BeGreaterThan(TestThreshold);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R9: with the shadow flag OFF the shadow priors are not even counted; the shadow flag does nothing while the main flag is OFF")]
+    public async Task ShadowOff_AndMainOff()
+    {
+        var log = new LineLog();
+        var probe = new RecordingProbe();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, shadow: false, log: log, probe: probe);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M)));
+        await Cycle(d, io, At(15), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+        LineLog.Field(log.LastXc, "priorsShadow").Should().Be(0);
+        LineLog.Field(log.LastXc, "testedShadow").Should().Be(0);
+        probe.Records.Should().NotContain(r => r.Kind == CrossCycleKind.Shadow);
+
+        var io2 = new XcInterop();
+        var log2 = new LineLog();
+        var d2 = Build(io2, xc: false, shadow: true, log: log2);
+        await Cycle(d2, io2, At(0), Audio(1), null, Pass0(Msg(M)));
+        await Cycle(d2, io2, At(15), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+        d2.CrossCyclePriorStoreCount.Should().Be(0);
+        log2.XcLines.Should().BeEmpty("the shadow flag has no effect without the main flag");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R13: the sink gets one numbers-only record per tested template (kind, S_E*, age, offsets, stamp), a throwing sink loses no decode, and the record type holds no text")]
+    public async Task Probe_NumbersOnly_OnePerTest_AndASinkThatThrowsCostsNothing()
+    {
+        var probe = new RecordingProbe { Throw = true };
+        var io = new XcInterop();
+        var d = Build(io, xc: true, probe: probe);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch, "the sink threw on every call and the batch still went out");
+        var records = probe.Records;
+        records.Should().HaveCount(2, "one per tested template");
+        records.Should().OnlyContain(r => r.Kind == CrossCycleKind.Live && r.AgeCycles == 2 && r.CycleStart == At(30));
+        var hit = records.Single(r => r.SStar > TestThreshold);
+        hit.OffsetHz.Should().BeApproximately(0.0, 1e-9);
+        hit.OffsetS.Should().BeApproximately(0.0, 1e-9);
+        records.Single(r => r.SStar <= TestThreshold).SStar.Should().BeGreaterThan(0.9, "the decoy is not in the audio: noise-level S_E*");
+
+        typeof(CrossCycleTestRecord).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.PropertyType).Should().OnlyContain(t => t == typeof(double) || t == typeof(int) || t == typeof(DateTime) || t == typeof(CrossCycleKind) || t == typeof(bool),
+                "numbers and flags only: no string, no array, no payload (HK-037, NFR-021)");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R10: the log line carries counts and numbers only: no message text, no callsign")]
+    public async Task LogLine_HasNoTextOrCallsign()
+    {
+        var log = new LineLog();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, shadow: true, log: log);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        foreach (var line in log.XcLines)
+        {
+            line.Should().NotContain("Q1").And.NotContain("JO33").And.NotContain("FN20").And.NotContain("<");
+            foreach (var name in new[] { "priorsLive", "priorsShadow", "excludedDecoded", "excludedHashed", "testedLive", "testedShadow", "detected", "shadowDetected", "abandoned", "published" })
+                LineLog.Field(line, name);
+            line.Should().MatchRegex(@"stageMs=\d+").And.MatchRegex(@"batch6PublishMs=-?\d+");
+        }
+    }
+
+    // ── R8: the budget ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R8: templates stop STARTING at the cycle budget less the publish reserve: with the budget gone no template starts, all are counted abandoned and nothing is published")]
+    public async Task Budget_Spent_NothingStarts_AllAbandoned()
+    {
+        var clock = new ManualTimeProvider();
+        var log = new LineLog();
+        var io = new XcInterop { Clock = clock, AdvanceInFallback = TimeSpan.FromSeconds(13) };   // the fallback "takes" the whole 13 s budget, every cycle
+        var d = Build(io, xc: true, log: log, time: clock);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        rows.Should().NotContain(p => p.Batch == Ft8Decoder.TemplateBatch);
+        var line = log.LastXc;
+        LineLog.Field(line, "testedLive").Should().Be(0);
+        LineLog.Field(line, "abandoned").Should().Be(2, "both templates were dropped, counted");
+        LineLog.Field(line, "detected").Should().Be(0);
+    }
+
+    // ── the store, alone ───────────────────────────────────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R2/R3: the store keeps 6 cycles back, offers distinct texts nearest first with the NEAREST position, and a cycle start with millisecond jitter lands on the same slot")]
+    public void Store_Ages_Order_NearestPosition_AndSlotJitter()
+    {
+        var store = new CrossCyclePriorStore();
+        void Publish(int seconds, params CrossCyclePriorStore.Prior[] priors)
+        {
+            store.BeginCycle(At(seconds), null);
+            foreach (var p in priors) store.Record(p);
+        }
+        static CrossCyclePriorStore.Prior P(string text, double freq, double dt, int batch) => new(text, freq, dt, batch);
+        Publish(0, P("A", 1000, 0.1, 1), P("C", 1300, 0.1, 1));              // age 6 from t0 + 90
+        Publish(15, P("S", 1900, 0.9, 1));                                    // age 5
+        Publish(30, P("B", 1100, 0.2, 2));                                    // age 4
+        Publish(60, P("A", 1002, 0.3, 4), P("B", 1101, 0.4, 4));              // age 2: A and B again, at other positions
+        store.BeginCycle(At(90).AddMilliseconds(180), null);                  // framing jitter: still the 90 s slot
+
+        var live = store.Candidates(shadow: false);
+        live.Select(c => (c.Prior.Text, c.AgeCycles)).Should().Equal(("A", 2), ("B", 2), ("C", 6));
+        live.Single(c => c.Prior.Text == "A").Prior.FreqHz.Should().Be(1002, "where a text has several priors the most recent one's position is used");
+        live.Single(c => c.Prior.Text == "B").Prior.Dt.Should().Be(0.4);
+        store.Candidates(shadow: true).Select(c => (c.Prior.Text, c.AgeCycles)).Should().Equal(("S", 5));
+
+        store.BeginCycle(At(105), null);                                      // t0 and t0 + 15 are now 7 and 6 cycles back (a 6-cycle store drops the 7th)
+        store.CountAt(7).Should().Be(0, "older than 90 s is dropped");
+        store.Candidates(shadow: false).Select(c => c.Prior.Text).Should().NotContain("C", "C was published 105 s ago");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R2: the store drops a cycle that is decoded again (replaced, not doubled), ignores a record made outside an open cycle, and a clock that jumps back drops the future")]
+    public void Store_Replace_AndClockJump()
+    {
+        var store = new CrossCyclePriorStore();
+        store.Record(new("X", 1, 0, 1));
+        store.TotalCount.Should().Be(0, "no cycle is open");
+        store.BeginCycle(At(0), null);
+        store.Record(new("A", 1000, 0, 1));
+        store.BeginCycle(At(0), null);
+        store.Record(new("B", 1100, 0, 1));
+        store.CountAt(0).Should().Be(1, "the second pass over the same cycle replaced the first");
+
+        store.BeginCycle(At(60), null);
+        store.BeginCycle(At(-3000), null);                                    // the clock jumped back: the entries from the future are dropped
+        store.TotalCount.Should().Be(0);
+    }
+
+    // ── the stage runner, alone ────────────────────────────────────────────────────────────────────────────────────
+
+    private static CrossCycleTemplateStage.Template Tpl(string text, double freq, double dt, int age, byte[]? tones = null) => new(text, tones ?? Tones(M), freq, dt, age);
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R8: templates are tried nearest-prior-first: when the budget runs out after k starts, exactly the k nearest were tested and the older ones are the abandoned (one worker, a counting predicate, no clock)")]
+    public void Run_ShortBudget_DropsTheOldest()
+    {
+        var pcm = Audio(7);
+        var templates = new[] { Tpl("n2", 1000, 0.3, 2), Tpl("n4", 1100, 0.3, 4), Tpl("n6", 1200, 0.3, 6), Tpl("n6b", 1300, 0.3, 6) };
+        int polls = 0;
+
+        var r = CrossCycleTemplateStage.Run(templates, pcm, double.PositiveInfinity, workers: 1, () => ++polls > 2, CancellationToken.None);
+
+        r.Tested.Should().Be(2);
+        r.Abandoned.Should().Be(2);
+        r.Outcomes.Select(o => o.Tested).Should().Equal(new[] { true, true, false, false }, "the nearest two ran; the oldest priors were dropped");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R8: the parallel run gives exactly the single-worker run's outcomes (templates are independent: no shared state between workers)")]
+    public void Run_Parallel_EqualsSingleWorker()
+    {
+        var pcm = Audio(8, (M, 1500, 0.3));
+        var templates = Enumerable.Range(0, 12).Select(i => Tpl("t" + i, 1480 + i * 3, 0.28 + 0.01 * (i % 4), 2 + 2 * (i % 3))).ToList();
+
+        var one = CrossCycleTemplateStage.Run(templates, pcm, 4.0, 1, () => false, CancellationToken.None);
+        var four = CrossCycleTemplateStage.Run(templates, pcm, 4.0, 4, () => false, CancellationToken.None);
+
+        four.Outcomes.Should().Equal(one.Outcomes);
+        one.Tested.Should().Be(12);
+        one.Detected.Should().BeGreaterThan(0, "control: some of these are within the window of the message at 1500 Hz");
+        one.Detected.Should().BeLessThan(12, "control: and some are not");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R6: detected means S_E* >= T_E exactly: T_E equal to the score detects, a hair above does not, +infinity detects nothing")]
+    public void Run_Threshold_IsInclusive_AndInfinityDetectsNothing()
+    {
+        var pcm = Audio(9, (M, 1500, 0.3));
+        var tpl = new[] { Tpl("t", 1500, 0.3, 2) };
+        double s = CrossCycleTemplateStage.Run(tpl, pcm, double.PositiveInfinity, 1, () => false, CancellationToken.None).Outcomes[0].SStar;
+
+        CrossCycleTemplateStage.Run(tpl, pcm, s, 1, () => false, CancellationToken.None).Detected.Should().Be(1);
+        CrossCycleTemplateStage.Run(tpl, pcm, Math.BitIncrement(s), 1, () => false, CancellationToken.None).Detected.Should().Be(0);
+        CrossCycleTemplateStage.Run(tpl, pcm, double.PositiveInfinity, 1, () => false, CancellationToken.None).Detected.Should().Be(0);
+        s.Should().BeGreaterThan(7.0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R3: BuildTemplates excludes and counts separately: already decoded, hashed, and refused by the encoder (a throw, or a wrong tone count); order is kept")]
+    public void BuildTemplates_Exclusions_AreCounted_OrderKept()
+    {
+        var candidates = new[]
+        {
+            "Q1AAA Q1BBB JO33", "Q1CCC Q1DDD JO33", "<Q1EEE> Q1FFF RR73", "BAD ONE", "SHORT", "Q1GGG Q1HHH JO33",
+        }.Select((t, i) => new CrossCyclePriorStore.Candidate(new CrossCyclePriorStore.Prior(t, 1000 + i, 0.1 * i, 1), 2)).ToList();
+        byte[] Encode(string t) => t switch
+        {
+            "BAD ONE" => throw new InvalidOperationException("refused"),
+            "SHORT" => new byte[10],
+            _ => new byte[79],
+        };
+
+        var built = CrossCycleTemplateStage.BuildTemplates(candidates, new HashSet<string> { "Q1CCC Q1DDD JO33" }, Encode, out var ex);
+
+        built.Select(t => t.Text).Should().Equal("Q1AAA Q1BBB JO33", "Q1GGG Q1HHH JO33");
+        ex.AlreadyDecoded.Should().Be(1);
+        ex.Hashed.Should().Be(1);
+        ex.Refused.Should().Be(2);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R5/R7 (QA B1): the prior's PUBLISHED dt is converted to WSJT-X's (minus 0.6 s): a signal whose symbol 0 starts at dt_published - 0.12 s is found at its published dt, and one placed at dt_published + 0.48 s (the unconverted reading) is missed")]
+    public void PublishedDt_IsConvertedToWsjtxConvention()
+    {
+        const double publishedDt = 0.50;
+        var tones = Tones(M);
+        float[] Place(double startSeconds)
+        {
+            var x = XcSynth.Noise(11, 1.0);
+            XcSynth.AddMessage(x, tones, 1500, startSeconds - CrossCycleTemplateDetector.CalibrationStartMinusDtS, 0.5);   // AddMessage starts at (dt + 0.48)
+            return XcSynth.ToFloat(x);
+        }
+        var tpl = new[] { Tpl("t", 1500, publishedDt, 2) };
+
+        var right = CrossCycleTemplateStage.Run(tpl, Place(publishedDt - 0.12), 4.0, 1, () => false, CancellationToken.None);
+        right.Outcomes[0].SStar.Should().BeGreaterThan(7.0);
+        right.Outcomes[0].Detected.Should().BeTrue();
+        right.Outcomes[0].Dt.Should().BeApproximately(publishedDt, 1e-9, "the argmax is reported back in the published convention");
+
+        var wrong = CrossCycleTemplateStage.Run(tpl, Place(publishedDt + 0.48), 4.0, 1, () => false, CancellationToken.None);
+        wrong.Outcomes[0].Detected.Should().BeFalse("a signal at published dt + 0.48 s is 0.6 s from where a published-dt prior puts it");
+        wrong.Outcomes[0].SStar.Should().BeLessThan(2.0);
+    }
+
+    // ── HK-039 review of b5da578c (QA, 11 surviving mutants): the gaps ──────────────────────────────────────────────────
+
+    private static int StoreCycleCount(Ft8Decoder d)
+    {
+        var store = typeof(Ft8Decoder).GetField("_crossCycleStore", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(d)!;
+        return ((CrossCyclePriorStore)store).CycleCount;
+    }
+
+    private static async Task<List<(int Batch, int Count)>> CycleBatches(Ft8Decoder d, XcInterop io, DateTime start, float[] audio, params Ft8NativeResult[][] script)
+    {
+        io.NextCycle(script);
+        var got = new List<(int, int)>();
+        await d.DecodeStagedAsync(audio, start, null, (n, b) => { got.Add((n, b.Count)); return Task.CompletedTask; });
+        return got;
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R2 (QA M21-M24): a message published in EACH of batches 1 to 5 becomes a prior (not only batch 1): the store holds all five, and the next cycle sees five live priors")]
+    public async Task EveryBatchOneToFive_EntersTheStore()
+    {
+        const string A = "Q1AAA Q1BBB JO33", B = "Q1CCC Q1DDD JO33", C = "Q1EEE Q1FFF JO33", D4 = "Q1GGG Q1HHH JO33", E = "Q1III Q1JJJ JO33";
+        var log = new LineLog();
+        var io = new XcInterop { Rows = [new CohFallbackRow(1200f, 0.3f, 1200.3f, 0.31f, 0, false, CohFallbackState.NewGated, -21, 12.0, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])], Texts = new() { [1] = D4 } };
+        var d = Build(io, xc: true, threshold: double.PositiveInfinity, log: log, late: true);
+
+        var batches = await CycleBatches(d, io, At(0), Audio(1),
+            [Msg(A, 1000)], [Msg(B, 1300)], [Msg(C, 1600)], [Msg(E, 1900)]);
+
+        batches.Select(b => b.Batch).Should().Equal(new[] { 1, 2, 3, 4, 5 }, "control: all five ordinary batches published, so every one of them has something to store");
+        d.CrossCyclePriorStoreCount.Should().Be(5, "one message from each of batches 1, 2, 3, 4 and 5; batch 6 is never stored");
+
+        await CycleBatches(d, io, At(30), Audio(2), [], []);
+        LineLog.Field(log.LastXc, "priorsLive").Should().Be(5, "the five published 30 s earlier are the live priors");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R2 (QA M01): the slot is the cycle start rounded to the NEAREST 15 s: millisecond framing jitter either way, and up to half a cycle, lands on the exact stamp's slot")]
+    public void Slot_IsNearest_NotFloor()
+    {
+        foreach (double jitterMs in new[] { -7400.0, -180.0, 0.0, 180.0, 7400.0 })
+        {
+            var store = new CrossCyclePriorStore();
+            store.BeginCycle(At(60).AddMilliseconds(jitterMs), null);              // the prior cycle, jittered
+            store.Record(new("A", 1000, 0.1, 1));
+            store.BeginCycle(At(90).AddMilliseconds(-jitterMs), null);             // the current cycle, jittered the other way
+
+            store.Candidates(shadow: false).Select(c => (c.Prior.Text, c.AgeCycles)).Should().Equal([("A", 2)], $"jitter {jitterMs} ms");
+        }
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R7 (QA M28): the published frequency is the argmax ROUNDED (1501.5 Hz is published as 1502, banker's rounding as the other fallback rows), not truncated")]
+    public async Task PublishedFrequency_IsRoundedArgmax()
+    {
+        var probe = new RecordingProbe();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, probe: probe);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M, MFreq), Msg(Other, 1800)));
+
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, 1501.5, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        probe.Records.Should().Contain(r => r.SStar > TestThreshold && Math.Abs(r.OffsetHz - 1.5) < 1e-9, "control: the argmax is at 1501.5 Hz, the half-Hz grid point of the signal");
+        var b6 = rows.Where(p => p.Batch == Ft8Decoder.TemplateBatch).ToList();
+        b6.Should().ContainSingle();
+        b6[0].FreqHz.Should().Be(1502, "Math.Round(1501.5) is 1502 (to even); a cast truncates it to 1501");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R7 (QA M29): nothing detected means no batch-6 callback at all (not an empty batch), whether or not templates were tested")]
+    public async Task NothingDetected_NoBatch6Callback()
+    {
+        var log = new LineLog();
+        var io = new XcInterop();
+        var d = Build(io, xc: true, threshold: double.PositiveInfinity, log: log);
+        await CycleBatches(d, io, At(0), Audio(1), Pass0(Msg(M), Msg(Other, 1800)));
+
+        var withPriors = await CycleBatches(d, io, At(30), Audio(2, (M, MFreq, MDt)), Pass0(Msg(Other2, 2100)));
+        LineLog.Field(log.LastXc, "testedLive").Should().BeGreaterThan(0, "control: templates were tested and (T_E = +infinity) none detected");
+        withPriors.Select(b => b.Batch).Should().Equal(1);
+
+        var noPriors = await CycleBatches(d, io, At(300), Audio(3), Pass0(Msg(Other2, 2100)));
+        LineLog.Field(log.LastXc, "priorsLive").Should().Be(0, "control: no prior at all");
+        noPriors.Select(b => b.Batch).Should().Equal(1);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R8 (QA M31, M33): templates stop STARTING at the 13 s budget less the 250 ms publish reserve (12.9 s spent: none starts; 12.7 s: both do), and the sink gets a record only for a template that was tested")]
+    public async Task Budget_StopsAtBudgetLessReserve_AndProbeSeesOnlyTested()
+    {
+        foreach (var (spentSeconds, expectedTested) in new[] { (12.9, 0), (12.7, 2) })
+        {
+            var clock = new ManualTimeProvider();
+            var log = new LineLog();
+            var probe = new RecordingProbe();
+            var io = new XcInterop { Clock = clock, AdvanceInFallback = TimeSpan.FromSeconds(spentSeconds) };
+            var d = Build(io, xc: true, log: log, time: clock, probe: probe);
+            await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+            probe.Clear();
+
+            await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+            var line = log.LastXc;
+            LineLog.Field(line, "testedLive").Should().Be(expectedTested, $"{spentSeconds} s spent of the 13 s budget");
+            LineLog.Field(line, "abandoned").Should().Be(2 - expectedTested);
+            probe.Records.Should().HaveCount(expectedTested, "one record per TESTED template; an abandoned one has no S_E* to report");
+        }
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R9 (QA M35): when the live stage fails the shadow does not run: no shadow tests, no shadow counts, no shadow records")]
+    public async Task LiveStageFailed_ShadowDoesNotRun()
+    {
+        const string Bad = "Q1BAD Q1TON JO33";
+        var log = new LineLog();
+        var probe = new RecordingProbe();
+        var io = new XcInterop { BadTones = [Bad] };
+        var d = Build(io, xc: true, shadow: true, log: log, probe: probe);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(Bad, 1000)));
+        await Cycle(d, io, At(15), Audio(2), null, Pass0(Msg(M, MFreq)));
+
+        await Cycle(d, io, At(30), Audio(3, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        var line = log.LastXc;
+        line.Should().Contain("outcome=failed", "control: the live template (out-of-range tones) made the stage fail");
+        LineLog.Field(line, "priorsShadow").Should().Be(1, "control: a shadow prior was there to be tested");
+        LineLog.Field(line, "testedShadow").Should().Be(0);
+        LineLog.Field(line, "shadowDetected").Should().Be(0);
+        probe.Records.Should().NotContain(r => r.Kind == CrossCycleKind.Shadow);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R11 (QA M37): with the setting OFF the store holds no cycle entry at all (CycleCount 0, not only TotalCount 0), and with it ON the same run opens one")]
+    public async Task Off_OpensNoCycleEntry()
+    {
+        foreach (var (xc, expectedCycles) in new[] { (false, 0), (true, 2) })
+        {
+            var io = new XcInterop();
+            var d = Build(io, xc);
+            await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M)));
+            await Cycle(d, io, At(30), Audio(2), null, Pass0(Msg(Other2, 2100)));
+
+            StoreCycleCount(d).Should().Be(expectedCycles, xc ? "ON: one entry per staged cycle" : "OFF: BeginCycle is never called");
+        }
+    }
+
+    // ── Amendment 6 (the remedy build): R14 co-location veto, R15 parity-block gate, the sink and the log line ──────────────────────
+
+    private const string NextRr73 = "Q1ABC Q1XYZ RR73";       // the same station's next, different message: the stale-template case
+    private const string OtherStation = "Q1AAA Q1BBB RR73";   // a different message, from a different pair of stations
+    private const double SaneTp = 1.9;                         // a T_P of the size QA's desk figure suggests; NOT a shipped value (the shipped placeholder is 0.0)
+    private const double StaleTestThreshold = 3.0;             // S_E* of the stale template is about 4 to 5 here, noise about 1.2: it clears this, so only S_P can stop it
+
+    private static CrossCyclePriorStore.Prior Dec(string text, double freq, double dt, int batch = 1) => new(text, freq, dt, batch);
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live")]
+    public async Task Stale_NextMessage_IsGatedByTp_AndPassesWithoutIt()
+    {
+        async Task<(List<Published> Rows, LineLog Log, RecordingProbe Probe)> Go(double tp)
+        {
+            var log = new LineLog(); var probe = new RecordingProbe(); var io = new XcInterop();
+            var d = Build(io, xc: true, threshold: StaleTestThreshold, log: log, probe: probe);
+            d.SetCrossCyclePriorParityThreshold(tp);
+            await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+            var rows = await Cycle(d, io, At(30), Audio(2, (NextRr73, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+            return (rows, log, probe);
+        }
+
+        var gated = await Go(SaneTp);
+        gated.Rows.Should().NotContain(p => p.Batch == Ft8Decoder.TemplateBatch, "the stale template fails the parity gate");
+        LineLog.Field(gated.Log.LastXc, "parityRejected").Should().Be(1);
+        LineLog.Field(gated.Log.LastXc, "detected").Should().Be(0);
+        LineLog.Field(gated.Log.LastXc, "vetoedColocated").Should().Be(0);
+        var rec = gated.Probe.Records.Single(r => r.SStar > StaleTestThreshold);
+        rec.SP.Should().BeLessThan(SaneTp, "S_P of the stale template is low; S_E* is high");
+
+        var open = await Go(0.0);
+        open.Rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch && p.Message == M, "with T_P = 0.0 nothing is gated: the stale template is published (the control that lets the test above fail)");
+        LineLog.Field(open.Log.LastXc, "parityRejected").Should().Be(0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R15: the SAME message repeated at the prior's position is published at T_P 1.9, with S_P near S_E*")]
+    public async Task Repeat_PassesTp()
+    {
+        var probe = new RecordingProbe(); var io = new XcInterop(); var log = new LineLog();
+        var d = Build(io, xc: true, threshold: StaleTestThreshold, log: log, probe: probe);
+        d.SetCrossCyclePriorParityThreshold(SaneTp);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch && p.Message == M);
+        LineLog.Field(log.LastXc, "parityRejected").Should().Be(0);
+        var rec = probe.Records.Single(r => r.SStar > StaleTestThreshold);
+        rec.SP.Should().BeGreaterThan(SaneTp).And.BeApproximately(rec.SStar, 0.5);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed")]
+    public async Task DifferentTextDecode_InTheWindow_Vetoes()
+    {
+        async Task<(List<Published> Rows, LineLog Log, RecordingProbe Probe)> Go(bool veto)
+        {
+            var log = new LineLog(); var probe = new RecordingProbe(); var io = new XcInterop();
+            var d = Build(io, xc: true, log: log, probe: probe);
+            d.SetCrossCyclePriorColocationVeto(veto);
+            await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+            // Cycle t: M's signal is at its place, and pass 0 decodes ANOTHER message 1 Hz and 0.05 s away from it.
+            var rows = await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq + 1, MDt + 0.05f)));
+            return (rows, log, probe);
+        }
+
+        var vetoed = await Go(true);
+        vetoed.Rows.Should().NotContain(p => p.Batch == Ft8Decoder.TemplateBatch);
+        LineLog.Field(vetoed.Log.LastXc, "vetoedColocated").Should().Be(1);
+        LineLog.Field(vetoed.Log.LastXc, "shadowVetoedColocated").Should().Be(0, "no shadow in this run: counted separately");
+        LineLog.Field(vetoed.Log.LastXc, "detected").Should().Be(0);
+        LineLog.Field(vetoed.Log.LastXc, "published").Should().Be(0);
+        vetoed.Probe.Records.Single(r => r.SStar > TestThreshold).Vetoed.Should().BeTrue();
+
+        var off = await Go(false);
+        off.Rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch && p.Message == M, "veto OFF: counted in the sink, not applied");
+        LineLog.Field(off.Log.LastXc, "vetoedColocated").Should().Be(0, "the log counts APPLIED vetoes");
+        off.Log.LastXc.Should().Contain("veto=False");
+        off.Probe.Records.Single(r => r.SStar > TestThreshold).Vetoed.Should().BeTrue("the flag is R14's verdict whether or not it is applied");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14: a decode with the SAME text is not a veto (the 'already decoded' exclusion applies first: the template is not even tested), and a decode far from the argmax is not a veto")]
+    public async Task SameTextOrFarDecode_DoesNotVeto()
+    {
+        var log = new LineLog(); var io = new XcInterop();
+        var d = Build(io, xc: true, log: log);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        // Cycle t: M itself is decoded (same text, at its place): excluded before testing, never a veto.
+        await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(M)));
+        LineLog.Field(log.LastXc, "excludedDecoded").Should().Be(1);
+        LineLog.Field(log.LastXc, "testedLive").Should().Be(1, "only the decoy is tested");
+        LineLog.Field(log.LastXc, "vetoedColocated").Should().Be(0);
+
+        var io2 = new XcInterop(); var log2 = new LineLog();
+        var d2 = Build(io2, xc: true, log: log2);
+        await Cycle(d2, io2, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        var rows = await Cycle(d2, io2, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq + 40, MDt)));
+        rows.Should().Contain(p => p.Batch == Ft8Decoder.TemplateBatch, "a different text 40 Hz away does not veto");
+        LineLog.Field(log2.LastXc, "vetoedColocated").Should().Be(0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones")]
+    public async Task Shadow_IsGatedAndVetoedLikeLive_WithSeparateCounts()
+    {
+        // Shadow, parity: M published at t-15; cycle t holds the stale next message at M's position.
+        var logP = new LineLog(); var ioP = new XcInterop();
+        var dP = Build(ioP, xc: true, shadow: true, threshold: StaleTestThreshold, log: logP);
+        dP.SetCrossCyclePriorParityThreshold(SaneTp);
+        await Cycle(dP, ioP, At(0), Audio(1), null, Pass0(Msg(M)));
+        await Cycle(dP, ioP, At(15), Audio(2, (NextRr73, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+        LineLog.Field(logP.LastXc, "shadowParityRejected").Should().Be(1);
+        LineLog.Field(logP.LastXc, "shadowDetected").Should().Be(0);
+        LineLog.Field(logP.LastXc, "parityRejected").Should().Be(0, "no live prior this cycle: the counts are separate");
+
+        // Shadow, veto: a different text is decoded next to the true repeat.
+        var logV = new LineLog(); var ioV = new XcInterop();
+        var dV = Build(ioV, xc: true, shadow: true, log: logV);
+        await Cycle(dV, ioV, At(0), Audio(1), null, Pass0(Msg(M)));
+        await Cycle(dV, ioV, At(15), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq, MDt)));
+        LineLog.Field(logV.LastXc, "shadowVetoedColocated").Should().Be(1);
+        LineLog.Field(logV.LastXc, "shadowDetected").Should().Be(0);
+        LineLog.Field(logV.LastXc, "vetoedColocated").Should().Be(0);
+    }
+
+    [Theory(DisplayName = "FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)")]
+    [InlineData(0.00, 0.19, true)]
+    [InlineData(0.00, 0.21, false)]
+    [InlineData(0.00, -0.19, true)]
+    [InlineData(0.00, -0.21, false)]
+    [InlineData(3.0, 0.00, true)]
+    [InlineData(3.2, 0.00, false)]
+    [InlineData(-3.0, 0.00, true)]
+    [InlineData(-3.2, 0.00, false)]
+    [InlineData(3.0, 0.19, true)]
+    [InlineData(3.2, 0.19, false)]
+    [InlineData(0.00, -0.60, false)]
+    [InlineData(0.00, 0.00, true)]
+    [InlineData(0.00, 0.20, true)]
+    [InlineData(0.00, -0.20, true)]
+    [InlineData(3.125, 0.00, true)]
+    [InlineData(-3.125, 0.00, true)]
+    public void Veto_Boundary_InOurOwnDt(double dFreq, double dDt, bool expectVeto)
+    {
+        var tpl = new[] { Tpl(M, MFreq, MDt, 2) };
+        var decodes = new[] { Dec(OtherStation, MFreq + dFreq, MDt + dDt) };
+
+        var r = CrossCycleTemplateStage.Run(tpl, Audio(7, (M, MFreq, MDt)), TestThreshold, 1, () => false, CancellationToken.None, 0.0, decodes, applyVeto: true);
+
+        var o = r.Outcomes[0];
+        o.SStar.Should().BeGreaterThan(7.0, "the signal is at the prior's position");
+        o.FreqHz.Should().BeApproximately(MFreq, 1e-9);
+        o.Dt.Should().BeApproximately(MDt, 1e-9, "the argmax is back in OUR dt before the comparison");
+        o.Vetoed.Should().Be(expectVeto);
+        o.VetoRejected.Should().Be(expectVeto);
+        o.Detected.Should().Be(!expectVeto);
+        r.VetoRejected.Should().Be(expectVeto ? 1 : 0);
+        r.Detected.Should().Be(expectVeto ? 0 : 1);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14: the same text at the argmax never vetoes; a different one does; no decode list (null) vetoes nothing; the veto off sets the flag but removes nothing")]
+    public void Veto_TextRule_AndTheFlag()
+    {
+        var tpl = new[] { Tpl(M, MFreq, MDt, 2) };
+        var audio = Audio(7, (M, MFreq, MDt));
+        CrossCycleTemplateStage.Run(tpl, audio, TestThreshold, 1, () => false, CancellationToken.None, 0.0, [Dec(M, MFreq, MDt)], true).Outcomes[0].Vetoed.Should().BeFalse("same text");
+        CrossCycleTemplateStage.Run(tpl, audio, TestThreshold, 1, () => false, CancellationToken.None, 0.0, [Dec(OtherStation, MFreq, MDt)], true).Outcomes[0].Vetoed.Should().BeTrue();
+        CrossCycleTemplateStage.Run(tpl, audio, TestThreshold, 1, () => false, CancellationToken.None, 0.0, null, true).Outcomes[0].Vetoed.Should().BeFalse("no decode list");
+        var off = CrossCycleTemplateStage.Run(tpl, audio, TestThreshold, 1, () => false, CancellationToken.None, 0.0, [Dec(OtherStation, MFreq, MDt)], false);
+        off.Outcomes[0].Vetoed.Should().BeTrue("the verdict is computed either way");
+        off.Outcomes[0].Detected.Should().BeTrue("and not applied");
+        off.VetoRejected.Should().Be(0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14/R15: the outcomes partition the templates that clear T_E: detected, parity-rejected and veto-rejected are exclusive, parity first; a template below T_E is none of them")]
+    public void Outcomes_Partition()
+    {
+        var audio = Audio(7, (M, MFreq, MDt), (NextRr73, 2000, MDt));
+        var tpl = new[] { Tpl(M, MFreq, MDt, 2), Tpl(M, 2000, MDt, 2), Tpl(Other, 2500, MDt, 2) };      // true repeat; stale (RR73 at 2000); absent
+        var decodes = new[] { Dec(OtherStation, MFreq, MDt), Dec(OtherStation, 2000, MDt) };            // both clear signals have a different text beside them
+
+        var r = CrossCycleTemplateStage.Run(tpl, audio, StaleTestThreshold, 1, () => false, CancellationToken.None, SaneTp, decodes, applyVeto: true);
+
+        r.Outcomes[0].Should().Match<CrossCycleTemplateStage.Outcome>(o => o.VetoRejected && !o.Detected && !o.ParityRejected, "clears E and P, vetoed");
+        r.Outcomes[1].Should().Match<CrossCycleTemplateStage.Outcome>(o => o.ParityRejected && !o.Detected && !o.VetoRejected && o.Vetoed, "clears E, fails P first (it is also co-located)");
+        r.Outcomes[2].Should().Match<CrossCycleTemplateStage.Outcome>(o => !o.Detected && !o.ParityRejected && !o.VetoRejected, "below T_E");
+        (r.Detected, r.ParityRejected, r.VetoRejected, r.Tested).Should().Be((0, 1, 1, 3));
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14/R15: defaults: the veto is ON, T_P is the 0.0 placeholder, the setters and read-backs round-trip, and neither is a config key")]
+    public void Defaults_Veto_On_Tp_Placeholder()
+    {
+        var bare = new Ft8Decoder(new FakeClock(T0));
+        bare.CrossCyclePriorColocationVeto.Should().BeTrue("the veto is on in the product");
+        Ft8Decoder.CrossCyclePriorColocationVetoDefault.Should().BeTrue();
+        bare.CrossCyclePriorParityThreshold.Should().Be(0.0, "the shipped placeholder: QA's TR2 on TRAIN measures the real value");
+        Ft8Decoder.CrossCyclePriorParityThresholdDefault.Should().Be(0.0);
+
+        bare.SetCrossCyclePriorColocationVeto(false); bare.SetCrossCyclePriorParityThreshold(1.899);
+        bare.CrossCyclePriorColocationVeto.Should().BeFalse();
+        bare.CrossCyclePriorParityThreshold.Should().Be(1.899);
+        bare.SetCrossCyclePriorColocationVeto(true);
+        bare.CrossCyclePriorColocationVeto.Should().BeTrue();
+
+        typeof(DecoderConfig).GetProperties().Select(p => p.Name).Should().NotContain(n => n.Contains("Veto") || n.Contains("Parity"), "replay settings only: no config key, no Settings page");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R13: the sink record carries S_P, the prior's own position (Hz, dt in our convention) and batch, and a vetoed flag; one per tested template; numbers and flags only, no text")]
+    public async Task Probe_CarriesSP_PriorPosition_Batch_AndVetoed()
+    {
+        var probe = new RecordingProbe(); var io = new XcInterop();
+        var d = Build(io, xc: true, probe: probe);
+        // M is published in batch 1 of cycle 0 (position 1500 / 0.30); Other by the residual pass, batch 2 (1800 / 0.30).
+        await Cycle(d, io, At(0), Audio(1), null, [Msg(M)], [Msg(Other, 1800)]);
+        probe.Clear();
+        await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq + 1, MDt)));
+
+        var recs = probe.Records;
+        recs.Should().HaveCount(2);
+        var hit = recs.Single(r => r.SStar > TestThreshold);
+        hit.PriorFreqHz.Should().Be(MFreq);
+        hit.PriorDt.Should().BeApproximately(MDt, 1e-6, "the prior's dt in OUR convention (as published), not WSJT-X's");
+        hit.PriorBatch.Should().Be(1);
+        hit.SP.Should().BeGreaterThan(5.0);
+        hit.Vetoed.Should().BeTrue();
+        var miss = recs.Single(r => r.SStar <= TestThreshold);
+        miss.PriorFreqHz.Should().Be(1800);
+        miss.PriorBatch.Should().Be(2, "the decoy was published by the residual pass, batch 2");
+        miss.Vetoed.Should().BeFalse("nothing decoded near 1800 Hz");
+        miss.SP.Should().BeGreaterThan(0.0);
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R10: the log line gains the veto and parity counts (live and shadow), the veto state and T_P, still counts and numbers only")]
+    public async Task LogLine_HasTheNewCounts_AndNoText()
+    {
+        var log = new LineLog(); var io = new XcInterop();
+        var d = Build(io, xc: true, shadow: true, log: log);
+        d.SetCrossCyclePriorParityThreshold(1.25);
+        await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800)));
+        await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(Other2, 2100)));
+
+        foreach (var line in log.XcLines)
+        {
+            foreach (var name in new[] { "vetoedColocated", "shadowVetoedColocated", "parityRejected", "shadowParityRejected" })
+                LineLog.Field(line, name);
+            line.Should().Contain("veto=True").And.Contain("parityThreshold=1.25");
+            line.Should().NotContain("Q1").And.NotContain("JO33");
+        }
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R11: OFF with the veto ON and T_P set writes nothing new (no store write, no line, no batch 6) and every published row equals the ON run with T_E = +infinity")]
+    public async Task Off_WithTheNewSettings_WritesNothing()
+    {
+        async Task<(List<Published> Rows, LineLog Log, Ft8Decoder D)> Go(bool xc)
+        {
+            var log = new LineLog(); var io = new XcInterop();
+            var d = Build(io, xc, shadow: xc, threshold: double.PositiveInfinity, log: log);
+            d.SetCrossCyclePriorColocationVeto(true);
+            d.SetCrossCyclePriorParityThreshold(SaneTp);
+            var rows = new List<Published>();
+            rows.AddRange(await Cycle(d, io, At(0), Audio(1), null, Pass0(Msg(M), Msg(Other, 1800))));
+            rows.AddRange(await Cycle(d, io, At(30), Audio(2, (M, MFreq, MDt)), null, Pass0(Msg(OtherStation, MFreq + 1, MDt))));
+            return (rows, log, d);
+        }
+
+        var off = await Go(false);
+        var on = await Go(true);
+        off.D.CrossCyclePriorStoreCount.Should().Be(0);
+        StoreCycleCount(off.D).Should().Be(0);
+        off.Log.XcLines.Should().BeEmpty();
+        off.Rows.Should().NotContain(p => p.Batch >= Ft8Decoder.TemplateBatch);
+        on.Log.XcLines.Should().HaveCount(2, "the ON control");
+        on.Rows.Should().Equal(off.Rows, "ON with T_E = +infinity changes no published row even with the veto ON and T_P set");
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD R14 (QA R05): a decode exactly ON the window edge (0.20 s, 3.125 Hz) is co-located, even where the double difference is a few ulps over 0.2 (0.1 + 0.2 - 0.1), which only the edge tolerance admits; a hair beyond the tolerance is not")]
+    public void Colocation_ExactEdge_IsInside()
+    {
+        double dtOver = (0.1 + 0.2) - 0.1;
+        dtOver.Should().BeGreaterThan(0.2, "the arithmetic puts the difference an ulp over 0.2: the edge tolerance is what lets it in");
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500, 0.1 + 0.2).Should().BeTrue();
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500 + 3.125, 0.1).Should().BeTrue();
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500 - 3.125, 0.1).Should().BeTrue();
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500, 0.1 + 0.2 + 1e-6).Should().BeFalse("beyond the tolerance");
+        CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500 + 3.125 + 1e-6, 0.1).Should().BeFalse();
+    }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD D2: the decoder's PathTemplate equals the Abstractions constant the daemon's PSK Reporter filter uses (3)")]
+    public void PathTemplate_MirrorsAbstractions()
+    {
+        Ft8Decoder.PathTemplate.Should().Be(OpenWSFZ.Abstractions.DecodeResult.PathTemplate).And.Be(3);
+    }
+}

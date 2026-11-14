@@ -35,12 +35,12 @@ public sealed class LateBatch4Tests
 
     // ═══ the capacity arithmetic ═════════════════════════════════════════════════════════════════════════════
 
-    [Fact(DisplayName = "R14: capacity arithmetic - batches x 2 cycles + 2 spare: 3 batches = 8 (flag OFF, unchanged), 4 batches = 10 (flag ON)")]
+    [Fact(DisplayName = "R14: capacity arithmetic - batches x 2 cycles + 2 spare: 3 batches = 8 (flag OFF, unchanged), 6 batches = 14 (flag ON; XC-BUILD batch 6)")]
     public void Capacity_Arithmetic()
     {
         LateBatch.QsoCapacityFor(LateBatch.BatchesPerCycleFallbackOff).Should().Be(8).And.Be(LateBatch.QsoChannelCapacity);
-        LateBatch.QsoCapacityFor(LateBatch.BatchesPerCycleFallbackOn).Should().Be(10).And.Be(LateBatch.QsoChannelCapacityFallbackOn);
-        (LateBatch.BatchesPerCycleFallbackOff, LateBatch.BatchesPerCycleFallbackOn, LateBatch.QsoCyclesQueued, LateBatch.QsoChannelSpare).Should().Be((3, 4, 2, 2));
+        LateBatch.QsoCapacityFor(LateBatch.BatchesPerCycleFallbackOn).Should().Be(14).And.Be(LateBatch.QsoChannelCapacityFallbackOn);
+        (LateBatch.BatchesPerCycleFallbackOff, LateBatch.BatchesPerCycleFallbackOn, LateBatch.QsoCyclesQueued, LateBatch.QsoChannelSpare).Should().Be((3, 6, 2, 2));
     }
 
     // ═══ the queue ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -109,7 +109,7 @@ public sealed class LateBatch4Tests
         read.Select(Tag).Should().Equal(Enumerable.Range(0, 4).SelectMany(c => Enumerable.Range(1, 4).Select(n => $"{c}.{n}")), "write order kept");
     }
 
-    [Fact(DisplayName = "R14: control - with 4 batches a cycle, two cycles queued fill the flag-OFF capacity of 8 exactly: the next cycle's batch 1 drops cycle 0's batch 1 at 8, not at 10 (why the capacity follows the flag)")]
+    [Fact(DisplayName = "R14: control - with 4 batches a cycle, two cycles queued fill the flag-OFF capacity of 8 exactly: the next cycle's batch 1 drops cycle 0's batch 1 at 8, not at 14 (why the capacity follows the flag; 14 since XC-BUILD)")]
     public void FourBatchesPerCycle_TwoCyclesFillEight_NoSpare()
     {
         List<string> Run(bool flagOn)
@@ -122,25 +122,25 @@ public sealed class LateBatch4Tests
         }
 
         Run(flagOn: false).Should().NotContain("0.1", "at 8 the oldest batch 1 is gone");
-        Run(flagOn: true).Should().Contain("0.1").And.HaveCount(9, "at 10 the spare slots absorb it");
+        Run(flagOn: true).Should().Contain("0.1").And.HaveCount(9, "at 14 the spare slots absorb it");
     }
 
-    [Fact(DisplayName = "R14: the effective capacity follows the flag at run time - ON holds 10, the 11th write drops the OLDEST; OFF again trims to 8 on the next write")]
+    [Fact(DisplayName = "R14: the effective capacity follows the flag at run time - ON holds 14, the 15th write drops the OLDEST; OFF again trims to 8 on the next write")]
     public void Capacity_FollowsTheFlag()
     {
         bool on = true;
         var queue = LateBatch.CreateQsoQueue(() => on);
-        for (int i = 0; i < 10; i++) queue.Writer.TryWrite(B(i, 1));
-        queue.Reader.Count.Should().Be(10);
-        queue.Writer.TryWrite(B(10, 1));
-        queue.Reader.Count.Should().Be(10);
+        for (int i = 0; i < 14; i++) queue.Writer.TryWrite(B(i, 1));
+        queue.Reader.Count.Should().Be(14);
+        queue.Writer.TryWrite(B(14, 1));
+        queue.Reader.Count.Should().Be(14);
         queue.Reader.TryPeek(out var oldest).Should().BeTrue();
         Tag(oldest!).Should().Be("1.1", "the oldest (cycle 0) was dropped");
 
         on = false;
-        queue.Writer.TryWrite(B(11, 1));
+        queue.Writer.TryWrite(B(15, 1));
         queue.Reader.Count.Should().Be(8, "flag OFF: the old capacity is back as soon as the next batch is written");
-        ReadAll(queue.Reader).Should().Equal(Enumerable.Range(4, 8).Select(c => $"{c}.1"), "the newest 8 survive, in order");
+        ReadAll(queue.Reader).Should().Equal(Enumerable.Range(8, 8).Select(c => $"{c}.1"), "the newest 8 survive, in order");
     }
 
     [Fact(DisplayName = "R14: the queue's writer completes the channel and reports readiness like a channel writer")]

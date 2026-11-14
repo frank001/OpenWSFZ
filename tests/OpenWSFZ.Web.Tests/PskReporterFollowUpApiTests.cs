@@ -58,6 +58,17 @@ public sealed class PskReporterFollowUpApiTests : IClassFixture<WebTestFactory>
         root.GetProperty("window").GetProperty("ownCall").GetInt32().Should().Be(2);
     }
 
+    [Fact(DisplayName = "FR-105: XC-BUILD D2: with no status source registered the endpoint answers all-zero window counts, ap and template included (the default of the new count is 0)")]
+    public async Task T18_NoSource_ReportsZeroApAndTemplate()
+    {
+        var client = _factory.WithWebHostBuilder(b => b.ConfigureServices(s => s.RemoveAll<IPskReporterStatusSource>())).CreateClient();
+        using var doc = JsonDocument.Parse(await client.GetStringAsync("/api/v1/psk-reporter/status"));
+        var window = doc.RootElement.GetProperty("window");
+        window.GetProperty("ap").GetInt32().Should().Be(0);
+        window.GetProperty("template").GetInt32().Should().Be(0);
+        foreach (var p in window.EnumerateObject()) p.Value.GetInt32().Should().Be(0, p.Name);
+    }
+
     [Theory(DisplayName = "FR-095: T18: the endpoint reports off, waiting and each refusal reason (identity, no-dial, region) exactly as the source states it")]
     [InlineData("off", null)]
     [InlineData("waiting", null)]
@@ -93,7 +104,7 @@ public sealed class PskReporterFollowUpApiTests : IClassFixture<WebTestFactory>
             doc.RootElement.EnumerateObject().Select(p => p.Name).Should().BeEquivalentTo(
                 ["state", "lastDatagramUtc", "lastDatagramRecords", "reason", "window"], "counts and a reason code only: no member could carry a callsign");
             doc.RootElement.GetProperty("window").EnumerateObject().Select(p => p.Name).Should().BeEquivalentTo(
-                ["seen", "reported", "region", "noDial", "identity", "hashed", "ownCall", "dedup", "ap"]);
+                ["seen", "reported", "region", "noDial", "identity", "hashed", "ownCall", "dedup", "ap", "template"]);
         }
     }
 

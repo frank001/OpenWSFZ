@@ -80,13 +80,14 @@ internal sealed class PskReporterEngine
     // Counts since the last datagram (logged with it) and for the placeholder-identity warning of the current window.
     private int _exRegion, _exHashed, _exUnparseable, _exOwn, _exNoDial, _exDedup, _exDropped, _identityRefused;
     private int _exAp;   // CQ-AP (D7): decodes with ApKind.Cq, never uploaded
+    private int _exTemplate;   // XC-BUILD: batch-6 template decodes (Path == DecodeResult.PathTemplate), never uploaded
 
     // Per-window accounting (FR-095): the SINGLE source of the window log line and of the Settings status line. Restart at zero each window.
     private sealed class Window
     {
-        public int Seen, Reported, Region, NoDial, Identity, Hashed, OwnCall, Dedup, Ap;
+        public int Seen, Reported, Region, NoDial, Identity, Hashed, OwnCall, Dedup, Ap, Template;
 
-        public PskReporterWindowCounts ToCounts() => new(Seen, Reported, Region, NoDial, Identity, Hashed, OwnCall, Dedup, Ap);
+        public PskReporterWindowCounts ToCounts() => new(Seen, Reported, Region, NoDial, Identity, Hashed, OwnCall, Dedup, Ap, Template);
     }
 
     private Window    _window = new();
@@ -169,6 +170,10 @@ internal sealed class PskReporterEngine
                 // CQ-AP (D7): a decode the CQ a-priori attempt made is never uploaded (an unconfirmed AP decode must not become a public spot, and our own
                 // uploads must never be able to corroborate our own AP decodes). Checked first, so it is counted under ap= whatever else would exclude it.
                 if (r.ApKind == ApKind.Cq) { _exAp++; _window.Ap++; continue; }
+
+                // XC-BUILD: a template decode (batch 6) is a message inferred from a prior transmission, not heard in this cycle: never a public spot. Checked after the AP rule and before
+                // the region rule, so it is counted under template= whatever else would exclude it.
+                if (r.Path == DecodeResult.PathTemplate) { _exTemplate++; _window.Template++; continue; }
 
                 // Same absolute rule as external-reporting (never weakened): an unknown-region or synthetic decode is never encoded.
                 if (r.Region is null || r.Region.Synthetic) { _exRegion++; _window.Region++; continue; }
@@ -264,9 +269,9 @@ internal sealed class PskReporterEngine
                 _lastDatagramRecords = datagram.Spots.Count;
 
                 _logger.LogInformation(
-                    "psk-reporter: datagram sent at {UtcTime:O}: {Records} record(s); excluded since the last datagram: region={Region} hashed={Hashed} unparseable={Unparseable} own-call={Own} no-dial-frequency={NoDial} dedup={Dedup} ap={Ap} queue-dropped={Dropped}; sequence after={Sequence}.",
-                    nowUtc, datagram.Spots.Count, _exRegion, _exHashed, _exUnparseable, _exOwn, _exNoDial, _exDedup, _exAp, _exDropped, _sequence);
-                _exRegion = _exHashed = _exUnparseable = _exOwn = _exNoDial = _exDedup = _exDropped = _exAp = 0;
+                    "psk-reporter: datagram sent at {UtcTime:O}: {Records} record(s); excluded since the last datagram: region={Region} hashed={Hashed} unparseable={Unparseable} own-call={Own} no-dial-frequency={NoDial} dedup={Dedup} ap={Ap} template={Template} queue-dropped={Dropped}; sequence after={Sequence}.",
+                    nowUtc, datagram.Spots.Count, _exRegion, _exHashed, _exUnparseable, _exOwn, _exNoDial, _exDedup, _exAp, _exTemplate, _exDropped, _sequence);
+                _exRegion = _exHashed = _exUnparseable = _exOwn = _exNoDial = _exDedup = _exDropped = _exAp = _exTemplate = 0;
                 return;
             }
 
@@ -306,6 +311,7 @@ internal sealed class PskReporterEngine
                 OwnCall  = _window.OwnCall  + _lastWindow.OwnCall,
                 Dedup    = _window.Dedup    + _lastWindow.Dedup,
                 Ap       = _window.Ap       + _lastWindow.Ap,
+                Template = _window.Template + _lastWindow.Template,
             };
 
             int max = Math.Max(sum.Identity, Math.Max(sum.NoDial, sum.Region));
@@ -347,8 +353,8 @@ internal sealed class PskReporterEngine
     {
         var w = _window;
         _logger.LogInformation(
-            "PSK Reporter: {Seen} decodes seen, {Reported} reported: region={Region}, no-dial={NoDial}, identity={Identity}, hashed={Hashed}, own-call={OwnCall}, dedup={Dedup}, ap={Ap}",
-            w.Seen, w.Reported, w.Region, w.NoDial, w.Identity, w.Hashed, w.OwnCall, w.Dedup, w.Ap);
+            "PSK Reporter: {Seen} decodes seen, {Reported} reported: region={Region}, no-dial={NoDial}, identity={Identity}, hashed={Hashed}, own-call={OwnCall}, dedup={Dedup}, ap={Ap}, template={Template}",
+            w.Seen, w.Reported, w.Region, w.NoDial, w.Identity, w.Hashed, w.OwnCall, w.Dedup, w.Ap, w.Template);
         _lastWindow = w;
         _window     = new Window();
 
@@ -387,7 +393,7 @@ internal sealed class PskReporterEngine
         _pending.Clear();
         _lastAnyBand.Clear();
         _lastCallBand.Clear();
-        _exRegion = _exHashed = _exUnparseable = _exOwn = _exNoDial = _exDedup = _exDropped = _identityRefused = _exAp = 0;
+        _exRegion = _exHashed = _exUnparseable = _exOwn = _exNoDial = _exDedup = _exDropped = _identityRefused = _exAp = _exTemplate = 0;
         _window = new Window();
         _lastWindow = new Window();
         _lastDatagramUtc = null;

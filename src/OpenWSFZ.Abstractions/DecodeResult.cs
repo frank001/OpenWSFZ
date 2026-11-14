@@ -55,6 +55,12 @@ public sealed record DecodeResult(
     public int Path { get; init; }
 
     /// <summary>
+    /// The <see cref="Path"/> value of an XC-BUILD template decode (batch 6): a message inferred from a prior transmission and confirmed against this cycle's residual, not decoded from it.
+    /// The decoder's own <c>Ft8Decoder.PathTemplate</c> is the same number (a test pins the equality); it lives here so the daemon (PSK Reporter) need not depend on a decoder internal.
+    /// </summary>
+    public const int PathTemplate = 3;
+
+    /// <summary>
     /// CQ-AP: where the decode came from, <see cref="OpenWSFZ.Abstractions.ApKind.None"/> for every ordinary decode (always, with
     /// <c>decoder.cqApEnabled</c> off) and <see cref="OpenWSFZ.Abstractions.ApKind.Cq"/> for one the CQ a-priori attempt made. Internal metadata for the
     /// replay harness, the per-cycle log and the PSK Reporter exclusion: it is <b>not serialised</b> (the decode panel, ALL.TXT and the UDP datagrams are

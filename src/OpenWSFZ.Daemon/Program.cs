@@ -350,8 +350,8 @@ bool fallbackOn = false;
 var qsoAnswererChannel = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 var qsoCallerChannel   = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 
-// Channel 3d (psk-reporter-upload, #262): decode pump → PskReporterService. ALL FOUR batches of a cycle must reach it, so it gets the
-// sizing rule of the QSO queues (10 with the coherent fallback on, 8 off, DropOldest) and NOT the capacity-2 channel above, which
+// Channel 3d (psk-reporter-upload, #262): decode pump → PskReporterService. ALL SIX batches of a cycle must reach it, so it gets the
+// sizing rule of the QSO queues (14 with the coherent fallback on, 8 off, DropOldest) and NOT the capacity-2 channel above, which
 // would drop batch 1 under the batches that follow it. Reuses QsoBatchQueue (Reader/Writer, trimming writer); separate instance.
 var pskReporterChannel = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 
@@ -856,6 +856,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetLateSubtractionRound(initialDecoder.LateSubtractionRound);   // LATE-SUB L1': default true (key absent = ON; explicit false = off); read once per cycle
     ft8Decoder.SetCqApEnabled(initialDecoder.CqApEnabled);   // CQ-AP: default false (key absent = OFF); read once per cycle
     ft8Decoder.SetCoherentFallbackResidualCandidates(initialDecoder.CoherentFallbackResidualCandidates);   // COH-RES-CAND: default false (key absent = off); read once per cycle
+    ft8Decoder.SetCrossCyclePrior(initialDecoder.CrossCyclePrior);   // XC-BUILD: default false (key absent = off); read once per cycle
+    ft8Decoder.SetCrossCyclePriorShadow(initialDecoder.CrossCyclePriorShadow);   // XC-BUILD shadow null: default false; read once per cycle
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
@@ -967,6 +969,8 @@ configStore.OnSaved += newConfig =>
     ft8Decoder.SetLateSubtractionRound(dec.LateSubtractionRound);   // LATE-SUB L1': next cycle
     ft8Decoder.SetCqApEnabled(dec.CqApEnabled);   // CQ-AP: next cycle
     ft8Decoder.SetCoherentFallbackResidualCandidates(dec.CoherentFallbackResidualCandidates);   // COH-RES-CAND: next cycle
+    ft8Decoder.SetCrossCyclePrior(dec.CrossCyclePrior);   // XC-BUILD: next cycle
+    ft8Decoder.SetCrossCyclePriorShadow(dec.CrossCyclePriorShadow);   // XC-BUILD shadow null: next cycle
     Volatile.Write(ref fallbackOn, dec.CoherentFallbackEnabled);          // R14: the QSO queues' capacity follows the flag
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not
