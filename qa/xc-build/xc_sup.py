@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """XC-SUP (Architect's lead 1, E194, HK-026): is a batch-6 template publish a STALE template scored on the SAME station's next, DIFFERENT message?
 The opposite-parity shadow cannot see that case.  COUNTS ONLY (HK-037): message text is read INSIDE the functions below and never leaves them.
-Usage: python -I xc_sup.py <arm dir (the ON arm of a chain)> <ALL.TXT of that night> <out json>
+Usage: python -I xc_sup.py <arm dir (the ON arm of a chain)> <ALL.TXT of that night> <out json> [expect]   (the optional word "expect" asserts the first chain's 2,579 / 904 counts)
 
 Classes, the FIRST that matches wins, in the Architect's order:
   COR    Test B corroborated (the harness's own `matched` flag in nc.tsv)
@@ -77,7 +77,7 @@ def in_window_w(df, ddt_raw):
     return abs(df) <= DF_HZ and abs(ddt_raw + DT_CONV_S) <= DDT_S
 
 
-def main(arm, alltxt, out):
+def main(arm, alltxt, out, expect=False):
     nc = load_nc(arm.rstrip("/\\") + "/nc.tsv")
     stamps = set(nc)
     ref = load_wsjtx(alltxt, stamps)
@@ -153,11 +153,12 @@ def main(arm, alltxt, out):
             if fw and fo:
                 sw_o += 1
     res["veto_R14_if_found"]["sup_w_rows_removed_by_O_veto"] = sw_o
-    assert n_b6 == EXPECT_B6 and cls["COR"] == EXPECT_COR, (n_b6, dict(cls))
+    if expect:
+        assert n_b6 == EXPECT_B6 and cls["COR"] == EXPECT_COR, (n_b6, dict(cls))
     assert abs(statistics.median(ddt_cor) - DT_CONV_S) <= DT_CONV_TOL_S, ("COR ddt median is not the convention offset", statistics.median(ddt_cor))
     json.dump(res, open(out, "w"), indent=1)
     print(json.dumps(res, indent=1))
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    main(sys.argv[1], sys.argv[2], sys.argv[3], len(sys.argv) > 4 and sys.argv[4] == "expect")

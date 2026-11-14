@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """XC-BUILD TEST-night analysis (spec 14dc9bd3 section 3 and amendments 1 to 5).  COUNTS ONLY: no message text is written or printed (HK-037).
 WSJT-X's ALL.TXT is read here to COUNT rows per cycle (n_ref); the text is never kept.
-Usage: python -I xc_analyse.py <chain full dir> <out json>
+Usage: python -I xc_analyse.py <arm root (holds ON and OFF)> <out json> [<WSJT-X ALL.TXT of the night> [<te.json>]]   (defaults: the first chain's TEST night 20260808_0016)
 Rows: V-STORE, V-WIRE, NET (Test B corroborated is matchedbatch: rows matched by any batch), SHADOW, LATE, ABANDON, U' not computed here (descriptive, separate)."""
 from __future__ import annotations
 
@@ -55,9 +55,9 @@ def run_rows(path):
     return {r["stamp"]: r for r in csv.DictReader(open(path, encoding="utf-8"))}
 
 
-def nref_counts(stamps):
+def nref_counts(stamps, alltxt=ALLTXT):
     want, cnt = set(stamps), {s: 0 for s in stamps}
-    with open(ALLTXT, encoding="utf-8", errors="replace") as fh:
+    with open(alltxt, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             f = line.split()
             if len(f) < 8 or f[2] != "Rx" or f[3] != "FT8" or f[0] not in want:
@@ -70,7 +70,7 @@ def nref_counts(stamps):
     return cnt
 
 
-def main(root, out):
+def main(root, out, alltxt=ALLTXT, te_path=None):
     on, off = os.path.join(root, "ON"), os.path.join(root, "OFF")
     xc = read_xc(os.path.join(on, "xc.csv"))
     stamps = [r["stamp"] for r in csv.DictReader(open(os.path.join(on, "run.csv"), encoding="utf-8"))]
@@ -107,7 +107,7 @@ def main(root, out):
     res["v_wire"] = {"cycles_on_differs": differs, "batch6_nonempty_cycles": nonempty, "ok": L.v_wire(differs, nonempty)}
 
     # ---- NET
-    nref_d = nref_counts(stamps)
+    nref_d = nref_counts(stamps, alltxt)
     nref = np.array([nref_d[s] for s in stamps], dtype=float)
     a_on = np.array([mon.get(s, 0) for s in stamps], dtype=float)
     a_off = np.array([moff.get(s, 0) for s in stamps], dtype=float)
@@ -153,8 +153,9 @@ def main(root, out):
                    "cycles_on_over_13s": int((cyc_ms_on > BUDGET_MS).sum()), "cycles_off_over_13s": int((cyc_ms_off > BUDGET_MS).sum())}
 
     # ---- decision (V-OFF and V-TR-N are read from the chain's own PASS lines)
-    te = json.load(open(os.path.join(root, "TR", "..", "te.json"), encoding="utf-8")) if os.path.exists(os.path.join(root, "te.json")) else {}
+    te = json.load(open(te_path, encoding="utf-8")) if te_path and os.path.exists(te_path) else {}
     vtrn = bool(te.get("V_TR_N", True))
+    res["te_json"] = {"path_given": bool(te_path), "T_E": te.get("T_E"), "T_P": te.get("T_P"), "V_TR_N": te.get("V_TR_N")}
     res["decision"] = L.decide({"v_off_ok": True, "v_store_ok": v_store_ok, "v_wire_ok": res["v_wire"]["ok"], "v_trn_ok": vtrn,
                                 "shadow_ok": res["shadow"]["ok"], "net_ci": ci, "late_ok": res["late"]["ok"]})
     res["capacity_rule_ok"] = (res["abandon"]["live_fraction"] or 0) <= ABANDON_LIMIT and (res["abandon"]["shadow_fraction"] or 0) <= ABANDON_LIMIT
@@ -163,4 +164,4 @@ def main(root, out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else ALLTXT, sys.argv[4] if len(sys.argv) > 4 else None)

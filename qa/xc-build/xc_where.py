@@ -11,7 +11,7 @@ import os
 import sys
 
 ALLTXT = "D:/Projects/claude/OpenWSFZ/artefacts/20260808_live_run_0016-8080/wsjt-x/ALL.TXT"
-EXPECT_B6 = 904
+EXPECT_B6 = 904          # the first chain's TEST night; None for another night
 assert EXPECT_B6 == 904
 
 
@@ -19,14 +19,14 @@ def band(snr):
     return "A" if snr >= 0 else "B" if snr >= -10 else "C" if snr >= -15 else "D"
 
 
-def main(root, out):
+def main(root, out, alltxt=ALLTXT):
     mb = {}
     for r in csv.reader(open(os.path.join(root, "ON", "matchedbatch.csv"), encoding="utf-8")):
         if r and r[0] != "stamp":
             mb[r[0]] = {int(a.split(":")[0]): int(a.split(":")[1]) for a in r[1].split(";") if a}
     stamps = [r["stamp"] for r in csv.DictReader(open(os.path.join(root, "ON", "run.csv"), encoding="utf-8"))]
     want, ref = set(stamps), {}
-    with open(ALLTXT, encoding="utf-8", errors="replace") as fh:
+    with open(alltxt, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             f = line.split()
             if len(f) < 8 or f[2] != "Rx" or f[3] != "FT8" or f[0] not in want:
@@ -63,10 +63,11 @@ def main(root, out):
            "first_100_cycles_b6": b6_by_pos.get(0, 0)}
     res["gain_pp_by_band_of_all_ref"] = {b: 100.0 * (on_band[b] - off_band[b]) / sum(ref_band.values()) for b in "ABCD"}
     res["share_of_unreached_recovered_by_band"] = {b: (on_band[b] - off_band[b]) / max(1, ref_band[b] - off_band[b]) for b in "ABCD"}
-    assert res["b6_total"] == EXPECT_B6, res["b6_total"]
+    if alltxt == ALLTXT:
+        assert res["b6_total"] == EXPECT_B6, res["b6_total"]
     json.dump(res, open(out, "w"), indent=1)
     print(json.dumps(res, indent=1))
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else ALLTXT)
