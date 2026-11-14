@@ -1,0 +1,81 @@
+{
+ "n_cycles": 1000,
+ "v_store": {
+  "live_ages": [
+   2,
+   4,
+   6
+  ],
+  "shadow_ages": [
+   1,
+   3,
+   5
+  ],
+  "cycles_priorsLive_above_batches1to5_cap": 0,
+  "cycles_priorsLive_equal_cap": 4,
+  "ok": true
+ },
+ "v_wire": {
+  "cycles_on_differs": 822,
+  "batch6_nonempty_cycles": 822,
+  "ok": true
+ },
+ "net": {
+  "n_ref": 25493,
+  "matched_on": 21239,
+  "matched_off": 20335,
+  "net_pp": 3.5460714705997725,
+  "ci_pp": [
+   3.3130888290509692,
+   3.7681964928133818
+  ],
+  "gain_decodes": 904,
+  "cycles_on_gt_off": 537,
+  "cycles_on_lt_off": 0,
+  "matched_by_batch6": 904
+ },
+ "shadow": {
+  "events": 25,
+  "per_cycle": 0.025,
+  "ci": [
+   0.01617868184782934,
+   0.036904931697530376
+  ],
+  "bar": 0.042,
+  "ok": true
+ },
+ "stage": {
+  "tested_live": 33360,
+  "tested_shadow": 42482,
+  "detected_live": 2579,
+  "published": 2579,
+  "outcomes": {
+   "ran": 1000
+  }
+ },
+ "abandon": {
+  "live_abandoned": 0,
+  "live_tested": 33360,
+  "live_fraction": 0.0,
+  "shadow_abandoned": 0,
+  "shadow_tested": 42482,
+  "shadow_fraction": 0.0,
+  "late_round_abandoned_cycles_on": 0,
+  "late_round_ran_cycles_on": 1000,
+  "late_round_abandoned_cycles_off": 0
+ },
+ "late": {
+  "template_publishes_after_budget": 0,
+  "ok": true,
+  "b6_publish_ms_p95": 7201.344999999999,
+  "b6_publish_ms_max": 8431.6,
+  "cycle_ms_p95_on": 7281.275,
+  "cycle_ms_p95_off": 6354.994999999999,
+  "cycle_ms_max_on": 8538.2,
+  "cycle_ms_max_off": 7544.5,
+  "cycles_on_over_13s": 0,
+  "cycles_off_over_13s": 0
+ },
+ "decision": "ACCEPT",
+ "capacity_rule_ok": true
+}
