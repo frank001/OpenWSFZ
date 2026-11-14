@@ -60,8 +60,12 @@ internal static class LateBatch
     /// <summary>Batches a cycle can deliver to a QSO service with <c>decoder.coherentFallbackEnabled</c> OFF: batch 1, the residual pass, the third pass.</summary>
     public const int BatchesPerCycleFallbackOff = 3;
 
-    /// <summary>COH-FALLBACK step 4 (R14): batches a cycle can deliver with the flag ON: the three above and the fallback's own batch 4 (Deep).</summary>
-    public const int BatchesPerCycleFallbackOn = 4;
+    /// <summary>
+    /// Batches a cycle can deliver with the flag ON: the three above, the fallback's own batch 4 (Deep), the LATE-SUB late round's batch 5 and the XC-BUILD template stage's batch 6
+    /// (COH-FALLBACK step 4, R14, was 4; raised to 6 for XC-BUILD, so two queued cycles fit: 6 x 2 + 2 = 14). Every batch with at least one row reaches both QSO channels
+    /// (<c>DecodePump.PublishSecondAsync</c>), so all six count.
+    /// </summary>
+    public const int BatchesPerCycleFallbackOn = 6;
 
     /// <summary>The channel capacity for a given number of batches per cycle: batches x <see cref="QsoCyclesQueued"/> cycles + <see cref="QsoChannelSpare"/> spare.</summary>
     public static int QsoCapacityFor(int batchesPerCycle) => batchesPerCycle * QsoCyclesQueued + QsoChannelSpare;
@@ -73,7 +77,7 @@ internal static class LateBatch
     /// </summary>
     public const int QsoChannelCapacity = BatchesPerCycleFallbackOff * QsoCyclesQueued + QsoChannelSpare;
 
-    /// <summary>COH-FALLBACK step 4 (R14): 4 batches x 2 cycles + 2 spare = 10, in force only while the flag is ON.</summary>
+    /// <summary>6 batches x 2 cycles + 2 spare = 14, in force only while the coherent-fallback flag is ON (it was 4 x 2 + 2 = 10 before batches 5 and 6 existed).</summary>
     public const int QsoChannelCapacityFallbackOn = BatchesPerCycleFallbackOn * QsoCyclesQueued + QsoChannelSpare;
 
     /// <summary>The bounded DropOldest channel Program.cs gives each QSO service (one writer: the pump; one reader).</summary>
@@ -166,7 +170,7 @@ internal sealed class QsoBatchQueue
     /// <summary>The pump's end of the queue: DropOldest at the effective capacity.</summary>
     public System.Threading.Channels.ChannelWriter<DecodeBatch> Writer { get; }
 
-    /// <summary>The capacity in force now: 8 with the flag OFF, 10 with it ON.</summary>
+    /// <summary>The capacity in force now: 8 with the flag OFF, 14 with it ON.</summary>
     public int EffectiveCapacity => _fallbackOn() ? LateBatch.QsoChannelCapacityFallbackOn : LateBatch.QsoChannelCapacity;
 
     private sealed class TrimmingWriter(QsoBatchQueue queue) : System.Threading.Channels.ChannelWriter<DecodeBatch>

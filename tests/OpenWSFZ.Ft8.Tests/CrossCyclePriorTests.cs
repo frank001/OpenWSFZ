@@ -1098,4 +1098,10 @@ public sealed class CrossCyclePriorTests
         CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500, 0.1 + 0.2 + 1e-6).Should().BeFalse("beyond the tolerance");
         CrossCycleTemplateStage.IsColocated(1500, 0.1, 1500 + 3.125 + 1e-6, 0.1).Should().BeFalse();
     }
+
+    [Fact(DisplayName = "FR-105: XC-BUILD D2: the decoder's PathTemplate equals the Abstractions constant the daemon's PSK Reporter filter uses (3)")]
+    public void PathTemplate_MirrorsAbstractions()
+    {
+        Ft8Decoder.PathTemplate.Should().Be(OpenWSFZ.Abstractions.DecodeResult.PathTemplate).And.Be(3);
+    }
 }

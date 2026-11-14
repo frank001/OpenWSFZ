@@ -31,10 +31,11 @@ public static class PskReporterReasons
 
 /// <summary>
 /// Counts of one send window (no callsign, ever). <paramref name="Ap"/> (CQ-AP): decodes the CQ a-priori attempt made (<see cref="ApKind.Cq"/>), which are never
-/// uploaded; it counts only and is not a refusal reason (a window of only such decodes is not "refused"). Defaults to 0 so earlier constructions stand.
+/// uploaded; it counts only and is not a refusal reason (a window of only such decodes is not "refused"). <paramref name="Template"/> (XC-BUILD): batch-6 template decodes
+/// (<see cref="DecodeResult.PathTemplate"/>), never uploaded; counts only, likewise. Both default to 0 so earlier constructions stand.
 /// </summary>
 public sealed record PskReporterWindowCounts(
-    int Seen, int Reported, int Region, int NoDial, int Identity, int Hashed, int OwnCall, int Dedup, int Ap = 0);
+    int Seen, int Reported, int Region, int NoDial, int Identity, int Hashed, int OwnCall, int Dedup, int Ap = 0, int Template = 0);
 
 /// <summary>
 /// The read-only status body of <c>GET /api/v1/psk-reporter/status</c>: counts and a reason code, no callsign.

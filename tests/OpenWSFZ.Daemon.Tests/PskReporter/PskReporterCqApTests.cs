@@ -84,12 +84,12 @@ public sealed class PskReporterCqApTests
         rig.Send().Should().NotBeNull();   // closes nothing yet: the window is not due; the datagram line is written by Complete
 
         var datagramLine = rig.Log.Entries.Single(e => e.Level == LogLevel.Information && e.Message.Contains("datagram sent")).Message;
-        datagramLine.Should().Contain("dedup=0 ap=2 queue-dropped=0");
+        datagramLine.Should().Contain("dedup=0 ap=2 template=0 queue-dropped=0");
 
         rig.Now += PskReporterEngine.SendWindow;
         rig.Send();   // due: closes the window and logs its accounting line
         rig.WindowLines().Should().Contain(
-            "PSK Reporter: 3 decodes seen, 1 reported: region=0, no-dial=0, identity=0, hashed=0, own-call=0, dedup=0, ap=2");
+            "PSK Reporter: 3 decodes seen, 1 reported: region=0, no-dial=0, identity=0, hashed=0, own-call=0, dedup=0, ap=2, template=0");
 
         foreach (var (_, message) in rig.Log.Entries)
             foreach (var call in new[] { "Q1ABC", "Q2DEF", "Q3GHI" })

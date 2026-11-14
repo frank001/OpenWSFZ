@@ -350,8 +350,8 @@ bool fallbackOn = false;
 var qsoAnswererChannel = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 var qsoCallerChannel   = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 
-// Channel 3d (psk-reporter-upload, #262): decode pump → PskReporterService. ALL FOUR batches of a cycle must reach it, so it gets the
-// sizing rule of the QSO queues (10 with the coherent fallback on, 8 off, DropOldest) and NOT the capacity-2 channel above, which
+// Channel 3d (psk-reporter-upload, #262): decode pump → PskReporterService. ALL SIX batches of a cycle must reach it, so it gets the
+// sizing rule of the QSO queues (14 with the coherent fallback on, 8 off, DropOldest) and NOT the capacity-2 channel above, which
 // would drop batch 1 under the batches that follow it. Reuses QsoBatchQueue (Reader/Writer, trimming writer); separate instance.
 var pskReporterChannel = LateBatch.CreateQsoQueue(() => Volatile.Read(ref fallbackOn));
 

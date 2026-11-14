@@ -122,3 +122,17 @@ The template stage SHALL compute S_P, the template statistic restricted to frame
 
 - **WHEN** a template is tested
 - **THEN** the sink record SHALL carry S_P, the prior's frequency, dt and batch and the veto flag, and no text, and the log line SHALL carry the vetoed-colocated and parity-rejected counts, live and shadow, and no text
+
+### Requirement: The QSO queues hold six batches a cycle, and PSK Reporter never uploads a template decode
+
+With the coherent fallback ON, the answerer and caller queues (and the PSK Reporter queue) SHALL hold two cycles of six batches plus two spare, 14, and drop the OLDEST when full; with it OFF the capacity SHALL stay 8. A decode whose `Path` is the template path (3) SHALL NOT be uploaded to PSK Reporter: it SHALL be counted under the reason `template` in the window line, the datagram line and the status counters, after the AP rule and before the region rule, and the other consumers of the batch (the panel, ALL.TXT, the QSO services, external reporting) SHALL still receive it.
+
+#### Scenario: Two cycles of six batches while a service is blocked
+
+- **WHEN** two full cycles of six batches are queued and the service has not read
+- **THEN** nothing SHALL be dropped, and a third cycle SHALL drop the oldest batches
+
+#### Scenario: A mixed batch
+
+- **WHEN** a batch holds one ordinary row and one template row
+- **THEN** only the ordinary row SHALL be uploaded and the window line SHALL report `template=1`
