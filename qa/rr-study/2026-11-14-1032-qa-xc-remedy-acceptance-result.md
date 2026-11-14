@@ -48,6 +48,21 @@ For comparison, the build before the remedy (`f82b6432`) on the TEST night: NET 
 - **Two nights, two bands**; TRAIN is 40 m, so night N is on TRAIN's band; TEST is the cross-band night. The gain is smaller on 40 m (2.81 against 3.36 pp).
 - **macOS and Linux CI have not run this commit** (not pushed); the numeric fixtures use a relative tolerance of 1e-3.
 
+## 5b. Descriptive delta U' on the remedy arms (added 2026-11-14T10:41Z; `cf_uprime.py`, frozen instrument `ecc4c5e7`, T 0.276; counts only; files `qa/xc-build/results/xc_uprime_remedy_*`)
+
+| | cycles | U' per cycle OFF | U' per cycle ON | **delta U'** | tested-absent OFF to ON | hashed or unencodable |
+|---|---|---|---|---|---|---|
+| TEST (20 m), remedy | 998 | 0.3667 | 0.4629 | **+0.0962** (ungated `f82b6432`: +0.3097) | 79 to 172 (+93; ungated +282) | 287 to 290 |
+| 40 m (clean), remedy | 999 | 0.3453 | 0.6356 | **+0.2903** | 256 to 545 (+289) | 89 to 90 |
+
+Null validity: the night's own null p99 is 0.293 against T 0.276 (inside the 0.03 tolerance; no flag), testable classes `report` and `report CQ`; the 40 m night's OFF stage froze its own class list. The TEST OFF classes are the first chain's (the remedy OFF-T equals it, V-OFF PASS).
+
+**By SNR band, ON minus OFF (not-confirmed decodes; tested-absent):** TEST: A +1; +0 absent; B +5, +1; C +58, +1; **D +741, +91**. 40 m: A 0; B +7, +0; C +88, +9; **D +1,064, +280**.
+- **Nearly all of the rise sits in band D (weaker than -16 dB):** 91 of 93 on TEST, 280 of 289 on 40 m. That is the regime where **angle A's statement stands beside every U' row: U' on O is blind under burial (0.742 against 0.993).**
+- In band D the new unconfirmed decodes read "absent" in 12.3 % (TEST) and 26.3 % (40 m) of cases. The instrument's blind-miss rate on true buried rows is 1 - 0.742 = 25.8 %: the 40 m excess is the size an all-true, all-buried population would produce, and TEST's is smaller. **This is consistent with no excess of false decodes; it does not show it** (the instrument cannot bound its own blind spot, HK-026, and 0.742 was measured on another population).
+- The gate cut the TEST night's delta U' from +0.310 to +0.096; no ungated arm exists on the 40 m night.
+- The line the U' budget is held against is 0.042 per cycle; both nights are above it. The registered false-side row is XC-SUP (passed on both nights), not U'.
+
 ## 6. Owed before any default-ON (not QA's to rule)
 
 PSK Reporter template tag (Architect); `BatchesPerCycleFallbackOn = 4` (Architect); the Captain's go. **QA's own:** confirm that mutant R05 dies on the Developer's `a88dd402` (tests only; the arms ran on `4b70e418`) and write its short review record; `pre_merge_check` on the exact commit before any push (HK-006). Text-bearing working files (`nc.tsv`, `matched.csv`) stay under `_qa-scratch\xc-chain\` until the Architect says they may go; they are deleted before the PC hibernates.
