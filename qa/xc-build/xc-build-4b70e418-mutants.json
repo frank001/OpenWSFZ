@@ -1,0 +1,392 @@
+{
+ "R01": {
+  "desc": "veto window 3.125 Hz -> 6.25 Hz",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: -3.2000000000000002, dDt: 0, expectVeto: False) [75 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3.2000000000000002, dDt: 0, expectVeto: False) [39 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3.2000000000000002, dDt: 0.19, expectVeto: False) [38 ms]"
+  ]
+ },
+ "R02": {
+  "desc": "veto window 3.125 Hz -> 2.9 Hz",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3, dDt: 0, expectVeto: True) [83 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3, dDt: 0.19, expectVeto: True) [33 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: -3, dDt: 0, expectVeto: True) [12 ms]"
+  ]
+ },
+ "R03": {
+  "desc": "veto window 0.2 s -> 0.25 s",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0.20999999999999999, expectVeto: False) [76 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: -0.20999999999999999, expectVeto: False) [37 ms]"
+  ]
+ },
+ "R04": {
+  "desc": "veto window 0.2 s -> 0.15 s",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0.19, expectVeto: True) [49 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: -0.19, expectVeto: True) [12 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3, dDt: 0.19, expectVeto: True) [12 ms]"
+  ]
+ },
+ "R05": {
+  "desc": "edge tolerance removed",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": []
+ },
+ "R06": {
+  "desc": "the same text vetoes",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14: the same text at the argmax never vetoes; a different one does; no decode list (null) vetoes nothing; the veto off sets the flag but removes nothing [48 ms]"
+  ]
+ },
+ "R07": {
+  "desc": "no decode list vetoes",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14: the same text at the argmax never vetoes; a different one does; no decode list (null) vetoes nothing; the veto off sets the flag but removes nothing [68 ms]"
+  ]
+ },
+ "R08": {
+  "desc": "argmax not converted back to our dt",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0.20999999999999999, expectVeto: False) [77 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: -3.2000000000000002, dDt: 0, expectVeto: False) [41 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3, dDt: 0, expectVeto: True) [39 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: -0.59999999999999998, expectVeto: False) [37 ms]"
+  ]
+ },
+ "R09": {
+  "desc": "veto applied although the setting is off",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14: the same text at the argmax never vetoes; a different one does; no decode list (null) vetoes nothing; the veto off sets the flag but removes nothing [78 ms]",
+   "Failed FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed [39 ms]"
+  ]
+ },
+ "R10": {
+  "desc": "T_P tested on S_E* instead of S_P",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [54 ms]",
+   "Failed FR-105: XC-BUILD R14/R15: the outcomes partition the templates that clear T_E: detected, parity-rejected and veto-rejected are exclusive, parity first; a template below T_E is none of them [37 ms]",
+   "Failed FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live [21 ms]"
+  ]
+ },
+ "R11": {
+  "desc": "parity gate flipped",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R9: the shadow tests the opposite-parity priors (15, 45, 75 s) against this cycle's buffer, counts and logs its detections, and publishes nothing and stores nothing [122 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0.20999999999999999, expectVeto: False) [40 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: -3.2000000000000002, dDt: 0, expectVeto: False) [38 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3, dDt: 0, expectVeto: True) [37 ms]"
+  ]
+ },
+ "R12": {
+  "desc": "parity gate never rejects",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [53 ms]",
+   "Failed FR-105: XC-BUILD R14/R15: the outcomes partition the templates that clear T_E: detected, parity-rejected and veto-rejected are exclusive, parity first; a template below T_E is none of them [37 ms]",
+   "Failed FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live [19 ms]"
+  ]
+ },
+ "R13": {
+  "desc": "a parity-rejected template is still detected",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [54 ms]",
+   "Failed FR-105: XC-BUILD R14/R15: the outcomes partition the templates that clear T_E: detected, parity-rejected and veto-rejected are exclusive, parity first; a template below T_E is none of them [39 ms]",
+   "Failed FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live [20 ms]"
+  ]
+ },
+ "R14": {
+  "desc": "a vetoed template is still detected",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3, dDt: 0, expectVeto: True) [78 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0.19, expectVeto: True) [39 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: -0.19, expectVeto: True) [40 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0, expectVeto: True) [39 ms]"
+  ]
+ },
+ "R15": {
+  "desc": "veto and parity counted together (partition broken)",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15: the outcomes partition the templates that clear T_E: detected, parity-rejected and veto-rejected are exclusive, parity first; a template below T_E is none of them [74 ms]"
+  ]
+ },
+ "R16": {
+  "desc": "vetoed flag never computed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3, dDt: 0, expectVeto: True) [77 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0.19, expectVeto: True) [40 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: -0.19, expectVeto: True) [40 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0, expectVeto: True) [39 ms]"
+  ]
+ },
+ "R17": {
+  "desc": "parity-rejected not counted",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [54 ms]",
+   "Failed FR-105: XC-BUILD R14/R15: the outcomes partition the templates that clear T_E: detected, parity-rejected and veto-rejected are exclusive, parity first; a template below T_E is none of them [37 ms]",
+   "Failed FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live [15 ms]"
+  ]
+ },
+ "R18": {
+  "desc": "veto-rejected not counted",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 3, dDt: 0, expectVeto: True) [73 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0.19, expectVeto: True) [37 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: -0.19, expectVeto: True) [38 ms]",
+   "Failed FR-105: XC-BUILD R14 (boundary, in our own dt): a decode at 0.19 s / 3.0 Hz from the argmax vetoes, at 0.21 s / 3.2 Hz it does not; a decode at the argmax's WSJT-X-convention dt (0.6 s earlier) does not (a convention slip would be silent)(dFreq: 0, dDt: 0, expectVeto: True) [37 ms]"
+  ]
+ },
+ "R19": {
+  "desc": "template loses the prior's batch",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R13: the sink record carries S_P, the prior's own position (Hz, dt in our convention) and batch, and a vetoed flag; one per tested template; numbers and flags only, no text [56 ms]"
+  ]
+ },
+ "R20": {
+  "desc": "block 2 starts at symbol 42",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Dsp/CrossCycleTemplateDetector.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 3) [102 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 4) [37 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 2) [36 ms]",
+   "Failed FR-105: XC-BUILD R15 (QA P0): the 29 symbols of the second data block are exactly frame symbols 43..71 (between the Costas arrays at 36-42 and 72-78), and the fixtures' index lists, the code's constants and the encoder's output agree [1 ms]"
+  ]
+ },
+ "R21": {
+  "desc": "block 2 ends at symbol 72",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Dsp/CrossCycleTemplateDetector.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 3) [105 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 4) [39 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 2) [36 ms]",
+   "Failed FR-105: XC-BUILD R15 (QA P0): the 29 symbols of the second data block are exactly frame symbols 43..71 (between the Costas arrays at 36-42 and 72-78), and the fixtures' index lists, the code's constants and the encoder's output agree [1 ms]"
+  ]
+ },
+ "R22": {
+  "desc": "S_P divided by 79",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Dsp/CrossCycleTemplateDetector.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 3) [106 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 4) [37 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 2) [36 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 5) [40 ms]"
+  ]
+ },
+ "R23": {
+  "desc": "symbol 43 left out of S_P",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Dsp/CrossCycleTemplateDetector.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 3) [106 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 4) [36 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 2) [36 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 5) [41 ms]"
+  ]
+ },
+ "R24": {
+  "desc": "S_P not read at the S_E* argmax",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Dsp/CrossCycleTemplateDetector.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 3) [103 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 4) [46 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 2) [36 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 5) [36 ms]"
+  ]
+ },
+ "R25": {
+  "desc": "S_P accumulates 1 instead of the ratio",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Dsp/CrossCycleTemplateDetector.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 3) [103 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 4) [39 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 2) [36 ms]",
+   "Failed FR-105: XC-BUILD R15: remedy fixture case (S_E* and S_P at the argmax within 1e-3 relative, argmax equal)(index: 5) [39 ms]"
+  ]
+ },
+ "R26": {
+  "desc": "ParityStatisticFromPowers drops symbol 71",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Dsp/CrossCycleTemplateDetector.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R15: S_P is formed from the SAME correlations as S_E* (no second search): at the S_E* argmax it equals the direct mean over frame symbols 43 to 71 of the bin powers there, and the search never moves because of it [77 ms]"
+  ]
+ },
+ "R27": {
+  "desc": "veto setting ignored by the decoder",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed [83 ms]"
+  ]
+ },
+ "R28": {
+  "desc": "veto default OFF",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R10: the log line gains the veto and parity counts (live and shadow), the veto state and T_P, still counts and numbers only [58 ms]",
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [29 ms]",
+   "Failed FR-105: XC-BUILD R14/R15: defaults: the veto is ON, T_P is the 0.0 placeholder, the setters and read-backs round-trip, and neither is a config key [2 ms]"
+  ]
+ },
+ "R29": {
+  "desc": "T_P default 1.0",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15: defaults: the veto is ON, T_P is the 0.0 placeholder, the setters and read-backs round-trip, and neither is a config key [40 ms]"
+  ]
+ },
+ "R30": {
+  "desc": "set T_P ignored",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R10: the log line gains the veto and parity counts (live and shadow), the veto state and T_P, still counts and numbers only [67 ms]",
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [17 ms]",
+   "Failed FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live [26 ms]"
+  ]
+ },
+ "R31": {
+  "desc": "live run gets no cycle decodes",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed [65 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink record carries S_P, the prior's own position (Hz, dt in our convention) and batch, and a vetoed flag; one per tested template; numbers and flags only, no text [24 ms]"
+  ]
+ },
+ "R32": {
+  "desc": "shadow run gets no cycle decodes",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [67 ms]"
+  ]
+ },
+ "R33": {
+  "desc": "live counts not logged",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed [53 ms]",
+   "Failed FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live [15 ms]"
+  ]
+ },
+ "R34": {
+  "desc": "shadow counts not logged",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [54 ms]"
+  ]
+ },
+ "R35": {
+  "desc": "sink S_P zero",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R15: the SAME message repeated at the prior's position is published at T_P 1.9, with S_P near S_E* [60 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink record carries S_P, the prior's own position (Hz, dt in our convention) and batch, and a vetoed flag; one per tested template; numbers and flags only, no text [18 ms]"
+  ]
+ },
+ "R36": {
+  "desc": "sink prior position and batch zero",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R13: the sink record carries S_P, the prior's own position (Hz, dt in our convention) and batch, and a vetoed flag; one per tested template; numbers and flags only, no text [59 ms]"
+  ]
+ },
+ "R37": {
+  "desc": "sink vetoed flag false",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed [52 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink record carries S_P, the prior's own position (Hz, dt in our convention) and batch, and a vetoed flag; one per tested template; numbers and flags only, no text [24 ms]"
+  ]
+ },
+ "R38": {
+  "desc": "CurrentCycleDecodes empty",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [68 ms]",
+   "Failed FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed [27 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink record carries S_P, the prior's own position (Hz, dt in our convention) and batch, and a vetoed flag; one per tested template; numbers and flags only, no text [20 ms]"
+  ]
+ },
+ "R39": {
+  "desc": "log live and shadow veto counts swapped",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [67 ms]",
+   "Failed FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed [16 ms]"
+  ]
+ },
+ "R40": {
+  "desc": "veto setter ignores false",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R14/R15: defaults: the veto is ON, T_P is the 0.0 placeholder, the setters and read-backs round-trip, and neither is a config key [39 ms]",
+   "Failed FR-105: XC-BUILD R14: a batch 1 to 5 decode of cycle t with a DIFFERENT text next to the detection vetoes it (counted vetoed-colocated, live); with the veto off the template is published and the sink still says it would have been vetoed [41 ms]"
+  ]
+ },
+ "R41": {
+  "desc": "T_P setter ignores the value",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R10: the log line gains the veto and parity counts (live and shadow), the veto state and T_P, still counts and numbers only [57 ms]",
+   "Failed FR-105: XC-BUILD R14/R15 (shadow): the shadow is parity-gated and vetoed like the live stage, and its counts are separate from the live ones [16 ms]",
+   "Failed FR-105: XC-BUILD R14/R15: defaults: the veto is ON, T_P is the 0.0 placeholder, the setters and read-backs round-trip, and neither is a config key [1 ms]",
+   "Failed FR-105: XC-BUILD R15: a station whose NEXT message differs sits at the prior's exact position: the old template clears T_E but is NOT published with T_P at 1.9, and IS published with T_P at 0.0 (the test fails in both directions); counted parity-rejected, live [28 ms]"
+  ]
+ }
+}
