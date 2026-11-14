@@ -136,3 +136,17 @@ With the coherent fallback ON, the answerer and caller queues (and the PSK Repor
 
 - **WHEN** a batch holds one ordinary row and one template row
 - **THEN** only the ordinary row SHALL be uploaded and the window line SHALL report `template=1`
+
+### Requirement: A batch-6 template row never starts an exchange with a new station
+
+The QSO answerer SHALL NOT answer a CQ, and the QSO caller SHALL NOT engage a station that answered its CQ, when the only row that would have done so is a template decode (`Path` = the template path); it SHALL log the late-batch outcome `ignored-template` and start nothing, immediate or deferred. The same message in any other batch SHALL behave as before, a template row SHALL still advance an exchange already in progress, and an operator-initiated engagement (an external Reply, an operator-selected responder) SHALL be unchanged.
+
+#### Scenario: A CQ found only by the template stage
+
+- **WHEN** the answerer is Idle with auto-answer on and a batch-6 batch holds a template CQ row
+- **THEN** nothing SHALL be transmitted or held, the state SHALL stay Idle and the log SHALL carry `ignored-template`
+
+#### Scenario: A mixed batch
+
+- **WHEN** a batch-6 batch holds a template CQ and an ordinary CQ from another station
+- **THEN** the answer SHALL go to the ordinary CQ

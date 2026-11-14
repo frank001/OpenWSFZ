@@ -1074,6 +1074,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
         if (tx.CallerPartnerSelect == CallerPartnerSelectMode.First)
         {
             var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+            bool skippedTemplate = false;
 
             foreach (var r in batch.Results)
             {
@@ -1084,6 +1085,9 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                 var validation = _engagementValidator?.Validate(responder) ?? EngagementValidationResult.Allowed;
                 if (!validation.IsAllowed)
                     continue;
+
+                // XC-BUILD: a template row (batch 6) never engages a new station. Checked only for a row that would otherwise have engaged one (counted as ignored-template).
+                if (r.Path == DecodeResult.PathTemplate) { skippedTemplate = true; continue; }
 
                 _logger.LogInformation(
                     "QsoCallerService: {Responder} answered our CQ at {FreqHz} Hz — sending report.",
@@ -1096,6 +1100,7 @@ public sealed class QsoCallerService : BackgroundService, IQsoController
                     deferTx: !immediate, batch: batch).ConfigureAwait(false);
                 return immediate ? LateOutcome.AppliedImmediate : LateOutcome.AppliedDeferred;
             }
+            if (skippedTemplate) return LateOutcome.IgnoredTemplate;
         }
         else if (tx.CallerPartnerSelect == CallerPartnerSelectMode.None)
         {

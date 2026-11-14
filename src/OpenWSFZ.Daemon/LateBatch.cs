@@ -18,6 +18,8 @@ internal enum LateOutcome
     IgnoredAnswered,
     /// <summary>Nothing in the batch drives a transition: nothing changes, nothing is counted.</summary>
     NoMatch,
+    /// <summary>XC-BUILD: a batch-6 template row (<c>DecodeResult.PathTemplate</c>) would have started an exchange with a new station (Idle answer, WaitAnswer engage) and was skipped: a template row never does.</summary>
+    IgnoredTemplate,
 }
 
 /// <summary>What a held reply, sent later by the first batch 1 of the right parity, will do.</summary>
@@ -140,6 +142,7 @@ internal static class LateBatch
         LateOutcome.IgnoredStale     => "ignored-stale",
         LateOutcome.IgnoredAnswered  => "ignored-answered",
         LateOutcome.NoMatch          => "no-match",
+        LateOutcome.IgnoredTemplate  => "ignored-template",
         _                            => throw new ArgumentOutOfRangeException(nameof(outcome)),
     };
 }
