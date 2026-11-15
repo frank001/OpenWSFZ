@@ -1,0 +1,61 @@
+{
+ "recorded_utc": "2026-11-14T23:12:00Z",
+ "checks": {
+  "no_other_daemon_running": true,
+  "daemon_exe_exists": true,
+  "config_exists": true,
+  "build_provenance_present": true,
+  "build_tree_clean": true,
+  "became_ready": true,
+  "status_endpoint_ok": true,
+  "wsjtx_ini_dial_freq_matches_daemon": true,
+  "device_names_match": true,
+  "captureActive": true,
+  "decodingEnabled": true,
+  "dll_readable": true,
+  "all_pass": true
+ },
+ "build_provenance_path": "D:\\Projects\\claude\\_run-main\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\build_provenance.json",
+ "build": {
+  "branch": "HEAD",
+  "commit": "66b3ddf1229ee5cd2aea3d868e7c0d95ec1f2037",
+  "dirty": false,
+  "dirty_files": [],
+  "build_dirty": false,
+  "build_dirty_files": [],
+  "captured_utc": "2026-11-14T23:09:19Z"
+ },
+ "daemon": {
+  "pid": 10772,
+  "exe": "D:\\Projects\\claude\\_run-main\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\OpenWSFZ.Daemon.exe",
+  "config_path": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\xcon-usbcodec-config\\config.json",
+  "port": 8080,
+  "dll_path": "D:\\Projects\\claude\\_run-main\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\libft8.dll",
+  "dll_sha256": "bbde6eb66af4cd429ffc46f67291ba718c1ae36ae39665faac24629bcb6e6528",
+  "build_branch": "HEAD",
+  "build_commit": "66b3ddf1229ee5cd2aea3d868e7c0d95ec1f2037",
+  "shim_version": 20260072,
+  "daemon_version": "0.72",
+  "audio_device": "Microphone (2- USB Audio CODEC )",
+  "captureActive": true,
+  "decodingEnabled": true,
+  "osd_nhard_max": null,
+  "suppression_triple": null,
+  "config_audio_device_friendly_name": "Microphone (2- USB Audio CODEC )",
+  "config_audio_device_id": "{0.0.1.00000000}.{726c8b20-d2a2-4f53-90a9-2b2dfcf00760}",
+  "config_decode_log_path": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261114_2312_endurance_run/ALL.TXT",
+  "config_cycle_audio_dir": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261114_2312_endurance_run/cycle-audio",
+  "config_log_dir": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261114_2312_endurance_run/daemon-logs",
+  "dial_freq_mhz": 7.074
+ },
+ "wsjtx": {
+  "ini_path": "C:\\Users\\frans\\AppData\\Local\\WSJT-X - FT991A\\WSJT-X - FT991A.ini",
+  "NDepth": "3",
+  "ap_enabled": null,
+  "dial_freq_hz": "7074000",
+  "mode": "FT8",
+  "sound_in_name": "Microphone (2- USB Audio CODEC )",
+  "sound_in_chan": "ABSENT (WSJT-X default applies)"
+ },
+ "band": "40m"
+}

@@ -1,0 +1,148 @@
+{
+ "config": {
+  "audioDeviceId": "{0.0.1.00000000}.{726c8b20-d2a2-4f53-90a9-2b2dfcf00760}",
+  "audioDeviceFriendlyName": "Microphone (2- USB Audio CODEC )",
+  "audioOutputDeviceId": null,
+  "audioOutputFriendlyName": null,
+  "port": 8080,
+  "showCycleCountdown": false,
+  "decodingEnabled": true,
+  "logLevel": "Information",
+  "logging": {
+   "fileEnabled": true,
+   "directory": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261114_2312_endurance_run/daemon-logs",
+   "fileLogLevel": "Information",
+   "rotationSchedule": "daily",
+   "rotationTime": "00:00",
+   "rotationDayOfWeek": "Monday",
+   "maxFiles": 7
+  },
+  "decodeLog": {
+   "enabled": true,
+   "path": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261114_2312_endurance_run/ALL.TXT",
+   "dialFrequencyMHz": 7.074
+  },
+  "cat": {
+   "enabled": false,
+   "rigModel": "SerialCat",
+   "serialPort": "COM6",
+   "baudRate": 9600,
+   "rigctldHost": "127.0.0.1",
+   "rigctldPort": 4532,
+   "pollIntervalSeconds": 1,
+   "lastPolledFrequencyMHz": null
+  },
+  "ptt": {
+   "method": "AudioVox",
+   "serialPort": "COM7",
+   "serialLine": "Rts",
+   "leadTimeMs": 50,
+   "tailTimeMs": 50,
+   "watchdogTimeoutMs": 20000
+  },
+  "tx": {
+   "autoAnswer": false,
+   "callsign": "Q1OFZ",
+   "grid": "JO33",
+   "retryCount": 3,
+   "watchdogMinutes": 4,
+   "rxAudioOffsetHz": 1500,
+   "txAudioOffsetHz": 1500,
+   "holdTxFreq": false,
+   "role": "Answerer",
+   "callerPartnerSelect": "First",
+   "qsoConfirmation": true,
+   "retainedTxPower": "",
+   "retainedComment": "",
+   "retainedPropMode": ""
+  },
+  "remoteAccess": {
+   "enabled": false,
+   "passphrase": ""
+  },
+  "decoder": {
+   "kMinScorePass2": 5,
+   "osdCorrThreshold": 0.05,
+   "osdNhardMax": 24,
+   "nhard40MigrationApplied": true,
+   "nhard24MigrationApplied": true,
+   "subtractionEnabled": true,
+   "subtractionOnMigrationApplied": true,
+   "subtractionMaxThreads": 0,
+   "earlyDecodeEnabled": true,
+   "earlyDecodeCutSeconds": 3,
+   "decodingDepth": "Deep",
+   "coherentFallbackEnabled": true,
+   "coherentFallbackMultiSet": true,
+   "coherentFallbackAudio": "Both",
+   "coherentFallbackResidualUngated": true,
+   "lateSubtractionRound": true,
+   "cqApEnabled": true,
+   "coherentFallbackResidualCandidates": true,
+   "crossCyclePrior": true,
+   "crossCyclePriorShadow": false
+  },
+  "decodeNoiseSuppression": {
+   "suppressUnknownRegion": null,
+   "suppressSynthetic": false
+  },
+  "externalReporting": {
+   "enabled": false,
+   "targets": [],
+   "honourInboundCommands": false,
+   "restrictExternalRepliesToDecodeFilter": false,
+   "instanceId": "OpenWSFZ",
+   "role": "leader",
+   "leaderUrl": null,
+   "followerUrls": []
+  },
+  "cycleAudioArchive": {
+   "mode": "all",
+   "directory": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261114_2312_endurance_run/cycle-audio",
+   "maxSizeMb": 16384,
+   "maxAgeHours": 48,
+   "writeManifest": true
+  },
+  "pskReporter": {
+   "enabled": false,
+   "antennaInformation": "",
+   "locator": "",
+   "host": "report.pskreporter.info",
+   "port": 4739
+  }
+ },
+ "status": {
+  "state": "Running",
+  "version": "0.72",
+  "audioDevice": "Microphone (2- USB Audio CODEC )",
+  "captureActive": true,
+  "audioActive": true,
+  "decodingEnabled": true,
+  "dialFrequencyMHz": 7.074,
+  "catConnectionStatus": "Disabled",
+  "rxAudioOffsetHz": 1500,
+  "txAudioOffsetHz": 1500,
+  "holdTxFreq": false,
+  "shimVersion": 20260072,
+  "hashTableRejectCount": 0,
+  "cycleArchiveDroppedCycles": 0,
+  "dataFlowing": true,
+  "lastChunkAgeMs": 41,
+  "watchdogRestartCount": 0,
+  "captureState": "Capturing",
+  "captureRestartCount": 0,
+  "consecutiveCaptureFailures": 0,
+  "lastCaptureError": null,
+  "captureOverrunCount": 0,
+  "captureChannelDroppedChunks": 0,
+  "thirdPass": {
+   "decodingDepth": "Deep",
+   "runs": 1,
+   "skippedNoNew": 0,
+   "skippedAbandoned": 0,
+   "abandoned": 0,
+   "failed": 0,
+   "decodes": 1
+  }
+ }
+}

@@ -1,0 +1,4 @@
+{"pid": 10772, "exe": "D:\\Projects\\claude\\_run-main\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\OpenWSFZ.Daemon.exe", "config": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\xcon-usbcodec-config\\config.json", "port": 8080, "t": "2026-11-14T23:12:00Z", "kind": "daemon_start"}
+{"start": "2026-11-14T23:12:16Z", "end": "2026-11-15T10:59:58Z", "t": "2026-11-14T23:12:16Z", "kind": "window_open"}
+{"why": "window end", "t": "2026-11-15T11:00:46Z", "kind": "daemon_stop"}
+{"exit_code": 0, "out_name": "20261114_2312_endurance_run-gathered", "t": "2026-11-15T11:01:06Z", "kind": "gathered"}

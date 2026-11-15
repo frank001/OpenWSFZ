@@ -1,0 +1,1 @@
+XC ON era: decoder.crossCyclePrior = true (shadow off), on top of v2 (residual candidates) and CQ-AP, late round, multi-set, Deep, nhard 24. Build 66b3ddf1 (main, v0.72, shim 20260072). USB Audio CODEC direct, 40 m. Never pooled with any earlier night or series.
