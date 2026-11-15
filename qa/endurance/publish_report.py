@@ -54,6 +54,12 @@ COMMITTABLE_GLOBS = [
 ]
 
 
+# Project era labels that merely look like a callsign (hand-reviewed 2026-11-15: "RF4ON" is the
+# 2026-10-28 endurance era name, printed in Section 4's radio-chain column of every later run).
+# Exact-token match only; every other token still refuses.
+NOT_CALLSIGNS = frozenset({"RF4ON"})
+
+
 def scan_for_callsigns(paths: list[str]) -> list[tuple[str, int, str]]:
     """Returns (path, line_no, matched_token) for every hit -- the caller decides whether to
     print the token (only ever into a QA-facing refusal message on this operator's own
@@ -64,9 +70,9 @@ def scan_for_callsigns(paths: list[str]) -> list[tuple[str, int, str]]:
             continue  # binary; text scan doesn't apply
         with open(p, encoding="utf-8", errors="replace") as f:
             for i, line in enumerate(f, 1):
-                m = CALLSIGN_RE.search(line)
-                if m:
-                    hits.append((p, i, m.group(0)))
+                for m in CALLSIGN_RE.finditer(line):
+                    if m.group(0) not in NOT_CALLSIGNS:
+                        hits.append((p, i, m.group(0)))
     return hits
 
 
