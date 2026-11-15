@@ -1,0 +1,37 @@
+{
+ "data_quality": {
+  "ok": true,
+  "n_files": 4299,
+  "n_errors": 0,
+  "format_consistent": true,
+  "clipping_file_count": 0,
+  "silent_file_count": 0,
+  "hot_file_count": 0,
+  "dbfs_median": -28.179427427487404,
+  "dbfs_mad": 0.7153993955542397,
+  "dbfs_range": [
+   -34.95192622025053,
+   -22.507475718597018
+  ]
+ },
+ "hum": {
+  "this_run_median_db": 20.89229423885532,
+  "control_median_db": 21.88680755494136,
+  "delta_db": -0.9945133160860387,
+  "verdict": "consistent with control -- predates any chain change"
+ },
+ "spur": {
+  "ran": false,
+  "material": false,
+  "top_freq_hz": 1290,
+  "top_count": 165,
+  "share_of_files": 0.03838101884159107,
+  "verdict": "no dominant bin (top = 3.8% of files, below the 5% materiality bar) -- ordinary spread traffic"
+ },
+ "representative_file": "260930_205230.wav",
+ "spectral_trace_panels": [
+  "QUIET",
+  "TYPICAL",
+  "LOUD"
+ ]
+}

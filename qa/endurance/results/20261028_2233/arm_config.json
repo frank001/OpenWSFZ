@@ -1,0 +1,61 @@
+{
+ "recorded_utc": "2026-10-28T22:33:01Z",
+ "checks": {
+  "no_other_daemon_running": true,
+  "daemon_exe_exists": true,
+  "config_exists": true,
+  "build_provenance_present": true,
+  "build_tree_clean": true,
+  "became_ready": true,
+  "status_endpoint_ok": true,
+  "wsjtx_ini_dial_freq_matches_daemon": true,
+  "device_names_match": true,
+  "captureActive": true,
+  "decodingEnabled": true,
+  "dll_readable": true,
+  "all_pass": true
+ },
+ "build_provenance_path": "D:\\Projects\\claude\\_qa-scratch\\coh-gate-r-f4-prwt\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\build_provenance.json",
+ "build": {
+  "branch": "qa/coh-gate-r-f4-pr",
+  "commit": "fa119fe085cb6fa17c06e39ed12c80747aa58eac",
+  "dirty": false,
+  "dirty_files": [],
+  "build_dirty": false,
+  "build_dirty_files": [],
+  "captured_utc": "2026-10-28T22:22:03Z"
+ },
+ "daemon": {
+  "pid": 45908,
+  "exe": "D:\\Projects\\claude\\_qa-scratch\\coh-gate-r-f4-prwt\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\OpenWSFZ.Daemon.exe",
+  "config_path": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\rf4on-endurance-config\\config.json",
+  "port": 8080,
+  "dll_path": "D:\\Projects\\claude\\_qa-scratch\\coh-gate-r-f4-prwt\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\libft8.dll",
+  "dll_sha256": "1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914",
+  "build_branch": "qa/coh-gate-r-f4-pr",
+  "build_commit": "fa119fe085cb6fa17c06e39ed12c80747aa58eac",
+  "shim_version": 20260071,
+  "daemon_version": "0.67",
+  "audio_device": "Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)",
+  "captureActive": true,
+  "decodingEnabled": true,
+  "osd_nhard_max": null,
+  "suppression_triple": null,
+  "config_audio_device_friendly_name": "Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)",
+  "config_audio_device_id": "{0.0.1.00000000}.{8dbb88e8-fd07-44b8-9ee9-88b906b8d11f}",
+  "config_decode_log_path": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261028_2233_endurance_run/ALL.TXT",
+  "config_cycle_audio_dir": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261028_2233_endurance_run/cycle-audio",
+  "config_log_dir": "D:/Projects/claude/OpenWSFZ/worktrees/qa/artefacts/20261028_2233_endurance_run/daemon-logs",
+  "dial_freq_mhz": 7.074
+ },
+ "wsjtx": {
+  "ini_path": "C:\\Users\\Frank\\AppData\\Local\\WSJT-X - FT991A\\WSJT-X - FT991A.ini",
+  "NDepth": "3",
+  "ap_enabled": null,
+  "dial_freq_hz": "7074000",
+  "mode": "FT8",
+  "sound_in_name": "Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)",
+  "sound_in_chan": "ABSENT (WSJT-X default applies)"
+ },
+ "band": "40m"
+}

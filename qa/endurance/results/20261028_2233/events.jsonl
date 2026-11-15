@@ -1,0 +1,4 @@
+{"pid": 45908, "exe": "D:\\Projects\\claude\\_qa-scratch\\coh-gate-r-f4-prwt\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\OpenWSFZ.Daemon.exe", "config": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\rf4on-endurance-config\\config.json", "port": 8080, "t": "2026-10-28T22:33:01Z", "kind": "daemon_start"}
+{"start": "2026-10-28T22:33:19Z", "end": "2026-10-29T15:30:01Z", "t": "2026-10-28T22:33:19Z", "kind": "window_open"}
+{"why": "window end", "t": "2026-10-29T15:30:48Z", "kind": "daemon_stop"}
+{"exit_code": 0, "out_name": "20261028_2233_endurance_run-gathered", "t": "2026-10-29T15:31:07Z", "kind": "gathered"}

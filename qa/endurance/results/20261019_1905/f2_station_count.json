@@ -1,0 +1,44 @@
+{
+ "log_lines": 499911,
+ "clamped_windows": 0,
+ "clamped_per_hour": {},
+ "channel_drop_lines": 0,
+ "channel_drop_per_hour": {},
+ "residual_pass": {
+  "lines": 0,
+  "deadline_abandoned": 0,
+  "max_elapsed_ms": null
+ },
+ "third_pass": {
+  "lines": 4656,
+  "outcomes": {
+   "ran": 4176,
+   "skipped-no-new": 480
+  },
+  "started": 4176,
+  "abandoned_over_started": 0.0,
+  "ran_ms_median": 776.0,
+  "ran_ms_p90": 1021,
+  "ran_ms_max": 1438,
+  "batch3_decodes": 1333
+ },
+ "poll": {
+  "polls": 70172,
+  "failed_polls": 247,
+  "max_gap_s": 2.0,
+  "overruns_max": 0,
+  "drops_max": 0,
+  "restarts_max": 0,
+  "depth_values": [
+   "Deep"
+  ],
+  "tp_last": {
+   "tp_runs": 4176,
+   "tp_skipped_no_new": 480,
+   "tp_skipped_abandoned": 0,
+   "tp_abandoned": 0,
+   "tp_failed": 0,
+   "tp_decodes": 1265
+  }
+ }
+}

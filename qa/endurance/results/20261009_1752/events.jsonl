@@ -1,0 +1,4 @@
+{"pid": 33504, "exe": "D:\\Projects\\claude\\_qa-scratch\\endur-sync5\\tree\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\OpenWSFZ.Daemon.exe", "config": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\di-sync5-config\\config.json", "port": 8080, "t": "2026-10-09T17:52:00Z", "kind": "daemon_start"}
+{"start": "2026-10-09T17:52:16Z", "end": "2026-10-10T08:59:57Z", "t": "2026-10-09T17:52:16Z", "kind": "window_open"}
+{"why": "window end", "t": "2026-10-10T09:00:49Z", "kind": "daemon_stop"}
+{"exit_code": 0, "out_name": "20261009_1752_endurance_run-gathered", "t": "2026-10-10T09:01:07Z", "kind": "gathered"}

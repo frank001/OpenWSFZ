@@ -1,0 +1,4 @@
+{"pid": 27640, "exe": "D:\\Projects\\claude\\_qa-scratch\\endur-di7\\tree\\src\\OpenWSFZ.Daemon\\bin\\Release\\net10.0\\win-x64\\publish\\OpenWSFZ.Daemon.exe", "config": "D:\\Projects\\claude\\OpenWSFZ\\worktrees\\qa\\qa\\endurance\\di7-endurance-config\\config.json", "port": 8080, "t": "2026-10-22T19:49:01Z", "kind": "daemon_start"}
+{"start": "2026-10-22T19:49:19Z", "end": "2026-10-23T08:00:00Z", "t": "2026-10-22T19:49:19Z", "kind": "window_open"}
+{"why": "window end", "t": "2026-10-23T08:01:05Z", "kind": "daemon_stop"}
+{"exit_code": 0, "out_name": "20261022_1949_endurance_run-gathered", "t": "2026-10-23T08:01:25Z", "kind": "gathered"}

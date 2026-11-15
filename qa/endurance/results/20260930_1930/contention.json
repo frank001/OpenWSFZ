@@ -1,0 +1,171 @@
+{
+ "cycles_on_grid": 4296,
+ "cycles_with_ows_lines": 4296,
+ "cycles_with_wsjtx_lines": 4296,
+ "A_wsjtx_zero_while_ows_ge10": 0,
+ "A_wsjtx_zero_total": 0,
+ "A_wsjtx_zero_while_ows_ge1": 0,
+ "A_ows_zero_while_wsjtx_ge10_(reverse)": 0,
+ "A_ows_zero_total": 0,
+ "A_cycles_ows_ge10": 4270,
+ "A_cycles_wsjtx_ge10": 4293,
+ "B_passes_keyed": 4298,
+ "B_key_collisions": 0,
+ "B_keyed_in_window": 4296,
+ "B_spearman_elapsed_vs_wsjtx_n": 0.7999562405063005,
+ "B_spearman_elapsed_vs_ows_n": 0.8617843423830521,
+ "B_spearman_elapsed_vs_fitted": 0.9079304438836399,
+ "B_spearman_wsjtx_n_vs_fitted": 0.7897992591853551,
+ "B_by_fitted_band": {
+  "<=15": {
+   "n": 1328,
+   "spearman_elapsed_vs_wsjtx_n": 0.8114602418022381,
+   "wsjtx_n_tercile_cuts": [
+    17,
+    22
+   ],
+   "median_elapsed_ms_low_mid_high_wsjtx_tercile": [
+    3084,
+    3233,
+    3576
+   ],
+   "n_low_mid_high": [
+    473,
+    418,
+    437
+   ]
+  },
+  "16-20": {
+   "n": 1877,
+   "spearman_elapsed_vs_wsjtx_n": 0.48155034750501235,
+   "wsjtx_n_tercile_cuts": [
+    29,
+    35
+   ],
+   "median_elapsed_ms_low_mid_high_wsjtx_tercile": [
+    4633,
+    5927,
+    6061
+   ],
+   "n_low_mid_high": [
+    675,
+    631,
+    571
+   ]
+  },
+  "21-25": {
+   "n": 995,
+   "spearman_elapsed_vs_wsjtx_n": 0.24854315047967826,
+   "wsjtx_n_tercile_cuts": [
+    36,
+    40
+   ],
+   "median_elapsed_ms_low_mid_high_wsjtx_tercile": [
+    6125,
+    6197,
+    6227
+   ],
+   "n_low_mid_high": [
+    379,
+    295,
+    321
+   ]
+  },
+  "26+": {
+   "n": 96,
+   "spearman_elapsed_vs_wsjtx_n": 0.21704818917624105,
+   "wsjtx_n_tercile_cuts": [
+    41,
+    45
+   ],
+   "median_elapsed_ms_low_mid_high_wsjtx_tercile": [
+    7609,
+    7586,
+    8525
+   ],
+   "n_low_mid_high": [
+    42,
+    27,
+    27
+   ]
+  }
+ },
+ "B_median_elapsed_ms_by_utc_hour": {
+  "00": [
+   240,
+   6020
+  ],
+  "01": [
+   240,
+   6133
+  ],
+  "02": [
+   240,
+   6114
+  ],
+  "03": [
+   240,
+   6103
+  ],
+  "04": [
+   240,
+   4885
+  ],
+  "05": [
+   240,
+   6097
+  ],
+  "06": [
+   240,
+   6142
+  ],
+  "07": [
+   240,
+   6060
+  ],
+  "08": [
+   240,
+   5755
+  ],
+  "09": [
+   240,
+   3919
+  ],
+  "10": [
+   240,
+   3250
+  ],
+  "11": [
+   240,
+   3087
+  ],
+  "12": [
+   240,
+   3149
+  ],
+  "13": [
+   100,
+   3108
+  ],
+  "19": [
+   116,
+   6260
+  ],
+  "20": [
+   240,
+   6029
+  ],
+  "21": [
+   240,
+   4165
+  ],
+  "22": [
+   240,
+   4164
+  ],
+  "23": [
+   240,
+   5964
+  ]
+ }
+}

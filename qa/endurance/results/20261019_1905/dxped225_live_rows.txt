@@ -1,0 +1,9 @@
+non-0.1 ';' rows (other shape) ows/wsjtx: 0 4
+0.1-shaped rows: OWS 439 WSJT-X 493
+matched OWS rows: 436 | OWS-only: 3 snr range (-9, 1)
+V2b Fox: {'same': 16, 'OWS <...>, WSJT-X a call (policy)': 420}
+V2c report mismatches: 0
+M1 overall: 436/493 = 0.884 [0.853,0.910]
+  SNR<-15: 3/13 = 0.231 [0.082,0.503]
+  -15..-6: 31/54 = 0.574 [0.442,0.697]
+  SNR>=-5: 402/426 = 0.944 [0.918,0.962]

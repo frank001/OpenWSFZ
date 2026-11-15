@@ -1,0 +1,26 @@
+{
+ "date": "2026-10-28",
+ "band": "40m",
+ "hours": 16.95,
+ "dll_sha256": "1ba8dc3d6a7d032764b3eaf65e7e5ef850c56b35569ad880b53d6708524db914",
+ "build_branch": "qa/coh-gate-r-f4-pr",
+ "build_commit": "fa119fe085cb6fa17c06e39ed12c80747aa58eac",
+ "shim": 20260071,
+ "nhard": 24,
+ "reference": "live_wsjtx",
+ "radio_chain": "FT-991A USB CODEC -> Voicemeeter Stereo Input 1 -> B1; WSJT-X and daemon both read B1 (RF4ON era)",
+ "comparable": true,
+ "grid_gate_g": 1.0,
+ "n_pairs": 103489,
+ "matched_pct_of_ref": 84.12303590443908,
+ "ows_only_pct": 1.7441087670660615,
+ "snr_gap_db": -2.9062509058933803,
+ "dt_gap_s": 0.6528829150924252,
+ "dt_gap_sd_s": "not recorded",
+ "drift_contaminated": false,
+ "drift_note": "",
+ "run_dir": "D:\\Projects\\claude\\OpenWSFZ\\artefacts\\20261028_2233_endurance_run-gathered",
+ "source_files": [
+  "../../artefacts/20261028_2233_endurance_run-gathered/anova_report.md"
+ ]
+}

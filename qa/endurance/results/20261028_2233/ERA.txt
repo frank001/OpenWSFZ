@@ -1,0 +1,1 @@
+RF4ON era: decoder.coherentFallbackResidualUngated = true, Both, multi-set ON, Deep, nhard 24. Build fa119fe0 (PR 271, v0.67). Never pooled with any earlier night or series.
