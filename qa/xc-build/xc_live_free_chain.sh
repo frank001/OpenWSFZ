@@ -7,8 +7,9 @@
 #                    EXACTLY the command of $SC/xc-chain/full/ON/status.txt (bin_new, sel_test_1000.json sha d12be505, --xc-prior 1 --xc-shadow 1 --xc-te 3.076041980658299, no veto, no T_P);
 #                (2) OFF = the live night 20261114_2312's archived WAVs through the shipped build with XC OFF (bin_defaults), same selection as the ON replay (sha 8644488047fde86c).
 # CRITICAL CONFIG: ONE libft8.dll pin in both binaries (bbde6eb6...), 8 threads, Deep, nhard 24, CQ-AP, multi-set, late round, residual candidates; the read-back at the start AND the end of every arm must show them.
-# Message text (nc.tsv, matched.csv) lives ONLY under _qa-scratch (HK-037); the analysis reads it by code; QA deletes it at job close.
-MODE=${1:?preflight|run}
+# Message text (nc.tsv, matched.csv) lives ONLY under _qa-scratch (HK-037); the analysis reads it by code; it is KEPT, never deleted (Captain, 2026-11-16).
+# Modes: preflight | run (CTRL then OFF) | off (OFF only, after a CTRL that is already valid).
+MODE=${1:?preflight|run|off}
 SC=/d/Projects/claude/_qa-scratch
 ROOT=$SC/xc-live-free
 BIN_FIRST=$SC/xc-chain/bin_new            # the first build f82b6432's harness (the control)
@@ -80,15 +81,18 @@ preflight
 [ -e "$ROOT/chain.stop" ] && { rm -f "$ROOT/chain.stop"; log "removed the chain.stop left by the skip-OFF decision (Captain's ACK to run)"; }
 log "start (as $(whoami)); order CTRL then OFF"
 
-# 1 CTRL: the first build's ON arm on the TEST night, the command of full/ON/status.txt
+# 1 CTRL: the first build's ON arm on the TEST night, the command of full/ON/status.txt   (mode `run` only; mode `off` skips it, CTRL already done 2026-11-16)
+if [ "$MODE" = run ]; then
 arm CTRL "$BIN_FIRST" "$SEL_TEST" $TEST_RUN "$TEST/owsfz/wav" "$TEST/wsjt-x/ALL.TXT" "xcprior=True xcshadow=True xcte=$TE" \
   --xc-prior 1 --xc-shadow 1 --xc-te $TE --xc-out "$(w $ROOT/CTRL/xc.csv)" --xc-probe-out "$(w $ROOT/CTRL/probe.csv)"
 # counts only from here (text stays inside the tools)
 python -I "$TOOLS/xc_sup.py" "$(w $ROOT/CTRL)" "$(w $TEST/wsjt-x/ALL.TXT)" "$(w $ROOT/ctrl_sup.json)" > "$ROOT/ctrl_sup.out" 2>&1 && log "ctrl_sup.json written (the first chain had SUP-W 641, FREE 1018, COR 904, SUP-O 16, b6 2579: read the difference, do not assert it)" || log "xc_sup on CTRL returned nonzero (see ctrl_sup.out)"
 python -I "$TOOLS/xc_next_tx.py" run "$(w $ROOT/ON)" "$(w $NIGHT/wsjt-x/ALL.TXT)" "$(w $ROOT/next_tx_with_ctrl.json)" "$(w $ROOT/CTRL)" "$(w $TEST/wsjt-x/ALL.TXT)" > "$ROOT/next_tx_with_ctrl.out" 2>&1 && log "next_tx_with_ctrl.json written" || log "xc_next_tx run returned nonzero (see next_tx_with_ctrl.out)"
+fi
 
 # 2 OFF: the live night, XC OFF, the shipped build
-arm OFF "$BIN_SHIP" "$SEL_NIGHT" $NIGHT_RUN "$NIGHT/owsfz/wav" "$NIGHT/wsjt-x/ALL.TXT" "xcprior=False xcshadow=False" --xc-prior 0 --xc-shadow 0
+# (--xc-defaults 1 is REQUIRED here: this harness demands --xc-te unless the defaults flag is given; the first attempt without it died in 4 s, Q79)
+arm OFF "$BIN_SHIP" "$SEL_NIGHT" $NIGHT_RUN "$NIGHT/owsfz/wav" "$NIGHT/wsjt-x/ALL.TXT" "xcprior=False xcshadow=False" --xc-prior 0 --xc-shadow 0 --xc-defaults 1
 
 log "all arms done"
 finish
