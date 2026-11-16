@@ -8,8 +8,8 @@ Usage:  python -I xs_count.py selftest
 
 FROZEN (as code; section numbers are the spec's):
   Messages are F1 F2 F3 (F1 addressee, F2 sender, F3 payload).  Payload types, checked in this order: RR73, RRR, 73, rreport (R+nn / R-nn), report (+nn / -nn), grid (4 or 6 characters), empty (2 tokens).
-  Step table N(P) for the REPLY: grid|empty -> reports -30..+20 (51); report -> rreports -30..+20 (51); rreport -> {RR73, RRR, 73} (3); RR73|RRR -> {73} (1); 73 -> {} (0).
-  N2(P) = the table applied twice: grid|empty -> rreports (51); report -> {RR73, RRR, 73} (3); rreport -> {73} (1); RR73|RRR|73 -> {} (0).
+  Step table N(P) for the REPLY: grid|empty -> reports -30..+31 (62, widened from the spec's -30..+20 by the (k) report-range check); report -> rreports -30..+31 (62); rreport -> {RR73, RRR, 73} (3); RR73|RRR -> {73} (1); 73 -> {} (0).
+  N2(P) = the table applied twice: grid|empty -> rreports (62); report -> {RR73, RRR, 73} (3); rreport -> {73} (1); RR73|RRR|73 -> {} (0).
   U = WSJT-X-only rows (matched = same cycle + normalised text, multiset-paired as anova_common.match_pairs) minus, in this order: (1) a '<' field or ';'; (2) CQ / QRZ / DE; (3) not parsed by the table; (4) XC territory: the same text matched at t-30, -60 or -90 s within 10 Hz.
   S1 (first match wins): u = 'X Y Pu' at t, a MATCHED row 'Y X Pp' at t-15 s, Pu in N(Pp).   S2: a MATCHED row 'X Y Pp' at t-30 s within 10 Hz, text differs, Pu in N2(Pp).   S-LOOSE: the pair condition of S1 or S2 holds, the payload is not in the set.
   C-PAR (control): as S1 with p at t-30 s.   K-low: the applicable set has <= 3 members; K-high: 51.
@@ -34,14 +34,15 @@ NIGHT = "D:/Projects/claude/OpenWSFZ/artefacts/20261114_2312_endurance_run-gathe
 OUT = "D:/Projects/claude/_qa-scratch/xs-prior"
 CYCLE_S = 15
 WINDOW_HZ = 10.0                  # cf_fbid.WS_CONF_DF (qa/rr-study/coh-fallback/cf_fbid.py:39), the corroboration window
-REP_LO, REP_HI = -30, 20
+REP_LO, REP_HI = -30, 31          # the spec said -30..+20; the (k) check found 50 of 18,095 matched report rows above +20 (+21..+31), so the range is widened to the OBSERVED maximum +31 (spec section 2: "widens it")
+N_REP = REP_HI - REP_LO + 1       # 62 templates for a report-valued set (the spec's 51 was the +20 range)
 K_LOW_MAX = 3
 BAR_PP = 1.0
 PAR_RATIO = 0.25
 PARSE_MIN = 0.90
 SEED, B_BOOT = 20261116, 2000
 N_REF_EXPECT, N_OWS_EXPECT, N_MATCHED_EXPECT, N_UNREACHED_EXPECT = 85783, 79317, 75673, 10110
-assert (CYCLE_S, WINDOW_HZ, REP_LO, REP_HI, K_LOW_MAX, BAR_PP, PAR_RATIO, PARSE_MIN, SEED, B_BOOT) == (15, 10.0, -30, 20, 3, 1.0, 0.25, 0.90, 20261116, 2000)
+assert (CYCLE_S, WINDOW_HZ, REP_LO, REP_HI, K_LOW_MAX, BAR_PP, PAR_RATIO, PARSE_MIN, SEED, B_BOOT) == (15, 10.0, -30, 31, 3, 1.0, 0.25, 0.90, 20261116, 2000) and N_REP == 62
 assert N_REF_EXPECT - N_MATCHED_EXPECT == N_UNREACHED_EXPECT
 
 _RE_REP = re.compile(r"^[+-][0-9]{2}$")
@@ -103,11 +104,11 @@ def in_n2(tp, tu, vu):
 
 
 def size_n(tp):
-    return {"grid": 51, "empty": 51, "report": 51, "rreport": 3, "RR73": 1, "RRR": 1, "73": 0}.get(tp, 0)
+    return {"grid": N_REP, "empty": N_REP, "report": N_REP, "rreport": 3, "RR73": 1, "RRR": 1, "73": 0}.get(tp, 0)
 
 
 def size_n2(tp):
-    return {"grid": 51, "empty": 51, "report": 3, "rreport": 1}.get(tp, 0)
+    return {"grid": N_REP, "empty": N_REP, "report": 3, "rreport": 1}.get(tp, 0)
 
 
 def stamp_index(stamps):
@@ -343,7 +344,8 @@ def selftest():
     chk("freetext", parse("Q1AAA Q2BBB HELLO")[0], "unparsed")
     chk("N grid->report", in_n("grid", "report", -12), True)
     chk("N grid->rreport must fail", in_n("grid", "rreport", -12), False)
-    chk("N report out of range must fail", in_n("grid", "report", -31), False)
+    chk("N report out of range must fail (-31 and +32)", (in_n("grid", "report", -31), in_n("grid", "report", 32)), (False, False))
+    chk("N report +31 is inside (the observed maximum)", in_n("grid", "report", 31), True)
     chk("N report->rreport", in_n("report", "rreport", -12), True)
     chk("N rreport->RR73/RRR/73", [in_n("rreport", t, None) for t in ("RR73", "RRR", "73", "grid")], [True, True, True, False])
     chk("N RR73->73 only", [in_n("RR73", t, None) for t in ("73", "RR73")], [True, False])
@@ -351,14 +353,14 @@ def selftest():
     chk("N2 grid->rreport", in_n2("grid", "rreport", 3), True)
     chk("N2 report->signoff", [in_n2("report", t, None) for t in SIGNOFF], [True, True, True])
     chk("N2 rreport->73", [in_n2("rreport", t, None) for t in ("73", "RR73")], [True, False])
-    chk("sizes", (size_n("grid"), size_n("report"), size_n("rreport"), size_n("RR73"), size_n2("report"), size_n2("rreport")), (51, 51, 3, 1, 3, 1))
+    chk("sizes", (size_n("grid"), size_n("report"), size_n("rreport"), size_n("RR73"), size_n2("report"), size_n2("rreport")), (62, 62, 3, 1, 3, 1))
     # a toy night, three cycles, synthetic Q calls: cycle0 matched 'Q2BBB Q1AAA -10' (Q1AAA sent a report to Q2BBB); cycle1 unreached 'Q1AAA Q2BBB R-12' = Q2BBB's reply: S1.
     mk = lambda *rows: [(-15, f, t, m, parse(t)) for f, t, m in rows]
     pc = [mk((1000, "Q2BBB Q1AAA -10", True)), mk((1500, "Q1AAA Q2BBB R-12", False), (1700, "Q5EEE Q6FFF JO93", False)), mk((1200, "Q7GGG Q8HHH RR73", False))]
     U, cnt = exclusions(pc)
     res = classify(pc, U)
     chk("toy S1", [r[2] for r in res], ["S1", "none", "none"])
-    chk("toy K class (report -> rreport is 51)", res[0][3], "K-high")
+    chk("toy K class (report -> rreport is report-valued, K-high)", res[0][3], "K-high")
     # C-PAR must be 0 here (the pair is at t-15, not t-30), and must be 1 when the same row sits at t-30
     chk("toy C-PAR 0", res[0][5], False)
     pc2 = [mk((1000, "Q2BBB Q1AAA -10", True)), mk(), mk((1500, "Q1AAA Q2BBB R-12", False))]
