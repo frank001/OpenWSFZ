@@ -1,0 +1,64 @@
+{
+ "n_b6_publishes": 2579,
+ "classes": {
+  "SUP-W": 641,
+  "FREE": 1018,
+  "COR": 904,
+  "SUP-O": 16
+ },
+ "per_class": {
+  "COR": {
+   "n": 904,
+   "snr_median": -18.0,
+   "with_a_colocated_text_sharing_the_sender_token": 0,
+   "mean_colocated_texts": 0.051991150442477874,
+   "flag_O_veto_would_remove": 17
+  },
+  "SUP-W": {
+   "n": 641,
+   "snr_median": -18,
+   "with_a_colocated_text_sharing_the_sender_token": 583,
+   "mean_colocated_texts": 1.8954758190327614,
+   "flag_O_veto_would_remove": 526
+  },
+  "SUP-O": {
+   "n": 16,
+   "snr_median": -18.5,
+   "with_a_colocated_text_sharing_the_sender_token": 4,
+   "mean_colocated_texts": 1.0625,
+   "flag_O_veto_would_remove": 16
+  },
+  "FREE": {
+   "n": 1018,
+   "snr_median": -18.0,
+   "with_a_colocated_text_sharing_the_sender_token": 0,
+   "mean_colocated_texts": 0.0,
+   "flag_O_veto_would_remove": 0
+  }
+ },
+ "instrument_checks": {
+  "b6_expected": 2579,
+  "cor_expected": 904,
+  "cor_ddt_median_s": 0.6000000000000001,
+  "cor_ddt_p05_p95_s": [
+   0.5999999999999999,
+   0.7
+  ],
+  "cor_rows_with_equal_text_wsjtx_row_within_10Hz": 904
+ },
+ "baseline_b1to5_matched": {
+  "n": 20335,
+  "with_different_text_wsjtx_row_in_window": 391,
+  "rate": 0.019227932136710105
+ },
+ "reading": {
+  "sup_w": 641,
+  "limit": 4,
+  "SUP-CLEAN": false
+ },
+ "veto_R14_if_found": {
+  "sup_w_rows_removed_by_O_veto": 526,
+  "cor_rows_removed_by_O_veto": 17,
+  "net_cost_pp": 0.0666849723453497
+ }
+}
