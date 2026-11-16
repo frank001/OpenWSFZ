@@ -11,7 +11,7 @@ FROZEN here before the first run (the spec's section 2 and 3.3, with QA's interp
     the most recent one gives the centre (f_Y, dt_Y) = OUR frequency and OUR dt from owsfz/ALL.TXT.  5 and 20 min (20 and 80 cycles) are descriptives.  (INTERPRETATION: a CQ decode of Y counts as a decode from the replier; the non-CQ-only share is a descriptive.)
   S2 rows: the cue's own position (our decode of the cue).
   GEOMETRY (no score): df = |f_truth - f_centre|, ddt = |dt_truth - (dt_centre - 0.600)| with the truth = WSJT-X's position of the unreached row and 0.600 s = this night's measured offset (COR median, XC-LIVE).
-  WINDOW: +-3.125 Hz and +-0.12 s; PER AXIS, if fewer than 95 % of the testable rows fall inside that half-width, that axis is widened to the observed 95th percentile of its |error| (INTERPRETATION of 'in each axis').
+  WINDOW (superseded by Amendment 1: FROZEN at +-3.125 Hz x +-0.20 s, rows outside NOT TESTABLE; the p95 rule below is kept as a descriptive only): +-3.125 Hz and +-0.12 s; PER AXIS, if fewer than 95 % of the testable rows fall inside that half-width, that axis is widened to the observed 95th percentile of its |error| (INTERPRETATION of 'in each axis').
   T0 = (S2 + S1 with F-KNOWN, inside the final window on both axes) / n_ref, pp, cycle bootstrap B 2000 seed 20261116.  CLOSE-EARLY iff CI_hi(T0) < 0.4 pp.
   K per cycle t = sum over matched priors p of |N(Pp)| (cue rows at t-15, F-KNOWN replier) and |N2(Pp)| (cue rows at t-30), parsable step only; K_low = the sets of <= 3 templates, K_all = every set; K = the median over cycles.
   P = matched rows that are on-script replies to a matched cue at t-15 (XS-PRIOR 7,435); P_low = those whose set is K-low.  Null size per variant: n(N-OPP) >= 3 / FA*, FA* = 0.021 / K."""
@@ -34,12 +34,13 @@ OUT = "D:/Projects/claude/_qa-scratch/xs-template"
 DT_OFFSET_S = 0.600           # OWS dt minus WSJT-X DT, measured on this night (XC-LIVE report 2, COR median)
 GATE_DF_HZ, GATE_DT_S = 3.125, 0.12
 INSIDE_MIN = 0.95
+WIN_DF_HZ, WIN_DT_S = 3.125, 0.20   # FROZEN by the Architect (XS-TEMPLATE Amendment 1, 06198a8d, E205): the p95 rule gave 579 Hz because frequency error is bimodal; rows outside are NOT TESTABLE (not detected, kept in the denominator)
 LOOKBACKS = {"5min": 20, "10min": 40, "20min": 80}
 MAIN_LOOKBACK = 40
 CLOSE_EARLY_PP = 0.4
 FA_BUDGET = 0.021
 S1_EXPECT, S2_EXPECT = 872, 277
-assert (DT_OFFSET_S, GATE_DF_HZ, GATE_DT_S, INSIDE_MIN, MAIN_LOOKBACK, CLOSE_EARLY_PP, FA_BUDGET, S1_EXPECT, S2_EXPECT) == (0.6, 3.125, 0.12, 0.95, 40, 0.4, 0.021, 872, 277)
+assert (DT_OFFSET_S, GATE_DF_HZ, GATE_DT_S, INSIDE_MIN, MAIN_LOOKBACK, CLOSE_EARLY_PP, FA_BUDGET, S1_EXPECT, S2_EXPECT, WIN_DF_HZ, WIN_DT_S) == (0.6, 3.125, 0.12, 0.95, 40, 0.4, 0.021, 872, 277, 3.125, 0.20)
 
 
 def sender_of(text):
@@ -193,7 +194,7 @@ def step0():
             recs.append((i, "S1", abs(f_t - pos[0]), abs(dt_t - (pos[1] - DT_OFFSET_S))))
     s1_known = sum(1 for r in recs if r[1] == "S1")
     win = window_from([r[2] for r in recs], [r[3] for r in recs])
-    hf, ht = win["df_hz"]["half_width_used"], win["dt_s"]["half_width_used"]
+    hf, ht = WIN_DF_HZ, WIN_DT_S                      # the FROZEN window (the geometry above is descriptive: the p95 rule it would have applied is not used)
     t0_c = np.zeros(n)
     inside_by = collections.Counter()
     for i, cls, df, ddt in recs:
@@ -234,7 +235,8 @@ def step0():
     out = {"mode": "step0 + (k) counts: no audio, no score",
            "S_rows": {"S1": n1, "S2": n2, "asserted_equal_to_xs_result": True},
            "F_KNOWN_S1_share": {k: v / n1 for k, v in fk.items()}, "F_KNOWN_S1_count": fk, "S1_testable_10min": s1_known,
-           "geometry_and_window": win, "rows_inside_final_window": dict(inside_by),
+           "geometry_descriptive_p95_rule_NOT_used": win, "frozen_window": {"df_hz": WIN_DF_HZ, "dt_s": WIN_DT_S}, "rows_inside_frozen_window": dict(inside_by),
+           "not_testable": {"S_rows": n1 + n2, "testable_inside_window": int(t0_c.sum()), "not_testable_share_of_S": 1 - float(t0_c.sum()) / (n1 + n2), "S1_without_F_KNOWN": n1 - s1_known, "testable_but_outside_window": len(recs) - int(t0_c.sum())},
            "T0": {"rows": int(t0_c.sum()), "pp_of_n_ref": pp, "CI_pp": ci, "bar_pp": CLOSE_EARLY_PP, "CLOSE_EARLY": bool(ci[1] < CLOSE_EARLY_PP)},
            "K": {"K_low_median_per_cycle": K_low, "K_all_median_per_cycle": K_all, "K_low_mean": float(k_low.mean()), "K_all_mean": float(k_all.mean()),
                  "FA_star_low": FA_BUDGET / K_low if K_low else None, "FA_star_all": FA_BUDGET / K_all if K_all else None,
