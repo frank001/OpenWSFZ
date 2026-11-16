@@ -3,7 +3,7 @@
 # GOAL (HK-020): show that a build with crossCyclePrior ON and NO threshold or veto setters (the product's own defaults) publishes exactly what the acceptance ON-T arm published on its first 100 cycles.
 # CRITICAL CONFIG: the harness build of the FINAL hash in $BIN (libft8.dll = the pin); the TEST night 20260808_0016 from the same warm-up cycle (selection sel_test_100.json, the first 100 FULL cycles of sel_test_1000.json);
 #   REF arm: setters T_E 3.076041980658299, T_P 2.2220253019230114, veto 1 (exactly the acceptance ON-T flags);  DEF arm: --xc-defaults 1 (no setters).  Everything else identical.
-# Text-bearing outputs (nc.tsv, matched.csv) stay under _qa-scratch and are deleted after the comparison (HK-037).  Nothing is pushed.
+# Text-bearing outputs (nc.tsv, matched.csv) stay under _qa-scratch and are KEPT, never deleted (Captain, 2026-11-16).  Nothing is pushed.
 SC=/d/Projects/claude/_qa-scratch
 ROOT=$SC/xc-chain/defaults
 BIN=${BIN:-$SC/xc-chain/bin_defaults}

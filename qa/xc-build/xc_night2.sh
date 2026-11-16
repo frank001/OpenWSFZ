@@ -16,7 +16,7 @@
 #   STOP:   create $ROOT/chain.stop to stop the chain before the next arm (the finish and the hibernate then run unless cancelled).  No process is ever killed to cancel anything (Q67).
 # GOAL (HK-020): decide the XC-BUILD rows (V-OFF, V-WIRE, V-TR-N, V-STORE, NET, SHADOW, LATE) on the PC, the station's platform.  CRITICAL CONFIG: ONE build (f82b6432 harness copy in $ROOT/bin_new), ONE libft8.dll
 #   (the pin), the station stack flags below (identical in every arm), T_E from TR frozen before ON, 8 threads read back.
-# Message text (nc.tsv) lives ONLY under _qa-scratch (HK-037); delete the arms' nc.tsv at job close.  Nothing is pushed or committed by this script.
+# Message text (nc.tsv) lives ONLY under _qa-scratch (HK-037); the arms' nc.tsv is KEPT, never deleted (Captain, 2026-11-16).  Nothing is pushed or committed by this script.
 MODE=${1:?dry|full}
 SC=/d/Projects/claude/_qa-scratch
 ROOT=$SC/xc-chain

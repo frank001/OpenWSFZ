@@ -2,7 +2,7 @@
 # XC-BUILD K4 gate (spec Amendment 3 s10, A2.1 determinism guard, K4): run the pre-change build ce5734b6 TWICE (A1, A2) on the first 100 TRAIN cycles on sol and compare.
 # GOAL: decide whether replay on sol is repeatable (A1 == A2) so that V-OFF can be decided there. CRITICAL CONFIG: one libft8.so (pinned below), the station-stack flags, 100 cycles.
 # Run ON SOL, detached:   SO_PIN=<sha256> nohup bash xc_k4_gate.sh > ~/_xc/k4.out 2>&1 & disown
-# Message text (nc.tsv) lives ONLY under ~/_qa-scratch (HK-037); deleted at job close. Nothing is read from sol except the comparison verdict and counts.
+# Message text (nc.tsv) lives ONLY under ~/_qa-scratch (HK-037); KEPT, never deleted (Captain, 2026-11-16). Nothing is read from sol except the comparison verdict and counts.
 : "${SO_PIN:?set SO_PIN}"
 B=$HOME/_xc
 BIN=$B/out_ref

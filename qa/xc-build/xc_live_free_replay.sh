@@ -2,7 +2,7 @@
 # XC-LIVE-FREE step 0 replay (spec arch/cross-cycle-prior 50d2ae3c, 2026-11-16-1302, section 1 and 5).  PC EXCLUSIVE.  usage: nohup bash xc_live_free_replay.sh > live_free.out 2>&1 & disown
 # GOAL (HK-020): the XC rows of the live night 20261114_2312 are not tagged anywhere, so replay its 2,834 archived WAVs through the shipped build with XC ON (shipped defaults, shadow OFF as live), then XC OFF.
 # CRITICAL CONFIG: harness build of 66b3ddf1's source (libft8.dll = the pin; src/native diff 4fe85cc5..66b3ddf1 empty), --xc-defaults 1 (no setters; frozen T_E/T_P read back), shadow 0, Deep, nhard 24, CQ-AP, multi-set, late round, residual candidates, 8 threads.
-# Text-bearing outputs stay under _qa-scratch\xc-live-free (HK-037) and are deleted at job close.  STOP: create $ROOT/chain.stop.  Nothing is pushed.
+# Text-bearing outputs stay under _qa-scratch\xc-live-free (HK-037) and are KEPT, never deleted (Captain, 2026-11-16).  STOP: create $ROOT/chain.stop.  Nothing is pushed.
 SC=/d/Projects/claude/_qa-scratch
 ROOT=$SC/xc-live-free
 BIN=$SC/xc-chain/bin_defaults
