@@ -94,7 +94,7 @@ One live night; its chain is not the acceptance nights' chain. The replay's XC r
 
 ## 7. Pending (does not block this reading)
 
-The XC-OFF arm of the live night (shipped build, same selection) is running as an identity cross-check only: ON minus OFF should differ in batch 6 alone. Its result will be added here when it ends. Working files are KEPT under `D:\Projects\claude\_qa-scratch\xc-live-free\` (`README.txt` there; Captain's rule 2026-11-16).
+The XC-OFF arm of the live night (shipped build, same selection) was an identity cross-check only (ON minus OFF should differ in batch 6 alone; it would also have given a net-gain figure for a third night). **It was STOPPED on the Captain's word after about 120 of 2,833 cycles** (the first attempt died in 4 s on a missing `--xc-defaults 1`, Q79); no verdict here depends on it, and the Architect's ruling says it reopens nothing unless ON minus OFF differs outside batch 6. It can be run later with `xc_live_free_chain.sh off` (about 4.3 h, PC exclusive); the partial output is kept in `_qa-scratch\xc-live-free\OFF.stopped_partial_2026-11-16\`. Working files are KEPT under `D:\Projects\claude\_qa-scratch\xc-live-free\` (`README.txt` there; Captain's rule 2026-11-16).
 
 ## 8. Instrument record
 
