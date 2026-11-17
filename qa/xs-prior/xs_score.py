@@ -53,7 +53,7 @@ ARGMAX_INSIDE_MIN = 0.95
 SEED, B_BOOT = 20261116, 2000
 N_PILOT_S, N_PILOT_P, N_PILOT_NULL = 30, 60, 1000
 K_LOW_MEDIAN, K_ALL_MEDIAN = 19.0, 1018.0           # step 0 (xs_step0.json): the medians per cycle
-NULL_FACTOR = 3                                      # acceptance null size = NULL_FACTOR x the rule-of-three floor
+NULL_FACTOR = 10                                     # acceptance null size = NULL_FACTOR x the rule-of-three floor (3 / FA*); raised from 3 to 10 after the pilot showed the cost is minutes, BEFORE the freeze and with no S score read
 N_REF, N_CYC = 85783, 2833
 assert (WIN_DF_HZ, WIN_DT_S, GATE_DF_HZ, GATE_DT_S, FA_BUDGET, V_POS_MIN, BAR_PP, SEED, B_BOOT, CALIB_S, DT_OFFSET_S) == (3.125, 0.2, 3.125, 0.12, 0.021, 0.8, 0.4, 20261116, 2000, 0.48, 0.6)
 assert len(DF_STEPS) == 13 and len(DT_STEPS) == 41 and max(DF_STEPS) <= WIN_DF_HZ and max(DT_STEPS) <= WIN_DT_S + 1e-9
