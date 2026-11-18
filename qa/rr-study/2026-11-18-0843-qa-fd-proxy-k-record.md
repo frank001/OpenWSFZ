@@ -1,0 +1,26 @@
+# FD-PROXY (k) record (QA, 2026-11-18 08:42Z `date -u`). Counts only, no message text (NFR-021, HK-037).
+
+Spec: `arch/false-decode-instrument` `f01d6acd`, `qa/rr-study/2026-11-18-0837-architect-to-qa-spec-fd-proxy.md` (blob 389b6eee). Counter: `qa/fd-proxy/fd_k_counts.py` (read-only, prints counts; its judgeable predicate is a CRUDE provisional one, not the frozen function). Inputs `ls`-checked: `_qa-scratch\xc-live-free\ON\nc.tsv`, `artefacts\20261114_2312_endurance_run-gathered\wsjt-x\ALL.TXT`.
+
+## Verdict: (k) PASSES, no row is unreachable, so no stop. Four conditions to settle BEFORE the freeze (C1-C4).
+
+## HK-027 items (spec §8)
+1. **Match rule** (harness `qa/rr-study/sub-feas/replay81/Program.cs` `ScoreTestB`, `CorroborationDeltaHz` = 10): text exactly equal AND |df| <= 10 Hz, greedy one-to-one (smallest df first; one WSJT-X row confirms at most one of ours). DT is NOT used. `nc.tsv` (headerless, 12 tab columns: stamp, kind = batch, matched, freq, dt, snr, same_any, min_df, wcount, path, text, ap) carries the flag.
+2. **AP tag: EXISTS** (column 12, on all 79,401 rows). Unconfirmed rows with ap = 1: b1 139, b2 85, b3 15, b4 0, b5 18, b6 0. N-RAND-AP share in Q = 18 of 1,308 unconfirmed b4+5 rows = 1.4 % (b5 only).
+3. **Plausibility route:** `Ft8Decoder.IsPlausibleMessage` is `internal static` at `Ft8Decoder.cs:1460` (the spec's :1597 is a line drift, inside the function). `InternalsVisibleTo` covers `Ft8.FitProbe`, so a QA harness can call it with the shipped grammar store plus `CohFallbackUnpack(payload)`; no `src/` change. Not built yet; if it does not build at the pilot, the fallback is the spec's equivalent checked on 1,000 payloads.
+4. **Burial predicate:** `qa/ta-check/tc_lib.py` `is_buried` / `strongest_neighbour`, commit **980ce3a7** (another n_ref row at |df| < 50 Hz with SNR >= the row's own).
+5. **Power counts (b4+5 judgeable, crude predicate, whole night):** Q (unconfirmed) 1,022 of 1,308 unconfirmed (b4 1,190, b5 118); 130 in pilot cycles, so about 892 outside it. P (confirmed) 10,919. Q by band x burial: <=-18 buried 293 / isolated 376; -17..-10 164 / 146; >=-9 19 / 24. P: <=-18 1,937 / 1,608; -17..-10 4,260 / 2,405; >=-9 497 / 212. P buried 6,694 vs isolated 4,225 (V-BURIAL needs >= 300 a side: met, the >=-9 isolated cell is 212 but weighs 2 % of Q).
+6. **V-AGREE power:** isolated unconfirmed judgeable, batches 2-6: 1,642 (1,438 outside pilot) >= 200. **Batches 2-5 only: 627 (534 outside pilot). Batch 6 alone: 1,015 (904).**
+7. **U′ route:** `qa/rr-study/coh-fallback/cf_uprime.py` aggregates per cycle and gates on testable classes (frozen T 0.276), so it does NOT give a per-row mask. Route = a thin driver over `cf_fbid.py` @ ecc4c5e7, as TA-CHECK's `tc_score.py` did. s_U from isolated confirmed rows; f_U from N-RAND rows placed at isolated positions (the audio is real, so no synthesis).
+8. **V-N:** E = 85,783 WSJT-X rows (equals XS-PRIOR's V-N), 2,829 of 2,833 cycles have E rows. Replay: 2,833 cycles; **79,401 rows in `nc.tsv`, and 79,400 data rows plus the first row in `outcomes.csv` (headerless).** Kinds 1-6: 52,278 / 9,396 / 873 / 11,643 / 1,360 / 3,851; b4+5 = 13,003 (spec right); b6 3,851 (right).
+
+## Conditions before the freeze (for the Architect)
+- **C1 (V-N constant):** the spec's 79,400 is one short of the true count 79,401 (a header-eating reader on a headerless file, the E207 trap). QA freezes 79,401 unless he objects.
+- **C2 (V-AGREE population, HK-021(k) validity):** batch 6 is 63 % of the isolated rows outside the pilot (904 of 1,438), and the spec's own §2 says R and F pass by construction there, so H is nearly vacuous on them and the agreement CI is narrowed by rows that cannot disagree. Request: V-AGREE on **batches 2-5** (534 outside the pilot, still >= 200); batch 6 reported separately. His amendment, before the freeze.
+- **C3 (judgeable predicate):** the frozen parsers (`xs_count.py`, `xc_next_tx.parse`) return CQ before the hashed check, need exactly 3 tokens, and do not test call shape. QA writes ONE new frozen judgeable function (CQ and STD, no `<`, no `;`, call-shaped fields) and commits it before any score. **Consequence he should price: about 22 % of Q is unjudgeable by my crude predicate (286 of 1,308), and §4.3 puts those in at 0 and 1, so the upper bound of Q's false share is wider than the lower by up to 0.22.**
+- **C4 (burial scale, own match):** (a) for a P row its own matched WSJT-X row must be excluded from the burial test (else every strong confirmed row reads buried; the spec says it only for C); (b) our SNR sits about 3.2 dB below WSJT-X's (the 11-14 report's gap), so "WSJT-X row at least as strong" over-labels ours as buried. QA applies (a), keeps the literal rule, and reports burial share with a +3.2 dB shift as a sensitivity on the pilot.
+
+## Smaller notes
+- Pilot synthetic rows are drawn at Q positions in the 283 pilot cycles: only 130 judgeable Q positions there, so the pilot's synthetic sets reuse geometry; its flag rates are fine, its CIs are optimistic (not a bar).
+- N-FIELD must keep the source P row's own WSJT-X row in E (that is the real station being ghosted). QA assumes so.
+- Reachability: p CI about ±0.03 at n of about 890 for the Q side, so V-SEP, V-GHOST, V-BURIAL and V-AGREE can all pass or fail. Nothing is unreachable.
