@@ -77,7 +77,12 @@ def decision_tests():
     chk("7 OPEN: H-COST OPEN", D.decide_step([night(hcost="OPEN")], "PASS")[0], "OPEN")
     chk("7 OPEN: NET between the bars (CI_lo < 0.25 <= CI_hi)", D.decide_step([night(net_lo=0.1, net_hi=0.4)], "PASS")[0], "OPEN")
     chk("7 OPEN: night 2 does not clear the NET bar", D.decide_step([night(), night(net_lo=0.2, net_hi=0.5)], "PASS")[0], "OPEN")
-    chk("7 OPEN: one night, V-AGREE-NI INCONCLUSIVE", D.decide_step([night()], "INCONCLUSIVE")[0], "OPEN")
+    chk("6 GO-2N: night 1 with V-AGREE-NI INCONCLUSIVE (Amendment 3 D4)", D.decide_step([night()], "INCONCLUSIVE")[0], "GO-2N")
+    chk("7 OPEN: night 1 INCONCLUSIVE but NET does not qualify", D.decide_step([night(net_lo=0.1, net_hi=0.4)], "INCONCLUSIVE")[0], "OPEN")
+    chk("3 H-UNDERSTATES at night 2 as at night 1 (FAIL at either point)", D.decide_step([night(), night()], "FAIL")[0], "H-UNDERSTATES")
+    chk("NET(ON) check: shortfall beyond the half-width is flagged", D.net_on_check(0.50, 0.40, 0.60, 0.40, 0.30)["flagged"], True)
+    chk("NET(ON) check: shortfall within the half-width is not flagged", D.net_on_check(0.65, 0.50, 0.80, 0.40, 0.30)["flagged"], False)
+    chk("NET(ON) check: ON above the sum is not flagged", D.net_on_check(0.90, 0.80, 1.00, 0.40, 0.30)["flagged"], False)
     chk("no night is OPEN", D.decide_step([], "PASS")[0], "OPEN")
     seen = {D.decide_step(*a)[0] for a in (([night(vrun=False)], "PASS"), ([night(net_lo=0, net_hi=0.1)], "PASS"), ([night()], "FAIL"), ([night(hcost="FAIL")], "PASS"),
                                             ([night(), night()], "PASS"), ([night()], "UNDERPOWERED"), ([night(), night()], "UNDERPOWERED"))}
@@ -161,11 +166,12 @@ class StubInst:
 
 def hybrid_tests():
     # constructed night of 4 cycles; E gives every call recurrence so H reads plausible
-    cycs = [L.cycle_of("261114_2312%02d" % s) for s in (0, 15, 30, 45)]
+    cycs = [L.cycle_of("261114_" + t) for t in ("231200", "231700", "232200", "232700")]   # 20 slots apart, so one cycle's evidence rows never land in another's own slot
     ev = []
     for c in cycs:
         for k in range(-8, 9):
-            ev.append((c + k, -10, 1200 + (k % 3), "QA1AAA QB2BBB JO22"))
+            if k != 0:          # no WSJT-X row in the row's OWN cycle, so check C cannot fire on the constructed G rows (a constructed row with a seen call and sender is then plausible)
+                ev.append((c + k, -10, 1200 + (k % 3), "QA1AAA QB2BBB JO22"))
     E = L.Evidence(ev)
     inst = StubInst(E)
     mk = lambda cyc, isolated, judgeable, absent=False: dict(
@@ -196,6 +202,12 @@ def hybrid_tests():
     r3 = S.step_cost(g_abs, p_recs, cycs, inst, f_ctrl, f_iso, 1000, 1000, p_sample)
     chk("hybrid: absent-by-U' isolated rows raise the isolated part and move H-LO and H-HI by the same amount",
         (r3["point"]["iso_part"] > r0["point"]["iso_part"], round((r3["point"]["h_hi"] - r3["point"]["h_lo"]) - w0, 6)), (True, 0.0))
+    # (d) Amendment 3 D7: the N-RAND rate used by H-COST is the one AT BURIED G POSITIONS; a higher rate there raises the high end of the buried part (phi_hi uses max(f_rand_b, f_miss))
+    mix = [mk(cycs[2], False, True), mk(cycs[3], False, True), dict(mk(cycs[2], False, True), r=dict(mk(cycs[2], False, True)["r"], tx="QX9XXX QY8YYY -05")),
+           dict(mk(cycs[3], False, True), r=dict(mk(cycs[3], False, True)["r"], tx="QX9XXX QY8YYY -05"))]
+    lo_f = S.step_cost(mix, p_recs, cycs, inst, (0.30, 0.02, 0.08), f_iso, 1000, 1000, p_sample, n_rand_b=1000)["point"]
+    hi_f = S.step_cost(mix, p_recs, cycs, inst, (0.50, 0.02, 0.08), f_iso, 1000, 1000, p_sample, n_rand_b=1000)["point"]
+    chk("hybrid D7: a higher N-RAND rate at buried G positions (both above f_vis) raises phi_hi and H-HI, and phi_lo = phi(min(f_rand_b, f_vis)) does not move", (hi_f["phi_hi"] > lo_f["phi_hi"], hi_f["h_hi"] > lo_f["h_hi"], hi_f["phi_lo"] == lo_f["phi_lo"]), (True, True, True))
     chk("hybrid: with no G at all the cost is zero", S.step_cost([], p_recs, cycs, inst, f_ctrl, f_iso, 1000, 1000, p_sample)["point"]["h_hi"], 0.0)
     chk("hybrid: the cost CI brackets are ordered (H-LO <= H-HI at every end)", (r1["ci"]["h_lo"][0] <= r1["ci"]["h_hi"][0], r1["ci"]["h_lo"][1] <= r1["ci"]["h_hi"][1]), (True, True))
 

@@ -55,12 +55,21 @@ def v_run(pins_ok: bool, off_abandon_cycles: int, on_ge_off_batches_1_4: bool, o
     return all(v for k, v in parts.items() if k != "on_extra_abandon_frac"), parts
 
 
+def net_on_check(net_on_pt: float, net_on_lo: float, net_on_hi: float, net_x1_pt: float, net_x2_pt: float) -> dict:
+    """Amendment 3 D1: NET(ON) total is reported beside the per-step figures; it is FLAGGED if it falls below NET(X1) + NET(X2) by more than its own CI half-width (interaction or loss).
+    Descriptive: no decision row reads it."""
+    half = (net_on_hi - net_on_lo) / 2.0
+    gap = (net_x1_pt + net_x2_pt) - net_on_pt
+    return dict(sum_of_steps=float(net_x1_pt + net_x2_pt), half_width=float(half), shortfall=float(gap), flagged=bool(gap > half))
+
+
 def decide_step(nights: list[dict], agree: str) -> tuple[str, str]:
     """A1.3c, the first matching row wins. nights[i] = {vrun: bool, vh: bool, net_lo, net_hi (pp), hcost: PASS|FAIL|OPEN}; nights[0] is night 1.
     1 VOID: V-RUN or V-H fails on any night evaluated.   2 NO-GAIN: CI_hi(NET) < 0.25 pp on night 1.   3 H-UNDERSTATES: V-AGREE-NI FAILS (pooled).
     4 COST: H-COST FAIL on any night.   5 GO: two nights, each with CI_lo(NET) >= 0.25 pp and H-COST PASS, and V-AGREE-NI PASS pooled.
-    6 GO-2N: ONE night that qualifies as row 5 would (NET and H-COST), with V-AGREE-NI PASS or UNDERPOWERED: night 2 is run ('one night can at best give GO-2N').
-    7 OPEN: otherwise, including V-AGREE-NI UNDERPOWERED or INCONCLUSIVE after night 2."""
+    6 GO-2N: ONE night (after night 1) that qualifies as row 5 would (NET and H-COST), with V-AGREE-NI PASS, UNDERPOWERED or INCONCLUSIVE: night 2 is run ('one night can at best give GO-2N';
+      Amendment 3 D4). FAIL (CI_lo > 0.10) is H-UNDERSTATES at either point.
+    7 OPEN: otherwise, including V-AGREE-NI UNDERPOWERED or INCONCLUSIVE after night 2 (pooled)."""
     if not nights:
         return "OPEN", "no night evaluated"
     if any((not n["vrun"]) or (not n["vh"]) for n in nights):
@@ -74,6 +83,6 @@ def decide_step(nights: list[dict], agree: str) -> tuple[str, str]:
     qualifies = all(n["net_lo"] >= NET_BAR_PP and n["hcost"] == "PASS" for n in nights)
     if len(nights) >= 2 and qualifies and agree == "PASS":
         return "GO", "both nights qualify and V-AGREE-NI passes"
-    if len(nights) == 1 and qualifies and agree in ("PASS", "UNDERPOWERED"):
+    if len(nights) == 1 and qualifies and agree in ("PASS", "UNDERPOWERED", "INCONCLUSIVE"):
         return "GO-2N", "night 1 qualifies; one night can at best give GO-2N (V-AGREE-NI %s)" % agree
     return "OPEN", "no earlier row matched (NET / H-COST / V-AGREE-NI %s)" % agree

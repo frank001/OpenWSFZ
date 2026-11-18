@@ -167,7 +167,7 @@ def net_arrays(on_rows, off_rows, ws, cycles):
     """Per cycle (in `cycles` order): newly corroborated WSJT-X rows by step tag, lost rows, n_ref. NET numerators are WSJT-X rows matched in ON and not matched in OFF."""
     onc, offc = by_cycle(on_rows), by_cycle(off_rows)
     n = len(cycles)
-    a = {k: np.zeros(n) for k in ("X1", "X2", "X2_passed", "X2_admitted", "other", "lost", "nref")}
+    a = {k: np.zeros(n) for k in ("X1", "X2", "X2_passed", "X2_admitted", "other", "lost", "nref", "on_net")}
     for i, c in enumerate(cycles):
         off_w = {r["w"] for r in offc.get(c, []) if r.get("w") is not None}
         on_w = set()
@@ -187,6 +187,7 @@ def net_arrays(on_rows, off_rows, ws, cycles):
                 a["other"][i] += 1
         a["lost"][i] = len(off_w - on_w)
         a["nref"][i] = len(ws.get(c, []))
+        a["on_net"][i] = len(on_w) - len(off_w)          # NET(ON) total: WSJT-X rows matched in ON minus matched in OFF (newly corroborated minus lost)
     return a
 
 
@@ -347,9 +348,10 @@ class Instruments:
         return 0 if v is None else int(v >= FU.T_FROZEN)      # unencodable counts as not shown present (cf_uprime's conservative rule)
 
 
-def step_cost(g_recs, p_recs, cycles, inst, f_ctrl, f_iso, n_ctrl, n_iso_ctrl, p_sample, seed=SEED):
+def step_cost(g_recs, p_recs, cycles, inst, f_ctrl, f_iso, n_ctrl, n_iso_ctrl, p_sample, seed=SEED, n_rand_b=None):
     """H-COST inputs for one step on one night (A1.3a, the hybrid). g_recs = ALL G rows classified (structure); p_recs = ON's judgeable confirmed b4+5 recs (with .pl);
-    f_ctrl = (f_rand, f_vis, f_miss) from controls_vh; f_iso = (f_H, f_U) at isolated G positions; p_sample = the seeded isolated P sample (recs with .pl and .u).
+    f_ctrl = (f_rand_b, f_vis, f_miss): f_rand_b is the N-RAND rate AT BURIED G POSITIONS (Amendment 3 D7: where H judges), f_vis / f_miss from controls_vh; n_rand_b = the judgeable synthetic rows behind
+    f_rand_b (n_ctrl is the count behind f_vis / f_miss); f_iso = (f_H, f_U) at ISOLATED G positions (V-AGREE-NI); p_sample = the seeded isolated P sample (recs with .pl and .u).
     ISOLATED rows: U' mixture on ALL isolated G rows (by audio; no unjudgeable bracket). BURIED rows: H on the judgeable ones, the UNJUDGEABLE buried rows at 0 / 1.
     V-AGREE-NI arrays: phi_U and phi_H on the JUDGEABLE isolated G rows (the same rows for both instruments)."""
     cix = {c: i for i, c in enumerate(cycles)}
@@ -393,7 +395,9 @@ def step_cost(g_recs, p_recs, cycles, inst, f_ctrl, f_iso, n_ctrl, n_iso_ctrl, p
         ss = (lambda arr: arr[ix].sum()) if ix is not None else (lambda arr: arr.sum())
         fr, fv, fm, fu_, fh_ = f_rand, f_vis, f_miss, f_u, f_h
         if rng is not None:
-            fr, fv, fm = (rng.binomial(n_ctrl, f) / n_ctrl for f in (f_rand, f_vis, f_miss))
+            nrb = n_rand_b if n_rand_b else n_ctrl
+            fr = rng.binomial(nrb, f_rand) / nrb
+            fv, fm = (rng.binomial(n_ctrl, f) / n_ctrl for f in (f_vis, f_miss))
             fu_ = rng.binomial(n_iso_ctrl, f_u) / n_iso_ctrl if n_iso_ctrl else f_u
             fh_ = rng.binomial(n_iso_ctrl, f_h) / n_iso_ctrl if n_iso_ctrl else f_h
         ni, nij, nb = ss(a["iso_n"]), ss(a["isoj_n"]), ss(a["bur_n"])
@@ -546,6 +550,23 @@ def run_night(spec, mode):
             fu_k += inst.present(dict(st=st, f=f, dt=dt, tx=t))
     f_iso = ((fh_k / fh_n) if fh_n else 0.0, (fu_k / fh_n) if fh_n else 0.0)
     res["f_iso_positions"] = dict(n=fh_n, f_H=round(f_iso[0], 5), f_U=round(f_iso[1], 5))
+    # Amendment 3 D7: the f_H used in H-COST is measured AT BURIED G POSITIONS (where H judges), pooled over the two steps per night; the V-H control f_RAND is the fallback only if there is no buried G row
+    g_all_bur = []
+    for step in ("X1", "X2"):
+        g_all_bur += [x for x in classify(g_rows(on_u, off_u, STEP_TAGS[step]), E, confirmed=False) if x["st"][1] == "buried"]
+    r3 = random.Random(SEED + 2)
+    posb = [(x["cyc"], x["r"]["f"]) for x in g_all_bur]
+    nb_n = nb_k = 0
+    if posb:
+        for t in texts:
+            c, f = r3.choice(posb)
+            j = E.judge(c, float(f), t)
+            if j is not None:
+                nb_n += 1
+                nb_k += int(j["plausible"])
+    f_rand_b = (nb_k / nb_n) if nb_n else f_ctrl[0]
+    res["f_RAND_buried_G_positions"] = dict(n=nb_n, f=round(f_rand_b, 5), fallback_to_V_H_control=(nb_n == 0))
+    f_ctrl_cost = (f_rand_b, f_ctrl[1], f_ctrl[2])
     n_ctrl = vh["n_rand_judgeable"]
     cyc_ids = cycles
     out_steps, agree_parts = {}, []
@@ -554,7 +575,7 @@ def run_night(spec, mode):
         g = g_rows(on_u, off_u, tags)
         recs = classify(g, E, confirmed=False)
         nu = sum(1 for x in recs if not x["judgeable"])
-        c = step_cost(recs, p_recs, cyc_ids, inst, f_ctrl, f_iso, n_ctrl, fh_n, p_sample)
+        c = step_cost(recs, p_recs, cyc_ids, inst, f_ctrl_cost, f_iso, n_ctrl, fh_n, p_sample, n_rand_b=nb_n)
         key = "X2" if step.startswith("X2") else step
         num = A[step]
         net = net_ci(num, A["nref"])
@@ -565,6 +586,10 @@ def run_night(spec, mode):
         if step in ("X1", "X2"):
             agree_parts.append(dict(step=step, n=c["_n_iso"], boot=c["_boot_diff"], point=c["point"]["phi_U"] - c["point"]["phi_H_iso"]))
     res["steps_final"] = out_steps
+    on_pt, on_lo, on_hi = net_ci(A["on_net"], A["nref"])
+    res["NET_ON_total"] = dict(NET_pp=round(on_pt, 4), NET_ci=[round(on_lo, 4), round(on_hi, 4)],
+                               **D.net_on_check(on_pt, on_lo, on_hi, out_steps["X1"]["NET_pp"], out_steps["X2"]["NET_pp"]),
+                               note="descriptive (Amendment 3 D1): flagged if below NET(X1)+NET(X2) by more than its CI half-width; no decision row reads it")
     res["NET_other_indirect_newly_corroborated"] = int(A["other"].sum())
     res["WSJT_rows_lost_in_ON"] = int(A["lost"].sum())
     # V-AGREE-NI pieces for this night: both steps' isolated G rows pooled
@@ -591,7 +616,7 @@ def run_night(spec, mode):
                                              cycles_with_abandoned=sum(1 for l in x2 for m in [re.search(r"abandonedCandidates=(\d+)", l)] if m and int(m.group(1)) > 0), OFF=0)
     res["LATE_descriptive"] = dict(ON=late_desc(spec["on_dir"]), OFF=late_desc(spec["off_dir"]),
                                    X2_elapsedMs=pct([float(m.group(1)) for l in x2 for m in [re.search(r"elapsedMs=(\d+)", l)] if m]))
-    res["DeltaUprime_ta_standing_route"] = "NOT PRODUCED (descriptive; the per-row U' on isolated G is the hybrid row)"
+    res["DeltaUprime_ta_standing_route"] = "SUPERSEDED by the hybrid H-COST (Amendment 3 D6): the standing DeltaU'_ta is not produced; U' enters per row on the isolated G rows"
     res["run_seconds"] = round(time.time() - t0, 1)
     return res, res["_agree_piece"]
 
