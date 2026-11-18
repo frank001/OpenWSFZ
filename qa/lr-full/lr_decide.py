@@ -57,20 +57,23 @@ def v_run(pins_ok: bool, off_abandon_cycles: int, on_ge_off_batches_1_4: bool, o
     return all(v for k, v in parts.items() if k != "on_extra_abandon_frac"), parts
 
 
-def project_net_halfwidth(counts, nref_mean: float, n_test: int) -> dict:
-    """Amendment 5: the half-width (pp) of NET(step)'s 95 % CI on the frozen TEST block of n_test cycles, projected from the PILOT's per-cycle counts of newly corroborated WSJT-X rows for that step.
-    hw = 1.96 x 100 x sqrt(V) / (sqrt(n_test) x nref_mean), V = max(sample variance of the pilot's per-cycle counts, lambda), lambda = (k + 1) / n_pilot (add-one: a step with ZERO pilot rows is not
-    treated as perfectly certain). Half-width scales as 1 / sqrt(n_test). Mechanical; no instrument output is read."""
+def project_net_halfwidth(counts, m_pilot: float, m_test: float, n_test: int) -> dict:
+    """Amendment 5 (refined by the Architect before the pilot): the half-width (pp) of NET(step)'s 95 % CI on the frozen TEST block of n_test cycles.
+    V_pilot = max(sample variance of the pilot's per-cycle counts of newly corroborated WSJT-X rows for the step, lambda), lambda = (k + 1) / n_pilot (add-one: ZERO pilot rows is not certain).
+    The pilot is the night's FIRST 10 % (its best hour), the TEST block runs into the noisy part, so the variance is scaled Poisson-like with the row rate: V_test = V_pilot x m_test / m_pilot, and the
+    denominator uses the TEST block's own rows per cycle m_test (WSJT-X's ALL.TXT over the TEST cycles: reference-side counts, known before any arm runs):
+        hw = 1.96 x 100 x sqrt(V_test) / (sqrt(n_test) x m_test) = 1.96 x 100 x sqrt(V_pilot / (m_pilot x m_test)) / sqrt(n_test).
+    A lower m_test than m_pilot RAISES hw. Mechanical; no instrument output is read."""
     n = len(counts)
     k = float(sum(counts))
-    if n < 2 or nref_mean <= 0 or n_test <= 0:
+    if n < 2 or m_pilot <= 0 or m_test <= 0 or n_test <= 0:
         return dict(halfwidth_pp=float("inf"), k=k, n_pilot=n, note="not computable")
     mean = k / n
     var = sum((c - mean) ** 2 for c in counts) / (n - 1)
     lam = (k + 1.0) / n
-    v = max(var, lam)
-    hw = Z95 * 100.0 * (v ** 0.5) / ((n_test ** 0.5) * nref_mean)
-    return dict(halfwidth_pp=float(hw), k=k, n_pilot=n, per_cycle_variance=float(var), lambda_addone=float(lam), n_test=int(n_test), nref_mean=float(nref_mean))
+    v_pilot = max(var, lam)
+    hw = Z95 * 100.0 * (v_pilot / (m_pilot * m_test)) ** 0.5 / (n_test ** 0.5)
+    return dict(halfwidth_pp=float(hw), k=k, n_pilot=n, per_cycle_variance=float(var), lambda_addone=float(lam), V_pilot=float(v_pilot), m_pilot=float(m_pilot), m_test=float(m_test), n_test=int(n_test))
 
 
 def gate_fires(hw_x1_pp: float, hw_x2_pp: float) -> bool:

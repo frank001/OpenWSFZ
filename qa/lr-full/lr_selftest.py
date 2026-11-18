@@ -91,20 +91,30 @@ def decision_tests():
 
 def gate_tests():
     chk("gate constant", D.GATE_HALFWIDTH_PP, 0.125)
-    # hw = 1.96 * 100 * sqrt(V) / (sqrt(n_test) * nref_mean); 100 cycles with 1 event in each of 20 cycles: mean 0.2, var = 0.16162..., lambda = 21/100 = 0.21 -> V = 0.21
+    # 100 cycles, 1 event in each of 20: mean 0.2, sample variance 0.1616, lambda = 21/100 = 0.21 -> V_pilot = 0.21.   hw = 1.96 x 100 x sqrt(V_pilot / (m_pilot x m_test)) / sqrt(n_test)
     counts = [1] * 20 + [0] * 80
-    p = D.project_net_halfwidth(counts, 30.0, 2000)
-    want = 1.96 * 100 * (0.21 ** 0.5) / ((2000 ** 0.5) * 30.0)
-    chk("projection: add-one lambda is the variance floor and the formula is as written", round(p["halfwidth_pp"], 9), round(want, 9))
-    chk("projection: ZERO pilot events is not perfectly certain (add-one floor)", D.project_net_halfwidth([0] * 100, 30.0, 2000)["halfwidth_pp"] > 0.0, True)
-    a = D.project_net_halfwidth(counts, 30.0, 500)["halfwidth_pp"]
-    b = D.project_net_halfwidth(counts, 30.0, 2000)["halfwidth_pp"]
-    chk("projection: half-width scales as 1/sqrt(n_test) (4x cycles = half)", round(a / b, 6), 2.0)
-    chk("projection: fewer WSJT-X rows per cycle widen it (n_ref 15 vs 30)", round(D.project_net_halfwidth(counts, 15.0, 2000)["halfwidth_pp"] / b, 6), 2.0)
-    chk("projection: an over-dispersed pilot uses the sample variance when it exceeds lambda", D.project_net_halfwidth([5, 0, 0, 0, 0, 5, 0, 0, 0, 0], 30.0, 2000)["per_cycle_variance"] > D.project_net_halfwidth([5, 0, 0, 0, 0, 5, 0, 0, 0, 0], 30.0, 2000)["lambda_addone"], True)
-    chk("projection: too few cycles is not computable (infinite, so it cannot hide a wide interval)", D.project_net_halfwidth([1], 30.0, 2000)["halfwidth_pp"], float("inf"))
+    p = D.project_net_halfwidth(counts, 30.0, 30.0, 2000)
+    want = 1.96 * 100 * ((0.21 / (30.0 * 30.0)) ** 0.5) / (2000 ** 0.5)
+    chk("projection: the Architect's formula, hand value (add-one lambda is the variance floor)", round(p["halfwidth_pp"], 9), round(want, 9))
+    chk("projection: with m_test == m_pilot it reduces to the first form 1.96 x 100 x sqrt(V) / (sqrt(n_test) x m)",
+        round(p["halfwidth_pp"], 9), round(1.96 * 100 * (0.21 ** 0.5) / ((2000 ** 0.5) * 30.0), 9))
+    chk("projection: ZERO pilot events is not perfectly certain (add-one floor)", D.project_net_halfwidth([0] * 100, 30.0, 30.0, 2000)["halfwidth_pp"] > 0.0, True)
+    b0 = D.project_net_halfwidth(counts, 30.0, 30.0, 2000)["halfwidth_pp"]
+    chk("projection: half-width scales as 1/sqrt(n_test) (4x cycles = half)", round(D.project_net_halfwidth(counts, 30.0, 30.0, 500)["halfwidth_pp"] / b0, 6), 2.0)
+    # THE ARCHITECT'S CASE: the pilot is the best hour, the TEST block is noisier: m_test < m_pilot RAISES hw (hw ~ 1/sqrt(m_test))
+    lo = D.project_net_halfwidth(counts, 30.0, 15.0, 2000)["halfwidth_pp"]
+    chk("projection: m_test < m_pilot RAISES the half-width (m_test halved: x sqrt(2))", (lo > b0, round(lo / b0, 6)), (True, round(2 ** 0.5, 6)))
+    chk("projection: m_test > m_pilot lowers it", D.project_net_halfwidth(counts, 30.0, 60.0, 2000)["halfwidth_pp"] < b0, True)
+    chk("projection: a pilot rate that is too high does not understate the TEST half-width (pilot 33, test 10 > pilot 33, test 33)",
+        D.project_net_halfwidth(counts, 33.0, 10.0, 2000)["halfwidth_pp"] > D.project_net_halfwidth(counts, 33.0, 33.0, 2000)["halfwidth_pp"], True)
+    ov = [5, 0, 0, 0, 0, 5, 0, 0, 0, 0]
+    chk("projection: an over-dispersed pilot uses the sample variance when it exceeds lambda", D.project_net_halfwidth(ov, 30.0, 30.0, 2000)["V_pilot"] == D.project_net_halfwidth(ov, 30.0, 30.0, 2000)["per_cycle_variance"], True)
+    chk("projection: too few cycles or a zero rate is not computable (infinite, cannot hide a wide interval)",
+        (D.project_net_halfwidth([1], 30.0, 30.0, 2000)["halfwidth_pp"], D.project_net_halfwidth(counts, 30.0, 0.0, 2000)["halfwidth_pp"]), (float("inf"), float("inf")))
     chk("gate fires only when BOTH steps exceed 0.125", (D.gate_fires(0.2, 0.2), D.gate_fires(0.2, 0.1), D.gate_fires(0.1, 0.2), D.gate_fires(0.1, 0.1)), (True, False, False, False))
     chk("gate: exactly 0.125 does not fire", D.gate_fires(0.125, 0.125), False)
+    chk("gate on a noisy-TEST case: a pilot that passes at m_test = m_pilot fires when m_test collapses", (D.gate_fires(*(D.project_net_halfwidth(counts, 33.0, 33.0, 1000)["halfwidth_pp"],) * 2),
+        D.gate_fires(*(D.project_net_halfwidth(counts, 33.0, 4.0, 1000)["halfwidth_pp"],) * 2)), (False, True))
 
 
 def row(st, k, m, f, tx, step=0, snr=-15, dt=0.1):

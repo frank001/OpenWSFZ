@@ -9,10 +9,18 @@
   "dll_pin": "bbde6eb66af4cd429ffc46f67291ba718c1ae36ae39665faac24629bcb6e6528",
   "pilot_cycles": 0,
   "c_off": 0.0,
-  "off_rerun_dirs": ["<20-cycle OFF run A>", "<20-cycle OFF run B>"],
+  "off_rerun_dirs": [
+    "<20-cycle OFF run A>",
+    "<20-cycle OFF run B>"
+  ],
   "nrand": {
     "rand": "D:/Projects/claude/_qa-scratch/lr-full/<night>/nrand_rand.txt",
     "ap": "D:/Projects/claude/_qa-scratch/lr-full/<night>/nrand_ap.txt",
-    "sha": {"rand": "<sha256>", "ap": "<sha256>"}
-  }
+    "sha": {
+      "rand": "<sha256>",
+      "ap": "<sha256>"
+    }
+  },
+  "night_run_id": "<the night's run id = its corpus stamp, e.g. 2026MMDD_HHMM>",
+  "test_selection": "D:/Projects/claude/_qa-scratch/lr-full/<night>/sel_test.json"
 }

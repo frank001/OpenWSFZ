@@ -516,11 +516,15 @@ def run_night(spec, mode):
             v["floor_vs_budget_0.021"] = "hybrid floor ABOVE the budget (H-COST cannot PASS)" if v["H_HI_floor_hybrid_buried_only"] > D.H_BUDGET else "hybrid floor below the budget"
         # Amendment 5 gate: project NET(step)'s CI half-width to the frozen TEST block from the pilot's per-cycle counts (WSJT-X matching only; no instrument output)
         A = net_arrays(on_rows, off_rows, ws, cyc_stamps)
-        n_test = int(spec["test_cycles"])
-        proj = {k: D.project_net_halfwidth(list(A[k]), float(A["nref"].mean()), n_test) for k in ("X1", "X2")}
+        # m_test = WSJT-X rows per cycle over the frozen TEST block itself (reference-side counts from wsjt-x/ALL.TXT; known before any arm runs). The TEST selection is the file lr_night_sel.py wrote.
+        test_stamps = json.load(open(spec["test_selection"]))["runs"][spec["night_run_id"]]["FULL"]
+        n_test = len(test_stamps)
+        m_test = sum(len(ws.get(s, [])) for s in test_stamps) / n_test
+        m_pilot = float(A["nref"].mean())
+        proj = {k: D.project_net_halfwidth(list(A[k]), m_pilot, m_test, n_test) for k in ("X1", "X2")}
         fires = D.gate_fires(proj["X1"]["halfwidth_pp"], proj["X2"]["halfwidth_pp"])
         res["GATE_net_halfwidth"] = dict(bar_pp=D.GATE_HALFWIDTH_PP, projected=proj, fires=bool(fires),
-                                         pilot_rows_per_cycle_WSJTX=round(float(A["nref"].mean()), 2), n_test_cycles=n_test,
+                                         m_pilot_rows_per_cycle=round(m_pilot, 2), m_test_rows_per_cycle=round(m_test, 2), n_test_cycles=n_test,
                                          action="STOP BEFORE THE FREEZE: run no TEST arm; send to the Captain (replace the night, or extend TEST to the whole night if it fits 8 h)" if fires else "gate does not fire: proceed to the freeze after the Architect's floor ruling")
         res["n_iso_G_projected"] = {k: v["G_isolated"] for k, v in steps.items()}
         res["note"] = "PILOT: no instrument output was computed on any G row; V-H is on the controls only (OFF arm, pilot cycles)"
