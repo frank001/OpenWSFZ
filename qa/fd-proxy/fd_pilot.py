@@ -36,7 +36,7 @@ def load_nc(path):
             p = ln.rstrip("\n").split("\t")
             if len(p) < 11:
                 continue
-            rows.append(dict(st=p[0], k=int(p[1]), m=int(p[2]), f=int(p[3]), snr=int(p[5]), tx=p[10].strip(), ap=int(p[11]) if len(p) > 11 else None))
+            rows.append(dict(st=p[0], k=int(p[1]), m=int(p[2]), f=int(p[3]), dt=float(p[4]), snr=int(p[5]), tx=p[10].strip(), ap=int(p[11]) if len(p) > 11 else None))
     return rows
 
 
