@@ -11,7 +11,9 @@ H_BUDGET = 0.021           # per cycle: OBSERVED_DELTA_U_1009, qa/rr-study/coh-f
 NI_BAR = 0.10              # A1.3b: one-sided non-inferiority bound on phi_U - phi_H (isolated G rows)
 MIN_AGREE_N = 200          # A1.3b: isolated G rows needed (pooled over the arm's nights) at phi about 0.5
 ABANDON_FRAC = 0.01        # A1.4 N2: V-RUN fails if ON abandons cycles that OFF does not in more than 1 % of TEST cycles (a design value)
-assert (NET_BAR_PP, H_BUDGET, NI_BAR, MIN_AGREE_N, ABANDON_FRAC) == (0.25, 0.021, 0.10, 200, 0.01)
+GATE_HALFWIDTH_PP = 0.125  # Amendment 5: half of the 0.25 pp bar. At the pilot, if the PROJECTED NET CI half-width on the frozen TEST block exceeds it for BOTH steps: STOP before the freeze, run no TEST arm
+Z95 = 1.96
+assert (NET_BAR_PP, H_BUDGET, NI_BAR, MIN_AGREE_N, ABANDON_FRAC, GATE_HALFWIDTH_PP) == (0.25, 0.021, 0.10, 200, 0.01, 0.125)
 
 OUTCOMES = ("VOID", "NO-GAIN", "H-UNDERSTATES", "COST", "GO", "GO-2N", "OPEN")
 
@@ -53,6 +55,27 @@ def v_run(pins_ok: bool, off_abandon_cycles: int, on_ge_off_batches_1_4: bool, o
     parts = {"pins": pins_ok, "off_abandons_zero": off_abandon_cycles == 0, "on_ge_off_b1_4": on_ge_off_batches_1_4, "off_rerun_identical": off_rerun_identical,
              "on_extra_abandon_frac_le_1pct": extra <= ABANDON_FRAC, "on_extra_abandon_frac": extra}
     return all(v for k, v in parts.items() if k != "on_extra_abandon_frac"), parts
+
+
+def project_net_halfwidth(counts, nref_mean: float, n_test: int) -> dict:
+    """Amendment 5: the half-width (pp) of NET(step)'s 95 % CI on the frozen TEST block of n_test cycles, projected from the PILOT's per-cycle counts of newly corroborated WSJT-X rows for that step.
+    hw = 1.96 x 100 x sqrt(V) / (sqrt(n_test) x nref_mean), V = max(sample variance of the pilot's per-cycle counts, lambda), lambda = (k + 1) / n_pilot (add-one: a step with ZERO pilot rows is not
+    treated as perfectly certain). Half-width scales as 1 / sqrt(n_test). Mechanical; no instrument output is read."""
+    n = len(counts)
+    k = float(sum(counts))
+    if n < 2 or nref_mean <= 0 or n_test <= 0:
+        return dict(halfwidth_pp=float("inf"), k=k, n_pilot=n, note="not computable")
+    mean = k / n
+    var = sum((c - mean) ** 2 for c in counts) / (n - 1)
+    lam = (k + 1.0) / n
+    v = max(var, lam)
+    hw = Z95 * 100.0 * (v ** 0.5) / ((n_test ** 0.5) * nref_mean)
+    return dict(halfwidth_pp=float(hw), k=k, n_pilot=n, per_cycle_variance=float(var), lambda_addone=float(lam), n_test=int(n_test), nref_mean=float(nref_mean))
+
+
+def gate_fires(hw_x1_pp: float, hw_x2_pp: float) -> bool:
+    """Amendment 5: the gate FIRES iff the projected half-width exceeds 0.125 pp for BOTH steps (then: STOP before the freeze, run no TEST arm, tell the Captain)."""
+    return hw_x1_pp > GATE_HALFWIDTH_PP and hw_x2_pp > GATE_HALFWIDTH_PP
 
 
 def net_on_check(net_on_pt: float, net_on_lo: float, net_on_hi: float, net_x1_pt: float, net_x2_pt: float) -> dict:

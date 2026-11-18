@@ -89,6 +89,24 @@ def decision_tests():
     chk("every outcome row in OUTCOMES is driven", seen, set(D.OUTCOMES))
 
 
+def gate_tests():
+    chk("gate constant", D.GATE_HALFWIDTH_PP, 0.125)
+    # hw = 1.96 * 100 * sqrt(V) / (sqrt(n_test) * nref_mean); 100 cycles with 1 event in each of 20 cycles: mean 0.2, var = 0.16162..., lambda = 21/100 = 0.21 -> V = 0.21
+    counts = [1] * 20 + [0] * 80
+    p = D.project_net_halfwidth(counts, 30.0, 2000)
+    want = 1.96 * 100 * (0.21 ** 0.5) / ((2000 ** 0.5) * 30.0)
+    chk("projection: add-one lambda is the variance floor and the formula is as written", round(p["halfwidth_pp"], 9), round(want, 9))
+    chk("projection: ZERO pilot events is not perfectly certain (add-one floor)", D.project_net_halfwidth([0] * 100, 30.0, 2000)["halfwidth_pp"] > 0.0, True)
+    a = D.project_net_halfwidth(counts, 30.0, 500)["halfwidth_pp"]
+    b = D.project_net_halfwidth(counts, 30.0, 2000)["halfwidth_pp"]
+    chk("projection: half-width scales as 1/sqrt(n_test) (4x cycles = half)", round(a / b, 6), 2.0)
+    chk("projection: fewer WSJT-X rows per cycle widen it (n_ref 15 vs 30)", round(D.project_net_halfwidth(counts, 15.0, 2000)["halfwidth_pp"] / b, 6), 2.0)
+    chk("projection: an over-dispersed pilot uses the sample variance when it exceeds lambda", D.project_net_halfwidth([5, 0, 0, 0, 0, 5, 0, 0, 0, 0], 30.0, 2000)["per_cycle_variance"] > D.project_net_halfwidth([5, 0, 0, 0, 0, 5, 0, 0, 0, 0], 30.0, 2000)["lambda_addone"], True)
+    chk("projection: too few cycles is not computable (infinite, so it cannot hide a wide interval)", D.project_net_halfwidth([1], 30.0, 2000)["halfwidth_pp"], float("inf"))
+    chk("gate fires only when BOTH steps exceed 0.125", (D.gate_fires(0.2, 0.2), D.gate_fires(0.2, 0.1), D.gate_fires(0.1, 0.2), D.gate_fires(0.1, 0.1)), (True, False, False, False))
+    chk("gate: exactly 0.125 does not fire", D.gate_fires(0.125, 0.125), False)
+
+
 def row(st, k, m, f, tx, step=0, snr=-15, dt=0.1):
     return dict(st=st, k=k, m=m, f=f, dt=dt, snr=snr, tx=tx, ap=0, step=step)
 
@@ -214,6 +232,7 @@ def hybrid_tests():
 
 def main():
     decision_tests()
+    gate_tests()
     data_tests()
     hybrid_tests()
     print("SELFTEST " + ("ALL PASS" if ok else "FAILED"))
