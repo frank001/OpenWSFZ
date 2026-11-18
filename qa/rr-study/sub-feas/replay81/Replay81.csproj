@@ -46,6 +46,8 @@
     <DefineConstants Condition="'$(HasXcPrior)' == 'true'">$(DefineConstants);HAS_XCPRIOR</DefineConstants>
     <!-- XC-BUILD remedy (Amendment 6, dev task 2026-11-14-xc-template-remedy, build 4b70e418): only the build with SetCrossCyclePriorColocationVeto / SetCrossCyclePriorParityThreshold and the extended sink record (SP, PriorFreqHz, PriorDt, PriorBatch, Vetoed). Needs HasXcPrior too. The xc-veto and xc-tp arguments are then REQUIRED and read back as xcveto= and xctp=. -->
     <DefineConstants Condition="'$(HasXcRemedy)' == 'true'">$(DefineConstants);HAS_XCREMEDY</DefineConstants>
+    <!-- LR-FULL (dev commit 80bbd74b, feat/lr-full-diag): only the build with Ft8Decoder.SetDiagThirdRunUngated / SetDiagLateFallbackOnResidual and the internal DiagRowTagSink; the lr-x1 and lr-x2 arguments (0 or 1) are then REQUIRED and read back, the nc-dump gains a trailing step column after the apKind, and the two 'Diagnostic X' count lines go to the log. Needs HasCqAp and HasInternals. -->
+    <DefineConstants Condition="'$(HasLrFull)' == 'true'">$(DefineConstants);HAS_LRFULL</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>

@@ -363,6 +363,13 @@ internal static class Program
             // COH-RES-CAND (#272, build b0d01f4f): --cohrescand 0|1 is REQUIRED on this build and read back at start and end (the arm's one change: A = 0, B = 1).
             decoder.SetCoherentFallbackResidualCandidates(Req(a, "cohrescand") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--cohrescand must be 0 or 1") });
 #endif
+#if HAS_LRFULL
+            // LR-FULL (dev task 2026-11-18-lr-full-diagnostic-switches, build 80bbd74b): --lr-x1 0|1 (X1: the third run without the 1097 Hz gate) and --lr-x2 0|1 (X2: a fallback run on the late round's residual) are REQUIRED on this build and read back at start and end.
+            // OFF arm: 0 0; ON arm: 1 1. The tag sink records which step published each row (nc-dump trailing column: 0 none, 1 v2 at or below the gate, 2 X1 above the gate, 3 late-round primary, 4 X2 F1b-passed, 5 X2 admitted-only).
+            decoder.SetDiagThirdRunUngated(Req(a, "lr-x1") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--lr-x1 must be 0 or 1") });
+            decoder.SetDiagLateFallbackOnResidual(Req(a, "lr-x2") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--lr-x2 must be 0 or 1") });
+            decoder.DiagRowTagSink = (_, text, step) => _lrStep[text.TrimEnd()] = (int)step;
+#endif
 #if HAS_XCPRIOR
             // XC-BUILD (dev task 2026-11-13-xc-template-build): --xc-prior 0|1, --xc-shadow 0|1 and --xc-te <double|inf> are REQUIRED on this build and read back at start and end.
             // TR: --xc-prior 1 --xc-shadow 1 --xc-te inf (nothing published); OFF: 0 0 inf; ON: 1 1 <the frozen T_E>.  --xc-probe-out: the per-test numbers sink (numbers only).
@@ -638,6 +645,10 @@ internal static class Program
     private static StreamWriter? _implDump;   // --impl-dump: stamp,event[,text] (scratch only; events D = implausible drop WITH text, M = info marker, H = batch hand-off)
     private static StreamWriter? _stageOut;   // --stage-out: per-cycle counts of the fallback stages (HasInternals build only)
     private static volatile string _curStamp = "";
+#if HAS_LRFULL
+    // LR-FULL D4: the decoder's diagnostic tag sink fills this (message text -> Ft8Decoder.DiagRowStep as int) during a cycle; cleared at each cycle's start, read when the cycle's nc-dump rows are written. Text stays in memory (HK-037).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _lrStep = new(StringComparer.Ordinal);
+#endif
     internal static string CurStamp => _curStamp;
     internal static void ImplEvent(string ev, string text = "")
     {
@@ -758,6 +769,9 @@ internal static class Program
 #if HAS_CQAP
                     , ows[i].Ap   // CQ-AP: trailing column after the text (older consumers read fixed positions up to the text)
 #endif
+#if HAS_LRFULL
+                    , _lrStep.TryGetValue(ows[i].Msg, out int lrStep) ? lrStep : 0   // LR-FULL: the step that published the row (trailing column after the apKind)
+#endif
                     ));
             }
         if (_fbDump is not null)
@@ -852,6 +866,9 @@ internal static class Program
         LateProbe.Unmatched = 0;
 #endif
         _curStamp = stamp;
+#if HAS_LRFULL
+        _lrStep.Clear();
+#endif
 #if HAS_INTERNALS
         StageProbeInterop.Reset_();
 #endif
@@ -1343,6 +1360,9 @@ internal static class Program
 #endif
 #endif
 #endif
+#if HAS_LRFULL
+                + $" lrx1={d.DiagThirdRunUngated} lrx2={d.DiagLateFallbackOnResidual}"
+#endif
                 );
     }
 #endif
@@ -1513,6 +1533,14 @@ internal static class Program
 #if HAS_CQAP
             // CQ-AP: the per-cycle 'cq-ap: attempts=N decodes=M' line (counts only; the decoder writes it only while the flag is ON).
             if (template.StartsWith("Cycle {Time}: cq-ap:", StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                _log.Line(level.ToString(), formatter(state, exception));
+                return;
+            }
+#endif
+#if HAS_LRFULL
+            // LR-FULL: the two per-cycle 'Diagnostic X1 / X2' lines (counts only, the decoder writes them only while its switch is ON).
+            if ((template.StartsWith("Diagnostic X1 ", StringComparison.Ordinal) || template.StartsWith("Diagnostic X2 ", StringComparison.Ordinal)) && level == LogLevel.Information)
             {
                 _log.Line(level.ToString(), formatter(state, exception));
                 return;
