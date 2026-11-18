@@ -113,20 +113,25 @@ class Evidence:
             v.sort()
 
     # C: same cycle, sender B within 10 Hz, different text. `own_text` rows are excluded only by being the same text (a P row's own match cannot conflict).
-    def C(self, cyc, freq, text, pr):
+    # `hide` = (text, freq): ONE E row (that text, within 10 Hz of that freq) is left out, for the N-FIELD-MISS control (a ghost of a signal WSJT-X did NOT decode).
+    def C(self, cyc, freq, text, pr, hide=None):
+        skipped = False
         for (_, f, t, p2) in self.by_cycle.get(cyc, ()):
+            if hide is not None and not skipped and t == hide[0] and abs(f - hide[1]) <= GATE_HZ:
+                skipped = True
+                continue
             if p2 is not None and p2["B"] == pr["B"] and abs(f - freq) <= GATE_HZ and t != text:
                 return True
         return False
 
     # R: every call field appears in some E row OUTSIDE the own cycle, within +-240 cycles (either field).
-    def R(self, cyc, pr):
+    def R(self, cyc, pr, window=R_WINDOW_CYC):
         for call in pr["calls"]:
             cs = self.call_cycles.get(call, ())
-            lo = bisect.bisect_left(cs, cyc - R_WINDOW_CYC)
+            lo = bisect.bisect_left(cs, cyc - window)
             ok = False
             for i in range(lo, len(cs)):
-                if cs[i] > cyc + R_WINDOW_CYC:
+                if cs[i] > cyc + window:
                     break
                 if cs[i] != cyc:
                     ok = True
@@ -160,12 +165,12 @@ class Evidence:
                 return True
         return False
 
-    def judge(self, cyc, freq, text):
+    def judge(self, cyc, freq, text, hide=None):
         """-> None (UNJUDGEABLE) or dict(C, R, F, S, plausible)."""
         pr = parse(text)
         if pr is None:
             return None
-        c, r, f, s = self.C(cyc, freq, text, pr), self.R(cyc, pr), self.F(cyc, freq, pr), self.S(cyc, pr)
+        c, r, f, s = self.C(cyc, freq, text, pr, hide), self.R(cyc, pr), self.F(cyc, freq, pr), self.S(cyc, pr)
         return dict(C=c, R=r, F=f, S=s, plausible=(not c) and r and f != "FAIL" and not s)
 
     # burial (TA-CHECK is_buried, 980ce3a7): another WSJT-X row in the cycle at |df| < 50 Hz with SNR >= the row's own.
@@ -276,6 +281,9 @@ def selftest():
     chk("C: 11 Hz away does not conflict", Ec.C(c0, 1516, "QA1AAA QB2BBB -12", parse("QA1AAA QB2BBB -12")), False)
     chk("C: other sender does not conflict", Ec.C(c0, 1500, "QA1AAA QC3CCC -12", parse("QA1AAA QC3CCC -12")), False)
     chk("C: other cycle does not conflict", Ec.C(c0 + 1, 1500, "QA1AAA QB2BBB -12", parse("QA1AAA QB2BBB -12")), False)
+    Eh = Evidence([(c0, 0, 1505, "QA1AAA QB2BBB -03"), (c0 - 1, 0, 1505, "QA1AAA QB2BBB -03"), (c0 + 1, 0, 1505, "QA1AAA QB2BBB -03")])
+    chk("hide: C fires with the real row in E, not with it hidden", (Eh.C(c0, 1500, "QA1AAA QB2BBB -12", parse("QA1AAA QB2BBB -12")),
+        Eh.C(c0, 1500, "QA1AAA QB2BBB -12", parse("QA1AAA QB2BBB -12"), hide=("QA1AAA QB2BBB -03", 1505))), (True, False))
     chk("unjudgeable returns None", E.judge(c0, 1500, "<...> QB2BBB -12"), None)
     # burial
     Eb = Evidence([(c0, -5, 1520, "QA1AAA QB2BBB -03"), (c0, -20, 1500, "QC3CCC QD4DDD -03")])

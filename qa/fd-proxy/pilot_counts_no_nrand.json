@@ -1,0 +1,303 @@
+{
+ "pilot_cycles": 283,
+ "E_rows": 85783,
+ "unjudgeable_by_batch_all_rows": {
+  "1": {
+   "n": 52278,
+   "unjudgeable": 2852,
+   "share": 0.0546
+  },
+  "2": {
+   "n": 9396,
+   "unjudgeable": 17,
+   "share": 0.0018
+  },
+  "3": {
+   "n": 873,
+   "unjudgeable": 0,
+   "share": 0.0
+  },
+  "4": {
+   "n": 11643,
+   "unjudgeable": 1062,
+   "share": 0.0912
+  },
+  "5": {
+   "n": 1360,
+   "unjudgeable": 4,
+   "share": 0.0029
+  },
+  "6": {
+   "n": 3851,
+   "unjudgeable": 0,
+   "share": 0.0
+  }
+ },
+ "Q_whole_night_unconfirmed_b45": {
+  "n": 1308,
+  "unjudgeable": 287
+ },
+ "Q_strata_counts_whole_night": {
+  "-17..-10|buried": 164,
+  "-17..-10|isolated": 146,
+  "<=-18|buried": 293,
+  "<=-18|isolated": 376,
+  ">=-9|buried": 19,
+  ">=-9|isolated": 23
+ },
+ "P_pilot_n": 1177,
+ "P_strata_counts": {
+  "-17..-10|buried": 364,
+  "-17..-10|isolated": 333,
+  "<=-18|buried": 225,
+  "<=-18|isolated": 215,
+  ">=-9|buried": 18,
+  ">=-9|isolated": 22
+ },
+ "P_components_all": {
+  "n": 1177,
+  "plausible": 0.9448,
+  "C": 0.0,
+  "R_fail": 0.0136,
+  "F_fail": 0.0425,
+  "F_unseen": 0.1172,
+  "S_behind": 0.0008
+ },
+ "s_weighted_to_Q_strata": 0.9443,
+ "s_weight_strata_missing_in_P": [],
+ "P_by_stratum": {
+  "-17..-10|buried": {
+   "n": 364,
+   "plausible": 0.9368,
+   "C": 0.0,
+   "R_fail": 0.0055,
+   "F_fail": 0.0604,
+   "F_unseen": 0.0522,
+   "S_behind": 0.0
+  },
+  "-17..-10|isolated": {
+   "n": 333,
+   "plausible": 0.961,
+   "C": 0.0,
+   "R_fail": 0.009,
+   "F_fail": 0.033,
+   "F_unseen": 0.048,
+   "S_behind": 0.0
+  },
+  "<=-18|buried": {
+   "n": 225,
+   "plausible": 0.9156,
+   "C": 0.0,
+   "R_fail": 0.0267,
+   "F_fail": 0.0533,
+   "F_unseen": 0.2489,
+   "S_behind": 0.0044
+  },
+  "<=-18|isolated": {
+   "n": 215,
+   "plausible": 0.9628,
+   "C": 0.0,
+   "R_fail": 0.0186,
+   "F_fail": 0.0186,
+   "F_unseen": 0.214,
+   "S_behind": 0.0
+  },
+  ">=-9|buried": {
+   "n": 18,
+   "plausible": 0.9444,
+   "C": 0.0,
+   "R_fail": 0.0556,
+   "F_fail": 0.0,
+   "F_unseen": 0.0,
+   "S_behind": 0.0
+  },
+  ">=-9|isolated": {
+   "n": 22,
+   "plausible": 0.9545,
+   "C": 0.0,
+   "R_fail": 0.0,
+   "F_fail": 0.0455,
+   "F_unseen": 0.0455,
+   "S_behind": 0.0
+  }
+ },
+ "P_iso_vs_buried_plausible": {
+  "isolated": 0.9614,
+  "buried": 0.9292,
+  "diff": 0.0322
+ },
+ "P_R_at_15min_vs_60min_pass": {
+  "r15": 0.9771,
+  "r60": 0.9864
+ },
+ "P_F_moved_sender_rate": {
+  "n_seen": 1039,
+  "moved": 0.0481
+ },
+ "P_buried_share_literal_vs_plus3p2dB": {
+  "literal": 0.5157,
+  "shifted": 0.4121
+ },
+ "N_FIELD": {
+  "randcall": {
+   "B": {
+    "drawn": 1000,
+    "unjudgeable": 0,
+    "n": 1000,
+    "f": 0.0,
+    "C": 0.0,
+    "R_fail": 1.0,
+    "F_fail": 0.0,
+    "S_behind": 0.0,
+    "within10Hz_n": 188,
+    "within10Hz_f": 0.0
+   },
+   "A": {
+    "drawn": 1000,
+    "unjudgeable": 0,
+    "n": 1000,
+    "f": 0.0,
+    "C": 0.191,
+    "R_fail": 1.0,
+    "F_fail": 0.712,
+    "S_behind": 0.0,
+    "within10Hz_n": 188,
+    "within10Hz_f": 0.0
+   },
+   "X": {
+    "drawn": 1000,
+    "unjudgeable": 170,
+    "n": 830,
+    "f": 0.0807,
+    "C": 0.1783,
+    "R_fail": 0.0108,
+    "F_fail": 0.741,
+    "S_behind": 0.0711,
+    "within10Hz_n": 151,
+    "within10Hz_f": 0.0132
+   },
+   "f_FIELD_equal_shares": 0.0269
+  },
+  "Ecall": {
+   "B": {
+    "drawn": 1000,
+    "unjudgeable": 0,
+    "n": 1000,
+    "f": 0.201,
+    "C": 0.0,
+    "R_fail": 0.783,
+    "F_fail": 0.017,
+    "S_behind": 0.0,
+    "within10Hz_n": 218,
+    "within10Hz_f": 0.211
+   },
+   "A": {
+    "drawn": 1000,
+    "unjudgeable": 0,
+    "n": 1000,
+    "f": 0.02,
+    "C": 0.201,
+    "R_fail": 0.795,
+    "F_fail": 0.714,
+    "S_behind": 0.0,
+    "within10Hz_n": 201,
+    "within10Hz_f": 0.0
+   },
+   "X": {
+    "drawn": 1000,
+    "unjudgeable": 141,
+    "n": 859,
+    "f": 0.0931,
+    "C": 0.1828,
+    "R_fail": 0.0163,
+    "F_fail": 0.7346,
+    "S_behind": 0.071,
+    "within10Hz_n": 160,
+    "within10Hz_f": 0.0125
+   },
+   "f_FIELD_equal_shares": 0.1047
+  },
+  "randcall_MISS": {
+   "B": {
+    "drawn": 1000,
+    "unjudgeable": 0,
+    "n": 1000,
+    "f": 0.0,
+    "C": 0.0,
+    "R_fail": 1.0,
+    "F_fail": 0.0,
+    "S_behind": 0.0,
+    "within10Hz_n": 188,
+    "within10Hz_f": 0.0
+   },
+   "A": {
+    "drawn": 1000,
+    "unjudgeable": 0,
+    "n": 1000,
+    "f": 0.0,
+    "C": 0.0,
+    "R_fail": 1.0,
+    "F_fail": 0.712,
+    "S_behind": 0.0,
+    "within10Hz_n": 188,
+    "within10Hz_f": 0.0
+   },
+   "X": {
+    "drawn": 1000,
+    "unjudgeable": 170,
+    "n": 830,
+    "f": 0.2386,
+    "C": 0.0,
+    "R_fail": 0.0108,
+    "F_fail": 0.741,
+    "S_behind": 0.0711,
+    "within10Hz_n": 151,
+    "within10Hz_f": 0.8742
+   },
+   "f_FIELD_equal_shares": 0.0795
+  },
+  "Ecall_MISS": {
+   "B": {
+    "drawn": 1000,
+    "unjudgeable": 0,
+    "n": 1000,
+    "f": 0.201,
+    "C": 0.0,
+    "R_fail": 0.783,
+    "F_fail": 0.017,
+    "S_behind": 0.0,
+    "within10Hz_n": 218,
+    "within10Hz_f": 0.211
+   },
+   "A": {
+    "drawn": 1000,
+    "unjudgeable": 0,
+    "n": 1000,
+    "f": 0.061,
+    "C": 0.0,
+    "R_fail": 0.795,
+    "F_fail": 0.714,
+    "S_behind": 0.0,
+    "within10Hz_n": 201,
+    "within10Hz_f": 0.204
+   },
+   "X": {
+    "drawn": 1000,
+    "unjudgeable": 141,
+    "n": 859,
+    "f": 0.2456,
+    "C": 0.0,
+    "R_fail": 0.0163,
+    "F_fail": 0.7346,
+    "S_behind": 0.071,
+    "within10Hz_n": 160,
+    "within10Hz_f": 0.8313
+   },
+   "f_FIELD_equal_shares": 0.1692
+  }
+ },
+ "run_seconds": {
+  "load": 0.7,
+  "total": 1.1
+ }
+}
