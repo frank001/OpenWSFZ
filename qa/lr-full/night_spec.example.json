@@ -1,0 +1,18 @@
+{
+  "_comment": "TEMPLATE for one night (copy, fill in, freeze). Written at the freeze, after the pilot: c_off from the pilot's calibration, the N-RAND set hashes from the harness run for THIS night. Nothing here holds message text.",
+  "night": "<stamp of the fresh night, e.g. 2026MMDD_HHMM>",
+  "off_dir": "D:/Projects/claude/_qa-scratch/lr-full/<night>/OFF",
+  "on_dir": "D:/Projects/claude/_qa-scratch/lr-full/<night>/ON",
+  "wsjtx_alltxt": "D:/Projects/claude/OpenWSFZ/artefacts/<night>_endurance_run-gathered/wsjt-x/ALL.TXT",
+  "wav_dir": "D:/Projects/claude/OpenWSFZ/artefacts/<night>_endurance_run-gathered/owsfz/wav",
+  "dll": "D:/Projects/claude/_qa-scratch/lr-full/bin_lrfull/libft8.dll",
+  "dll_pin": "bbde6eb66af4cd429ffc46f67291ba718c1ae36ae39665faac24629bcb6e6528",
+  "pilot_cycles": 0,
+  "c_off": 0.0,
+  "off_rerun_dirs": ["<20-cycle OFF run A>", "<20-cycle OFF run B>"],
+  "nrand": {
+    "rand": "D:/Projects/claude/_qa-scratch/lr-full/<night>/nrand_rand.txt",
+    "ap": "D:/Projects/claude/_qa-scratch/lr-full/<night>/nrand_ap.txt",
+    "sha": {"rand": "<sha256>", "ap": "<sha256>"}
+  }
+}
