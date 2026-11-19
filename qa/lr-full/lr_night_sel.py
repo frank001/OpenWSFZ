@@ -15,7 +15,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("wav_dir")
 ap.add_argument("out")
 ap.add_argument("run")
-ap.add_argument("mode", choices=("pilot", "test"))
+ap.add_argument("mode", choices=("pilot", "test", "dry"))
 ap.add_argument("--pilot-frac", type=float, default=0.10)
 ap.add_argument("--cap", type=int, default=2000)
 a = ap.parse_args()
@@ -25,7 +25,9 @@ warm, full_all = stems[0], stems[1:]
 npil = round(a.pilot_frac * len(full_all))
 pilot, rest = full_all[:npil], full_all[npil:]
 test = rest[: a.cap]
-sel = pilot if a.mode == "pilot" else test
+if a.mode == "test":
+    warm = full_all[npil - 1]       # the TEST block's warm-up cycle = the cycle right before it (the pilot's last), so the decoder state is primed at the block start
+sel = pilot if a.mode == "pilot" else (full_all[:2] if a.mode == "dry" else test)   # dry = 2 cycles, for the Q79 dry run of the arms
 t = [dt.datetime.strptime(s, "%y%m%d_%H%M%S") for s in sel]
 gaps = sum(1 for i in range(1, len(t)) if (t[i] - t[i - 1]).total_seconds() != 15)
 doc = {"outage_dropped": 0, "note": "LR-FULL %s selection for %s: warm-up = the first archive cycle; pilot = first %d of %d cycles; test = contiguous %d cycles after the pilot (cap %d)" % (a.mode, a.run, npil, len(full_all), len(test), a.cap),

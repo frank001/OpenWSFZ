@@ -173,6 +173,14 @@ def data_tests():
     night_c = dict(n=300, point_diff=0.30, boot=list(0.30 + 0.01 * rng.standard_normal(500)))
     chk("pooled V-AGREE-NI: a large positive difference FAILS", S.pooled_agree([night_c])["status"], "FAIL")
     chk("pooled V-AGREE-NI: nothing is UNDERPOWERED", S.pooled_agree([dict(n=0, point_diff=float("nan"), boot=[])])["status"], "UNDERPOWERED")
+    # --- V-RUN's OFF re-run compares on the re-run's cycles only
+    ra = [row("c1", 1, 0, 1500, "QA1AAA QB2BBB JO22"), row("c2", 1, 0, 1600, "QC3CCC QD4DDD -05"), row("c3", 4, 0, 1700, "QE5EEE QF6FFF 73")]
+    rb = [dict(r) for r in ra[:2]]
+    chk("OFF re-run: identical on the re-run's cycles (the reference may cover more)", S.rows_equal_on_cycles_of(ra, rb), True)
+    rb[1]["f"] = 1601
+    chk("OFF re-run: a changed frequency is caught", S.rows_equal_on_cycles_of(ra, rb), False)
+    ra2 = ra + [row("c1", 4, 0, 1800, "QG7GGG QH8HHH RR73")]
+    chk("OFF re-run: a row missing inside a cycle the re-run covers is caught", S.rows_equal_on_cycles_of(ra2, [dict(ra2[0]), dict(ra2[1])]), False)
     # --- abandon cycles from the harness csvs
     with tempfile.TemporaryDirectory() as d:
         open(os.path.join(d, "coh.csv"), "w").write("stamp,seen,abandoned\nA1,1,0\nA2,1,3\n")

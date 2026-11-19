@@ -20,7 +20,7 @@ mkdir -p "$ROOT"
 log() { echo "$(date -u +%FT%TZ) $*" | tee -a "$ROOT/status_$MODE.txt"; }
 die() { log "HALT: $*"; exit 9; }
 busy() { tasklist 2>/dev/null | grep -qiE 'OpenWSFZ.Daemon|Ft8.FitProbe|testhost|msbuild|VBCSCompiler'; }
-[ "$MODE" = pilot ] || [ "$MODE" = test ] || die "mode pilot|test"
+[ "$MODE" = pilot ] || [ "$MODE" = test ] || [ "$MODE" = dry ] || die "mode dry|pilot|test"
 [ -d "$G/owsfz/wav" ] && [ -f "$G/wsjt-x/ALL.TXT" ] || die "no gathered night at $G"
 [ "$(sha $BIN/libft8.dll)" = "$PIN" ] || die "libft8.dll is not the pin"
 busy && die "a competing process is running (daemon, FitProbe, testhost or a build server)"

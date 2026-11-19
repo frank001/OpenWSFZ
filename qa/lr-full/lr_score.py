@@ -436,6 +436,13 @@ def pooled_agree(per_night):
     return dict(n=int(ns.sum()), diff=round(diff, 4), ci=[round(lo, 4), round(hi, 4)], status=D.agree_ni(int(ns.sum()), lo, hi))
 
 
+def rows_equal_on_cycles_of(ref_rows, rerun_rows):
+    """V-RUN's 20-cycle OFF re-run: the re-run's rows must equal the reference run's rows, field by field, for exactly the cycles the re-run covers (the reference may cover more). A cycle in which the re-run produced NO row at all is not seen (the cycles are read from the rows); a 20-cycle run gives hundreds of rows."""
+    key = lambda r: (r["st"], r["k"], r["m"], r["f"], r["dt"], r["snr"], r["tx"])
+    cyc = {r["st"] for r in rerun_rows}
+    return [key(r) for r in ref_rows if r["st"] in cyc] == [key(r) for r in rerun_rows]
+
+
 def v_run_night(spec, off_rows, on_rows, test_cycles, rerun_ok):
     pins_ok = sha(spec["dll"]) == spec["dll_pin"]
     ab_off, ab_on = abandon_cycles(spec["off_dir"]) & set(test_cycles), abandon_cycles(spec["on_dir"]) & set(test_cycles)
@@ -532,7 +539,9 @@ def run_night(spec, mode):
     # ============================ FINAL: instruments on G ============================
     A = net_arrays(on_rows, off_rows, ws, cyc_stamps)
     inst = Instruments(E, spec["wav_dir"], spec["dll"], spec["c_off"])
-    ctl = sorted([(r["st"], r["f"], r["dt"], r["tx"]) for r in on_rows if r["m"] == 1 and r["st"] in pil and r["k"] == 1], key=lambda t: (t[0], t[1]))
+    # the calibration controls are the PILOT cycles' confirmed batch-1 rows: from the separate pilot ON arm when the spec names it (the TEST arms hold TEST cycles only), else from this arm's pilot cycles
+    ctl_rows = load_arm(spec["pilot_on_dir"]) if spec.get("pilot_on_dir") else [r for r in on_rows if r["st"] in pil]
+    ctl = sorted([(r["st"], r["f"], r["dt"], r["tx"]) for r in ctl_rows if r["m"] == 1 and r["k"] == 1], key=lambda t: (t[0], t[1]))
     cal = inst.tone().calibrate(ctl)
     assert abs(cal["start_minus_dt_median_s"] - spec["c_off"]) < 1e-9, "calibration moved: %r" % (cal,)
     res["U_calibration"] = cal
@@ -619,7 +628,7 @@ def run_night(spec, mode):
     rerun_ok = None
     if spec.get("off_rerun_dirs"):
         a, b = spec["off_rerun_dirs"]
-        rerun_ok = ([(r["st"], r["k"], r["m"], r["f"], r["dt"], r["snr"], r["tx"]) for r in load_arm(a)] == [(r["st"], r["k"], r["m"], r["f"], r["dt"], r["snr"], r["tx"]) for r in load_arm(b)])
+        rerun_ok = rows_equal_on_cycles_of(load_arm(a), load_arm(b))
     vr_ok, parts = v_run_night(spec, off_rows, on_rows, cyc_stamps, bool(rerun_ok))
     res["V_RUN"] = dict(ok=vr_ok, **parts, off_rerun_checked=rerun_ok is not None)
     # descriptive
