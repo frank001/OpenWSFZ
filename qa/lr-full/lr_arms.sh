@@ -25,7 +25,9 @@ busy() { tasklist 2>/dev/null | grep -qiE 'OpenWSFZ.Daemon|Ft8.FitProbe|testhost
 [ "$(sha $BIN/libft8.dll)" = "$PIN" ] || die "libft8.dll is not the pin"
 busy && die "a competing process is running (daemon, FitProbe, testhost or a build server)"
 SEL=$ROOT/sel_$MODE.json
-python -I "$TOOLS/lr_night_sel.py" "$G/owsfz/wav" "$SEL" "$NIGHT" $MODE | tee -a "$ROOT/status_$MODE.txt" || die "selection failed"
+CAP=${CAP:-2000}      # the TEST block's cycle cap (night 1: 2000; night 2, Amendment 6: 1300); recorded in the status log and in the freeze record
+python -I "$TOOLS/lr_night_sel.py" "$G/owsfz/wav" "$SEL" "$NIGHT" $MODE --cap "$CAP" | tee -a "$ROOT/status_$MODE.txt" || die "selection failed"
+log "TEST cap = $CAP cycles"
 # the freeze: with SEL_SHA set (first 16 hex of the frozen selection file) the run halts if the selection differs
 if [ -n "$SEL_SHA" ]; then [ "$(sha $SEL | cut -c1-16)" = "$SEL_SHA" ] || die "selection sha256 $(sha $SEL | cut -c1-16) differs from the frozen $SEL_SHA"; log "selection matches the frozen sha $SEL_SHA"; fi
 run() {   # run <name> <extra args...>

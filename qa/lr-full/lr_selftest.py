@@ -117,6 +117,41 @@ def gate_tests():
         D.gate_fires(*(D.project_net_halfwidth(counts, 33.0, 4.0, 1000)["halfwidth_pp"],) * 2)), (False, True))
 
 
+def selection_tests():
+    """lr_night_sel.py: the TEST cap is a parameter (Amendment 6: night 2 caps at 1,300), the pilot is the first 10 % of the cycles after the warm-up, the TEST block is CONTIGUOUS right after the pilot with the
+    warm-up = the last pilot cycle, the pilot's own warm-up is the first archive cycle, and the arms halt on a changed selection."""
+    import datetime as dt
+    import json
+    import subprocess
+    with tempfile.TemporaryDirectory() as d:
+        wav = os.path.join(d, "wav")
+        os.makedirs(wav)
+        t0 = dt.datetime(2026, 11, 19, 20, 0, 0)
+        stems = [(t0 + dt.timedelta(seconds=15 * i)).strftime("%y%m%d_%H%M%S") for i in range(1501)]   # 1 warm-up + 1,500 cycles
+        for s_ in stems:
+            open(os.path.join(wav, s_ + ".wav"), "wb").close()
+
+        def run(mode, *extra):
+            out = os.path.join(d, "sel_%s.json" % mode)
+            r = subprocess.run([sys.executable, "-I", os.path.join(HERE, "lr_night_sel.py"), wav, out, "RUNX", mode] + list(extra), capture_output=True, text=True)
+            assert r.returncode == 0, r.stderr
+            return json.load(open(out))["runs"]["RUNX"], r.stdout
+        pil, _ = run("pilot")
+        chk("selection: the pilot is the first 10 % of the 1,500 cycles after the warm-up (150), warm-up = the first archive cycle", (len(pil["FULL"]), pil["warmup"], pil["FULL"][0]), (150, stems[0], stems[1]))
+        tst, out = run("test", "--cap", "1300")
+        chk("selection: the TEST cap is a parameter: 1,300 requested, 1,350 available after the pilot -> 1,300", len(tst["FULL"]), 1300)
+        chk("selection: TEST starts right after the pilot (contiguous) and its warm-up is the last pilot cycle", (tst["FULL"][0], tst["warmup"]), (stems[151], stems[150]))
+        chk("selection: no gaps on the 15 s grid", "gaps_on_15s_grid=0" in out, True)
+        t2, _ = run("test", "--cap", "500")
+        chk("selection: cap 500 trims at the END of the block", (len(t2["FULL"]), t2["FULL"][-1]), (500, stems[650]))
+        t3, _ = run("test", "--cap", "5000")
+        chk("selection: a cap above what is left takes all that is left (1,350)", len(t3["FULL"]), 1350)
+        dr, _ = run("dry")
+        chk("selection: dry = 2 cycles; rerun20 = the first 20", (len(dr["FULL"]), len(run("rerun20")[0]["FULL"])), (2, 20))
+    src = open(os.path.join(HERE, "lr_arms.sh"), encoding="utf-8").read()
+    chk("arm script: the cap is passed to the selection builder and logged; the frozen-hash halt exists", ('--cap "$CAP"' in src, 'log "TEST cap = $CAP cycles"' in src, "differs from the frozen" in src), (True, True, True))
+
+
 def row(st, k, m, f, tx, step=0, snr=-15, dt=0.1):
     return dict(st=st, k=k, m=m, f=f, dt=dt, snr=snr, tx=tx, ap=0, step=step)
 
@@ -251,6 +286,7 @@ def hybrid_tests():
 def main():
     decision_tests()
     gate_tests()
+    selection_tests()
     data_tests()
     hybrid_tests()
     print("SELFTEST " + ("ALL PASS" if ok else "FAILED"))

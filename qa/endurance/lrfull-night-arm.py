@@ -114,6 +114,7 @@ def main() -> None:
     g.add_argument("--end-utc", help="ISO UTC end time, e.g. 2026-11-15T11:00:00Z; hours are derived from the real start minute")
     ap.add_argument("--dial-mhz", type=float, required=True, help="the radio's / WSJT-X dial frequency in MHz (no default: say it)")
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--night-label", default="1", help="the LR-FULL night number for the ERA file (night 1 recorded 2026-11-18; night 2: Amendment 6, about 6 h)")
     a = ap.parse_args()
     sha = hashlib.sha256((PUB / "libft8.dll").read_bytes()).hexdigest()
     assert sha == DLL_SHA, ("published DLL SHA", sha)
@@ -184,7 +185,7 @@ def main() -> None:
         except Exception as ex:   # noqa: BLE001
             rb[ep] = f"unreadable: {type(ex).__name__}"
     Path(corpus).mkdir(parents=True, exist_ok=True)
-    (Path(corpus) / "ERA.txt").write_text("LR-FULL FRESH NIGHT 1: a live recording of the station radio on the SHIPPED stack (build 66b3ddf1, v0.72, shim 20260072; XC ON shadow OFF, v2 + R-F4, CQ-AP, late round, multi-set, Deep, nhard 24), 40 m dial 7.074 MHz, USB Audio CODEC direct, PSK Reporter OFF, CAT OFF, no TX. RESERVED for the LR-FULL arm (spec b2d9883a + Amendments): never use this night in another verdict. Nothing replayed here.", encoding="utf-8")
+    (Path(corpus) / "ERA.txt").write_text(f"LR-FULL FRESH NIGHT {a.night_label}: a live recording of the station radio on the SHIPPED stack (build 66b3ddf1, v0.72, shim 20260072; XC ON shadow OFF, v2 + R-F4, CQ-AP, late round, multi-set, Deep, nhard 24), 40 m dial 7.074 MHz, USB Audio CODEC direct, PSK Reporter OFF, CAT OFF, no TX. RESERVED for the LR-FULL arm (spec b2d9883a + Amendments): never use this night in another verdict. Nothing replayed here.", encoding="utf-8")
     (Path(corpus) / "arm_readback.json").write_text(json.dumps(rb, indent=1), encoding="utf-8")
     cf = rb.get("config") if isinstance(rb.get("config"), dict) else {}
     stt = rb.get("status") if isinstance(rb.get("status"), dict) else {}
