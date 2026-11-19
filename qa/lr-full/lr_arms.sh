@@ -26,6 +26,8 @@ busy() { tasklist 2>/dev/null | grep -qiE 'OpenWSFZ.Daemon|Ft8.FitProbe|testhost
 busy && die "a competing process is running (daemon, FitProbe, testhost or a build server)"
 SEL=$ROOT/sel_$MODE.json
 python -I "$TOOLS/lr_night_sel.py" "$G/owsfz/wav" "$SEL" "$NIGHT" $MODE | tee -a "$ROOT/status_$MODE.txt" || die "selection failed"
+# the freeze: with SEL_SHA set (first 16 hex of the frozen selection file) the run halts if the selection differs
+if [ -n "$SEL_SHA" ]; then [ "$(sha $SEL | cut -c1-16)" = "$SEL_SHA" ] || die "selection sha256 $(sha $SEL | cut -c1-16) differs from the frozen $SEL_SHA"; log "selection matches the frozen sha $SEL_SHA"; fi
 run() {   # run <name> <extra args...>
   local NAME=$1; shift; local O=$ROOT/${MODE}_$NAME EXPECT="$EXPECT_LR"
   [ -e "$ROOT/arms.stop" ] && die "arms.stop"
