@@ -16,18 +16,21 @@ WSJT-X is a Qt desktop application under GPL-3.0, OpenWSFZ is
 controlled entirely from a web page served by the application itself,
 letting licensed radio operators run it on whatever desktop hardware
 they prefer (Windows, Linux, macOS) and reach it from a local browser.
-**The project uses the following versioning scheme: v0.x covers all
+**The project uses the following versioning scheme: v0.x covered all
 work prior to a confirmed QSO; v1.0 is reached when the software can
 make a confirmed two-way contact (RX + CAT control + TX); each
 user-facing feature shipped increments the minor version.
-The current release is v0.72.** The v0.x body of work now covers FT8
-receive and transmit, CAT rig control, an automated QSO answerer and
-caller, and a web UI reachable over loopback or a passphrase-protected
-LAN — for a single operator, source-only distribution. v1.0 is reached
-when the software can complete a confirmed two-way contact end-to-end
-over RF (RX + CAT control + TX on-air). The wider mode menu,
+The current release is v1.0.** That milestone is met: the operator has
+completed and logged confirmed two-way contacts end-to-end over RF with
+OpenWSFZ since mid-2026 (every new ADIF record in the author's log since
+then was made with it). The v1.0 body of work covers FT8 receive and
+transmit, CAT rig control, an automated QSO answerer and caller, and a
+web UI reachable over loopback or a passphrase-protected LAN — for a
+single operator, source-only distribution. The wider mode menu,
 internet-facing operation, and headless deployment remain explicitly
-deferred to v1.0+ on the way to a public release.
+deferred beyond v1.0 on the way to a public release. Sections below that
+say "v0.x" describe the scope as it was set before v1.0 and still apply
+to v1.0 unless a later FR or NFR says otherwise.
 
 <sub>The release number cited above is sourced from the root `VERSION` file
 and CI-checked (gate G9) — do not hand-edit it here; edit `VERSION` instead.</sub>
@@ -543,3 +546,4 @@ data in v0.x:
 | 1.66    | 2026-11-10 | DEVELOPER (AI-assisted)               | Added **FR-103** (`decoder.cqApEnabled`, default `false`: an extra CQ a-priori decode attempt on candidates whose normal attempt failed, bits 0 to 28 and 74 to 76 forced after normalisation at 1.01 x the largest non-forced |LLR|, belief propagation only, tag `apKind`, one `cq-ap: attempts=N decodes=M` line per cycle while on; a `cq` decode is never uploaded to PSK Reporter, counted under the new exclusion `ap=` on both accounting lines; CQs from `/P` callers are out of reach). Captain's decision of 2026-11-10 ("spec it", on the CQ-AP-PSK ruling's proposal); Architect build spec `416b6ab9` (Amendment 1, QA's (k) review adopted); QA task `dev-tasks/2026-11-10-cq-ap-build.md`; OpenSpec change `cq-ap`. `native/` change: **`FT8_SHIM_VERSION` 20260072** (new `libft8.dll`; the SHA-256 is what the arms pin). **User-facing:** yes (a new setting, default OFF: the station's decode behaviour is unchanged until the key is set; the PSK accounting lines gain `ap=`). Bumped **VERSION** to **v0.70**. |
 | 1.67    | 2026-11-12 | DEVELOPER (AI-assisted)               | Added **FR-104** (`decoder.coherentFallbackResidualCandidates`, default `false`: in `Both` mode with a residual buffer a THIRD coherent-fallback run reads the residual audio with that buffer's own candidate snapshot, after the two runs of today, which are unchanged; its F1b-passed, new-text rows are published only at a published integer frequency of at most 1097 Hz; R-F4 never ungates them; `resRun`, `resCand`, `resEligible`, `resNew`, `resNewGated`, `resNewKept`, `resWallMs` on the coherent-fallback log line while on). COH-RES-CAND v2 (candidate #3): Architect spec `538ecc29` (Amendments 1 and 2), QA Stage 0 record `271b5562` (FEASIBLE, narrowly; gate frozen at `freq <= 1097`); QA task `dev-tasks/2026-11-12-coh-res-cand-v2.md`; OpenSpec change `coh-res-cand-v2`. C# only: no `native/` change, no shim bump (`libft8.dll` SHA-256 unchanged). **User-facing:** no (a new key, default OFF; acceptance before any default change). Bumped **VERSION** to **v0.71**. |
 | 1.68    | 2026-11-13 | DEVELOPER (AI-assisted)               | Added **FR-105** (`decoder.crossCyclePrior`, default `false`: a store of the messages published in batches 1 to 5 of the last 6 cycles; on a staged cycle with a residual buffer each message published exactly 30, 60 or 90 s earlier is tested as a known 79-tone template on that buffer by a managed energy detector (prior's frequency +-3 Hz x start +-0.12 s), nearest prior first and in parallel, and detections at or above T_E are published as **batch 6** (`PathTemplate` = 3); a batch-6 message never enters the store; `decoder.crossCyclePriorShadow`, default `false`, runs the same test on the opposite-parity priors and only counts; one counts-only `Cross-cycle prior:` line per staged cycle while on; an internal numbers-only diagnostic sink for replay). XC-BUILD (programme angle E, Stage 2): Architect spec `qa/rr-study/2026-11-13-1258-architect-to-qa-spec-xc-template-build.md` (Amendment 1), QA (k) review `fba6b4a3`, QA task `dev-tasks/2026-11-13-xc-template-build.md`; OpenSpec change `xc-template-prior`. **T_E is a placeholder (`+infinity`): nothing is detected until QA's TRAIN arm freezes the value, which goes in before any merge.** C# only: no `native/` change, no shim bump (`libft8.dll` SHA-256 unchanged). **User-facing:** no (a new key, default OFF; acceptance before any default change). Bumped **VERSION** to **v0.72**. |
+| 1.69    | 2026-11-24 | ARCHITECT (AI-assisted), at the Product Owner's direction | **v1.0 declared.** The Product Owner confirms the §1 v1.0 criterion is met: confirmed two-way FT8 contacts end-to-end over RF (RX + CAT control + TX on-air) have been made with OpenWSFZ since mid-2026, and every new ADIF record in the operator's log since then was made with it. §1 restated in the past tense for v0.x; the earlier "v0.x" scope statements below stay in force for v1.0 unless a later FR or NFR says otherwise. No FR/NFR change, no `src/` or `native/` change. The minor-version-per-user-facing-feature rule continues from 1.0 (next feature: v1.1). Bumped **VERSION** to **v1.0**. |

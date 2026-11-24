@@ -18,12 +18,13 @@ JS8, JT9, JT65, WSPR, and related).
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v0.72**. v0.x scope: FT8 receive and transmit,
+> The current release is **v1.0**. v1.0 marks the project's first milestone:
+> the software completes confirmed two-way contacts end-to-end over RF
+> (RX + CAT rig control + TX on-air), and has done so routinely on the
+> author's station since mid-2026. v1.0 scope: FT8 receive and transmit,
 > CAT rig control, a web UI (loopback or passphrase-protected LAN),
-> single operator.
-> v1.0 is reached when the software can complete a confirmed two-way contact
-> end-to-end over RF (RX + CAT rig control + TX on-air). Internet-facing
-> operation and the wider mode menu are deferred to v1.0+.
+> single operator. Internet-facing operation and the wider mode menu
+> remain deferred beyond v1.0.
 >
 > <sub>The version above is sourced from the root [`VERSION`](VERSION) file and
 > CI-checked (gate G9) — do not hand-edit it here; edit `VERSION` instead.</sub>
