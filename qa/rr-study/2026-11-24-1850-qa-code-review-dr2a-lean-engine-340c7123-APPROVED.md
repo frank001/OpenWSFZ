@@ -33,3 +33,9 @@ Developer's six review points: (1) include of the `.c` into `ft8_shim.c`: accept
 - **`pre_merge_check.py`:** once per PR, not per step (2026-11-24); not run for this commit.
 
 Nothing pushed. The next step, 2b (tier B and CQ-AP), needs DR-0's baseline only for the later steps, not for this one.
+
+## Addendum 2026-11-24 (CI result; QA's miss)
+
+CI run 45463751506 on `feat/lean-2a`: **`native-asan` PASSED** (ASan + UBSan, 10,000 fuzz runs, determinism at 1, 2 and 4 threads). **All three Build & Test jobs FAILED on the same two tests**: `ClassicEngineGoldenTests` (`FR-108: DR-2 test 4` and `DR-2 D4`), Ft8 844 of 846 on each platform; every other project was green on each. Cause: the golden records `SubfeasPoolConfigure(14)` (lines 195 and 241 of the test file) and CI produces `SubfeasPoolConfigure(2)`. The bound is the auto thread count, `max(1, ProcessorCount - 2)` (`Ft8Decoder.cs:91`): 14 on a 16-logical-processor workstation, 2 on a 4-processor runner. The diff of expected against actual is exactly those two lines. The golden holds only on a 16-processor machine, which is the machine the Developer recorded it on and the one QA reproduced it on.
+
+QA's review reproduced the Developer's counts on the same machine class and so could not see it. The verdict stands for the code; **the commit needs a test-only fix before it can merge**: the test must not depend on the host's processor count (pin the thread setting in the test, or normalise `SubfeasPoolConfigure(<n>)` in the recording). This is the flake class of `TESTING_STRATEGY.md` section 11 (a golden holds only where it was recorded). Lesson for QA's review of any recorded golden: grep it for machine-derived numbers.
