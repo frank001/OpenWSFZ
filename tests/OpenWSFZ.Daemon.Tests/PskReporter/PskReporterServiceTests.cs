@@ -214,22 +214,22 @@ public sealed class PskReporterServiceTests
 
     // ── FR-091: T11 the service's own queue holds all four batches ───────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-091: T11: the service's own queue has the QSO sizing - 10 batches with the coherent fallback on, 8 off, DropOldest - and is not the capacity-2 channel")]
+    [Fact(DisplayName = "FR-091: T11: the service's own queue has the QSO sizing - 14 batches with the coherent fallback on, 8 off, DropOldest - and is not the capacity-2 channel")]
     public void T11_QueueSizing()
     {
         bool fallbackOn = true;
         var queue = LateBatch.CreateQsoQueue(() => fallbackOn);
 
-        for (int i = 1; i <= 10; i++) queue.Writer.TryWrite(new DecodeBatch(new DateTimeOffset(T0, TimeSpan.Zero), [], BatchNumber: 1 + (i - 1) % 4));
-        queue.Reader.Count.Should().Be(10, "two cycles of four batches plus two spare: nothing dropped");
+        for (int i = 1; i <= 14; i++) queue.Writer.TryWrite(new DecodeBatch(new DateTimeOffset(T0, TimeSpan.Zero), [], BatchNumber: 1 + (i - 1) % 6));
+        queue.Reader.Count.Should().Be(14, "two cycles of six batches plus two spare: nothing dropped");
 
         queue.Writer.TryWrite(new DecodeBatch(new DateTimeOffset(T0, TimeSpan.Zero), [], BatchNumber: 4));
-        queue.Reader.Count.Should().Be(10, "the 11th drops the oldest (DropOldest)");
+        queue.Reader.Count.Should().Be(14, "the 15th drops the oldest (DropOldest)");
 
         fallbackOn = false;
         queue.Writer.TryWrite(new DecodeBatch(new DateTimeOffset(T0, TimeSpan.Zero), [], BatchNumber: 1));
         queue.Reader.Count.Should().Be(8, "the capacity in force is 8 with the fallback off");
-        LateBatch.QsoChannelCapacityFallbackOn.Should().Be(10);
+        LateBatch.QsoChannelCapacityFallbackOn.Should().Be(14);
         LateBatch.QsoChannelCapacity.Should().Be(8);
         LateBatch.QsoChannelCapacity.Should().BeGreaterThan(2, "not the capacity-2 external-reporting channel, which would drop batch 1 under later batches");
     }

@@ -1328,12 +1328,17 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             return LateOutcome.NoMatch;
 
         var filterState = _decodeFilterStore?.Current ?? DecodeFilterState.Unfiltered;
+        bool skippedTemplate = false;
         foreach (var r in batch.Results)
         {
             if (!TryParseCq(r.Message, out var callsign, out var grid)) continue;
             if (!DecodeFilterEvaluator.IsVisible(r, filterState)) continue;
             var validation = _engagementValidator?.Validate(callsign) ?? EngagementValidationResult.Allowed;
             if (!validation.IsAllowed) continue;
+
+            // XC-BUILD: a template row (batch 6) is a message inferred from a prior transmission, not heard in this cycle: it NEVER starts an exchange with a new station,
+            // immediate or deferred. Checked only for a row that would otherwise have started one, so the counted outcome means "a template row was skipped".
+            if (r.Path == DecodeResult.PathTemplate) { skippedTemplate = true; continue; }
 
             if (LateBatch.CanStartWhole(_timeProvider.GetUtcNow(), batch.CycleStart))
             {
@@ -1347,7 +1352,7 @@ public sealed class QsoAnswererService : BackgroundService, IQsoController
             _deferred = new DeferredTx(DeferredKind.Answer, batch.CycleStart, batch.BatchNumber, callsign, r.FreqHz, grid);
             return LateOutcome.AppliedDeferred;
         }
-        return LateOutcome.NoMatch;
+        return skippedTemplate ? LateOutcome.IgnoredTemplate : LateOutcome.NoMatch;
     }
 
     /// <summary>WaitReport: the partner's report (or an early RR73/RRR) found only in a late batch.</summary>

@@ -1,9 +1,14 @@
 using System.Runtime.InteropServices;
+using OpenWSFZ.Abstractions;
 
 namespace OpenWSFZ.Ft8.Interop;
 
 /// <summary>
-/// Blittable struct mirroring the C <c>FT8Result</c> struct from <c>ft8_shim.h</c>.
+/// Blittable struct mirroring the C <c>FT8Result</c> struct from <c>ft8_shim.h</c>: the WIRE layout the
+/// <c>ft8_decode_all</c> P/Invoke fills. It is exactly 48 bytes and has not changed since the shim's first release
+/// (Python ctypes harnesses allocate arrays of it), so cq-ap does NOT widen it: the per-decode <c>apKind</c> comes from
+/// the index-aligned getter <c>ft8_get_last_ap_kinds</c> and is joined onto <see cref="Ft8NativeResult"/> in
+/// <see cref="Ft8LibInterop.DecodeAll"/>.
 ///
 /// Layout (must match sizeof(FT8Result) = 48 bytes in the native shim):
 /// <code>
@@ -15,6 +20,33 @@ namespace OpenWSFZ.Ft8.Interop;
 /// </code>
 /// </summary>
 [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+internal struct Ft8NativeResultWire
+{
+    /// <summary>Centre frequency of the decoded signal, in Hz.</summary>
+    public int FreqHz;
+
+    /// <summary>Time offset from cycle start, in seconds.</summary>
+    public float Dt;
+
+    /// <summary>SNR estimate in dB (see <see cref="Ft8NativeResult.Snr"/>).</summary>
+    public int Snr;
+
+    /// <summary>Decoded message text, null-terminated, max 35 chars (FTX_MAX_MESSAGE_LENGTH); fixed 36-byte ANSI buffer.</summary>
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 36)]
+    public string Message;
+
+    /// <summary>
+    /// The C struct <c>sizeof(FT8Result)</c> = 48.
+    /// This constant is verified at startup by <see cref="Ft8LibInterop"/>.
+    /// </summary>
+    public const int ExpectedNativeSizeBytes = 48;
+}
+
+/// <summary>
+/// One decode as the managed layer carries it: the fields of the native <c>FT8Result</c> (see
+/// <see cref="Ft8NativeResultWire"/>) plus the cq-ap provenance tag. This struct is NOT marshalled; the P/Invoke fills
+/// <see cref="Ft8NativeResultWire"/> and <see cref="Ft8LibInterop.DecodeAll"/> copies it here.
+/// </summary>
 internal struct Ft8NativeResult
 {
     /// <summary>Centre frequency of the decoded signal, in Hz.</summary>
@@ -31,16 +63,12 @@ internal struct Ft8NativeResult
     /// </summary>
     public int Snr;
 
-    /// <summary>
-    /// Decoded message text, null-terminated, max 35 chars (FTX_MAX_MESSAGE_LENGTH).
-    /// Fixed-length 36-byte ANSI buffer matches the C struct's <c>char message[36]</c>.
-    /// </summary>
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 36)]
+    /// <summary>Decoded message text (the native buffer, null terminator dropped; may carry trailing padding spaces).</summary>
     public string Message;
 
     /// <summary>
-    /// The C struct <c>sizeof(FT8Result)</c> = 48.
-    /// This constant is verified at startup by <see cref="Ft8LibInterop"/>.
+    /// cq-ap (shim 20260072): <see cref="Abstractions.ApKind.Cq"/> if this decode came from the CQ a-priori attempt,
+    /// otherwise <see cref="Abstractions.ApKind.None"/> (the default, and always the value with <c>cqApEnabled</c> off).
     /// </summary>
-    public const int ExpectedNativeSizeBytes = 48;
+    public ApKind ApKind;
 }

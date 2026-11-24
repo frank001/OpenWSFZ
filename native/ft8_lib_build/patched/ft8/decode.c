@@ -1200,6 +1200,141 @@ bool ftx_decode_candidate_ap(
     return true;
 }
 
+/* ── CQ-AP (cq-ap, shim 20260072) ───────────────────────────────────────────
+ *
+ * A CQ a-priori attempt on a candidate whose normal attempt failed: payload bits 0-28 (n29a = c28("CQ") << 1 | ipa 0)
+ * and 74-76 (i3 = 1) are forced, BELIEF PROPAGATION ONLY. Unlike ftx_decode_candidate_ap (QSO-AP: +-40 BEFORE
+ * ftx_normalize_logl, so the forced values inflate the variance and shrink the other 142 LLRs), the forced LLRs are
+ * written AFTER normalisation, at FTX_CQ_AP_MAG_FACTOR x the largest |LLR| of the normalised NON-forced entries
+ * (Architect spec cq-ap, Amendment 1 A1.2). Sign convention is bp_decode's: positive LLR = bit 1.
+ *
+ * force[i]: 0 = not forced, 1 = force bit 0 (negative LLR), 2 = force bit 1 (positive LLR). The QSO-AP path above is
+ * not touched. The core below takes an allow_osd parameter ONLY so that a test can prove the counter can count: the
+ * production caller (ftx_decode_candidate_cq_ap) passes the literal 0 and no other caller passes anything else.
+ */
+#define FTX_CQ_AP_MAG_FACTOR 1.01f
+
+extern void ft8_cq_ap_osd_entered(void);   /* ft8_shim.c: thread-local counter of OSD entries from the CQ-AP path (D4) */
+
+/* Override the forced positions of an already-normalised LLR array. Non-static: the shim exports it for the D1 tests. */
+void ftx_cq_ap_inject(float* log174, const uint8_t* force)
+{
+    float max_abs = 0.0f;
+    for (int i = 0; i < FTX_LDPC_N; ++i)
+    {
+        if (force[i] == 0)
+        {
+            float a = fabsf(log174[i]);
+            if (a > max_abs) max_abs = a;
+        }
+    }
+    const float mag = FTX_CQ_AP_MAG_FACTOR * max_abs;
+    for (int i = 0; i < FTX_LDPC_N; ++i)
+    {
+        if (force[i] != 0)
+            log174[i] = (force[i] == 2) ? mag : -mag;
+    }
+}
+
+/* raw LLRs in log174 (modified in place) -> normalise -> inject -> BP (-> OSD only when allow_osd, test hook).
+ * Returns true when a zero-parity codeword was found (plain174 holds it); *ldpc_errors is bp_decode's count (0 after OSD). */
+static bool cq_ap_core(float* log174, const uint8_t* force, int max_iterations, int allow_osd,
+                       uint8_t* plain174, int* ldpc_errors, float* out_final_llr)
+{
+    ftx_normalize_logl(log174);
+
+    /* A degenerate candidate (zero variance) normalises to NaN/inf: the normal path skips those, so does this one. */
+    for (int i = 0; i < FTX_LDPC_N; ++i)
+        if (!isfinite(log174[i])) { *ldpc_errors = FTX_LDPC_M; return false; }
+
+    ftx_cq_ap_inject(log174, force);
+    if (out_final_llr != NULL)
+        memcpy(out_final_llr, log174, sizeof(float) * FTX_LDPC_N);
+
+    float llr_for_osd[FTX_LDPC_N];
+    memcpy(llr_for_osd, log174, sizeof(llr_for_osd));
+
+    bp_decode(log174, max_iterations, plain174, ldpc_errors);
+    if (*ldpc_errors == 0)
+        return true;
+
+    if (!allow_osd)
+        return false;                      /* production: BP only, OSD is never reached (D4) */
+
+    ft8_cq_ap_osd_entered();               /* the counter D4's test reads; sensitivity hook, never reached in production */
+    osd_prepare_llr(llr_for_osd);
+    if (!osd_decode(llr_for_osd, 2, plain174))
+        return false;
+    *ldpc_errors = 0;
+    return true;
+}
+
+/* CQ-AP decode of one waterfall candidate (FT8 only). BP only. Fills message/status like ftx_decode_candidate. */
+bool ftx_decode_candidate_cq_ap(
+    const ftx_waterfall_t*  wf,
+    const ftx_candidate_t*  cand,
+    int                     max_iterations,
+    const uint8_t*          force,
+    ftx_message_t*          message,
+    ftx_decode_status_t*    status)
+{
+    if (wf->protocol == FTX_PROTOCOL_FT4)
+        return false;
+
+    float   log174[FTX_LDPC_N];
+    uint8_t plain174[FTX_LDPC_N];
+    ft8_extract_likelihood(wf, cand, log174);
+
+    if (!cq_ap_core(log174, force, max_iterations, 0 /* BP only */, plain174, &status->ldpc_errors, NULL))
+        return false;
+
+    uint8_t a91[FTX_LDPC_K_BYTES];
+    pack_bits(plain174, FTX_LDPC_K, a91);
+
+    status->crc_extracted = ftx_extract_crc(a91);
+    a91[9]  &= 0xF8;
+    a91[10] &= 0x00;
+    status->crc_calculated = ftx_compute_crc(a91, 96 - 14);
+
+    if (status->crc_extracted != status->crc_calculated)
+        return false;
+
+    message->hash = status->crc_calculated;
+    for (int i = 0; i < 10; ++i)
+        message->payload[i] = a91[i];
+    return true;
+}
+
+/* Test probe (ft8_shim.c: ft8_cq_ap_probe_llrs): the same core on a caller-supplied RAW 174-LLR vector. Returns 1 when a
+ * CRC-valid codeword came out, else 0. out_final_llr (optional) receives the array handed to BP (normalised, then forced). */
+int ftx_cq_ap_probe_llrs(
+    const float*    raw_llr174,
+    const uint8_t*  force,
+    int             max_iterations,
+    int             allow_osd,
+    float*          out_final_llr,
+    uint8_t*        out_a91,
+    int*            out_ldpc_errors)
+{
+    float   log174[FTX_LDPC_N];
+    uint8_t plain174[FTX_LDPC_N];
+    int     errors = 0;
+    memcpy(log174, raw_llr174, sizeof(log174));
+
+    bool ok = cq_ap_core(log174, force, max_iterations, allow_osd, plain174, &errors, out_final_llr);
+    if (out_ldpc_errors != NULL) *out_ldpc_errors = errors;
+    if (!ok) return 0;
+
+    uint8_t a91[FTX_LDPC_K_BYTES];
+    pack_bits(plain174, FTX_LDPC_K, a91);
+    if (out_a91 != NULL) memcpy(out_a91, a91, sizeof(a91));
+
+    uint16_t crc_extracted = ftx_extract_crc(a91);
+    a91[9]  &= 0xF8;
+    a91[10] &= 0x00;
+    return (crc_extracted == ftx_compute_crc(a91, 96 - 14)) ? 1 : 0;
+}
+
 static float max2(float a, float b)
 {
     return (a >= b) ? a : b;

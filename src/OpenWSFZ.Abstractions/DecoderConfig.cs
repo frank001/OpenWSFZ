@@ -54,10 +54,17 @@ public sealed record DecoderConfig
         bool coherentFallbackMultiSet  = true,
         // COH-FB-AUDIO: in the constructor with its default (Both), for the same reason as the fields above.
         CoherentFallbackAudio coherentFallbackAudio = CoherentFallbackAudio.Both,
-        // COH-GATE-G R-F4: in the constructor with its default (false), for the same reason as the fields above.
-        bool coherentFallbackResidualUngated = false,
-        // LATE-SUB L1': in the constructor with its default (false), for the same reason as the fields above.
-        bool lateSubtractionRound = false)
+        // COH-GATE-G R-F4: in the constructor with its default (true since v0.69), for the same reason as the fields above.
+        bool coherentFallbackResidualUngated = true,
+        // LATE-SUB L1': in the constructor with its default (true since v0.69), for the same reason as the fields above.
+        bool lateSubtractionRound = true,
+        // CQ-AP: in the constructor with its default (false), for the same reason as the fields above.
+        bool cqApEnabled = false,
+        // COH-RES-CAND v2: in the constructor with its default (false), for the same reason as the fields above.
+        bool coherentFallbackResidualCandidates = false,
+        // XC-BUILD: in the constructor with their defaults (false), for the same reason as the fields above.
+        bool crossCyclePrior = false,
+        bool crossCyclePriorShadow = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -75,6 +82,10 @@ public sealed record DecoderConfig
         CoherentFallbackAudio   = coherentFallbackAudio;
         CoherentFallbackResidualUngated = coherentFallbackResidualUngated;
         LateSubtractionRound = lateSubtractionRound;
+        CqApEnabled = cqApEnabled;
+        CoherentFallbackResidualCandidates = coherentFallbackResidualCandidates;
+        CrossCyclePrior = crossCyclePrior;
+        CrossCyclePriorShadow = crossCyclePriorShadow;
     }
 
     /// <summary>
@@ -275,21 +286,64 @@ public sealed record DecoderConfig
     /// <summary>
     /// COH-GATE-G R-F4: when <c>true</c> and <see cref="CoherentFallbackAudio"/> is <see cref="Abstractions.CoherentFallbackAudio.Both"/>, a fallback row
     /// of the run that read the residual audio whose payload is new and CRC-valid but whose F1b is above T1 (state GatedOut) is published as if it were
-    /// at or below T1; the original-audio run keeps T1. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and the fallback is as it was.
-    /// It has no effect in the <c>Original</c> and <c>Residual</c> modes. Config file and API only (no Settings-page control); the POST is an overlay, so a
-    /// body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on starts a new live era: never pool its
-    /// decodes with figures from the setting off.
+    /// at or below T1; the original-audio run keeps T1. <b>Default <c>true</c></b> (since v0.69, the Captain's decision of 2026-11-09): an absent key reads
+    /// <c>true</c> (as does a missing <c>decoder</c> section); an explicit <c>false</c> stays off and leaves the fallback as it was before the setting existed.
+    /// It has no effect in the <c>Original</c> and <c>Residual</c> modes (default is <c>Both</c>). Config file and API only (no Settings-page control); the POST is an overlay, so a
+    /// body without the key leaves it as it was. Read once per window; takes effect on the next window. Its default turning on starts a new live era
+    /// ("RF4+L1' ON"): never pool its decodes with figures from the setting off.
     /// </summary>
-    public bool CoherentFallbackResidualUngated { get; init; }
+    public bool CoherentFallbackResidualUngated { get; init; } = true;
 
     /// <summary>
     /// LATE-SUB L1': when <c>true</c>, on <see cref="DecodingDepth.Deep"/> with the coherent fallback on, one more subtract-and-decode round runs after
     /// the fallback's batch: it subtracts the decodes published in batches 3 and 4 from the cycle's last residual buffer and decodes the result once with
-    /// the primary decoder; its new decodes are published as batch 5. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and every code path
-    /// is as it was. Deep only (no effect on Normal), and it needs <see cref="CoherentFallbackEnabled"/> and a residual buffer. A batch 5 reaches the panel,
+    /// the primary decoder; its new decodes are published as batch 5. <b>Default <c>true</c></b> (since v0.69, the Captain's decision of 2026-11-09): an absent
+    /// key reads <c>true</c> (as does a missing <c>decoder</c> section); an explicit <c>false</c> stays off and every code path is as it was before the setting
+    /// existed. Deep only (no effect on Normal), and it needs <see cref="CoherentFallbackEnabled"/> and a residual buffer. A batch 5 reaches the panel,
     /// <c>ALL.TXT</c> and reporting but can arrive too late to affect that cycle's TX decision, as batch 4 can. Config file and API only (no Settings-page
-    /// control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on
-    /// starts a new live era: never pool its decodes with figures from the setting off.
+    /// control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the next window. Its default
+    /// turning on starts a new live era ("RF4+L1' ON"): never pool its decodes with figures from the setting off.
     /// </summary>
-    public bool LateSubtractionRound { get; init; }
+    public bool LateSubtractionRound { get; init; } = true;
+
+    /// <summary>
+    /// CQ-AP: when <c>true</c>, a candidate whose normal decode attempt failed (the QSO-context AP attempt included) gets ONE more attempt, a CQ a-priori
+    /// one: payload bits 0-28 (the first call field, the token <c>CQ</c>) and 74-76 (<c>i3</c> = 1) are forced, belief propagation only (OSD is never run
+    /// on it), in every pass and on every buffer the native decode runs on. It only adds: a decode the normal attempt makes is never replaced. A decode it
+    /// makes carries the tag <see cref="ApKind.Cq"/>, passes the same CRC, plausibility filter and text de-duplication as any other, and is <b>not
+    /// uploaded to PSK Reporter</b>. <b>Default <c>false</c></b>: an absent key reads <c>false</c> (as does a missing <c>decoder</c> section) and the decoder
+    /// is exactly as it was before the setting existed. Turning it on starts a new era: never pool its decodes with figures from the setting off. CQs from
+    /// <c>/P</c> callers (<c>i3</c> = 2) are out of reach. Config file and API only (no Settings-page control); the POST is an overlay, so a body without the
+    /// key leaves it as it was. Read once per window; takes effect on the next window.
+    /// </summary>
+    public bool CqApEnabled { get; init; } = false;
+
+    /// <summary>
+    /// COH-RES-CAND v2: when <c>true</c>, the coherent fallback in <c>Both</c> mode with a residual buffer makes a THIRD, last run: the residual audio with
+    /// THAT buffer's own candidate snapshot, on whatever budget is left after today's two runs (which are unchanged). Its new-text rows (text not already
+    /// published in the cycle) are kept only when their published integer frequency is at most 1097 Hz (the gate frozen from #272's data, Stage 0 record
+    /// and Amendment 2 of the COH-RES-CAND v2 spec) and always pass F1b: R-F4's ungating never applies to them. <b>Default <c>false</c></b>: an absent key
+    /// reads <c>false</c> and every code path is as it was (no extra snapshot is taken, no third run). It acts only while <see cref="CoherentFallbackEnabled"/>
+    /// is on, on <see cref="DecodingDepth.Deep"/>, in <c>Both</c> mode; in <c>Original</c> and <c>Residual</c> modes it has no effect. Config file and API
+    /// only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the
+    /// next window. Turning it on starts a new live era: never pool its decodes with figures from the setting off.
+    /// </summary>
+    public bool CoherentFallbackResidualCandidates { get; init; }
+
+    /// <summary>
+    /// XC-BUILD (cross-cycle template stage): when <c>true</c>, the decoder keeps the messages published in batches 1 to 5 of each staged cycle for 90 s and, on a staged cycle with a residual buffer, tests the
+    /// messages published 30, 60 and 90 s earlier as known 79-tone templates on that buffer (a managed energy detector searched in a window around each prior's position), publishing detections as <b>batch 6</b>
+    /// after every other batch. <b>Default <c>false</c></b>: an absent key reads <c>false</c> and every code path, every published row and every log line is as it was (nothing is stored, nothing is written).
+    /// Needs the coherent fallback on and Deep depth to have a residual buffer; otherwise the stage is a counted, logged skip. The detection threshold is a shipped constant, not a setting. Config file and API
+    /// only (no Settings-page control); the POST is an overlay, so a body without the key leaves it as it was. Read once per window; takes effect on the next window. Turning it on starts a new live era: never
+    /// pool its decodes with figures from the setting off.
+    /// </summary>
+    public bool CrossCyclePrior { get; init; }
+
+    /// <summary>
+    /// XC-BUILD (shadow null): when <c>true</c> <b>and</b> <see cref="CrossCyclePrior"/> is on, the same detector, window and threshold also run on the OPPOSITE-parity priors (published 15, 45 and 75 s earlier)
+    /// against the same buffer; those detections are counted and logged, never published and never stored, so an arm can measure the false rate instead of inheriting it. <b>Default <c>false</c></b> and it stays
+    /// off at the station unless the Captain turns it on. No effect while <see cref="CrossCyclePrior"/> is off. Config file and API only; the POST is an overlay. Read once per window.
+    /// </summary>
+    public bool CrossCyclePriorShadow { get; init; }
 }

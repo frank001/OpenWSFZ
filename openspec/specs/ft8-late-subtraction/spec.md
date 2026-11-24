@@ -1,7 +1,7 @@
 # ft8-late-subtraction Specification
 
 ## Purpose
-Defines the late subtract-and-decode round (LATE-SUB L1'): behind `decoder.lateSubtractionRound` (default OFF), after the coherent fallback a further subtraction round runs on the fallback's audio and publishes any new decodes as batch 5. With the setting OFF the decode path is unchanged. Added by change `late-sub-round` (v0.68, FR-102; accepted on the third night, 2026-10-31).
+Defines the late subtract-and-decode round (LATE-SUB L1'): behind `decoder.lateSubtractionRound` (default ON since v0.69, change `rf4-l1p-default-on`; an explicit `false` turns it off), after the coherent fallback a further subtraction round runs on the fallback's audio and publishes any new decodes as batch 5. With the setting `false` the decode path is unchanged. Added by change `late-sub-round` (v0.68, FR-102; accepted on the third night, 2026-10-31).
 ## Requirements
 ### Requirement: `decoder.lateSubtractionRound` switches the late round on, and an absent key reads off
 

@@ -17,7 +17,7 @@ Authority: Architect spec `qa/rr-study/2026-11-12-1340-architect-to-qa-spec-coh-
 
 ## The gate and where it comes from
 
-`freq <= 1097` Hz on the published integer frequency. Chosen by QA's Stage 0 on #272's arm-B data (149 new-text batch-4 rows: 119 corroborated, 19 tested_absent, 9 tested_present, 2 hashed): `kept_C` 57 of 119, `kept_TA` 4 of 19, `p_perm` 0.0476. Frozen into the spec by Amendment 2 (A2.1). No mechanism is known; it may not transfer to 40 m. Stage 2 (QA's arm B on the 40 m night `20261110`) is the test. The constant is never re-fitted here (HK-021(p)).
+`freq <= 1097` Hz on the published integer frequency. Chosen by QA's Stage 0 on #272's arm-B data (149 new-text batch-4 rows: 119 corroborated, 19 tested_absent, 9 tested_present, 2 hashed): `kept_C` 57 of 119, `kept_TA` 4 of 19, `p_perm` 0.0476. Frozen into the spec by Amendment 2 (A2.1). No mechanism is known; it may not transfer to another night, configuration or band. Stage 2 (QA's arm B on the 40 m night `20261110`) is the test. The constant is never re-fitted here (HK-021(p)).
 
 ## Out of scope
 

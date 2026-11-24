@@ -850,8 +850,18 @@ extern "C" {
  *              ft8_coherent_fallback_process (a new context is off); FT8CohFallbackCycleStats.reserved0 became n_walk_entered and
  *              FT8CohFallbackOut.reserved became provenance (layouts and sizes unchanged; both stay 0 with the bit off).
  *              20260070 is origin/decoding_improvement's (sync 7), not merged here.
+ *
+ *   20260072 — CQ-AP (cq-ap change): an EXTRA a-priori decode attempt on candidates whose normal attempt failed, behind a per-call
+ *              flag (default OFF). Payload bits 0-28 (n29a = c28("CQ") << 1 | ipa 0) and 74-76 (i3 = 1) are forced, belief propagation
+ *              ONLY (OSD is never run on it), the forced LLRs written AFTER ftx_normalize_logl at 1.01 x the largest |LLR| of the
+ *              normalised non-forced entries (bp_decode's sign: bit 1 = positive). The forced bit values are read from ft8_lib's own
+ *              encoder (the message "CQ Q1ABC JO22"), not retyped. NEW exports: ft8_set_cq_ap (thread-local flag, same bracket as
+ *              ft8_set_ap_bits), ft8_get_last_ap_kinds (apKind per result, index-aligned with results[]), ft8_get_last_cq_ap_stats
+ *              (attempts, decodes, OSD entries), ft8_cq_ap_pattern and ft8_cq_ap_probe_llrs (test exports). Every existing export and
+ *              struct is unchanged (FT8Result stays 48 bytes); the QSO-AP path (ftx_decode_candidate_ap, +-40 before normalisation) is
+ *              untouched; with the flag OFF decode output is identical to 20260071.
  */
-#define FT8_SHIM_VERSION 20260071
+#define FT8_SHIM_VERSION 20260072
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
@@ -1089,6 +1099,55 @@ void ft8_set_diagnostics_enabled(int enabled);
 void ft8_set_ap_bits(
     const uint8_t* mycall_bits,  int num_mycall_bits,
     const uint8_t* hiscall_bits, int num_hiscall_bits);
+
+/*
+ * ft8_set_cq_ap — cq-ap (shim 20260072): per-thread (thread-local) switch for the CQ a-priori attempt of the NEXT
+ * ft8_decode_all calls on the CALLING thread. Non-zero = on; 0 = off (the default, and the decoder as it was). Set it on the
+ * decoding thread right before every ft8_decode_all, exactly like ft8_set_ap_bits (the managed caller does), and reset it
+ * afterwards where the thread is reused. With the flag ON, a candidate whose normal attempt (QSO-AP included) failed gets one
+ * more attempt: payload bits 0-28 and 74-76 forced to the encoding of "CQ", BP only (OSD is never run on it), forced LLRs
+ * written after normalisation at 1.01 x the largest |LLR| of the normalised non-forced entries.
+ */
+void ft8_set_cq_ap(int enabled);
+
+/*
+ * ft8_get_last_ap_kinds — apKind of every decode of the most recent ft8_decode_all on THIS thread (0 = none, 1 = cq),
+ * index-aligned with results[] from that call (same count contract as ft8_get_last_snr_terms). Writes at most `capacity`
+ * entries and returns the number written; out_kinds may be NULL (count only). Returns -1 if capacity < 0.
+ * FT8Result itself is unchanged (48 bytes).
+ */
+int ft8_get_last_ap_kinds(uint8_t* out_kinds, int capacity);
+
+/*
+ * ft8_get_last_cq_ap_stats — the CQ-AP counters of the most recent ft8_decode_all on THIS thread (reset at its top):
+ * attempts (candidates the CQ-AP path was tried on), decodes (CQ-AP decodes that reached results[]) and osd_entries (entries into
+ * OSD from the CQ-AP path: 0 in production by construction). Any pointer may be NULL.
+ */
+void ft8_get_last_cq_ap_stats(int* out_attempts, int* out_decodes, int* out_osd_entries);
+
+/*
+ * ft8_cq_ap_pattern — TEST export. Fills out_force174 (174 bytes) with the CQ-AP forcing pattern: 0 = position not forced,
+ * 1 = forced to bit 0, 2 = forced to bit 1; payload bits 0-28 and 74-76 only. Returns the number of forced positions (32), or
+ * -1 when out_force174 is NULL or the encoder rejects the pattern message.
+ */
+int ft8_cq_ap_pattern(uint8_t* out_force174);
+
+/*
+ * ft8_cq_ap_probe_llrs — TEST export. Runs the CQ-AP core (normalise -> force -> BP) on a caller-supplied RAW 174-LLR vector
+ * (bp_decode's sign: bit 1 = positive). flip_sign != 0 forces the OPPOSITE sign at every forced position (the D1b negative
+ * control). allow_osd != 0 lets the attempt fall back to OSD (the D4 counter's sensitivity hook; production never sets it).
+ * out_final_llr174 (optional, 174 floats) receives the array handed to BP; out_a91 (optional, 12 bytes) the packed codeword
+ * on success; out_ldpc_errors (optional) bp_decode's unsatisfied-check count. Returns 1 if a CRC-valid codeword was found,
+ * 0 if not, -1 on bad arguments.
+ */
+int ft8_cq_ap_probe_llrs(
+    const float*   raw_llr174,
+    int            max_iters,
+    int            allow_osd,
+    int            flip_sign,
+    float*         out_final_llr174,
+    uint8_t*       out_a91,
+    int*           out_ldpc_errors);
 
 /*
  * ft8_encode_message — encode an FT8 text message to 79 tone indices.

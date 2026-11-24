@@ -80,7 +80,7 @@ internal sealed record DecodePumpDependencies(
 /// published or abandoned.</para>
 ///
 /// <para><b>Who receives batch 2 and 3 (P-4/P-5/P-6, amended by late-batches-in-qso).</b> The decode panel, ALL.TXT,
-/// decode-filter admission, external reporting and, now, the QSO answerer and caller, carrying <c>BatchNumber</c> 2, 3, 4 or 5 (4: the
+/// decode-filter admission, external reporting and, now, the QSO answerer and caller, carrying <c>BatchNumber</c> 2, 3, 4, 5 or 6 (6: the XC-BUILD template stage's batch; 4: the
 /// coherent-fallback batch on Deep; on Normal the fallback is batch 3; 5: the LATE-SUB late round's batch, Deep only, which can arrive too late to
 /// affect that cycle's TX decision, as batch 4 can).
 /// The services treat such a batch as <i>heard</i> (it may drive a message-driven transition, and the answerer merges it

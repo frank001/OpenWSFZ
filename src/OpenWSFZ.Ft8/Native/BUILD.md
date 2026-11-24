@@ -237,6 +237,11 @@ gcc -shared -o libft8.so \
 > a POSIX function declared in `<string.h>` only when `_GNU_SOURCE` or
 > `_POSIX_C_SOURCE >= 200809L` is defined. Strict `-std=c11` does not expose it.
 
+CQ-AP (shim 20260072) adds NO new source file and no new recipe line either: three new functions in `patched/ft8/decode.c` (`ftx_decode_candidate_cq_ap`,
+`ftx_cq_ap_inject`, `ftx_cq_ap_probe_llrs`) and five new exports (`ft8_set_cq_ap`, `ft8_get_last_ap_kinds`, `ft8_get_last_cq_ap_stats`, `ft8_cq_ap_pattern`,
+`ft8_cq_ap_probe_llrs`, appended to `ft8_shim.c` and added to the `rebuild_shim.bat` `/EXPORT` list). `FT8Result` stays 48 bytes (the per-decode `apKind` is read
+through an index-aligned getter), so no existing caller's buffer changes. The Linux and macOS binaries are refreshed by the usual follow-up chore after the native merge.
+
 COH-MULTISET Stage 1 (shim 20260071) adds NO new source file and no new recipe line: two diagnostic exports (`ft8_coherent_fallback_sets_at`,
 `ft8_coherent_fallback_set_groups`, appended to `ft8_shim.c` and added to the `rebuild_shim.bat` `/EXPORT` list) and the four coherent bit-metric
 sets in `refine/coherent_fallback.c`, which every recipe above already compiles. Stage 2 (same shim number) adds a third export,

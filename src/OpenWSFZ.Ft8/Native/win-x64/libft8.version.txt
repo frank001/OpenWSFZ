@@ -1,4 +1,27 @@
-=== CURRENT: COH-MULTISET Stages 1 + 2, the four further coherent bit-metric sets, the diagnostic export and the walk (FT8_SHIM_VERSION 20260071) ===
+=== CURRENT: CQ-AP, a CQ a-priori decode attempt on failed candidates behind a per-call flag (FT8_SHIM_VERSION 20260072) ===
+
+Built 2026-11-10 on feat/cq-ap (off origin/main 98332f2a, shim 20260071), local, not pushed. QA handoff dev-tasks/2026-11-10-cq-ap-build.md
+(qa/same-chain 64ca5a2c); Architect spec 416b6ab9 (arch/cq-ap) with Amendment 1.
+What changed (native). ft8_lib_build/patched/ft8/decode.c: ftx_decode_candidate_cq_ap (BP ONLY: forced LLRs at payload bits 0-28 and 74-76 written AFTER
+      ftx_normalize_logl at 1.01 x the largest |LLR| of the normalised non-forced entries; bp_decode's sign, bit 1 = positive), ftx_cq_ap_inject (the pure
+      forcing step), ftx_cq_ap_probe_llrs (test probe); the shared core takes an allow_osd parameter only so a test can prove the OSD counter counts
+      (production passes 0). ftx_decode_candidate_ap (QSO-AP, +-40 before normalisation, OSD fallback) is NOT touched.
+  ft8_shim.c/.h            FIVE NEW exports: ft8_set_cq_ap (thread-local flag, same bracket as ft8_set_ap_bits), ft8_get_last_ap_kinds (apKind per result,
+      index-aligned with results[]), ft8_get_last_cq_ap_stats (attempts, decodes, OSD entries), ft8_cq_ap_pattern and ft8_cq_ap_probe_llrs (test exports).
+      ft8_decode_all: with the flag on, a candidate whose normal attempt failed gets the CQ attempt before the `if (!decoded) continue` branch, in every pass.
+      FT8Result is UNCHANGED (48 bytes); every existing export and struct is unchanged. The forced bit values are read from ft8_lib's own encoder
+      ("CQ Q1ABC JO22"), not retyped.
+rebuild_shim.bat         the five new exports added to the /EXPORT list. The Linux, macOS and CI builds need no export list.
+With the flag OFF (the default) decode output is identical to 20260071: 239 cycle rows (63 real cycles native, 30 real with QSO-AP active, 96 synthetic,
+30 noise, 20 real staged Deep) diffed by hash of text, frequency, dt, SNR (and, staged, batch and path) against a 98332f2a build: no difference.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    bbde6eb66af4cd429ffc46f67291ba718c1ae36ae39665faac24629bcb6e6528
+  Linux x64 / macOS arm64: NOT rebuilt here (the C was compile-checked with GCC 14.2 -Wall in WSL Debian: no new warning); refreshed by the usual
+  follow-up chore after the native merge (PR #254 for 20260069). tools/check_native_version.py reports shim 20260072 for the Windows file.
+
+
+=== Previous: COH-MULTISET Stages 1 + 2, the four further coherent bit-metric sets, the diagnostic export and the walk (FT8_SHIM_VERSION 20260071) ===
 
 Built 2026-10-24 on feat/coh-multiset-build (off origin/main 5a9667ee, shim 20260069), local, not pushed. QA handoff
 dev-tasks/2026-10-24-coh-multiset-build.md (qa/refset); Architect spec 37a1a298 + Amendment 1 b59f7d7a.

@@ -1,12 +1,17 @@
 ## ADDED Requirements
 
-### Requirement: `decoder.coherentFallbackResidualUngated` switches the F1b gate off for the residual-audio run, and an absent key reads off
+### Requirement: `decoder.coherentFallbackResidualUngated` switches the F1b gate off for the residual-audio run, and an absent key reads on
 
-The configuration SHALL provide the boolean `decoder.coherentFallbackResidualUngated`. When the key is absent the value SHALL be `false` and the fallback SHALL behave exactly as it did before this change. The key SHALL be read once per decode window and take effect on the next window. It SHALL be settable through the configuration file and the configuration API (a partial post is an overlay and SHALL NOT reset it); there is no Settings-page control. It acts only when `decoder.coherentFallbackAudio` is `Both`.
+The configuration SHALL provide the boolean `decoder.coherentFallbackResidualUngated`. When the key is absent (or the `decoder` section is missing) the value SHALL be `true` (default ON since v0.69, change `rf4-l1p-default-on`); an explicit `false` SHALL turn it off, and the fallback SHALL then behave exactly as it did before this change. The key SHALL be read once per decode window and take effect on the next window. It SHALL be settable through the configuration file and the configuration API (a partial post is an overlay and SHALL NOT reset it); there is no Settings-page control. It acts only when `decoder.coherentFallbackAudio` is `Both`.
 
 #### Scenario: The key is absent
 
 - **WHEN** the configuration has no `decoder.coherentFallbackResidualUngated`
+- **THEN** the effective value SHALL be `true`, and the daemon's decoder SHALL read `true`
+
+#### Scenario: An explicit false
+
+- **WHEN** the configuration sets the key to `false`
 - **THEN** the effective value SHALL be `false` and the published fallback batch SHALL be equal to the build before this change
 
 #### Scenario: An explicit value
@@ -17,7 +22,7 @@ The configuration SHALL provide the boolean `decoder.coherentFallbackResidualUng
 #### Scenario: A partial configuration post
 
 - **WHEN** a configuration post carries other keys and not `decoder.coherentFallbackResidualUngated`
-- **THEN** the key SHALL keep the value it had
+- **THEN** the key SHALL keep the value it had, including an explicit `false`
 
 #### Scenario: The audio mode is not Both
 

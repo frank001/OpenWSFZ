@@ -243,11 +243,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-FB-AUDIO: the audio mode the fallback uses now (the read-back of <see cref="SetCoherentFallbackAudio"/>).</summary>
     public CoherentFallbackAudio CoherentFallbackAudio => _coherentFallbackAudio;
 
-    private volatile bool _coherentFallbackResidualUngated;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+    private volatile bool _coherentFallbackResidualUngated;   // the object itself starts false; the daemon sets the configured value (default true) before the first cycle and on every config change
 
     /// <summary>
-    /// COH-GATE-G R-F4: sets <c>decoder.coherentFallbackResidualUngated</c>. <c>false</c> (the start value, and the configured default when the key is
-    /// absent) leaves the fallback exactly as it was. <c>true</c> admits the F1b-gated-out rows of the run that read the residual audio, in
+    /// COH-GATE-G R-F4: sets <c>decoder.coherentFallbackResidualUngated</c>. The decoder object starts <c>false</c>; the configured default
+    /// (<c>DecoderConfig.CoherentFallbackResidualUngated</c>, true when the key is absent) reaches it through this setter. <c>false</c> leaves the fallback exactly as it was. <c>true</c> admits the F1b-gated-out rows of the run that read the residual audio, in
     /// <see cref="CoherentFallbackAudio.Both"/> mode only. Read once per decode cycle; takes effect on the next cycle.
     /// </summary>
     public void SetCoherentFallbackResidualUngated(bool enabled)
@@ -256,10 +256,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>COH-GATE-G R-F4: whether the residual-run ungating is requested now (the read-back of <see cref="SetCoherentFallbackResidualUngated"/>).</summary>
     public bool CoherentFallbackResidualUngated => _coherentFallbackResidualUngated;
 
-    private volatile bool _lateSubtractionRound;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+    private volatile bool _lateSubtractionRound;   // the object itself starts false; the daemon sets the configured value (default true) before the first cycle and on every config change
 
     /// <summary>
-    /// LATE-SUB L1': sets <c>decoder.lateSubtractionRound</c>. <c>false</c> (the start value, and the configured default when the key is absent) leaves
+    /// LATE-SUB L1': sets <c>decoder.lateSubtractionRound</c>. The decoder object starts <c>false</c>; the configured default
+    /// (<c>DecoderConfig.LateSubtractionRound</c>, true when the key is absent) reaches it through this setter. <c>false</c> leaves
     /// every code path as it was. <c>true</c> runs one more subtract-and-decode round after the coherent fallback's batch (Deep only, fallback on, a residual
     /// buffer available) and publishes its new decodes as batch 5. Read once per decode cycle; takes effect on the next cycle.
     /// </summary>
@@ -268,6 +269,118 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     /// <summary>LATE-SUB L1': whether the late round is requested now (the read-back of <see cref="SetLateSubtractionRound"/>).</summary>
     public bool LateSubtractionRound => _lateSubtractionRound;
+
+    private volatile bool _coherentFallbackResidualCandidates;   // the object starts false; the daemon sets the configured value (default false) before the first cycle
+
+    /// <summary>
+    /// COH-RES-CAND v2: sets <c>decoder.coherentFallbackResidualCandidates</c>. <c>false</c> (the start value, and the configured default when the key is
+    /// absent) leaves every code path as it was: no extra snapshot is taken and no third run is made. <c>true</c> takes the candidate snapshot of the residual
+    /// buffer's own decode and, in <see cref="CoherentFallbackAudio.Both"/> mode with a residual buffer, adds a THIRD, last coherent-fallback run (the residual
+    /// audio with that snapshot) whose new-text rows are published only when their integer frequency is at most
+    /// <see cref="CohFallbackAudioSelector.ResidualRunMaxFreqHz"/> Hz. The two runs of today are unchanged. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCoherentFallbackResidualCandidates(bool enabled)
+        => _coherentFallbackResidualCandidates = enabled;
+
+    /// <summary>COH-RES-CAND v2: whether the third fallback run is requested now (the read-back of <see cref="SetCoherentFallbackResidualCandidates"/>).</summary>
+    public bool CoherentFallbackResidualCandidates => _coherentFallbackResidualCandidates;
+
+    /// <summary>COH-RES-CAND v2: the <c>resRun=</c> values of the coherent-fallback log line (only written with the setting effective).</summary>
+    internal const string ResRunRan = "ran", ResRunSkippedBudget = "skipped-budget", ResRunNoSnapshot = "no-snapshot", ResRunNoResidual = "no-residual",
+        ResRunFailed = "failed";
+
+    /// <summary>COH-RES-CAND v2: the <c>resCand=</c> values (the buffer whose own candidate list the third run read; <c>none</c> when there is no residual buffer).</summary>
+    internal const string ResCandResidualR2 = "residual-R2", ResCandResidualR3 = "residual-R3", ResCandNone = "none";
+
+    private volatile bool _cqApEnabled;   // CQ-AP: false at construction (and by default in the config); the daemon sets the configured value before the first cycle and on every config change
+
+    /// <summary>
+    /// CQ-AP: sets <c>decoder.cqApEnabled</c>. The decoder object starts <c>false</c> and so does the configured default
+    /// (<c>DecoderConfig.CqApEnabled</c>, false when the key is absent). <c>false</c> leaves every code path as it was. <c>true</c> gives every candidate whose
+    /// normal attempt failed one more, CQ a-priori attempt (bits 0-28 and 74-76 forced, belief propagation only) in every native decode of the cycle; its decodes
+    /// carry <see cref="ApKind.Cq"/>. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCqApEnabled(bool enabled)
+        => _cqApEnabled = enabled;
+
+    /// <summary>CQ-AP: whether the CQ a-priori attempt is requested now (the read-back of <see cref="SetCqApEnabled"/>).</summary>
+    public bool CqApEnabled => _cqApEnabled;
+
+    // ── XC-BUILD (cross-cycle template stage, batch 6) ────────────────────────────────────────────────────────────────────────────────────────────
+    private volatile bool _crossCyclePrior;          // the object starts false; the daemon sets the configured value (default false) before the first cycle and on every config change
+    private volatile bool _crossCyclePriorShadow;    // likewise, default false
+    private double _crossCyclePriorThreshold = CrossCyclePriorThresholdDefault;   // read with Volatile.Read: a double cannot be volatile
+    private readonly CrossCyclePriorStore _crossCycleStore = new();
+    private volatile ICrossCyclePriorProbe? _crossCycleProbe;
+    private volatile bool _crossCycleColocationVeto = CrossCyclePriorColocationVetoDefault;   // R14: ON in the product
+    private double _crossCyclePriorParityThreshold = CrossCyclePriorParityThresholdDefault;   // R15, read with Volatile.Read
+
+    /// <summary>
+    /// XC-BUILD R6: T_E, the shipped threshold on S_E* above which a template is detected: 3.076041980658299, frozen on the TRAIN night by QA's TR2 (T_E from the shadow null at FA* = 0.021 / K with K = 36, T_P the 10th percentile of the corroborated detections' S_P), committed before any acceptance arm; qa/xc-build/results/xc_te_v2_full_2026-11-14.json.
+    /// Replay can set it (for example <see cref="double.PositiveInfinity"/>, which detects nothing) through <see cref="SetCrossCyclePriorThreshold"/>.
+    /// </summary>
+    internal const double CrossCyclePriorThresholdDefault = 3.076041980658299;
+
+    /// <summary>
+    /// XC-BUILD R1: sets <c>decoder.crossCyclePrior</c>. <c>false</c> (the start value, and the configured default when the key is absent) leaves every code path as it was: no store write, no log line, no new
+    /// allocation. <c>true</c> keeps the messages published in batches 1 to 5 of each staged cycle for 90 s and, on a staged cycle with a residual buffer, tests the messages published 30, 60 and 90 s earlier as
+    /// known 79-tone templates on that buffer, publishing detections as batch 6 (<see cref="PathTemplate"/>). Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetCrossCyclePrior(bool enabled)
+        => _crossCyclePrior = enabled;
+
+    /// <summary>XC-BUILD R1: whether the template stage is requested now (the read-back of <see cref="SetCrossCyclePrior"/>).</summary>
+    public bool CrossCyclePrior => _crossCyclePrior;
+
+    /// <summary>
+    /// XC-BUILD R1/R9: sets <c>decoder.crossCyclePriorShadow</c>. It has no effect unless <see cref="CrossCyclePrior"/> is on: after the live stage of such a cycle the same detector, window and threshold run on the
+    /// OPPOSITE-parity priors (published 15, 45 and 75 s earlier) against the same buffer. Shadow detections are counted and logged, never published, never stored. Read once per decode cycle.
+    /// </summary>
+    public void SetCrossCyclePriorShadow(bool enabled)
+        => _crossCyclePriorShadow = enabled;
+
+    /// <summary>XC-BUILD R1/R9: whether the shadow null is requested now (the read-back of <see cref="SetCrossCyclePriorShadow"/>).</summary>
+    public bool CrossCyclePriorShadow => _crossCyclePriorShadow;
+
+    /// <summary>XC-BUILD R6: sets T_E for replay (TRAIN runs with +infinity, ON with the frozen value, on the same build). Internal: visible to the harness through <c>InternalsVisibleTo</c>.</summary>
+    internal void SetCrossCyclePriorThreshold(double threshold)
+        => Volatile.Write(ref _crossCyclePriorThreshold, threshold);
+
+    /// <summary>XC-BUILD R6: the T_E in force now (the read-back of <see cref="SetCrossCyclePriorThreshold"/>; <see cref="CrossCyclePriorThresholdDefault"/> until set).</summary>
+    internal double CrossCyclePriorThreshold => Volatile.Read(ref _crossCyclePriorThreshold);
+
+    /// <summary>
+    /// XC-BUILD R15: T_P, the shipped threshold on S_P (the statistic over frame symbols 43 to 71 at the S_E* argmax) that a template must also clear to be detected: 2.2220253019230114, frozen on the TRAIN night by QA's TR2 (T_E from the shadow null at FA* = 0.021 / K with K = 36, T_P the 10th percentile of the corroborated detections' S_P), committed before any acceptance arm; qa/xc-build/results/xc_te_v2_full_2026-11-14.json.
+    /// A value chosen on the TEST night is not allowed. Replay can set it (0.0 gates nothing) through <see cref="SetCrossCyclePriorParityThreshold"/>.
+    /// </summary>
+    internal const double CrossCyclePriorParityThresholdDefault = 2.2220253019230114;
+
+    /// <summary>XC-BUILD R14: the co-location veto is ON in the product (the build is default OFF as a whole, but when it is on, the veto is on).</summary>
+    internal const bool CrossCyclePriorColocationVetoDefault = true;
+
+    /// <summary>XC-BUILD R15: sets T_P for replay (TR2 runs with the veto off and T_E +infinity, the ON arms with the frozen values). Internal: visible to the harness through <c>InternalsVisibleTo</c>.</summary>
+    internal void SetCrossCyclePriorParityThreshold(double threshold)
+        => Volatile.Write(ref _crossCyclePriorParityThreshold, threshold);
+
+    /// <summary>XC-BUILD R15: the T_P in force now (the read-back of <see cref="SetCrossCyclePriorParityThreshold"/>; <see cref="CrossCyclePriorParityThresholdDefault"/> until set). The harness's read-back line shows it as <c>xctp</c>.</summary>
+    internal double CrossCyclePriorParityThreshold => Volatile.Read(ref _crossCyclePriorParityThreshold);
+
+    /// <summary>XC-BUILD R14: sets the co-location veto for replay (TR2 turns it off so every live test is scored; every other arm leaves it on). Internal, like the T_E setter. Read once per decode cycle.</summary>
+    internal void SetCrossCyclePriorColocationVeto(bool enabled)
+        => _crossCycleColocationVeto = enabled;
+
+    /// <summary>XC-BUILD R14: whether the veto is applied now (the read-back of <see cref="SetCrossCyclePriorColocationVeto"/>; <c>true</c> until set). The harness's read-back line shows it as <c>xcveto</c>.</summary>
+    internal bool CrossCyclePriorColocationVeto => _crossCycleColocationVeto;
+
+    /// <summary>XC-BUILD R13: the numbers-only diagnostic sink, <c>null</c> by default (the shipped build has no subscriber). Replay81 sets it through <c>InternalsVisibleTo</c>.</summary>
+    internal ICrossCyclePriorProbe? CrossCyclePriorProbe
+    {
+        get => _crossCycleProbe;
+        set => _crossCycleProbe = value;
+    }
+
+    /// <summary>XC-BUILD (for the tests): the number of messages the prior store holds. 0 for ever while the setting is OFF (R11: nothing is written).</summary>
+    internal int CrossCyclePriorStoreCount => _crossCycleStore.TotalCount;
 
     /// <summary>
     /// COH-FALLBACK Stage 2, R7': time held back from the shared 13 s cycle budget for the work after the native fallback returns (the text
@@ -583,6 +696,34 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         Func<IReadOnlyList<DecodeResult>, Task>?   onThirdBatch  = null,
         Func<int, IReadOnlyList<DecodeResult>, Task>? onFallbackBatch = null)
     {
+        // CQ-AP: the flag is read ONCE per cycle, here, and travels in `cq` to every native decode of the cycle (pass 0, the residual pass, the third
+        // pass and the late round). With it off `cq.Enabled` is false, nothing is counted and no line is written. The per-cycle line is written
+        // after the whole staged decode returned (the early decode, a partial-audio pass 0, writes none: it would be a second line for one cycle).
+        var cq = new CqApCycleCounters(_cqApEnabled);
+        var decoded = await DecodeCoreInnerAsync(pcm, cycleStart, currentBand, onFirstBatch, early, ct,
+            onSecondBatch, onThirdBatch, onFallbackBatch, cq).ConfigureAwait(false);
+        if (cq.Enabled && !early)
+        {
+            // HK-037 / NFR-021: counts only, never message text or a callsign.
+            _logger?.LogInformation(
+                "Cycle {Time}: cq-ap: attempts={Attempts} decodes={Decodes}",
+                cycleStart.ToString("HH:mm:ss"), cq.Attempts, cq.Decodes);
+        }
+        return decoded;
+    }
+
+    private async Task<IReadOnlyList<DecodeResult>> DecodeCoreInnerAsync(
+        float[]                                    pcm,
+        DateTime                                   cycleStart,
+        string?                                    currentBand,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onFirstBatch,
+        bool                                       early,
+        CancellationToken                          ct,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onSecondBatch,
+        Func<IReadOnlyList<DecodeResult>, Task>?   onThirdBatch,
+        Func<int, IReadOnlyList<DecodeResult>, Task>? onFallbackBatch,
+        CqApCycleCounters                          cq)
+    {
         // The flag is read ONCE per cycle. Two-stage only when the caller asked for it AND the flag is on: with the
         // flag off this method is, statement for statement, the pre-change single-batch path (P-9).
         // The EARLY entry (decode-early-batch-panel D3) never reads the flag: it is pass 0 only, whatever the flag says.
@@ -601,9 +742,20 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         var  audioMode     = _coherentFallbackAudio;
         // COH-GATE-G R-F4: read ONCE per cycle too; it acts only in Both mode (Original and Residual are unchanged).
         bool ungatedOn     = _coherentFallbackResidualUngated && audioMode == CoherentFallbackAudio.Both;
+        // COH-RES-CAND v2: read ONCE per cycle too; it acts only while the fallback runs in Both mode (Original and Residual are unchanged).
+        bool resCandOn     = cohOn && _coherentFallbackResidualCandidates && audioMode == CoherentFallbackAudio.Both;
         // LATE-SUB L1': read ONCE per cycle too. A staged cycle only (the round is part of the staged path); whether the fallback ran, the depth is Deep
         // and a residual buffer exists are checked where each is known, and each failing check is a counted, logged skip (R2/R6).
         bool lateOn        = twoStage && _lateSubtractionRound;
+        // XC-BUILD (R1, R11): read ONCE per cycle too. A staged cycle with the fallback's callbacks only (batch 6 goes through the same hand-off as batches 4 and 5), never the early decode. With the
+        // setting OFF xcOn is false and every statement below that mentions the stage or the store is behind it: no store write, no log line, no allocation (R11).
+        bool xcOn          = cohOn && _crossCyclePrior;
+        bool xcShadowOn    = xcOn && _crossCyclePriorShadow;
+        double xcThreshold = xcOn ? Volatile.Read(ref _crossCyclePriorThreshold) : CrossCyclePriorThresholdDefault;
+        double xcParityThreshold = xcOn ? Volatile.Read(ref _crossCyclePriorParityThreshold) : CrossCyclePriorParityThresholdDefault;   // R15: read once per cycle
+        bool xcVetoOn      = xcOn && _crossCycleColocationVeto;                                                                          // R14: read once per cycle
+        // The texts this cycle published in batches 1 to 5 (R3's first exclusion). Allocated only while the stage is on.
+        HashSet<string>? xcPublished = xcOn ? new HashSet<string>(StringComparer.Ordinal) : null;
 
         // ── R2: Pre-condition guard ──────────────────────────────────────────
         // Declared async so that this throw surfaces as a faulted Task rather than
@@ -636,6 +788,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // This avoids the wall-clock race where scheduler delay causes
         // AlignToCycleStart to snap to the start of the *next* cycle.
         string timeStr = cycleStart.ToString("HH:mm:ss");
+
+        // XC-BUILD R2: open this cycle's entry in the prior store (a band change clears it; cycles older than 90 s are dropped). Only while the stage is on.
+        if (xcOn) _crossCycleStore.BeginCycle(cycleStart, currentBand);
 
         _logger?.LogDebug(
             "Starting decode for cycle {Time}; pcm = {Samples} samples, RMS = {Rms:E3}.",
@@ -702,8 +857,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                         _interop.SetApBits(ap.MycallBits, ap.HiscallBits);
                     else
                         _interop.SetApBits([], []);  // explicitly clear any TLS residue from a prior cycle
+                    // CQ-AP: the per-thread flag, set in the same bracket and on the same thread, EVERY time (a pool thread may carry a stale value).
+                    _interop.SetCqApEnabled(cq.Enabled);
 
                     var r = _interop.DecodeAll(normalisedPcm);
+                    if (cq.Enabled) cq.AddAttempts(_interop.GetLastCqApStats().Attempts);   // before anything else touches the thread-local counters
                     var p = _interop.GetLastPassCounts(_interop.MaxDecodePasses);
                     var c = _interop.GetLastCandidateCounts(_interop.MaxDecodePasses);
                     var n = _interop.GetLastNoiseFloorDb();
@@ -756,7 +914,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         {
             var newFromResidual = await SubtractionPass.RunAsync(
                 _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
-                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, cqAp: cq);
             if (newFromResidual.Length > 0)
             {
                 var combined = new Ft8NativeResult[native.Length + newFromResidual.Length];
@@ -777,7 +935,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
         // LATE-SUB L1' (F1): keptNatives, when supplied, receives the natives behind the decodes this call actually returned (the first occurrence of
         // each text in the cycle, not already in `seen`, plausible), in order. null (every call with the setting OFF) changes nothing.
-        List<DecodeResult> MapNative(Ft8NativeResult[] source, int path = PathOrdinary, List<Ft8NativeResult>? keptNatives = null)
+        List<DecodeResult> MapNative(Ft8NativeResult[] source, int path = PathOrdinary, List<Ft8NativeResult>? keptNatives = null, int xcBatch = 0)
         {
         var mapped = new List<DecodeResult>(source.Length);
 
@@ -850,6 +1008,13 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             }
 
             keptNatives?.Add(nr);
+            // XC-BUILD R2: a message PUBLISHED in batch 1 to 5 goes into the prior store (xcBatch 0 = batch 6, which never does: no chaining). xcPublished is null while the stage is OFF (R11).
+            if (xcBatch > 0 && xcPublished is not null)
+            {
+                xcPublished.Add(msg);
+                _crossCycleStore.Record(new CrossCyclePriorStore.Prior(msg, nr.FreqHz, nr.Dt, xcBatch));
+            }
+            if (nr.ApKind == ApKind.Cq) cq.AddDecode();   // CQ-AP: counted here, where the decode is PUBLISHED (past the plausibility filter and the text de-duplication)
             mapped.Add(new DecodeResult(
                 Time:         timeStr,
                 Snr:          nr.Snr,
@@ -860,14 +1025,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 WorkedBefore: workedBefore,
                 Band:         currentBand)
             {
-                Path = path   // R11 provenance tag (COH-FALLBACK Stage 2); not serialised, not in any output format
+                Path   = path,       // R11 provenance tag (COH-FALLBACK Stage 2); not serialised, not in any output format
+                ApKind = nr.ApKind   // CQ-AP provenance tag; not serialised, not in any output format
             });
         }
 
         return mapped;
         }
 
-        var results = MapNative(native);
+        var results = MapNative(native, xcBatch: 1);
 
         // ── Per-pass iterative subtraction log (AC-IS-4) ────────────────────
         // Loop over passCounts.Length so the log scales correctly with K_MAX_PASSES
@@ -998,6 +1164,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     fbEndMs = sw.Elapsed.TotalMilliseconds;
                 }
                 if (lateOn) LogLateSkip(deep ? LateSkipNothingDecoded : LateSkipNormalDepth);
+                if (xcOn) await RunCrossCycleStageAsync().ConfigureAwait(false);   // XC-BUILD: no residual buffer exists (nothing decoded), so this is a counted, logged skip
                 return [];
             }
 
@@ -1008,10 +1175,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             // measured from the start of this decode (the callback's own time counts: it is part of the cycle).
             var newFromResidual = await SubtractionPass.RunAsync(
                 _interop, normalisedPcm, native, EffectiveSubtractionThreads, _logger,
-                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report);
+                _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, report, cq, captureCohSnapshot: resCandOn && deep);
 
             // Batch 2: nothing when the pass was abandoned, failed, or found nothing new.
-            var second = newFromResidual.Length == 0 ? [] : MapNative(newFromResidual, PathResidual);
+            var second = newFromResidual.Length == 0 ? [] : MapNative(newFromResidual, PathResidual, xcBatch: 2);
             if (!deep)
             {
                 // Normal: batch 2 is returned (unchanged) unless the fallback is on, in which case batch 2 leaves through its callback and
@@ -1025,6 +1192,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 await RunCoherentFallbackBatchAsync(fallbackBatchNumber).ConfigureAwait(false);
                 fbEndMs = sw.Elapsed.TotalMilliseconds;
                 if (lateOn) LogLateSkip(LateSkipNormalDepth);
+                if (xcOn) await RunCrossCycleStageAsync().ConfigureAwait(false);   // XC-BUILD: after the fallback's batch (Normal depth has no late round)
                 return [];
             }
 
@@ -1049,6 +1217,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
             // LATE-SUB L1': after the fallback's batch is out (batches 1 to 4 and their timing do not move), one more round, then batch 5.
             if (lateOn) await RunLateRoundAsync().ConfigureAwait(false);
+
+            // XC-BUILD (R8): the template stage starts only now, after batch 5 (or after the fallback's batch when the late round is off), so batches 1 to 5 and their timing do not move.
+            if (xcOn) await RunCrossCycleStageAsync().ConfigureAwait(false);
             return [];
 
             // -- LATE-SUB L1' (spec R2-R6, Amendment 1 F1/F2/F4) ---------------------------------------------------------------------------
@@ -1088,7 +1259,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 {
                     late = await SubtractionPass.RunThirdPassAsync(
                         _interop, choice.Pcm, fit, alsoKnown, EffectiveSubtractionThreads, _logger,
-                        _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct).ConfigureAwait(false);
+                        _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, cq).ConfigureAwait(false);
                 }
 
                 string outcome = late is null ? LateOutcomeNoNew : late.Outcome switch
@@ -1119,7 +1290,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // refused = fit entries the pass could not re-encode (FittedSignals is the re-encodable count); -1 when the pass failed before counting.
                 int refused = late is null ? 0 : outcome == LateOutcomeFailed ? -1 : Math.Max(0, fit.Length - late.FittedSignals);
                 Ft8NativeResult[] newNatives = late is null ? [] : late.NewResults;
-                var batch5 = newNatives.Length == 0 ? [] : MapNative(newNatives, PathResidual);
+                var batch5 = newNatives.Length == 0 ? [] : MapNative(newNatives, PathResidual, xcBatch: LateRoundBatch);
                 double endMs = sw.Elapsed.TotalMilliseconds;
 
                 double publishMs = -1.0;
@@ -1159,7 +1330,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 // Same budget, same cancellation/reserve mechanism: what remains of the 13 s measured from the start of this decode.
                 var third = await SubtractionPass.RunThirdPassAsync(
                     _interop, report.Residual, newFromResidual, native, EffectiveSubtractionThreads, _logger,
-                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct);
+                    _apConstraints, SubtractionCycleBudget - sw.Elapsed, ct, cq, captureCohSnapshot: resCandOn);
                 thirdResult = third;
 
                 switch (third.Outcome)
@@ -1180,7 +1351,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 Interlocked.Increment(ref _thirdPassRuns);
                 if (third.NewResults.Length == 0) return [];
 
-                return MapNative(third.NewResults, PathResidual, lateOn ? batch3Kept : null);
+                return MapNative(third.NewResults, PathResidual, lateOn ? batch3Kept : null, xcBatch: 3);
             }
         }
 
@@ -1205,6 +1376,122 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 "fbEndMs={FbEndMs:F0}, startMs={StartMs:F0}, elapsedMs={ElapsedMs:F0}, endMs={EndMs:F0}, batch={Batch}, batch5PublishMs={PublishMs:F0}.",
                 outcome, buffer, fitCount, refused, newCount, publishedCount, fbEndMs, startMs, endMs - startMs, endMs, LateRoundBatch, publishMs);
 
+        // ── XC-BUILD: the cross-cycle template stage (spec R3 to R10, R13) ─────────────────────────────────────────────────────────────────────────────
+        // Tests the messages published 30, 60 and 90 s earlier (the store's live priors, nearest first) as known 79-tone templates on the buffer CohFallbackAudioSelector.Select hands the
+        // fallback and the late round (the residual; none => a counted, logged skip), detections go out as batch 6 through the fallback's hand-off, only when non-empty. Then, under the shadow flag,
+        // the SAME detector, window and threshold on the opposite-parity priors: counted and logged, never published, never stored. The buffer is read only. Native code is entered only for the
+        // encoder, one text at a time on this thread; the detector is managed and runs on up to EffectiveSubtractionThreads workers. A batch-6 publish is mapped with xcBatch 0: it never enters the store.
+        async Task RunCrossCycleStageAsync()
+        {
+            double startMs = sw.Elapsed.TotalMilliseconds;
+            string outcome = XcOutcomeRan;
+            var liveCandidates = _crossCycleStore.Candidates(shadow: false);
+            var shadowCandidates = xcShadowOn ? _crossCycleStore.Candidates(shadow: true) : [];
+            var exLive = default(CrossCycleTemplateStage.Exclusions);
+            var exShadow = default(CrossCycleTemplateStage.Exclusions);
+            int testedLive = 0, testedShadow = 0, detectedLive = 0, detectedShadow = 0, abandonedLive = 0, abandonedShadow = 0, publishedCount = 0;
+            int parityRejectedLive = 0, parityRejectedShadow = 0, vetoedLive = 0, vetoedShadow = 0;
+            // R14: the cycle's batch 1 to 5 publishes (text, position in our own dt, batch), after all of them are out. The same list serves live and shadow.
+            var cycleDecodes = _crossCycleStore.CurrentCycleDecodes();
+            double publishMs = -1.0;
+            try
+            {
+                var choice = CohFallbackAudioSelector.Select(audioMode, normalisedPcm, deepForFallback, reportForFallback, thirdResult);
+                if (!choice.IsResidual) { outcome = XcOutcomeNoResidual; return; }
+
+                // R8: templates stop STARTING at the cycle budget less the publish reserve. The started ones finish and publish.
+                TimeSpan stopStarting = SubtractionCycleBudget - CoherentFallbackPublishReserve;
+                bool Expired() => sw.Elapsed >= stopStarting;
+                int workers = EffectiveSubtractionThreads;
+
+                var liveTemplates = CrossCycleTemplateStage.BuildTemplates(liveCandidates, xcPublished!, _interop.EncodeMessage, out exLive);
+                CrossCycleTemplateStage.RunResult? live = null;
+                try
+                {
+                    live = await Task.Run(
+                        () => CrossCycleTemplateStage.Run(liveTemplates, choice.Pcm, xcThreshold, workers, Expired, ct, xcParityThreshold, cycleDecodes, xcVetoOn), CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    outcome = XcOutcomeFailed;
+                    _logger?.LogWarning(ex, "Cycle {Time}: cross-cycle template stage failed - no batch 6 this cycle.", timeStr);
+                }
+
+                if (live is not null)
+                {
+                    testedLive = live.Tested; detectedLive = live.Detected; abandonedLive = live.Abandoned; parityRejectedLive = live.ParityRejected; vetoedLive = live.VetoRejected;
+                    ReportXcProbe(CrossCycleKind.Live, live);
+
+                    // R7: detections are mapped like any other batch (the same per-cycle text de-duplication and plausibility filter) and published as batch 6 only if non-empty.
+                    // Frequency: the argmax rounded to the integer Hz the other fallback rows are published with (banker's rounding, as CohFallbackAudioSelector.PublishedFreqHz).
+                    // dt: the argmax's dt in the convention of the prior it was found around, i.e. the one batches 1 to 5 publish (MapNative rounds it to 0.1 s as for every batch).
+                    // SNR: CrossCycleTemplateDetector.CoherentSnrDb at the argmax, the managed form of native cf_snr_db that every fallback row's SNR comes from.
+                    var natives = new List<Ft8NativeResult>();
+                    for (int i = 0; i < live.Outcomes.Length; i++)
+                    {
+                        var o = live.Outcomes[i];
+                        if (!o.Detected) continue;
+                        natives.Add(new Ft8NativeResult { FreqHz = (int)Math.Round(o.FreqHz), Dt = (float)o.Dt, Snr = o.Snr, Message = live.Templates[i].Text });
+                    }
+                    var batch6 = natives.Count == 0 ? [] : MapNative(natives.ToArray(), PathTemplate);
+                    publishedCount = batch6.Count;
+                    if (batch6.Count > 0)
+                    {
+                        publishMs = sw.Elapsed.TotalMilliseconds;
+                        await onFallbackBatch!(TemplateBatch, batch6).ConfigureAwait(false);
+                    }
+                }
+
+                // R9: the shadow null runs AFTER the live batch is out, so it can never delay a publish.
+                if (xcShadowOn && live is not null)
+                {
+                    var shadowTemplates = CrossCycleTemplateStage.BuildTemplates(shadowCandidates, xcPublished!, _interop.EncodeMessage, out exShadow);
+                    try
+                    {
+                        var shadow = await Task.Run(
+                            () => CrossCycleTemplateStage.Run(shadowTemplates, choice.Pcm, xcThreshold, workers, Expired, ct, xcParityThreshold, cycleDecodes, xcVetoOn), CancellationToken.None).ConfigureAwait(false);
+                        testedShadow = shadow.Tested; detectedShadow = shadow.Detected; abandonedShadow = shadow.Abandoned; parityRejectedShadow = shadow.ParityRejected; vetoedShadow = shadow.VetoRejected;
+                        ReportXcProbe(CrossCycleKind.Shadow, shadow);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger?.LogWarning(ex, "Cycle {Time}: cross-cycle shadow stage failed.", timeStr);
+                    }
+                }
+            }
+            finally
+            {
+                // R10, HK-037, NFR-021: counts and numbers only, no text, no callsign. Written even when the caller's publish throws (batch6PublishMs then holds the attempt time).
+                double endMs = sw.Elapsed.TotalMilliseconds;
+                _logger?.LogInformation(
+                    "Cross-cycle prior: outcome={Outcome}, priorsLive={PriorsLive}, priorsShadow={PriorsShadow}, excludedDecoded={ExcludedDecoded}, excludedHashed={ExcludedHashed}, " +
+                    "excludedRefused={ExcludedRefused}, shadowExcludedDecoded={ShadowExcludedDecoded}, shadowExcludedHashed={ShadowExcludedHashed}, shadowExcludedRefused={ShadowExcludedRefused}, " +
+                    "testedLive={TestedLive}, testedShadow={TestedShadow}, detected={Detected}, shadowDetected={ShadowDetected}, abandoned={Abandoned}, shadowAbandoned={ShadowAbandoned}, " +
+                    "vetoedColocated={VetoedColocated}, shadowVetoedColocated={ShadowVetoedColocated}, parityRejected={ParityRejected}, shadowParityRejected={ShadowParityRejected}, " +
+                    "veto={Veto}, parityThreshold={ParityThreshold}, " +
+                    "published={Published}, threshold={Threshold}, startMs={StartMs:F0}, stageMs={StageMs:F0}, endMs={EndMs:F0}, batch={Batch}, batch6PublishMs={PublishMs:F0}.",
+                    outcome, liveCandidates.Count, shadowCandidates.Count, exLive.AlreadyDecoded, exLive.Hashed, exLive.Refused, exShadow.AlreadyDecoded, exShadow.Hashed, exShadow.Refused,
+                    testedLive, testedShadow, detectedLive, detectedShadow, abandonedLive, abandonedShadow,
+                    vetoedLive, vetoedShadow, parityRejectedLive, parityRejectedShadow, xcVetoOn, xcParityThreshold,
+                    publishedCount, xcThreshold, startMs, endMs - startMs, endMs, TemplateBatch, publishMs);
+            }
+        }
+
+        // R13: one record per TESTED template, on this thread, in test order. The sink may throw: that is logged and never costs the cycle a decode.
+        void ReportXcProbe(CrossCycleKind kind, CrossCycleTemplateStage.RunResult run)
+        {
+            var probe = _crossCycleProbe;
+            if (probe is null) return;
+            for (int i = 0; i < run.Outcomes.Length; i++)
+            {
+                var o = run.Outcomes[i];
+                if (!o.Tested) continue;
+                var t = run.Templates[i];
+                try { probe.OnTemplateTested(new CrossCycleTestRecord(kind, o.SStar, t.AgeCycles, o.FreqHz - t.FreqHz, o.Dt - t.Dt, cycleStart, o.SP, t.FreqHz, t.Dt, t.Batch, o.Vetoed)); }
+                catch (Exception ex) { _logger?.LogWarning(ex, "Cycle {Time}: the cross-cycle diagnostic sink threw - ignored.", timeStr); }
+            }
+        }
+
         async Task RunCoherentFallbackBatchAsync(int batchNumber)
         {
             var fbStart = sw.Elapsed;
@@ -1217,6 +1504,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             int workers = EffectiveSubtractionThreads;
             CohFallbackAudioSelector.Merged? merged = null;
             CohFallbackRunResult? outcome;
+            string? resRun = null, resCand = null;          // COH-RES-CAND v2: log tokens; null while the setting is not effective
+            CohFallbackRunResult? thirdRun = null;          // COH-RES-CAND v2: the third run's own result (its rows never enter Merge)
+            double resWallMs = 0.0;
             if (audioMode != CoherentFallbackAudio.Both)
             {
                 outcome = await Task.Run(
@@ -1239,6 +1529,29 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                         : new CohFallbackRunResult(CohFallbackAudioSelector.NotRun(first.Stats), []) { Workers = first.Workers };
                 }
 
+                // COH-RES-CAND v2 (R3): the THIRD, last run, after the two of today (unchanged above). The residual audio with the snapshot of THAT buffer's own
+                // decode. OFF: resRun stays null and nothing in this block runs, so every call and every value is as it was.
+                if (resCandOn)
+                {
+                    resCand = !choice.IsResidual ? ResCandNone : choice.Level == CohFallbackAudioSelector.LevelResidual3 ? ResCandResidualR3 : ResCandResidualR2;
+                    if (!choice.IsResidual) resRun = ResRunNoResidual;
+                    else if (first is null) { /* the first run failed: nothing is published this cycle (outcome is null below) and no line is written, so there is no token */ }
+                    else if (choice.CohSnapshot is not { } ownSnapshot) resRun = ResRunNoSnapshot;
+                    else
+                    {
+                        double leftAfterSecondMs = budgetMs - (sw.Elapsed - fbStart).TotalMilliseconds;
+                        if (leftAfterSecondMs <= 0.0) resRun = ResRunSkippedBudget;
+                        else
+                        {
+                            var thirdStart = sw.Elapsed;
+                            thirdRun = await Task.Run(
+                                () => RunCoherentFallback(choice.Pcm, ownSnapshot, leftAfterSecondMs, workers, multiSetOn, timeStr, ct), CancellationToken.None).ConfigureAwait(false);
+                            resWallMs = (sw.Elapsed - thirdStart).TotalMilliseconds;
+                            resRun = thirdRun is null ? ResRunFailed : ResRunRan;
+                        }
+                    }
+                }
+
                 var residualRun = choice.IsResidual ? first : null;
                 var originalRun = choice.IsResidual ? second : first;
                 merged = CohFallbackAudioSelector.Merge(originalRun?.Rows, residualRun?.Rows, ungatedOn);
@@ -1258,6 +1571,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
             var picked = CoherentFallbackSelector.Select(merged?.Rows ?? outcome.Rows);
             var natives = new List<Ft8NativeResult>(picked.Count);
+            var firstTwoTexts = resCandOn ? new HashSet<string>(StringComparer.Ordinal) : null;   // COH-RES-CAND v2: the texts of the first two runs, for "new text" below
             var edgeByText = new Dictionary<string, bool>(StringComparer.Ordinal);
             var admittedByText = new Dictionary<string, bool>(StringComparer.Ordinal);   // COH-GATE-G R-F4: text -> came from an admitted GatedOut row
             foreach (var row in picked)
@@ -1270,12 +1584,46 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     continue;
                 }
                 if (string.IsNullOrWhiteSpace(text)) continue;
-                natives.Add(new Ft8NativeResult { FreqHz = (int)Math.Round(row.OutFreqHz), Dt = row.OutDtS, Snr = row.SnrDb, Message = text });
+                natives.Add(new Ft8NativeResult { FreqHz = CohFallbackAudioSelector.PublishedFreqHz(row), Dt = row.OutDtS, Snr = row.SnrDb, Message = text });
                 edgeByText[text.TrimEnd()] = row.Edge;
                 admittedByText.TryAdd(text.TrimEnd(), row.Admitted);
+                firstTwoTexts?.Add(text.TrimEnd());
             }
 
-            var batch = MapNative(natives.ToArray(), PathFallback, lateOn ? batch4Kept : null);
+            // COH-RES-CAND v2 (R3, R4, R5): the third run's rows, appended AFTER the rows above so they can never displace one. They came straight from the run, never
+            // through Merge, so R-F4's ungating (which only Merge applies, to the first two runs' rows) cannot reach them: ThirdRunCandidates takes F1b-passed rows only.
+            // A row is "new text" when its text is neither published already in this cycle (`seen`: batches 1 to 3) nor a text of the first two runs; only a new-text row
+            // meets the gate, on the PUBLISHED integer Hz (the same PublishedFreqHz the rows above are published with). MapNative's text de-duplication still applies.
+            int resNew = 0, resNewGated = 0, resNewKept = 0;
+            if (thirdRun is not null)
+            {
+                var firstTwoKeys = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var r in picked) firstTwoKeys.Add(Convert.ToHexString(r.Payload, 0, 10));
+                foreach (var row in CohFallbackAudioSelector.ThirdRunCandidates(thirdRun.Rows))
+                {
+                    if (firstTwoKeys.Contains(Convert.ToHexString(row.Payload, 0, 10))) continue;   // the same payload as a published row: not new, not unpacked again
+                    string? text;
+                    try { text = _interop.CohFallbackUnpack(row.Payload); }
+                    catch (NativeAccessViolationException)
+                    {
+                        _logger?.LogWarning("Cycle {Time}: coherent fallback text unpack caught a native access violation — that decode skipped.", timeStr);
+                        continue;
+                    }
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    string trimmed = text.TrimEnd();
+                    if (seen.Contains(trimmed) || firstTwoTexts!.Contains(trimmed)) continue;      // already published in this cycle: not new text
+                    resNew++;
+                    int publishedHz = CohFallbackAudioSelector.PublishedFreqHz(row);
+                    if (!CohFallbackAudioSelector.PassesResidualRunGate(publishedHz)) { resNewGated++; continue; }
+                    resNewKept++;
+                    natives.Add(new Ft8NativeResult { FreqHz = publishedHz, Dt = row.OutDtS, Snr = row.SnrDb, Message = text });
+                    edgeByText[trimmed] = row.Edge;
+                    admittedByText.TryAdd(trimmed, false);
+                    firstTwoTexts.Add(trimmed);
+                }
+            }
+
+            var batch = MapNative(natives.ToArray(), PathFallback, lateOn ? batch4Kept : null, xcBatch: batchNumber);
             int publishedEdge = batch.Count(d => edgeByText.TryGetValue(d.Message, out bool edge) && edge);
             int publishedUngated = batch.Count(d => admittedByText.TryGetValue(d.Message, out bool admitted) && admitted);   // COH-GATE-G R-F4
 
@@ -1284,6 +1632,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             double publishMs = -1.0;
             bool batchPublished = batch.Count > 0;
             var st = outcome.Stats;
+            // COH-RES-CAND v2 (R6): only while the setting is effective (ON, Both mode, fallback running); OFF leaves the line byte-identical. Aggregates only.
+            string resFields = resRun is null ? ""
+                : $", resRun={resRun}, resCand={resCand}, resEligible={(thirdRun is null ? 0 : thirdRun.Stats.Eligible)}, resNew={resNew}, resNewGated={resNewGated}, resNewKept={resNewKept}, resAbandoned={(thirdRun is null ? 0 : thirdRun.Stats.Abandoned)}, resWallMs={resWallMs:F0}";
             try
             {
                 if (batchPublished)
@@ -1299,13 +1650,14 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     "Coherent fallback: eligible={Eligible}, attempted={Attempted}, crcOk={CrcOk}, f1bComputed={F1bComputed}, gated={Gated}, " +
                     "published={Published}, abandoned={Abandoned}, elapsedMs={ElapsedMs:F0}, publishedEdge={PublishedEdge}, path={Path}, " +
                     "workers={Workers}, fbStartMs={FbStartMs:F0}, fbWallMs={FbWallMs:F0}, batch={Batch}, batch4Published={BatchPublished}, batch4PublishMs={BatchPublishMs:F0}, " +
-                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}{UngatedCount}.",
+                    "sets={Sets}, walkEntered={WalkEntered}, crcC1={CrcC1}, crcJ2={CrcJ2}, crcJ3={CrcJ3}, crcN1={CrcN1}, audio={Audio}{BothCounts}{UngatedCount}{ResFields}.",
                     st.Eligible, st.Attempted, st.CrcOk, st.F1bComputed, st.Gated, batch.Count, st.Abandoned, st.TotalMs, publishedEdge, PathFallback,
                     outcome.Workers, fbStart.TotalMilliseconds, fbWallMs, batchNumber, batchPublished ? 1 : 0, publishMs,
                     multiSetOn ? "on" : "off", st.WalkEntered, outcome.CrcValidBySet(1), outcome.CrcValidBySet(2), outcome.CrcValidBySet(3), outcome.CrcValidBySet(4),
                     CohFallbackAudioSelector.Label(audioMode, choice.Level),
                     merged is null ? "" : $", fromOriginal={merged.FromOriginal}, fromResidual={merged.FromResidual}, inBoth={merged.InBoth}",
-                    ungatedOn ? $", ungated={publishedUngated}" : "");   // only while the setting is effective (ON and Both mode)
+                    ungatedOn ? $", ungated={publishedUngated}" : "",   // only while the setting is effective (ON and Both mode)
+                    resFields);   // COH-RES-CAND v2: only while the setting is effective
             }
         }
     }
@@ -1318,6 +1670,14 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     /// <summary>LATE-SUB L1': the number of the late round's own batch (after batches 1 to 4; Deep only).</summary>
     internal const int LateRoundBatch = 5;
+
+    /// <summary>XC-BUILD R7: the number of the template stage's own batch (after batches 1 to 5).</summary>
+    internal const int TemplateBatch = 6;
+
+    // XC-BUILD: the outcome tokens of the "Cross-cycle prior:" log line.
+    internal const string XcOutcomeRan = "ran";
+    internal const string XcOutcomeNoResidual = "skipped-no-residual";
+    internal const string XcOutcomeFailed = "failed";
 
     // LATE-SUB L1': the outcome / skip-reason tokens of the "Late subtraction round:" log line.
     internal const string LateOutcomeRan = "ran";
@@ -1337,6 +1697,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     /// <summary>R11 provenance tag of a decode the coherent-extraction fallback produced.</summary>
     internal const int PathFallback = 2;
+
+    /// <summary>XC-BUILD R7 provenance tag of a decode the cross-cycle template stage produced (batch 6).</summary>
+    internal const int PathTemplate = 3;
 
     /// <summary>
     /// COH-FALLBACK Stage 2: the native fallback run on a thread of its own. Contains every failure: a fault is logged and the cycle

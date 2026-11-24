@@ -1027,11 +1027,17 @@ public sealed class CoherentFallbackWiringTests
             : RunOf(Row(2, freq: 1100f, snr: -25), Row(3, CohFallbackState.GatedOut, freq: 1150f), Row(4, freq: 1200f)),
     };
 
-    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4: a bare decoder starts OFF; the setter and getter round-trip")]
-    public void Ungated_BareDecoderOff_RoundTrips()
+    [Fact(DisplayName = "FR-101: COH-GATE-G R-F4: the config record defaults to true (an absent key: the daemon's decoder reads true; an explicit false reads false); a bare decoder object still starts OFF; the setter and getter round-trip")]
+    public void Ungated_ConfigDefaultsToTrue_BareDecoderOff_RoundTrips()
     {
+        var cfg = new DecoderConfig();
+        cfg.CoherentFallbackResidualUngated.Should().BeTrue();
         var d = Build(new FallbackInterop([Pass0], OneNew()), DecodingDepth.Deep, true);
-        d.CoherentFallbackResidualUngated.Should().BeFalse();
+        d.CoherentFallbackResidualUngated.Should().BeFalse("the object's own value at construction; the configured default reaches it through the setter");
+        d.SetCoherentFallbackResidualUngated(cfg.CoherentFallbackResidualUngated);   // the daemon's wiring (Program.cs)
+        d.CoherentFallbackResidualUngated.Should().BeTrue("an absent key: the daemon's decoder reads true");
+        d.SetCoherentFallbackResidualUngated(new DecoderConfig { CoherentFallbackResidualUngated = false }.CoherentFallbackResidualUngated);
+        d.CoherentFallbackResidualUngated.Should().BeFalse("an explicit false: the daemon's decoder reads false");
         d.SetCoherentFallbackResidualUngated(true);
         d.CoherentFallbackResidualUngated.Should().BeTrue();
         d.SetCoherentFallbackResidualUngated(false);
