@@ -1,8 +1,9 @@
 # OpenWSFZ
 
 An open-source, cross-platform, AGPL-3.0-licensed weak-signal amateur-radio
-application for amateur radio operators — covering the WSJT-X family of modes (FT8, FT4,
-JS8, JT9, JT65, WSPR, and related).
+application for amateur radio operators. Version 1.x covers FT8 only; the other
+WSJT-X family modes (FT4, JS8, JT9, JT65, WSPR, and related) are goals for later
+versions, not features of the current release.
 
 ## Project intent
 
