@@ -30,7 +30,7 @@ The configuration SHALL provide the integer `decoder.threads`, default 2, applie
 
 ### Requirement: With engine `lean` a cycle makes one native call and does not enter the classic decoder
 
-With `decoder.engine` effective as `lean`, a cycle SHALL be decoded by one call of `ftz_decode_cycle` per window: the spectrogram (the primary pass's configuration), the candidates (`ftx_find_candidates` with the primary pass's parameters: minimum score 10, at most 140), tier A on every candidate (magnitude likelihoods, belief propagation, CRC-14, unpack), and nothing else: no tier B, no CQ-AP, no OSD, no subtraction. The classic decoder, its native calls and its batches SHALL NOT be entered. The input SHALL be conditioned as the primary pass conditions it, and the results SHALL pass the same per-cycle text de-duplication, plausibility filter, region and worked-before steps as every classic batch. The results SHALL be published as one batch, the cycle's batch 1, through the existing publish path. The early decode SHALL return nothing under `lean`.
+With `decoder.engine` effective as `lean`, a cycle SHALL be decoded by one call of `ftz_decode_cycle` per window: the spectrogram (the primary pass's configuration), the candidates (`ftx_find_candidates` with the primary pass's parameters: minimum score 10, at most 140), tier A on every candidate (magnitude likelihoods, belief propagation, CRC-14, unpack), and, from step 2b, tier B on every candidate that failed tier A and is not a duplicate position, and CQ-AP on every candidate that failed both: nothing else, no OSD, no subtraction. The classic decoder, its native calls and its batches SHALL NOT be entered. The input SHALL be conditioned as the primary pass conditions it, and the results SHALL pass the same per-cycle text de-duplication, plausibility filter, region and worked-before steps as every classic batch. The results SHALL be published as one batch, the cycle's batch 1, through the existing publish path. The early decode SHALL return nothing under `lean`.
 
 #### Scenario: Equality with the classic primary pass
 
@@ -77,3 +77,40 @@ The native shim version SHALL be 20260073; the new exports are `ftz_decode_cycle
 
 - **WHEN** the decoder runs with the key absent
 - **THEN** the recorded native calls, batches and log lines SHALL equal those recorded on the build before this change
+
+### Requirement: Tier B publishes a row only when it is CRC-valid, new and gated, one row per payload
+
+For every candidate that failed tier A and is not a duplicate position (an earlier undecoded candidate at the same frequency and time), tier B SHALL run the coherent fallback's per-candidate body on a coherent context owned by one worker (fine sync, coherent likelihoods with the multi-set walk on, belief propagation, CRC). A row SHALL be published if and only if it is CRC-valid, its payload is not one tier A produced, and its F1b is at most T1 = 17.552446 dB (F1b SHALL be computed only for a CRC-valid new payload). Several rows with one payload SHALL give one published row: the first, in the sorted order, whose estimate is not on a window edge, else the first. A published tier-B row SHALL carry the coherent SNR and the estimate's frequency (rounded to the nearest even integer Hz) and time, and the fallback's provenance tag.
+
+#### Scenario: Equality with the classic fallback
+
+- **WHEN** the weak-signal fixture the classic ordinary decode misses is decoded by the lean engine with CQ-AP off
+- **THEN** the lean engine SHALL publish, as tier B, the payload the classic fallback's first run publishes after the primary pass
+
+#### Scenario: A payload tier A found
+
+- **WHEN** a candidate's coherent output equals a payload tier A produced
+- **THEN** it SHALL NOT be published again and no text SHALL appear twice in a cycle
+
+#### Scenario: One payload at two positions
+
+- **WHEN** two candidates give the same new, gated payload and one estimate is on a window edge
+- **THEN** exactly one row SHALL be published, from the non-edge estimate
+
+### Requirement: CQ-AP runs after tier B, as FR-103
+
+With `decoder.cqApEnabled` on, a candidate that failed tier A and produced no CRC-valid tier-B output SHALL get one belief-propagation-only attempt with payload bits 0 to 28 and 74 to 76 forced to the encoder's own CQ pattern, exactly as FR-103; its decodes SHALL carry `ApKind` `cq` and SHALL be counted. With the setting off the attempt SHALL NOT run.
+
+#### Scenario: A drifting CQ
+
+- **WHEN** a CQ whose carrier drifts too far for tier B to integrate is decoded with the setting on and off
+- **THEN** the setting on SHALL decode more cycles, every extra decode tagged `cq`, and with the setting off the CQ-AP counters SHALL be zero
+
+### Requirement: A wall-clock budget stops tier B and CQ-AP and returns what exists
+
+The managed layer SHALL give the native call the 13 s cycle budget less the 250 ms publish reserve less the time already used. Tier B and CQ-AP SHALL check it between candidates; a stage that finds it spent SHALL stop, the abandoned flag SHALL be set, the skipped candidates SHALL be counted, and the results found so far SHALL be returned and SHALL be a subset of an unbudgeted run's results. Tier A SHALL NOT be budgeted.
+
+#### Scenario: A zero budget
+
+- **WHEN** the budget is 0 ms
+- **THEN** no tier-B or CQ-AP row SHALL be returned, abandoned SHALL be set, every eligible candidate SHALL be counted as skipped, and nothing SHALL crash

@@ -1762,6 +1762,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
         var sw = BudgetClock.StartNew(_timeProvider);
         int threads = _leanThreads;
+        bool cqAp = _cqApEnabled;   // read ONCE per cycle, like every classic flag
 
         // The same input conditioning as the primary pass today (input scaling is a closed arm): a normalised COPY, the caller's buffer is never mutated.
         float[] normalisedPcm = NormalisePcm(pcm, PcmNormalisationTargetRms);
@@ -1769,7 +1770,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         LeanCycleOutcome outcome;
         try
         {
-            outcome = await Task.Run(() => _interop.DecodeLeanCycle(normalisedPcm, threads), ct).ConfigureAwait(false);
+            // The cycle's wall-clock budget, as the classic staged decode has it: 13 s less the publish reserve. Tier B and CQ-AP stop between candidates when it is spent.
+            int budgetMs = (int)Math.Max(0, (SubtractionCycleBudget - CoherentFallbackPublishReserve - sw.Elapsed).TotalMilliseconds);
+            var request  = new LeanCycleParams(threads, cqAp, budgetMs);
+            outcome = await Task.Run(() => _interop.DecodeLeanCycle(normalisedPcm, request), ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1792,16 +1796,22 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // HK-037 / NFR-021: the line carries counts and times only, never message text or a callsign.
         _logger?.LogInformation(
             "Cycle {Time}: lean: candidates={Candidates} tierA={TierA} results={Results} threads={Threads} abandoned={Abandoned} error={Error} " +
-            "wall_ms spectrogram={SpecWall:F1} candidates={CandWall:F1} tierA={TierAWall:F1} unpack={UnpackWall:F1} total={TotalWall:F1} " +
-            "cpu_ms spectrogram={SpecCpu:F1} candidates={CandCpu:F1} tierA={TierACpu:F1} unpack={UnpackCpu:F1} total={TotalCpu:F1}.",
+            "tierB: eligible={BEligible} attempted={BAttempted} crc={BCrc} f1b={BF1b} gated={BGated} published={BPublished} edge={BEdge} skipped={BSkipped} " +
+            "cqAp: attempts={CqAttempts} decodes={CqDecodes} " +
+            "wall_ms spectrogram={SpecWall:F1} candidates={CandWall:F1} tierA={TierAWall:F1} tierB={TierBWall:F1} cqAp={CqWall:F1} unpack={UnpackWall:F1} total={TotalWall:F1} " +
+            "cpu_ms spectrogram={SpecCpu:F1} candidates={CandCpu:F1} tierA={TierACpu:F1} tierB={TierBCpu:F1} cqAp={CqCpu:F1} unpack={UnpackCpu:F1} total={TotalCpu:F1}.",
             timeStr, st.Candidates, st.TierADecodes, st.Results, st.Threads, st.Abandoned ? 1 : 0, st.Error,
-            st.SpectrogramWallUs / 1000.0, st.CandidatesWallUs / 1000.0, st.TierAWallUs / 1000.0, st.UnpackWallUs / 1000.0, st.TotalWallUs / 1000.0,
-            st.SpectrogramCpuUs / 1000.0, st.CandidatesCpuUs / 1000.0, st.TierACpuUs / 1000.0, st.UnpackCpuUs / 1000.0, st.TotalCpuUs / 1000.0);
+            st.TierBEligible, st.TierBAttempted, st.TierBCrcValid, st.TierBF1b, st.TierBGated, st.TierBPublished, st.TierBEdge, st.TierBSkipped,
+            st.CqApAttempts, st.CqApDecodes,
+            st.SpectrogramWallUs / 1000.0, st.CandidatesWallUs / 1000.0, st.TierAWallUs / 1000.0, st.TierBWallUs / 1000.0, st.CqApWallUs / 1000.0, st.UnpackWallUs / 1000.0, st.TotalWallUs / 1000.0,
+            st.SpectrogramCpuUs / 1000.0, st.CandidatesCpuUs / 1000.0, st.TierACpuUs / 1000.0, st.TierBCpuUs / 1000.0, st.CqApCpuUs / 1000.0, st.UnpackCpuUs / 1000.0, st.TotalCpuUs / 1000.0);
 
         var seen   = new HashSet<string>(StringComparer.Ordinal);
         var mapped = new List<DecodeResult>(outcome.Results.Length);
-        foreach (ref readonly Ft8NativeResult nr in outcome.Results.AsSpan())
+        for (int ri = 0; ri < outcome.Results.Length; ri++)
         {
+            Ft8NativeResult nr = outcome.Results[ri];
+            byte tier = ri < outcome.Tiers.Length ? outcome.Tiers[ri] : LeanTier.A;
             string msg = nr.Message.TrimEnd();                       // D-005: the native buffer is padded with spaces
             if (!seen.Add(msg)) continue;                            // one text, once per cycle
             if (!IsPlausibleMessage(msg, _grammarStore))
@@ -1850,8 +1860,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 WorkedBefore: workedBefore,
                 Band:         currentBand)
             {
-                Path   = PathOrdinary,
-                ApKind = ApKind.None
+                Path   = tier == LeanTier.B ? PathFallback : PathOrdinary,   // the provenance tags the classic path gives the same kinds of row
+                ApKind = tier == LeanTier.CqAp ? ApKind.Cq : ApKind.None
             });
         }
 

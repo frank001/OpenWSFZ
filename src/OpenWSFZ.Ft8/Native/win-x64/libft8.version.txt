@@ -1,4 +1,27 @@
-=== CURRENT: the lean decoder engine, step 2a, ftz_decode_cycle (FT8_SHIM_VERSION 20260073) ===
+=== CURRENT: the lean decoder engine, step 2b, tier B (the coherent fallback) and CQ-AP inside ftz_decode_cycle (FT8_SHIM_VERSION 20260074) ===
+
+Built 2026-11-24 on feat/lean-2b (child of feat/lean-2a 19d8f9fb), local, not pushed. QA handoff dev-tasks/2026-11-24-dr2b-lean-decoder-tier-b-cq-ap.md
+(qa/same-chain d3d0ee06); Architect spec docs/decoder-rebuild/spec-dr2-lean-decoder.md (arch/decoder-rebuild 68f7f15e) section 2.3 S2 steps 3 and 4. OpenSpec change lean-decoder.
+What changed (native). native/ftz_decoder/ftz_decoder.c/.h: ftz_decode_cycle runs, after tier A, TIER B on every candidate that failed tier A and is not a duplicate position
+      (cf_process_one, the fallback's own per-candidate body, multi-set ON, one coherent context per worker, created once and freed by ftz_shutdown; a row is published iff
+      CRC-valid, a payload tier A did not produce, and F1b <= T1 = 17.552446 dB; one row per payload, the first non-edge in the sorted order) and then CQ-AP
+      (ftx_decode_candidate_cq_ap, FR-103, on candidates that failed both, only with FTZ_FLAG_CQ_AP). Tier B and CQ-AP run on the worker pool; the sort by
+      (frequency, time, payload) is over the union of the tiers and still precedes the callsign table. A wall-clock budget (FTZ_FLAG_BUDGET, budget_ms) stops tier B and CQ-AP
+      between candidates and sets abandoned. ftz_params_t gains flags and budget_ms, ftz_stats_t the per-tier counters and times, ftz_decode_cycle an out_tiers array
+      (FTZ_TIER_A / B / CQ). A capture shorter than 15 s is read zero-padded for the coherent contexts.
+  ft8_shim.c/.h            FT8_SHIM_VERSION 20260074. No new export (the two step-2a exports change signature: step 2a was never released). FT8Result is UNCHANGED (48 bytes);
+      every classic export and every classic decode outcome is unchanged (the managed golden recorded on 452af459 passes unchanged, at 4 and at 16 logical processors).
+  Nothing in decode.c, coherent_fallback.c or any classic function is touched.
+Checked here: the native harness under AddressSanitizer + UndefinedBehaviorSanitizer (GCC 14.2, WSL Debian; native/ftz_decoder/tests/run_asan.sh), 10,000 fuzz runs with tier B,
+CQ-AP and random budgets, determinism at 1/2/4/2/1 threads on the three synthetic fixtures.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    dd8f723a101b4546a73a52b2e268530680e9b1259f8c60932b98589fb40b9596
+  Linux x64 / macOS arm64: NOT rebuilt here; refreshed by CI (the macOS dylib leg is expected and permanent). tools/check_native_version.py reports shim
+  20260074 for the Windows file.
+
+
+=== Previous: the lean decoder engine, step 2a, ftz_decode_cycle (FT8_SHIM_VERSION 20260073) ===
 
 Built 2026-11-24 on feat/lean-2a (off origin/main 452af459, shim 20260072), local, not pushed. QA handoff dev-tasks/2026-11-24-dr2a-lean-decoder-tier-a.md
 (qa/same-chain cc6da2fc); Architect spec docs/decoder-rebuild/spec-dr2-lean-decoder.md (arch/decoder-rebuild 68f7f15e). OpenSpec change lean-decoder.

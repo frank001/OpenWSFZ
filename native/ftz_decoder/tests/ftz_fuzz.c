@@ -65,13 +65,22 @@ static float* read_wav(const char* path, int* n_out)
     return pcm;
 }
 
-static int decode(const float* pcm, int n, int threads, FT8Result* out, ftz_stats_t* st)
+static int decode_ex(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, FT8Result* out, uint8_t* tiers, ftz_stats_t* st)
 {
     ftz_params_t p;
     memset(&p, 0, sizeof(p));
     p.struct_size = (int32_t)sizeof(p);
     p.threads = threads;
-    return ftz_decode_cycle(pcm, n, &p, out, MAX_RESULTS, st);
+    p.max_candidates = max_cand;
+    p.flags = flags;
+    p.budget_ms = budget_ms;
+    return ftz_decode_cycle(pcm, n, &p, out, MAX_RESULTS, tiers, st);
+}
+
+/* Every tier on (tier B always runs; CQ-AP is a flag), no budget. */
+static int decode(const float* pcm, int n, int threads, FT8Result* out, ftz_stats_t* st)
+{
+    return decode_ex(pcm, n, threads, 0, FTZ_FLAG_CQ_AP, 0, out, NULL, st);
 }
 
 static int determinism(const char* path)
@@ -125,6 +134,7 @@ static void fuzz(int runs)
 {
     const int edge[] = { 0, 1, 1919, 1920, 1921, 3840, 12000, 179999, 180000, 200000 };
     static FT8Result out[MAX_RESULTS];
+    static uint8_t tiers[MAX_RESULTS];
     int full = 0;
     for (int run = 0; run < runs; run++) {
         int n = (run % 50 == 0) ? PCM_SAMPLES : (run % 7 == 0) ? edge[rnd() % 10u] : (int)(rnd() % 30000u);
@@ -136,9 +146,14 @@ static void fuzz(int runs)
         float* x = (float*)malloc(sizeof(float) * (size_t)(n > 0 ? n : 1));
         fill(x, n, kind);
         ftz_stats_t st;
-        int rc = decode(x, n, threads, out, &st);
+        /* Tier B and CQ-AP are on in every run; most runs cap the candidates so a noise buffer does not cost seconds under the sanitizers. */
+        int max_cand = (run % 250 == 0) ? 0 : 1 + (int)(rnd() % 4u);
+        int flags = FTZ_FLAG_CQ_AP | ((run % 13 == 0) ? FTZ_FLAG_BUDGET : 0);
+        int budget = (int)(rnd() % 25u);
+        int rc = decode_ex(x, n, threads, max_cand, flags, budget, out, tiers, &st);
         CHECK(rc >= 0 && rc <= MAX_RESULTS, "run %d: kind %d n %d threads %d: rc %d", run, kind, n, threads, rc);
         CHECK(st.error == 0 && st.n_results == (rc > 0 ? rc : 0), "run %d: stats inconsistent (error %d, n_results %d, rc %d)", run, st.error, st.n_results, rc);
+        for (int i = 0; i < rc; i++) CHECK(tiers[i] <= FTZ_TIER_CQ, "run %d: result %d has tier %d", run, i, tiers[i]);
         for (int i = 0; i < rc; i++) CHECK(memchr(out[i].message, '\0', sizeof(out[i].message)) != NULL, "run %d: result %d not terminated", run, i);
         free(x);
         if (failures > 20) break;
@@ -166,12 +181,12 @@ static void bad_audio(void)
 
     /* Argument errors. */
     ftz_params_t p; memset(&p, 0, sizeof(p)); p.struct_size = (int32_t)sizeof(p);
-    CHECK(ftz_decode_cycle(NULL, 10, &p, out, MAX_RESULTS, &st) == FTZ_ERR_ARG, "NULL pcm with n > 0");
-    CHECK(ftz_decode_cycle(y, -1, &p, out, MAX_RESULTS, &st) == FTZ_ERR_ARG, "negative n");
-    CHECK(ftz_decode_cycle(y, 10, NULL, out, MAX_RESULTS, &st) == FTZ_ERR_ARG, "NULL params");
-    CHECK(ftz_decode_cycle(y, 10, &p, NULL, MAX_RESULTS, &st) == FTZ_ERR_ARG, "NULL results");
-    CHECK(ftz_decode_cycle(y, 10, &p, out, 0, &st) == FTZ_ERR_ARG, "zero capacity");
-    CHECK(ftz_decode_cycle(NULL, 0, &p, out, MAX_RESULTS, NULL) == 0, "n = 0 with NULL pcm and NULL stats");
+    CHECK(ftz_decode_cycle(NULL, 10, &p, out, MAX_RESULTS, NULL, &st) == FTZ_ERR_ARG, "NULL pcm with n > 0");
+    CHECK(ftz_decode_cycle(y, -1, &p, out, MAX_RESULTS, NULL, &st) == FTZ_ERR_ARG, "negative n");
+    CHECK(ftz_decode_cycle(y, 10, NULL, out, MAX_RESULTS, NULL, &st) == FTZ_ERR_ARG, "NULL params");
+    CHECK(ftz_decode_cycle(y, 10, &p, NULL, MAX_RESULTS, NULL, &st) == FTZ_ERR_ARG, "NULL results");
+    CHECK(ftz_decode_cycle(y, 10, &p, out, 0, NULL, &st) == FTZ_ERR_ARG, "zero capacity");
+    CHECK(ftz_decode_cycle(NULL, 0, &p, out, MAX_RESULTS, NULL, NULL) == 0, "n = 0 with NULL pcm and NULL stats");
     free(y);
     printf("bad audio and argument errors: handled\n");
 }

@@ -20,7 +20,11 @@ public sealed class LeanEngineWiringTests
     private static LeanCycleStats Stats(int error = 0, int results = 0, int threads = 2, bool abandoned = false)
         => new(error, Candidates: 40, TierADecodes: results, Results: results, Threads: threads, Abandoned: abandoned,
                SpectrogramWallUs: 11_000, SpectrogramCpuUs: 10_000, CandidatesWallUs: 2_000, CandidatesCpuUs: 2_000,
-               TierAWallUs: 30_000, TierACpuUs: 55_000, UnpackWallUs: 500, UnpackCpuUs: 400, TotalWallUs: 44_000, TotalCpuUs: 67_400);
+               TierAWallUs: 30_000, TierACpuUs: 55_000, UnpackWallUs: 500, UnpackCpuUs: 400, TotalWallUs: 44_000, TotalCpuUs: 67_400)
+        {
+            TierBEligible = 7, TierBAttempted = 6, TierBCrcValid = 3, TierBF1b = 2, TierBGated = 1, TierBPublished = 1, TierBEdge = 1, TierBSkipped = 1,
+            CqApAttempts = 4, CqApDecodes = 1, TierBWallUs = 40_000, TierBCpuUs = 70_000, CqApWallUs = 3_000, CqApCpuUs = 5_000,
+        };
 
     /// <summary>
     /// A fake whose CLASSIC members all throw: a lean cycle that touches any of them fails the test, which is how "the classic code path is not entered" is
@@ -29,11 +33,13 @@ public sealed class LeanEngineWiringTests
     private sealed class LeanFake : IFt8NativeInterop
     {
         public List<int> ThreadsSeen { get; } = [];
+        public List<LeanCycleParams> Requests { get; } = [];
         public Queue<Func<LeanCycleOutcome>> Outcomes { get; } = new();
 
-        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, int threads)
+        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request)
         {
-            ThreadsSeen.Add(threads);
+            ThreadsSeen.Add(request.Threads);
+            Requests.Add(request);
             return Outcomes.Count > 0 ? Outcomes.Dequeue()() : new LeanCycleOutcome([], Stats());
         }
 
@@ -182,7 +188,7 @@ public sealed class LeanEngineWiringTests
         public (float[] Re, float[] Im) SubfeasComputeAnalytic(float[] pcm) => (new float[180_000], new float[180_000]);
         public (int ReturnCode, float[] Shat) SubfeasFitSignal(
             float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag) => (0, new float[180_000]);
-        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, int threads) => throw new InvalidOperationException("the lean entry was called with engine classic");
+        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => throw new InvalidOperationException("the lean entry was called with engine classic");
     }
 
     // ── D2: threads ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -270,6 +276,41 @@ public sealed class LeanEngineWiringTests
         fake.ThreadsSeen.Should().BeEmpty();
     }
 
+    // ── step 2b: the request, the tiers ──────────────────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-108: DR-2 2b D7: the decoder hands the native call the CQ-AP setting (read once per cycle) and what is left of the 13 s budget less the publish reserve")]
+    public async Task Request_CarriesCqApAndTheBudget()
+    {
+        var fake = new LeanFake();
+        var (decoder, _) = Build(fake);
+
+        await decoder.DecodeAsync(LoudPcm(), Start, null);
+        decoder.SetCqApEnabled(true);
+        await decoder.DecodeAsync(LoudPcm(), Start, null);
+
+        fake.Requests.Select(r => r.CqAp).Should().Equal(false, true);
+        foreach (var r in fake.Requests)
+        {
+            r.BudgetMs.Should().NotBeNull();
+            r.BudgetMs!.Value.Should().BeInRange(12_000, 12_750, "13 s less the 250 ms publish reserve, less what this decode has used");
+        }
+    }
+
+    [Fact(DisplayName = "FR-108: DR-2 2b D6: a tier-B row carries the fallback's provenance tag, a CQ-AP row the cq tag, a tier-A row neither")]
+    public async Task Tiers_MapToTheClassicProvenanceTags()
+    {
+        var fake = new LeanFake();
+        fake.Outcomes.Enqueue(() => new LeanCycleOutcome(
+            [Native("CQ Q1ABC JO22", 1200), Native("Q2DEF Q3GHI -07", 1800), Native("CQ Q4JKL JO22", 2400)], Stats(results: 3))
+        { Tiers = [LeanTier.A, LeanTier.B, LeanTier.CqAp] });
+        var (decoder, _) = Build(fake);
+
+        var results = await decoder.DecodeAsync(LoudPcm(), Start, null);
+
+        results.Select(r => (r.Path, r.ApKind)).Should().Equal(
+            (Ft8Decoder.PathOrdinary, ApKind.None), (Ft8Decoder.PathFallback, ApKind.None), (Ft8Decoder.PathOrdinary, ApKind.Cq));
+    }
+
     // ── D5 / test 5: the log line ────────────────────────────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "FR-108: DR-2 test 5: the lean log line is one Information line per cycle, carries counts and times only, and no message text or callsign appears in any log line")]
@@ -285,8 +326,10 @@ public sealed class LeanEngineWiringTests
         lines.Should().ContainSingle();
         lines[0].Should().Be(
             "Cycle 12:00:00: lean: candidates=40 tierA=2 results=2 threads=2 abandoned=0 error=0 " +
-            "wall_ms spectrogram=11.0 candidates=2.0 tierA=30.0 unpack=0.5 total=44.0 " +
-            "cpu_ms spectrogram=10.0 candidates=2.0 tierA=55.0 unpack=0.4 total=67.4.");
+            "tierB: eligible=7 attempted=6 crc=3 f1b=2 gated=1 published=1 edge=1 skipped=1 " +
+            "cqAp: attempts=4 decodes=1 " +
+            "wall_ms spectrogram=11.0 candidates=2.0 tierA=30.0 tierB=40.0 cqAp=3.0 unpack=0.5 total=44.0 " +
+            "cpu_ms spectrogram=10.0 candidates=2.0 tierA=55.0 tierB=70.0 cqAp=5.0 unpack=0.4 total=67.4.");
         foreach (var (_, message) in log.Entries)
             foreach (var token in new[] { "Q1ABC", "Q2DEF", "Q3GHI", "JO22", "-07", "CQ " })
                 message.Should().NotContain(token, "counts and times only, never a callsign or a message (HK-037)");

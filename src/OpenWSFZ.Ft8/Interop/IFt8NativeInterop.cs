@@ -232,7 +232,7 @@ internal interface IFt8NativeInterop
     /// DR-2 step 2a: one lean-engine cycle (<c>ftz_decode_cycle</c>). A native error is reported in the returned statistics, never thrown.
     /// Default: not supported (a fake that does not model the lean engine must not be asked to decode with it).
     /// </summary>
-    LeanCycleOutcome DecodeLeanCycle(float[] pcm, int threads) => throw new NotSupportedException("This interop does not model the lean engine.");
+    LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => throw new NotSupportedException("This interop does not model the lean engine.");
 
     /// <summary>DR-2 step 2a: frees the lean engine's native worker pool at decoder dispose. Default: no-op.</summary>
     void LeanShutdown() { }

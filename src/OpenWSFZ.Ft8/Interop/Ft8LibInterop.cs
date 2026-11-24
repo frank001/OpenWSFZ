@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260073;
+    private const int ExpectedShimVersion = 20260074;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -595,6 +595,7 @@ internal static class Ft8LibInterop
         ref FtzParamsWire       parameters,
         [Out] Ft8NativeResultWire[] results,
         int                     maxResults,
+        [Out] byte[]            tiers,
         ref FtzStatsWire        stats);
 
     /// <summary>DR-2 step 2a: stops and frees the lean engine's worker pool (the next <c>ftz_decode_cycle</c> re-creates it).</summary>
@@ -1015,16 +1016,24 @@ internal static class Ft8LibInterop
     /// decode's thread-local state.
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, at most 180 000 samples are read.</param>
-    /// <param name="threads">Worker count, 1 to 8 (the native side clamps).</param>
-    public static LeanCycleOutcome DecodeLeanCycle(float[] pcm, int threads)
+    /// <param name="request">Worker count, CQ-AP switch, budget and candidate cap.</param>
+    public static LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request)
     {
         ArgumentNullException.ThrowIfNull(pcm);
         EnsureInitialized();
 
-        var parameters = new FtzParamsWire { StructSize = Marshal.SizeOf<FtzParamsWire>(), Threads = threads };
-        var stats      = new FtzStatsWire  { StructSize = Marshal.SizeOf<FtzStatsWire>() };
-        var wire       = new Ft8NativeResultWire[MaxResults];
-        int rc = NativeFtzDecodeCycle(pcm, pcm.Length, ref parameters, wire, MaxResults, ref stats);
+        var parameters = new FtzParamsWire
+        {
+            StructSize    = Marshal.SizeOf<FtzParamsWire>(),
+            Threads       = request.Threads,
+            MaxCandidates = request.MaxCandidates,
+            Flags         = (request.CqAp ? FtzParamsWire.FlagCqAp : 0) | (request.BudgetMs.HasValue ? FtzParamsWire.FlagBudget : 0),
+            BudgetMs      = request.BudgetMs.GetValueOrDefault(),
+        };
+        var stats = new FtzStatsWire { StructSize = Marshal.SizeOf<FtzStatsWire>() };
+        var wire  = new Ft8NativeResultWire[MaxResults];
+        var tiers = new byte[MaxResults];
+        int rc = NativeFtzDecodeCycle(pcm, pcm.Length, ref parameters, wire, MaxResults, tiers, ref stats);
         stats.Error = rc < 0 ? rc : stats.Error;
 
         int count = rc >= 0 ? rc : stats.NResults;
@@ -1038,10 +1047,10 @@ internal static class Ft8LibInterop
                 Dt      = wire[i].Dt,
                 Snr     = wire[i].Snr,
                 Message = wire[i].Message,
-                ApKind  = ApKind.None,
+                ApKind  = tiers[i] == LeanTier.CqAp ? ApKind.Cq : ApKind.None,
             };
         }
-        return new LeanCycleOutcome(results, LeanCycleStats.From(in stats));
+        return new LeanCycleOutcome(results, LeanCycleStats.From(in stats)) { Tiers = count == 0 ? [] : tiers[..count] };
     }
 
     /// <summary>DR-2 step 2a: frees the lean engine's native worker pool. Does nothing if the library was never loaded.</summary>

@@ -26,3 +26,12 @@
 - [x] 4.1 `REQUIREMENTS.md` FR-108 and a changelog row
 - [x] 4.2 This change, validated `--strict`
 - [x] 4.3 VERSION: not bumped (`User-facing: no`); `check_version_bump.py` run after the commit
+
+## 5. Step 2b (tier B and CQ-AP)
+
+- [x] 5.1 `ftz_decoder.c`: tier B on the worker pool (`cf_process_one`, one coherent context per worker, multi-set on, the T1 gate, one row per payload), CQ-AP after it, the budget, the `out_tiers` array, the per-tier counters; `ftz_decoder.h` params and stats
+- [x] 5.2 `FT8_SHIM_VERSION` 20260074; `libft8.dll` rebuilt; `libft8.version.txt`
+- [x] 5.3 Managed: `LeanCycleParams`, the wire structs, the tiers, `DecodeLeanAsync` hands in CQ-AP and the budget, the provenance tags, the extended `lean:` line
+- [x] 5.4 Tests: tier-B equality with the classic fallback, the gate and one-row-per-payload, CQ-AP on a drifting carrier, determinism over the tiers at 1, 2, 4 and 8 threads, the budget, the order comparison of the task's section 3
+- [x] 5.5 Native harness (ASan + UBSan, 10,000 runs) extended to tier B, CQ-AP and random budgets
+- [x] 5.6 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`

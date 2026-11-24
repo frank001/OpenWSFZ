@@ -90,7 +90,7 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public void SubfeasPoolShutdown() => Ft8LibInterop.SubfeasPoolShutdown();
 
-    public LeanCycleOutcome DecodeLeanCycle(float[] pcm, int threads) => Ft8LibInterop.DecodeLeanCycle(pcm, threads);
+    public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => Ft8LibInterop.DecodeLeanCycle(pcm, request);
 
     public void LeanShutdown() => Ft8LibInterop.LeanShutdown();
 

@@ -35,6 +35,9 @@ public sealed class LeanEngineNativeTests : IDisposable
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────────────────────────────
 
+    private static LeanCycleOutcome Lean(float[] pcm, int threads, bool cqAp = false, int? budgetMs = null, int maxCandidates = 0)
+        => Ft8LibInterop.DecodeLeanCycle(pcm, new LeanCycleParams(threads, cqAp, budgetMs, maxCandidates));
+
     private static float[] LoadFixtureWav(string wavFileName)
     {
         Assembly asm = Assembly.GetExecutingAssembly();
@@ -80,7 +83,7 @@ public sealed class LeanEngineNativeTests : IDisposable
         HashSet<string> classic = ClassicPrimaryTexts(pcm);
 
         Ft8LibInterop.HashStateRestore(start);
-        LeanCycleOutcome lean = Ft8LibInterop.DecodeLeanCycle(pcm, threads: 2);
+        LeanCycleOutcome lean = Lean(pcm, threads: 2);
         Ft8LibInterop.HashStateRestore(start);
 
         lean.Stats.Error.Should().Be(LeanCycleStats.Ok);
@@ -94,7 +97,7 @@ public sealed class LeanEngineNativeTests : IDisposable
     {
         float[] pcm = Mix("synth-qso-01.wav", "synth-qso-02.wav", "synth-qso-03.wav");
         byte[] start = SaveHashState();
-        LeanCycleOutcome lean = Ft8LibInterop.DecodeLeanCycle(pcm, threads: 2);
+        LeanCycleOutcome lean = Lean(pcm, threads: 2);
         Ft8LibInterop.HashStateRestore(start);
 
         lean.Results.Length.Should().BeGreaterThan(1);
@@ -136,7 +139,7 @@ public sealed class LeanEngineNativeTests : IDisposable
             foreach (int threads in new[] { 1, 2, 4, 2, 1, 4 })
             {
                 Ft8LibInterop.HashStateRestore(start);
-                LeanCycleOutcome o = Ft8LibInterop.DecodeLeanCycle(pcm, threads);
+                LeanCycleOutcome o = Lean(pcm, threads);
                 o.Stats.Error.Should().Be(LeanCycleStats.Ok);
                 outputs.Add(($"threads={threads}", Serialise(o.Results)));
             }
@@ -190,11 +193,16 @@ public sealed class LeanEngineNativeTests : IDisposable
             int kind = rng.Next(7);
             int threads = new[] { 1, 2, 4, 8, 3 }[run % 5];
 
-            LeanCycleOutcome o = Ft8LibInterop.DecodeLeanCycle(FuzzBuffer(rng, kind, length), threads);
+            // Tier B and CQ-AP are on in every run; most runs cap the candidates (a noise buffer would otherwise cost seconds of coherent work), a few run the full 140,
+            // and some carry a tiny budget so the abandon path is exercised too.
+            int? budget = run % 13 == 0 ? rng.Next(25) : null;
+            int maxCandidates = run % 250 == 0 ? 0 : 1 + rng.Next(4);
+            LeanCycleOutcome o = Lean(FuzzBuffer(rng, kind, length), threads, cqAp: true, budgetMs: budget, maxCandidates: maxCandidates);
 
             o.Stats.Error.Should().Be(LeanCycleStats.Ok, $"run {run}: kind {kind}, length {length}, threads {threads}");
             o.Results.Length.Should().Be(o.Stats.Results);
             o.Stats.Candidates.Should().BeInRange(0, 140);
+            o.Tiers.Length.Should().Be(o.Results.Length);
         }
         fullLength.Should().BeGreaterThan(100, "the fuzz must include full-length runs");
     }
@@ -209,12 +217,12 @@ public sealed class LeanEngineNativeTests : IDisposable
         float[] pcm = LoadFixtureWav("synth-qso-01.wav");
         pcm[90_000] = poison;
 
-        LeanCycleOutcome bad = Ft8LibInterop.DecodeLeanCycle(pcm, threads: 2);
+        LeanCycleOutcome bad = Lean(pcm, threads: 2);
         bad.Stats.Error.Should().Be(LeanCycleStats.ErrBadAudio);
         bad.Results.Should().BeEmpty();
 
         byte[] start = SaveHashState();
-        LeanCycleOutcome good = Ft8LibInterop.DecodeLeanCycle(LoadFixtureWav("synth-qso-01.wav"), threads: 2);
+        LeanCycleOutcome good = Lean(LoadFixtureWav("synth-qso-01.wav"), threads: 2);
         Ft8LibInterop.HashStateRestore(start);
         good.Stats.Error.Should().Be(LeanCycleStats.Ok);
         good.Results.Should().NotBeEmpty();
@@ -229,7 +237,7 @@ public sealed class LeanEngineNativeTests : IDisposable
         foreach (int threads in new[] { 1, 8, 2, 1, 8 })
         {
             Ft8LibInterop.HashStateRestore(start);
-            string text = Serialise(Ft8LibInterop.DecodeLeanCycle(pcm, threads).Results);
+            string text = Serialise(Lean(pcm, threads).Results);
             first ??= text;
             text.Should().Be(first, $"threads={threads}");
         }

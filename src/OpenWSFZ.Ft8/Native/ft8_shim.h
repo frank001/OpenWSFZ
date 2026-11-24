@@ -863,8 +863,10 @@ extern "C" {
  *   20260073 — DR-2 step 2a (the lean decoder engine): ftz_decode_cycle and ftz_shutdown (native/ftz_decoder/, compiled into this library) and
  *              ftx_decode_candidate_tier_a in decode.c. New exports only; every existing export, FT8Result (48 bytes) and every decode outcome
  *              unchanged. The classic path is not entered by the new entry points and does not call them.
+ *   20260074 — DR-2 step 2b: ftz_decode_cycle gains tier B (the coherent fallback per candidate, one coherent context per worker, F1b <= T1) and CQ-AP, a wall-clock
+ *              budget, an out_tiers array and a larger ftz_params_t / ftz_stats_t (the step 2a entry point is not released). No change to any classic export or outcome.
 */
-#define FT8_SHIM_VERSION 20260073
+#define FT8_SHIM_VERSION 20260074
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

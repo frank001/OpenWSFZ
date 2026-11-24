@@ -28,3 +28,15 @@
 
 - The macOS dylib cannot be rebuilt here; CI's `macos-latest` leg owns it. The lean engine uses `pthread` on POSIX and Win32 threads on Windows only; the macOS path is the Linux path (`clock_gettime(CLOCK_THREAD_CPUTIME_ID)` exists on macOS 10.12 and later).
 - Per-thread CPU time is measured with `GetThreadTimes` / `CLOCK_THREAD_CPUTIME_ID` and summed over the workers: it is the CPU the engine used, not the process's.
+
+## Step 2b decisions
+
+**D11. Tier B is the fallback's own body.** `cf_process_one` (the function `ft8_coherent_fallback_process` calls) runs per candidate on a coherent context owned by the worker; the lean code adds only what the classic managed side did around it: the known-payload test against the payloads tier A produced, the coherent SNR (taken from the context before the next extraction), F1b on demand for a CRC-valid new payload, and the gate. Newness is judged against the TIER-A payloads, as the classic run judges against the ordinary decode's payloads, so it cannot depend on the order the workers finish in; two positions of one new payload both reach F1b and the one-row-per-payload selection (the first non-edge in the sorted order, `CoherentFallbackSelector.Select`'s rule) picks between them after the sort.
+
+**D12. Tier B reads a 15 s buffer.** The coherent context is built for 180 000 samples. A shorter capture is zero-padded into a scratch copy for tier B only (tier A reads the capture as is). Contexts are created on the calling thread before the job (a failed allocation is a skipped tier B and an `abandoned` flag, not a failure inside a worker) and kept until `ftz_shutdown`.
+
+**D13. The order difference of the task's section 3.** Classic runs CQ-AP before the fallback, lean runs it after tier B. On 63 cycles (30 drifting-CQ cycles at two drift/SNR settings and the three Stage 2 weak-signal cycles) the lean engine with CQ-AP on and the classic path (ordinary decode with CQ-AP on, primary pass, plus the fallback's first run, OSD refused) decoded identical text sets in all 63. Where both would succeed the payload is the same by construction (CRC-valid). On a white-noise CQ near threshold tier B already recovers what CQ-AP would, so CQ-AP adds nothing there (0 of 200 cycles); it adds where the carrier drifts too much for tier B to integrate (up to 5 of 40 cycles).
+
+**D14. The budget.** Passed per cycle by the managed side as 13 s less the 250 ms publish reserve less what the decode has used. Checked between items by the workers; an item that finds it spent is counted as skipped and flagged. Tier A is not budgeted (it is cheap and it is what the primary pass is). Which items a spent budget skips depends on timing, so a budgeted run is the one place the output is not byte-for-byte reproducible; what it returns is always a subset of the unbudgeted run's output (a test pins that).
+
+**D15. `CqApEnabled` is read from the existing setting.** The task calls it "today's setting, default on"; in the code `decoder.cqApEnabled` defaults to `false` (the station's config turns it on). The lean engine reads the same setting, so the lean default equals the classic default.
