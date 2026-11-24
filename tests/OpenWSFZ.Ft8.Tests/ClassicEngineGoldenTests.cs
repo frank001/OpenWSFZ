@@ -56,7 +56,8 @@ public sealed class ClassicEngineGoldenTests
         public (int ReturnCode, float[] Shat) SubfeasFitSignal(
             float[] xARe, float[] xAIm, byte[] tones, float decodedDtS, float decodedFreqHz, IntPtr cancelFlag)
         { calls.Add("SubfeasFitSignal"); return (0, new float[180_000]); }
-        public void SubfeasPoolConfigure(int bound) => calls.Add($"SubfeasPoolConfigure({bound})");
+        // The bound is max(1, ProcessorCount - 2): it depends on the host, so the recording keeps the call and not the number.
+        public void SubfeasPoolConfigure(int bound) => calls.Add("SubfeasPoolConfigure(N)");
         public void SubfeasPoolShutdown() => calls.Add("SubfeasPoolShutdown");
         public void SetDiagnosticsEnabled(bool enabled) => calls.Add($"SetDiagnosticsEnabled({enabled})");
     }
@@ -192,7 +193,7 @@ calls:
   EncodeMessage
   EncodeMessage
   SubfeasComputeAnalytic(len=180000)
-  SubfeasPoolConfigure(14)
+  SubfeasPoolConfigure(N)
   SubfeasFitSignal
   SubfeasFitSignal
   SetApBits(0,0)
@@ -238,7 +239,7 @@ calls:
   EncodeMessage
   EncodeMessage
   SubfeasComputeAnalytic(len=180000)
-  SubfeasPoolConfigure(14)
+  SubfeasPoolConfigure(N)
   SubfeasFitSignal
   SubfeasFitSignal
   SetApBits(0,0)
