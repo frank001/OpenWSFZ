@@ -1,0 +1,35 @@
+{
+ "testable_classes": [
+  "report",
+  "report CQ"
+ ],
+ "class_table": {
+  "report": {
+   "confirmed_in_class": 7944,
+   "n_sampled": 50,
+   "present": 45,
+   "present_rate": 0.9,
+   "wilson": [
+    0.7863950966521162,
+    0.956524876008429
+   ],
+   "testable": true
+  },
+  "report CQ": {
+   "confirmed_in_class": 2298,
+   "n_sampled": 50,
+   "present": 45,
+   "present_rate": 0.9,
+   "wilson": [
+    0.7863950966521162,
+    0.956524876008429
+   ],
+   "testable": true
+  }
+ },
+ "T_frozen": 0.276,
+ "min_n": 10,
+ "min_present_rate": 0.8,
+ "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049",
+ "start_minus_dt_median_s": -0.17999999999999972
+}

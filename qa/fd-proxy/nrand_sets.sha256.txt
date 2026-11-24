@@ -1,0 +1,5 @@
+# FD-PROXY synthetic N-RAND sets (text kept in _qa-scratch\fd-proxy, never in git); harness built from 66b3ddf1 (libft8.dll pin bbde6eb6...6528), grammar store null = BuiltInDefault
+c81029acaae54ef9468481fd6357deeca32e20e8a61a496e24dfa7da8d833e46 *nrand_rand.txt
+c5eff9635edec0e67cb069954e2a29ad0af6eaba3370034fa4657cf562d508d8 *nrand_ap.txt
+mode=rand seed=20261118 tries=15471 unpackNull=9168 implausible=3344 accepted=2959 passRate=0.19126106909702023
+mode=ap seed=20261119 tries=45 unpackNull=0 implausible=4 accepted=41 passRate=0.9111111111111111

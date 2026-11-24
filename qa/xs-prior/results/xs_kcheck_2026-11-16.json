@@ -1,0 +1,41 @@
+{
+ "mode": "kcheck (no S1, S2, C-PAR or verdict)",
+ "V_N": {
+  "n_ref": 85783,
+  "n_ows": 79317,
+  "matched": 75673,
+  "wsjt_only": 10110,
+  "gaps": 0,
+  "wsjt_rows_off_archive_range": 0,
+  "wsjt_stamps_on_15s_grid": true,
+  "PASS": true
+ },
+ "V_CONT_gaps": 0,
+ "exclusions": {
+  "u_before_exclusions": 10110,
+  "excl_2_cq_qrz_de": 1840,
+  "excl_4_xc_territory": 768,
+  "excl_1_hash_or_dxped": 1015,
+  "excl_3_unparsed": 28,
+  "u_after_exclusions": 6459
+ },
+ "V_PARSE": {
+  "parsed_share_of_U_before_exclusion_3": 0.9972304648862512,
+  "bar": 0.9,
+  "PASS": true
+ },
+ "report_range_check": {
+  "matched_report_rows": 18095,
+  "outside_-30_+20": 50
+ },
+ "loose_pair_condition": {
+  "rows": 1260,
+  "pp_of_n_ref": 1.4688224939673362,
+  "CI_pp": [
+   1.386134209712585,
+   1.555592902674798
+  ],
+  "half_width_pp": 0.08472934648110653,
+  "note": "precision check of section 6: if half_width > 0.3 pp QA says so before freezing"
+ }
+}

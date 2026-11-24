@@ -1,0 +1,26 @@
+{
+ "night": "20261119_2204",
+ "night_run_id": "20261119_2204",
+ "off_dir": "D:/Projects/claude/_qa-scratch/lr-full/20261119_2204/test_OFF",
+ "on_dir": "D:/Projects/claude/_qa-scratch/lr-full/20261119_2204/test_ON",
+ "pilot_on_dir": "D:/Projects/claude/_qa-scratch/lr-full/20261119_2204/pilot_ON",
+ "wsjtx_alltxt": "D:/Projects/claude/OpenWSFZ/artefacts/20261119_2204_endurance_run-gathered/wsjt-x/ALL.TXT",
+ "wav_dir": "D:/Projects/claude/OpenWSFZ/artefacts/20261119_2204_endurance_run-gathered/owsfz/wav",
+ "dll": "D:/Projects/claude/_qa-scratch/lr-full/bin_lrfull/libft8.dll",
+ "dll_pin": "bbde6eb66af4cd429ffc46f67291ba718c1ae36ae39665faac24629bcb6e6528",
+ "pilot_cycles": 0,
+ "c_off": -0.18999999999999972,
+ "off_rerun_dirs": [
+  "D:/Projects/claude/_qa-scratch/lr-full/20261119_2204/pilot_OFF",
+  "D:/Projects/claude/_qa-scratch/lr-full/20261119_2204/rerun20_OFF"
+ ],
+ "test_selection": "D:/Projects/claude/_qa-scratch/lr-full/20261119_2204/sel_test.json",
+ "nrand": {
+  "rand": "D:/Projects/claude/_qa-scratch/lr-full/20261119_2204/nrand_rand.txt",
+  "ap": "D:/Projects/claude/_qa-scratch/lr-full/20261119_2204/nrand_ap.txt",
+  "sha": {
+   "rand": "e75c1702fae2d7e056765cbc77ef6f1205df612790602045069478acedd8bee4",
+   "ap": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+ }
+}

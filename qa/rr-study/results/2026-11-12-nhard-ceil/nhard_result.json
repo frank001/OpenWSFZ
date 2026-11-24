@@ -1,0 +1,92 @@
+{
+ "cycles": 500,
+ "V-NAT": {
+  "git_diff_native_empty": false,
+  "dll_pin_ok": true,
+  "arms_pin_ok_at_start_and_end": true,
+  "PASS": false
+ },
+ "V-SET": {
+  "PASS": true
+ },
+ "V-WIRE": {
+  "cycles_with_different_published_rows": 8,
+  "PASS": true
+ },
+ "n_ref": 13997,
+ "cycles_with_wsjtx": 500,
+ "N24": {
+  "corroborated": 11729,
+  "pct": 83.79652782739159
+ },
+ "N0": {
+  "corroborated": 11729,
+  "pct": 83.79652782739159
+ },
+ "C-NET": {
+  "NET_pp": 0.0,
+  "CI": [
+   0.0,
+   0.0
+  ]
+ },
+ "C-U": {
+  "dU_ta": 0.0,
+  "CI": [
+   0.0,
+   0.0
+  ]
+ },
+ "descriptive": {
+  "U-COV": {
+   "N24_only_new_text_rows": 0,
+   "corroborated": 0,
+   "not_corroborated": 0,
+   "tested_absent": 0,
+   "tested_present": 0,
+   "hashed_or_unencodable": 0,
+   "untestable_class": 0,
+   "share_of_not_corroborated_judged_by_U_prime": null
+  },
+  "N24_only_new_text_rows_by_batch": {},
+  "N24_only_tested_absent_by_batch": {},
+  "N24_only_corroborated_by_batch": {},
+  "N0_only_text_rows_total": 0,
+  "latest_batch_p95_ms": {
+   "N24": 6218.949999999999,
+   "N0": 6248.045,
+   "budget_ms": 13000.0
+  },
+  "abandoned": {
+   "N24": {
+    "fallback_cycles": 0,
+    "resAbandoned_cycles": 0,
+    "late_round_cycles": 0
+   },
+   "N0": {
+    "fallback_cycles": 0,
+    "resAbandoned_cycles": 0,
+    "late_round_cycles": 0
+   }
+  },
+  "CQ_AP_effect_on_the_v2_stack_N24_minus_arm_B_descriptive": {
+   "corroborated_N24": 11729,
+   "corroborated_arm_B": 11654,
+   "NET_pp": 0.5358291062370508,
+   "NET_CI": [
+    0.40556423365706934,
+    0.6692011089947039
+   ],
+   "only_difference": "--cq-ap 1 (N24) vs --cq-ap 0 (arm B); same build, same cycles, nhard 24"
+  }
+ },
+ "verdict": "VOID",
+ "flag_OSD_costs_decodes": false,
+ "verdict_wording": "VOID: a validity row failed; nothing else is read",
+ "inputs": {
+  "classes_sha256": "84ec02bafa75740a142b16b96beeccb36723dfb156209c4e1da6fe020cd3d9b2",
+  "cycle_list_sha256": "842e67909378a0d1dbf387b27d2e080b4f1e8c1dec3e9bd9770e2e3bac76c8f9",
+  "N24_nc_sha256": "6b0e005ed605e306b8b8a46ef466a12f4cc10a51971780618bd2f9341021be72",
+  "N0_nc_sha256": "77a6b5dacb083931a82a59168e1faa462dc29d056bafb82657ff97cf2a63d136"
+ }
+}

@@ -1,0 +1,16 @@
+{
+ "cycles": 100,
+ "multiset_cycles_differing": 0,
+ "published_rows_a": 3304,
+ "published_rows_b": 3304,
+ "batch6_rows_a": 284,
+ "batch6_rows_b": 284,
+ "per_batch_counts_cycles_differing": 0,
+ "matchedbatch_cycles_differing": 0,
+ "testb_cycles_differing": 0,
+ "batch6_nonempty_cycles_a": 89,
+ "vs_surviving_per_batch_counts_cycles_differing": 0,
+ "vs_surviving_matchedbatch_cycles_differing": 0,
+ "vs_surviving_testb_cycles_differing": 0,
+ "EQUAL": true
+}

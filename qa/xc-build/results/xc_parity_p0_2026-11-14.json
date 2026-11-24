@@ -1,0 +1,36 @@
+{
+ "pairs": 583,
+ "scored": 432,
+ "unencodable": 151,
+ "hashed_in_pair": 80,
+ "sync_equal_of_21": {
+  "mean": 21,
+  "min": 21
+ },
+ "data_block1_equal_of_29": {
+  "mean": 20.03935185185185,
+  "median": 21.0,
+  "min": 10,
+  "max": 27
+ },
+ "data_block2_equal_of_29": {
+  "mean": 3.935185185185185,
+  "median": 4.0,
+  "min": 1,
+  "max": 10,
+  "hist": {
+   "1": 22,
+   "2": 69,
+   "3": 107,
+   "4": 92,
+   "5": 64,
+   "6": 39,
+   "7": 24,
+   "8": 8,
+   "9": 5,
+   "10": 2
+  },
+  "chance_expectation": 3.625
+ },
+ "frame_fact_holds": true
+}

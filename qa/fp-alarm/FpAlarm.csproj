@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FP-ALARM (#279) tool (QA-owned; no src/ change; spec arch/fp-alarm-nhard section 1 with Amendment 1).
+    The assembly name Ft8.FitProbe is a FRIEND of OpenWSFZ.Ft8 (OpenWSFZ.Ft8/AssemblyAttributes.cs), so the product's own internal functions
+    (Ft8Decoder.ExtractPrimaryCallsignToken, Ft8Decoder.IsPlausibleMessage, Ft8LibInterop.CohFallbackUnpack) are CALLED, never reimplemented.
+    CallsignRegionStore and CallsignGrammarStore are public classes of OpenWSFZ.Daemon.
+    It references the Ft8, Abstractions and Daemon projects of WHATEVER checkout RepoRoot points at:
+
+      dotnet build FpAlarm.csproj -c Release -p:RepoRoot=<checkout> -o <out>
+
+    It runs in its OWN process (ghost unpacks feed the process-global hash table). Aggregates only leave it (HK-037).
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RepoRoot Condition="'$(RepoRoot)' == ''">$(MSBuildThisFileDirectory)..\..</RepoRoot>
+    <AssemblyName>Ft8.FitProbe</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Ft8\OpenWSFZ.Ft8.csproj" />
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Abstractions\OpenWSFZ.Abstractions.csproj" />
+    <ProjectReference Include="$(RepoRoot)\src\OpenWSFZ.Daemon\OpenWSFZ.Daemon.csproj" />
+  </ItemGroup>
+
+</Project>

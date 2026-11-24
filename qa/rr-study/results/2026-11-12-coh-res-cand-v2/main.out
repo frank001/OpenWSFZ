@@ -1,0 +1,120 @@
+{
+ "cycles": 500,
+ "B-NAT": {
+  "git_diff_native_empty": true,
+  "dll_pin_ok": true,
+  "legs_pin_ok_at_start_and_end": true,
+  "PASS": true
+ },
+ "B-OFF": {
+  "cycles_compared": 40,
+  "identical_cycles": 40,
+  "cycles_in_B_outside_the_40": 0,
+  "PASS": true
+ },
+ "B-WIRE": {
+  "denominator_residual_level_cycles": 500,
+  "resrun_not_no_snapshot_share": 1.0,
+  "cycles_with_resNewGated_or_resNewKept_gt_0": 155,
+  "i": true,
+  "ii": true,
+  "PASS": true,
+  "log_residual_level_lines_equals_denominator": true
+ },
+ "B-KEEP": {
+  "A_rows_batches_1_to_4": 11834,
+  "missing": 0,
+  "hashed_rerendering_exceptions": 3,
+  "PASS": true
+ },
+ "B-DUP": {
+  "duplicate_text_instances_in_B": 0,
+  "PASS": true
+ },
+ "B-AB": {
+  "A_cycles_abandoned_gt_0": 0,
+  "B_cycles_abandoned_or_resAbandoned_gt_0": 0,
+  "PASS": true
+ },
+ "B-LATE": {
+  "A_late_round_abandoned_cycles": 0,
+  "B_late_round_abandoned_cycles": 0,
+  "PASS": true
+ },
+ "n_ref": 13997,
+ "cycles_with_wsjtx": 500,
+ "A": {
+  "corroborated": 11604,
+  "pct": 82.9034793169965
+ },
+ "B": {
+  "corroborated": 11654,
+  "pct": 83.26069872115454
+ },
+ "result": {
+  "NET_pp": 0.3572194041580339,
+  "NET_CI": [
+   0.24986615553704578,
+   0.4642022051172643
+  ],
+  "dU_ta": 0.006,
+  "dU_ta_CI": [
+   0.0,
+   0.014
+  ],
+  "dU_hu": 0.008,
+  "dU_present": 0.002,
+  "dU_untestable_class_outputs": 11,
+  "new_text_batch4_5_outputs": 70,
+  "new_text_batch4_5_corroborated": 51
+ },
+ "rows": {
+  "N-GO": true,
+  "N-STOP": false,
+  "U-OK": true,
+  "U-FAIL": false
+ },
+ "descriptive": {
+  "resNew_resNewGated_resNewKept_totals": [
+   179,
+   113,
+   66
+  ],
+  "resAbandoned_total_and_cycles": [
+   0,
+   0
+  ],
+  "resRun_counts": {
+   "ran": 500
+  },
+  "resWallMs_median_max": [
+   259.0,
+   594.0
+  ],
+  "latest_batch_p95_ms": {
+   "A": 5458.7699999999995,
+   "B": 5220.995,
+   "B_minus_A": -237.77499999999964,
+   "budget_ms": 13000.0
+  },
+  "B_only_rows_by_batch": {
+   "4": 67,
+   "5": 3,
+   "1": 1
+  },
+  "A_only_batch5_rows": 0,
+  "not_corroborated_new_text_split_per_cycle": {
+   "tested_absent": 0.006,
+   "hashed_or_unencodable": 0.008,
+   "tested_present": 0.002
+  },
+  "gated_out_rows_C_TA_split": "NOT COMPUTABLE: a gated-out row is dropped before publication, so no text of it exists in any output file (spec section 3 descriptive line)"
+ },
+ "verdict": "ACCEPT",
+ "inputs": {
+  "classes_sha256": "84ec02bafa75740a142b16b96beeccb36723dfb156209c4e1da6fe020cd3d9b2",
+  "cycle_list_sha256": "842e67909378a0d1dbf387b27d2e080b4f1e8c1dec3e9bd9770e2e3bac76c8f9",
+  "arm_A_nc_sha256": "89ed189fc63933c75efd47faa46544347696ccb9f7702a0cb8aeb68a998209df",
+  "arm_B_nc_sha256": "7515ae451be38529ee472a87626b80bce3a5587ff4944d6dcae889fad5409bf6"
+ }
+}

@@ -1,0 +1,32 @@
+{
+ "stage": "arm",
+ "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049",
+ "T_frozen": 0.276,
+ "min_n": 10,
+ "min_present_rate": 0.8,
+ "cycles_ws_gt_0": 998,
+ "decodes": 22679,
+ "confirmed": 21191,
+ "not_confirmed": 1488,
+ "calibration": {
+  "reused_from": "D:/Projects/claude/_qa-scratch/xc-u/u_off_classes.json",
+  "start_minus_dt_median_s": -0.17999999999999972
+ },
+ "classes_from": "D:/Projects/claude/_qa-scratch/xc-u/u_off_classes.json",
+ "U_prime": {
+  "cycles": 998,
+  "totals": {
+   "tested_absent": 172,
+   "hashed_or_unencodable": 290,
+   "untestable_class": 0,
+   "tested_present": 1026,
+   "not_confirmed": 1488
+  },
+  "U_prime_per_cycle": 0.46292585170340683,
+  "split_per_cycle": {
+   "tested_absent": 0.17234468937875752,
+   "hashed_or_unencodable": 0.2905811623246493,
+   "untestable_class": 0.0
+  }
+ }
+}

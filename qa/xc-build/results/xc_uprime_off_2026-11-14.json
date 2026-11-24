@@ -1,0 +1,78 @@
+{
+ "stage": "off",
+ "instrument_blob": "66dd1e94403ba2b26d4f0482a8320ef66bc4f049",
+ "T_frozen": 0.276,
+ "min_n": 10,
+ "min_present_rate": 0.8,
+ "cycles_ws_gt_0": 998,
+ "decodes": 21018,
+ "confirmed": 20335,
+ "not_confirmed": 683,
+ "calibration": {
+  "controls_used": 80,
+  "with_sync_hit_ge_0.6": 71,
+  "start_minus_dt_median_s": -0.17999999999999972
+ },
+ "class_table": {
+  "report": {
+   "confirmed_in_class": 14866,
+   "n_sampled": 50,
+   "present": 49,
+   "present_rate": 0.98,
+   "wilson": [
+    0.8950431352816304,
+    0.9964608319110235
+   ],
+   "testable": true
+  },
+  "report CQ": {
+   "confirmed_in_class": 4354,
+   "n_sampled": 50,
+   "present": 49,
+   "present_rate": 0.98,
+   "wilson": [
+    0.8950431352816304,
+    0.9964608319110235
+   ],
+   "testable": true
+  }
+ },
+ "testable_classes": [
+  "report",
+  "report CQ"
+ ],
+ "null_this_night": {
+  "n": 2000,
+  "mean": 0.1488793103448276,
+  "p99": 0.29310344827586204,
+  "T_frozen": 0.276,
+  "abs_diff": 0.01710344827586202,
+  "flag_architect": false
+ },
+ "U_prime": {
+  "cycles": 998,
+  "totals": {
+   "tested_absent": 79,
+   "hashed_or_unencodable": 287,
+   "untestable_class": 0,
+   "tested_present": 317,
+   "not_confirmed": 683
+  },
+  "U_prime_per_cycle": 0.3667334669338677,
+  "split_per_cycle": {
+   "tested_absent": 0.07915831663326653,
+   "hashed_or_unencodable": 0.2875751503006012,
+   "untestable_class": 0.0
+  }
+ },
+ "proposal": {
+  "U_prime_0": 0.3667334669338677,
+  "U_prime_max_0.30x": 0.11002004008016031,
+  "projected_paired_half_width": 0.029103263938734827,
+  "two_x_half_width": 0.05820652787746965,
+  "U_max_ge_2x_half_width": true,
+  "bar_line_0.042": 0.042,
+  "U_prime_max_le_0.042": false,
+  "observed_delta_U_prime_1009": 0.021
+ }
+}
