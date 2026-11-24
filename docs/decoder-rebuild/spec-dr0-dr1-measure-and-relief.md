@@ -76,7 +76,9 @@ CQ-AP and the hash table stay as today throughout. Depth is Normal unless the ro
 
 No verdict is written. DR-0 is a measurement.
 
-## 3. DR-1: quick relief, settings only (once DR-0's table exists)
+## 3. DR-1: quick relief, settings only — ❌ SKIPPED (Product Owner, 2026-11-24)
+
+> **Not built and not shipped.** DR-0 (`qa/decoder-rebuild/dr0-result.md`) measured the relief at ≈ 0 CPU-s per cycle. The Product Owner: *"there will be no shipping for a long time. we'll continue with the lean decoder for quite a while."* The early decode's removal folds into DR-4. OSD is OFF in the lean engine (DR-2 §2.3, NET −0.015 < 0.30). The rules below are kept as the record of what DR-0 was read against.
 
 ### 3.1 What goes off, decided mechanically from DR-0
 

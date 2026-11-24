@@ -18,7 +18,8 @@ All are measured on the fixed test set (`test-set.md`), against DR-0's **A6 base
 | T3 | False side | `ours_only(lean) ≤ ours_only(A6) + 0.50 pp` |
 | T4 | Time budget | `last_p95(lean) ≤ 3,000 ms` and `abandoned = 0` on the station PC |
 - **T1–T4 are measured ONCE, in one Slice 40 replay at step 2d.** They are targets to report, not gates: if one is missed, QA gives the Product Owner the numbers and he decides.
-- **If DR-1 shipped,** the comparison is still against **A6** (today's full decoder).
+- **DR-0 baseline (A6, Slice 40 = `20261114_2312`, 170 cycles):** `cpu_net` 25.25 CPU-s per cycle, `rate` 84.39 %, `ours_only` 3.77 %, `last_p95` 7,332 ms. Bars therefore: **T1 ≤ 6.31 CPU-s**, **T2 ≥ 83.39 %**, **T3 ≤ 4.27 %**, **T4 ≤ 3,000 ms**. DR-1 was skipped.
+- **OSD is OFF** (§2.3 rule 5: DR-0 NET −0.015 pp < 0.30).
 - *(Revised 2026-11-24 at the Product Owner's direction: there is no longer a `sol` check, a Slice 20 replay, or a replay per build step.)*
 
 ## 2. Design

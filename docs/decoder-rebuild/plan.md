@@ -162,7 +162,9 @@ Each phase ends with a short result note to the Product Owner and his go for the
 - **Output:** for each step, CPU-seconds per cycle and NET decodes, from one night and one build. It sets the baseline the lean decoder is measured against.
 - **Success:** the table exists, all arms together take under 2 hours of PC time, and the Product Owner has set the targets in §9.
 
-### Phase 1: quick relief on today's code (≈ ½ day, settings only)
+### Phase 1: quick relief on today's code — ❌ SKIPPED 2026-11-24
+
+DR-0 measured ≈ 0 CPU relief from settings. The Product Owner: no shipping for a long time; continue with the lean decoder. The text below is kept as the record.
 **Goal:** cut CPU now, while the rebuild is under way.
 
 - Switch off by default whichever steps Phase 0 shows to be poor value. The likely candidates are the third pass, the late round and OSD; Phase 0 confirms or rejects each.
