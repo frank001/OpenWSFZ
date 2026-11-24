@@ -1,6 +1,6 @@
 # Decoder rebuild: plan (DRAFT for the Product Owner)
 
-**Status:** DRAFT. Awaiting the Product Owner's answers to §9.
+**Status:** APPROVED by the Product Owner, 2026-11-24 ("1-5 ok, write the specs for qa"). All five §9 proposals were accepted as written. Specs: [`spec-dr0-dr1-measure-and-relief.md`](spec-dr0-dr1-measure-and-relief.md) and [`spec-dr2-lean-decoder.md`](spec-dr2-lean-decoder.md).
 **Author:** Architect (AI-assisted), 2026-11-24T17:00Z
 **Requested by the Product Owner, 2026-11-24:** *"I want to rebuild the decoder and decoding phases from scratch using all the knowledge that we have gathered up to now. It needs to be leaner, decoding phases combined where possible. It has now become a CPU-heavy application and it should not be."*
 
@@ -96,7 +96,7 @@ The numbers below come from **one live night only** (`20261114_2312`, 40 m, buil
 
 | Change | Replaces | Why it saves CPU |
 |---|---|---|
-| One spectrogram, updated locally after each subtraction | 5–6 separate spectrogram builds (every pass re-runs `DecodeAll` from raw audio) | Only the bins under a subtracted signal are recomputed. |
+| One spectrogram per round, and one decode path | 5–6 separate passes, each re-running the whole decode from raw audio | Recomputing the spectrogram is cheap (a few ms). The cost was always the repeated full-band candidate decoding, which the patch search removes. *(Corrected while writing the specs: the draft said "updated locally".)* |
 | Tiered demodulation inside one pass | The primary pass **and** the separate coherent-fallback pass, with its three runs over two audios | The expensive coherent metrics run only on candidates that are close. There is no second sweep of the band. |
 | Local re-search after subtraction | The residual pass, the third pass, the fallback's residual runs and the late round (four full-band passes) | K3: the new decodes are near what was subtracted. The rest of the band was already searched. |
 | No OSD in the hot path (subject to Phase 0) | OSD on every failed candidate | K5. |
