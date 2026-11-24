@@ -1,4 +1,25 @@
-=== CURRENT: CQ-AP, a CQ a-priori decode attempt on failed candidates behind a per-call flag (FT8_SHIM_VERSION 20260072) ===
+=== CURRENT: the lean decoder engine, step 2a, ftz_decode_cycle (FT8_SHIM_VERSION 20260073) ===
+
+Built 2026-11-24 on feat/lean-2a (off origin/main 452af459, shim 20260072), local, not pushed. QA handoff dev-tasks/2026-11-24-dr2a-lean-decoder-tier-a.md
+(qa/same-chain cc6da2fc); Architect spec docs/decoder-rebuild/spec-dr2-lean-decoder.md (arch/decoder-rebuild 68f7f15e). OpenSpec change lean-decoder.
+What changed (native). native/ftz_decoder/ftz_decoder.h + .c (NEW, OpenWSFZ-original): ftz_decode_cycle (spectrogram, ftx_find_candidates with the primary pass's
+      parameters, tier A on every candidate in parallel on a fixed worker pool, then on the calling thread: sort by frequency, time, payload; unpack against the
+      shared callsign table; de-duplicate by payload and text; SNR by the primary pass's formula) and ftz_shutdown. No tier B, no CQ-AP, no OSD, no subtraction.
+      The .c is #included at the END of ft8_shim.c (it shares the shim's callsign table and helpers), so no build recipe gained a compile line.
+  ft8_lib_build/patched/ft8/decode.c  ftx_decode_candidate_tier_a (no OSD, reentrant, a degenerate LLR vector is rejected); nothing existing is touched.
+  ft8_shim.c/.h            the include; FT8_SHIM_VERSION 20260073. TWO NEW exports: ftz_decode_cycle, ftz_shutdown. FT8Result is UNCHANGED (48 bytes); every existing
+      export and every classic decode outcome is unchanged (the managed golden recorded on 452af459 passes unchanged).
+rebuild_shim.bat         the two new exports added to the /EXPORT list. The Linux, macOS and CI builds need no export list.
+Checked here: the native tests under AddressSanitizer + UndefinedBehaviorSanitizer (GCC 14.2, WSL Debian; native/ftz_decoder/tests/run_asan.sh), 10,000 fuzz runs,
+determinism at 1/2/4/2/1 threads on the three synthetic fixtures, no report; the same compile with -Wall: no warning from the new files. CI job native-asan runs it.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    1954e4dfc740bdcaecec75baf5001087ac2bbcef4239eb4ed25b759075d81240
+  Linux x64 / macOS arm64: NOT rebuilt here; refreshed by CI (the macOS dylib leg is expected and permanent). tools/check_native_version.py reports shim
+  20260073 for the Windows file.
+
+
+=== Previous: CQ-AP, a CQ a-priori decode attempt on failed candidates behind a per-call flag (FT8_SHIM_VERSION 20260072) ===
 
 Built 2026-11-10 on feat/cq-ap (off origin/main 98332f2a, shim 20260071), local, not pushed. QA handoff dev-tasks/2026-11-10-cq-ap-build.md
 (qa/same-chain 64ca5a2c); Architect spec 416b6ab9 (arch/cq-ap) with Amendment 1.

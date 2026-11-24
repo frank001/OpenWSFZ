@@ -2956,3 +2956,10 @@ int ft8_coherent_fallback_process(
     }
 #endif
 }
+
+/* ── Lean decoder engine, step 2a (DR-2, shim 20260073) ──────────────────────────────────────────────────────────────────
+ * ftz_decode_cycle / ftz_shutdown live in native/ftz_decoder/ftz_decoder.c and are compiled INTO this translation unit, at
+ * the very end, so they share the callsign table, the message-text interface and the SNR helpers above without duplicating
+ * them, and so no build recipe needs a new compile line. Nothing above this line refers to them: the classic path is
+ * untouched. */
+#include "../../../native/ftz_decoder/ftz_decoder.c"

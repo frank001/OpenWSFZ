@@ -97,7 +97,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// Frees the native residual-pass workspace pool (sub-feas-speed-redesign A3). The daemon calls this at
     /// shutdown, after the decode pump has stopped. Idempotent, and it does not load the native library.
     /// </summary>
-    public void Dispose() => _interop.SubfeasPoolShutdown();
+    public void Dispose()
+    {
+        _interop.SubfeasPoolShutdown();
+        _interop.LeanShutdown();   // DR-2 step 2a: the lean engine's worker pool (a no-op when it was never created)
+    }
 
     /// <summary>
     /// Hard per-cycle wall-clock budget (13 s, tasks.md runtime gate) for pass-0 plus the
@@ -305,6 +309,31 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     /// <summary>CQ-AP: whether the CQ a-priori attempt is requested now (the read-back of <see cref="SetCqApEnabled"/>).</summary>
     public bool CqApEnabled => _cqApEnabled;
+
+    // ── DR-2 step 2a: the engine switch ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+    private volatile int _engine;                            // (int)DecoderEngine; Classic (0) at construction
+    private volatile int _leanThreads = DecoderConfig.DefaultThreads;
+
+    /// <summary>
+    /// DR-2 step 2a (FR-108): sets <c>decoder.engine</c>. The object starts <see cref="DecoderEngine.Classic"/> and so does the configured default (an absent key
+    /// reads <c>classic</c>). With <see cref="DecoderEngine.Lean"/> a cycle goes through <c>ftz_decode_cycle</c> and the classic decoder is not entered; with
+    /// <see cref="DecoderEngine.Classic"/> every statement of the cycle is as before the setting existed. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetEngine(DecoderEngine engine)
+        => _engine = (int)engine;
+
+    /// <summary>DR-2 step 2a: the engine the next cycle will use (the read-back of <see cref="SetEngine"/>).</summary>
+    public DecoderEngine Engine => (DecoderEngine)_engine;
+
+    /// <summary>
+    /// DR-2 step 2a: sets <c>decoder.threads</c>, the lean engine's worker count (clamped to 1 to 8). No effect while the engine is
+    /// <see cref="DecoderEngine.Classic"/>. Read once per decode cycle.
+    /// </summary>
+    public void SetLeanThreads(int threads)
+        => _leanThreads = Math.Clamp(threads, DecoderConfig.MinThreads, DecoderConfig.MaxThreads);
+
+    /// <summary>DR-2 step 2a: the lean engine's worker count the next cycle will use.</summary>
+    public int LeanThreads => _leanThreads;
 
     // ── XC-BUILD (cross-cycle template stage, batch 6) ────────────────────────────────────────────────────────────────────────────────────────────
     private volatile bool _crossCyclePrior;          // the object starts false; the daemon sets the configured value (default false) before the first cycle and on every config change
@@ -788,6 +817,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // This avoids the wall-clock race where scheduler delay causes
         // AlignToCycleStart to snap to the start of the *next* cycle.
         string timeStr = cycleStart.ToString("HH:mm:ss");
+
+        // ── DR-2 step 2a: the lean engine. Read ONCE per cycle. With "classic" (or the key absent) this statement is the only difference from the base: the
+        // condition is false and execution continues into the classic path below, unchanged. With "lean" the classic decoder is not entered at all.
+        if (_engine == (int)DecoderEngine.Lean)
+            return await DecodeLeanAsync(pcm, timeStr, currentBand, early, ct).ConfigureAwait(false);
 
         // XC-BUILD R2: open this cycle's entry in the prior store (a band change clears it; cycles older than 90 s are dropped). Only while the stage is on.
         if (xcOn) _crossCycleStore.BeginCycle(cycleStart, currentBand);
@@ -1705,6 +1739,129 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// COH-FALLBACK Stage 2: the native fallback run on a thread of its own. Contains every failure: a fault is logged and the cycle
     /// simply has no fallback decodes (batches 1, 2 and 3 as they would have been), never lost.
     /// </summary>
+    // ── DR-2 step 2a: the lean engine's cycle ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The lean cycle's error code for a managed exception around the native call (the native codes are in <see cref="LeanCycleStats"/>).</summary>
+    internal const int LeanErrManaged = -100;
+
+    /// <summary>
+    /// DR-2 step 2a: decodes one window with the lean engine: ONE native call (<c>ftz_decode_cycle</c>: spectrogram, candidates, tier A), then the same
+    /// publish pipeline as every classic batch (text de-duplication per cycle, <see cref="IsPlausibleMessage"/>, region and worked-before bycatch). The
+    /// results are the lean engine's batch 1: the staged entry points publish what this returns as batch 1 (the single-batch outcome of the classic path).
+    /// A native error is logged and whatever results the call had written are published; an exception around the call is logged and the cycle yields
+    /// nothing; neither stops the next cycle (D3). The early decode has no lean form (the plan removes it): under <c>lean</c> it returns nothing.
+    /// </summary>
+    private async Task<IReadOnlyList<DecodeResult>> DecodeLeanAsync(
+        float[] pcm, string timeStr, string? currentBand, bool early, CancellationToken ct)
+    {
+        if (early)
+        {
+            _logger?.LogDebug("Early decode skipped - the lean engine has no early decode.");
+            return [];
+        }
+
+        var sw = BudgetClock.StartNew(_timeProvider);
+        int threads = _leanThreads;
+
+        // The same input conditioning as the primary pass today (input scaling is a closed arm): a normalised COPY, the caller's buffer is never mutated.
+        float[] normalisedPcm = NormalisePcm(pcm, PcmNormalisationTargetRms);
+
+        LeanCycleOutcome outcome;
+        try
+        {
+            outcome = await Task.Run(() => _interop.DecodeLeanCycle(normalisedPcm, threads), ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // D3: a failure of the native call (or of loading it) is a lost cycle, never a dead daemon.
+            _logger?.LogError(ex, "Cycle {Time}: lean decode failed ({Type}) - cycle skipped.", timeStr, ex.GetType().Name);
+            outcome = new LeanCycleOutcome([], LeanCycleStats.None(LeanErrManaged));
+        }
+        sw.Stop();
+
+        var st = outcome.Stats;
+        if (st.Error != LeanCycleStats.Ok)
+            _logger?.LogWarning(
+                "Cycle {Time}: lean native error {Error} - publishing the {Count} result(s) it had written, carrying on with the next cycle.",
+                timeStr, st.Error, outcome.Results.Length);
+
+        // HK-037 / NFR-021: the line carries counts and times only, never message text or a callsign.
+        _logger?.LogInformation(
+            "Cycle {Time}: lean: candidates={Candidates} tierA={TierA} results={Results} threads={Threads} abandoned={Abandoned} error={Error} " +
+            "wall_ms spectrogram={SpecWall:F1} candidates={CandWall:F1} tierA={TierAWall:F1} unpack={UnpackWall:F1} total={TotalWall:F1} " +
+            "cpu_ms spectrogram={SpecCpu:F1} candidates={CandCpu:F1} tierA={TierACpu:F1} unpack={UnpackCpu:F1} total={TotalCpu:F1}.",
+            timeStr, st.Candidates, st.TierADecodes, st.Results, st.Threads, st.Abandoned ? 1 : 0, st.Error,
+            st.SpectrogramWallUs / 1000.0, st.CandidatesWallUs / 1000.0, st.TierAWallUs / 1000.0, st.UnpackWallUs / 1000.0, st.TotalWallUs / 1000.0,
+            st.SpectrogramCpuUs / 1000.0, st.CandidatesCpuUs / 1000.0, st.TierACpuUs / 1000.0, st.UnpackCpuUs / 1000.0, st.TotalCpuUs / 1000.0);
+
+        var seen   = new HashSet<string>(StringComparer.Ordinal);
+        var mapped = new List<DecodeResult>(outcome.Results.Length);
+        foreach (ref readonly Ft8NativeResult nr in outcome.Results.AsSpan())
+        {
+            string msg = nr.Message.TrimEnd();                       // D-005: the native buffer is padded with spaces
+            if (!seen.Add(msg)) continue;                            // one text, once per cycle
+            if (!IsPlausibleMessage(msg, _grammarStore))
+            {
+                _logger?.LogDebug("Cycle {Time}: filtered implausible message '{Message}' (false-positive guard).", timeStr, msg);
+                continue;
+            }
+
+            RegionInfo? region = null;
+            if (_regionStore is not null)
+            {
+                try
+                {
+                    var primaryToken = ExtractPrimaryCallsignToken(msg);
+                    if (primaryToken is not null) region = _regionStore.TryGetRegion(primaryToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Cycle {Time}: region resolution failed for message '{Message}' - defaulting to Unknown.", timeStr, msg);
+                    region = null;
+                }
+            }
+
+            WorkedBeforeInfo? workedBefore = null;
+            if (_workedBeforeIndex is not null)
+            {
+                try
+                {
+                    var primaryToken = ExtractPrimaryCallsignToken(msg);
+                    if (primaryToken is not null) workedBefore = _workedBeforeIndex.Resolve(primaryToken, currentBand);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Cycle {Time}: worked-before resolution failed for message '{Message}' - defaulting to not-worked-before.", timeStr, msg);
+                    workedBefore = null;
+                }
+            }
+
+            mapped.Add(new DecodeResult(
+                Time:         timeStr,
+                Snr:          nr.Snr,
+                Dt:           Math.Round(nr.Dt, 1),
+                FreqHz:       nr.FreqHz,
+                Message:      msg,
+                Region:       region,
+                WorkedBefore: workedBefore,
+                Band:         currentBand)
+            {
+                Path   = PathOrdinary,
+                ApKind = ApKind.None
+            });
+        }
+
+        // The ordinary cycle line, so the log parsers that read it keep working for a lean cycle too.
+        _logger?.LogInformation(
+            "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms.",
+            timeStr, mapped.Count, sw.ElapsedMilliseconds);
+        return mapped;
+    }
+
     private CohFallbackRunResult? RunCoherentFallback(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, string timeStr, CancellationToken ct)
     {
         try

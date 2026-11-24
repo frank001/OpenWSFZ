@@ -858,6 +858,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetCoherentFallbackResidualCandidates(initialDecoder.CoherentFallbackResidualCandidates);   // COH-RES-CAND: default false (key absent = off); read once per cycle
     ft8Decoder.SetCrossCyclePrior(initialDecoder.CrossCyclePrior);   // XC-BUILD: default false (key absent = off); read once per cycle
     ft8Decoder.SetCrossCyclePriorShadow(initialDecoder.CrossCyclePriorShadow);   // XC-BUILD shadow null: default false; read once per cycle
+    ft8Decoder.SetEngine(initialDecoder.GetEngineKind());   // DR-2 step 2a: default classic (key absent or unknown = classic); read once per cycle
+    ft8Decoder.SetLeanThreads(initialDecoder.EffectiveThreads);   // DR-2 step 2a: the lean engine's workers, 1 to 8, default 2
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
     // fr020-webtestfactory-audio-capture-leak: resolve IConfigStore via DI (post-Build()),
@@ -971,6 +973,8 @@ configStore.OnSaved += newConfig =>
     ft8Decoder.SetCoherentFallbackResidualCandidates(dec.CoherentFallbackResidualCandidates);   // COH-RES-CAND: next cycle
     ft8Decoder.SetCrossCyclePrior(dec.CrossCyclePrior);   // XC-BUILD: next cycle
     ft8Decoder.SetCrossCyclePriorShadow(dec.CrossCyclePriorShadow);   // XC-BUILD shadow null: next cycle
+    ft8Decoder.SetEngine(dec.GetEngineKind());   // DR-2 step 2a: next cycle
+    ft8Decoder.SetLeanThreads(dec.EffectiveThreads);   // DR-2 step 2a: next cycle
     Volatile.Write(ref fallbackOn, dec.CoherentFallbackEnabled);          // R14: the QSO queues' capacity follows the flag
     // Re-apply the Serilog pipeline only when logging-related settings actually
     // change, so that non-logging saves (e.g. Cat.LastPolledFrequencyMHz) do not

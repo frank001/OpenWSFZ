@@ -90,6 +90,10 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public void SubfeasPoolShutdown() => Ft8LibInterop.SubfeasPoolShutdown();
 
+    public LeanCycleOutcome DecodeLeanCycle(float[] pcm, int threads) => Ft8LibInterop.DecodeLeanCycle(pcm, threads);
+
+    public void LeanShutdown() => Ft8LibInterop.LeanShutdown();
+
     public void SetDiagnosticsEnabled(bool enabled) => Ft8LibInterop.SetDiagnosticsEnabled(enabled);
 
     public int HashStateSize() => Ft8LibInterop.HashStateSize();

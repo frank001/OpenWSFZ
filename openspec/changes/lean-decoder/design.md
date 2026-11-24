@@ -1,0 +1,30 @@
+## Context
+
+`docs/decoder-rebuild/spec-dr2-lean-decoder.md` (Architect, `arch/decoder-rebuild` `68f7f15e`) fixes the shape: one native call per cycle, tiers inside it, a deterministic order, a switch. Step 2a builds S1 plus S2 steps 1, 2, 6 and 7. Decisions below are the Developer's, taken where the spec leaves them open.
+
+## Decisions
+
+**D1. The lean engine is compiled into the shim's translation unit.** `ft8_shim.c` ends with `#include "../../../native/ftz_decoder/ftz_decoder.c"`. The callsign table, the message-text interface (`s_hash_if`), the 12-bit-hash accounting and the SNR helpers are statics of the shim; the spec says their semantics are unchanged, and the only way to share them without touching classic code is to be in the same translation unit. As a side effect every recipe that compiles `ft8_shim.c` (`rebuild_shim.bat`, `build_linux.sh`, the CI macOS and Linux steps) builds the lean engine with no new compile line. The cost is that the file is not independently compilable; its header says so. Rejected: exposing the statics through a new internal header (a diff in classic code for no gain), and duplicating them (two table implementations is the bug class the single table exists to avoid).
+
+**D2. The sort key's third element is the payload, not the text.** The spec orders by frequency, then time, then text, "before anything touches the hash table". Text needs the callsign table (a hashed callsign resolves through it), so sorting by text would put the table before the order. The payload is hash-free, total and identical for identical text. A tie on frequency and time (the same lattice cell decoding two payloads) is rare; the payload makes it deterministic. The final tie-break is the candidate index.
+
+**D3. Determinism comes from where the parallelism ends.** Workers do only the tier A work, which reads the waterfall and writes its own slot of two arrays (no table access, no thread-local state, `ftx_decode_candidate_tier_a` is reentrant). Everything order-dependent (sort, unpack, de-duplication, hash learning, result writing) is on the calling thread after the join, in the sorted order. The output therefore cannot depend on the worker count; the unit test and the native harness diff it at 1, 2 and 4 threads (and 8).
+
+**D4. A fixed pool, created once, rebuilt only when the configured count changes.** Mutex plus two condition variables, work items taken under the mutex (about 140 per cycle, so contention is irrelevant). One job at a time (a call lock also serialises cycles, as the process-global callsign table already requires). `threads = 1` runs inline and frees any pool. A pool that cannot be created falls back to inline rather than failing the cycle. `ftz_shutdown` stops it at daemon dispose and is idempotent.
+
+**D5. Memory safety.** Every array is sized by the call itself; item indices are checked against the array size; the spectrogram's allocations are checked (`monitor_init` does not); the length is clamped to 180 000 samples; audio containing a NaN, an infinity or a sample beyond 1e6 is refused with `FTZ_ERR_BADAUDIO` before it reaches a float to integer conversion (undefined behaviour otherwise); an access violation is caught by the SEH wrapper on MSVC (as `ft8_decode_all` does) and by a per-item guard inside the workers, and returned as `FTZ_ERR_FAULT`. The call never raises: C# reads an error code, logs it, publishes the results already written (`stats.n_results`) and continues with the next cycle. A managed exception around the call (for example an old `libft8` without the export) is logged and the cycle yields nothing.
+
+**D6. Tier A rejects a degenerate LLR vector.** `ftx_normalize_logl` divides by the variance; an all-silent waterfall gives zero and a NaN would reach belief propagation. The new function returns false for a non-finite or zero-variance vector. For every candidate whose belief propagation converges the output is bit-identical to `ftx_decode_candidate`'s (test 1 compares the texts against the classic primary pass on the three committed fixtures).
+
+**D7. Hand-off of batch 1.** The spec leaves two native calls versus a callback to the Developer. Step 2a has one batch, so neither is needed: `DecodeLeanAsync` returns the mapped results and the existing staged entry points publish them as batch 1 (the "single-batch outcome" path they already have). Step 2b/2c will need the real choice; nothing here forecloses it.
+
+**D8. What stays outside the lean branch.** The size check and the silence guard run before the branch (they are about the input, not the engine). The early decode has no lean form: under `lean` it returns nothing and makes no native call. The classic flags (depth, subtraction, fallback, late round, OSD, CQ-AP, cross-cycle) are ignored by the lean cycle, as the spec says.
+
+**D9. Two lines per lean cycle, not one.** The spec asks for one counts-only INFO line per lean cycle. The ordinary `Cycle {Time}: N decode(s) found, elapsed=...` line is also kept, because log parsers read it; it carries no new information and no text. If the Captain wants strictly one, the second is a single statement to delete.
+
+**D10. The golden.** The test that the classic path is unchanged is a recording of every native call (name and argument summary), every published batch and every log line (elapsed milliseconds normalised) for four cycles (plain and staged, residual pass off and on). The recording was made by running the same test file, using only the base API, against `origin/main` `452af459` (three runs, identical), pasted into the test, and passes unchanged on this branch with the key absent and with `classic` set explicitly.
+
+## Risks
+
+- The macOS dylib cannot be rebuilt here; CI's `macos-latest` leg owns it. The lean engine uses `pthread` on POSIX and Win32 threads on Windows only; the macOS path is the Linux path (`clock_gettime(CLOCK_THREAD_CPUTIME_ID)` exists on macOS 10.12 and later).
+- Per-thread CPU time is measured with `GetThreadTimes` / `CLOCK_THREAD_CPUTIME_ID` and summed over the workers: it is the CPU the engine used, not the process's.

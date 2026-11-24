@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260072;
+    private const int ExpectedShimVersion = 20260073;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -583,6 +583,23 @@ internal static class Ft8LibInterop
         int                     pcmLen,
         [Out] Ft8NativeResultWire[] results,
         int                     maxResults);
+
+    /// <summary>
+    /// DR-2 step 2a (shim 20260073): the lean engine's one native call per cycle (<c>native/ftz_decoder/ftz_decoder.h</c>). Returns the number of
+    /// results (&gt;= 0) or a negative error code; the call never raises, and the statistics (also on an error) say how many results are valid.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ftz_decode_cycle", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzDecodeCycle(
+        [In] float[]            pcm,
+        int                     pcmLen,
+        ref FtzParamsWire       parameters,
+        [Out] Ft8NativeResultWire[] results,
+        int                     maxResults,
+        ref FtzStatsWire        stats);
+
+    /// <summary>DR-2 step 2a: stops and frees the lean engine's worker pool (the next <c>ftz_decode_cycle</c> re-creates it).</summary>
+    [DllImport("libft8.dll", EntryPoint = "ftz_shutdown", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeFtzShutdown();
 
     /// <summary>
     /// cq-ap (shim 20260072): sets the per-thread CQ a-priori flag of the next <see cref="NativeDecodeAll"/> calls on this thread.
@@ -989,6 +1006,49 @@ internal static class Ft8LibInterop
             };
         }
         return results;
+    }
+
+    /// <summary>
+    /// DR-2 step 2a: decodes one cycle with the lean engine (<c>ftz_decode_cycle</c>): spectrogram, candidates, tier A, unpack, sorted. Any native
+    /// error code is reported in the returned statistics (never thrown) together with whatever results the call had already written, so the
+    /// caller can log it, publish what there is and carry on with the next cycle (D3). The call does not read or write the classic
+    /// decode's thread-local state.
+    /// </summary>
+    /// <param name="pcm">12 kHz mono float32 PCM, at most 180 000 samples are read.</param>
+    /// <param name="threads">Worker count, 1 to 8 (the native side clamps).</param>
+    public static LeanCycleOutcome DecodeLeanCycle(float[] pcm, int threads)
+    {
+        ArgumentNullException.ThrowIfNull(pcm);
+        EnsureInitialized();
+
+        var parameters = new FtzParamsWire { StructSize = Marshal.SizeOf<FtzParamsWire>(), Threads = threads };
+        var stats      = new FtzStatsWire  { StructSize = Marshal.SizeOf<FtzStatsWire>() };
+        var wire       = new Ft8NativeResultWire[MaxResults];
+        int rc = NativeFtzDecodeCycle(pcm, pcm.Length, ref parameters, wire, MaxResults, ref stats);
+        stats.Error = rc < 0 ? rc : stats.Error;
+
+        int count = rc >= 0 ? rc : stats.NResults;
+        count = Math.Clamp(count, 0, MaxResults);
+        var results = count == 0 ? [] : new Ft8NativeResult[count];
+        for (int i = 0; i < count; i++)
+        {
+            results[i] = new Ft8NativeResult
+            {
+                FreqHz  = wire[i].FreqHz,
+                Dt      = wire[i].Dt,
+                Snr     = wire[i].Snr,
+                Message = wire[i].Message,
+                ApKind  = ApKind.None,
+            };
+        }
+        return new LeanCycleOutcome(results, LeanCycleStats.From(in stats));
+    }
+
+    /// <summary>DR-2 step 2a: frees the lean engine's native worker pool. Does nothing if the library was never loaded.</summary>
+    public static void LeanShutdown()
+    {
+        if (!_initialized) return;
+        NativeFtzShutdown();
     }
 
     /// <summary>

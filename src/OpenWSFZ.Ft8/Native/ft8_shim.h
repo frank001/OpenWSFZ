@@ -860,8 +860,11 @@ extern "C" {
  *              (attempts, decodes, OSD entries), ft8_cq_ap_pattern and ft8_cq_ap_probe_llrs (test exports). Every existing export and
  *              struct is unchanged (FT8Result stays 48 bytes); the QSO-AP path (ftx_decode_candidate_ap, +-40 before normalisation) is
  *              untouched; with the flag OFF decode output is identical to 20260071.
- */
-#define FT8_SHIM_VERSION 20260072
+ *   20260073 — DR-2 step 2a (the lean decoder engine): ftz_decode_cycle and ftz_shutdown (native/ftz_decoder/, compiled into this library) and
+ *              ftx_decode_candidate_tier_a in decode.c. New exports only; every existing export, FT8Result (48 bytes) and every decode outcome
+ *              unchanged. The classic path is not entered by the new entry points and does not call them.
+*/
+#define FT8_SHIM_VERSION 20260073
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
