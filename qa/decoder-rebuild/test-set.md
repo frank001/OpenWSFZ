@@ -14,7 +14,8 @@
 | End cycle | `261115_082915` |
 | Cycles | 240 (15 s each, contiguous, checked) |
 | WSJT-X decodes in the slice | 9,431 (lines of `wsjt-x/ALL.TXT` stamped inside the window) |
-| Length used by DR-0 | 240 cycles, unless the §2.3 pilot shortens it (then record it here) |
+| Length used by DR-0 | **170 cycles** (`261115_072930` onward), set by the §2.3 pilot: 10-cycle pilots of every arm took 420.7 s wall in total (about 38.2 s per cycle over the 11 cycles each run decodes, the warm-up included), so all arms together fit 2 h up to about 188 cycles; 170 leaves a 10 % margin for extrapolating from 10 cycles. Fixed for every arm. Above the spec's 120-cycle minimum. |
+| Audio replayed | `owsfz/wav/` of the same night (the audio OpenWSFZ captured; the harness's standing input; all 240 cycles present, stamps identical to `wsjt-x/wav/`), scored against the WSJT-X `ALL.TXT` of the same night. Warm-up cycle: the one before the slice (`261115_072915`). |
 
 ## How it was picked
 
