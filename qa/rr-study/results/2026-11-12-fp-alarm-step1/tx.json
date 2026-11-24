@@ -1,0 +1,17 @@
+{
+  "row": "armcounts",
+  "cycles": 500,
+  "rows": 12036,
+  "excluded": 0,
+  "N": 12036,
+  "I": 0,
+  "tX": {
+    "row": "T-X (descriptive, no bar: no data exists to set one)",
+    "notCorroboratedRows": 432,
+    "excluded": 0,
+    "N": 432,
+    "I": 0,
+    "fHatFloor": -1.842961560468632,
+    "testedAbsentOnFile": "68"
+  }
+}

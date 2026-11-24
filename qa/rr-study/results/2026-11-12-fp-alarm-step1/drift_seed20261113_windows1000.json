@@ -1,0 +1,115 @@
+{
+  "row": "drift (diagnostic)",
+  "seed": 20261113,
+  "window": 1000,
+  "windows": [
+    {
+      "window": 1,
+      "generatedFrom": 1,
+      "generatedTo": 1000,
+      "N": 186,
+      "I": 26,
+      "excluded": 0,
+      "s": 0.13978494623655913
+    },
+    {
+      "window": 2,
+      "generatedFrom": 1001,
+      "generatedTo": 2000,
+      "N": 171,
+      "I": 40,
+      "excluded": 0,
+      "s": 0.23391812865497075
+    },
+    {
+      "window": 3,
+      "generatedFrom": 2001,
+      "generatedTo": 3000,
+      "N": 182,
+      "I": 24,
+      "excluded": 0,
+      "s": 0.13186813186813187
+    },
+    {
+      "window": 4,
+      "generatedFrom": 3001,
+      "generatedTo": 4000,
+      "N": 178,
+      "I": 24,
+      "excluded": 0,
+      "s": 0.1348314606741573
+    },
+    {
+      "window": 5,
+      "generatedFrom": 4001,
+      "generatedTo": 5000,
+      "N": 192,
+      "I": 22,
+      "excluded": 0,
+      "s": 0.11458333333333333
+    },
+    {
+      "window": 6,
+      "generatedFrom": 5001,
+      "generatedTo": 6000,
+      "N": 181,
+      "I": 34,
+      "excluded": 0,
+      "s": 0.1878453038674033
+    },
+    {
+      "window": 7,
+      "generatedFrom": 6001,
+      "generatedTo": 7000,
+      "N": 199,
+      "I": 31,
+      "excluded": 0,
+      "s": 0.15577889447236182
+    },
+    {
+      "window": 8,
+      "generatedFrom": 7001,
+      "generatedTo": 8000,
+      "N": 188,
+      "I": 31,
+      "excluded": 0,
+      "s": 0.16489361702127658
+    },
+    {
+      "window": 9,
+      "generatedFrom": 8001,
+      "generatedTo": 9000,
+      "N": 189,
+      "I": 28,
+      "excluded": 0,
+      "s": 0.14814814814814814
+    },
+    {
+      "window": 10,
+      "generatedFrom": 9001,
+      "generatedTo": 10000,
+      "N": 204,
+      "I": 34,
+      "excluded": 0,
+      "s": 0.16666666666666666
+    },
+    {
+      "window": 11,
+      "generatedFrom": 10001,
+      "generatedTo": 11000,
+      "N": 188,
+      "I": 28,
+      "excluded": 0,
+      "s": 0.14893617021276595
+    },
+    {
+      "window": 12,
+      "generatedFrom": 11001,
+      "generatedTo": 12000,
+      "N": 193,
+      "I": 23,
+      "excluded": 0,
+      "s": 0.11917098445595854
+    }
+  ]
+}

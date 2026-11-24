@@ -1,0 +1,88 @@
+{
+ "verdict": "PURSUE",
+ "V_N": {
+  "n_ref": 85783,
+  "n_ows": 79317,
+  "matched": 75673,
+  "wsjt_only": 10110,
+  "gaps": 0,
+  "wsjt_rows_off_archive_range": 0,
+  "wsjt_stamps_on_15s_grid": true,
+  "PASS": true
+ },
+ "V_PARSE": {
+  "share": 0.9972304648862512,
+  "PASS": true
+ },
+ "V_PAR": {
+  "C_PAR": 1,
+  "S1": 872,
+  "bar_C_PAR_le_0.25_x_S1": true,
+  "gates": "VOID row (CLOSE ignores it)"
+ },
+ "exclusions": {
+  "u_before_exclusions": 10110,
+  "excl_2_cq_qrz_de": 1840,
+  "excl_4_xc_territory": 768,
+  "excl_1_hash_or_dxped": 1015,
+  "excl_3_unparsed": 28,
+  "u_after_exclusions": 6459
+ },
+ "rows": {
+  "S1": 872,
+  "S2": 277,
+  "S-LOOSE": 111,
+  "CPAR": 1,
+  "S": 1149
+ },
+ "S_pp": 1.3394262266416423,
+ "S_CI_pp": [
+  1.262380629300987,
+  1.422764475667761
+ ],
+ "S1_pp": 1.0165184243964422,
+ "S1_CI_pp": [
+  0.9490037036334964,
+  1.0860372778849272
+ ],
+ "S2_pp": 0.3229078022452001,
+ "S2_CI_pp": [
+  0.2855848656498324,
+  0.3617248173248651
+ ],
+ "K_split": {
+  "S1:K-high": 461,
+  "S1:K-low": 411,
+  "S2:K-high": 74,
+  "S2:K-low": 203
+ },
+ "K_low_share_of_S": 0.5343777197563099,
+ "by_wsjtx_snr_3dB_bin": {
+  "-24": 203,
+  "-21": 147,
+  "-18": 169,
+  "-15": 171,
+  "-12": 158,
+  "-9": 117,
+  "-6": 92,
+  "-3": 40,
+  "0": 27,
+  "3": 17,
+  "6": 5,
+  "9": 3
+ },
+ "by_payload_step": {
+  "S1:report": 218,
+  "S1:RR73": 200,
+  "S1:rreport": 243,
+  "S1:73": 192,
+  "S2:rreport": 74,
+  "S2:RR73": 113,
+  "S2:RRR": 4,
+  "S2:73": 86,
+  "S1:RRR": 19
+ },
+ "matched_nonCQ_rows": 51478,
+ "matched_on_script_replies": 7435,
+ "share_scripted": 0.14443063056062785
+}

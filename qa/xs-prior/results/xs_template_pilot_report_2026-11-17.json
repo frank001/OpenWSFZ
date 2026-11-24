@@ -1,0 +1,53 @@
+{
+ "plumb": false,
+ "tasks": 203,
+ "seconds": 5.0989439487457275,
+ "seconds_per_task_8_workers": 0.025117950486432155,
+ "null_templates": 1011,
+ "null_S_quantiles_50_90_99_max": [
+  1.2695,
+  1.45819,
+  1.6819159999999997,
+  2.14235
+ ],
+ "T_prov_at_FA_low": 2.14235,
+ "S_true_template_quantiles_resid": [
+  2.9578141941234293,
+  4.205032588478131,
+  5.129468112601492,
+  5.3729833327205245
+ ],
+ "S_true_template_quantiles_O": [
+  2.481900982808668,
+  3.6737410342039802,
+  4.9262841552111505,
+  5.332787567379666
+ ],
+ "P_true_quantiles_O": [
+  4.870465341431608,
+  7.579954169144085,
+  7.849517406403988,
+  7.883924661991241
+ ],
+ "P_true_quantiles_resid": [
+  1.3363627887062481,
+  4.346936499922682,
+  6.3869601676263805,
+  7.531896727702277
+ ],
+ "dt_mapping_check": {
+  "P_detections_at_T_prov": 56,
+  "argmax_inside_truth_gate": 56,
+  "share": 1.0,
+  "bar": 0.95,
+  "PASS": true,
+  "median_df_hz": 0.0,
+  "median_ddt_s": 0.010000000000000037
+ },
+ "sibling_win_share_P_O_at_T_prov": 0.03333333333333333,
+ "P_low_rows": 29,
+ "null_machine": {
+  "templates_needed_low_x3": 8142.857142857142,
+  "templates_needed_all_x3": 436285.71428571426
+ }
+}

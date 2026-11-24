@@ -1,0 +1,72 @@
+{
+ "V-LOW": {
+  "T_E": 2.93706,
+  "T_E_CI": [
+   2.76871,
+   3.05758
+  ],
+  "split_half": {
+   "even_to_odd": {
+    "T": 2.91948,
+    "train_n": 14779,
+    "test_n": 12364,
+    "exceedance_on_other_half": 0.0012940795858945326
+   },
+   "odd_to_even": {
+    "T": 2.99531,
+    "train_n": 12364,
+    "test_n": 14779,
+    "exceedance_on_other_half": 0.0008119629203599703
+   }
+  },
+  "FA_star": 0.001105263157894737,
+  "n_null_templates": 27143,
+  "V_NULL_N": {
+   "floor": 2714.2857142857138,
+   "PASS": true
+  },
+  "exceedance_at_T_E": 0.0011052573407508383,
+  "null_S_quantiles_50_90_99_99.9_max": [
+   1.27358,
+   1.519564,
+   2.2844913999999985,
+   2.947571560000026,
+   3.68534
+  ]
+ },
+ "V-ALL": {
+  "T_E": 3.68394,
+  "T_E_CI": [
+   3.41597,
+   3.74389
+  ],
+  "split_half": {
+   "even_to_odd": {
+    "T": 3.71677,
+    "train_n": 777844,
+    "test_n": 676451,
+    "exceedance_on_other_half": 0.0
+   },
+   "odd_to_even": {
+    "T": 3.34837,
+    "train_n": 676451,
+    "test_n": 777844,
+    "exceedance_on_other_half": 0.00023398007826762177
+   }
+  },
+  "FA_star": 2.06286836935167e-05,
+  "n_null_templates": 1454295,
+  "V_NULL_N": {
+   "floor": 145428.57142857142,
+   "PASS": true
+  },
+  "exceedance_at_T_E": 2.062855197879385e-05,
+  "null_S_quantiles_50_90_99_99.9_max": [
+   1.27402,
+   1.548976000000001,
+   2.3410836000000033,
+   2.9731582400000094,
+   4.01619
+  ]
+ }
+}

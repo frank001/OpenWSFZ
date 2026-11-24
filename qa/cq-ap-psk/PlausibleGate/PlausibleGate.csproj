@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- QA tooling for CQ-AP-PSK A2.1: calls the PRODUCT's Ft8Decoder.IsPlausibleMessage(text, grammarStore) by reflection.
+       No project reference: the product assemblies are loaded from the published _run-main folder named on the command line. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

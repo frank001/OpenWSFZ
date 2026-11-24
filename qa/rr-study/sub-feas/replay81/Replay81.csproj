@@ -38,8 +38,16 @@
       <DefineConstants Condition="'$(HasCohAudio)' == 'true'">$(DefineConstants);HAS_COHAUDIO</DefineConstants>
     <!-- COH-RES-CAND (#272, build b0d01f4f): only the build with Ft8Decoder.SetCoherentFallbackResidualCandidates; the cohrescand argument (0 or 1) is then REQUIRED and read back. Needs HasCohAudio too. -->
     <DefineConstants Condition="'$(HasCohResCand)' == 'true'">$(DefineConstants);HAS_COHRESCAND</DefineConstants>
+    <!-- CQ-AP (build 7ca00264): only the build with Ft8Decoder.SetCqApEnabled and DecodeResult.ApKind; the cq-ap argument (0 or 1) is then REQUIRED and read back, and the nc-dump gains a trailing apKind column. Needs HasLateRound and HasUngated (the default-ON build line). -->
+    <DefineConstants Condition="'$(HasCqAp)' == 'true'">$(DefineConstants);HAS_CQAP</DefineConstants>
     <!-- GAP-RELOCATE item 1: build as assembly Ft8.FitProbe (already in OpenWSFZ.Ft8's InternalsVisibleTo) to use the internal Ft8Decoder constructor with a counting pass-through interop (StageProbe.cs). -->
     <DefineConstants Condition="'$(HasUngated)' == 'true'">$(DefineConstants);HAS_UNGATED</DefineConstants>
+    <!-- XC-BUILD (dev task 2026-11-13-xc-template-build): only the build with Ft8Decoder.SetCrossCyclePrior / SetCrossCyclePriorShadow / SetCrossCyclePriorThreshold, CrossCyclePriorProbe and batch 6; the xc-prior, xc-shadow and xc-te arguments are then REQUIRED and read back. Needs HasCohResCand, HasCqAp and HasInternals too. -->
+    <DefineConstants Condition="'$(HasXcPrior)' == 'true'">$(DefineConstants);HAS_XCPRIOR</DefineConstants>
+    <!-- XC-BUILD remedy (Amendment 6, dev task 2026-11-14-xc-template-remedy, build 4b70e418): only the build with SetCrossCyclePriorColocationVeto / SetCrossCyclePriorParityThreshold and the extended sink record (SP, PriorFreqHz, PriorDt, PriorBatch, Vetoed). Needs HasXcPrior too. The xc-veto and xc-tp arguments are then REQUIRED and read back as xcveto= and xctp=. -->
+    <DefineConstants Condition="'$(HasXcRemedy)' == 'true'">$(DefineConstants);HAS_XCREMEDY</DefineConstants>
+    <!-- LR-FULL (dev commit 80bbd74b, feat/lr-full-diag): only the build with Ft8Decoder.SetDiagThirdRunUngated / SetDiagLateFallbackOnResidual and the internal DiagRowTagSink; the lr-x1 and lr-x2 arguments (0 or 1) are then REQUIRED and read back, the nc-dump gains a trailing step column after the apKind, and the two 'Diagnostic X' count lines go to the log. Needs HasCqAp and HasInternals. -->
+    <DefineConstants Condition="'$(HasLrFull)' == 'true'">$(DefineConstants);HAS_LRFULL</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>

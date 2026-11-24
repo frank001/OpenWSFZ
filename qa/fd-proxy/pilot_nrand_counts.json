@@ -1,0 +1,42 @@
+{
+ "pilot_cycles": 283,
+ "Q_positions_pilot": 158,
+ "P_pilot_n": 1177,
+ "s_weighted": 0.9443,
+ "synthetic_total": 3000,
+ "synthetic_unjudgeable": 1602,
+ "N_RAND_mixture": {
+  "n": 1398,
+  "f": 0.0,
+  "C": 0.0,
+  "R_fail": 1.0,
+  "F_fail": 0.0,
+  "F_unseen": 1.0,
+  "S_behind": 0.0
+ },
+ "N_RAND_nonAP": {
+  "n": 1379,
+  "f": 0.0,
+  "C": 0.0,
+  "R_fail": 1.0,
+  "F_fail": 0.0,
+  "F_unseen": 1.0,
+  "S_behind": 0.0
+ },
+ "N_RAND_AP": {
+  "n": 19,
+  "f": 0.0,
+  "C": 0.0,
+  "R_fail": 1.0,
+  "F_fail": 0.0,
+  "F_unseen": 1.0,
+  "S_behind": 0.0
+ },
+ "s_minus_f_RAND": {
+  "point": 0.9443,
+  "ci_lo": 0.9277,
+  "ci_hi": 0.9584,
+  "bar_V_SEP": 0.7
+ },
+ "run_seconds": 1.1
+}

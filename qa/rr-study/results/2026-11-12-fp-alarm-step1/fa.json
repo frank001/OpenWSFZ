@@ -1,0 +1,39 @@
+{
+  "row": "FA",
+  "literalAllWsjtxDecodes_gates": {
+    "rows": 21193,
+    "excluded": 0,
+    "N": 21193,
+    "I": 13,
+    "fa": 0.000613410088236682,
+    "wilsonLo": 0.0003585296322027971,
+    "wilsonHi": 0.0010492961016068355
+  },
+  "plausibleOnly_descriptive": {
+    "rows": 21092,
+    "excluded": 0,
+    "N": 21092,
+    "I": 1,
+    "fa": 4.741134079271762E-05,
+    "wilsonLo": 8.369314766249836E-06,
+    "wilsonHi": 0.0002685316513640564
+  },
+  "faGates": 0.000613410088236682,
+  "faWilsonHi": 0.0010492961016068355,
+  "own": {
+    "rows": 18445,
+    "excluded": 0,
+    "N": 18445,
+    "I": 0,
+    "iOverN": 0,
+    "wilsonLo": 0,
+    "wilsonHi": 0.00020822222847206035,
+    "P_R_descriptive": {
+      "N": 16263,
+      "I": 0,
+      "iOverN": 0,
+      "wilsonLo": 0,
+      "wilsonHi": 0.00023615272153517286
+    }
+  }
+}

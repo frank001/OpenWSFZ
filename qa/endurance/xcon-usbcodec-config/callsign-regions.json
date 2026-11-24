@@ -1,0 +1,347 @@
+{
+  "entries": [
+    {
+      "prefixStart": "K",
+      "prefixEnd": "K",
+      "entity": "United States",
+      "continent": "NA",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "N",
+      "prefixEnd": "N",
+      "entity": "United States",
+      "continent": "NA",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "W",
+      "prefixEnd": "W",
+      "entity": "United States",
+      "continent": "NA",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "VE",
+      "prefixEnd": "VE",
+      "entity": "Canada",
+      "continent": "NA",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "XE",
+      "prefixEnd": "XE",
+      "entity": "Mexico",
+      "continent": "NA",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "PY",
+      "prefixEnd": "PY",
+      "entity": "Brazil",
+      "continent": "SA",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "LU",
+      "prefixEnd": "LU",
+      "entity": "Argentina",
+      "continent": "SA",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "CE",
+      "prefixEnd": "CE",
+      "entity": "Chile",
+      "continent": "SA",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "G",
+      "prefixEnd": "G",
+      "entity": "England",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "GM",
+      "prefixEnd": "GM",
+      "entity": "Scotland",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "GW",
+      "prefixEnd": "GW",
+      "entity": "Wales",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "EI",
+      "prefixEnd": "EI",
+      "entity": "Ireland",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "F",
+      "prefixEnd": "F",
+      "entity": "France",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "DL",
+      "prefixEnd": "DL",
+      "entity": "Germany",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "I",
+      "prefixEnd": "I",
+      "entity": "Italy",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "EA",
+      "prefixEnd": "EA",
+      "entity": "Spain",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "CT",
+      "prefixEnd": "CT",
+      "entity": "Portugal",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "PA",
+      "prefixEnd": "PA",
+      "entity": "Netherlands",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "ON",
+      "prefixEnd": "ON",
+      "entity": "Belgium",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "HB9",
+      "prefixEnd": "HB9",
+      "entity": "Switzerland",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "OE",
+      "prefixEnd": "OE",
+      "entity": "Austria",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "SM",
+      "prefixEnd": "SM",
+      "entity": "Sweden",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "LA",
+      "prefixEnd": "LA",
+      "entity": "Norway",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "OZ",
+      "prefixEnd": "OZ",
+      "entity": "Denmark",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "OH",
+      "prefixEnd": "OH",
+      "entity": "Finland",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "SP",
+      "prefixEnd": "SP",
+      "entity": "Poland",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "3A",
+      "prefixEnd": "3A",
+      "entity": "Monaco",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "9A",
+      "prefixEnd": "9A",
+      "entity": "Croatia",
+      "continent": "EU",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "JA",
+      "prefixEnd": "JA",
+      "entity": "Japan",
+      "continent": "AS",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "HL",
+      "prefixEnd": "HL",
+      "entity": "South Korea",
+      "continent": "AS",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "BY",
+      "prefixEnd": "BY",
+      "entity": "China",
+      "continent": "AS",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "VU",
+      "prefixEnd": "VU",
+      "entity": "India",
+      "continent": "AS",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "4X",
+      "prefixEnd": "4X",
+      "entity": "Israel",
+      "continent": "AS",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "UA",
+      "prefixEnd": "UA",
+      "entity": "Russia",
+      "continent": "AS",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "VK",
+      "prefixEnd": "VK",
+      "entity": "Australia",
+      "continent": "OC",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "ZL",
+      "prefixEnd": "ZL",
+      "entity": "New Zealand",
+      "continent": "OC",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "ZS",
+      "prefixEnd": "ZS",
+      "entity": "South Africa",
+      "continent": "AF",
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": false
+    },
+    {
+      "prefixStart": "Q",
+      "prefixEnd": "Q",
+      "entity": "Synthetic (R\u0026R Study)",
+      "continent": null,
+      "cqZone": null,
+      "ituZone": null,
+      "synthetic": true
+    }
+  ],
+  "isSeedData": true
+}

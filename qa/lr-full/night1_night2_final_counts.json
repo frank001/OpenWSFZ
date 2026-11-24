@@ -1,0 +1,908 @@
+{
+ "git_head": "caed79c6175a665c878e2973c47099205c85986f",
+ "nights": [
+  {
+   "night": "20261118_1954",
+   "mode": "final",
+   "cycles": 2000,
+   "recomputed_match_mismatches": {
+    "off": 0,
+    "on": 0
+   },
+   "steps": {
+    "X1": {
+     "rows_total": 311,
+     "rows_matched": 255,
+     "G": 47,
+     "G_judgeable": 41,
+     "G_unjudgeable": 6,
+     "G_isolated": 8,
+     "G_isolated_judgeable": 6,
+     "G_buried": 39,
+     "G_unjudgeable_buried": 4,
+     "rows_per_cycle": 0.1555,
+     "H_HI_floor_all_unjudgeable": 0.003,
+     "H_HI_floor_hybrid_buried_only": 0.002
+    },
+    "X2": {
+     "rows_total": 590,
+     "rows_matched": 499,
+     "G": 78,
+     "G_judgeable": 74,
+     "G_unjudgeable": 4,
+     "G_isolated": 14,
+     "G_isolated_judgeable": 13,
+     "G_buried": 64,
+     "G_unjudgeable_buried": 3,
+     "rows_per_cycle": 0.295,
+     "H_HI_floor_all_unjudgeable": 0.002,
+     "H_HI_floor_hybrid_buried_only": 0.0015
+    },
+    "X2_passed": {
+     "rows_total": 505,
+     "rows_matched": 423,
+     "G": 73,
+     "G_judgeable": 70,
+     "G_unjudgeable": 3,
+     "G_isolated": 13,
+     "G_isolated_judgeable": 12,
+     "G_buried": 60,
+     "G_unjudgeable_buried": 2,
+     "rows_per_cycle": 0.2525,
+     "H_HI_floor_all_unjudgeable": 0.0015,
+     "H_HI_floor_hybrid_buried_only": 0.001
+    },
+    "X2_admitted": {
+     "rows_total": 85,
+     "rows_matched": 76,
+     "G": 5,
+     "G_judgeable": 4,
+     "G_unjudgeable": 1,
+     "G_isolated": 1,
+     "G_isolated_judgeable": 1,
+     "G_buried": 4,
+     "G_unjudgeable_buried": 1,
+     "rows_per_cycle": 0.0425,
+     "H_HI_floor_all_unjudgeable": 0.0005,
+     "H_HI_floor_hybrid_buried_only": 0.0005
+    }
+   },
+   "step_column_counts": {
+    "0": 38635,
+    "4": 505,
+    "3": 744,
+    "2": 311,
+    "1": 108,
+    "5": 85
+   },
+   "V_H": {
+    "s_weighted": 0.9483,
+    "f_RAND": 0.0,
+    "f_NFIELD_visible": 0.0297,
+    "f_MISS": 0.08193,
+    "n_P": 6199,
+    "n_Q_judgeable": 498,
+    "n_rand_judgeable": 1400,
+    "V_SEP": {
+     "point": 0.9483,
+     "ci": [
+      0.9407,
+      0.9549
+     ],
+     "bar": 0.7,
+     "ok": true
+    },
+    "V_GHOST": {
+     "point": 0.8663,
+     "ci": [
+      0.8544,
+      0.8778
+     ],
+     "bar": 0.5,
+     "ok": true
+    },
+    "V_BURIAL": {
+     "diff": -0.0023,
+     "ci": [
+      -0.0166,
+      0.0124
+     ],
+     "bar": 0.1,
+     "ok": true,
+     "P_iso_n": 2997,
+     "P_buried_n": 3202
+    },
+    "ok": true
+   },
+   "f": {
+    "f_RAND": 0.0,
+    "f_NFIELD_visible": 0.0297,
+    "f_MISS": 0.08193
+   },
+   "run_seconds_so_far": 2.4,
+   "U_calibration": {
+    "controls_used": 80,
+    "with_sync_hit_ge_0p6": 79,
+    "start_minus_dt_median_s": -0.16999999999999982
+   },
+   "f_iso_positions": {
+    "n": 1400,
+    "f_H": 0.0,
+    "f_U": 0.00143
+   },
+   "f_RAND_buried_G_positions": {
+    "n": 1400,
+    "f": 0.0,
+    "fallback_to_V_H_control": false
+   },
+   "steps_final": {
+    "X1": {
+     "NET_pp": 0.4733,
+     "NET_ci": [
+      0.4088,
+      0.5391
+     ],
+     "NET_newly_corroborated": 201,
+     "n_ref": 42464,
+     "G": 47,
+     "G_judgeable": 41,
+     "G_unjudgeable": 6,
+     "H_COST_point": {
+      "iso_part": 0.00193,
+      "h_lo": 0.00193,
+      "h_hi": 0.00393,
+      "phi_U_cost": 0.48168,
+      "phi_U": 0.30841,
+      "phi_H_iso": 0.0,
+      "phi_lo": 0.0,
+      "phi_hi": 0.0,
+      "n_iso_all": 8,
+      "n_iso_judgeable": 6,
+      "n_buried_judgeable": 35,
+      "n_buried_unjudgeable": 4
+     },
+     "H_COST_ci": {
+      "iso_part": [
+       0.00036,
+       0.00397
+      ],
+      "h_lo": [
+       0.00036,
+       0.00397
+      ],
+      "h_hi": [
+       0.00236,
+       0.00597
+      ]
+     },
+     "phi_ci": {
+      "phi_U_cost": [
+       0.0972,
+       0.8698
+      ],
+      "phi_U": [
+       0.0,
+       0.7918
+      ],
+      "phi_H_iso": [
+       0.0,
+       0.0
+      ]
+     },
+     "H_COST": "PASS"
+    },
+    "X2": {
+     "NET_pp": 0.9467,
+     "NET_ci": [
+      0.8527,
+      1.0493
+     ],
+     "NET_newly_corroborated": 402,
+     "n_ref": 42464,
+     "G": 78,
+     "G_judgeable": 74,
+     "G_unjudgeable": 4,
+     "H_COST_point": {
+      "iso_part": 0.00131,
+      "h_lo": 0.00427,
+      "h_hi": 0.00605,
+      "phi_U_cost": 0.18651,
+      "phi_U": 0.12398,
+      "phi_H_iso": 0.01908,
+      "phi_lo": 0.09728,
+      "phi_hi": 0.10652,
+      "n_iso_all": 14,
+      "n_iso_judgeable": 13,
+      "n_buried_judgeable": 61,
+      "n_buried_unjudgeable": 3
+     },
+     "H_COST_ci": {
+      "iso_part": [
+       0.0,
+       0.00328
+      ],
+      "h_lo": [
+       0.00112,
+       0.00804
+      ],
+      "h_hi": [
+       0.00268,
+       0.01009
+      ]
+     },
+     "phi_ci": {
+      "phi_U_cost": [
+       0.0,
+       0.444
+      ],
+      "phi_U": [
+       0.0,
+       0.3587
+      ],
+      "phi_H_iso": [
+       0.0,
+       0.2144
+      ]
+     },
+     "H_COST": "PASS"
+    },
+    "X2_passed": {
+     "NET_pp": 0.8407,
+     "NET_ci": [
+      0.7525,
+      0.9351
+     ],
+     "NET_newly_corroborated": 357,
+     "n_ref": 42464,
+     "G": 73,
+     "G_judgeable": 70,
+     "G_unjudgeable": 3,
+     "H_COST_point": {
+      "iso_part": 0.00131,
+      "h_lo": 0.00436,
+      "h_hi": 0.00565,
+      "phi_U_cost": 0.20141,
+      "phi_U": 0.13471,
+      "phi_H_iso": 0.03463,
+      "phi_lo": 0.10532,
+      "phi_hi": 0.11532,
+      "n_iso_all": 13,
+      "n_iso_judgeable": 12,
+      "n_buried_judgeable": 58,
+      "n_buried_unjudgeable": 2
+     },
+     "H_COST_ci": {
+      "iso_part": [
+       0.0,
+       0.00328
+      ],
+      "h_lo": [
+       0.00122,
+       0.00813
+      ],
+      "h_hi": [
+       0.00226,
+       0.00967
+      ]
+     },
+     "phi_ci": {
+      "phi_U_cost": [
+       0.0,
+       0.4818
+      ],
+      "phi_U": [
+       0.0,
+       0.407
+      ],
+      "phi_H_iso": [
+       0.0,
+       0.2418
+      ]
+     },
+     "H_COST": "PASS"
+    },
+    "X2_admitted": {
+     "NET_pp": 0.106,
+     "NET_ci": [
+      0.0765,
+      0.1369
+     ],
+     "NET_newly_corroborated": 45,
+     "n_ref": 42464,
+     "G": 5,
+     "G_judgeable": 4,
+     "G_unjudgeable": 1,
+     "H_COST_point": {
+      "iso_part": 0.0,
+      "h_lo": 0.0,
+      "h_hi": 0.0005,
+      "phi_U_cost": 0.0,
+      "phi_U": 0.0,
+      "phi_H_iso": 0.0,
+      "phi_lo": 0.0,
+      "phi_hi": 0.0,
+      "n_iso_all": 1,
+      "n_iso_judgeable": 1,
+      "n_buried_judgeable": 3,
+      "n_buried_unjudgeable": 1
+     },
+     "H_COST_ci": {
+      "iso_part": [
+       0.0,
+       0.0
+      ],
+      "h_lo": [
+       0.0,
+       0.0
+      ],
+      "h_hi": [
+       0.0005,
+       0.0005
+      ]
+     },
+     "phi_ci": {
+      "phi_U_cost": [
+       0.0,
+       0.0
+      ],
+      "phi_U": [
+       0.0,
+       0.0
+      ],
+      "phi_H_iso": [
+       0.0,
+       0.0
+      ]
+     },
+     "H_COST": "PASS"
+    }
+   },
+   "NET_ON_total": {
+    "NET_pp": 1.5331,
+    "NET_ci": [
+     1.4137,
+     1.6574
+    ],
+    "sum_of_steps": 1.42,
+    "half_width": 0.12188037316940636,
+    "shortfall": -0.11306330067822157,
+    "flagged": false,
+    "note": "descriptive (Amendment 3 D1): flagged if below NET(X1)+NET(X2) by more than its CI half-width; no decision row reads it"
+   },
+   "NET_other_indirect_newly_corroborated": 49,
+   "WSJT_rows_lost_in_ON": 1,
+   "agree_night": {
+    "n": 19,
+    "point_diff": 0.1692
+   },
+   "V_RUN": {
+    "ok": true,
+    "pins": true,
+    "off_abandons_zero": true,
+    "on_ge_off_b1_4": true,
+    "off_rerun_identical": true,
+    "on_extra_abandon_frac_le_1pct": true,
+    "on_extra_abandon_frac": 0.0,
+    "on_abandon_cycles": 0,
+    "off_abandon_cycles": 0,
+    "off_rerun_checked": true
+   },
+   "X2_abandoned_candidates_ON": {
+    "lines": 2000,
+    "candidates": 0,
+    "cycles_with_abandoned": 0,
+    "OFF": 0
+   },
+   "LATE_descriptive": {
+    "ON": {
+     "endMs": {
+      "p50": 5345.0,
+      "p99": 7128.1,
+      "max": 7766.0
+     },
+     "batch5PublishMs": {
+      "p50": 6016.0,
+      "p99": 7626.6,
+      "max": 8236.0
+     }
+    },
+    "OFF": {
+     "endMs": {
+      "p50": 5357.0,
+      "p99": 7148.0,
+      "max": 7682.0
+     },
+     "batch5PublishMs": {
+      "p50": 5811.0,
+      "p99": 7489.1,
+      "max": 7682.0
+     }
+    },
+    "X2_elapsedMs": {
+     "p50": 197.0,
+     "p99": 330.0,
+     "max": 470.0
+    }
+   },
+   "DeltaUprime_ta_standing_route": "SUPERSEDED by the hybrid H-COST (Amendment 3 D6): the standing DeltaU'_ta is not produced; U' enters per row on the isolated G rows",
+   "run_seconds": 124.1
+  },
+  {
+   "night": "20261119_2204",
+   "mode": "final",
+   "cycles": 1299,
+   "recomputed_match_mismatches": {
+    "off": 0,
+    "on": 0
+   },
+   "steps": {
+    "X1": {
+     "rows_total": 409,
+     "rows_matched": 300,
+     "G": 90,
+     "G_judgeable": 82,
+     "G_unjudgeable": 8,
+     "G_isolated": 20,
+     "G_isolated_judgeable": 17,
+     "G_buried": 70,
+     "G_unjudgeable_buried": 5,
+     "rows_per_cycle": 0.3149,
+     "H_HI_floor_all_unjudgeable": 0.00616,
+     "H_HI_floor_hybrid_buried_only": 0.00385
+    },
+    "X2": {
+     "rows_total": 809,
+     "rows_matched": 636,
+     "G": 156,
+     "G_judgeable": 146,
+     "G_unjudgeable": 10,
+     "G_isolated": 34,
+     "G_isolated_judgeable": 34,
+     "G_buried": 122,
+     "G_unjudgeable_buried": 10,
+     "rows_per_cycle": 0.6228,
+     "H_HI_floor_all_unjudgeable": 0.0077,
+     "H_HI_floor_hybrid_buried_only": 0.0077
+    },
+    "X2_passed": {
+     "rows_total": 699,
+     "rows_matched": 538,
+     "G": 145,
+     "G_judgeable": 136,
+     "G_unjudgeable": 9,
+     "G_isolated": 32,
+     "G_isolated_judgeable": 32,
+     "G_buried": 113,
+     "G_unjudgeable_buried": 9,
+     "rows_per_cycle": 0.5381,
+     "H_HI_floor_all_unjudgeable": 0.00693,
+     "H_HI_floor_hybrid_buried_only": 0.00693
+    },
+    "X2_admitted": {
+     "rows_total": 110,
+     "rows_matched": 98,
+     "G": 11,
+     "G_judgeable": 10,
+     "G_unjudgeable": 1,
+     "G_isolated": 2,
+     "G_isolated_judgeable": 2,
+     "G_buried": 9,
+     "G_unjudgeable_buried": 1,
+     "rows_per_cycle": 0.0847,
+     "H_HI_floor_all_unjudgeable": 0.00077,
+     "H_HI_floor_hybrid_buried_only": 0.00077
+    }
+   },
+   "step_column_counts": {
+    "0": 37773,
+    "3": 771,
+    "4": 699,
+    "2": 409,
+    "1": 289,
+    "5": 110
+   },
+   "V_H": {
+    "s_weighted": 0.9578,
+    "f_RAND": 0.0,
+    "f_NFIELD_visible": 0.02837,
+    "f_MISS": 0.08897,
+    "n_P": 5850,
+    "n_Q_judgeable": 529,
+    "n_rand_judgeable": 1397,
+    "V_SEP": {
+     "point": 0.9578,
+     "ci": [
+      0.9515,
+      0.9639
+     ],
+     "bar": 0.7,
+     "ok": true
+    },
+    "V_GHOST": {
+     "point": 0.8688,
+     "ci": [
+      0.857,
+      0.8801
+     ],
+     "bar": 0.5,
+     "ok": true
+    },
+    "V_BURIAL": {
+     "diff": -0.0025,
+     "ci": [
+      -0.0152,
+      0.0101
+     ],
+     "bar": 0.1,
+     "ok": true,
+     "P_iso_n": 2042,
+     "P_buried_n": 3808
+    },
+    "ok": true
+   },
+   "f": {
+    "f_RAND": 0.0,
+    "f_NFIELD_visible": 0.02837,
+    "f_MISS": 0.08897
+   },
+   "run_seconds_so_far": 2.1,
+   "U_calibration": {
+    "controls_used": 80,
+    "with_sync_hit_ge_0p6": 79,
+    "start_minus_dt_median_s": -0.18999999999999972
+   },
+   "f_iso_positions": {
+    "n": 1397,
+    "f_H": 0.0,
+    "f_U": 0.0
+   },
+   "f_RAND_buried_G_positions": {
+    "n": 1397,
+    "f": 0.0,
+    "fallback_to_V_H_control": false
+   },
+   "steps_final": {
+    "X1": {
+     "NET_pp": 0.5339,
+     "NET_ci": [
+      0.4665,
+      0.6006
+     ],
+     "NET_newly_corroborated": 230,
+     "n_ref": 43076,
+     "G": 90,
+     "G_judgeable": 82,
+     "G_unjudgeable": 8,
+     "H_COST_point": {
+      "iso_part": 0.00557,
+      "h_lo": 0.00882,
+      "h_hi": 0.01301,
+      "phi_U_cost": 0.36184,
+      "phi_U": 0.24808,
+      "phi_H_iso": 0.0,
+      "phi_lo": 0.065,
+      "phi_hi": 0.07169,
+      "n_iso_all": 20,
+      "n_iso_judgeable": 17,
+      "n_buried_judgeable": 65,
+      "n_buried_unjudgeable": 5
+     },
+     "H_COST_ci": {
+      "iso_part": [
+       0.00167,
+       0.01024
+      ],
+      "h_lo": [
+       0.00332,
+       0.0148
+      ],
+      "h_hi": [
+       0.00721,
+       0.01949
+      ]
+     },
+     "phi_ci": {
+      "phi_U_cost": [
+       0.1286,
+       0.6159
+      ],
+      "phi_U": [
+       0.0148,
+       0.505
+      ],
+      "phi_H_iso": [
+       0.0,
+       0.0
+      ]
+     },
+     "H_COST": "PASS"
+    },
+    "X2": {
+     "NET_pp": 1.242,
+     "NET_ci": [
+      1.1269,
+      1.361
+     ],
+     "NET_newly_corroborated": 535,
+     "n_ref": 43076,
+     "G": 156,
+     "G_judgeable": 146,
+     "G_unjudgeable": 10,
+     "H_COST_point": {
+      "iso_part": 0.00175,
+      "h_lo": 0.00809,
+      "h_hi": 0.01644,
+      "phi_U_cost": 0.0668,
+      "phi_U": 0.0668,
+      "phi_H_iso": 0.0,
+      "phi_lo": 0.07357,
+      "phi_hi": 0.08113,
+      "n_iso_all": 34,
+      "n_iso_judgeable": 34,
+      "n_buried_judgeable": 112,
+      "n_buried_unjudgeable": 10
+     },
+     "H_COST_ci": {
+      "iso_part": [
+       0.0,
+       0.00505
+      ],
+      "h_lo": [
+       0.00215,
+       0.0153
+      ],
+      "h_hi": [
+       0.00994,
+       0.02424
+      ]
+     },
+     "phi_ci": {
+      "phi_U_cost": [
+       0.0,
+       0.1905
+      ],
+      "phi_U": [
+       0.0,
+       0.1905
+      ],
+      "phi_H_iso": [
+       0.0,
+       0.0532
+      ]
+     },
+     "H_COST": "OPEN"
+    },
+    "X2_passed": {
+     "NET_pp": 1.0795,
+     "NET_ci": [
+      0.9695,
+      1.1851
+     ],
+     "NET_newly_corroborated": 465,
+     "n_ref": 43076,
+     "G": 145,
+     "G_judgeable": 136,
+     "G_unjudgeable": 9,
+     "H_COST_point": {
+      "iso_part": 0.00099,
+      "h_lo": 0.00763,
+      "h_hi": 0.01524,
+      "phi_U_cost": 0.04013,
+      "phi_U": 0.04013,
+      "phi_H_iso": 0.0,
+      "phi_lo": 0.08292,
+      "phi_hi": 0.09144,
+      "n_iso_all": 32,
+      "n_iso_judgeable": 32,
+      "n_buried_judgeable": 104,
+      "n_buried_unjudgeable": 9
+     },
+     "H_COST_ci": {
+      "iso_part": [
+       0.0,
+       0.00396
+      ],
+      "h_lo": [
+       0.00189,
+       0.01481
+      ],
+      "h_hi": [
+       0.00898,
+       0.02313
+      ]
+     },
+     "phi_ci": {
+      "phi_U_cost": [
+       0.0,
+       0.1612
+      ],
+      "phi_U": [
+       0.0,
+       0.1612
+      ],
+      "phi_H_iso": [
+       0.0,
+       0.0622
+      ]
+     },
+     "H_COST": "OPEN"
+    },
+    "X2_admitted": {
+     "NET_pp": 0.1625,
+     "NET_ci": [
+      0.1241,
+      0.2022
+     ],
+     "NET_newly_corroborated": 70,
+     "n_ref": 43076,
+     "G": 11,
+     "G_judgeable": 10,
+     "G_unjudgeable": 1,
+     "H_COST_point": {
+      "iso_part": 0.00074,
+      "h_lo": 0.00074,
+      "h_hi": 0.00151,
+      "phi_U_cost": 0.48315,
+      "phi_U": 0.48315,
+      "phi_H_iso": 0.0,
+      "phi_lo": 0.0,
+      "phi_hi": 0.0,
+      "n_iso_all": 2,
+      "n_iso_judgeable": 2,
+      "n_buried_judgeable": 8,
+      "n_buried_unjudgeable": 1
+     },
+     "H_COST_ci": {
+      "iso_part": [
+       0.0,
+       0.00226
+      ],
+      "h_lo": [
+       0.0,
+       0.00226
+      ],
+      "h_hi": [
+       0.00077,
+       0.00303
+      ]
+     },
+     "phi_ci": {
+      "phi_U_cost": [
+       0.0,
+       0.4902
+      ],
+      "phi_U": [
+       0.0,
+       0.4902
+      ],
+      "phi_H_iso": [
+       0.0,
+       0.0
+      ]
+     },
+     "H_COST": "PASS"
+    }
+   },
+   "NET_ON_total": {
+    "NET_pp": 1.8827,
+    "NET_ci": [
+     1.7417,
+     2.0182
+    ],
+    "sum_of_steps": 1.7759,
+    "half_width": 0.13825349249951846,
+    "shortfall": -0.10681891540533006,
+    "flagged": false,
+    "note": "descriptive (Amendment 3 D1): flagged if below NET(X1)+NET(X2) by more than its CI half-width; no decision row reads it"
+   },
+   "NET_other_indirect_newly_corroborated": 47,
+   "WSJT_rows_lost_in_ON": 1,
+   "agree_night": {
+    "n": 51,
+    "point_diff": 0.1272
+   },
+   "V_RUN": {
+    "ok": true,
+    "pins": true,
+    "off_abandons_zero": true,
+    "on_ge_off_b1_4": true,
+    "off_rerun_identical": true,
+    "on_extra_abandon_frac_le_1pct": true,
+    "on_extra_abandon_frac": 0.0,
+    "on_abandon_cycles": 0,
+    "off_abandon_cycles": 0,
+    "off_rerun_checked": true
+   },
+   "X2_abandoned_candidates_ON": {
+    "lines": 1299,
+    "candidates": 0,
+    "cycles_with_abandoned": 0,
+    "OFF": 0
+   },
+   "LATE_descriptive": {
+    "ON": {
+     "endMs": {
+      "p50": 6123.0,
+      "p99": 7415.7,
+      "max": 7882.0
+     },
+     "batch5PublishMs": {
+      "p50": 6500.5,
+      "p99": 7796.2,
+      "max": 8176.0
+     }
+    },
+    "OFF": {
+     "endMs": {
+      "p50": 6237.0,
+      "p99": 7462.2,
+      "max": 8108.0
+     },
+     "batch5PublishMs": {
+      "p50": 6401.0,
+      "p99": 7506.5,
+      "max": 7854.0
+     }
+    },
+    "X2_elapsedMs": {
+     "p50": 235.0,
+     "p99": 403.0,
+     "max": 487.0
+    }
+   },
+   "DeltaUprime_ta_standing_route": "SUPERSEDED by the hybrid H-COST (Amendment 3 D6): the standing DeltaU'_ta is not produced; U' enters per row on the isolated G rows",
+   "run_seconds": 126.1
+  }
+ ],
+ "V_AGREE_NI_pooled": {
+  "n": 70,
+  "diff": 0.1386,
+  "ci": [
+   0.0357,
+   0.2322
+  ],
+  "status": "UNDERPOWERED"
+ },
+ "decisions": {
+  "X1": {
+   "outcome": "OPEN",
+   "reason": "no earlier row matched (NET / H-COST / V-AGREE-NI UNDERPOWERED)",
+   "per_night": [
+    {
+     "vrun": true,
+     "vh": true,
+     "net_lo": 0.4088,
+     "net_hi": 0.5391,
+     "hcost": "PASS"
+    },
+    {
+     "vrun": true,
+     "vh": true,
+     "net_lo": 0.4665,
+     "net_hi": 0.6006,
+     "hcost": "PASS"
+    }
+   ]
+  },
+  "X2": {
+   "outcome": "OPEN",
+   "reason": "no earlier row matched (NET / H-COST / V-AGREE-NI UNDERPOWERED)",
+   "per_night": [
+    {
+     "vrun": true,
+     "vh": true,
+     "net_lo": 0.8527,
+     "net_hi": 1.0493,
+     "hcost": "PASS"
+    },
+    {
+     "vrun": true,
+     "vh": true,
+     "net_lo": 1.1269,
+     "net_hi": 1.361,
+     "hcost": "OPEN"
+    }
+   ]
+  }
+ }
+}

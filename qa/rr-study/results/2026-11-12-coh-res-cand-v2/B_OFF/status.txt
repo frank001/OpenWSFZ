@@ -1,0 +1,3 @@
+wsjtx.exe not running
+start 2026-11-12T14:53:24Z name=B_OFF cqap=0 cohrescand=0 dll=bbde6eb66af4cd429ffc46f67291ba718c1ae36ae39665faac24629bcb6e6528
+exit 0 preflight_end_ok=1 rows=40 at 2026-11-12T14:56:32Z

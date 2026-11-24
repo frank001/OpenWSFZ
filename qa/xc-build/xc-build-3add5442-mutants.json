@@ -1,0 +1,156 @@
+{
+ "Q01": {
+  "desc": "answerer: template filter inverted",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoAnswererService.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q1: the SAME CQ in any other batch still starts the answer (immediate in batch 2, 3, 4 and 5; deferred past the boundary in batch 4): the rule is about the template path, not about late batches(batchNumber: 5, secondsIntoSlot: 1) [190 ms]",
+   "Failed FR-105: XC-BUILD Q1: the SAME CQ in any other batch still starts the answer (immediate in batch 2, 3, 4 and 5; deferred past the boundary in batch 4): the rule is about the template path, not about late batches(batchNumber: 4, secondsIntoSlot: 1) [32 ms]",
+   "Failed FR-105: XC-BUILD Q1: the SAME CQ in any other batch still starts the answer (immediate in batch 2, 3, 4 and 5; deferred past the boundary in batch 4): the rule is about the template path, not about late batches(batchNumber: 3, secondsIntoSlot: 1) [30 ms]",
+   "Failed FR-105: XC-BUILD Q1: the SAME CQ in any other batch still starts the answer (immediate in batch 2, 3, 4 and 5; deferred past the boundary in batch 4): the rule is about the template path, not about late batches(batchNumber: 4, secondsIntoSlot: 5) [32 ms]"
+  ]
+ },
+ "Q02": {
+  "desc": "answerer: template skip removed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoAnswererService.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q1: a batch-6 batch with a template CQ and an ordinary CQ (different callsigns), in either order: the answer goes to the ordinary one, and no ignored-template is logged [66 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 5) [49 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 1) [40 ms]",
+   "Failed FR-105: XC-BUILD: a template CQ in the snapshot is not answered automatically by a later batch 1 either (the auto-answer scan reads batch 1's own rows, never the snapshot) [59 ms]"
+  ]
+ },
+ "Q03": {
+  "desc": "answerer: template counted but still answered",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoAnswererService.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q1: a batch-6 batch with a template CQ and an ordinary CQ (different callsigns), in either order: the answer goes to the ordinary one, and no ignored-template is logged [64 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 5) [33 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 1) [41 ms]",
+   "Failed FR-105: XC-BUILD: a template CQ in the snapshot is not answered automatically by a later batch 1 either (the auto-answer scan reads batch 1's own rows, never the snapshot) [59 ms]"
+  ]
+ },
+ "Q04": {
+  "desc": "answerer: skip not counted",
+  "status": "BUILDFAIL",
+  "file": "src/OpenWSFZ.Daemon/QsoAnswererService.cs",
+  "failing": []
+ },
+ "Q05": {
+  "desc": "answerer: always counted",
+  "status": "BUILDFAIL",
+  "file": "src/OpenWSFZ.Daemon/QsoAnswererService.cs",
+  "failing": []
+ },
+ "Q06": {
+  "desc": "answerer: skips fallback rows (path 2) instead of template rows",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoAnswererService.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q1: a batch-6 batch with a template CQ and an ordinary CQ (different callsigns), in either order: the answer goes to the ordinary one, and no ignored-template is logged [64 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 5) [34 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 1) [40 ms]",
+   "Failed FR-105: XC-BUILD: a template CQ in the snapshot is not answered automatically by a later batch 1 either (the auto-answer scan reads batch 1's own rows, never the snapshot) [62 ms]"
+  ]
+ },
+ "Q07": {
+  "desc": "answerer: a template row ends the scan (a later ordinary CQ is not answered)",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoAnswererService.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q1: a batch-6 batch with a template CQ and an ordinary CQ (different callsigns), in either order: the answer goes to the ordinary one, and no ignored-template is logged [60 ms]"
+  ]
+ },
+ "Q08": {
+  "desc": "caller: template skip removed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoCallerService.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q2: caller: a batch-6 batch with a template reply and an ordinary reply from another station: the ordinary one is engaged [95 ms]",
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: a reply to our CQ present only in a batch-6 template row does NOT engage the station (no transmission, still waiting, nothing held) and logs ignored-template(secondsIntoSlot: 1) [62 ms]",
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: a reply to our CQ present only in a batch-6 template row does NOT engage the station (no transmission, still waiting, nothing held) and logs ignored-template(secondsIntoSlot: 13) [61 ms]"
+  ]
+ },
+ "Q09": {
+  "desc": "caller: template filter inverted",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoCallerService.cs",
+  "failing": [
+   "Failed AC4: caller \u2014 batch 2 at S + 2.36 s: the report is transmitted at once, untruncated; at S + 2.37 s it is deferred [90 ms]",
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: the same reply in batch 4 or 5 (deferred) still engages the station(batchNumber: 4) [63 ms]",
+   "Failed R14: caller - an answer in batch 4 after the CQ repeat: held, sent in slot N+3; at S + 2.36 s immediate, at S + 2.37 s deferred [60 ms]",
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: the same reply in batch 4 or 5 (deferred) still engages the station(batchNumber: 5) [61 ms]"
+  ]
+ },
+ "Q10": {
+  "desc": "caller: skip not counted",
+  "status": "BUILDFAIL",
+  "file": "src/OpenWSFZ.Daemon/QsoCallerService.cs",
+  "failing": []
+ },
+ "Q11": {
+  "desc": "caller: skip returns no-match",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoCallerService.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: a reply to our CQ present only in a batch-6 template row does NOT engage the station (no transmission, still waiting, nothing held) and logs ignored-template(secondsIntoSlot: 1) [97 ms]",
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: a reply to our CQ present only in a batch-6 template row does NOT engage the station (no transmission, still waiting, nothing held) and logs ignored-template(secondsIntoSlot: 13) [71 ms]"
+  ]
+ },
+ "Q12": {
+  "desc": "caller: a template row ends the scan (a later ordinary responder is not engaged)",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/QsoCallerService.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q2: caller: a batch-6 batch with a template reply and an ordinary reply from another station: the ordinary one is engaged [94 ms]"
+  ]
+ },
+ "Q13": {
+  "desc": "token collides with ignored-stale",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/LateBatch.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: a reply to our CQ present only in a batch-6 template row does NOT engage the station (no transmission, still waiting, nothing held) and logs ignored-template(secondsIntoSlot: 1) [98 ms]",
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: a reply to our CQ present only in a batch-6 template row does NOT engage the station (no transmission, still waiting, nothing held) and logs ignored-template(secondsIntoSlot: 13) [72 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 5) [31 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 1) [30 ms]"
+  ]
+ },
+ "Q14": {
+  "desc": "token spelling changed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/LateBatch.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: a reply to our CQ present only in a batch-6 template row does NOT engage the station (no transmission, still waiting, nothing held) and logs ignored-template(secondsIntoSlot: 1) [97 ms]",
+   "Failed FR-105: XC-BUILD Q2: caller WaitAnswer: a reply to our CQ present only in a batch-6 template row does NOT engage the station (no transmission, still waiting, nothing held) and logs ignored-template(secondsIntoSlot: 13) [72 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 5) [31 ms]",
+   "Failed FR-105: XC-BUILD Q1: a CQ present only in a batch-6 template row starts NOTHING (no transmission, no held answer, still Idle) and logs ignored-template, with time to spare (immediate case) and without (deferred case)(secondsIntoSlot: 1) [30 ms]"
+  ]
+ },
+ "D14": {
+  "desc": "(42f6a390 survivor) datagram template count never reset",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: the per-datagram template count restarts after each datagram: a template row in the first datagram and none in the second gives template=1 then template=0 [41 ms]"
+  ]
+ },
+ "D15": {
+  "desc": "(42f6a390 survivor) template count not reset on engine reset",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Daemon/PskReporter/PskReporterEngine.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: ending an enabled period clears the template count: after a template row, Deactivate and Activate, the next datagram line and the status show template=0 [41 ms]"
+  ]
+ },
+ "D18": {
+  "desc": "(42f6a390 survivor) template default 1",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Abstractions/IPskReporterStatusSource.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD D2: with no status source registered the endpoint answers all-zero window counts, ap and template included (the default of the new count is 0) [169 ms]"
+  ]
+ }
+}

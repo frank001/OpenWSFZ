@@ -1,0 +1,304 @@
+{
+ "M01": {
+  "desc": "slot rounding to nearest -> floor",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": []
+ },
+ "M02": {
+  "desc": "retain 6 -> 5 cycles",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R2/R3: the store keeps 6 cycles back, offers distinct texts nearest first with the NEAREST position, and a cycle start with millisecond jitter lands on the same slot [49 ms]",
+   "Failed FR-105: XC-BUILD R2/R3: priors count only at exactly -30, -60 and -90 s; a prior 45 s back, or beyond 90 s, is not live (the gap rule), and the ages the probe reports are 2, 4 and 6 [40 ms]"
+  ]
+ },
+ "M03": {
+  "desc": "off-by-one at 90 s eviction",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R2/R3: the store keeps 6 cycles back, offers distinct texts nearest first with the NEAREST position, and a cycle start with millisecond jitter lands on the same slot [47 ms]",
+   "Failed FR-105: XC-BUILD R2/R3: priors count only at exactly -30, -60 and -90 s; a prior 45 s back, or beyond 90 s, is not live (the gap rule), and the ages the probe reports are 2, 4 and 6 [40 ms]"
+  ]
+ },
+ "M04": {
+  "desc": "future-slot eviction removed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R2: the store drops a cycle that is decoded again (replaced, not doubled), ignores a record made outside an open cycle, and a clock that jumps back drops the future [40 ms]"
+  ]
+ },
+ "M06": {
+  "desc": "live age 6 -> 5",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R2/R3: the store keeps 6 cycles back, offers distinct texts nearest first with the NEAREST position, and a cycle start with millisecond jitter lands on the same slot [50 ms]",
+   "Failed FR-105: XC-BUILD R2/R3: priors count only at exactly -30, -60 and -90 s; a prior 45 s back, or beyond 90 s, is not live (the gap rule), and the ages the probe reports are 2, 4 and 6 [41 ms]"
+  ]
+ },
+ "M07": {
+  "desc": "shadow age 5 -> 4",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R2/R3: the store keeps 6 cycles back, offers distinct texts nearest first with the NEAREST position, and a cycle start with millisecond jitter lands on the same slot [53 ms]"
+  ]
+ },
+ "M08": {
+  "desc": "no text dedup",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R2/R3: the store keeps 6 cycles back, offers distinct texts nearest first with the NEAREST position, and a cycle start with millisecond jitter lands on the same slot [49 ms]"
+  ]
+ },
+ "M11": {
+  "desc": "tone-length guard removed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R3: BuildTemplates excludes and counts separately: already decoded, hashed, and refused by the encoder (a throw, or a wrong tone count); order is kept [38 ms]"
+  ]
+ },
+ "M12": {
+  "desc": "refused not counted",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R3: BuildTemplates excludes and counts separately: already decoded, hashed, and refused by the encoder (a throw, or a wrong tone count); order is kept [39 ms]"
+  ]
+ },
+ "M13": {
+  "desc": ">= -> >",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R6: detected means S_E* >= T_E exactly: T_E equal to the score detects, a hair above does not, +infinity detects nothing [58 ms]"
+  ]
+ },
+ "M14": {
+  "desc": "dt not converted in",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R9: the shadow tests the opposite-parity priors (15, 45, 75 s) against this cycle's buffer, counts and logs its detections, and publishes nothing and stores nothing [168 ms]",
+   "Failed FR-105: XC-BUILD R7/R8: with the late round ON the template batch is the last batch of the cycle (after batches 1 to 5), and still only when non-empty [50 ms]",
+   "Failed FR-105: XC-BUILD R5/R7 (QA B1): the prior's PUBLISHED dt is converted to WSJT-X's (minus 0.6 s): a signal whose symbol 0 starts at dt_published - 0.12 s is found at its published dt, and one placed at dt_published + 0.48 s (the unconverted reading) is missed [38 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink gets one numbers-only record per tested template (kind, S_E*, age, offsets, stamp), a throwing sink loses no decode, and the record type holds no text [49 ms]"
+  ]
+ },
+ "M15": {
+  "desc": "dt not converted back",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R5/R7 (QA B1): the prior's PUBLISHED dt is converted to WSJT-X's (minus 0.6 s): a signal whose symbol 0 starts at dt_published - 0.12 s is found at its published dt, and one placed at dt_published + 0.48 s (the unconverted reading) is missed [79 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink gets one numbers-only record per tested template (kind, S_E*, age, offsets, stamp), a throwing sink loses no decode, and the record type holds no text [54 ms]",
+   "Failed FR-105: XC-BUILD R5/R7: a message published 30 s earlier is found at its place on the residual and published as batch 6 with PathTemplate, its own position and a coherent SNR; the cycle's batches 1 to 5 are unchanged [44 ms]"
+  ]
+ },
+ "M16": {
+  "desc": "budget check removed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R8: templates are tried nearest-prior-first: when the budget runs out after k starts, exactly the k nearest were tested and the older ones are the abandoned (one worker, a counting predicate, no clock) [180 ms]",
+   "Failed FR-105: XC-BUILD R8: templates stop STARTING at the cycle budget less the publish reserve: with the budget gone no template starts, all are counted abandoned and nothing is published [31 ms]"
+  ]
+ },
+ "M17": {
+  "desc": "abandoned always 0",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R8: templates are tried nearest-prior-first: when the budget runs out after k starts, exactly the k nearest were tested and the older ones are the abandoned (one worker, a counting predicate, no clock) [108 ms]",
+   "Failed FR-105: XC-BUILD R8: templates stop STARTING at the cycle budget less the publish reserve: with the budget gone no template starts, all are counted abandoned and nothing is published [12 ms]"
+  ]
+ },
+ "M18": {
+  "desc": "index bound off by one",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R9: the shadow tests the opposite-parity priors (15, 45, 75 s) against this cycle's buffer, counts and logs its detections, and publishes nothing and stores nothing [174 ms]",
+   "Failed FR-105: XC-BUILD R7/R8: with the late round ON the template batch is the last batch of the cycle (after batches 1 to 5), and still only when non-empty [51 ms]",
+   "Failed FR-105: XC-BUILD R5/R7 (QA B1): the prior's PUBLISHED dt is converted to WSJT-X's (minus 0.6 s): a signal whose symbol 0 starts at dt_published - 0.12 s is found at its published dt, and one placed at dt_published + 0.48 s (the unconverted reading) is missed [40 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink gets one numbers-only record per tested template (kind, S_E*, age, offsets, stamp), a throwing sink loses no decode, and the record type holds no text [52 ms]"
+  ]
+ },
+ "M19": {
+  "desc": "xcOn ignores fallback",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R1/R11: with the stage ON, a call without the staged callbacks (DecodeAsync) and the early decode write nothing: no store write, no line [43 ms]"
+  ]
+ },
+ "M20": {
+  "desc": "batch 6 enters store",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R2: a batch-6 publish never enters the store (no chaining): the store holds exactly what batches 1 to 5 published [56 ms]"
+  ]
+ },
+ "M21": {
+  "desc": "batch 3 not stored",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M22": {
+  "desc": "batch 5 not stored",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M23": {
+  "desc": "batch 4 not stored",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M24": {
+  "desc": "batch 2 not stored",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M25": {
+  "desc": "batch 1 not stored",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R9: the shadow tests the opposite-parity priors (15, 45, 75 s) against this cycle's buffer, counts and logs its detections, and publishes nothing and stores nothing [127 ms]",
+   "Failed FR-105: XC-BUILD R7/R8: with the late round ON the template batch is the last batch of the cycle (after batches 1 to 5), and still only when non-empty [11 ms]",
+   "Failed FR-105: XC-BUILD R2: a band change clears the store; the same band, and null on both cycles, keep it [4 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink gets one numbers-only record per tested template (kind, S_E*, age, offsets, stamp), a throwing sink loses no decode, and the record type holds no text [12 ms]"
+  ]
+ },
+ "M26": {
+  "desc": "shadow without prior on",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M27": {
+  "desc": "shadow uses live priors",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R9: the shadow tests the opposite-parity priors (15, 45, 75 s) against this cycle's buffer, counts and logs its detections, and publishes nothing and stores nothing [122 ms]"
+  ]
+ },
+ "M28": {
+  "desc": "freq truncated not rounded",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M29": {
+  "desc": "empty batch 6 published",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M30": {
+  "desc": "residual guard removed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R4: a cycle with no residual buffer (pass 0 decoded nothing) skips the stage, counted: outcome=skipped-no-residual, nothing tested or published [63 ms]"
+  ]
+ },
+ "M31": {
+  "desc": "publish reserve dropped",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M32": {
+  "desc": "wrong provenance tag",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R5/R7: a message published 30 s earlier is found at its place on the residual and published as batch 6 with PathTemplate, its own position and a coherent SNR; the cycle's batches 1 to 5 are unchanged [87 ms]"
+  ]
+ },
+ "M33": {
+  "desc": "probe reports untested",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M35": {
+  "desc": "shadow runs when live failed",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M36": {
+  "desc": "probe offsets absolute",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R13: the sink gets one numbers-only record per tested template (kind, S_E*, age, offsets, stamp), a throwing sink loses no decode, and the record type holds no text [93 ms]"
+  ]
+ },
+ "M37": {
+  "desc": "store written while OFF",
+  "status": "SURVIVED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": []
+ },
+ "M38": {
+  "desc": "set threshold ignored",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R9: the shadow tests the opposite-parity priors (15, 45, 75 s) against this cycle's buffer, counts and logs its detections, and publishes nothing and stores nothing [170 ms]",
+   "Failed FR-105: XC-BUILD R7/R8: with the late round ON the template batch is the last batch of the cycle (after batches 1 to 5), and still only when non-empty [51 ms]",
+   "Failed FR-105: XC-BUILD R13: the sink gets one numbers-only record per tested template (kind, S_E*, age, offsets, stamp), a throwing sink loses no decode, and the record type holds no text [48 ms]",
+   "Failed FR-105: XC-BUILD R5/R7: a message published 30 s earlier is found at its place on the residual and published as batch 6 with PathTemplate, its own position and a coherent SNR; the cycle's batches 1 to 5 are unchanged [43 ms]"
+  ]
+ },
+ "M05": {
+  "desc": "no clear on band change",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCyclePriorStore.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R2: a band change clears the store; the same band, and null on both cycles, keep it [158 ms]"
+  ]
+ },
+ "M09": {
+  "desc": "already-published exclusion off",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R3: BuildTemplates excludes and counts separately: already decoded, hashed, and refused by the encoder (a throw, or a wrong tone count); order is kept [40 ms]",
+   "Failed FR-105: XC-BUILD R2: a batch-6 publish never enters the store (no chaining): the store holds exactly what batches 1 to 5 published [36 ms]",
+   "Failed FR-105: XC-BUILD R3: texts already published in batches 1 to 5 of the cycle, and hashed texts, are excluded and counted separately and never tested [17 ms]"
+  ]
+ },
+ "M10": {
+  "desc": "hashed exclusion off",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/CrossCycleTemplateStage.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R3: BuildTemplates excludes and counts separately: already decoded, hashed, and refused by the encoder (a throw, or a wrong tone count); order is kept [39 ms]",
+   "Failed FR-105: XC-BUILD R3: texts already published in batches 1 to 5 of the cycle, and hashed texts, are excluded and counted separately and never tested [21 ms]"
+  ]
+ },
+ "M34": {
+  "desc": "probe exception not swallowed",
+  "status": "KILLED",
+  "file": "src/OpenWSFZ.Ft8/Ft8Decoder.cs",
+  "failing": [
+   "Failed FR-105: XC-BUILD R13: the sink gets one numbers-only record per tested template (kind, S_E*, age, offsets, stamp), a throwing sink loses no decode, and the record type holds no text [46 ms]"
+  ]
+ }
+}

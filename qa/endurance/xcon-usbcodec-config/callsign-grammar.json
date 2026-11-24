@@ -1,0 +1,12 @@
+{
+  "digitRunMax": 3,
+  "totalLengthMax": 11,
+  "suffixLengthMax": 6,
+  "reservedPrefixExclusions": [
+    {
+      "prefix": "Q",
+      "syntheticCarveOut": true,
+      "note": "The Q-series is reserved for Q-codes (ITU Radio Regulations) and has never been allocated as a station-callsign prefix to any administration. Carved out here for this project\u0027s synthetic test-callsign convention (NFR-021, R\u0026R Study traffic) \u2014 a Q-prefix token is shape-valid despite the series being otherwise reserved."
+    }
+  ]
+}
