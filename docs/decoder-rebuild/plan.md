@@ -167,7 +167,7 @@ Each phase ends with a short result note to the Product Owner and his go for the
 
 - Switch off by default whichever steps Phase 0 shows to be poor value. The likely candidates are the third pass, the late round and OSD; Phase 0 confirms or rejects each.
 - Cap the worker threads at 2.
-- **Success:** CPU-seconds per cycle fall by the Phase 0 measured amount, the decode loss is within the §9 budget, and the Product Owner's on-air evening agrees.
+- **Success:** CPU-seconds per cycle fall by the Phase 0 measured amount, and the decode loss is within the §9 budget. The Product Owner merges it when he chooses.
 - **This is a defaults change, not code. It can ship as a minor version (v1.1).**
 
 ### Phase 2: build the lean decoder (Developer; the main work)
@@ -175,14 +175,13 @@ In steps, each one reviewed by QA before the next starts:
 
 | Step | Deliverable | Check |
 |---|---|---|
-| 2a | `ftz_decode_cycle` with S1 + S2 tier A only, behind `engine = lean` | Same decodes as ft8_lib's primary on 5 committed test WAVs; unit tests; fuzz test |
-| 2b | Tier B (coherent) on near-miss candidates, plus CQ-AP | 1-hour replay vs the Phase 0 table: decodes ≥ primary + fallback |
-| 2c | S3 loop with local re-search | 1-hour replay: decodes vs Phase 0 arm 6; CPU vs target |
-| 2d | S4 (XC) wired to the new results; 3-batch publishing | Live evening, `engine = lean` set by the Product Owner |
+| 2a | `ftz_decode_cycle` with S1 + S2 tier A only, behind `engine = lean` | Unit tests, fuzz test |
+| 2b | Tier B (coherent) on near-miss candidates, plus CQ-AP | Unit tests |
+| 2c | S3 loop with local re-search | Unit tests |
+| 2d | S4 (XC) wired to the new results; 3-batch publishing | Unit tests + one 1-hour replay: CPU and decodes vs today |
 
-### Phase 3: switch over (≈ a week of normal use)
-- The Product Owner runs `engine = lean` on air in his normal operating, with WSJT-X alongside if he wants a comparison. One replay comparison is written up: lean vs classic, CPU and decodes, on a night not used in development.
-- **Success:** the §9 targets are met. The Product Owner switches the default and the version goes to v1.2.
+### Phase 3: switch over
+- The Product Owner flips the default when he is happy with it. There is no test step and no waiting period *(revised 2026-11-24 at his direction)*. The version goes up one minor.
 
 ### Phase 4: delete the old decoder (≈ 1–2 days)
 - Remove the classic passes, their settings, log lines, tests, interop and native code; `LR-BUILD` is not merged.
@@ -196,8 +195,8 @@ These follow the viability review (2026-11-23), option A, which this request eff
 
 1. **Every `src/`/`native/` commit:** unit tests pass, plus QA's code review before merge (HK-039 stays).
 2. **A decoder behaviour change:** **one** replay of a fixed 1-hour slice against the current baseline, reporting decodes matched to WSJT-X, extra decodes, and CPU-seconds per cycle. No confidence intervals, no pre-registration, no amendments.
-3. **The Product Owner's on-air check** decides a default change.
-4. **A fixed test set:** two recorded nights, one 40 m and one 20 m, cut into 1-hour slices and named once in Phase 0. They are used for every comparison in this plan, so results are comparable and nobody spends time choosing corpora.
+3. **The Product Owner decides a default change**, when he chooses. No required on-air period.
+4. **A fixed test set:** one recorded 40 m hour, named once in Phase 0 and used for every comparison.
 5. **Statistical arms happen only if the Product Owner asks for one.**
 
 ## 7. Risks
@@ -209,7 +208,7 @@ These follow the viability review (2026-11-23), option A, which this request eff
 | A native memory bug (the 2026-09 crash history) | Medium | High (daemon crash on air) | Bounds checks, AddressSanitizer build in CI, fuzz test on random and clipped audio, and a C# guard that catches the error and drops the cycle instead of crashing. |
 | Scope creep back into rate-chasing | High (history) | High | §1: rate is not the goal. New decode ideas wait until Phase 4 is done. |
 | Licence contamination | Low | High | K12: WSJT-X read for method only; the review checks provenance comments. |
-| Phase 0's one night is unrepresentative | Low | Low | The second night in the fixed set is read in Phase 3. |
+| Phase 0's one night is unrepresentative | Low | Low | The Product Owner's own use shows it. |
 
 ## 8. What this plan does not do
 

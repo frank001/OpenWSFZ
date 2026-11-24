@@ -23,10 +23,8 @@
 QA picks it once. Following the replay-corpus rule, QA lists every `artefacts/` folder that has WAVs, then chooses:
 
 - **Slice 40:** one hour (240 cycles) from a recorded **40 m** night, with the WSJT-X `ALL.TXT` recorded alongside on the same audio. The night must be from the MS ON era or later (since 2026-10-25T11:22Z). Pick the busiest hour.
-- **Slice 20:** the same from a **20 m** night.
 - Write the choice into [`test-set.md`](test-set.md) (new; aggregates and folder names only, NFR-021): night, start cycle, cycle count, WSJT-X decode count. **It does not change after that.**
-
-DR-0 and DR-1 use **Slice 40** only. Slice 20 is kept for Phase 3.
+- *(Slice 20 was dropped on 2026-11-24 at the Product Owner's direction.)*
 
 ## 2. DR-0: the measurement
 
@@ -96,7 +94,7 @@ No verdict is written. DR-0 is a measurement.
   - `rate(A10) ≥ rate(A6) − 1.00 pp` (the decode budget, plan §9 question 2)
   - `ours_only(A10) ≤ ours_only(A6) + 0.50 pp`
   - `abandoned(A10) = 0`
-- **If DR-1 fails on rate:** put back the step with the highest `NET` among those switched off, re-run A10 once, and use that result.
+- **If A10 misses:** QA reports the numbers and the Product Owner decides. There is no re-run.
 
 ### 3.3 Shipping DR-1
 
@@ -108,10 +106,8 @@ No verdict is written. DR-0 is a measurement.
 - **Checks:**
   - unit tests (per project, not `dotnet test OpenWSFZ.slnx`; HK-022)
   - QA's code review (HK-039)
-  - `pre_merge_check.py` before the push (HK-006)
   - **no extra replay:** A10 is the replay
-- **The Product Owner's on-air evening** decides whether it merges. QA states in the PR body: A6 vs A10 `cpu_net`, `rate`, `ours_only`, `last_p95`.
-- **Live era:** DR-1 ON starts the era "DR-1". Live figures are not pooled across it.
+- **The Product Owner merges it when he chooses.** The PR body states: A6 vs A10 `cpu_net`, `rate`, `ours_only`, `last_p95`.
 
 ### 3.4 Output
 
@@ -120,4 +116,4 @@ Append to `dr0-result.md`: the §3.1 decisions as a table with the number each r
 ## 4. What DR-0/DR-1 do not do
 
 - They do not change any algorithm, the fallback's internals or XC, and they do not re-tune any threshold.
-- No second night: Slice 20 waits for Phase 3.
+- No second night.

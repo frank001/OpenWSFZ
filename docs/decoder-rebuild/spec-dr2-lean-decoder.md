@@ -17,11 +17,9 @@ All are measured on the fixed test set (`test-set.md`), against DR-0's **A6 base
 | T2 | Decodes | `rate(lean) ≥ rate(A6) − 1.00 pp` |
 | T3 | False side | `ours_only(lean) ≤ ours_only(A6) + 0.50 pp` |
 | T4 | Time budget | `last_p95(lean) ≤ 3,000 ms` and `abandoned = 0` on the station PC |
-| T5 | Slow machine | on `sol` (FX-8350), at `effort = normal`, `abandoned = 0` over the slice |
-
-- **T1–T4 apply on Slice 40 at step 2c/2d, and on Slice 20 at DR-3.**
-- **T5 applies at DR-3.** Running on `sol` needs the Product Owner's word as usual.
-- **If DR-1 shipped,** T2 and T3 are still measured against **A6** (today's full decoder), not against the relieved one. T1 is also measured against A6.
+- **T1–T4 are measured ONCE, in one Slice 40 replay at step 2d.** They are targets to report, not gates: if one is missed, QA gives the Product Owner the numbers and he decides.
+- **If DR-1 shipped,** the comparison is still against **A6** (today's full decoder).
+- *(Revised 2026-11-24 at the Product Owner's direction: there is no longer a `sol` check, a Slice 20 replay, or a replay per build step.)*
 
 ## 2. Design
 
@@ -106,21 +104,16 @@ C#   S4  XC on the final residual buffer (existing CrossCycleTemplateStage, unch
 
 | Step | Deliverable | Check (mechanical) |
 |---|---|---|
-| **2a** | `ftz_decode_cycle` with S1 + S2 tier A only (no tier B, no CQ-AP, no S3), engine switch, log line, ASan CI job, fuzz test | On the committed `synth-qso-01..03.wav` and on 5 cycles QA picks from Slice 40: **the set of decoded texts is identical** to the classic primary with CQ-AP and OSD off, on the same starting hash state. Any difference blocks the step until it is explained and fixed. Determinism test passes. |
-| **2b** | Tier B + CQ-AP | Slice 40 replay, S2 only: report `rate`, `ours_only`, `cpu_net`. **Bar:** `rate(2b) ≥ rate(A1)` (no worse than today's primary alone). The rest is for information. |
-| **2c** | S3 loop | Slice 40 replay, S1–S3: **T1, T3 and T4**, and `rate(2c) ≥ rate(A5) − 1.00 pp` (A5 is everything except XC). |
-| **2d** | S4 wired up, 3-batch publishing, `effort = fast` | Slice 40 replay: **T1–T4 vs A6**. Then the Product Owner runs one evening on air with `engine = lean`. |
+| **2a** | `ftz_decode_cycle` with S1 + S2 tier A only (no tier B, no CQ-AP, no S3), engine switch, log line, ASan CI job, fuzz test | Unit test: on the committed `synth-qso-01..03.wav`, the decoded texts equal the classic primary's (CQ-AP and OSD off). Determinism unit test. |
+| **2b** | Tier B + CQ-AP | Unit tests |
+| **2c** | S3 loop | Unit tests |
+| **2d** | S4 wired up, 3-batch publishing, `effort = fast` | Unit tests + **the one Slice 40 replay** (§1) |
 
-- **Every step:** unit tests per project (HK-022), QA's code review before any replay (HK-039), and the Developer in a separate session (HK-011).
-- **If a step misses its bar,** QA reports the numbers and the Architect suggests one change. There are no amendments; the step's next attempt is a new replay against the same bar.
+- **Every step:** unit tests and QA's code review (HK-039). The Developer works in a separate session (HK-011).
 
 ## 4. DR-3: switch over
 
-1. QA replays **Slice 20** with `engine = lean` against Slice 20's own A6 (one extra replay of A6 on Slice 20): T1–T4.
-2. T5 on `sol` (Slice 40, `effort = normal`), with the Product Owner's word for `sol`.
-3. The Product Owner runs `engine = lean` on air for about a week, with WSJT-X alongside if he wants.
-4. **PASS on (1) + (2)** + the Product Owner's go ⇒ the Developer flips the default to `lean`, migrates `engine` once, **VERSION +1 minor**, and updates the FRs (new FR for the lean engine). This starts the era "LEAN".
-5. `pre_merge_check.py` runs before the push.
+**The Product Owner flips it when he is happy with it.** There is no test step and no waiting period. The Developer then sets the default to `lean`, migrates `engine` once, **bumps VERSION one minor**, and updates the FRs (new FR for the lean engine).
 
 ## 5. DR-4: delete the classic decoder
 
@@ -132,11 +125,7 @@ QA writes the task after DR-3 merges. It removes:
 - **`REQUIREMENTS.md`:** FR-082, FR-083, FR-099–FR-102 and FR-104 marked retired, with a pointer to the lean FR. FR-105 (XC) is reworded for the new batches.
 - **OpenSpec:** the matching changes archived
 
-**Checks:**
-- unit tests
-- review
-- **one** Slice 40 replay showing the lean results are byte-identical to DR-3's (nothing but dead code was removed)
-- `pre_merge_check.py`
+**Checks:** unit tests and review.
 
 **Plan success measure (reported, not a gate):** the `src/OpenWSFZ.Ft8` plus decoder-native line count, before and after, with the goal of under half.
 
