@@ -370,6 +370,12 @@ internal static class Program
             decoder.SetDiagLateFallbackOnResidual(Req(a, "lr-x2") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--lr-x2 must be 0 or 1") });
             decoder.DiagRowTagSink = (_, text, step) => _lrStep[text.TrimEnd()] = (int)step;
 #endif
+#if HAS_LRBUILD
+            // LR-BUILD (dev task 2026-11-20-lr-build-x1-x2-product-settings, build c23aa7e9): --lr-x1 0|1 (X1 = decoder.coherentFallbackResidualCandidatesUngated) and --lr-x2 0|1 (X2 = decoder.lateRoundFallback), the PRODUCT setters,
+            // REQUIRED and read back at start and end. Provenance is the row's own Path (nc-dump column 10): 4 = X1 above the gate, 5 = X2.
+            decoder.SetCoherentFallbackResidualCandidatesUngated(Req(a, "lr-x1") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--lr-x1 must be 0 or 1") });
+            decoder.SetLateRoundFallback(Req(a, "lr-x2") switch { "0" => false, "1" => true, _ => throw new ArgumentException("--lr-x2 must be 0 or 1") });
+#endif
 #if HAS_XCPRIOR
             // XC-BUILD (dev task 2026-11-13-xc-template-build): --xc-prior 0|1, --xc-shadow 0|1 and --xc-te <double|inf> are REQUIRED on this build and read back at start and end.
             // TR: --xc-prior 1 --xc-shadow 1 --xc-te inf (nothing published); OFF: 0 0 inf; ON: 1 1 <the frozen T_E>.  --xc-probe-out: the per-test numbers sink (numbers only).
@@ -423,6 +429,28 @@ internal static class Program
 #else
                 if (new FileInfo(cohPath).Length == 0) _cohOut.WriteLine("stamp,seen,eligible,attempted,crc_ok,f1b_computed,gated,published,abandoned,elapsed_ms,published_edge");
 #endif
+            }
+#endif
+#if HAS_LEAN
+            // DR-2 step 2d (the lean decoder replay): --engine classic|lean is REQUIRED on this build and read back at start and end. With lean the classic keys the arm still
+            // passes (cohfb, late-round, subtraction threads, xc-defaults) are accepted and ignored by the decoder (spec section 2.5); the lean engine reads the audio mode, the
+            // ungated and residual-candidates flags, cq-ap and the cross-cycle settings. --lean-threads (default 2 = decoder.threads) and --effort normal|fast apply to lean only.
+            {
+                string eng = Req(a, "engine");
+                if (eng is not ("classic" or "lean")) throw new ArgumentException("--engine must be classic or lean");
+                _engine = eng;
+                decoder.SetEngine(eng == "lean" ? DecoderEngine.Lean : DecoderEngine.Classic);
+                _leanThreads = a.TryGetValue("lean-threads", out var lt) ? int.Parse(lt, CultureInfo.InvariantCulture) : DecoderConfig.DefaultThreads;
+                decoder.SetLeanThreads(_leanThreads);
+                _effort = a.TryGetValue("effort", out var ef) ? ef : DecoderEffortNames.Normal;
+                if (_effort is not ("normal" or "fast")) throw new ArgumentException("--effort must be normal or fast");
+                decoder.SetEffort(DecoderEffortNames.Parse(_effort));
+                if (a.TryGetValue("lean-out", out var leanPath))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(leanPath))!);
+                    _leanOut = new StreamWriter(leanPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
+                    if (new FileInfo(leanPath).Length == 0) _leanOut.WriteLine("stamp,abandoned,error,results,rounds,ungated,s3_wall_ms,s3_cpu_ms,fit_cpu_ms,search_cpu_ms,decode_cpu_ms,other_cpu_ms,effort,b1,b2,b3,xc,xc_detected");
+                }
             }
 #endif
             Readback(decoder, log, "start", threadsNote);
@@ -624,6 +652,12 @@ internal static class Program
 
     private static StreamWriter? _matchedBatch;   // --matched-batch-out: stamp,idx:batch;idx:batch (matched WSJT-X line index and the batch of its match)
     private static StreamWriter? _matched;   // --matched-out: stamp,idx;idx;... (matched WSJT-X line indices, numeric)
+#if HAS_LEAN
+    private static string _engine = "classic";      // --engine classic|lean (REQUIRED on the HAS_LEAN build)
+    private static int _leanThreads;                 // --lean-threads (default decoder.threads)
+    private static string _effort = "normal";        // --effort normal|fast (lean only)
+    private static StreamWriter? _leanOut;           // --lean-out: one aggregate row per lean cycle, parsed from the decoder's own 'lean:' line (counts and ms only)
+#endif
     private static StreamWriter? _abandon;   // --abandon-out: stamp,ran,abandoned,contained (numeric flags, 0/1)
 
     private static bool _wide;
@@ -648,6 +682,25 @@ internal static class Program
 #if HAS_LRFULL
     // LR-FULL D4: the decoder's diagnostic tag sink fills this (message text -> Ft8Decoder.DiagRowStep as int) during a cycle; cleared at each cycle's start, read when the cycle's nc-dump rows are written. Text stays in memory (HK-037).
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _lrStep = new(StringComparer.Ordinal);
+#endif
+#if HAS_LEAN
+    private static readonly System.Text.RegularExpressions.Regex LeanLineRx = new(
+        @"results=(\d+) threads=\d+ abandoned=(\d+) error=(-?\d+).*?s3: rounds=(\d+) ungated=(\d+) wall_ms=([\d.,]+) cpu_ms=([\d.,]+) fitCpu_ms=([\d.,]+) searchCpu_ms=([\d.,]+) decodeCpu_ms=([\d.,]+) otherCpu_ms=([\d.,]+).*?effort=(\w+) batches: b1=(\d) b2=(\d) b3=(\d) xc=(\S+) xcDetected=(\d+)",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>One row per lean cycle into --lean-out, parsed from the decoder's own aggregate-only 'lean:' line (decimal commas normalised). A line that does not parse is written as a row of "parse-failed" so a format drift cannot pass silently.</summary>
+    private static void LeanRow(string rendered)
+    {
+        var w = _leanOut; if (w is null) return;
+        var m = LeanLineRx.Match(rendered);
+        lock (w)
+        {
+            if (!m.Success) { w.WriteLine(_curStamp + ",parse-failed"); return; }
+            var g = m.Groups;
+            string N(int i) => g[i].Value.Replace(',', '.');
+            w.WriteLine(string.Join(",", _curStamp, g[2].Value, g[3].Value, g[1].Value, g[4].Value, g[5].Value, N(6), N(7), N(8), N(9), N(10), N(11), g[12].Value, g[13].Value, g[14].Value, g[15].Value, g[16].Value, g[17].Value));
+        }
+    }
 #endif
     internal static string CurStamp => _curStamp;
     internal static void ImplEvent(string ev, string text = "")
@@ -1363,6 +1416,12 @@ internal static class Program
 #if HAS_LRFULL
                 + $" lrx1={d.DiagThirdRunUngated} lrx2={d.DiagLateFallbackOnResidual}"
 #endif
+#if HAS_LRBUILD
+                + $" lrx1={d.CoherentFallbackResidualCandidatesUngated} lrx2={d.LateRoundFallback}"
+#endif
+#if HAS_LEAN
+                + $" engine={d.Engine} leanThreads={d.LeanThreads} effort={d.Effort}"
+#endif
                 );
     }
 #endif
@@ -1543,6 +1602,24 @@ internal static class Program
             if ((template.StartsWith("Diagnostic X1 ", StringComparison.Ordinal) || template.StartsWith("Diagnostic X2 ", StringComparison.Ordinal)) && level == LogLevel.Information)
             {
                 _log.Line(level.ToString(), formatter(state, exception));
+                return;
+            }
+#endif
+#if HAS_LRBUILD
+            // LR-BUILD D6: the per-cycle counts-only 'Late provenance:' line (written only while either key is ON).
+            if (template.StartsWith("Late provenance: ", StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                _log.Line(level.ToString(), formatter(state, exception));
+                return;
+            }
+#endif
+#if HAS_LEAN
+            // DR-2 step 2d: the lean engine's per-cycle 'lean:' line (counts and milliseconds only, HK-037); one row per cycle goes to --lean-out.
+            if (template.StartsWith("Cycle {Time}: lean:", StringComparison.Ordinal) && level == LogLevel.Information)
+            {
+                string rendered = formatter(state, exception);
+                LeanRow(rendered);
+                _log.Line(level.ToString(), rendered);
                 return;
             }
 #endif

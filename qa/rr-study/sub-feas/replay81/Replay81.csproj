@@ -48,6 +48,10 @@
     <DefineConstants Condition="'$(HasXcRemedy)' == 'true'">$(DefineConstants);HAS_XCREMEDY</DefineConstants>
     <!-- LR-FULL (dev commit 80bbd74b, feat/lr-full-diag): only the build with Ft8Decoder.SetDiagThirdRunUngated / SetDiagLateFallbackOnResidual and the internal DiagRowTagSink; the lr-x1 and lr-x2 arguments (0 or 1) are then REQUIRED and read back, the nc-dump gains a trailing step column after the apKind, and the two 'Diagnostic X' count lines go to the log. Needs HasCqAp and HasInternals. -->
     <DefineConstants Condition="'$(HasLrFull)' == 'true'">$(DefineConstants);HAS_LRFULL</DefineConstants>
+    <!-- LR-BUILD (dev commit c23aa7e9, feat/lr-full): the PRODUCT setters Ft8Decoder.SetCoherentFallbackResidualCandidatesUngated (X1) / SetLateRoundFallback (X2); lr-x1 and lr-x2 (0 or 1) are REQUIRED and read back; rows carry their Path (4 X1, 5 X2) in the nc-dump's path column; the counts-only 'Late provenance:' line goes to the log. Never together with HasLrFull. -->
+    <DefineConstants Condition="'$(HasLrBuild)' == 'true'">$(DefineConstants);HAS_LRBUILD</DefineConstants>
+    <!-- DR-2 step 2d (lean decoder, feat/lean-2d): only the build with Ft8Decoder.SetEngine / SetLeanThreads / SetEffort (shim 20260076). The engine argument (classic or lean) is then REQUIRED; the lean-threads, effort and lean-out arguments are optional. Needs HasCohFb4 (DecodeStagedAsync). -->
+    <DefineConstants Condition="'$(HasLean)' == 'true'">$(DefineConstants);HAS_LEAN</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>
