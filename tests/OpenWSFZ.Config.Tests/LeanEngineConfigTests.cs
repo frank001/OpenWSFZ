@@ -138,7 +138,7 @@ public sealed class LeanEngineConfigTests
         written.RootElement.GetProperty("decoder").GetProperty("effort").GetString().Should().Be("normal");
     }
 
-    [Fact(DisplayName = "FR-108: DR-2 D2: threads defaults to 2 when the key is absent and is clamped to 1 to 8 where it is applied")]
+    [Fact(DisplayName = "FR-108: DR-2 D2: threads defaults to 2 when the key is absent and is clamped to 1 to 16 where it is applied")]
     public void Threads_DefaultAndClamp()
     {
         JsonSerializer.Deserialize("""{"decoder":{}}""", ConfigJsonContext.Default.AppConfig)!.Decoder!.Threads.Should().Be(2);
@@ -146,6 +146,7 @@ public sealed class LeanEngineConfigTests
         new DecoderConfig { Threads = -5 }.EffectiveThreads.Should().Be(1);
         new DecoderConfig { Threads = 1 }.EffectiveThreads.Should().Be(1);
         new DecoderConfig { Threads = 8 }.EffectiveThreads.Should().Be(8);
-        new DecoderConfig { Threads = 9 }.EffectiveThreads.Should().Be(8);
+        new DecoderConfig { Threads = 16 }.EffectiveThreads.Should().Be(16);
+        new DecoderConfig { Threads = 17 }.EffectiveThreads.Should().Be(16);
     }
 }

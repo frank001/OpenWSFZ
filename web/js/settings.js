@@ -9,6 +9,7 @@
 
 import { isEmbedded, getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, postPttTest, postSystemRestart, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
 import { resolveUnknownCheckboxDisplay } from './decodeNoiseSuppression.js';
+import { decoderEngineShown, decoderEffortShown, decoderThreadsPayload } from './decoderThreads.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const outputDeviceSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('output-device-select'));
@@ -147,6 +148,14 @@ const decoderReset = /** @type {HTMLButtonElement} */ (document.getElementById('
 // decode-early-batch-panel (FR-083): the early decode checkbox and its lead.
 const decoderEarlyEnabled = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-early-enabled'));
 const decoderEarlyCut     = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-early-cut'));
+// DR-2 / operator threads setting: the lean engine's engine, effort and worker-thread count (decoder.engine, decoder.effort, decoder.threads).
+const decoderEngine  = /** @type {HTMLSelectElement} */ (document.getElementById('decoder-engine'));
+const decoderEffort  = /** @type {HTMLSelectElement} */ (document.getElementById('decoder-effort'));
+const decoderThreads = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-threads'));
+const decoderThreadsHost = /** @type {HTMLElement}    */ (document.getElementById('decoder-threads-host'));
+/** The raw stored engine / effort strings and what the select showed for them; an unknown stored word shows the default and is sent back as stored until the operator changes the select. */
+let _decoderEngineLoadedRaw = null, _decoderEngineShown = 'classic';
+let _decoderEffortLoadedRaw = null, _decoderEffortShown = 'normal';
 // COH-FALLBACK: the coherent fallback checkbox (decoder.coherentFallbackEnabled, ON by default).
 const decoderCoherentFallback = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-coherent-fallback'));
 
@@ -416,6 +425,9 @@ function snapshotForm() {
       earlyDecodeEnabled:    decoderEarlyEnabled.checked,
       earlyDecodeCutSeconds: decoderEarlyCut.value,
       coherentFallbackEnabled: decoderCoherentFallback.checked,
+      engine:  decoderEngine.value,
+      effort:  decoderEffort.value,
+      threads: decoderThreads.value,
     },
     // decode-noise-suppression: include both suppression controls in dirty-state snapshot.
     // suppressUnknownRegion uses the tri-state _suppressUnknownRegionRaw (not the checkbox's
@@ -965,6 +977,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     decoderEarlyEnabled.checked = dec.earlyDecodeEnabled ?? true;   // ON by default: no stored key shows checked (FR-083)
     decoderEarlyCut.value       = String(dec.earlyDecodeCutSeconds ?? 2.0);
     decoderCoherentFallback.checked = dec.coherentFallbackEnabled ?? true;   // ON by default: no stored key shows checked (COH-FALLBACK, as FR-083)
+    // Engine / effort / threads: an absent key shows the code default; an unknown stored word shows the default too and is not rewritten until the operator changes it.
+    _decoderEngineLoadedRaw = typeof dec.engine === 'string' ? dec.engine : null;
+    _decoderEngineShown = decoderEngineShown(_decoderEngineLoadedRaw);
+    decoderEngine.value = _decoderEngineShown;
+    _decoderEffortLoadedRaw = typeof dec.effort === 'string' ? dec.effort : null;
+    _decoderEffortShown = decoderEffortShown(_decoderEffortLoadedRaw);
+    decoderEffort.value = _decoderEffortShown;
+    decoderThreads.value = String(dec.threads ?? 2);
+    if (decoderThreadsHost) {
+      decoderThreadsHost.textContent = Number.isInteger(status?.processorCount) && status.processorCount > 0
+        ? `This PC has ${status.processorCount} logical processors.`
+        : 'This PC\u2019s processor count is not known.';
+    }
 
     // Pre-fill decode-noise-suppression controls (task 4.2). suppressSynthetic is a plain
     // persisted boolean (task 4.3 — no live-recompute step). suppressUnknownRegion's checkbox
@@ -1216,6 +1241,9 @@ decoderReset.addEventListener('click', () => {
   decoderEarlyEnabled.checked = true;
   decoderEarlyCut.value       = '2';
   decoderCoherentFallback.checked = true;
+  decoderEngine.value  = 'classic';
+  decoderEffort.value  = 'normal';
+  decoderThreads.value = '2';
   syncDirtyUI();
 });
 
@@ -1469,6 +1497,10 @@ saveBtn.addEventListener('click', async () => {
       earlyDecodeEnabled:    decoderEarlyEnabled.checked,
       earlyDecodeCutSeconds: Number.isFinite(decoderEarlyCutRaw) ? decoderEarlyCutRaw : 2.0,
       coherentFallbackEnabled: decoderCoherentFallback.checked,
+      // Engine / effort: an unchanged select sends the stored word back as it was (an unknown word is kept), a changed one sends the new choice.
+      engine:  decoderEngine.value === _decoderEngineShown ? (_decoderEngineLoadedRaw ?? _decoderEngineShown) : decoderEngine.value,
+      effort:  decoderEffort.value === _decoderEffortShown ? (_decoderEffortLoadedRaw ?? _decoderEffortShown) : decoderEffort.value,
+      threads: decoderThreadsPayload(decoderThreads.value),
     };
 
     // Collect decode-noise-suppression config (decode-noise-suppression, design.md Decision 3).

@@ -600,6 +600,17 @@ public static class WebApp
                     }
                 }
 
+                // Operator threads setting: decoder.threads (the lean engine's worker count) is clamped to [1, 8] with a warning, like the values above
+                // (the native pool is sized for 8). The clamped value is stored, so the Settings page shows what is in force.
+                if (decoderIn.Threads < DecoderConfig.MinThreads || decoderIn.Threads > DecoderConfig.MaxThreads)
+                {
+                    int clamped = decoderIn.EffectiveThreads;
+                    configApiLogger.LogWarning(
+                        "Decoder: threads {Original} out of range [{Min}, {Max}] — clamped to {Clamped}.",
+                        decoderIn.Threads, DecoderConfig.MinThreads, DecoderConfig.MaxThreads, clamped);
+                    sanitisedDecoder = sanitisedDecoder with { Threads = clamped };
+                }
+
                 // decode-early-batch-panel (FR-083): earlyDecodeCutSeconds is clamped to [0.5, 3.0] like the other
                 // decoder values (a non-finite value becomes the default).
                 if (double.IsNaN(decoderIn.EarlyDecodeCutSeconds) || double.IsInfinity(decoderIn.EarlyDecodeCutSeconds)

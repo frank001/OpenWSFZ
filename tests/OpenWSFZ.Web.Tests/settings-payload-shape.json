@@ -59,7 +59,10 @@
       "osdNhardMax",
       "earlyDecodeEnabled",
       "earlyDecodeCutSeconds",
-      "coherentFallbackEnabled"
+      "coherentFallbackEnabled",
+      "engine",
+      "effort",
+      "threads"
     ],
     "decodeNoiseSuppression": [
       "suppressUnknownRegion",

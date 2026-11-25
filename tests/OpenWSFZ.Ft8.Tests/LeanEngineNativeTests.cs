@@ -136,7 +136,7 @@ public sealed class LeanEngineNativeTests : IDisposable
         {
             byte[] start = SaveHashState();
             var outputs = new List<(string Label, string Text)>();
-            foreach (int threads in new[] { 1, 2, 4, 2, 1, 4 })
+            foreach (int threads in new[] { 1, 2, 4, 8, 16, 2, 1, 4 })
             {
                 Ft8LibInterop.HashStateRestore(start);
                 LeanCycleOutcome o = Lean(pcm, threads);
@@ -191,7 +191,7 @@ public sealed class LeanEngineNativeTests : IDisposable
                        : rng.Next(0, 30_000);
             if (length >= 180_000) fullLength++;
             int kind = rng.Next(7);
-            int threads = new[] { 1, 2, 4, 8, 3 }[run % 5];
+            int threads = new[] { 1, 2, 4, 8, 16 }[run % 5];
 
             // Tier B and CQ-AP are on in every run; most runs cap the candidates (a noise buffer would otherwise cost seconds of coherent work), a few run the full 140,
             // and some carry a tiny budget so the abandon path is exercised too.

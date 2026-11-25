@@ -1,4 +1,12 @@
-=== CURRENT: the lean decoder engine, step 2e, a cheaper (bit-identical) fit, the fit-skip rule and the residual accept rule (FT8_SHIM_VERSION 20260077) ===
+=== CURRENT: the lean decoder engine's worker cap raised from 8 to 16 (FT8_SHIM_VERSION 20260078) ===
+
+Built 2026-11-25 on feat/threads-setting (child of feat/lean-2e 57bda0eb), local, not pushed. QA task dev-tasks/2026-11-25-operator-decoder-threads-setting.md, item D7.
+What changed (native). native/ftz_decoder/ftz_decoder.h: FTZ_MAX_THREADS 8 to 16 (the worker and coherent-context arrays and the clamp follow it). No ABI change, no classic change.
+Checked here: ASan + UBSan (GCC, WSL Debian), 10,000 fuzz runs at 1, 2, 4, 8 and 16 threads; determinism at 1, 2, 4, 8, 16, 2, 1 threads; managed byte-identical at 1, 2, 4, 8 and 16.
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    eab11ec9a456169b96bde734ef319e8b74555acea4c09f9096661f6082190ea2
+
+=== Previous: the lean decoder engine, step 2e, a cheaper (bit-identical) fit, the fit-skip rule and the residual accept rule (FT8_SHIM_VERSION 20260077) ===
 
 Built 2026-11-25 on feat/lean-2e (child of feat/lean-2d 6c746029), local, not pushed. QA handoff dev-tasks/2026-11-25-dr2e-lean-fit-cost-and-residual-rule.md (qa/same-chain 7777b839).
 What changed (native). native/ft8_lib_vendor/subfeas/subfeas_fit.c: the frequency-shift table (cos / sin of 2*pi*f*t) built once per fit instead of 43 times, the copy + mix +

@@ -225,6 +225,54 @@ public sealed class LeanEngineFitCostTests(ITestOutputHelper output) : IDisposab
             Digest(fast).Should().Be(Digest2dWindowsX64, "the same bytes the step 2d build produced");
     }
 
+    // ── operator threads setting (D7): the cap is 16 ────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "FR-108: operator threads setting D7: a lean cycle at 16 threads is byte-identical to 1, 2, 4 and 8 threads (results, tiers, rounds and residual), and the effective worker count is 16")]
+    public void SixteenThreads_ByteIdentical_AndEffective()
+    {
+        float[] pcm = LeanEngineRoundsTests.Synth(LeanEngineRoundsTests.WeakAmp);
+        byte[] start = SaveHashState();
+        var digests = new Dictionary<int, string>();
+        foreach (int threads in new[] { 1, 2, 4, 8, 16 })
+        {
+            Ft8LibInterop.HashStateRestore(start);
+            var o = Ft8LibInterop.DecodeLeanCycle(pcm, new LeanCycleParams(threads, Rounds: true, WantResidual: true));
+            o.Stats.Error.Should().Be(LeanCycleStats.Ok);
+            if (threads > 1) o.Stats.Threads.Should().Be(threads, "the pool has the configured worker count (the fixture has more than one candidate)");
+            digests[threads] = Digest(o);
+        }
+        Ft8LibInterop.HashStateRestore(start);
+        digests.Values.Distinct().Should().ContainSingle("byte-identical at 1, 2, 4, 8 and 16 threads");
+    }
+
+    [Fact(DisplayName = "FR-108: operator threads setting D7: memory of a 16-worker cycle against an 8-worker one (reported, not asserted); a value above 16 is clamped to 16 by the native side")]
+    public void SixteenWorkers_MemoryAgainstEight()
+    {
+        float[] pcm = LeanEngineRoundsTests.Synth(LeanEngineRoundsTests.WeakAmp);
+        byte[] start = SaveHashState();
+        long Private() => System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64;
+        var delta = new Dictionary<int, long>();
+        foreach (int threads in new[] { 8, 16 })
+        {
+            Ft8LibInterop.LeanShutdown();
+            Ft8LibInterop.SubfeasPoolShutdown();
+            long before = Private();
+            Ft8LibInterop.SubfeasPoolConfigure(threads);
+            var o = Ft8LibInterop.DecodeLeanCycle(pcm, new LeanCycleParams(threads, Rounds: true));
+            long after = Private();
+            Ft8LibInterop.HashStateRestore(start);
+            o.Stats.Error.Should().Be(LeanCycleStats.Ok);
+            delta[threads] = after - before;
+        }
+        int bytesPerFitWorkspace = Ft8LibInterop.SubfeasPoolGetStats()[6];
+        output.WriteLine($"private memory after one cycle: 8 workers +{delta[8] / 1048576.0:F1} MB, 16 workers +{delta[16] / 1048576.0:F1} MB " +
+                         $"(difference {(delta[16] - delta[8]) / 1048576.0:F1} MB); one fit workspace is {bytesPerFitWorkspace / 1048576.0:F1} MB and exists only while a fit runs, so the fit stage can hold up to 16 of them at 16 workers");
+
+        var over = Ft8LibInterop.DecodeLeanCycle(pcm, new LeanCycleParams(99, Rounds: true));
+        Ft8LibInterop.HashStateRestore(start);
+        over.Stats.Threads.Should().Be(16, "the native clamp is at 16");
+    }
+
     // ── D5 (2): a non-fault error after partial chunks exports no half-subtracted residual ──────────────────────
 
     [Fact(DisplayName = "FR-108: DR-2 2e D5: a non-fault error after the first chunk of a round's fits returns the earlier rounds' results and NO residual buffer (it would be half-subtracted)")]

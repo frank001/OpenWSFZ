@@ -63,3 +63,13 @@
 - [x] 8.5 Tests (`LeanEngineFitCostTests`, `LeanEngineRoundsTests`, `LeanEngineBatchesTests`): 38-signal byte equality, the rule at its edges, two fixtures (set unchanged; masked signal lost), the rule off equal to step 2d, the accept rule, the error after the first chunk, the throwing publisher
 - [x] 8.6 Native harness (ASan + UBSan) runs the rule on and off, the injected error, and the determinism digest
 - [x] 8.7 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`
+
+## 9. Operator threads setting
+
+- [x] 9.1 Screenshot, before: the Advanced Decoder Settings block as it was (`dev-tasks/screenshots/threads-setting-before.png`), taken first in this section, ahead of any change to it (HK-005)
+- [x] 9.2 Settings page: number input for `decoder.threads` (1 to 16), selects for `decoder.engine` and `decoder.effort`, help text with the host processor count and the one measurement; wired into the snapshot, the pre-fill, the payload and the reset (`web/js/settings.js`, `web/js/decoderThreads.js`, `web/settings.html`)
+- [x] 9.3 Server: `processorCount` on the status endpoint; the config POST clamps `threads` to 1 to 16 with a warning; `DecoderConfig.MaxThreads` 16
+- [x] 9.4 Native: `FTZ_MAX_THREADS` 8 to 16; `FT8_SHIM_VERSION` 20260078; `libft8.dll` rebuilt
+- [x] 9.5 Tests: front-end (`decoderThreads.test.js`), Web (the status field, the clamp, the overlay), Config, native determinism at 1, 2, 4, 8 and 16 threads, the ASan fuzz at 16
+- [x] 9.6 Screenshot, after: the block with the new controls (`dev-tasks/screenshots/threads-setting-after.png`)
+- [x] 9.7 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`

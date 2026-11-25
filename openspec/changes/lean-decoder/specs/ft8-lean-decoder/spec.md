@@ -233,3 +233,17 @@ A cycle that ends in an error (other than a fault) after a round's subtraction s
 
 - **WHEN** a round's fits fail after their first chunk
 - **THEN** the earlier rounds' results SHALL be returned and no residual
+
+### Requirement: The operator sets the lean decoder's thread count, engine and effort on the Settings page
+
+The Settings page's Advanced Decoder Settings SHALL offer `decoder.threads` (an integer 1 to 16, default 2), `decoder.engine` (`classic` default, `lean`) and `decoder.effort` (`normal` default, `fast`). An absent key SHALL show the default, a stored value SHALL be shown as stored, and an unknown stored engine or effort word SHALL show the default and be sent back as stored until the operator changes the select. The help text SHALL give the daemon host's logical processor count (from the status endpoint, never the browser's), say that more threads show the lean decoder's results sooner at the cost of more total CPU, give the one measurement with its limits, and say that the setting applies only with the lean engine and that the maximum is 16. The config POST SHALL clamp `threads` to 1 to 16 with a warning and store the clamped value. The lean engine's workers SHALL be capped at 16 and its results SHALL be byte-identical at 1, 2, 4, 8 and 16 threads.
+
+#### Scenario: A value above the cap
+
+- **WHEN** the config POST carries `threads` 64
+- **THEN** 16 SHALL be stored and a warning logged
+
+#### Scenario: Sixteen threads
+
+- **WHEN** a cycle is decoded at 16 threads
+- **THEN** its results, tiers, rounds and residual SHALL equal those at 1 thread, byte for byte

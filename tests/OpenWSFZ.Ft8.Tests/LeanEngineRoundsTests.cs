@@ -267,7 +267,7 @@ public sealed class LeanEngineRoundsTests(ITestOutputHelper output) : IDisposabl
         float[] pcm = Synth(WeakAmp);
         byte[] start = SaveHashState();
         var runs = new List<string>();
-        foreach (int threads in new[] { 1, 2, 4, 2, 1 })
+        foreach (int threads in new[] { 1, 2, 4, 8, 16, 2, 1 })
         {
             Ft8LibInterop.HashStateRestore(start);
             var o = Lean(pcm, threads);

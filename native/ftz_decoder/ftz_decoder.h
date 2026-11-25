@@ -30,7 +30,7 @@ extern "C" {
 
 #define FTZ_PARAMS_VERSION   5
 #define FTZ_MIN_THREADS      1
-#define FTZ_MAX_THREADS      8
+#define FTZ_MAX_THREADS      16
 #define FTZ_DEFAULT_THREADS  2
 #define FTZ_MAX_ABS_SAMPLE   1.0e6f
 
@@ -66,7 +66,7 @@ typedef void (*ftz_round0_fn)(void* ctx, int n, const void* results, const uint8
 typedef struct
 {
     int32_t struct_size;
-    int32_t threads;          /* worker count, clamped to [1, 8]; 0 = 2                                                    */
+    int32_t threads;          /* worker count, clamped to [1, 16]; 0 = 2                                                  */
     int32_t min_score;        /* ftx_find_candidates min score; 0 = 10 (the primary pass today)                           */
     int32_t max_candidates;   /* candidate cap, clamped to [1, FTZ_MAX_CANDIDATES]; 0 = 140 (the primary pass today)       */
     int32_t ldpc_iterations;  /* belief-propagation iterations; 0 = 50                                                    */

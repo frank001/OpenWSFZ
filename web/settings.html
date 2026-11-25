@@ -416,6 +416,53 @@
             </div>
 
             <div class="field-group">
+              <label for="decoder-engine">Decoder engine</label>
+              <select id="decoder-engine">
+                <option value="classic">classic</option>
+                <option value="lean">lean</option>
+              </select>
+              <p class="field-hint">
+                <strong>classic</strong> is the multi-pass decoder and is the default. <strong>lean</strong> is the new, rebuilt decoder
+                (one pass over the audio, then subtract-and-retry rounds); it is off by default and still being measured. With lean, the
+                residual-pass, depth and coherent-fallback switches above are ignored. Takes effect on the next decode cycle.
+                Default: classic.
+              </p>
+            </div>
+
+            <div class="field-group">
+              <label for="decoder-effort">Lean decoder effort</label>
+              <select id="decoder-effort">
+                <option value="normal">normal</option>
+                <option value="fast">fast</option>
+              </select>
+              <p class="field-hint">
+                Applies <strong>only when the lean engine is selected</strong>. <strong>fast</strong> skips the coherent (tier B) attempt and
+                runs one subtract-and-retry round instead of up to three: cheaper, and it finds fewer weak signals.
+                Takes effect on the next decode cycle. Default: normal.
+              </p>
+            </div>
+
+            <div class="field-group">
+              <label for="decoder-threads">Decoder threads</label>
+              <input
+                type="number"
+                id="decoder-threads"
+                min="1"
+                max="16"
+                step="1"
+              />
+              <p class="field-hint">
+                How many worker threads the lean decoder may use [1&ndash;16]. More threads show the lean decoder&rsquo;s results sooner and
+                use more CPU in total; fewer threads are gentler on a PC that also runs other things.
+                <span id="decoder-threads-host">This PC&rsquo;s processor count is not known.</span>
+                Measured once: on a 16-processor test PC replaying one 40 m night, 2 threads gave last results about 7.6 s after decoding
+                started, 8 threads about 2.7 s, with about 24 % more CPU in total. Your PC will differ.
+                Applies <strong>only when the lean engine is selected</strong>; the classic engine ignores it. The maximum is 16.
+                Takes effect on the next decode cycle. Default: 2.
+              </p>
+            </div>
+
+            <div class="field-group">
               <button type="button" id="decoder-reset">Reset to defaults</button>
             </div>
           </fieldset>

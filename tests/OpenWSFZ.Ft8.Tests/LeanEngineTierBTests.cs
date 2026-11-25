@@ -352,7 +352,7 @@ public sealed class LeanEngineTierBTests(ITestOutputHelper output) : IDisposable
         {
             byte[] start = SaveHashState();
             var outputs = new List<(int Threads, string Text)>();
-            foreach (int threads in new[] { 1, 2, 4, 8, 2, 1 })
+            foreach (int threads in new[] { 1, 2, 4, 8, 16, 2, 1 })
             {
                 Ft8LibInterop.HashStateRestore(start);
                 var o = Lean(pcm, threads, cqAp: true);

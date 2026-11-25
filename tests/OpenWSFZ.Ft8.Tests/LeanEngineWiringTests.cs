@@ -193,7 +193,7 @@ public sealed class LeanEngineWiringTests
 
     // ── D2: threads ──────────────────────────────────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-108: DR-2 D2: the lean engine's worker count defaults to 2, follows a change on the next cycle and is clamped to 1 to 8")]
+    [Fact(DisplayName = "FR-108: DR-2 D2: the lean engine's worker count defaults to 2, follows a change on the next cycle and is clamped to 1 to 16")]
     public async Task Threads_Default2_FollowsChange_Clamped()
     {
         var fake = new LeanFake();
@@ -207,9 +207,9 @@ public sealed class LeanEngineWiringTests
         decoder.SetLeanThreads(99);
         await decoder.DecodeAsync(LoudPcm(), Start, null);
 
-        fake.ThreadsSeen.Should().Equal(2, 4, 1, 8);
+        fake.ThreadsSeen.Should().Equal(2, 4, 1, 16);
         new DecoderConfig { Threads = 0 }.EffectiveThreads.Should().Be(1);
-        new DecoderConfig { Threads = 99 }.EffectiveThreads.Should().Be(8);
+        new DecoderConfig { Threads = 99 }.EffectiveThreads.Should().Be(16);
         new DecoderConfig().Threads.Should().Be(2);
     }
 

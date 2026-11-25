@@ -139,8 +139,8 @@ static int determinism(const char* path)
     int first_n = -1, first_rounds = 0, first_loop_results = 0, first_has_resid = 0, first_cb_n = -1;
     static float first_resid[PCM_SAMPLES], cur_resid[PCM_SAMPLES];
     static cb_probe_t probe;
-    const int threads[] = { 1, 2, 4, 2, 1 };
-    for (int t = 0; t < 5; t++) {
+    const int threads[] = { 1, 2, 4, 8, 16, 2, 1 };
+    for (int t = 0; t < 7; t++) {
         ft8_hash_state_restore(start, image_size);
         ftz_stats_t st;
         memset(cur, 0, sizeof(cur)); memset(cur_t, 0, sizeof(cur_t)); memset(cur_r, 0, sizeof(cur_r));
@@ -174,7 +174,7 @@ static int determinism(const char* path)
         }
     }
     ft8_hash_state_restore(start, image_size);
-    printf("determinism %s: %d results (%d from rounds 1 to 3, %d round(s) run, residual %s), identical at 1/2/4/2/1 threads\n", path, first_n, first_loop_results, first_rounds, first_has_resid ? "returned" : "none");
+    printf("determinism %s: %d results (%d from rounds 1 to 3, %d round(s) run, residual %s), identical at 1/2/4/8/16/2/1 threads\n", path, first_n, first_loop_results, first_rounds, first_has_resid ? "returned" : "none");
     free(start); free(pcm);
     return 1;
 }
@@ -224,7 +224,7 @@ static void fuzz(int runs)
               : (run % 50 == 0) ? PCM_SAMPLES : (run % 7 == 0) ? edge[rnd() % 10u] : (int)(rnd() % 30000u);
         if (n >= PCM_SAMPLES) full++;
         int kind = real_run ? 7 : (int)(rnd() % 7u);
-        const int tc[] = { 1, 2, 4, 8, 3 };
+        const int tc[] = { 1, 2, 4, 8, 16 };
         int threads = tc[run % 5];
         /* Exactly-sized heap block, so AddressSanitizer sees any read past n. */
         float* x = (float*)malloc(sizeof(float) * (size_t)(n > 0 ? n : 1));

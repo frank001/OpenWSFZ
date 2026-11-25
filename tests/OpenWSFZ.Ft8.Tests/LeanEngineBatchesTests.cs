@@ -502,7 +502,7 @@ public sealed class LeanEngineBatchesNativeTests(ITestOutputHelper output) : IDi
         float[] pcm = LeanEngineRoundsTests.Synth(LeanEngineRoundsTests.WeakAmp);
         byte[] start = SaveHashState();
         var runs = new List<(string Text, byte[] Residual)>();
-        foreach (int threads in new[] { 1, 2, 4 })
+        foreach (int threads in new[] { 1, 2, 4, 8, 16 })
         {
             Ft8LibInterop.HashStateRestore(start);
             LeanRound0? handOff = null;

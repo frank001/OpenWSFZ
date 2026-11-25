@@ -457,4 +457,60 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
         store.Current.Decoder.SubtractionOnMigrationApplied.Should().BeTrue(
             "no migration is pending for a section created from nothing; otherwise the next restart turns the OFF back ON");
     }
+
+    // ── Operator threads setting (FR-108): decoder.threads, engine, effort ─────────────────────────────────────
+
+    private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
+
+    private static async Task<DecoderConfig> PostDecoder(HttpClient client, string decoderJson)
+    {
+        var resp = await client.PostAsync("/api/v1/config", Json("{\"decoder\":" + decoderJson + "}"));
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var loaded = await resp.Content.ReadFromJsonAsync(AppJsonContext.Default.AppConfig);
+        return loaded!.Decoder!;
+    }
+
+    [Theory(DisplayName = "FR-108: operator threads setting: an in-range threads value is stored unchanged; an out-of-range one is CLAMPED to [1, 16] with the clamped value stored (as the neighbouring decoder values)")]
+    [InlineData(1, 1)]
+    [InlineData(8, 8)]
+    [InlineData(16, 16)]
+    [InlineData(5, 5)]
+    [InlineData(0, 1)]
+    [InlineData(-3, 1)]
+    [InlineData(9, 9)]
+    [InlineData(17, 16)]
+    [InlineData(64, 16)]
+    public async Task PostConfig_Threads_AreClampedToOneToEight(int sent, int stored)
+    {
+        var client = _factory.CreateClient();
+        var decoder = await PostDecoder(client, "{\"threads\":" + sent + "}");
+        decoder.Threads.Should().Be(stored);
+        decoder.EffectiveThreads.Should().Be(stored);
+    }
+
+    [Fact(DisplayName = "FR-108: operator threads setting: engine, effort and threads round-trip through the API, and the POST is an overlay (a body without threads keeps the stored value)")]
+    public async Task PostConfig_EngineEffortThreads_RoundTrip_AndOverlayKeepsThreads()
+    {
+        var client = _factory.CreateClient();
+        var set = await PostDecoder(client, "{\"engine\":\"lean\",\"effort\":\"fast\",\"threads\":6}");
+        set.Engine.Should().Be("lean");
+        set.Effort.Should().Be("fast");
+        set.Threads.Should().Be(6);
+
+        // a body that carries only another decoder key leaves all three as stored (HK-035)
+        var other = await PostDecoder(client, "{\"earlyDecodeCutSeconds\":2.5}");
+        other.Engine.Should().Be("lean");
+        other.Effort.Should().Be("fast");
+        other.Threads.Should().Be(6);
+
+        // an unknown word is kept as written and reads as the default
+        var unknown = await PostDecoder(client, "{\"engine\":\"turbo\",\"effort\":\"warp\"}");
+        unknown.Engine.Should().Be("turbo");
+        unknown.GetEngineKind().Should().Be(DecoderEngine.Classic);
+        unknown.Effort.Should().Be("warp");
+        unknown.GetEffortKind().Should().Be(DecoderEffort.Normal);
+
+        // put the shared fixture back to the defaults for the tests that follow
+        await PostDecoder(client, "{\"engine\":\"classic\",\"effort\":\"normal\",\"threads\":2}");
+    }
 }

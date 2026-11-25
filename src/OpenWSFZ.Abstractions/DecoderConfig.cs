@@ -103,7 +103,7 @@ public sealed record DecoderConfig
     public const int MinThreads = 1;
 
     /// <summary>The largest accepted <see cref="Threads"/> value.</summary>
-    public const int MaxThreads = 8;
+    public const int MaxThreads = 16;
 
     /// <summary>
     /// Pass-1 candidate score floor.
@@ -379,7 +379,7 @@ public sealed record DecoderConfig
 
     /// <summary>
     /// DR-2 step 2a: the lean engine's worker count (<c>decoder.threads</c>): candidates are processed in parallel on a fixed pool created once. Valid
-    /// range 1 to 8, default 2; a hand-edited value outside the range is clamped where it is applied (see <see cref="EffectiveThreads"/>). No effect with
+    /// range 1 to 16, default 2; a hand-edited value outside the range is clamped where it is applied (see <see cref="EffectiveThreads"/>). No effect with
     /// <see cref="Engine"/> <c>classic</c>. The lean engine's output does not depend on it. Config file and API only; read once per window.
     /// </summary>
     public int Threads { get; init; } = DefaultThreads;

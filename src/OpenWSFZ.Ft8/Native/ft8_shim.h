@@ -873,8 +873,9 @@ extern "C" {
  *   20260077 - DR-2 step 2e: the fit (subfeas_fit.c) is bit-identical but faster (frequency-shift table once per fit, copy / mix / decimation fused, four step-3 candidates at a time;
  *              ft8_subfeas_set_reference_mode as the test seam), ftz_params_t version 5 (inject_error_round test hook, FTZ_FLAG_SKIP_FITS), per-round n_fit_skipped, ftz_fit_needed,
  *              the residual tier-B accept rule no longer restricted by the residual-candidates flag, and no residual exported after a half-subtracted round. No change to any classic outcome.
+ *   20260078 - operator threads setting: FTZ_MAX_THREADS 8 to 16 (the lean engine's worker pool, the per-worker coherent contexts and the clamp). No ABI change, no classic change.
 */
-#define FT8_SHIM_VERSION 20260077
+#define FT8_SHIM_VERSION 20260078
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
