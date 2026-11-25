@@ -56,6 +56,13 @@ internal sealed record DecodePumpDependencies(
     public Func<bool>? CoherentFallbackOn { get; init; }
 
     /// <summary>
+    /// DR-2 step 2d: optional. Whether <c>decoder.engine</c> is <c>lean</c>. Read once per window. When it answers <c>true</c> (and <see cref="DecodeStaged"/> is
+    /// present) the window is decoded with <see cref="DecodeStaged"/> whatever <c>SubtractionEnabled</c>, the depth and the fallback flag say: the lean engine
+    /// ignores those classic switches and delivers its three batches through the callback. <c>null</c> (the default) means never: the pump is the pre-change pump.
+    /// </summary>
+    public Func<bool>? LeanEngine { get; init; }
+
+    /// <summary>
     /// psk-reporter-upload (#262): optional. The PSK Reporter upload's own queue (every batch 1 to 4, after noise suppression, never
     /// early-decode preview rows). <c>null</c> (the default; every existing caller) means the pump writes nothing there and is the
     /// pre-change pump, call for call.
@@ -151,13 +158,15 @@ internal sealed class DecodePump
                 {
                     // The flag is read ONCE per window. OFF: the ordinary single decode and one publish, exactly as
                     // before two-stage publish existed (P-9): this branch does not touch the two-batch machinery.
-                    if (!_d.SubtractionEnabled())
+                    // DR-2 step 2d: read ONCE per window; false or absent leaves every branch below exactly as it was.
+                    bool lean = _d.DecodeStaged is not null && _d.LeanEngine?.Invoke() == true;
+                    if (!lean && !_d.SubtractionEnabled())
                     {
                         var results = await _d.DecodeSingleBatch(pcmWindow, cycleStart, currentBand, stoppingToken);
                         await PublishFirstAsync(results, pcmWindow, cycleStart, windowClosedUtc, dialFreq);
                     }
                     else if (_d.DecodeStaged is { } staged
-                             && (_d.DecodingDeep?.Invoke() == true || _d.CoherentFallbackOn?.Invoke() == true))
+                             && (lean || _d.DecodingDeep?.Invoke() == true || _d.CoherentFallbackOn?.Invoke() == true))
                     {
                         // third-pass-deep: batch 1 as ever; batches 2 and 3 go to the same sinks (panel, ALL.TXT, filter
                         // admission, external reporting and, since late-batches-in-qso, the answerer and caller as supplementary

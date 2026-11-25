@@ -102,6 +102,42 @@ public sealed class LeanEngineConfigTests
         reloaded.Threads.Should().Be(5);
     }
 
+    [Fact(DisplayName = "FR-108: DR-2 2d D5: the code default of effort is normal, an absent key reads normal, 'fast' is read, a body for another key leaves it, the wire name is camelCase")]
+    public void Effort_DefaultIsNormal_AbsentKeyReadsNormal()
+    {
+        new DecoderConfig().Effort.Should().Be("normal");
+        new DecoderConfig().GetEffortKind().Should().Be(DecoderEffort.Normal);
+        JsonSerializer.Deserialize("""{"decoder":{}}""", ConfigJsonContext.Default.AppConfig)!.Decoder!.GetEffortKind().Should().Be(DecoderEffort.Normal);
+        JsonSerializer.Deserialize("""{"decoder":{"engine":"lean"}}""", ConfigJsonContext.Default.AppConfig)!.Decoder!.GetEffortKind().Should().Be(DecoderEffort.Normal, "a body for another key leaves it at its default");
+        JsonSerializer.Deserialize("""{"decoder":{"effort":"fast"}}""", ConfigJsonContext.Default.AppConfig)!.Decoder!.GetEffortKind().Should().Be(DecoderEffort.Fast);
+        JsonSerializer.Deserialize("""{"decoder":{"effort":"warp"}}""", ConfigJsonContext.Default.AppConfig)!.Decoder!.GetEffortKind().Should().Be(DecoderEffort.Normal, "an unknown value reads normal");
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(new DecoderConfig { Effort = "fast" }, ConfigJsonContext.Default.DecoderConfig));
+        doc.RootElement.GetProperty("effort").GetString().Should().Be("fast");
+        doc.RootElement.TryGetProperty("effortKind", out _).Should().BeFalse("the computed reader is not serialised");
+    }
+
+    [Theory(DisplayName = "FR-108: DR-2 2d D5: an explicit effort value round-trips kept as written (an unknown word too), and a decoder section without the key saves back as normal")]
+    [InlineData("fast")]
+    [InlineData("normal")]
+    [InlineData("warp")]
+    public async Task Effort_ExplicitValue_Survives(string value)
+    {
+        using var dir = new TempDirectory();
+        File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10,\"effort\":\"" + value + "\"," + MarkersOnly + "}}");
+        var store = new JsonConfigStore(ConfigPath(dir));
+        Decoder(store).Effort.Should().Be(value);
+        await store.SaveAsync(store.Current with { ShowCycleCountdown = !store.Current.ShowCycleCountdown });
+        Decoder(new JsonConfigStore(ConfigPath(dir))).Effort.Should().Be(value, "an unrelated save does not rewrite the key");
+
+        using var dir2 = new TempDirectory();
+        File.WriteAllText(ConfigPath(dir2), "{\"decoder\":{\"kMinScorePass2\":10," + MarkersOnly + "}}");
+        var store2 = new JsonConfigStore(ConfigPath(dir2));
+        await store2.SaveAsync(store2.Current with { ShowCycleCountdown = !store2.Current.ShowCycleCountdown });
+        using var written = JsonDocument.Parse(File.ReadAllText(ConfigPath(dir2)));
+        written.RootElement.GetProperty("decoder").GetProperty("effort").GetString().Should().Be("normal");
+    }
+
     [Fact(DisplayName = "FR-108: DR-2 D2: threads defaults to 2 when the key is absent and is clamped to 1 to 8 where it is applied")]
     public void Threads_DefaultAndClamp()
     {

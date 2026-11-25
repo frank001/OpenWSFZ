@@ -330,7 +330,8 @@ public sealed class LeanEngineWiringTests
             "cqAp: attempts=4 decodes=1 " +
             "wall_ms spectrogram=11.0 candidates=2.0 tierA=30.0 tierB=40.0 cqAp=3.0 unpack=0.5 total=44.0 " +
             "cpu_ms spectrogram=10.0 candidates=2.0 tierA=55.0 tierB=70.0 cqAp=5.0 unpack=0.4 total=67.4 " +
-            "s3: rounds=0 ungated=0 wall_ms=0.0 cpu_ms=0.0 fitCpu_ms=0.0 searchCpu_ms=0.0 decodeCpu_ms=0.0 otherCpu_ms=0.0.");
+            "s3: rounds=0 ungated=0 wall_ms=0.0 cpu_ms=0.0 fitCpu_ms=0.0 searchCpu_ms=0.0 decodeCpu_ms=0.0 otherCpu_ms=0.0 " +
+            "effort=normal batches: b1=0 b2=0 b3=0 xc=off xcDetected=0.");
         foreach (var (_, message) in log.Entries)
             foreach (var token in new[] { "Q1ABC", "Q2DEF", "Q3GHI", "JO22", "-07", "CQ " })
                 message.Should().NotContain(token, "counts and times only, never a callsign or a message (HK-037)");

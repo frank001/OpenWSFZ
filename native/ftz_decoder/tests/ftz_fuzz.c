@@ -1,5 +1,5 @@
 /*
- * ftz_fuzz.c -- native test harness for ftz_decode_cycle (DR-2 steps 2a to 2c): built and run under AddressSanitizer and
+ * ftz_fuzz.c -- native test harness for ftz_decode_cycle (DR-2 steps 2a to 2d): built and run under AddressSanitizer and
  * UndefinedBehaviorSanitizer by native/ftz_decoder/tests/run_asan.sh and by the CI job `native-asan`.
  *
  * PROVENANCE: OpenWSFZ-original, written 2026-11-24. No third-party code.
@@ -14,6 +14,8 @@
  *   4. (step 2c) The subtract-and-retry loop is ON in the determinism run (results, tiers, rounds byte-identical at every thread count) and in the
  *      fuzz; every 200th fuzz run decodes MUTATED REAL audio (the first WAV, truncated, clipped, offset or gapped) so the loop actually runs;
  *      the three accept-rule functions are checked directly.
+ *   5. (step 2d) The round-0 callback (exactly once, with the round-0 count), the final residual buffer (NULL and exactly-sized, byte-identical at every thread
+ *      count) and the no-tier-B flag are exercised in the determinism run and in the fuzz.
  * Exit status 0 = all passed. Prints counts only.
  */
 #include "../ftz_decoder.h"
@@ -68,8 +70,21 @@ static float* read_wav(const char* path, int* n_out)
     return pcm;
 }
 
-static int decode_full(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, int max_rounds, int expire_round,
-                       FT8Result* out, uint8_t* tiers, uint8_t* rounds, ftz_stats_t* st)
+/* The round-0 hand-off: counts the calls and copies what it was given (the callee must copy; the buffers are valid only during the call). */
+typedef struct { int calls; int n; FT8Result res[MAX_RESULTS]; uint8_t tiers[MAX_RESULTS]; int have_tiers; } cb_probe_t;
+static void round0_probe(void* ctx, int n, const void* results, const uint8_t* tiers)
+{
+    cb_probe_t* pr = (cb_probe_t*)ctx;
+    pr->calls++;
+    pr->n = n;
+    if (n > 0 && n <= MAX_RESULTS) {
+        memcpy(pr->res, results, sizeof(FT8Result) * (size_t)n);
+        if (tiers) { memcpy(pr->tiers, tiers, (size_t)n); pr->have_tiers = 1; }
+    }
+}
+
+static int decode_full2(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, int max_rounds, int expire_round,
+                        FT8Result* out, uint8_t* tiers, uint8_t* rounds, ftz_stats_t* st, cb_probe_t* probe, float* out_residual)
 {
     ftz_params_t p;
     memset(&p, 0, sizeof(p));
@@ -80,7 +95,15 @@ static int decode_full(const float* pcm, int n, int threads, int max_cand, int f
     p.budget_ms = budget_ms;
     p.max_rounds = max_rounds;
     p.expire_round = expire_round;
+    if (probe) { memset(probe, 0, sizeof(*probe)); p.round0_cb = round0_probe; p.round0_ctx = probe; }
+    p.out_residual = out_residual;
     return ftz_decode_cycle(pcm, n, &p, out, MAX_RESULTS, tiers, rounds, st);
+}
+
+static int decode_full(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, int max_rounds, int expire_round,
+                       FT8Result* out, uint8_t* tiers, uint8_t* rounds, ftz_stats_t* st)
+{
+    return decode_full2(pcm, n, threads, max_cand, flags, budget_ms, max_rounds, expire_round, out, tiers, rounds, st, NULL, NULL);
 }
 
 static int decode_ex(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, FT8Result* out, uint8_t* tiers, ftz_stats_t* st)
@@ -108,19 +131,28 @@ static int determinism(const char* path)
 
     static FT8Result first[MAX_RESULTS], cur[MAX_RESULTS];
     static uint8_t first_t[MAX_RESULTS], cur_t[MAX_RESULTS], first_r[MAX_RESULTS], cur_r[MAX_RESULTS];
-    int first_n = -1, first_rounds = 0, first_loop_results = 0;
+    int first_n = -1, first_rounds = 0, first_loop_results = 0, first_has_resid = 0, first_cb_n = -1;
+    static float first_resid[PCM_SAMPLES], cur_resid[PCM_SAMPLES];
+    static cb_probe_t probe;
     const int threads[] = { 1, 2, 4, 2, 1 };
     for (int t = 0; t < 5; t++) {
         ft8_hash_state_restore(start, image_size);
         ftz_stats_t st;
         memset(cur, 0, sizeof(cur)); memset(cur_t, 0, sizeof(cur_t)); memset(cur_r, 0, sizeof(cur_r));
-        int rc = decode_full(pcm, n, threads[t], 0, LOOP_FLAGS, 0, 0, 0, cur, cur_t, cur_r, &st);       /* the loop is ON: step 2c */
+        memset(cur_resid, 0, sizeof(cur_resid));
+        int rc = decode_full2(pcm, n, threads[t], 0, LOOP_FLAGS, 0, 0, 0, cur, cur_t, cur_r, &st, &probe, cur_resid);   /* the loop is ON: step 2c; callback and residual: step 2d */
         CHECK(rc >= 0, "%s threads=%d: error %d", path, threads[t], rc);
         if (rc < 0) continue;
+        int r0count = 0;
+        for (int i = 0; i < rc; i++) if (cur_r[i] == 0) r0count++;
+        CHECK(probe.calls == 1 && probe.n == r0count, "%s threads=%d: round-0 callback called %d time(s) with %d, round 0 has %d", path, threads[t], probe.calls, probe.n, r0count);
+        CHECK(probe.n == 0 || memcmp(probe.res, cur, sizeof(FT8Result) * (size_t)probe.n) == 0, "%s threads=%d: callback results differ from the returned round-0 results", path, threads[t]);
         if (first_n < 0)
         {
             first_n = rc; memcpy(first, cur, sizeof(first)); memcpy(first_t, cur_t, sizeof(first_t)); memcpy(first_r, cur_r, sizeof(first_r));
             first_rounds = st.n_rounds;
+            first_has_resid = st.has_residual; first_cb_n = probe.n;
+            memcpy(first_resid, cur_resid, sizeof(first_resid));
             for (int i = 0; i < rc; i++) if (cur_r[i] > 0) first_loop_results++;
             CHECK(rc > 0, "%s decoded nothing", path);
         }
@@ -131,10 +163,13 @@ static int determinism(const char* path)
             CHECK(memcmp(first_t, cur_t, (size_t)m) == 0, "%s threads=%d: tiers differ from threads=1", path, threads[t]);
             CHECK(memcmp(first_r, cur_r, (size_t)m) == 0, "%s threads=%d: rounds differ from threads=1", path, threads[t]);
             CHECK(st.n_rounds == first_rounds, "%s threads=%d: %d rounds, expected %d", path, threads[t], st.n_rounds, first_rounds);
+            CHECK(st.has_residual == first_has_resid, "%s threads=%d: has_residual %d, expected %d", path, threads[t], st.has_residual, first_has_resid);
+            CHECK(memcmp(first_resid, cur_resid, sizeof(first_resid)) == 0, "%s threads=%d: residual differs from threads=1", path, threads[t]);
+            CHECK(probe.n == first_cb_n, "%s threads=%d: callback delivered %d, expected %d", path, threads[t], probe.n, first_cb_n);
         }
     }
     ft8_hash_state_restore(start, image_size);
-    printf("determinism %s: %d results (%d from rounds 1 to 3, %d round(s) run), identical at 1/2/4/2/1 threads\n", path, first_n, first_loop_results, first_rounds);
+    printf("determinism %s: %d results (%d from rounds 1 to 3, %d round(s) run, residual %s), identical at 1/2/4/2/1 threads\n", path, first_n, first_loop_results, first_rounds, first_has_resid ? "returned" : "none");
     free(start); free(pcm);
     return 1;
 }
@@ -201,7 +236,17 @@ static void fuzz(int runs)
         int expire = (int)(rnd() % 6u);                      /* 0 none; 4 and 5 are never reached */
         if (real_run && (rnd() & 3u) != 0) expire = 0;       /* mostly let the rounds finish; a quarter expire at a round */
         static uint8_t rounds[MAX_RESULTS];
-        int rc = decode_full(x, n, threads, max_cand, flags, budget, max_rounds, expire, out, tiers, rounds, &st);
+        if ((rnd() & 3u) == 0) flags |= FTZ_FLAG_NO_TIER_B;                        /* decoder.effort = fast */
+        const int want_resid = (rnd() & 1u) != 0, want_cb = (rnd() & 1u) != 0;
+        /* Exactly-sized heap block, so AddressSanitizer sees any write past FT8_EXPECTED_SAMPLES floats. */
+        float* resid = want_resid ? (float*)malloc(sizeof(float) * PCM_SAMPLES) : NULL;
+        static cb_probe_t fprobe;
+        int rc = decode_full2(x, n, threads, max_cand, flags, budget, max_rounds, expire, out, tiers, rounds, &st, want_cb ? &fprobe : NULL, resid);
+        if (want_cb) CHECK(fprobe.calls <= 1, "run %d: round-0 callback called %d times", run, fprobe.calls);
+        if (want_cb && rc >= 0) CHECK(fprobe.calls == 1, "run %d: round-0 callback not called on a successful cycle", run);
+        CHECK(st.has_residual == 0 || (resid != NULL && (flags & FTZ_FLAG_ROUNDS)), "run %d: has_residual without a buffer or without the loop", run);
+        if (flags & FTZ_FLAG_NO_TIER_B) CHECK(st.n_b_eligible == 0 && st.n_b_attempted == 0 && st.n_b_published == 0, "run %d: tier B ran with the no-tier-B flag", run);
+        free(resid);
         CHECK(rc >= 0 && rc <= MAX_RESULTS, "run %d: kind %d n %d threads %d: rc %d", run, kind, n, threads, rc);
         CHECK(st.error == 0 && st.n_results == (rc > 0 ? rc : 0), "run %d: stats inconsistent (error %d, n_results %d, rc %d)", run, st.error, st.n_results, rc);
         CHECK(st.n_rounds >= 0 && st.n_rounds <= FTZ_MAX_ROUNDS, "run %d: %d rounds", run, st.n_rounds);

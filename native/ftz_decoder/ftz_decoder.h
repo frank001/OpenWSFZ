@@ -28,7 +28,7 @@ extern "C" {
 #define FTZ_ERR_FAULT    (-3)   /* an access violation was caught by the SEH wrapper (MSVC builds only)                 */
 #define FTZ_ERR_BADAUDIO (-4)   /* a sample is NaN, infinite or beyond +-FTZ_MAX_ABS_SAMPLE: not decodable audio        */
 
-#define FTZ_PARAMS_VERSION   3
+#define FTZ_PARAMS_VERSION   4
 #define FTZ_MIN_THREADS      1
 #define FTZ_MAX_THREADS      8
 #define FTZ_DEFAULT_THREADS  2
@@ -40,6 +40,7 @@ extern "C" {
 #define FTZ_FLAG_ROUNDS  4   /* step 2c: run the subtract-and-retry rounds after round 0 (without it the call is the step-2b call)   */
 #define FTZ_FLAG_RESIDUAL_UNGATED 8    /* a residual tier-B row whose F1b is above T1 is published (decoder.coherentFallbackResidualUngated)   */
 #define FTZ_FLAG_RESIDUAL_CANDS   16   /* residual tier-B rows are kept only if F1b-passed and at most 1097 Hz (decoder.coherentFallbackResidualCandidates) */
+#define FTZ_FLAG_NO_TIER_B        32   /* step 2d, decoder.effort = fast: tier B is not run in any round (CQ-AP still is, if asked)                   */
 
 #define FTZ_MAX_ROUNDS            3      /* rounds after round 0                                                                 */
 #define FTZ_PATCH_BELOW_HZ        50.0f  /* a residual candidate is searched only within [f - 50, f + 100] Hz of a signal subtracted in the round */
@@ -51,6 +52,13 @@ extern "C" {
 #define FTZ_TIER_A   0
 #define FTZ_TIER_B   1
 #define FTZ_TIER_CQ  2
+
+/* Step 2d: the round-0 hand-off. Called once, on the thread that runs ftz_decode_cycle, while the call still holds its lock, right after round 0's results are
+ * unpacked and BEFORE round 1 starts (also with n = 0: an empty batch 1 is a real cycle). results points at n FT8Result (48 bytes each) and tiers at n bytes
+ * (FTZ_TIER_*; NULL if the caller passed no out_tiers); both are valid only for the duration of the call, so the callee copies them. The callee MUST NOT call
+ * any ftz_* function or any other function of this library, MUST NOT throw, and SHOULD return quickly (hand the copy to another thread and return): the cycle's
+ * remaining rounds wait for it. It is not called when the cycle fails before round 0 is unpacked (the caller then has every result in the return value). */
+typedef void (*ftz_round0_fn)(void* ctx, int n, const void* results, const uint8_t* tiers);
 
 /* Input parameters. Zero in a field means "today's primary value" (min_score 10, max_candidates 140, ldpc_iterations 50,
  * threads 2, no CQ-AP, no budget). struct_size is sizeof(ftz_params_t) as the caller compiled it; a shorter struct reads zero for the rest. */
@@ -66,6 +74,10 @@ typedef struct
     int32_t reserved;
     int32_t max_rounds;       /* with FTZ_FLAG_ROUNDS: rounds after round 0, clamped to [1, 3]; 0 = 3                       */
     int32_t expire_round;     /* TEST HOOK: the round (1 to 3) at whose decode stage the budget is treated as gone; 0 = none */
+    /* Step 2d (params version 4); a caller built against version 3 has struct_size 40 and reads NULL for all three. */
+    ftz_round0_fn round0_cb;  /* NULL, or called ONCE on the calling thread right after round 0 is unpacked, BEFORE round 1 starts (see ftz_round0_fn) */
+    void*   round0_ctx;       /* passed back to round0_cb                                                                    */
+    float*  out_residual;     /* NULL, or FT8_EXPECTED_SAMPLES floats that receive the residual as of the last subtraction made (stats.has_residual) */
 } ftz_params_t;
 
 /* Per-round aggregates (step 2c). Counts, then microseconds: wall, and CPU summed over the threads that worked on the stage.
@@ -113,7 +125,7 @@ typedef struct
     int32_t n_cq_attempts;      /* CQ-AP attempts (candidates that failed tier A and tier B)                                */
     int32_t n_cq_decodes;       /* CQ-AP rows in the output                                                                 */
     int32_t n_ungated;          /* residual tier-B rows published only because the ungating is on (F1b above T1)           */
-    int32_t reserved2;
+    int32_t has_residual;       /* 1 if params.out_residual was written: the buffer as of the last subtraction made (0: nothing was subtracted, a fit round was stopped, or no buffer given) */
     int64_t spectrogram_wall_us, spectrogram_cpu_us;
     int64_t candidates_wall_us, candidates_cpu_us;
     int64_t tier_a_wall_us,     tier_a_cpu_us;

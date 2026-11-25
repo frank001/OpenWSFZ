@@ -21,7 +21,7 @@ public sealed class LeanEngineRoundsTests(ITestOutputHelper output) : IDisposabl
     private const string StrongMessage = "CQ Q1ABC JO22";
     private const string WeakMessage = "Q2DEF Q3GHI -07";
     private const float StrongAmp = 0.10f;
-    private const float WeakAmp = 0.04f;
+    internal const float WeakAmp = 0.04f;
     private const double CarrierHz = 1500.0;
     private const int StrongStart = 6_000;
     private const int WeakStart = 7_500;
@@ -38,7 +38,7 @@ public sealed class LeanEngineRoundsTests(ITestOutputHelper output) : IDisposabl
 
     // ── fixtures and helpers ─────────────────────────────────────────────────────────────────────────────────────
 
-    private static float[] Synth(float weakAmp, int seed = NoiseSeed, double weakHz = CarrierHz)
+    internal static float[] Synth(float weakAmp, int seed = NoiseSeed, double weakHz = CarrierHz)
     {
         var t1 = new byte[79]; Ft8LibInterop.EncodeMessage(StrongMessage, t1);
         var a = TestFt8Encoder.SymbolsToPcm(t1.Select(t => (int)t).ToArray(), CarrierHz, StrongStart, StrongAmp);

@@ -868,8 +868,10 @@ extern "C" {
  *   20260075 - DR-2 step 2c: ftz_decode_cycle gains the subtract-and-retry rounds (FTZ_FLAG_ROUNDS): ft8_subfeas_fit_signal on the original audio's analytic signal,
  *              the residual's spectrogram, a patch search near what was subtracted, the residual accept rules; an out_rounds array, a larger ftz_params_t / ftz_stats_t
  *              (per-round statistics), and three test exports (ftz_patch_keep, ftz_payload_same_qso, ftz_residual_b_accept). No change to any classic export or outcome.
+ *   20260076 - DR-2 step 2d: ftz_params_t (version 4) gains the round-0 hand-off callback, its context and an out_residual buffer, and the FTZ_FLAG_NO_TIER_B flag (decoder.effort = fast);
+ *              ftz_stats_t gains has_residual. ftz_decode_cycle's own argument list is unchanged. No change to any classic export or outcome.
 */
-#define FT8_SHIM_VERSION 20260075
+#define FT8_SHIM_VERSION 20260076
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

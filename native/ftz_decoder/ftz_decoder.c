@@ -619,6 +619,19 @@ static void ftz_fit_item(void* vctx, int i, int worker)
                                       j->shat + (size_t)i * (size_t)FT8_EXPECTED_SAMPLES, j->cancel);
 }
 
+/* The round-0 hand-off under a guard: on MSVC an access violation in the callee is caught and reported (1). */
+static int ftz_call_round0(ftz_round0_fn fn, void* ctx, int n, const FT8Result* results, const uint8_t* tiers)
+{
+#ifdef _MSC_VER
+    __try { fn(ctx, n, results, tiers); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return 1; }
+    return 0;
+#else
+    fn(ctx, n, results, tiers);
+    return 0;
+#endif
+}
+
 static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* params, FT8Result* results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* st)
 {
     const int64_t t_start = ftz_wall_us();
@@ -632,6 +645,10 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     const int loop_on      = (params->flags & FTZ_FLAG_ROUNDS) != 0;
     const int ungated_on   = (params->flags & FTZ_FLAG_RESIDUAL_UNGATED) != 0;
     const int rescand_on   = (params->flags & FTZ_FLAG_RESIDUAL_CANDS) != 0;
+    const int no_tier_b    = (params->flags & FTZ_FLAG_NO_TIER_B) != 0;
+    ftz_round0_fn r0cb     = params->round0_cb;
+    void*         r0ctx    = params->round0_ctx;
+    float*        out_resid = params->out_residual;
     int max_rounds = params->max_rounds != 0 ? params->max_rounds : FTZ_MAX_ROUNDS;
     max_rounds = ftz_clamp_int(max_rounds, 1, FTZ_MAX_ROUNDS);
     const int rounds_to_run = loop_on ? max_rounds : 0;
@@ -729,6 +746,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     float*           xa_im  = NULL;
     ftz_fit_job_t*   fitjob = NULL;
     const float*     full0  = NULL;
+    int              resid_valid = 0;     /* resid holds the original minus every subtraction of the rounds that completed */
     if (cands == NULL || msgs == NULL || cmsgs == NULL || ok_a == NULL || b_el == NULL || b_st == NULL || b_ed == NULL || c_el == NULL
         || c_at == NULL || c_ok == NULL || pos_f == NULL || pos_t == NULL || b_fr == NULL || b_dt == NULL || b_snr == NULL || b_pl == NULL
         || known == NULL || hits == NULL || drop == NULL || texts == NULL || seen_payloads == NULL || res_pl == NULL || reenc == NULL
@@ -840,8 +858,9 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                 rs->sum_cpu_us += ftz_thread_cpu_us() - sc0;
             }
             rs->sub_wall_us = ftz_wall_us() - w0;
-            if (cancelled) { st->abandoned = 1; break; }                       /* all or nothing: this round publishes nothing, earlier rounds stand */
+            if (cancelled) { resid_valid = 0; st->abandoned = 1; break; }      /* all or nothing: this round publishes nothing, earlier rounds stand; the half-subtracted buffer is not a residual */
             if (n_sub_round == 0) break;                                       /* every fit said "no valid fit": the residual is unchanged */
+            resid_valid = 1;
             if (deadline_us != 0 && deadline_us - ftz_wall_us() < (int64_t)FTZ_RESIDUAL_RESERVE_MS * 1000) { st->abandoned = 1; break; }   /* the decode keeps its reserve */
 
             /* ── S3 (2): the residual's spectrogram, in full ── */
@@ -937,7 +956,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         w0 = ftz_wall_us();
         {
             int n_eligible = 0;
-            for (int i = 0; i < ncands; ++i)
+            for (int i = 0; i < ncands && !no_tier_b; ++i)    /* decoder.effort = fast: no tier B, so nothing is eligible */
             {
                 if (ok_a[i]) continue;
                 int dup = 0;
@@ -1145,11 +1164,22 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         rs->n_results         = nres - nres_before;
         rs->decode_wall_us    = ftz_wall_us() - dec_w0;
         rs->decode_cpu_us     = dec_cpu;
+        if (round == 0 && r0cb != NULL)
+        {
+            /* Step 2d: batch 1 leaves now, before round 1. The callee copies what it needs and returns; native then goes on. */
+            if (ftz_call_round0(r0cb, r0ctx, nres, results, out_tiers)) { rc = FTZ_ERR_FAULT; goto done; }
+        }
         if (round > 0 && rs->n_results == 0) break;            /* a round that adds nothing new ends the loop */
     }
     rc = nres;
 
 done:
+    /* Step 2d: the residual as of the last subtraction made (not after a fault: the heap may be damaged). */
+    if (rc != FTZ_ERR_FAULT && resid_valid && resid != NULL && out_resid != NULL)
+    {
+        memcpy(out_resid, resid, (size_t)FT8_EXPECTED_SAMPLES * sizeof(float));
+        st->has_residual = 1;
+    }
     free(cands); free(msgs); free(cmsgs); free(ok_a); free(b_el); free(b_st); free(b_ed); free(c_el); free(c_at); free(c_ok);
     free(pos_f); free(pos_t); free(b_fr); free(b_dt); free(b_snr); free(b_pl); free(known); free(hits); free(drop); free(texts); free(seen_payloads);
     free(res_pl); free(reenc); free(fit_ix); free(sub_hz);

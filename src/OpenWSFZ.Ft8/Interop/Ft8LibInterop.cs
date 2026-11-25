@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260075;
+    private const int ExpectedShimVersion = 20260076;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -1018,10 +1018,28 @@ internal static class Ft8LibInterop
     /// </summary>
     /// <param name="pcm">12 kHz mono float32 PCM, at most 180 000 samples are read.</param>
     /// <param name="request">Worker count, CQ-AP switch, budget and candidate cap.</param>
-    public static LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request)
+    public static LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => DecodeLeanCycle(pcm, request, null);
+
+    /// <summary>The native round-0 hand-off (<c>ftz_round0_fn</c>): <c>void (*)(void* ctx, int n, const void* results, const uint8_t* tiers)</c>.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void FtzRound0Native(IntPtr ctx, int n, IntPtr results, IntPtr tiers);
+
+    /// <summary>
+    /// DR-2 step 2d: as <see cref="DecodeLeanCycle(float[], LeanCycleParams)"/>, with the round-0 hand-off: <paramref name="onRound0"/> (may be null) is called once on
+    /// the calling thread, from inside the native call, right after round 0 is unpacked and before round 1 starts, with a copy of round 0's results. The native call goes
+    /// on when it returns, so it must only hand the copy over (it must not call any native function and must return quickly). An exception it throws is swallowed here (an
+    /// exception must never cross the native boundary); the cycle's outcome still carries every result.
+    /// </summary>
+    public static LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0)
     {
         ArgumentNullException.ThrowIfNull(pcm);
         EnsureInitialized();
+
+        var tiers = new byte[MaxResults];
+        var rounds = new byte[MaxResults];
+        float[]? residual = request.WantResidual ? new float[PcmSampleCount] : null;
+        GCHandle residualPin = default;
+        FtzRound0Native? callback = null;   // kept alive (and referenced after the call) so the thunk the native side holds cannot be collected mid-call
 
         var parameters = new FtzParamsWire
         {
@@ -1031,16 +1049,56 @@ internal static class Ft8LibInterop
             Flags         = (request.CqAp ? FtzParamsWire.FlagCqAp : 0) | (request.BudgetMs.HasValue ? FtzParamsWire.FlagBudget : 0)
                           | (request.Rounds ? FtzParamsWire.FlagRounds : 0)
                           | (request.ResidualUngated ? FtzParamsWire.FlagResidualUngated : 0)
-                          | (request.ResidualCandidates ? FtzParamsWire.FlagResidualCandidates : 0),
+                          | (request.ResidualCandidates ? FtzParamsWire.FlagResidualCandidates : 0)
+                          | (request.NoTierB ? FtzParamsWire.FlagNoTierB : 0),
             BudgetMs      = request.BudgetMs.GetValueOrDefault(),
             MaxRounds     = request.MaxRounds,
             ExpireRound   = request.ExpireRound,
         };
+        if (onRound0 is not null)
+        {
+            callback = (_, n, resultsPtr, tiersPtr) =>
+            {
+                try
+                {
+                    n = Math.Clamp(n, 0, MaxResults);
+                    var copy = n == 0 ? [] : new Ft8NativeResult[n];
+                    var tierCopy = new byte[n];
+                    int stride = Marshal.SizeOf<Ft8NativeResultWire>();
+                    for (int i = 0; i < n; i++)
+                    {
+                        var w = Marshal.PtrToStructure<Ft8NativeResultWire>(resultsPtr + i * stride);
+                        byte tier = tiersPtr == IntPtr.Zero ? LeanTier.A : Marshal.ReadByte(tiersPtr, i);
+                        tierCopy[i] = tier;
+                        copy[i] = new Ft8NativeResult { FreqHz = w.FreqHz, Dt = w.Dt, Snr = w.Snr, Message = w.Message, ApKind = tier == LeanTier.CqAp ? ApKind.Cq : ApKind.None };
+                    }
+                    onRound0(new LeanRound0(copy, tierCopy));
+                }
+                catch
+                {
+                    // Nothing may cross the native boundary. A hand-off that failed is seen by the caller as "never delivered": it then publishes batch 1 from the outcome.
+                }
+            };
+            parameters.Round0Callback = Marshal.GetFunctionPointerForDelegate(callback);
+        }
+        if (residual is not null)
+        {
+            residualPin = GCHandle.Alloc(residual, GCHandleType.Pinned);
+            parameters.OutResidual = residualPin.AddrOfPinnedObject();
+        }
+
         var stats = new FtzStatsWire { StructSize = Marshal.SizeOf<FtzStatsWire>() };
         var wire  = new Ft8NativeResultWire[MaxResults];
-        var tiers = new byte[MaxResults];
-        var rounds = new byte[MaxResults];
-        int rc = NativeFtzDecodeCycle(pcm, pcm.Length, ref parameters, wire, MaxResults, tiers, rounds, ref stats);
+        int rc;
+        try
+        {
+            rc = NativeFtzDecodeCycle(pcm, pcm.Length, ref parameters, wire, MaxResults, tiers, rounds, ref stats);
+        }
+        finally
+        {
+            if (residualPin.IsAllocated) residualPin.Free();
+            GC.KeepAlive(callback);
+        }
         stats.Error = rc < 0 ? rc : stats.Error;
 
         int count = rc >= 0 ? rc : stats.NResults;
@@ -1057,7 +1115,12 @@ internal static class Ft8LibInterop
                 ApKind  = tiers[i] == LeanTier.CqAp ? ApKind.Cq : ApKind.None,
             };
         }
-        return new LeanCycleOutcome(results, LeanCycleStats.From(in stats)) { Tiers = count == 0 ? [] : tiers[..count], Rounds = count == 0 ? [] : rounds[..count] };
+        return new LeanCycleOutcome(results, LeanCycleStats.From(in stats))
+        {
+            Tiers = count == 0 ? [] : tiers[..count],
+            Rounds = count == 0 ? [] : rounds[..count],
+            Residual = stats.HasResidual != 0 ? residual : null,
+        };
     }
 
     /// <summary>DR-2 step 2a: frees the lean engine's native worker pool. Does nothing if the library was never loaded.</summary>

@@ -1,4 +1,20 @@
-=== CURRENT: the lean decoder engine, step 2c, the subtract-and-retry loop inside ftz_decode_cycle (FT8_SHIM_VERSION 20260075) ===
+=== CURRENT: the lean decoder engine, step 2d, the round-0 hand-off, the final residual and the no-tier-B flag (FT8_SHIM_VERSION 20260076) ===
+
+Built 2026-11-25 on feat/lean-2d (child of feat/lean-2c 0c2db3b2), local, not pushed. QA handoff dev-tasks/2026-11-25-dr2d-lean-decoder-batches-xc-effort.md
+(qa/same-chain fbd77d16); Architect spec docs/decoder-rebuild/spec-dr2-lean-decoder.md sections 2.1 and 2.3 (S4, effort). OpenSpec change lean-decoder.
+What changed (native). native/ftz_decoder/ftz_decoder.c/.h: ftz_params_t (version 4) gains round0_cb / round0_ctx (called ONCE on the calling thread right after round 0 is unpacked and
+      BEFORE round 1, also with n = 0; the callee copies and returns, it must not call the library), out_residual (the buffer as of the last subtraction made, FT8_EXPECTED_SAMPLES
+      floats; stats.has_residual says it was written; not written when nothing was subtracted, a fit round was stopped, or after a fault) and FTZ_FLAG_NO_TIER_B (decoder.effort = fast).
+      ftz_decode_cycle's argument list is unchanged. FT8Result is UNCHANGED (48 bytes); every classic export and outcome is unchanged.
+Checked here: ASan + UBSan (GCC, WSL Debian), 10,000 fuzz runs with the callback, the residual buffer (NULL and exactly sized) and the no-tier-B flag, and the determinism run at
+1/2/4/2/1 threads including the residual bytes; the managed suites.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    7f0e36d2da93d299783edab6b66934ea79d2453a6e479cee00bad934d23e9108
+  Linux x64 / macOS arm64: NOT rebuilt here; refreshed by CI (the macOS dylib leg is expected and permanent).
+
+
+=== Previous: the lean decoder engine, step 2c, the subtract-and-retry loop inside ftz_decode_cycle (FT8_SHIM_VERSION 20260075) ===
 
 Built 2026-11-25 on feat/lean-2c (child of feat/lean-2b 963f717f), local, not pushed. QA handoff dev-tasks/2026-11-25-dr2c-lean-decoder-subtract-and-retry-loop.md
 (qa/same-chain 60c6f96a); Architect spec docs/decoder-rebuild/spec-dr2-lean-decoder.md section 2.3 S3. OpenSpec change lean-decoder.

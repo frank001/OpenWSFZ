@@ -67,7 +67,9 @@ public sealed record DecoderConfig
         bool crossCyclePriorShadow = false,
         // DR-2 step 2a: in the constructor with their defaults ("classic", 2), for the same reason as the fields above.
         string? engine = DecoderEngineNames.Classic,
-        int threads = DefaultThreads)
+        int threads = DefaultThreads,
+        // DR-2 step 2d: in the constructor with its default ("normal"), for the same reason as the fields above.
+        string? effort = DecoderEffortNames.Normal)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -91,6 +93,7 @@ public sealed record DecoderConfig
         CrossCyclePriorShadow = crossCyclePriorShadow;
         Engine = engine ?? DecoderEngineNames.Classic;
         Threads = threads;
+        Effort = effort ?? DecoderEffortNames.Normal;
     }
 
     /// <summary>The default of <see cref="Threads"/>.</summary>
@@ -380,6 +383,17 @@ public sealed record DecoderConfig
     /// <see cref="Engine"/> <c>classic</c>. The lean engine's output does not depend on it. Config file and API only; read once per window.
     /// </summary>
     public int Threads { get; init; } = DefaultThreads;
+
+    /// <summary>
+    /// DR-2 step 2d (FR-108): how much the lean engine does per cycle, as the config-file string <c>"normal"</c> or <c>"fast"</c>. <b>Default <c>"normal"</c></b>: an absent
+    /// key, a missing <c>decoder</c> section and any unrecognised value read as <c>normal</c> (see <see cref="GetEffortKind"/>). <c>"fast"</c> runs no tier B and one
+    /// subtract-and-retry round. No effect with <see cref="Engine"/> <c>classic</c>. The string is kept as written; config file and API only; the POST is an overlay;
+    /// read once per window, effective on the next window.
+    /// </summary>
+    public string Effort { get; init; } = DecoderEffortNames.Normal;
+
+    /// <summary><see cref="Effort"/> as the enum (a method, not a property, for the same reason as <see cref="GetEngineKind"/>): <c>fast</c> only for the word "fast".</summary>
+    public DecoderEffort GetEffortKind() => DecoderEffortNames.Parse(Effort);
 
     /// <summary><see cref="Threads"/> clamped to [<see cref="MinThreads"/>, <see cref="MaxThreads"/>].</summary>
     [JsonIgnore]

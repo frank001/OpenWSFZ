@@ -44,3 +44,12 @@
 - [x] 6.4 Tests (`LeanEngineRoundsTests`, `LeanEngineWiringTests`): masked signal, payload equality with classic's residual pass, patch window, accept rules, stop rules, determinism at 1, 2 and 4 threads, budget
 - [x] 6.5 Native harness (ASan + UBSan) runs the loop in the determinism run and on mutated real audio
 - [x] 6.6 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`
+
+## 7. Step 2d (three batches, XC on the residual, effort)
+
+- [x] 7.1 `ftz_decoder.c/.h`: `round0_cb` / `round0_ctx` (the hand-off after round 0, before round 1), `out_residual` and `has_residual`, `FTZ_FLAG_NO_TIER_B`; params version 4
+- [x] 7.2 `FT8_SHIM_VERSION` 20260076; `libft8.dll` rebuilt; `libft8.version.txt`
+- [x] 7.3 Managed: `DecodeLeanCycle` with the hand-off (copy, swallow, never throw across), `DecodeLeanAsync` with the three batches, the shared `RunCrossCycleStageSharedAsync` (classic and lean, one body), priors from batches 1 and 2, `decoder.effort` (`DecoderEffort`, config, daemon), the pump's `LeanEngine` hook, the extended `lean:` line
+- [x] 7.4 Tests (`LeanEngineBatchesTests`, `LeanEngineBatchesNativeTests`, `LateBatch4Tests`, `LeanEngineConfigTests`, `LeanEngineWiringTests`): batch 1 before round 1 (native held inside the hand-off), empty batch 1, one text once, priors, XC on the residual (and the skip, the veto, the shadow), effort, routing, determinism including the residual bytes
+- [x] 7.5 Native harness (ASan + UBSan) runs the callback, the residual buffer (NULL and exactly sized) and the no-tier-B flag in the determinism run and the fuzz
+- [x] 7.6 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`

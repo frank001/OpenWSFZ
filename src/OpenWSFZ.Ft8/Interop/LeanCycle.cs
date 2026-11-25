@@ -9,10 +9,13 @@ namespace OpenWSFZ.Ft8.Interop;
 /// <paramref name="MaxRounds"/> caps it (0 = 3), <paramref name="ResidualUngated"/> and <paramref name="ResidualCandidates"/> carry
 /// <c>decoder.coherentFallbackResidualUngated</c> and <c>decoder.coherentFallbackResidualCandidates</c> (each only with the fallback audio mode Both),
 /// and <paramref name="ExpireRound"/> is a TEST HOOK: the budget is treated as gone at that round's decode stage (0 = none).
+/// Step 2d: <paramref name="NoTierB"/> is <c>decoder.effort = fast</c> (no tier B in any round; the caller also sets <paramref name="MaxRounds"/> to 1) and
+/// <paramref name="WantResidual"/> asks for the final residual buffer (<see cref="LeanCycleOutcome.Residual"/>).
 /// </summary>
 internal readonly record struct LeanCycleParams(
     int Threads, bool CqAp = false, int? BudgetMs = null, int MaxCandidates = 0,
-    bool Rounds = false, int MaxRounds = 0, bool ResidualUngated = false, bool ResidualCandidates = false, int ExpireRound = 0);
+    bool Rounds = false, int MaxRounds = 0, bool ResidualUngated = false, bool ResidualCandidates = false, int ExpireRound = 0,
+    bool NoTierB = false, bool WantResidual = false);
 
 /// <summary>Where a lean result came from (the native <c>FTZ_TIER_*</c> values).</summary>
 internal static class LeanTier
@@ -29,7 +32,7 @@ internal static class LeanTier
 
 /// <summary>
 /// Mirror of the native <c>ftz_params_t</c> (<c>native/ftz_decoder/ftz_decoder.h</c>): ten 32-bit integers, 40 bytes. A zero field means the
-/// primary pass's value (or "off") on the native side.
+/// primary pass's value (or "off") on the native side. Step 2d adds three pointers (the round-0 callback, its context and the residual buffer): 64 bytes.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct FtzParamsWire
@@ -44,6 +47,12 @@ internal struct FtzParamsWire
     public int Reserved;
     public int MaxRounds;
     public int ExpireRound;
+    public IntPtr Round0Callback;
+    public IntPtr Round0Context;
+    public IntPtr OutResidual;
+
+    /// <summary><c>FTZ_FLAG_NO_TIER_B</c>.</summary>
+    public const int FlagNoTierB = 32;
 
     /// <summary><c>FTZ_FLAG_CQ_AP</c>.</summary>
     public const int FlagCqAp = 1;
@@ -86,7 +95,7 @@ internal struct FtzStatsWire
     public int NRounds;
     public int NBEligible, NBAttempted, NBCrcValid, NBF1b, NBGated, NBPublished, NBEdge, NBSkipped;
     public int NCqAttempts, NCqDecodes;
-    public int NUngated, Reserved2;
+    public int NUngated, HasResidual;
     public long SpectrogramWallUs, SpectrogramCpuUs;
     public long CandidatesWallUs, CandidatesCpuUs;
     public long TierAWallUs, TierACpuUs;
@@ -213,4 +222,16 @@ internal readonly record struct LeanCycleOutcome(Ft8NativeResult[] Results, Lean
 
     /// <summary>The round (0 to 3) in which each result was found, index-aligned with <see cref="Results"/>; empty means every result is round 0.</summary>
     public byte[] Rounds { get; init; } = [];
+
+    /// <summary>
+    /// Step 2d: the residual buffer as of the last subtraction made (180 000 samples, the conditioned audio less every fitted signal), or <c>null</c> when the cycle
+    /// subtracted nothing, a fit round was stopped, or none was asked for. Results found in the last round are NOT subtracted from it.
+    /// </summary>
+    public float[]? Residual { get; init; }
 }
+
+/// <summary>
+/// Step 2d: what the native engine hands over right after round 0 is unpacked, before round 1 starts: round 0's results and their tiers. It is a copy; the native
+/// call goes on while the consumer holds it.
+/// </summary>
+internal sealed record LeanRound0(Ft8NativeResult[] Results, byte[] Tiers);

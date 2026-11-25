@@ -92,6 +92,8 @@ internal sealed class Ft8NativeInteropAdapter : IFt8NativeInterop
 
     public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => Ft8LibInterop.DecodeLeanCycle(pcm, request);
 
+    public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0) => Ft8LibInterop.DecodeLeanCycle(pcm, request, onRound0);
+
     public void LeanShutdown() => Ft8LibInterop.LeanShutdown();
 
     public void SetDiagnosticsEnabled(bool enabled) => Ft8LibInterop.SetDiagnosticsEnabled(enabled);

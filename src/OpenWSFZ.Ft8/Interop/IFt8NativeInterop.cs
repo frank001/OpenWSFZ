@@ -234,6 +234,24 @@ internal interface IFt8NativeInterop
     /// </summary>
     LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => throw new NotSupportedException("This interop does not model the lean engine.");
 
+    /// <summary>
+    /// DR-2 step 2d: as <see cref="DecodeLeanCycle(float[], LeanCycleParams)"/>, and <paramref name="onRound0"/> (may be null) is called once, on the decoding thread,
+    /// right after round 0 is unpacked and before round 1 starts, with a COPY of round 0's results; it must return quickly and must not throw. The default calls
+    /// the plain overload and then <paramref name="onRound0"/> with the results tagged round 0 (a fake that does not model the hand-off still delivers batch 1).
+    /// </summary>
+    LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0)
+    {
+        var outcome = DecodeLeanCycle(pcm, request);
+        if (onRound0 is not null)
+        {
+            var idx = Enumerable.Range(0, outcome.Results.Length).Where(i => i >= outcome.Rounds.Length || outcome.Rounds[i] == 0).ToArray();
+            onRound0(new LeanRound0(
+                idx.Select(i => outcome.Results[i]).ToArray(),
+                idx.Select(i => i < outcome.Tiers.Length ? outcome.Tiers[i] : LeanTier.A).ToArray()));
+        }
+        return outcome;
+    }
+
     /// <summary>DR-2 step 2a: frees the lean engine's native worker pool at decoder dispose. Default: no-op.</summary>
     void LeanShutdown() { }
 

@@ -160,3 +160,35 @@ The per-cycle `lean:` line SHALL add, as counts and milliseconds only, the round
 
 - **WHEN** a cycle runs round 1
 - **THEN** the line SHALL show the fit CPU and the search CPU as separate figures
+
+### Requirement: The lean cycle publishes three batches, batch 1 before round 1
+
+With the lean engine a cycle SHALL be decoded through the staged entry whatever the classic switches say. Batch 1 (round 0's results) SHALL be delivered exactly once, always (empty if nothing was decoded or the native call failed), and SHALL be handed over by the native call right after round 0 is unpacked, so that it is published while rounds 1 to 3 run; the native call SHALL NOT wait on the consumer. Batch 2 (rounds 1 to 3) and batch 3 (the cross-cycle stage's detections) SHALL be delivered only when non-empty. A text SHALL be published once per cycle across the batches.
+
+#### Scenario: Batch 1 leaves before round 1
+
+- **WHEN** the native call is held inside round 0's hand-off until the publisher has batch 1
+- **THEN** batch 1 SHALL reach the publisher (the hand-off SHALL NOT time out), before the native call returns
+
+#### Scenario: A native error
+
+- **WHEN** the native call fails with nothing written
+- **THEN** batch 1 SHALL still be delivered once, empty, and no other batch
+
+### Requirement: The cross-cycle stage runs on the lean engine's final residual
+
+With `decoder.crossCyclePrior` on, the native call SHALL return the final residual (the buffer as of the last subtraction made; results found in the last round are not subtracted for its sake). The existing template stage SHALL run on it unchanged and publish its detections as batch 3 with the template provenance tag, never entering the prior store; priors SHALL be recorded from batches 1 and 2. A cycle in which nothing was subtracted SHALL have no residual and the stage SHALL be a counted, logged skip. The residual SHALL be the same bytes at any thread count.
+
+#### Scenario: A prior is found on the residual
+
+- **WHEN** a message published 30 s earlier is present below the decode threshold in this cycle's audio
+- **THEN** it SHALL be published as batch 3, and the prior store SHALL be unchanged by it
+
+### Requirement: `decoder.effort` fast runs no tier B and one round
+
+`decoder.effort` SHALL be `normal` (default) or `fast`; an absent key and any unknown value SHALL read `normal`. It SHALL be read once per cycle and apply only with the lean engine. `fast` SHALL run no tier B and at most one subtract-and-retry round; CQ-AP and the cross-cycle stage SHALL be unchanged.
+
+#### Scenario: Fast
+
+- **WHEN** a cycle is decoded with effort fast
+- **THEN** the statistics SHALL show tier B neither eligible nor attempted and at most one round run
