@@ -6,8 +6,10 @@
  * waterfall (monitor.c, KISS FFT), ftx_find_candidates, the magnitude likelihood extraction, ldpc.c, crc.c, message.c.
  * No line of WSJT-X is copied or ported. See native/ft8_lib_vendor/PROVENANCE.md for the vendored sources.
  *
- * One call per 15 s cycle: spectrogram, candidate search, tier A (magnitude LLRs, belief propagation, CRC), unpack.
- * No tier B, no CQ-AP, no OSD, no subtraction loop in step 2a.
+ * One call per 15 s cycle: spectrogram, candidate search, tier A (magnitude LLRs, belief propagation, CRC), tier B, CQ-AP, unpack
+ * (round 0, steps 2a and 2b); then, with FTZ_FLAG_ROUNDS, up to three subtract-and-retry rounds (step 2c, shim 20260075): subtract what
+ * was found, re-compute the residual's spectrogram, search only where the subtraction happened, decode those candidates the same way.
+ * No OSD.
  */
 #ifndef FTZ_DECODER_H
 #define FTZ_DECODER_H
@@ -26,7 +28,7 @@ extern "C" {
 #define FTZ_ERR_FAULT    (-3)   /* an access violation was caught by the SEH wrapper (MSVC builds only)                 */
 #define FTZ_ERR_BADAUDIO (-4)   /* a sample is NaN, infinite or beyond +-FTZ_MAX_ABS_SAMPLE: not decodable audio        */
 
-#define FTZ_PARAMS_VERSION   2
+#define FTZ_PARAMS_VERSION   3
 #define FTZ_MIN_THREADS      1
 #define FTZ_MAX_THREADS      8
 #define FTZ_DEFAULT_THREADS  2
@@ -35,6 +37,15 @@ extern "C" {
 /* ftz_params_t.flags */
 #define FTZ_FLAG_CQ_AP   1   /* run the CQ a-priori attempt (FR-103) on candidates that failed tier A and tier B                   */
 #define FTZ_FLAG_BUDGET  2   /* budget_ms is a real wall-clock budget (0 then means "none left"); without it there is no budget  */
+#define FTZ_FLAG_ROUNDS  4   /* step 2c: run the subtract-and-retry rounds after round 0 (without it the call is the step-2b call)   */
+#define FTZ_FLAG_RESIDUAL_UNGATED 8    /* a residual tier-B row whose F1b is above T1 is published (decoder.coherentFallbackResidualUngated)   */
+#define FTZ_FLAG_RESIDUAL_CANDS   16   /* residual tier-B rows are kept only if F1b-passed and at most 1097 Hz (decoder.coherentFallbackResidualCandidates) */
+
+#define FTZ_MAX_ROUNDS            3      /* rounds after round 0                                                                 */
+#define FTZ_PATCH_BELOW_HZ        50.0f  /* a residual candidate is searched only within [f - 50, f + 100] Hz of a signal subtracted in the round */
+#define FTZ_PATCH_ABOVE_HZ        100.0f
+#define FTZ_RESIDUAL_RUN_MAX_HZ   1097   /* CohFallbackAudioSelector.ResidualRunMaxFreqHz                                         */
+#define FTZ_RESIDUAL_RESERVE_MS   1500   /* SubtractionPass.SubtractionResidualDecodeReserve: a round is not started with less left */
 
 /* Which tier produced a result (the optional out_tiers array of ftz_decode_cycle). */
 #define FTZ_TIER_A   0
@@ -53,10 +64,34 @@ typedef struct
     int32_t flags;            /* FTZ_FLAG_*                                                                               */
     int32_t budget_ms;        /* with FTZ_FLAG_BUDGET: wall-clock ms the cycle may still spend; tier B and CQ-AP stop at it */
     int32_t reserved;
+    int32_t max_rounds;       /* with FTZ_FLAG_ROUNDS: rounds after round 0, clamped to [1, 3]; 0 = 3                       */
+    int32_t expire_round;     /* TEST HOOK: the round (1 to 3) at whose decode stage the budget is treated as gone; 0 = none */
 } ftz_params_t;
 
+/* Per-round aggregates (step 2c). Counts, then microseconds: wall, and CPU summed over the threads that worked on the stage.
+ * Eight 32-bit fields and nine 64-bit times: 32 + 72 = 104 bytes. Round 0 fills only the counts that apply to it. */
+typedef struct
+{
+    int32_t n_fits;             /* signals handed to the fit (the re-encodable results of the previous round)               */
+    int32_t n_subtracted;       /* of those, fits that answered 0 and were subtracted                                       */
+    int32_t n_fit_none;         /* fits that answered -3 ("no valid fit"): contribute zero                                  */
+    int32_t n_found;            /* candidates ftx_find_candidates returned                                                  */
+    int32_t n_kept;             /* of those, kept by the patch rule (round 0: all)                                          */
+    int32_t n_tier_a;           /* kept candidates whose tier A attempt produced a CRC-valid payload                        */
+    int32_t n_results;          /* results this round published                                                             */
+    int32_t n_ungated;          /* tier-B rows this round published only because of the ungating                            */
+    int64_t sub_wall_us;        /* the whole subtract step: the fits and the sum into the residual                          */
+    int64_t fit_cpu_us;         /* CPU of the fits, summed over the workers                                                  */
+    int64_t sum_cpu_us;         /* CPU of the sum into the residual (calling thread)                                         */
+    int64_t spec_wall_us, spec_cpu_us;       /* the residual's spectrogram (round 0: the first spectrogram)                  */
+    int64_t search_wall_us, search_cpu_us;   /* ftx_find_candidates and the patch rule                                       */
+    int64_t decode_wall_us, decode_cpu_us;   /* tier A, tier B, CQ-AP and unpack                                              */
+} ftz_round_stats_t;
+
 /* Output statistics (aggregates only, never message text). Times are microseconds: wall per stage, and CPU summed over the
- * threads that worked on the stage. Eight 32-bit fields, twelve more, then the 64-bit times: 80 + 14 * 8 = 192 bytes. */
+ * threads that worked on the stage. The counts and stage times of the first part are CUMULATIVE over all rounds (with the loop
+ * off they are round 0's, as in step 2b). Twenty 32-bit fields and fourteen 64-bit times (80 + 112 = 192 bytes), then four
+ * ftz_round_stats_t (416 bytes): 608 bytes. */
 typedef struct
 {
     int32_t struct_size;
@@ -66,8 +101,8 @@ typedef struct
     int32_t n_results;          /* results written to the output array                                                      */
     int32_t threads;            /* the effective worker count used                                                          */
     int32_t abandoned;          /* 1 if the budget stopped tier B or CQ-AP, or the output array was too small; else 0       */
-    int32_t reserved0;
-    int32_t n_b_eligible;       /* candidates that failed tier A, not a duplicate position                                  */
+    int32_t n_rounds;           /* subtract-and-retry rounds run (0 to 3): 0 when the loop is off or round 0 left nothing to subtract */
+    int32_t n_b_eligible;      /* candidates that failed tier A, not a duplicate position                                  */
     int32_t n_b_attempted;      /* of those, run through the coherent estimate + LLRs + BP (not skipped by the budget)      */
     int32_t n_b_crc_valid;      /* attempted with a CRC-valid output                                                        */
     int32_t n_b_f1b;            /* CRC-valid with a payload tier A did not produce: F1b computed                            */
@@ -77,7 +112,8 @@ typedef struct
     int32_t n_b_skipped;        /* eligible candidates the budget kept tier B from attempting                               */
     int32_t n_cq_attempts;      /* CQ-AP attempts (candidates that failed tier A and tier B)                                */
     int32_t n_cq_decodes;       /* CQ-AP rows in the output                                                                 */
-    int32_t reserved1, reserved2;
+    int32_t n_ungated;          /* residual tier-B rows published only because the ungating is on (F1b above T1)           */
+    int32_t reserved2;
     int64_t spectrogram_wall_us, spectrogram_cpu_us;
     int64_t candidates_wall_us, candidates_cpu_us;
     int64_t tier_a_wall_us,     tier_a_cpu_us;
@@ -85,6 +121,7 @@ typedef struct
     int64_t cq_ap_wall_us,      cq_ap_cpu_us;
     int64_t unpack_wall_us,     unpack_cpu_us;
     int64_t total_wall_us,      total_cpu_us;
+    ftz_round_stats_t rounds[FTZ_MAX_ROUNDS + 1];   /* [0] = round 0 (the step-2b work), [1..3] = the subtract-and-retry rounds */
 } ftz_stats_t;
 
 #define FTZ_MAX_CANDIDATES 256
@@ -97,11 +134,26 @@ typedef struct
  *   out_results  caller-allocated array of FT8Result (ft8_shim.h, 48 bytes each), capacity cap.
  *   out_tiers    may be NULL; else cap bytes, the tier (FTZ_TIER_*) of each result.
  *   out_stats    may be NULL.
- * Returns the number of results, sorted by frequency, then time, then payload (a hash-free stand-in for the text, so that
- * nothing touches the callsign table before the order is fixed). The same audio and the same starting callsign-table
+ *   out_rounds   may be NULL; else cap bytes, the round (0 to 3) in which each result was found.
+ * Returns the number of results, round by round, each round sorted by frequency, then time, then payload (a hash-free stand-in for the
+ * text, so that nothing touches the callsign table before the order is fixed). The same audio and the same starting callsign-table
  * state give the same bytes for every thread count. Returns FTZ_ERR_* (< 0) on an error; never raises.
  */
-int ftz_decode_cycle(const float* pcm, int n, const ftz_params_t* params, void* out_results, int cap, uint8_t* out_tiers, ftz_stats_t* out_stats);
+int ftz_decode_cycle(const float* pcm, int n, const ftz_params_t* params, void* out_results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* out_stats);
+
+/* Test exports: the accept rules of step 2c as pure functions, which the cycle itself calls. */
+
+/* 1 if a residual candidate with this base frequency lies in [f - 50, f + 100] Hz of any of the n_sub signals subtracted in the round. */
+int ftz_patch_keep(float base_hz, const float* sub_hz, int n_sub);
+
+/* 1 if candidate (a 10-byte, 77-bit payload) is the SAME transmission as known: bit-identical, or known carries the standard RR73 sentinel
+ * and candidate the on-air one with the same two calls (SubfeasPayload.SameQso). */
+int ftz_payload_same_qso(const uint8_t* known, const uint8_t* candidate);
+
+/* 1 if a CRC-valid, new tier-B row of a residual round is published. f1b_passed: F1b <= T1. With the candidates rule on: only an F1b-passed row
+ * at most 1097 Hz; otherwise an F1b-passed row, or (ungated on) any row. *ungated_out (may be NULL) is set to 1 when the row is published
+ * ONLY because of the ungating. */
+int ftz_residual_b_accept(int f1b_passed, int published_freq_hz, int ungated_on, int rescand_on, int* ungated_out);
 
 /* Stops and frees the worker pool. Safe to call at any time (also when there is none) and to call twice; the pool is
  * re-created by the next ftz_decode_cycle. The daemon calls it on shutdown. */

@@ -1763,6 +1763,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         var sw = BudgetClock.StartNew(_timeProvider);
         int threads = _leanThreads;
         bool cqAp = _cqApEnabled;   // read ONCE per cycle, like every classic flag
+        // Step 2c: the residual rules read the same settings as the classic path, once per cycle, and act only in Both mode (as there).
+        bool bothAudio       = _coherentFallbackAudio == CoherentFallbackAudio.Both;
+        bool residualUngated = _coherentFallbackResidualUngated && bothAudio;
+        bool residualCands   = _coherentFallbackResidualCandidates && bothAudio;
 
         // The same input conditioning as the primary pass today (input scaling is a closed arm): a normalised COPY, the caller's buffer is never mutated.
         float[] normalisedPcm = NormalisePcm(pcm, PcmNormalisationTargetRms);
@@ -1772,7 +1776,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         {
             // The cycle's wall-clock budget, as the classic staged decode has it: 13 s less the publish reserve. Tier B and CQ-AP stop between candidates when it is spent.
             int budgetMs = (int)Math.Max(0, (SubtractionCycleBudget - CoherentFallbackPublishReserve - sw.Elapsed).TotalMilliseconds);
-            var request  = new LeanCycleParams(threads, cqAp, budgetMs);
+            var request  = new LeanCycleParams(threads, cqAp, budgetMs, Rounds: true, ResidualUngated: residualUngated, ResidualCandidates: residualCands);
             outcome = await Task.Run(() => _interop.DecodeLeanCycle(normalisedPcm, request), ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -1799,12 +1803,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             "tierB: eligible={BEligible} attempted={BAttempted} crc={BCrc} f1b={BF1b} gated={BGated} published={BPublished} edge={BEdge} skipped={BSkipped} " +
             "cqAp: attempts={CqAttempts} decodes={CqDecodes} " +
             "wall_ms spectrogram={SpecWall:F1} candidates={CandWall:F1} tierA={TierAWall:F1} tierB={TierBWall:F1} cqAp={CqWall:F1} unpack={UnpackWall:F1} total={TotalWall:F1} " +
-            "cpu_ms spectrogram={SpecCpu:F1} candidates={CandCpu:F1} tierA={TierACpu:F1} tierB={TierBCpu:F1} cqAp={CqCpu:F1} unpack={UnpackCpu:F1} total={TotalCpu:F1}.",
+            "cpu_ms spectrogram={SpecCpu:F1} candidates={CandCpu:F1} tierA={TierACpu:F1} tierB={TierBCpu:F1} cqAp={CqCpu:F1} unpack={UnpackCpu:F1} total={TotalCpu:F1} " +
+            "s3: rounds={RoundsRun} ungated={Ungated} wall_ms={S3Wall:F1} cpu_ms={S3Cpu:F1} fitCpu_ms={S3Fit:F1} searchCpu_ms={S3Search:F1} decodeCpu_ms={S3Decode:F1} otherCpu_ms={S3Other:F1}{RoundDetail}.",
             timeStr, st.Candidates, st.TierADecodes, st.Results, st.Threads, st.Abandoned ? 1 : 0, st.Error,
             st.TierBEligible, st.TierBAttempted, st.TierBCrcValid, st.TierBF1b, st.TierBGated, st.TierBPublished, st.TierBEdge, st.TierBSkipped,
             st.CqApAttempts, st.CqApDecodes,
             st.SpectrogramWallUs / 1000.0, st.CandidatesWallUs / 1000.0, st.TierAWallUs / 1000.0, st.TierBWallUs / 1000.0, st.CqApWallUs / 1000.0, st.UnpackWallUs / 1000.0, st.TotalWallUs / 1000.0,
-            st.SpectrogramCpuUs / 1000.0, st.CandidatesCpuUs / 1000.0, st.TierACpuUs / 1000.0, st.TierBCpuUs / 1000.0, st.CqApCpuUs / 1000.0, st.UnpackCpuUs / 1000.0, st.TotalCpuUs / 1000.0);
+            st.SpectrogramCpuUs / 1000.0, st.CandidatesCpuUs / 1000.0, st.TierACpuUs / 1000.0, st.TierBCpuUs / 1000.0, st.CqApCpuUs / 1000.0, st.UnpackCpuUs / 1000.0, st.TotalCpuUs / 1000.0,
+            st.RoundsRun, st.Ungated, st.S3WallUs / 1000.0, st.S3CpuUs / 1000.0, st.S3FitCpuUs / 1000.0, st.S3SearchCpuUs / 1000.0, st.S3DecodeCpuUs / 1000.0, st.S3OtherCpuUs / 1000.0,
+            FormatLeanRounds(st));
 
         var seen   = new HashSet<string>(StringComparer.Ordinal);
         var mapped = new List<DecodeResult>(outcome.Results.Length);
@@ -1870,6 +1877,25 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms.",
             timeStr, mapped.Count, sw.ElapsedMilliseconds);
         return mapped;
+    }
+
+    /// <summary>
+    /// Step 2c: the per-round part of the <c>lean:</c> line, one group per round that started (counts and milliseconds only, HK-037):
+    /// <c> r1[fits=.. subtracted=.. fitNone=.. found=.. kept=.. tierA=.. results=.. ungated=.. wall_ms sub=.. spec=.. search=.. decode=.. cpu_ms fit=.. sum=.. spec=.. search=.. decode=..]</c>.
+    /// </summary>
+    internal static string FormatLeanRounds(LeanCycleStats st)
+    {
+        var sb = new System.Text.StringBuilder();
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        for (int r = 1; r < st.Rounds.Length; r++)
+        {
+            LeanRoundStats x = st.Rounds[r];
+            if (x.Fits == 0) continue;   // the round never started
+            sb.Append(ic, $" r{r}[fits={x.Fits} subtracted={x.Subtracted} fitNone={x.FitNone} found={x.Found} kept={x.Kept} tierA={x.TierA} results={x.Results} ungated={x.Ungated} ")
+              .Append(ic, $"wall_ms sub={x.SubWallUs / 1000.0:F1} spec={x.SpecWallUs / 1000.0:F1} search={x.SearchWallUs / 1000.0:F1} decode={x.DecodeWallUs / 1000.0:F1} ")
+              .Append(ic, $"cpu_ms fit={x.FitCpuUs / 1000.0:F1} sum={x.SumCpuUs / 1000.0:F1} spec={x.SpecCpuUs / 1000.0:F1} search={x.SearchCpuUs / 1000.0:F1} decode={x.DecodeCpuUs / 1000.0:F1}]");
+        }
+        return sb.ToString();
     }
 
     private CohFallbackRunResult? RunCoherentFallback(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, string timeStr, CancellationToken ct)

@@ -35,3 +35,12 @@
 - [x] 5.4 Tests: tier-B equality with the classic fallback, the gate and one-row-per-payload, CQ-AP on a drifting carrier, determinism over the tiers at 1, 2, 4 and 8 threads, the budget, the order comparison of the task's section 3
 - [x] 5.5 Native harness (ASan + UBSan, 10,000 runs) extended to tier B, CQ-AP and random budgets
 - [x] 5.6 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`
+
+## 6. Step 2c (the subtract-and-retry loop)
+
+- [x] 6.1 `ftz_decoder.c`: rounds 1 to 3 (`FTZ_FLAG_ROUNDS`): subtraction with `ft8_subfeas_fit_signal` on the original analytic signal, chunks of 16 fits on the worker pool summed in sorted order, the residual spectrogram, the residual search, the patch rule, the residual accept rules, the all-or-nothing budget with the 1,500 ms reserve, `out_rounds`, per-round statistics; test exports `ftz_patch_keep`, `ftz_payload_same_qso`, `ftz_residual_b_accept`
+- [x] 6.2 `FT8_SHIM_VERSION` 20260075; `libft8.dll` rebuilt; `libft8.version.txt`
+- [x] 6.3 Managed: `LeanCycleParams` (rounds, residual settings, test hook), wire structs, `LeanRoundStats`, the extended `lean:` line with the fit / search / decode CPU split
+- [x] 6.4 Tests (`LeanEngineRoundsTests`, `LeanEngineWiringTests`): masked signal, payload equality with classic's residual pass, patch window, accept rules, stop rules, determinism at 1, 2 and 4 threads, budget
+- [x] 6.5 Native harness (ASan + UBSan) runs the loop in the determinism run and on mutated real audio
+- [x] 6.6 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`

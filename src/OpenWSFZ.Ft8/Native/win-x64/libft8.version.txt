@@ -1,4 +1,24 @@
-=== CURRENT: the lean decoder engine, step 2b, tier B (the coherent fallback) and CQ-AP inside ftz_decode_cycle (FT8_SHIM_VERSION 20260074) ===
+=== CURRENT: the lean decoder engine, step 2c, the subtract-and-retry loop inside ftz_decode_cycle (FT8_SHIM_VERSION 20260075) ===
+
+Built 2026-11-25 on feat/lean-2c (child of feat/lean-2b 963f717f), local, not pushed. QA handoff dev-tasks/2026-11-25-dr2c-lean-decoder-subtract-and-retry-loop.md
+(qa/same-chain 60c6f96a); Architect spec docs/decoder-rebuild/spec-dr2-lean-decoder.md section 2.3 S3. OpenSpec change lean-decoder.
+What changed (native). native/ftz_decoder/ftz_decoder.c/.h: with FTZ_FLAG_ROUNDS, after round 0, up to three rounds: subtract the not-yet-subtracted re-encodable results
+      (ft8_subfeas_fit_signal on the original audio's analytic signal, 16 fits per job on the worker pool, summed in the sorted result order), the residual's spectrogram, a
+      residual search (floor s_k_min_score_pass2, cap 200) kept to [f - 50, f + 100] Hz of the signals subtracted in the round, tier A / B / CQ-AP on those, the residual accept
+      rules (payload dedup incl. the RR73-aware same transmission, text dedup, residual tier-B ungating and the 1097 Hz rule), an all-or-nothing budget with a 1,500 ms reserve.
+      ftz_decode_cycle gains an out_rounds array; ftz_params_t gains max_rounds and expire_round (a test hook); ftz_stats_t gains per-round statistics.
+      New test exports: ftz_patch_keep, ftz_payload_same_qso, ftz_residual_b_accept.
+  ft8_shim.c/.h            FT8_SHIM_VERSION 20260075. FT8Result is UNCHANGED (48 bytes); every classic export and every classic decode outcome is unchanged. Nothing in decode.c,
+      coherent_fallback.c, subfeas_fit.c or any classic function is touched.
+Checked here: the native harness under AddressSanitizer + UndefinedBehaviorSanitizer (GCC, WSL Debian; native/ftz_decoder/tests/run_asan.sh), 10,000 fuzz runs with the loop on
+and on mutated real audio, determinism at 1/2/4/2/1 threads with the loop on; the managed suites.
+
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    627a9f665ebb0c5c09b0eaa1ca7be4bdf9445421fa12b5c0d478f3b19fa62415
+  Linux x64 / macOS arm64: NOT rebuilt here; refreshed by CI (the macOS dylib leg is expected and permanent).
+
+
+=== Previous: the lean decoder engine, step 2b, tier B (the coherent fallback) and CQ-AP inside ftz_decode_cycle (FT8_SHIM_VERSION 20260074) ===
 
 Built 2026-11-24 on feat/lean-2b (child of feat/lean-2a 19d8f9fb), local, not pushed. QA handoff dev-tasks/2026-11-24-dr2b-lean-decoder-tier-b-cq-ap.md
 (qa/same-chain d3d0ee06); Architect spec docs/decoder-rebuild/spec-dr2-lean-decoder.md (arch/decoder-rebuild 68f7f15e) section 2.3 S2 steps 3 and 4. OpenSpec change lean-decoder.

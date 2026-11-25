@@ -114,3 +114,49 @@ The managed layer SHALL give the native call the 13 s cycle budget less the 250 
 
 - **WHEN** the budget is 0 ms
 - **THEN** no tier-B or CQ-AP row SHALL be returned, abandoned SHALL be set, every eligible candidate SHALL be counted as skipped, and nothing SHALL crash
+
+### Requirement: Subtract-and-retry rounds find signals the subtraction unmasks
+
+With the loop on (the managed layer always asks for it), after round 0 the native call SHALL run up to three rounds. A round SHALL subtract every result not yet subtracted whose unpacked text is re-encodable (no hash placeholder, at least three tokens) from a residual buffer using the data-aided fit on the original audio's analytic signal (computed once per cycle; the tones from the payload; a fit that answers "no valid fit" contributes zero; the fits run on the worker pool and are summed in the sorted result order), recompute the residual's spectrogram in full, search it (minimum score the decoder's residual floor, at most 200 candidates), keep only candidates whose base frequency lies within 50 Hz below to 100 Hz above a signal subtracted in that round, and decode those with tier A, tier B and CQ-AP. The loop SHALL stop when a round adds nothing, after round 3, or when the budget is gone; every result SHALL carry its round.
+
+#### Scenario: A masked signal
+
+- **WHEN** a weak message that a strong signal masks in round 0 is decoded with the loop on and off
+- **THEN** with the loop on the weak message SHALL be published, tagged round 1, and with the loop off only the strong one SHALL be
+
+#### Scenario: The patch window
+
+- **WHEN** a residual candidate lies outside 50 Hz below to 100 Hz above every signal subtracted in the round
+- **THEN** it SHALL NOT be attempted
+
+#### Scenario: Nothing more to find
+
+- **WHEN** round 1 finds nothing new
+- **THEN** the cycle SHALL run no further round and report one round run
+
+### Requirement: A residual decode is published under today's gates only
+
+A residual decode SHALL be dropped if its payload equals, or is the RR73-aware same transmission of, any payload already found in the cycle, and if its text was already published in the cycle. A residual tier-B row SHALL be published if its F1b is at most T1, or (with `decoder.coherentFallbackResidualUngated` on and the fallback audio mode Both) whatever its F1b, counted as ungated; with `decoder.coherentFallbackResidualCandidates` on (Both mode) only an F1b-passed row at most 1097 Hz SHALL be published, and with it off that frequency rule SHALL NOT apply.
+
+#### Scenario: The 1097 Hz rule
+
+- **WHEN** an F1b-passed residual tier-B row is at 1098 Hz
+- **THEN** it SHALL be dropped with the residual-candidates setting on and published with it off
+
+### Requirement: A round the budget stops publishes nothing
+
+A round SHALL NOT start with less than 1,500 ms of the budget left, the fits SHALL be cancelled at the budget less that reserve, and a round the budget stops SHALL publish nothing, set abandoned and end the loop, earlier rounds standing.
+
+#### Scenario: A zero budget starts no round
+
+- **WHEN** the budget is 0 ms
+- **THEN** no round SHALL run and round 0's results SHALL be returned
+
+### Requirement: The log line splits the subtraction cost
+
+The per-cycle `lean:` line SHALL add, as counts and milliseconds only, the rounds run, the ungated count, the wall and CPU of the whole subtract-and-retry stage, its fit CPU, search CPU and decode CPU separately, and per round the signals fitted, subtracted and with no valid fit, the candidates found and kept, the results, and the wall and CPU of each step.
+
+#### Scenario: Fit and search shown apart
+
+- **WHEN** a cycle runs round 1
+- **THEN** the line SHALL show the fit CPU and the search CPU as separate figures

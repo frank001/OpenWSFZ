@@ -229,6 +229,9 @@ link /DLL ^
   /EXPORT:ft8_cq_ap_probe_llrs ^
   /EXPORT:ftz_decode_cycle ^
   /EXPORT:ftz_shutdown ^
+  /EXPORT:ftz_patch_keep ^
+  /EXPORT:ftz_payload_same_qso ^
+  /EXPORT:ftz_residual_b_accept ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\decode.obj" ^

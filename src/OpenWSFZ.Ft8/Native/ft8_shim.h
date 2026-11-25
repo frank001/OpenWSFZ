@@ -865,8 +865,11 @@ extern "C" {
  *              unchanged. The classic path is not entered by the new entry points and does not call them.
  *   20260074 — DR-2 step 2b: ftz_decode_cycle gains tier B (the coherent fallback per candidate, one coherent context per worker, F1b <= T1) and CQ-AP, a wall-clock
  *              budget, an out_tiers array and a larger ftz_params_t / ftz_stats_t (the step 2a entry point is not released). No change to any classic export or outcome.
+ *   20260075 - DR-2 step 2c: ftz_decode_cycle gains the subtract-and-retry rounds (FTZ_FLAG_ROUNDS): ft8_subfeas_fit_signal on the original audio's analytic signal,
+ *              the residual's spectrogram, a patch search near what was subtracted, the residual accept rules; an out_rounds array, a larger ftz_params_t / ftz_stats_t
+ *              (per-round statistics), and three test exports (ftz_patch_keep, ftz_payload_same_qso, ftz_residual_b_accept). No change to any classic export or outcome.
 */
-#define FT8_SHIM_VERSION 20260074
+#define FT8_SHIM_VERSION 20260075
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

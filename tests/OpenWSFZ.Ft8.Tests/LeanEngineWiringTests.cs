@@ -329,10 +329,57 @@ public sealed class LeanEngineWiringTests
             "tierB: eligible=7 attempted=6 crc=3 f1b=2 gated=1 published=1 edge=1 skipped=1 " +
             "cqAp: attempts=4 decodes=1 " +
             "wall_ms spectrogram=11.0 candidates=2.0 tierA=30.0 tierB=40.0 cqAp=3.0 unpack=0.5 total=44.0 " +
-            "cpu_ms spectrogram=10.0 candidates=2.0 tierA=55.0 tierB=70.0 cqAp=5.0 unpack=0.4 total=67.4.");
+            "cpu_ms spectrogram=10.0 candidates=2.0 tierA=55.0 tierB=70.0 cqAp=5.0 unpack=0.4 total=67.4 " +
+            "s3: rounds=0 ungated=0 wall_ms=0.0 cpu_ms=0.0 fitCpu_ms=0.0 searchCpu_ms=0.0 decodeCpu_ms=0.0 otherCpu_ms=0.0.");
         foreach (var (_, message) in log.Entries)
             foreach (var token in new[] { "Q1ABC", "Q2DEF", "Q3GHI", "JO22", "-07", "CQ " })
                 message.Should().NotContain(token, "counts and times only, never a callsign or a message (HK-037)");
+    }
+
+    [Fact(DisplayName = "FR-108: DR-2 2c D7: the log line shows each round, and the fit CPU and the search CPU separately, as counts and times only")]
+    public async Task LogLine_ShowsEachRound_FitAndSearchCpuSeparately()
+    {
+        var round0 = new LeanRoundStats(0, 0, 0, 40, 40, 2, 2, 0, 0, 0, 0, 11_000, 10_000, 2_000, 2_000, 30_000, 55_000);
+        var round1 = new LeanRoundStats(2, 1, 1, 30, 4, 1, 1, 0, 800_000, 1_500_000, 6_000, 12_000, 11_000, 3_000, 2_500, 25_000, 41_000);
+        var round2 = new LeanRoundStats(1, 1, 0, 25, 2, 0, 0, 0, 400_000, 700_000, 3_000, 12_000, 11_000, 3_000, 2_500, 9_000, 15_000);
+        var withRounds = Stats(results: 3) with { RoundsRun = 2, Ungated = 0, Rounds = [round0, round1, round2, default] };
+        var fake = new LeanFake();
+        fake.Outcomes.Enqueue(() => new LeanCycleOutcome([Native("CQ Q1ABC JO22", 1200), Native("Q2DEF Q3GHI -07", 1800)], withRounds));
+        var (decoder, log) = Build(fake);
+
+        await decoder.DecodeAsync(LoudPcm(), Start, null);
+
+        var line = LeanLines(log).Single();
+        line.Should().Contain("s3: rounds=2 ungated=0 wall_ms=1264.0");           // 800+12+3+25 and 400+12+3+9 ms: every stage of both rounds
+        line.Should().Contain("fitCpu_ms=2200.0 searchCpu_ms=5.0 decodeCpu_ms=56.0 otherCpu_ms=31.0");   // fits 1500+700; search 2.5+2.5; decode 41+15; sum 6+3 and spec 11+11
+        line.Should().Contain(" r1[fits=2 subtracted=1 fitNone=1 found=30 kept=4 tierA=1 results=1 ungated=0 wall_ms sub=800.0 spec=12.0 search=3.0 decode=25.0 cpu_ms fit=1500.0 sum=6.0 spec=11.0 search=2.5 decode=41.0]");
+        line.Should().Contain(" r2[fits=1 subtracted=1 fitNone=0 found=25 kept=2 tierA=0 results=0 ungated=0 ");
+        line.Should().NotContain(" r3[", "a round that never started is not written");
+        line.Should().NotContain(" r0[", "round 0 is the line's own first part");
+        foreach (var token in new[] { "Q1ABC", "Q2DEF", "Q3GHI", "JO22", "-07", "CQ " })
+            line.Should().NotContain(token);
+    }
+
+    [Fact(DisplayName = "FR-108: DR-2 2c D1: the lean cycle asks for the loop, and carries the residual settings only in Both mode")]
+    public async Task Request_AsksForTheLoop_AndTheResidualSettingsFollowTheAudioMode()
+    {
+        var fake = new LeanFake();
+        var (decoder, _) = Build(fake);
+        decoder.SetCoherentFallbackResidualUngated(true);
+        decoder.SetCoherentFallbackResidualCandidates(true);
+
+        decoder.SetCoherentFallbackAudio(CoherentFallbackAudio.Both);
+        await decoder.DecodeAsync(LoudPcm(), Start, null);
+        decoder.SetCoherentFallbackAudio(CoherentFallbackAudio.Original);
+        await decoder.DecodeAsync(LoudPcm(), Start, null);
+
+        fake.Requests.Should().HaveCount(2);
+        fake.Requests[0].Rounds.Should().BeTrue();
+        fake.Requests[0].ResidualUngated.Should().BeTrue();
+        fake.Requests[0].ResidualCandidates.Should().BeTrue();
+        fake.Requests[1].Rounds.Should().BeTrue("the loop does not depend on the fallback audio mode");
+        fake.Requests[1].ResidualUngated.Should().BeFalse("the ungating acts only in Both mode, as in the classic path");
+        fake.Requests[1].ResidualCandidates.Should().BeFalse("the residual-candidates rule acts only in Both mode, as in the classic path");
     }
 
     [Fact(DisplayName = "FR-108: DR-2 D5: a lean cycle still writes the ordinary 'decode(s) found' cycle line that log parsers read")]
