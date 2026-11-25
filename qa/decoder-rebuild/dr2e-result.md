@@ -53,7 +53,21 @@ The 7.6 s p95 is the latest batch's time at **2 worker threads** (`decoder.threa
 
 - **The decodes are identical** at 2 and 8 threads (5,521 matched of 6,773 and 259 false-side in both; the same 119 ungated rows, 705 skipped fits, rounds per cycle and matched-by-batch counts 4,025 / 1,353 / 143), as the determinism tests promise.
 - **T4 is met at 8 threads** (p95 2,706 ms against 3,000 ms, 0 abandoned); the maximum, 3,051 ms, is just over the bar.
-- **CPU rose by 2.34 CPU-s per cycle** (9.896 to 12.238): the fit CPU went from 6.31 to 7.77 and the S3 total from 8.12 to 10.02. The cause was not examined; this machine's 16 logical processors are probably 8 cores with hyper-threading, where two workers on one core each take longer in CPU time. T1 is therefore worse at 8 threads (1.94 times the bar) and better at 2 (1.57 times). A count between the two (4, for example) was not measured.
+- **CPU rose by 2.34 CPU-s per cycle** (9.896 to 12.238): the fit CPU went from 6.31 to 7.77 and the S3 total from 8.12 to 10.02. T1 is therefore worse at 8 threads (1.94 times the bar) and better at 2 (1.57 times). The cause was not examined (see the 4-thread run below, which weakens the first guess).
+
+### 4 threads (arm L4, run 2026-11-25 at 20:11Z (`date -u`), wall 536 s) and the three together
+
+The machine is an 8-core, 16-logical-processor desktop (SMT; `Win32_Processor` reads `NumberOfCores` 8, `NumberOfLogicalProcessors` 16). The same build, cycles and flags; the decodes are identical in all three runs.
+
+| Threads | `cpu_net` (CPU-s per cycle) | fit CPU | S3 wall | `last_p95` | `last` median / maximum |
+|---|---|---|---|---|---|
+| 2 | 9.896 | 6.31 | 4.29 s | 7,597 ms | 5,015 / 8,616 ms |
+| **4** | **10.888** | 6.94 | 2.63 s | **4,374 ms** | 3,073 / 5,222 ms |
+| 8 | 12.238 | 7.77 | 1.71 s | 2,706 ms | 1,976 / 3,051 ms |
+
+- **T4 (3,000 ms) is missed at 4 threads (4,374 ms) and met at 8 (2,706 ms)**; T1 (6.31) is missed at all three, by 1.57, 1.73 and 1.94 times.
+- **CPU grows steadily with the thread count** (+10 % from 2 to 4, +12 % from 4 to 8; the fit CPU too). The first explanation, two workers sharing one core under SMT, is **not** supported cleanly: 4 workers on 8 cores should mostly not share a core, yet CPU already rose 10 %. Cache or memory contention, clock behaviour and the scheduler's placement are equally possible; none was examined.
+- 16 threads cannot be measured on this build: the lean engine clamps workers to 8 (`ftz_decoder.h:33`, `ftz_decoder.c:673`, `DecoderConfig.cs:106`). The thread-cap raise is part of the operator-threads task (D7).
 
 ## Not claimed
 

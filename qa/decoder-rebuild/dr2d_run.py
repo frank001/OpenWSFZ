@@ -48,6 +48,7 @@ COMMON = ["--nhard", "24", "--osd-sign-fix", "1", "--cohms", "1", "--cohaudio", 
 ARMS = {
     "L1": ["--engine", "lean", "--lean-threads", "2", "--effort", "normal"],
     "L2": ["--engine", "lean", "--lean-threads", "2", "--effort", "fast"],
+    "L4": ["--engine", "lean", "--lean-threads", "4", "--effort", "normal"],   # L1 with 4 workers
     "L3": ["--engine", "lean", "--lean-threads", "8", "--effort", "normal"],   # L1 with 8 workers (A6 ran at 8): the results are byte-identical across thread counts, so only CPU and wall can differ
 }
 THREADS_DEFAULT = ["--threads", "8"]
