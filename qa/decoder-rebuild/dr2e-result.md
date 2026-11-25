@@ -37,6 +37,24 @@ Fits are still 64 % of the total CPU. Cycles by rounds run: 2 rounds: 73, 3 roun
 
 The 7.6 s p95 is the latest batch's time at **2 worker threads** (`decoder.threads` default 2, spec §2.4); the S3 wall is 4.29 s per cycle. CPU does not change with the thread count, wall does. The harness machine has 16 logical processors and A6 ran at 8 threads. This run did not measure a higher thread count (one replay only), so how much of the 7.6 s a larger default would remove is **not measured**.
 
+## Addendum: the same build at 8 worker threads (arm L3, the Captain's option 2)
+
+**Run:** 2026-11-25, started 19:55Z (`date -u`), wall 351 s; the same binary (`bb930897…`, pin re-hashed), the same 170 cycles and flags, `--lean-threads 8` (A6 ran at 8). Output `_qa-scratch\dr2e\run_L3_n170\`.
+
+| | L1: 2 threads | L3: 8 threads | A6 | Bar |
+|---|---|---|---|---|
+| T1 `cpu_net` | 9.896 | **12.238** | 25.247 | ≤ 6.31 |
+| T2 `rate` | 81.515 % | 81.515 % | 84.39 % | ≥ 83.39 % |
+| T3 `ours_only` | 3.824 % | 3.824 % | 3.77 % | ≤ 4.27 % |
+| T4 `last_p95` | 7,597 ms | **2,706 ms** | 7,332 ms | ≤ 3,000 ms |
+| T4 abandoned cycles | 0 | 0 | | 0 |
+| last batch, median / maximum | 5,015 / 8,616 ms | 1,976 / 3,051 ms | | |
+| S3 wall per cycle | 4.29 s | 1.71 s | | |
+
+- **The decodes are identical** at 2 and 8 threads (5,521 matched of 6,773 and 259 false-side in both; the same 119 ungated rows, 705 skipped fits, rounds per cycle and matched-by-batch counts 4,025 / 1,353 / 143), as the determinism tests promise.
+- **T4 is met at 8 threads** (p95 2,706 ms against 3,000 ms, 0 abandoned); the maximum, 3,051 ms, is just over the bar.
+- **CPU rose by 2.34 CPU-s per cycle** (9.896 to 12.238): the fit CPU went from 6.31 to 7.77 and the S3 total from 8.12 to 10.02. The cause was not examined; this machine's 16 logical processors are probably 8 cores with hyper-threading, where two workers on one core each take longer in CPU time. T1 is therefore worse at 8 threads (1.94 times the bar) and better at 2 (1.57 times). A count between the two (4, for example) was not measured.
+
 ## Not claimed
 
 - One run, one night, one band (40 m); no confidence interval was computed (the minimal-test rule).
