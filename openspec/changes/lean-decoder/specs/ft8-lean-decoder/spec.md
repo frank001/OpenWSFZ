@@ -192,3 +192,44 @@ With `decoder.crossCyclePrior` on, the native call SHALL return the final residu
 
 - **WHEN** a cycle is decoded with effort fast
 - **THEN** the statistics SHALL show tier B neither eligible nor attempted and at most one round run
+
+### Requirement: The fit is cheaper and gives the same bytes
+
+The data-aided fit SHALL produce the same `out_shat` bytes and return code as before it was made cheaper, for every input; a reference mode of the fit SHALL exist so that a test can run both in one process and compare them.
+
+#### Scenario: Reference and fast fit
+
+- **WHEN** at least 30 signals (seeded noise at several signal-to-noise ratios, offsets and drifts, and the masked-signal fixture) are fitted in the reference mode and in the fast mode
+- **THEN** every `out_shat` array and every return code SHALL be equal byte for byte
+
+### Requirement: A fit is skipped when nothing could be hiding near the signal
+
+With the fit-skip rule on (the default in the lean cycle; switchable off through the call's flags) a result of round r SHALL be fitted and subtracted only if some candidate of round r that did not decode lies within 50 Hz below to 100 Hz above its frequency. The statistics SHALL count, per round, the signals fitted and the signals skipped. With the rule off the cycle SHALL be what it was without the rule, byte for byte.
+
+#### Scenario: A lone signal
+
+- **WHEN** a round has one candidate and it decodes
+- **THEN** its fit SHALL be skipped, no fit CPU SHALL be spent, and the published set SHALL equal the rule-off set
+
+#### Scenario: What the rule can lose
+
+- **WHEN** a masked signal was never a candidate of round 0
+- **THEN** with the rule on it SHALL NOT be found by round 1, and with the rule off it SHALL be
+
+### Requirement: A residual tier-B row is published when F1b-passed or ungated
+
+In a residual round a CRC-valid, new tier-B row SHALL be published if its F1b is at most T1, or, with the ungating on, whatever its F1b, at any frequency (counted as ungated); `decoder.coherentFallbackResidualCandidates` SHALL have no effect on it.
+
+#### Scenario: The flag does not restrict
+
+- **WHEN** an F1b-failed residual row is at 2400 Hz with the ungating on and the residual-candidates flag on
+- **THEN** it SHALL be published and counted as ungated
+
+### Requirement: No residual after a half-subtracted round, and publisher errors propagate
+
+A cycle that ends in an error (other than a fault) after a round's subtraction started SHALL return no residual buffer. An exception from the batch publisher SHALL propagate, after the native call's task has been awaited.
+
+#### Scenario: An error after the first chunk
+
+- **WHEN** a round's fits fail after their first chunk
+- **THEN** the earlier rounds' results SHALL be returned and no residual

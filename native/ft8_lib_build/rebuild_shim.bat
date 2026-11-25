@@ -232,6 +232,8 @@ link /DLL ^
   /EXPORT:ftz_patch_keep ^
   /EXPORT:ftz_payload_same_qso ^
   /EXPORT:ftz_residual_b_accept ^
+  /EXPORT:ftz_fit_needed ^
+  /EXPORT:ft8_subfeas_set_reference_mode ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\decode.obj" ^

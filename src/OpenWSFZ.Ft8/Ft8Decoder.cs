@@ -1780,7 +1780,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             threads, cqAp, budgetMs,
             Rounds: true, MaxRounds: effort == DecoderEffort.Fast ? 1 : 0,
             ResidualUngated: residualUngated, ResidualCandidates: residualCands,
-            NoTierB: effort == DecoderEffort.Fast, WantResidual: xcOn);
+            NoTierB: effort == DecoderEffort.Fast, WantResidual: xcOn, SkipFits: true);
 
         // Batch 1 leaves from the native call's round-0 hand-off: the callback (on the native call's thread) only completes this source with a copy; THIS flow publishes.
         var round0 = new TaskCompletionSource<LeanRound0>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1788,9 +1788,9 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         int mappedTotal = 0;   // the decodes of the ordinary batches (the "decode(s) found" line)
         LeanCycleOutcome outcome;
         var native = Task.Run(() => _interop.DecodeLeanCycle(normalisedPcm, request, staged ? (Action<LeanRound0>)(r0 => round0.TrySetResult(r0)) : null), ct);
-        try
+        if (staged)
         {
-            if (staged)
+            try
             {
                 await Task.WhenAny(round0.Task, native).ConfigureAwait(false);
                 if (round0.Task.IsCompletedSuccessfully)
@@ -1802,7 +1802,17 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     await onFirstBatch!(batch1).ConfigureAwait(false);
                 }
             }
-            outcome = await native.ConfigureAwait(false);
+            catch
+            {
+                // A publisher (or mapping) failure propagates as in the classic path, but the native call is never left running unobserved: its task is awaited first,
+                // whatever it did (its own failure is not what the caller is told about).
+                try { await native.ConfigureAwait(false); } catch { /* observed; the publisher's exception is the one that propagates */ }
+                throw;
+            }
+        }
+        try
+        {
+            outcome = await native.ConfigureAwait(false);   // D5: only the native call is inside this try
         }
         catch (OperationCanceledException)
         {
@@ -1875,14 +1885,14 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             "cqAp: attempts={CqAttempts} decodes={CqDecodes} " +
             "wall_ms spectrogram={SpecWall:F1} candidates={CandWall:F1} tierA={TierAWall:F1} tierB={TierBWall:F1} cqAp={CqWall:F1} unpack={UnpackWall:F1} total={TotalWall:F1} " +
             "cpu_ms spectrogram={SpecCpu:F1} candidates={CandCpu:F1} tierA={TierACpu:F1} tierB={TierBCpu:F1} cqAp={CqCpu:F1} unpack={UnpackCpu:F1} total={TotalCpu:F1} " +
-            "s3: rounds={RoundsRun} ungated={Ungated} wall_ms={S3Wall:F1} cpu_ms={S3Cpu:F1} fitCpu_ms={S3Fit:F1} searchCpu_ms={S3Search:F1} decodeCpu_ms={S3Decode:F1} otherCpu_ms={S3Other:F1}{RoundDetail} " +
+            "s3: rounds={RoundsRun} ungated={Ungated} fitSkipped={S3Skipped} wall_ms={S3Wall:F1} cpu_ms={S3Cpu:F1} fitCpu_ms={S3Fit:F1} searchCpu_ms={S3Search:F1} decodeCpu_ms={S3Decode:F1} otherCpu_ms={S3Other:F1}{RoundDetail} " +
             "effort={Effort} batches: b1={B1} b2={B2} b3={B3} xc={XcOutcome} xcDetected={XcDetected}.",
             timeStr, st.Candidates, st.TierADecodes, st.Results, st.Threads, st.Abandoned ? 1 : 0, st.Error,
             st.TierBEligible, st.TierBAttempted, st.TierBCrcValid, st.TierBF1b, st.TierBGated, st.TierBPublished, st.TierBEdge, st.TierBSkipped,
             st.CqApAttempts, st.CqApDecodes,
             st.SpectrogramWallUs / 1000.0, st.CandidatesWallUs / 1000.0, st.TierAWallUs / 1000.0, st.TierBWallUs / 1000.0, st.CqApWallUs / 1000.0, st.UnpackWallUs / 1000.0, st.TotalWallUs / 1000.0,
             st.SpectrogramCpuUs / 1000.0, st.CandidatesCpuUs / 1000.0, st.TierACpuUs / 1000.0, st.TierBCpuUs / 1000.0, st.CqApCpuUs / 1000.0, st.UnpackCpuUs / 1000.0, st.TotalCpuUs / 1000.0,
-            st.RoundsRun, st.Ungated, st.S3WallUs / 1000.0, st.S3CpuUs / 1000.0, st.S3FitCpuUs / 1000.0, st.S3SearchCpuUs / 1000.0, st.S3DecodeCpuUs / 1000.0, st.S3OtherCpuUs / 1000.0,
+            st.RoundsRun, st.Ungated, st.S3FitSkipped, st.S3WallUs / 1000.0, st.S3CpuUs / 1000.0, st.S3FitCpuUs / 1000.0, st.S3SearchCpuUs / 1000.0, st.S3DecodeCpuUs / 1000.0, st.S3OtherCpuUs / 1000.0,
             FormatLeanRounds(st),
             effort == DecoderEffort.Fast ? DecoderEffortNames.Fast : DecoderEffortNames.Normal,
             batch1Delivered ? 1 : 0, batch2Delivered ? 1 : 0, batch3Delivered ? 1 : 0, xcOutcome, xcDetected);
@@ -2052,8 +2062,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         for (int r = 1; r < st.Rounds.Length; r++)
         {
             LeanRoundStats x = st.Rounds[r];
-            if (x.Fits == 0) continue;   // the round never started
-            sb.Append(ic, $" r{r}[fits={x.Fits} subtracted={x.Subtracted} fitNone={x.FitNone} found={x.Found} kept={x.Kept} tierA={x.TierA} results={x.Results} ungated={x.Ungated} ")
+            if (x.Fits == 0 && x.FitSkipped == 0) continue;   // the round never started and skipped nothing
+            sb.Append(ic, $" r{r}[fits={x.Fits} skipped={x.FitSkipped} subtracted={x.Subtracted} fitNone={x.FitNone} found={x.Found} kept={x.Kept} tierA={x.TierA} results={x.Results} ungated={x.Ungated} ")
               .Append(ic, $"wall_ms sub={x.SubWallUs / 1000.0:F1} spec={x.SpecWallUs / 1000.0:F1} search={x.SearchWallUs / 1000.0:F1} decode={x.DecodeWallUs / 1000.0:F1} ")
               .Append(ic, $"cpu_ms fit={x.FitCpuUs / 1000.0:F1} sum={x.SumCpuUs / 1000.0:F1} spec={x.SpecCpuUs / 1000.0:F1} search={x.SearchCpuUs / 1000.0:F1} decode={x.DecodeCpuUs / 1000.0:F1}]");
         }

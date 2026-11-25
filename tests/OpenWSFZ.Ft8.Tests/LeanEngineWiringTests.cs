@@ -330,7 +330,7 @@ public sealed class LeanEngineWiringTests
             "cqAp: attempts=4 decodes=1 " +
             "wall_ms spectrogram=11.0 candidates=2.0 tierA=30.0 tierB=40.0 cqAp=3.0 unpack=0.5 total=44.0 " +
             "cpu_ms spectrogram=10.0 candidates=2.0 tierA=55.0 tierB=70.0 cqAp=5.0 unpack=0.4 total=67.4 " +
-            "s3: rounds=0 ungated=0 wall_ms=0.0 cpu_ms=0.0 fitCpu_ms=0.0 searchCpu_ms=0.0 decodeCpu_ms=0.0 otherCpu_ms=0.0 " +
+            "s3: rounds=0 ungated=0 fitSkipped=0 wall_ms=0.0 cpu_ms=0.0 fitCpu_ms=0.0 searchCpu_ms=0.0 decodeCpu_ms=0.0 otherCpu_ms=0.0 " +
             "effort=normal batches: b1=0 b2=0 b3=0 xc=off xcDetected=0.");
         foreach (var (_, message) in log.Entries)
             foreach (var token in new[] { "Q1ABC", "Q2DEF", "Q3GHI", "JO22", "-07", "CQ " })
@@ -351,10 +351,10 @@ public sealed class LeanEngineWiringTests
         await decoder.DecodeAsync(LoudPcm(), Start, null);
 
         var line = LeanLines(log).Single();
-        line.Should().Contain("s3: rounds=2 ungated=0 wall_ms=1264.0");           // 800+12+3+25 and 400+12+3+9 ms: every stage of both rounds
+        line.Should().Contain("s3: rounds=2 ungated=0 fitSkipped=0 wall_ms=1264.0");           // 800+12+3+25 and 400+12+3+9 ms: every stage of both rounds
         line.Should().Contain("fitCpu_ms=2200.0 searchCpu_ms=5.0 decodeCpu_ms=56.0 otherCpu_ms=31.0");   // fits 1500+700; search 2.5+2.5; decode 41+15; sum 6+3 and spec 11+11
-        line.Should().Contain(" r1[fits=2 subtracted=1 fitNone=1 found=30 kept=4 tierA=1 results=1 ungated=0 wall_ms sub=800.0 spec=12.0 search=3.0 decode=25.0 cpu_ms fit=1500.0 sum=6.0 spec=11.0 search=2.5 decode=41.0]");
-        line.Should().Contain(" r2[fits=1 subtracted=1 fitNone=0 found=25 kept=2 tierA=0 results=0 ungated=0 ");
+        line.Should().Contain(" r1[fits=2 skipped=0 subtracted=1 fitNone=1 found=30 kept=4 tierA=1 results=1 ungated=0 wall_ms sub=800.0 spec=12.0 search=3.0 decode=25.0 cpu_ms fit=1500.0 sum=6.0 spec=11.0 search=2.5 decode=41.0]");
+        line.Should().Contain(" r2[fits=1 skipped=0 subtracted=1 fitNone=0 found=25 kept=2 tierA=0 results=0 ungated=0 ");
         line.Should().NotContain(" r3[", "a round that never started is not written");
         line.Should().NotContain(" r0[", "round 0 is the line's own first part");
         foreach (var token in new[] { "Q1ABC", "Q2DEF", "Q3GHI", "JO22", "-07", "CQ " })

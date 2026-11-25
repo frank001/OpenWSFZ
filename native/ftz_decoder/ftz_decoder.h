@@ -28,7 +28,7 @@ extern "C" {
 #define FTZ_ERR_FAULT    (-3)   /* an access violation was caught by the SEH wrapper (MSVC builds only)                 */
 #define FTZ_ERR_BADAUDIO (-4)   /* a sample is NaN, infinite or beyond +-FTZ_MAX_ABS_SAMPLE: not decodable audio        */
 
-#define FTZ_PARAMS_VERSION   4
+#define FTZ_PARAMS_VERSION   5
 #define FTZ_MIN_THREADS      1
 #define FTZ_MAX_THREADS      8
 #define FTZ_DEFAULT_THREADS  2
@@ -39,8 +39,9 @@ extern "C" {
 #define FTZ_FLAG_BUDGET  2   /* budget_ms is a real wall-clock budget (0 then means "none left"); without it there is no budget  */
 #define FTZ_FLAG_ROUNDS  4   /* step 2c: run the subtract-and-retry rounds after round 0 (without it the call is the step-2b call)   */
 #define FTZ_FLAG_RESIDUAL_UNGATED 8    /* a residual tier-B row whose F1b is above T1 is published (decoder.coherentFallbackResidualUngated)   */
-#define FTZ_FLAG_RESIDUAL_CANDS   16   /* residual tier-B rows are kept only if F1b-passed and at most 1097 Hz (decoder.coherentFallbackResidualCandidates) */
+#define FTZ_FLAG_RESIDUAL_CANDS   16   /* ACCEPTED AND IGNORED since step 2e: a residual tier-B row is published when F1b-passed, or when the ungating is on, at any frequency */
 #define FTZ_FLAG_NO_TIER_B        32   /* step 2d, decoder.effort = fast: tier B is not run in any round (CQ-AP still is, if asked)                   */
+#define FTZ_FLAG_SKIP_FITS        64   /* step 2e (D3): a round-r result is fitted only if a candidate of round r that did NOT decode lies in its patch window (ftz_fit_needed) */
 
 #define FTZ_MAX_ROUNDS            3      /* rounds after round 0                                                                 */
 #define FTZ_PATCH_BELOW_HZ        50.0f  /* a residual candidate is searched only within [f - 50, f + 100] Hz of a signal subtracted in the round */
@@ -78,10 +79,13 @@ typedef struct
     ftz_round0_fn round0_cb;  /* NULL, or called ONCE on the calling thread right after round 0 is unpacked, BEFORE round 1 starts (see ftz_round0_fn) */
     void*   round0_ctx;       /* passed back to round0_cb                                                                    */
     float*  out_residual;     /* NULL, or FT8_EXPECTED_SAMPLES floats that receive the residual as of the last subtraction made (stats.has_residual) */
+    /* Step 2e (params version 5). */
+    int32_t inject_error_round;   /* TEST HOOK: the round (1 to 3) whose fits end, after the first chunk, in a simulated allocation failure (FTZ_ERR_NOMEM); 0 = none */
+    int32_t reserved2;
 } ftz_params_t;
 
 /* Per-round aggregates (step 2c). Counts, then microseconds: wall, and CPU summed over the threads that worked on the stage.
- * Eight 32-bit fields and nine 64-bit times: 32 + 72 = 104 bytes. Round 0 fills only the counts that apply to it. */
+ * Ten 32-bit fields and nine 64-bit times: 40 + 72 = 112 bytes. Round 0 fills only the counts that apply to it. */
 typedef struct
 {
     int32_t n_fits;             /* signals handed to the fit (the re-encodable results of the previous round)               */
@@ -92,6 +96,8 @@ typedef struct
     int32_t n_tier_a;           /* kept candidates whose tier A attempt produced a CRC-valid payload                        */
     int32_t n_results;          /* results this round published                                                             */
     int32_t n_ungated;          /* tier-B rows this round published only because of the ungating                            */
+    int32_t n_fit_skipped;      /* re-encodable results the fit-skip rule left unfitted (step 2e)                           */
+    int32_t reserved;
     int64_t sub_wall_us;        /* the whole subtract step: the fits and the sum into the residual                          */
     int64_t fit_cpu_us;         /* CPU of the fits, summed over the workers                                                  */
     int64_t sum_cpu_us;         /* CPU of the sum into the residual (calling thread)                                         */
@@ -103,7 +109,7 @@ typedef struct
 /* Output statistics (aggregates only, never message text). Times are microseconds: wall per stage, and CPU summed over the
  * threads that worked on the stage. The counts and stage times of the first part are CUMULATIVE over all rounds (with the loop
  * off they are round 0's, as in step 2b). Twenty 32-bit fields and fourteen 64-bit times (80 + 112 = 192 bytes), then four
- * ftz_round_stats_t (416 bytes): 608 bytes. */
+ * ftz_round_stats_t (448 bytes): 640 bytes. */
 typedef struct
 {
     int32_t struct_size;
@@ -162,10 +168,15 @@ int ftz_patch_keep(float base_hz, const float* sub_hz, int n_sub);
  * and candidate the on-air one with the same two calls (SubfeasPayload.SameQso). */
 int ftz_payload_same_qso(const uint8_t* known, const uint8_t* candidate);
 
-/* 1 if a CRC-valid, new tier-B row of a residual round is published. f1b_passed: F1b <= T1. With the candidates rule on: only an F1b-passed row
- * at most 1097 Hz; otherwise an F1b-passed row, or (ungated on) any row. *ungated_out (may be NULL) is set to 1 when the row is published
- * ONLY because of the ungating. */
+/* 1 if a CRC-valid, new tier-B row of a residual round is published. f1b_passed: F1b <= T1. Since step 2e: an F1b-passed row, or (ungated on) any row, at any
+ * frequency; rescand_on (decoder.coherentFallbackResidualCandidates) is accepted and has NO effect in the lean engine (the faithful union of classic's residual run
+ * and its residual-candidates run). *ungated_out (may be NULL) is set to 1 when the row is published ONLY because of the ungating. */
 int ftz_residual_b_accept(int f1b_passed, int published_freq_hz, int ungated_on, int rescand_on, int* ungated_out);
+
+/* Step 2e (D3): 1 if a result published at result_hz is worth fitting and subtracting: some candidate of the same round that did NOT decode (failed_hz, base
+ * frequencies, n_failed of them) lies in the result's patch window [f - 50, f + 100] Hz, i.e. something may be hiding there. A signal with no failed candidate near it
+ * cannot unmask anything that round's search would find. */
+int ftz_fit_needed(float result_hz, const float* failed_hz, int n_failed);
 
 /* Stops and frees the worker pool. Safe to call at any time (also when there is none) and to call twice; the pool is
  * re-created by the next ftz_decode_cycle. The daemon calls it on shutdown. */

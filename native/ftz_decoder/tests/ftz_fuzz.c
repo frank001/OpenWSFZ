@@ -1,5 +1,5 @@
 /*
- * ftz_fuzz.c -- native test harness for ftz_decode_cycle (DR-2 steps 2a to 2d): built and run under AddressSanitizer and
+ * ftz_fuzz.c -- native test harness for ftz_decode_cycle (DR-2 steps 2a to 2e): built and run under AddressSanitizer and
  * UndefinedBehaviorSanitizer by native/ftz_decoder/tests/run_asan.sh and by the CI job `native-asan`.
  *
  * PROVENANCE: OpenWSFZ-original, written 2026-11-24. No third-party code.
@@ -16,6 +16,8 @@
  *      the three accept-rule functions are checked directly.
  *   5. (step 2d) The round-0 callback (exactly once, with the round-0 count), the final residual buffer (NULL and exactly-sized, byte-identical at every thread
  *      count) and the no-tier-B flag are exercised in the determinism run and in the fuzz.
+ *   6. (step 2e) The fit-skip rule is on in half the runs and in the determinism run (with and without), a simulated fit error after the first chunk of a round
+ *      is injected in one run in eight (it must return FTZ_ERR_NOMEM and NO residual), and the two fit paths (reference and fast) give the same determinism digest.
  * Exit status 0 = all passed. Prints counts only.
  */
 #include "../ftz_decoder.h"
@@ -83,6 +85,8 @@ static void round0_probe(void* ctx, int n, const void* results, const uint8_t* t
     }
 }
 
+static int g_inject = 0;     /* the test hook inject_error_round of the next call */
+
 static int decode_full2(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, int max_rounds, int expire_round,
                         FT8Result* out, uint8_t* tiers, uint8_t* rounds, ftz_stats_t* st, cb_probe_t* probe, float* out_residual)
 {
@@ -97,6 +101,7 @@ static int decode_full2(const float* pcm, int n, int threads, int max_cand, int 
     p.expire_round = expire_round;
     if (probe) { memset(probe, 0, sizeof(*probe)); p.round0_cb = round0_probe; p.round0_ctx = probe; }
     p.out_residual = out_residual;
+    p.inject_error_round = g_inject;
     return ftz_decode_cycle(pcm, n, &p, out, MAX_RESULTS, tiers, rounds, st);
 }
 
@@ -117,7 +122,7 @@ static int decode(const float* pcm, int n, int threads, FT8Result* out, ftz_stat
     return decode_ex(pcm, n, threads, 0, FTZ_FLAG_CQ_AP, 0, out, NULL, st);
 }
 
-#define LOOP_FLAGS (FTZ_FLAG_CQ_AP | FTZ_FLAG_ROUNDS | FTZ_FLAG_RESIDUAL_UNGATED)
+#define LOOP_FLAGS (FTZ_FLAG_CQ_AP | FTZ_FLAG_ROUNDS | FTZ_FLAG_RESIDUAL_UNGATED | FTZ_FLAG_SKIP_FITS)
 
 static int determinism(const char* path)
 {
@@ -237,6 +242,8 @@ static void fuzz(int runs)
         if (real_run && (rnd() & 3u) != 0) expire = 0;       /* mostly let the rounds finish; a quarter expire at a round */
         static uint8_t rounds[MAX_RESULTS];
         if ((rnd() & 3u) == 0) flags |= FTZ_FLAG_NO_TIER_B;                        /* decoder.effort = fast */
+        if (rnd() & 1u) flags |= FTZ_FLAG_SKIP_FITS;                               /* step 2e: the fit-skip rule */
+        g_inject = (real_run && (rnd() % 8u) == 0) ? 1 + (int)(rnd() % 3u) : 0;   /* step 2e: a simulated fit error after the first chunk of that round */
         const int want_resid = (rnd() & 1u) != 0, want_cb = (rnd() & 1u) != 0;
         /* Exactly-sized heap block, so AddressSanitizer sees any write past FT8_EXPECTED_SAMPLES floats. */
         float* resid = want_resid ? (float*)malloc(sizeof(float) * PCM_SAMPLES) : NULL;
@@ -247,8 +254,12 @@ static void fuzz(int runs)
         CHECK(st.has_residual == 0 || (resid != NULL && (flags & FTZ_FLAG_ROUNDS)), "run %d: has_residual without a buffer or without the loop", run);
         if (flags & FTZ_FLAG_NO_TIER_B) CHECK(st.n_b_eligible == 0 && st.n_b_attempted == 0 && st.n_b_published == 0, "run %d: tier B ran with the no-tier-B flag", run);
         free(resid);
-        CHECK(rc >= 0 && rc <= MAX_RESULTS, "run %d: kind %d n %d threads %d: rc %d", run, kind, n, threads, rc);
-        CHECK(st.error == 0 && st.n_results == (rc > 0 ? rc : 0), "run %d: stats inconsistent (error %d, n_results %d, rc %d)", run, st.error, st.n_results, rc);
+        const int injected_error = g_inject != 0 && rc == FTZ_ERR_NOMEM;           /* the hook fired: results of the earlier rounds stand, no residual */
+        CHECK((rc >= 0 && rc <= MAX_RESULTS) || injected_error, "run %d: kind %d n %d threads %d: rc %d", run, kind, n, threads, rc);
+        if (injected_error) CHECK(st.has_residual == 0 && st.error == FTZ_ERR_NOMEM, "run %d: a fit error must export no residual (has_residual %d, error %d)", run, st.has_residual, st.error);
+        else CHECK(st.error == 0 && st.n_results == (rc > 0 ? rc : 0), "run %d: stats inconsistent (error %d, n_results %d, rc %d)", run, st.error, st.n_results, rc);
+        if (injected_error) rc = st.n_results;                                      /* the per-result checks below read the results the call had written */
+        g_inject = 0;
         CHECK(st.n_rounds >= 0 && st.n_rounds <= FTZ_MAX_ROUNDS, "run %d: %d rounds", run, st.n_rounds);
         if (real_run) real_loop_runs++;
         if (st.n_rounds > 0) loop_runs++;
@@ -278,9 +289,10 @@ static void accept_rules(void)
     CHECK(ftz_residual_b_accept(1, 1500, 0, 0, &u) == 1 && u == 0, "accept: passed row, no rules");
     CHECK(ftz_residual_b_accept(0, 500, 0, 0, &u) == 0, "accept: gated-out row, ungating off");
     CHECK(ftz_residual_b_accept(0, 500, 1, 0, &u) == 1 && u == 1, "accept: gated-out row, ungating on, counted ungated");
-    CHECK(ftz_residual_b_accept(1, 1098, 1, 1, &u) == 0, "accept: above 1097 Hz, rule on");
-    CHECK(ftz_residual_b_accept(1, 1097, 1, 1, &u) == 1 && u == 0, "accept: at 1097 Hz, rule on");
-    CHECK(ftz_residual_b_accept(0, 500, 1, 1, &u) == 0, "accept: gated-out row, rule on");
+    CHECK(ftz_residual_b_accept(1, 1098, 1, 1, &u) == 1 && u == 0, "accept: above 1097 Hz, the residual-candidates flag has no effect (step 2e)");
+    CHECK(ftz_residual_b_accept(0, 2400, 1, 1, &u) == 1 && u == 1, "accept: gated-out row at any frequency, ungating on, flag on: published as ungated (step 2e)");
+    CHECK(ftz_residual_b_accept(0, 500, 0, 1, &u) == 0, "accept: gated-out row, ungating off, flag on");
+    CHECK(ftz_fit_needed(1000.0f, NULL, 0) == 0 && ftz_fit_needed(1000.0f, &(float){ 950.0f }, 1) == 1 && ftz_fit_needed(1000.0f, &(float){ 1100.1f }, 1) == 0, "fit_needed: window edges and the empty list");
     CHECK(ftz_residual_b_accept(1, 1098, 0, 0, NULL) == 1, "accept: above 1097 Hz, rule off");
 
     uint8_t a[10] = { 0 }, b[10] = { 0 };

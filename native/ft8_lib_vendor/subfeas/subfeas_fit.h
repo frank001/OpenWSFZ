@@ -141,6 +141,13 @@ int ft8_subfeas_fit_signal(
     const volatile int* cancel_flag
 );
 
+/*
+ * ft8_subfeas_set_reference_mode -- DR-2 step 2e (D2). 1 runs the fit exactly as it was before the exact speedups (frequency-shift table per use, copy / mix /
+ * decimation in three passes, the plain step-3 loop); 0 (the default) runs the fast path. The two produce bit-identical out_shat; this switch exists only so a
+ * test can compare them in one process. Not thread-safe against fits in flight: call it with none running.
+ */
+void ft8_subfeas_set_reference_mode(int on);
+
 /* ---- Workspace pool (sub-feas-speed-redesign A3; see subfeas_fit.c and design.md D2) ---------- */
 
 #define SUBFEAS_POOL_MAX_BOUND      64  /* hard cap on the pool bound (array size) */

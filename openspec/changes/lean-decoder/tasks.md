@@ -53,3 +53,13 @@
 - [x] 7.4 Tests (`LeanEngineBatchesTests`, `LeanEngineBatchesNativeTests`, `LateBatch4Tests`, `LeanEngineConfigTests`, `LeanEngineWiringTests`): batch 1 before round 1 (native held inside the hand-off), empty batch 1, one text once, priors, XC on the residual (and the skip, the veto, the shadow), effort, routing, determinism including the residual bytes
 - [x] 7.5 Native harness (ASan + UBSan) runs the callback, the residual buffer (NULL and exactly sized) and the no-tier-B flag in the determinism run and the fuzz
 - [x] 7.6 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`
+
+## 8. Step 2e (a cheaper fit, the fit-skip rule, the residual accept rule)
+
+- [x] 8.1 `subfeas_fit.c`: the frequency-shift table once per fit, copy + mix + decimation fused, four step-3 candidates at a time; `ft8_subfeas_set_reference_mode` (the old paths kept verbatim behind it) proves them byte for byte; profile taken first (one fit about 265 ms CPU, 59 % in step 2)
+- [x] 8.2 `ftz_decoder.c/.h`: `FTZ_FLAG_SKIP_FITS` and `ftz_fit_needed` (the fit-skip rule), per-round `n_fit_skipped`, the residual accept rule without the residual-candidates restriction, `resid_valid` cleared when a subtraction starts, the `inject_error_round` test hook; params version 5
+- [x] 8.3 `FT8_SHIM_VERSION` 20260077; `libft8.dll` rebuilt; `libft8.version.txt`
+- [x] 8.4 Managed: `LeanCycleParams` (`SkipFits`, `InjectErrorRound`), the lean cycle turns the rule on, the `lean:` line's skipped counts, `DecodeLeanAsync` awaits the native call before a publisher exception propagates
+- [x] 8.5 Tests (`LeanEngineFitCostTests`, `LeanEngineRoundsTests`, `LeanEngineBatchesTests`): 38-signal byte equality, the rule at its edges, two fixtures (set unchanged; masked signal lost), the rule off equal to step 2d, the accept rule, the error after the first chunk, the throwing publisher
+- [x] 8.6 Native harness (ASan + UBSan) runs the rule on and off, the injected error, and the determinism digest
+- [x] 8.7 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`

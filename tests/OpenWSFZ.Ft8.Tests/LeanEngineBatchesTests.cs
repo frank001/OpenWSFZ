@@ -56,6 +56,9 @@ public sealed class LeanEngineBatchesTests
         private readonly Queue<Script> _scripts = new();
         public List<LeanCycleParams> Requests { get; } = [];
         public List<string> Events { get; } = [];
+        /// <summary>When set, the native call waits on it right after the round-0 hand-off (until the test releases it).</summary>
+        public ManualResetEventSlim? Hold { get; set; }
+        public volatile bool NativeDone;
         public void Enqueue(Script s) => _scripts.Enqueue(s);
 
         public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0)
@@ -70,6 +73,8 @@ public sealed class LeanEngineBatchesTests
                 Events.Add("callback");
                 onRound0(new LeanRound0(s.Round0, s.Round0.Select(_ => LeanTier.A).ToArray()));
             }
+            Hold?.Wait(TimeSpan.FromSeconds(60));
+            NativeDone = true;
             Events.Add("native-returns");
             var stats = LeanCycleStats.None(s.Error) with { };
             return new LeanCycleOutcome(results, stats) { Tiers = tiers, Rounds = rounds, Residual = s.Residual && request.WantResidual ? (float[])pcm.Clone() : null };
@@ -163,6 +168,32 @@ public sealed class LeanEngineBatchesTests
         // The hand-off never came but the call returned results (a failure after the callback would look the same to the caller): batch 1 = round 0, batch 2 = the rest.
         var rows = await Cycle(d, io, At(15), Audio(2), new Script([Msg(M)], [Msg(Other, 1800)], Error: LeanCycleStats.ErrNoMem, FireCallback: false));
         rows.Select(r => (r.Batch, r.Message)).Should().Equal((1, M), (2, Other));
+    }
+
+    // ── 2e D5: a publisher exception propagates, and the native call is always awaited ─────────────────────────────
+
+    [Fact(DisplayName = "FR-108: DR-2 2e D5: an exception from the batch-1 publisher propagates (as in classic) and the native call is awaited first: the decode does not finish until the native call has")]
+    public async Task PublisherException_Propagates_AfterTheNativeCallIsAwaited()
+    {
+        var io = new ScriptedLean();
+        var hold = new ManualResetEventSlim(false);
+        io.Hold = hold;
+        io.Enqueue(new Script([Msg(M)], [Msg(Other, 1800)]));
+        var d = Build(io);
+        var publisherThrew = new ManualResetEventSlim(false);
+
+        var decode = d.DecodeStagedAsync(Audio(1), At(0), null, (n, b) =>
+        {
+            publisherThrew.Set();
+            throw new InvalidOperationException("publisher failed (test double)");
+        });
+
+        publisherThrew.Wait(TimeSpan.FromSeconds(60)).Should().BeTrue("the publisher was reached while the native call was held after round 0");
+        decode.IsCompleted.Should().BeFalse("the native task is awaited before the publisher's exception goes on");
+        hold.Set();
+        var act = async () => await decode;
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("publisher failed*");
+        io.NativeDone.Should().BeTrue("the native call ran to its end first");
     }
 
     // ── test 3: one text, once per cycle across the batches ──────────────────────────────────────────────────────

@@ -222,13 +222,20 @@ public sealed class LeanEngineRoundsTests(ITestOutputHelper output) : IDisposabl
         u2.Should().BeFalse("an F1b-passed row is not an ungated row");
     }
 
-    [Fact(DisplayName = "FR-108: DR-2 2c test 4d: with the residual-candidates rule on a residual tier-B row above 1097 Hz is dropped, with it off the row is kept")]
-    public void AcceptRule_ResidualCandidates_1097Hz()
+    [Fact(DisplayName = "FR-108: DR-2 2e D4: the residual-candidates flag no longer restricts a residual tier-B row: an F1b-failed row is published as ungated at any frequency when the ungating is on, an F1b-passed row always, and with the ungating off a failed row is dropped whatever the flag says")]
+    public void AcceptRule_ResidualCandidatesFlag_HasNoEffect()
     {
-        Ft8LibInterop.LeanResidualBAccept(true, 1097, true, rescandOn: true, out _).Should().BeTrue("1097 Hz itself is kept");
-        Ft8LibInterop.LeanResidualBAccept(true, 1098, true, rescandOn: true, out _).Should().BeFalse("above 1097 Hz, rule on");
-        Ft8LibInterop.LeanResidualBAccept(true, 1098, true, rescandOn: false, out _).Should().BeTrue("above 1097 Hz, rule off");
-        Ft8LibInterop.LeanResidualBAccept(false, 800, true, rescandOn: true, out _).Should().BeFalse("with the rule on only F1b-passed rows are kept (task section 3, item 5)");
+        foreach (bool rescand in new[] { false, true })
+        {
+            foreach (int hz in new[] { 500, 1097, 1098, 2400 })
+            {
+                Ft8LibInterop.LeanResidualBAccept(true, hz, true, rescand, out bool passedUngated).Should().BeTrue($"an F1b-passed row at {hz} Hz, rescand {rescand}");
+                passedUngated.Should().BeFalse("an F1b-passed row is not an ungated row");
+                Ft8LibInterop.LeanResidualBAccept(false, hz, true, rescand, out bool failedUngated).Should().BeTrue($"an F1b-failed row at {hz} Hz is published with the ungating on, rescand {rescand}");
+                failedUngated.Should().BeTrue("and counted as ungated");
+                Ft8LibInterop.LeanResidualBAccept(false, hz, false, rescand, out _).Should().BeFalse($"with the ungating off an F1b-failed row at {hz} Hz is dropped, rescand {rescand}");
+            }
+        }
     }
 
     // ── test 5: stop rules ───────────────────────────────────────────────────────────────────────────────────────

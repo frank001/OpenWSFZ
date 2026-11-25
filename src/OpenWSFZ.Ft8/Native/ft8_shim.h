@@ -870,8 +870,11 @@ extern "C" {
  *              (per-round statistics), and three test exports (ftz_patch_keep, ftz_payload_same_qso, ftz_residual_b_accept). No change to any classic export or outcome.
  *   20260076 - DR-2 step 2d: ftz_params_t (version 4) gains the round-0 hand-off callback, its context and an out_residual buffer, and the FTZ_FLAG_NO_TIER_B flag (decoder.effort = fast);
  *              ftz_stats_t gains has_residual. ftz_decode_cycle's own argument list is unchanged. No change to any classic export or outcome.
+ *   20260077 - DR-2 step 2e: the fit (subfeas_fit.c) is bit-identical but faster (frequency-shift table once per fit, copy / mix / decimation fused, four step-3 candidates at a time;
+ *              ft8_subfeas_set_reference_mode as the test seam), ftz_params_t version 5 (inject_error_round test hook, FTZ_FLAG_SKIP_FITS), per-round n_fit_skipped, ftz_fit_needed,
+ *              the residual tier-B accept rule no longer restricted by the residual-candidates flag, and no residual exported after a half-subtracted round. No change to any classic outcome.
 */
-#define FT8_SHIM_VERSION 20260076
+#define FT8_SHIM_VERSION 20260077
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

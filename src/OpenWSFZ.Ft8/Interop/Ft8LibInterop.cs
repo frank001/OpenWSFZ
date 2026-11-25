@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260076;
+    private const int ExpectedShimVersion = 20260077;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -1050,10 +1050,12 @@ internal static class Ft8LibInterop
                           | (request.Rounds ? FtzParamsWire.FlagRounds : 0)
                           | (request.ResidualUngated ? FtzParamsWire.FlagResidualUngated : 0)
                           | (request.ResidualCandidates ? FtzParamsWire.FlagResidualCandidates : 0)
-                          | (request.NoTierB ? FtzParamsWire.FlagNoTierB : 0),
+                          | (request.NoTierB ? FtzParamsWire.FlagNoTierB : 0)
+                          | (request.SkipFits ? FtzParamsWire.FlagSkipFits : 0),
             BudgetMs      = request.BudgetMs.GetValueOrDefault(),
             MaxRounds     = request.MaxRounds,
             ExpireRound   = request.ExpireRound,
+            InjectErrorRound = request.InjectErrorRound,
         };
         if (onRound0 is not null)
         {
@@ -1128,6 +1130,26 @@ internal static class Ft8LibInterop
     {
         if (!_initialized) return;
         NativeFtzShutdown();
+    }
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_subfeas_set_reference_mode", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSubfeasSetReferenceMode(int on);
+
+    /// <summary>DR-2 step 2e (test seam): 1 runs the fit exactly as before the exact speedups, 0 (default) the fast path; the two are bit-identical. Call with no fit in flight.</summary>
+    internal static void SubfeasSetReferenceMode(bool on)
+    {
+        EnsureInitialized();
+        NativeSubfeasSetReferenceMode(on ? 1 : 0);
+    }
+
+    [DllImport("libft8.dll", EntryPoint = "ftz_fit_needed", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzFitNeeded(float resultHz, [In] float[] failedHz, int nFailed);
+
+    /// <summary>DR-2 step 2e (test export): the fit-skip rule: whether a result at <paramref name="resultHz"/> is worth fitting given the round's failed candidates.</summary>
+    internal static bool LeanFitNeeded(float resultHz, float[] failedHz)
+    {
+        EnsureInitialized();
+        return NativeFtzFitNeeded(resultHz, failedHz, failedHz.Length) != 0;
     }
 
     [DllImport("libft8.dll", EntryPoint = "ftz_patch_keep", CallingConvention = CallingConvention.Cdecl)]

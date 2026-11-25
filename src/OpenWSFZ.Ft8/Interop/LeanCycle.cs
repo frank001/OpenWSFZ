@@ -11,11 +11,13 @@ namespace OpenWSFZ.Ft8.Interop;
 /// and <paramref name="ExpireRound"/> is a TEST HOOK: the budget is treated as gone at that round's decode stage (0 = none).
 /// Step 2d: <paramref name="NoTierB"/> is <c>decoder.effort = fast</c> (no tier B in any round; the caller also sets <paramref name="MaxRounds"/> to 1) and
 /// <paramref name="WantResidual"/> asks for the final residual buffer (<see cref="LeanCycleOutcome.Residual"/>).
+/// Step 2e: <paramref name="SkipFits"/> turns on the fit-skip rule (a result is fitted only if a failed candidate of its round lies in its patch window; off by default
+/// here, on in the daemon's lean cycle) and <paramref name="InjectErrorRound"/> is a TEST HOOK (a simulated allocation failure after the first chunk of that round's fits).
 /// </summary>
 internal readonly record struct LeanCycleParams(
     int Threads, bool CqAp = false, int? BudgetMs = null, int MaxCandidates = 0,
     bool Rounds = false, int MaxRounds = 0, bool ResidualUngated = false, bool ResidualCandidates = false, int ExpireRound = 0,
-    bool NoTierB = false, bool WantResidual = false);
+    bool NoTierB = false, bool WantResidual = false, bool SkipFits = false, int InjectErrorRound = 0);
 
 /// <summary>Where a lean result came from (the native <c>FTZ_TIER_*</c> values).</summary>
 internal static class LeanTier
@@ -50,9 +52,14 @@ internal struct FtzParamsWire
     public IntPtr Round0Callback;
     public IntPtr Round0Context;
     public IntPtr OutResidual;
+    public int InjectErrorRound;
+    public int Reserved2;
 
     /// <summary><c>FTZ_FLAG_NO_TIER_B</c>.</summary>
     public const int FlagNoTierB = 32;
+
+    /// <summary><c>FTZ_FLAG_SKIP_FITS</c>.</summary>
+    public const int FlagSkipFits = 64;
 
     /// <summary><c>FTZ_FLAG_CQ_AP</c>.</summary>
     public const int FlagCqAp = 1;
@@ -70,18 +77,18 @@ internal struct FtzParamsWire
     public const int FlagResidualCandidates = 16;
 }
 
-/// <summary>Mirror of the native <c>ftz_round_stats_t</c>: eight 32-bit counts and nine 64-bit microsecond counters, 104 bytes.</summary>
+/// <summary>Mirror of the native <c>ftz_round_stats_t</c>: ten 32-bit counts and nine 64-bit microsecond counters, 112 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct FtzRoundWire
 {
-    public int NFits, NSubtracted, NFitNone, NFound, NKept, NTierA, NResults, NUngated;
+    public int NFits, NSubtracted, NFitNone, NFound, NKept, NTierA, NResults, NUngated, NFitSkipped, Reserved;
     public long SubWallUs, FitCpuUs, SumCpuUs;
     public long SpecWallUs, SpecCpuUs;
     public long SearchWallUs, SearchCpuUs;
     public long DecodeWallUs, DecodeCpuUs;
 }
 
-/// <summary>Mirror of the native <c>ftz_stats_t</c>: twenty 32-bit integers, fourteen 64-bit microsecond counters (192 bytes) and four <see cref="FtzRoundWire"/> (608 bytes in all).</summary>
+/// <summary>Mirror of the native <c>ftz_stats_t</c>: twenty 32-bit integers, fourteen 64-bit microsecond counters (192 bytes) and four <see cref="FtzRoundWire"/> (640 bytes in all).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct FtzStatsWire
 {
@@ -116,12 +123,18 @@ internal readonly record struct LeanRoundStats(
     long SubWallUs, long FitCpuUs, long SumCpuUs,
     long SpecWallUs, long SpecCpuUs, long SearchWallUs, long SearchCpuUs, long DecodeWallUs, long DecodeCpuUs)
 {
+    /// <summary>Step 2e: re-encodable results the fit-skip rule left unfitted in this round's subtract step.</summary>
+    public int FitSkipped { get; init; }
+
     /// <summary>The subtract step's CPU: the fits plus the sum.</summary>
     public long SubCpuUs => FitCpuUs + SumCpuUs;
 
     internal static LeanRoundStats From(in FtzRoundWire r) => new(
         r.NFits, r.NSubtracted, r.NFitNone, r.NFound, r.NKept, r.NTierA, r.NResults, r.NUngated,
-        r.SubWallUs, r.FitCpuUs, r.SumCpuUs, r.SpecWallUs, r.SpecCpuUs, r.SearchWallUs, r.SearchCpuUs, r.DecodeWallUs, r.DecodeCpuUs);
+        r.SubWallUs, r.FitCpuUs, r.SumCpuUs, r.SpecWallUs, r.SpecCpuUs, r.SearchWallUs, r.SearchCpuUs, r.DecodeWallUs, r.DecodeCpuUs)
+    {
+        FitSkipped = r.NFitSkipped,
+    };
 }
 
 /// <summary>
@@ -179,6 +192,8 @@ internal readonly record struct LeanCycleStats(
     /// <summary>Step 2c: per round, index 0 (round 0) to 3; empty for a cycle that never reached the native call.</summary>
     public LeanRoundStats[] Rounds { get; init; } = [];
 
+    /// <summary>Step 2e: signals the fit-skip rule left unfitted, over rounds 1 to 3.</summary>
+    public int S3FitSkipped => Rounds.Skip(1).Sum(r => r.FitSkipped);
     /// <summary>The CPU of every round's fits (the subtract step), microseconds: the S3 cost of fitting.</summary>
     public long S3FitCpuUs => Rounds.Skip(1).Sum(r => r.FitCpuUs);
     /// <summary>The CPU of every round's candidate search (<c>ftx_find_candidates</c> and the patch rule), microseconds.</summary>

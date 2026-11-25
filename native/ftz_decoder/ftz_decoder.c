@@ -513,6 +513,15 @@ int ftz_patch_keep(float base_hz, const float* sub_hz, int n_sub)
     return 0;
 }
 
+/* Step 2e (D3): see ftz_decoder.h. The same window as ftz_patch_keep, read the other way round: the failed candidate must lie in [f - 50, f + 100] of the result. */
+int ftz_fit_needed(float result_hz, const float* failed_hz, int n_failed)
+{
+    if (failed_hz == NULL || n_failed <= 0) return 0;
+    for (int i = 0; i < n_failed; ++i)
+        if (failed_hz[i] >= result_hz - FTZ_PATCH_BELOW_HZ && failed_hz[i] <= result_hz + FTZ_PATCH_ABOVE_HZ) return 1;    /* false for NaN */
+    return 0;
+}
+
 /* Bits [lo, hi) of a 77-bit payload, MSB first (message.c's layout; SubfeasPayload's field boundaries); hi - lo <= 32. */
 static uint32_t ftz_bits77(const uint8_t* p, int lo, int hi)
 {
@@ -540,7 +549,7 @@ int ftz_payload_same_qso(const uint8_t* known, const uint8_t* cand)
 int ftz_residual_b_accept(int f1b_passed, int published_freq_hz, int ungated_on, int rescand_on, int* ungated_out)
 {
     if (ungated_out != NULL) *ungated_out = 0;
-    if (rescand_on) return f1b_passed && published_freq_hz <= FTZ_RESIDUAL_RUN_MAX_HZ;   /* the v2 residual-candidates rules: F1b-passed rows only, at most 1097 Hz */
+    (void)published_freq_hz; (void)rescand_on;       /* step 2e (D4): the residual-candidates flag no longer restricts a residual row, and no frequency rule applies */
     if (f1b_passed) return 1;
     if (!ungated_on) return 0;
     if (ungated_out != NULL) *ungated_out = 1;                                           /* published ONLY because the ungating is on */
@@ -646,6 +655,8 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     const int ungated_on   = (params->flags & FTZ_FLAG_RESIDUAL_UNGATED) != 0;
     const int rescand_on   = (params->flags & FTZ_FLAG_RESIDUAL_CANDS) != 0;
     const int no_tier_b    = (params->flags & FTZ_FLAG_NO_TIER_B) != 0;
+    const int skip_fits    = (params->flags & FTZ_FLAG_SKIP_FITS) != 0;
+    const int inject_round = params->inject_error_round;
     ftz_round0_fn r0cb     = params->round0_cb;
     void*         r0ctx    = params->round0_ctx;
     float*        out_resid = params->out_residual;
@@ -740,6 +751,8 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     uint8_t*         reenc  = (uint8_t*)calloc((size_t)rcap, 1);              /* is each published result re-encodable (SubtractionPass.IsReencodable) */
     int32_t*         fit_ix = (int32_t*)calloc((size_t)rcap, sizeof(int32_t)); /* the results a round fits */
     float*           sub_hz = (float*)calloc((size_t)rcap, sizeof(float));     /* the frequencies the round subtracted */
+    float*           fail_hz = (float*)calloc((size_t)alloc_c, sizeof(float)); /* step 2e: base frequencies of the last round's candidates that did not decode */
+    int              n_fail = 0;
     /* Allocated at the first round only: the residual, the analytic signal of the ORIGINAL audio, the fit job (with its 16 shat buffers). */
     float*           resid  = NULL;
     float*           xa_re  = NULL;
@@ -750,7 +763,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     if (cands == NULL || msgs == NULL || cmsgs == NULL || ok_a == NULL || b_el == NULL || b_st == NULL || b_ed == NULL || c_el == NULL
         || c_at == NULL || c_ok == NULL || pos_f == NULL || pos_t == NULL || b_fr == NULL || b_dt == NULL || b_snr == NULL || b_pl == NULL
         || known == NULL || hits == NULL || drop == NULL || texts == NULL || seen_payloads == NULL || res_pl == NULL || reenc == NULL
-        || fit_ix == NULL || sub_hz == NULL)
+        || fit_ix == NULL || sub_hz == NULL || fail_hz == NULL)
     {
         rc = FTZ_ERR_NOMEM;
         goto done;
@@ -787,7 +800,13 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         {
             /* ── S3 (1): what is not yet subtracted, if re-encodable (SubtractionPass.IsReencodable on the unpacked text) ── */
             int nfit = 0;
-            for (int k = n_sub_done; k < nres; ++k) if (reenc[k]) fit_ix[nfit++] = k;
+            for (int k = n_sub_done; k < nres; ++k)
+            {
+                if (!reenc[k]) continue;
+                /* Step 2e (D3): the fit is skipped when no candidate of the round that found this result failed to decode in its patch window. */
+                if (skip_fits && !ftz_fit_needed((float)results[k].freq_hz, fail_hz, n_fail)) { rs->n_fit_skipped++; continue; }
+                fit_ix[nfit++] = k;
+            }
             n_sub_done = nres;
             if (nfit == 0) break;                                    /* nothing to subtract: nothing new can be found */
             if (deadline_us != 0 && deadline_us - ftz_wall_us() < (int64_t)FTZ_RESIDUAL_RESERVE_MS * 1000) { st->abandoned = 1; break; }   /* not started with less than the reserve left */
@@ -819,6 +838,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
 
             /* ── S3 (1, continued): the fits, a chunk at a time on the pool; each chunk is summed into the residual in the sorted result order ── */
             w0 = ftz_wall_us();
+            resid_valid = 0;                                                  /* step 2e (D5): from here to the end of the sums the buffer is half-subtracted; only a round that completes makes it a residual */
             volatile int cancel = 0;
             const int64_t fit_cancel_at = deadline_us != 0 ? deadline_us - (int64_t)FTZ_RESIDUAL_RESERVE_MS * 1000 : 0;
             int cancelled = 0;
@@ -856,6 +876,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                     rs->n_subtracted++;
                 }
                 rs->sum_cpu_us += ftz_thread_cpu_us() - sc0;
+                if (inject_round == round && j0 == 0) { rc = FTZ_ERR_NOMEM; goto done; }    /* TEST HOOK (step 2e, D5): a non-fault error after the first chunk */
             }
             rs->sub_wall_us = ftz_wall_us() - w0;
             if (cancelled) { resid_valid = 0; st->abandoned = 1; break; }      /* all or nothing: this round publishes nothing, earlier rounds stand; the half-subtracted buffer is not a residual */
@@ -1059,6 +1080,16 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         }
         qsort(hits, (size_t)nhits, sizeof(ftz_hit_t), ftz_hit_cmp);
 
+        /* Step 2e (D3): the candidates of this round that did not decode (no tier A / tier B / CQ-AP payload, and not a known payload tier B re-found): the evidence
+         * that something may be hiding near them, read by the next round's fit-skip rule. */
+        n_fail = 0;
+        for (int i = 0; i < ncands; ++i)
+        {
+            const int decoded = ok_a[i] || c_ok[i] || b_st[i] == FTZ_B_KNOWN || b_st[i] == FTZ_B_NEW_GATED
+                             || (b_st[i] == FTZ_B_GATED_OUT && round > 0 && ungated_on);
+            if (!decoded && n_fail < alloc_c) fail_hz[n_fail++] = pos_f[i];
+        }
+
         /* One tier-B row per payload: the first, in the sorted order, whose estimate is not on a window edge; failing that the first
          * (CoherentFallbackSelector.Select's rule). */
         for (int k = 0; k < nhits; ++k)
@@ -1182,7 +1213,7 @@ done:
     }
     free(cands); free(msgs); free(cmsgs); free(ok_a); free(b_el); free(b_st); free(b_ed); free(c_el); free(c_at); free(c_ok);
     free(pos_f); free(pos_t); free(b_fr); free(b_dt); free(b_snr); free(b_pl); free(known); free(hits); free(drop); free(texts); free(seen_payloads);
-    free(res_pl); free(reenc); free(fit_ix); free(sub_hz);
+    free(res_pl); free(reenc); free(fit_ix); free(sub_hz); free(fail_hz);
     free(resid); free(xa_re); free(xa_im);
     if (fitjob != NULL) { free(fitjob->shat); free(fitjob); }
     free(pcm_pad);
