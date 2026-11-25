@@ -449,7 +449,7 @@ internal static class Program
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(leanPath))!);
                     _leanOut = new StreamWriter(leanPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
-                    if (new FileInfo(leanPath).Length == 0) _leanOut.WriteLine("stamp,abandoned,error,results,rounds,ungated,s3_wall_ms,s3_cpu_ms,fit_cpu_ms,search_cpu_ms,decode_cpu_ms,other_cpu_ms,effort,b1,b2,b3,xc,xc_detected");
+                    if (new FileInfo(leanPath).Length == 0) _leanOut.WriteLine("stamp,abandoned,error,results,rounds,ungated,s3_wall_ms,s3_cpu_ms,fit_cpu_ms,search_cpu_ms,decode_cpu_ms,other_cpu_ms,effort,b1,b2,b3,xc,xc_detected,fit_skipped");
                 }
             }
 #endif
@@ -685,7 +685,7 @@ internal static class Program
 #endif
 #if HAS_LEAN
     private static readonly System.Text.RegularExpressions.Regex LeanLineRx = new(
-        @"results=(\d+) threads=\d+ abandoned=(\d+) error=(-?\d+).*?s3: rounds=(\d+) ungated=(\d+) wall_ms=([\d.,]+) cpu_ms=([\d.,]+) fitCpu_ms=([\d.,]+) searchCpu_ms=([\d.,]+) decodeCpu_ms=([\d.,]+) otherCpu_ms=([\d.,]+).*?effort=(\w+) batches: b1=(\d) b2=(\d) b3=(\d) xc=(\S+) xcDetected=(\d+)",
+        @"results=(\d+) threads=\d+ abandoned=(\d+) error=(-?\d+).*?s3: rounds=(\d+) ungated=(\d+) (?:fitSkipped=(\d+) )?wall_ms=([\d.,]+) cpu_ms=([\d.,]+) fitCpu_ms=([\d.,]+) searchCpu_ms=([\d.,]+) decodeCpu_ms=([\d.,]+) otherCpu_ms=([\d.,]+).*?effort=(\w+) batches: b1=(\d) b2=(\d) b3=(\d) xc=(\S+) xcDetected=(\d+)",
         System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     /// <summary>One row per lean cycle into --lean-out, parsed from the decoder's own aggregate-only 'lean:' line (decimal commas normalised). A line that does not parse is written as a row of "parse-failed" so a format drift cannot pass silently.</summary>
@@ -698,7 +698,8 @@ internal static class Program
             if (!m.Success) { w.WriteLine(_curStamp + ",parse-failed"); return; }
             var g = m.Groups;
             string N(int i) => g[i].Value.Replace(',', '.');
-            w.WriteLine(string.Join(",", _curStamp, g[2].Value, g[3].Value, g[1].Value, g[4].Value, g[5].Value, N(6), N(7), N(8), N(9), N(10), N(11), g[12].Value, g[13].Value, g[14].Value, g[15].Value, g[16].Value, g[17].Value));
+            string skipped = g[6].Success ? g[6].Value : "0";
+            w.WriteLine(string.Join(",", _curStamp, g[2].Value, g[3].Value, g[1].Value, g[4].Value, g[5].Value, N(7), N(8), N(9), N(10), N(11), N(12), g[13].Value, g[14].Value, g[15].Value, g[16].Value, g[17].Value, g[18].Value, skipped));
         }
     }
 #endif

@@ -74,6 +74,11 @@ def main():
     arm, n = sys.argv[1], int(sys.argv[2])
     tag = sys.argv[sys.argv.index("--tag") + 1] if "--tag" in sys.argv else "run"
     assert arm in ARMS, "arm must be one of %s" % sorted(ARMS)
+    global BIN, PIN, OUT_ROOT
+    if "--bin" in sys.argv:                                  # a later build (step 2e): --bin <harness dir> --pin <libft8.dll sha256>; output goes to _qa-scratch\dr2e
+        BIN = sys.argv[sys.argv.index("--bin") + 1]
+        PIN = sys.argv[sys.argv.index("--pin") + 1]
+        OUT_ROOT = SC + "\\dr2e"
     assert SLICE_CYCLES == 240 and WSJTX_DECODES_FULL_SLICE == 9431 and WSJTX_DECODES_170 == 6773   # inherited constants as assertions, not prose
     assert sha(BIN + r"\libft8.dll") == PIN, "libft8.dll is not the pin"
     b = busy()
@@ -141,6 +146,7 @@ def main():
     # The lean engine's own per-cycle line: abandoned flag, native error, S3 CPU split (counts and ms only).
     lean_rows = parse_failed = err_cycles = 0
     s3_cpu = fit_cpu = 0.0
+    fit_skipped = 0
     with open(out + r"\lean.csv", newline="") as fh:
         for row in csv.DictReader(fh):
             if row.get("abandoned") == "parse-failed" or row.get("error") is None:
@@ -153,6 +159,7 @@ def main():
                 err_cycles += 1
             s3_cpu += float(row["s3_cpu_ms"])
             fit_cpu += float(row["fit_cpu_ms"])
+            fit_skipped += int(row.get("fit_skipped") or 0)
     last.sort()
     p95 = last[min(len(last) - 1, int(0.95 * len(last)))] if last else -1.0
     res = {"arm": arm, "tag": tag, "cycles": n, "rc": p.returncode, "wall_s": round(wall, 1), "cpu_total_s": round(cpu, 1),
@@ -160,7 +167,7 @@ def main():
            "ours": ours, "matched": matched, "wsjtx_decodes": w_slice,
            "rate_pct": round(100.0 * matched / w_slice, 3), "ours_only_pct": round(100.0 * (ours - matched) / w_slice, 3),
            "lean_rows": lean_rows, "lean_parse_failed": parse_failed, "lean_error_cycles": err_cycles,
-           "s3_cpu_s_per_cycle": round(s3_cpu / 1000.0 / n, 3), "fit_cpu_s_per_cycle": round(fit_cpu / 1000.0 / n, 3),
+           "s3_cpu_s_per_cycle": round(s3_cpu / 1000.0 / n, 3), "fit_cpu_s_per_cycle": round(fit_cpu / 1000.0 / n, 3), "fit_skipped_total": fit_skipped,
            "flags": " ".join(a for a in args[1:] if not a.startswith(("D:", "C:")) and not a.startswith("\\")), "bin_pin": PIN[:16]}
     if n == SLICE_CYCLES_USED:
         res["bars"] = {"T1": res["cpu_s_per_cycle"] <= BARS["T1_cpu_max"], "T2": res["rate_pct"] >= BARS["T2_rate_min"],
