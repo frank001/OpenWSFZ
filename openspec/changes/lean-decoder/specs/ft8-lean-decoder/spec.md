@@ -257,3 +257,23 @@ The Settings page's Advanced Decoder Settings SHALL offer `decoder.threads` (an 
 
 - **WHEN** a cycle is decoded at 16 threads
 - **THEN** its results, tiers, rounds and residual SHALL equal those at 1 thread, byte for byte
+
+
+### Requirement: The lean engine is the default, a stored classic is migrated once, and the lean engine publishes the strongest of its duplicates
+
+`decoder.engine` SHALL default to `lean`: an absent key, a missing decoder section, a fresh install and any value other than the word `classic` SHALL read `lean`. A config that holds `decoder.engine` as `classic` and does not carry the server-owned marker `decoder.leanEngineMigrationApplied` SHALL be rewritten to `lean` once, with the marker set and the file saved; after the marker an explicit `classic` SHALL be respected and no request body SHALL set or clear the marker. `decoder.kMinScorePass2` SHALL remain a setting. Of two or more hits of one round with the same payload (round 0) or the same transmission (a residual round), and of two or more results of one round with the same rendered text, the hit with the highest candidate sync score SHALL be published at its own frequency and time; equal scores SHALL keep the earlier hit in ascending frequency order; an earlier round's decode SHALL stand over a later round's copy; output SHALL stay byte-identical at 1, 2, 4, 8 and 16 threads.
+
+#### Scenario: A stored classic is migrated once
+
+- **WHEN** a config holds `engine` `classic` and no marker
+- **THEN** it SHALL load as `lean` with the marker set and the file rewritten, and a `classic` the operator chooses afterwards SHALL be kept
+
+#### Scenario: The stronger duplicate is at the higher frequency
+
+- **WHEN** two hits of one round carry the same payload and the higher-score hit is at the higher frequency
+- **THEN** the higher-score hit SHALL be published, at its own frequency
+
+#### Scenario: Equal scores
+
+- **WHEN** two same-payload hits have equal scores
+- **THEN** the one at the lower frequency SHALL be published, as before

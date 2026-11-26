@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260078;
+    private const int ExpectedShimVersion = 20260079;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -1158,6 +1158,12 @@ internal static class Ft8LibInterop
     [DllImport("libft8.dll", EntryPoint = "ftz_payload_same_qso", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeFtzPayloadSameQso([In] byte[] known, [In] byte[] candidate);
 
+    [DllImport("libft8.dll", EntryPoint = "ftz_dedup_select", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzDedupSelect(int round, int n, [In] byte[] payloads, [In] int[] scores, [In, Out] byte[] drop);
+
+    [DllImport("libft8.dll", EntryPoint = "ftz_text_replace_wins", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzTextReplaceWins(int newScore, int oldScore);
+
     [DllImport("libft8.dll", EntryPoint = "ftz_residual_b_accept", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeFtzResidualBAccept(int f1bPassed, int publishedFreqHz, int ungatedOn, int rescandOn, out int ungatedOut);
 
@@ -1173,6 +1179,27 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         return NativeFtzPayloadSameQso(known, candidate) != 0;
+    }
+
+    /// <summary>
+    /// DR-3 (test export): the lean engine's selection among the same-payload hits of ONE round. <paramref name="payloads"/> are the hits' 10-byte payloads in published
+    /// order, <paramref name="scores"/> their candidate sync scores; returns, per hit, whether it was dropped (the hit with the highest score survives; equal scores keep the earlier).
+    /// </summary>
+    internal static bool[] LeanDedupSelect(int round, byte[][] payloads, int[] scores)
+    {
+        EnsureInitialized();
+        var flat = new byte[payloads.Length * 10];
+        for (int i = 0; i < payloads.Length; i++) Array.Copy(payloads[i], 0, flat, i * 10, 10);
+        var drop = new byte[payloads.Length];
+        NativeFtzDedupSelect(round, payloads.Length, flat, scores, drop);
+        return drop.Select(d => d != 0).ToArray();
+    }
+
+    /// <summary>DR-3 (test export): whether a same-text result of the same round with <paramref name="newScore"/> replaces one with <paramref name="oldScore"/> (strictly higher only).</summary>
+    internal static bool LeanTextReplaceWins(int newScore, int oldScore)
+    {
+        EnsureInitialized();
+        return NativeFtzTextReplaceWins(newScore, oldScore) != 0;
     }
 
     /// <summary>DR-2 step 2c (test export): the residual tier-B accept rule; <paramref name="ungated"/> is true when the row is published only by the ungating.</summary>

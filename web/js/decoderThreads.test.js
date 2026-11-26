@@ -20,8 +20,8 @@ const here     = dirname(fileURLToPath(import.meta.url));
 const settings = readFileSync(join(here, 'settings.js'), 'utf8');
 const html     = readFileSync(join(here, '..', 'settings.html'), 'utf8');
 
-test('the defaults are the code defaults: classic, normal, automatic threads (0), range 1 to 16, fallback display 2', () => {
-  assert.equal(DEFAULT_ENGINE, 'classic');
+test('the defaults are the code defaults: lean, normal, automatic threads (0), range 1 to 16, fallback display 2', () => {
+  assert.equal(DEFAULT_ENGINE, 'lean');
   assert.equal(DEFAULT_EFFORT, 'normal');
   assert.equal(AUTO_THREADS, 0);
   assert.equal(FALLBACK_SHOWN_THREADS, 2);
@@ -30,8 +30,8 @@ test('the defaults are the code defaults: classic, normal, automatic threads (0)
 });
 
 test('an absent key shows the defaults; a stored value is shown as stored', () => {
-  assert.equal(decoderEngineShown(undefined), 'classic');
-  assert.equal(decoderEngineShown(null), 'classic');
+  assert.equal(decoderEngineShown(undefined), 'lean', 'DR-3: lean is the default');
+  assert.equal(decoderEngineShown(null), 'lean');
   assert.equal(decoderEngineShown('lean'), 'lean');
   assert.equal(decoderEngineShown('classic'), 'classic');
   assert.equal(decoderEffortShown(undefined), 'normal');
@@ -40,10 +40,11 @@ test('an absent key shows the defaults; a stored value is shown as stored', () =
 });
 
 test('an unknown stored word shows the default (the daemon reads it as the default too); case and white space are ignored as the daemon ignores them', () => {
-  assert.equal(decoderEngineShown('turbo'), 'classic');
-  assert.equal(decoderEngineShown(''), 'classic');
+  assert.equal(decoderEngineShown('turbo'), 'lean');
+  assert.equal(decoderEngineShown(''), 'lean');
   assert.equal(decoderEngineShown(' LEAN '), 'lean');
-  assert.equal(decoderEngineShown('leanest'), 'classic');
+  assert.equal(decoderEngineShown(' Classic '), 'classic');
+  assert.equal(decoderEngineShown('classical'), 'lean');
   assert.equal(decoderEffortShown('warp'), 'normal');
   assert.equal(decoderEffortShown(' Fast '), 'fast');
   assert.equal(decoderEffortShown(42), 'normal');
@@ -92,10 +93,10 @@ test('the Automatic hint names the logical processors, the thread count and the 
 });
 
 test('engine and effort: a changed select posts its choice; an unchanged one posts the stored word, or nothing when none was stored', () => {
-  assert.equal(decoderChoicePayload('lean', 'classic', null), 'lean');
-  assert.equal(decoderChoicePayload('classic', 'classic', null), undefined, 'never stored: not written by an untouched save');
+  assert.equal(decoderChoicePayload('classic', 'lean', null), 'classic', 'a changed select posts its choice');
+  assert.equal(decoderChoicePayload('lean', 'lean', null), undefined, 'never stored: an untouched save posts no engine');
   assert.equal(decoderChoicePayload('classic', 'classic', 'classic'), 'classic', 'stored: sent back as stored');
-  assert.equal(decoderChoicePayload('classic', 'classic', 'Bogus'), 'Bogus', 'an unknown stored word is kept');
+  assert.equal(decoderChoicePayload('lean', 'lean', 'Bogus'), 'Bogus', 'an unknown stored word is kept');
   assert.equal(JSON.stringify({ engine: undefined, effort: undefined, threads: 0 }), '{"threads":0}', 'undefined is dropped from the body');
 });
 
@@ -130,10 +131,10 @@ test('touched vs loaded: only an input event on the field clears the automatic f
   assert.match(settings, /_decoderThreadsAuto = threadsLoaded\.auto;/);
 });
 
-test('"Reset to defaults" restores classic, normal and automatic threads (not 2)', () => {
+test('"Reset to defaults" restores lean, normal and automatic threads (not 2)', () => {
   const reset = settings.slice(settings.indexOf("decoderReset.addEventListener('click'"));
   const body = reset.slice(0, reset.indexOf('});'));
-  assert.match(body, /decoderEngine\.value\s*=\s*'classic'/);
+  assert.match(body, /decoderEngine\.value\s*=\s*'lean'/);
   assert.match(body, /decoderEffort\.value\s*=\s*'normal'/);
   assert.match(body, /_decoderThreadsAuto = true;/);
   assert.doesNotMatch(body, /decoderThreads\.value\s*=\s*'2'/);
@@ -168,12 +169,12 @@ test('the help text says what more threads do, gives the measurement once with i
   assert.equal((html.match(/16-processor test PC/g) ?? []).length, 1, 'the measurement is given once');
 });
 
-test('the engine and effort help say what they are, that lean is off by default, and that effort applies to lean only', () => {
+test('the engine and effort help say what they are, that lean is the default, and that effort applies to lean only', () => {
   const eng = html.slice(html.indexOf('id="decoder-engine"'), html.indexOf('id="decoder-effort"'));
   assert.match(eng, /classic/);
   assert.match(eng, /lean/);
-  assert.match(eng, /off by default/i);
-  assert.match(eng, /Default:\s*classic/);
+  assert.doesNotMatch(eng, /off by default/i, 'DR-3: lean is no longer off by default');
+  assert.match(eng, /Default:\s*lean/);
   const eff = html.slice(html.indexOf('id="decoder-effort"'), html.indexOf('id="decoder-threads"'));
   assert.match(eff, /only when the lean engine is selected/i);
   assert.match(eff, /fast/);

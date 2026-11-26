@@ -458,6 +458,48 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
             "no migration is pending for a section created from nothing; otherwise the next restart turns the OFF back ON");
     }
 
+    [Theory(DisplayName = "FR-109: DR-3 migration (e): a POST body carrying leanEngineMigrationApplied (either value) cannot set or clear the stored marker")]
+    [InlineData(true,  false)]
+    [InlineData(false, true)]
+    public async Task PostConfig_BodyCarriesLeanEngineMarker_StoredMarkerKept(bool stored, bool sent)
+    {
+        var store = _factory.Services.GetRequiredService<IConfigStore>();
+        await store.SaveAsync(new AppConfig() with
+        {
+            Decoder = new DecoderConfig(kMinScorePass2: 10, osdCorrThreshold: 0.10f, osdNhardMax: 40,
+                nhard40MigrationApplied: true, subtractionOnMigrationApplied: true, leanEngineMigrationApplied: stored),
+        });
+        var storedNow = store.Current.Decoder!.LeanEngineMigrationApplied;
+        storedNow.Should().Be(stored, "precondition");
+
+        var client = _factory.CreateClient();
+        var body = "{\"decoder\":{\"leanEngineMigrationApplied\":" + (sent ? "true" : "false") + "}}";
+        var resp = await client.PostAsync("/api/v1/config", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var loaded = await resp.Content.ReadFromJsonAsync(AppJsonContext.Default.AppConfig);
+        loaded!.Decoder!.LeanEngineMigrationApplied.Should().Be(storedNow, "the marker is server-owned: the stored value wins whatever the client sends");
+        store.Current.Decoder!.LeanEngineMigrationApplied.Should().Be(storedNow);
+    }
+
+    [Fact(DisplayName = "FR-109: DR-3: a POST that creates the decoder section stores the marker true, and an engine 'classic' sent with it is kept (a deliberate choice)")]
+    public async Task PostConfig_CreatesDecoderSection_MarkerTrue_ClassicKept()
+    {
+        var store = _factory.Services.GetRequiredService<IConfigStore>();
+        await store.SaveAsync(new AppConfig() with { Decoder = null });
+
+        var client = _factory.CreateClient();
+        const string body = """{"decoder":{"kMinScorePass2":10,"osdCorrThreshold":0.10,"osdNhardMax":40,"engine":"classic"}}""";
+        var resp = await client.PostAsync("/api/v1/config", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        store.Current.Decoder!.LeanEngineMigrationApplied.Should().BeTrue("no migration is pending for a section created from nothing");
+        store.Current.Decoder.Engine.Should().Be("classic");
+
+        // put the shared fixture back to the defaults for the tests that follow
+        await PostDecoder(client, "{\"engine\":\"lean\"}");
+    }
+
     // ── Operator threads setting (FR-108): decoder.threads, engine, effort ─────────────────────────────────────
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
@@ -519,11 +561,11 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
         // an unknown word is kept as written and reads as the default
         var unknown = await PostDecoder(client, "{\"engine\":\"turbo\",\"effort\":\"warp\"}");
         unknown.Engine.Should().Be("turbo");
-        unknown.GetEngineKind().Should().Be(DecoderEngine.Classic);
+        unknown.GetEngineKind().Should().Be(DecoderEngine.Lean, "an unrecognised word reads as the default, lean");
         unknown.Effort.Should().Be("warp");
         unknown.GetEffortKind().Should().Be(DecoderEffort.Normal);
 
         // put the shared fixture back to the defaults for the tests that follow
-        await PostDecoder(client, "{\"engine\":\"classic\",\"effort\":\"normal\",\"threads\":2}");
+        await PostDecoder(client, "{\"engine\":\"lean\",\"effort\":\"normal\",\"threads\":0}");
     }
 }

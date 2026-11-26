@@ -858,7 +858,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetCoherentFallbackResidualCandidates(initialDecoder.CoherentFallbackResidualCandidates);   // COH-RES-CAND: default false (key absent = off); read once per cycle
     ft8Decoder.SetCrossCyclePrior(initialDecoder.CrossCyclePrior);   // XC-BUILD: default false (key absent = off); read once per cycle
     ft8Decoder.SetCrossCyclePriorShadow(initialDecoder.CrossCyclePriorShadow);   // XC-BUILD shadow null: default false; read once per cycle
-    ft8Decoder.SetEngine(initialDecoder.GetEngineKind());   // DR-2 step 2a: default classic (key absent or unknown = classic); read once per cycle
+    ft8Decoder.SetEngine(initialDecoder.GetEngineKind());   // DR-2 step 2a: default lean (key absent or unknown = lean; only the word classic reads classic); read once per cycle
     ft8Decoder.SetLeanThreads(initialDecoder.ResolveThreads(Environment.ProcessorCount));   // the lean engine's workers: 0 = auto = min(logical processors, 16), else 1 to 16
     ft8Decoder.SetEffort(initialDecoder.GetEffortKind());   // DR-2 step 2d: default normal (key absent or unknown = normal); lean engine only; read once per cycle
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag

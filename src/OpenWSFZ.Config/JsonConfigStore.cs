@@ -85,6 +85,7 @@ public sealed class JsonConfigStore : IConfigStore
                     Nhard40MigrationApplied       = true,
                     Nhard24MigrationApplied       = true,
                     SubtractionOnMigrationApplied = true,
+                    LeanEngineMigrationApplied    = true,
                 },
             };
 
@@ -355,6 +356,26 @@ public sealed class JsonConfigStore : IConfigStore
                 migrationDirty = true;
             }
 
+            // DR-3 (FR-109): a persisted engine "classic" becomes "lean" once. The marker is set whenever a decoder section is loaded with it false,
+            // migrated or not (the #199 rule), so an operator's later deliberate "classic" persists and the config is migrated at most once in its life.
+            if (config.Decoder is { LeanEngineMigrationApplied: false })
+            {
+                var wasClassic = DecoderEngineNames.IsClassicWord(config.Decoder.Engine);
+                config = config with
+                {
+                    Decoder = config.Decoder with
+                    {
+                        Engine                     = wasClassic ? DecoderEngineNames.Lean : config.Decoder.Engine,
+                        LeanEngineMigrationApplied = true,
+                    },
+                };
+                if (wasClassic)
+                    Console.Error.WriteLine(
+                        "[OpenWSFZ] decoder.engine: migrated persisted classic -> lean (the lean engine is the default since v1.1). " +
+                        "Set decoder.engine to classic (Settings or config.json) to go back; the choice then persists.");
+                migrationDirty = true;
+            }
+
             // Written back immediately, once, unlike the legacy-rename guards above (which are
             // idempotent and don't need to persist themselves every load): without a disk write
             // the markers never survive a restart. Same temp-file-then-rename crash-safety as an
@@ -434,7 +455,7 @@ public sealed class JsonConfigStore : IConfigStore
                 Tx                = new TxConfig(),
                 RemoteAccess      = new RemoteAccessConfig(),
                 // Marker true: a fresh install has no legacy 60 to migrate (#199).
-                Decoder           = new DecoderConfig() with { Nhard40MigrationApplied = true, Nhard24MigrationApplied = true, SubtractionOnMigrationApplied = true },
+                Decoder           = new DecoderConfig() with { Nhard40MigrationApplied = true, Nhard24MigrationApplied = true, SubtractionOnMigrationApplied = true, LeanEngineMigrationApplied = true },
                 ExternalReporting = new ExternalReportingConfig(),
             },
             ConfigJsonContext.Default.AppConfig);

@@ -168,6 +168,13 @@ int ftz_patch_keep(float base_hz, const float* sub_hz, int n_sub);
  * and candidate the on-air one with the same two calls (SubfeasPayload.SameQso). */
 int ftz_payload_same_qso(const uint8_t* known, const uint8_t* candidate);
 
+/* DR-3 duplicate rule (the lean engine's selection among duplicates of ONE round, pure, called by the cycle itself). ftz_dedup_select: payloads is n * 10 bytes
+ * in published order (ascending frequency), scores the candidates' sync scores (ftx_candidate_t.score, higher = more likely); of hits with the same payload
+ * (round 0) or the same transmission (a residual round) the HIGHEST score survives, equal scores keep the earlier hit; losers are marked in drop[]; returns
+ * the number newly dropped. ftz_text_replace_wins: 1 when a same-text result of the same round with score new_score replaces one with old_score (strictly higher). */
+int ftz_dedup_select(int round, int n, const uint8_t* payloads, const int32_t* scores, uint8_t* drop);
+int ftz_text_replace_wins(int new_score, int old_score);
+
 /* 1 if a CRC-valid, new tier-B row of a residual round is published. f1b_passed: F1b <= T1. Since step 2e: an F1b-passed row, or (ungated on) any row, at any
  * frequency; rescand_on (decoder.coherentFallbackResidualCandidates) is accepted and has NO effect in the lean engine (the faithful union of classic's residual run
  * and its residual-candidates run). *ungated_out (may be NULL) is set to 1 when the row is published ONLY because of the ungating. */

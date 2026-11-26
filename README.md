@@ -19,7 +19,7 @@ versions, not features of the current release.
 ## Status
 
 > **Pre-release — source only.** No binaries are distributed yet.
-> The current release is **v1.0**. v1.0 marks the project's first milestone:
+> The current release is **v1.1**. v1.0 marks the project's first milestone:
 > the software completes confirmed two-way contacts end-to-end over RF
 > (RX + CAT rig control + TX on-air), and has done so routinely on the
 > author's station since mid-2026. v1.0 scope: FT8 receive and transmit,

@@ -7,8 +7,9 @@ using Xunit;
 namespace OpenWSFZ.Config.Tests;
 
 /// <summary>
-/// DR-2 step 2a (FR-108): <c>decoder.engine</c> defaults to <c>classic</c> (an absent key, a missing decoder section and any unrecognised value read
-/// classic); <c>lean</c> is read; the key round-trips and survives an unrelated save; <c>decoder.threads</c> defaults to 2 and is clamped to 1 to 8.
+/// DR-2 step 2a / DR-3 (FR-108, FR-109): <c>decoder.engine</c> defaults to <c>lean</c> (an absent key, a missing decoder section and any unrecognised value read
+/// lean; only the word <c>classic</c> reads classic); a stored <c>classic</c> is migrated to <c>lean</c> once, with a marker, and an explicit <c>classic</c> after
+/// that is respected; the key round-trips and survives an unrelated save; <c>decoder.threads</c> defaults to automatic (0) and is clamped to 1 to 16.
 /// HK-035: what an ABSENT key deserialises to is checked through the real source-generated deserialisation and the real <see cref="JsonConfigStore"/>
 /// path.
 /// </summary>
@@ -25,22 +26,26 @@ public sealed class LeanEngineConfigTests
 
     private static DecoderConfig Decoder(JsonConfigStore store) => store.Current.Decoder ?? new DecoderConfig();
 
-    // Both markers true so no migration rewrites the decoder section: the file under test is read as written.
-    private const string MarkersOnly = "\"nhard40MigrationApplied\":true,\"subtractionOnMigrationApplied\":true";
+    // Every marker true so no migration rewrites the decoder section: the file under test is read as written.
+    private const string MarkersOnly = "\"nhard40MigrationApplied\":true,\"subtractionOnMigrationApplied\":true,\"leanEngineMigrationApplied\":true";
 
-    [Fact(DisplayName = "FR-108: DR-2 D4: the code default is classic and automatic threads (0), an absent key reads classic, 'lean' is read, the wire names are camelCase")]
-    public void CodeDefault_IsClassic_AbsentKeyReadsClassic()
+    // The other two markers true and the DR-3 marker absent: only the classic -> lean migration can act.
+    private const string OldMarkersOnly = "\"nhard40MigrationApplied\":true,\"subtractionOnMigrationApplied\":true";
+
+    [Fact(DisplayName = "FR-108: DR-2 D4: the code default is lean and automatic threads (0), an absent key reads lean, 'classic' is read, the wire names are camelCase")]
+    public void CodeDefault_IsLean_AbsentKeyReadsLean()
     {
-        new DecoderConfig().Engine.Should().Be("classic");
-        new DecoderConfig().GetEngineKind().Should().Be(DecoderEngine.Classic);
+        new DecoderConfig().Engine.Should().Be("lean");
+        new DecoderConfig().GetEngineKind().Should().Be(DecoderEngine.Lean);
+        DecoderEngineNames.Default.Should().Be("lean");
         new DecoderConfig().Threads.Should().Be(0);
 
         JsonSerializer.Deserialize("""{"decoder":{}}""", ConfigJsonContext.Default.AppConfig)!
-            .Decoder!.GetEngineKind().Should().Be(DecoderEngine.Classic);
+            .Decoder!.GetEngineKind().Should().Be(DecoderEngine.Lean);
         JsonSerializer.Deserialize("""{}""", ConfigJsonContext.Default.AppConfig)!
-            .Decoder.Should().BeNull("no decoder section: the daemon falls back to a new DecoderConfig, which is classic");
+            .Decoder.Should().BeNull("no decoder section: the daemon falls back to a new DecoderConfig, which is lean");
         JsonSerializer.Deserialize("""{"decoder":{"cqApEnabled":true}}""", ConfigJsonContext.Default.AppConfig)!
-            .Decoder!.GetEngineKind().Should().Be(DecoderEngine.Classic, "a body for another key leaves this one at its default");
+            .Decoder!.GetEngineKind().Should().Be(DecoderEngine.Lean, "a body for another key leaves this one at its default");
         JsonSerializer.Deserialize("""{"decoder":{"engine":"lean"}}""", ConfigJsonContext.Default.AppConfig)!
             .Decoder!.GetEngineKind().Should().Be(DecoderEngine.Lean);
         JsonSerializer.Deserialize("""{"decoder":{"engine":"classic"}}""", ConfigJsonContext.Default.AppConfig)!
@@ -55,13 +60,16 @@ public sealed class LeanEngineConfigTests
         doc.RootElement.TryGetProperty("effectiveThreads", out _).Should().BeFalse();
     }
 
-    [Theory(DisplayName = "FR-108: DR-2 D4: an unknown, empty or differently cased value reads as documented: only the word 'lean' is lean")]
-    [InlineData("turbo", DecoderEngine.Classic)]
-    [InlineData("", DecoderEngine.Classic)]
+    [Theory(DisplayName = "FR-109: DR-3: an unknown, empty or differently cased value reads as documented: only the word 'classic' is classic, everything else is the default, lean")]
+    [InlineData("turbo", DecoderEngine.Lean)]
+    [InlineData("", DecoderEngine.Lean)]
     [InlineData("LEAN", DecoderEngine.Lean)]
     [InlineData("lean ", DecoderEngine.Lean)]
-    [InlineData("leanest", DecoderEngine.Classic)]
-    public void UnknownValue_ReadsClassic(string value, DecoderEngine expected)
+    [InlineData("leanest", DecoderEngine.Lean)]
+    [InlineData("classic", DecoderEngine.Classic)]
+    [InlineData(" CLASSIC ", DecoderEngine.Classic)]
+    [InlineData("classical", DecoderEngine.Lean)]
+    public void UnknownValue_ReadsLean(string value, DecoderEngine expected)
     {
         using var dir = new TempDirectory();
         File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10,\"engine\":" + JsonSerializer.Serialize(value) + "," + MarkersOnly + "}}");
@@ -69,18 +77,18 @@ public sealed class LeanEngineConfigTests
         Decoder(new JsonConfigStore(ConfigPath(dir))).GetEngineKind().Should().Be(expected);
     }
 
-    [Fact(DisplayName = "FR-108: DR-2 D4: a stored decoder section without the key loads classic; saved back it carries the key as classic")]
-    public async Task StoredWithoutTheKey_LoadsClassic_SavesClassic()
+    [Fact(DisplayName = "FR-109: DR-3: a stored decoder section without the key loads lean; saved back it carries the key as lean")]
+    public async Task StoredWithoutTheKey_LoadsLean_SavesLean()
     {
         using var dir = new TempDirectory();
         File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10," + MarkersOnly + "}}");
 
         var store = new JsonConfigStore(ConfigPath(dir));
-        Decoder(store).GetEngineKind().Should().Be(DecoderEngine.Classic);
+        Decoder(store).GetEngineKind().Should().Be(DecoderEngine.Lean);
 
         await store.SaveAsync(store.Current with { ShowCycleCountdown = !store.Current.ShowCycleCountdown });
         using var written = JsonDocument.Parse(File.ReadAllText(ConfigPath(dir)));
-        written.RootElement.GetProperty("decoder").GetProperty("engine").GetString().Should().Be("classic");
+        written.RootElement.GetProperty("decoder").GetProperty("engine").GetString().Should().Be("lean");
         written.RootElement.GetProperty("decoder").GetProperty("threads").GetInt32().Should().Be(0);
     }
 
@@ -100,6 +108,99 @@ public sealed class LeanEngineConfigTests
         var reloaded = Decoder(new JsonConfigStore(ConfigPath(dir)));
         reloaded.Engine.Should().Be(value, "an unrelated save does not rewrite the key (even an unknown word is kept as the operator wrote it)");
         reloaded.Threads.Should().Be(5);
+    }
+
+    // ── DR-3 (FR-109): the one-time classic -> lean migration, in the pattern of the nhard and subtraction migrations ─────────────────────────────
+
+    [Fact(DisplayName = "FR-109: DR-3 migration (a): a stored engine 'classic' without the marker loads as lean with the marker set, and the rewritten file carries both")]
+    public void Migration_StoredClassic_BecomesLean_MarkerSet_FileRewritten()
+    {
+        using var dir = new TempDirectory();
+        File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10,\"engine\":\"classic\",\"threads\":5," + OldMarkersOnly + "}}");
+
+        var store = new JsonConfigStore(ConfigPath(dir));
+        Decoder(store).Engine.Should().Be("lean");
+        Decoder(store).LeanEngineMigrationApplied.Should().BeTrue();
+        Decoder(store).Threads.Should().Be(5, "nothing else in the section is touched");
+
+        using var written = JsonDocument.Parse(File.ReadAllText(ConfigPath(dir)));
+        written.RootElement.GetProperty("decoder").GetProperty("engine").GetString().Should().Be("lean", "the migration is saved, not only applied in memory");
+        written.RootElement.GetProperty("decoder").GetProperty("leanEngineMigrationApplied").GetBoolean().Should().BeTrue();
+    }
+
+    [Theory(DisplayName = "FR-109: DR-3 migration (b): an explicit 'classic' AFTER the marker is respected across a load, a save and a reload, and never touched again")]
+    [InlineData("classic")]
+    [InlineData(" Classic ")]
+    public async Task Migration_ExplicitClassicAfterTheMarker_IsRespected(string word)
+    {
+        using var dir = new TempDirectory();
+        File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10,\"engine\":" + JsonSerializer.Serialize(word) + "," + MarkersOnly + "}}");
+
+        var store = new JsonConfigStore(ConfigPath(dir));
+        Decoder(store).Engine.Should().Be(word);
+        Decoder(store).GetEngineKind().Should().Be(DecoderEngine.Classic);
+
+        await store.SaveAsync(store.Current with { ShowCycleCountdown = !store.Current.ShowCycleCountdown });
+        var reloaded = Decoder(new JsonConfigStore(ConfigPath(dir)));
+        reloaded.Engine.Should().Be(word);
+        reloaded.LeanEngineMigrationApplied.Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "FR-109: DR-3 migration (c): a decoder section with no engine key reads lean and gets the marker")]
+    public void Migration_NoEngineKey_ReadsLean_MarkerSet()
+    {
+        using var dir = new TempDirectory();
+        File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10," + OldMarkersOnly + "}}");
+
+        var store = new JsonConfigStore(ConfigPath(dir));
+        Decoder(store).GetEngineKind().Should().Be(DecoderEngine.Lean);
+        Decoder(store).LeanEngineMigrationApplied.Should().BeTrue();
+        using var written = JsonDocument.Parse(File.ReadAllText(ConfigPath(dir)));
+        written.RootElement.GetProperty("decoder").GetProperty("leanEngineMigrationApplied").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact(DisplayName = "FR-109: DR-3 migration (c2): a config with no decoder section is left alone and reads lean through the default section")]
+    public void Migration_NoDecoderSection_ReadsLean()
+    {
+        using var dir = new TempDirectory();
+        File.WriteAllText(ConfigPath(dir), "{\"port\":8123}");
+
+        var store = new JsonConfigStore(ConfigPath(dir));
+        store.Current.Decoder.Should().BeNull();
+        Decoder(store).GetEngineKind().Should().Be(DecoderEngine.Lean);
+    }
+
+    [Fact(DisplayName = "FR-109: DR-3 migration (d): a fresh install's new config has engine lean and the marker set")]
+    public void Migration_FreshInstall_EngineLean_MarkerSet()
+    {
+        using var dir = new TempDirectory();
+        var store = new JsonConfigStore(ConfigPath(dir));   // no file: the store writes the default config (and, as for the other defaults, holds no decoder section in memory)
+
+        Decoder(store).Engine.Should().Be("lean");
+        File.Exists(ConfigPath(dir)).Should().BeTrue();
+        using var written = JsonDocument.Parse(File.ReadAllText(ConfigPath(dir)));
+        written.RootElement.GetProperty("decoder").GetProperty("engine").GetString().Should().Be("lean");
+        written.RootElement.GetProperty("decoder").GetProperty("leanEngineMigrationApplied").GetBoolean().Should().BeTrue();
+        Decoder(new JsonConfigStore(ConfigPath(dir))).LeanEngineMigrationApplied.Should().BeTrue("the next load reads the marker the fresh file carries");
+    }
+
+    [Fact(DisplayName = "FR-109: DR-3 migration (f): the migration runs once: a second load changes nothing, and a classic chosen after it stays")]
+    public async Task Migration_RunsOnce_SecondLoadChangesNothing()
+    {
+        using var dir = new TempDirectory();
+        File.WriteAllText(ConfigPath(dir), "{\"decoder\":{\"kMinScorePass2\":10,\"engine\":\"classic\"," + OldMarkersOnly + "}}");
+
+        var first = new JsonConfigStore(ConfigPath(dir));
+        Decoder(first).Engine.Should().Be("lean");
+        string afterFirst = File.ReadAllText(ConfigPath(dir));
+
+        var second = new JsonConfigStore(ConfigPath(dir));
+        Decoder(second).Engine.Should().Be("lean");
+        File.ReadAllText(ConfigPath(dir)).Should().Be(afterFirst, "a second load does not rewrite the file");
+
+        // the operator chooses classic deliberately; the marker is already set, so the next load keeps it
+        await second.SaveAsync(second.Current with { Decoder = Decoder(second) with { Engine = "classic" } });
+        Decoder(new JsonConfigStore(ConfigPath(dir))).Engine.Should().Be("classic");
     }
 
     [Fact(DisplayName = "FR-108: DR-2 2d D5: the code default of effort is normal, an absent key reads normal, 'fast' is read, a body for another key leaves it, the wire name is camelCase")]
