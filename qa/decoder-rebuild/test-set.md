@@ -23,3 +23,15 @@
 - For each of the first two, the 240-cycle contiguous window with the most WSJT-X decodes was found. Results: `20261028_2233` best 8,983 (`261029_021045` to `261029_031030`); `20261114_2312` best 9,431 (`261115_072930` to `261115_082915`).
 - The busiest hour is `20261114_2312`'s.
 - Script: a per-cycle line count of `ALL.TXT` timestamps; no message text was read out of the function that counts it (HK-037).
+
+## LC-BASE slices (added 2026-11-26, for `spec-lc-base-lean-vs-classic.md`; `lc_base_prep.py`)
+
+Held-out recorded audio for the lean-against-classic comparison. Same method as above: the 240-cycle contiguous window with the most `ALL.TXT` lines, every cycle's `owsfz/wav/` file present, the cycle before it present (warm-up). Result: `qa/rr-study/results/2026-11-26-lc-base/lc-base-result.md`. The nights of 18 and 19 November stay unused.
+
+| Slice | Night (`artefacts/`) | Band | Cycles | Window | WSJT-X decodes |
+|---|---|---|---|---|---|
+| **S40** | `20261114_2312_endurance_run-gathered` | 40 m | 170 (reused, not re-run) | `261115_072930` onward | 6,773 |
+| **H40** | `20261028_2233_endurance_run-gathered` | 40 m | 240 | `261029_021045` to `261029_031030` (warm-up `261029_021030`) | 8,983 (equals the window recorded above, reproduced by the search) |
+| **H20** | `20260808_live_run_0016-8080` | 20 m | 240 | `260808_001730` to `260808_011715` (warm-up `260808_001715`) | 9,154 |
+
+H20 was recorded on 2026-08-08, before the current audio routing: its rate against WSJT-X is not comparable with the 40 m slices; the comparison between the two decoders on it is fair (same audio).

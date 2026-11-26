@@ -83,6 +83,25 @@ def load_nc(d):
     return rows
 
 
+def same_text_other_freq(d):
+    """Our decodes WSJT-X did not corroborate (not matched within 10 Hz) whose text WSJT-X decoded in the same cycle at another frequency.
+    Numbers only: (batch kind, path, apKind, smallest frequency offset in Hz to a WSJT-X decode of the same text, our SNR estimate)."""
+    rows, seen = [], set()
+    with open(os.path.join(d, "nc.tsv"), encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            c = line.rstrip("\n").split("\t")
+            if len(c) < 11:
+                continue
+            key = (c[0], c[10])
+            if key in seen:
+                continue
+            seen.add(key)
+            if c[2] == "0" and c[6] == "1":
+                ap = int(c[11]) if len(c) > 11 and c[11].lstrip("-").isdigit() else 0
+                rows.append([int(c[1]), int(c[9]), ap, int(c[7]), int(c[5])])
+    return rows
+
+
 def per_cycle_last_ms(d):
     out = {}
     with open(os.path.join(d, "run.csv"), newline="") as fh:
@@ -177,6 +196,7 @@ def main():
            "arm": arms, "wsjtx_lines_stamped": arms["C"]["wsjtx_decodes"], "wsjtx_list_parsed": n_w_list,
            "overlap": total, "cells": {"%s|%s" % k: v for k, v in sorted(cells.items())},
            "origin_kind_path_ap": origin, "matched_by_batch_kind": by_batch, "ours_only": ours_only,
+           "same_text_other_freq": {a: same_text_other_freq(dirs[a]) for a in dirs},
            "per_cycle": per_cycle, "last_ms": LAST}
     out = os.path.join(SC, "lc-base", "score_%s_%s.json" % (tag, sl))
     json.dump(res, open(out, "w"))

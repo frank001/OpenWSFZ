@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 SC = r"D:\Projects\claude\_qa-scratch\lc-base"
-OUT = r"D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\decoder-rebuild\lc-base"
+OUT = r"D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\rr-study\results\2026-11-26-lc-base\figures"
 FILES = [("S40", "score_reuse_S40.json"), ("H40", "score_full_H40.json"), ("H20", "score_full_H20.json")]
 LABEL = {"S40": "S40: 40 m, 15 Nov", "H40": "H40: 40 m, 29 Oct", "H20": "H20: 20 m, 8 Aug"}
 BANDS = ["ge-10", "-10..-15", "-15..-18", "-18..-21", "lt-21"]

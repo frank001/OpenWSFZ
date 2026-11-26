@@ -12,7 +12,7 @@ import os
 import re
 
 SC = r"D:\Projects\claude\_qa-scratch\lc-base"
-OUT = r"D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\decoder-rebuild\lc-base-result.md"
+OUT = r"D:\Projects\claude\OpenWSFZ\worktrees\qa\qa\rr-study\results\2026-11-26-lc-base\lc-base-result.md"
 FILES = {"S40": "score_reuse_S40.json", "H40": "score_full_H40.json", "H20": "score_full_H20.json"}
 BUILD = {("S40", "C"): "shipped `66b3ddf1` (DR-0's A6)", ("S40", "L"): "`fc4fb788` (DR-2e's L5)", ("H40", "C"): "main `546ad125`", ("H40", "L"): "main `546ad125`",
          ("H20", "C"): "main `546ad125`", ("H20", "L"): "main `546ad125`"}
@@ -37,6 +37,17 @@ def main():
     assert [D[k]["arm"]["L"]["last_p95_ms"] for k in D] == [2053, 2108, 2053] and [D[k]["arm"]["C"]["last_p95_ms"] for k in D] == [7332, 6527, 6162]
     assert all(D[k]["arm"][a]["abandoned_cycles"] == 0 for k in D for a in "CL")
     assert [D[k]["ours_only"]["L"]["same_text_decoded_elsewhere_by_wsjtx"] for k in D] == [14, 10, 0] and all(D[k]["ours_only"]["C"]["same_text_decoded_elsewhere_by_wsjtx"] == 0 for k in D)
+
+    # section 5.1: the 24 same-text rows of lean (numbers: kind, path, ap, offset Hz, our SNR)
+    st = {k: D[k]["same_text_other_freq"]["L"] for k in D}
+    assert [len(st[k]) for k in D] == [14, 10, 0] and all(len(D[k]["same_text_other_freq"]["C"]) == 0 for k in D)
+    for k, (lo, hi, med, slo, shi) in {"S40": (98, 103, 101, -25, -12), "H40": (101, 102, 101, -21, -18)}.items():
+        offs = sorted(r[3] for r in st[k])
+        assert (offs[0], offs[-1], offs[len(offs) // 2 - 1]) == (lo, hi, med) or (offs[0], offs[-1]) == (lo, hi), (k, offs)
+        assert sorted(r[3] for r in st[k])[len(offs) // 2] in (med, med + 1)
+        assert all((r[0], r[1], r[2]) == (1, 0, 0) for r in st[k]), k                      # batch 1, path 0 (ordinary pass), no CQ-AP = round 0, tier A
+        assert (min(r[4] for r in st[k]), max(r[4] for r in st[k])) == (slo, shi), k
+    assert round(100 * 14 / 6773, 2) == 0.21 and round(100 * 10 / 8983, 2) == 0.11
 
     T = json.load(open(os.path.join(SC, "tables.json")))
     rows = ["| Slice | Arm | Engine | Build | Cycles | Wall (s) | Process CPU (s) | Exit code |", "|---|---|---|---|---:|---:|---:|---:|"]

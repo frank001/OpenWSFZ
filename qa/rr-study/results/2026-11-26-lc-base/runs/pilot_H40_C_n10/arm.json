@@ -1,0 +1,23 @@
+{
+ "slice": "H40",
+ "arm": "C",
+ "tag": "pilot",
+ "cycles": 10,
+ "first_cycle": "261029_021045",
+ "last_cycle": "261029_021300",
+ "rc": 0,
+ "wall_s": 59.5,
+ "cpu_total_s": 214.9,
+ "cpu_s_per_cycle": 21.492,
+ "last_p95_ms": 6556,
+ "last_median_ms": 5462,
+ "last_max_ms": 6556,
+ "abandoned_cycles": 0,
+ "ours": 316,
+ "matched": 299,
+ "wsjtx_decodes": 362,
+ "rate_pct": 82.597,
+ "ours_only_pct": 4.696,
+ "flags": "--selection --run 20261028_2233 --stratum FULL --wav-root --wav-dir --out --log --mode three1 --cohfb 1 --late-round 1 --xc-prior 1 --nhard 24 --osd-sign-fix 1 --cohms 1 --cohaudio Both --kmin 5 --osd-corr 0.05 --ungated 1 --cq-ap 1 --cohrescand 1 --xc-shadow 0 --xc-defaults 1 --threads 8 --engine classic --xc-out --xc-probe-out --cohfb-out --label lcbase:H40:C --wsjtx-alltxt --matched-out --outcomes --nc-dump --testb-out --matched-batch-out --third-out --abandon-out --late-out --lean-out",
+ "bin_pin": "eab11ec9a456169b"
+}

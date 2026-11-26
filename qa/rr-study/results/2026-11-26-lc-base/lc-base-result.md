@@ -5,13 +5,13 @@
 ## Summary
 
 1. **Decode rate: the two engines are close, and which one is ahead depends on the night.** Against WSJT-X on the same audio, lean is **2.88 pp behind on S40** (40 m, 15 Nov), **1.02 pp behind on H40** (40 m, 29 Oct) and **0.78 pp ahead on H20** (20 m, 8 Aug). Counted per cycle, the mean gap is −1.15 ± 0.18, −0.38 ± 0.14 and +0.30 ± 0.11 decodes (mean ± standard error over 170, 240 and 240 cycles): at most about one decode per cycle either way. (Figure 1, Table 1.)
-2. **Cost: lean is much cheaper and much faster.** CPU per cycle is **47 %, 30 % and 30 % lower** (13.4, 15.5, 14.2 against 25.2, 22.0, 20.2 CPU-s), although lean ran with 16 threads and classic with 8. The last batch is published at a p95 of **2.05 to 2.11 s against 6.2 to 7.3 s**. No cycle was abandoned in any run. (Figure 2.)
+2. **Cost: lean is much cheaper and much faster.** CPU per cycle is **47 %, 30 % and 30 % lower** (13.4, 15.5, 14.2 against 25.2, 22.0, 20.2 CPU-s), although lean ran with 16 threads and classic with 8. **These CPU figures are for lean at 16 threads and classic at 8**: at 2 threads lean used 9.90 CPU-s per cycle on S40 (DR-2e) and classic used 3.97 CPU-s less than at 8 (DR-0's A9), so the saving depends on the thread count for both engines and is not a fixed property of either. The last batch is published at a p95 of **2.05 to 2.11 s against 6.2 to 7.3 s**. No cycle was abandoned in any run. (Figure 2.)
 3. **False side: equal.** Decodes WSJT-X did not corroborate differ by at most 0.34 pp of the WSJT-X count (Table 1, Figure 7).
-4. **The room for improvement is the same for both engines: crowded signals.** 11.0 to 14.8 % of the WSJT-X decodes are found by **neither** engine (871, 986 and 1,358 decodes). Of everything lean misses, **86 to 91 % sit within ±50 Hz of another WSJT-X decode**, and **59 to 70 % are stronger than −15 dB**; only 13 to 26 % are weaker than −18 dB. (Figures 3 and 5, Tables 2 and 3.)
+4. **The room for improvement is the same for both engines: crowded signals.** 11.0 to 14.8 % of the WSJT-X decodes are found by **neither** engine (871, 986 and 1,358 decodes). **86 to 91 % of lean's misses are crowded (a WSJT-X decode within ±50 Hz), against 69 to 75 % of all WSJT-X decodes; a crowded signal is missed 1.2 to 7.1 times as often as an isolated one of the same SNR band (median 3.1 times).** The ratio is the finding; the 86 to 91 % alone overstates it. Of everything lean misses, **59 to 70 % are stronger than −15 dB**; only 13 to 26 % are weaker than −18 dB. (Figures 3 and 5, Tables 2 and 3.)
 5. **Where the engines differ:** classic keeps an edge on **isolated** signals (found by classic only: 32, 71, 42; by lean only: 1, 11, 8) and, on both 40 m slices, on **strong crowded** signals (≥ −10 dB, crowded: classic only 175 and 165, lean only 74 and 73). Lean has the edge on **weak crowded** signals (below −10 dB) on H40 (251 against 191) and H20 (237 against 128), but not on S40 (111 against 174). (Figure 4, Table 3.)
-6. **One thing in lean's false side to look at:** on S40 and H40 lean published 14 and 10 decodes whose text WSJT-X decoded at a *different* frequency; classic published none (Table 5). Not investigated.
+6. **One thing in lean's false side to look at:** on S40 and H40 lean published 14 and 10 decodes whose text WSJT-X decoded in the same cycle at a *different* frequency; classic published none, on any slice (Table 5). **All 24 sit 98 to 103 Hz from WSJT-X's decode of the same text and all come from round 0, tier A** (section 5.1): they look like genuine decodes reported about 100 Hz from where they are, which would count each one twice against lean.
 
-![Figure 1: decode rate and false side, classic against lean, three slices](lc-base/fig1_headline.png)
+![Figure 1: decode rate and false side, classic against lean, three slices](figures/fig1_headline.png)
 
 *Figure 1. Left: the share of WSJT-X's decodes that each engine also decoded (`rate`). Right: decodes WSJT-X did not corroborate, as a share of the WSJT-X count (`ours_only`). Values are in Table 1.*
 
@@ -54,7 +54,7 @@
 |  | L (lean) |  | 9154 | 7509 | 8101 | 82.03 | 6.47 | 14.18 | 2,053 | 0 |
 |  | **L − C** |  |  | 71 | 102 | **+0.78 pp** | +0.34 pp | -6.05 | -4,109 |  |
 
-![Figure 2: CPU per cycle and last-batch time, classic against lean](lc-base/fig2_cost.png)
+![Figure 2: CPU per cycle and last-batch time, classic against lean](figures/fig2_cost.png)
 
 *Figure 2. Left: CPU seconds per cycle (the harness process). Right: p95 over cycles of the time the last batch was published after the decode started. Classic ran 8 threads, lean 16. The S40 classic figure is DR-0's A6, measured on another day and on the shipped build, so its CPU is not paired with the lean one in time; the H40 and H20 pairs ran back to back on one build.*
 
@@ -62,7 +62,7 @@
 - **The 20 m slice is not comparable in rate with the two 40 m slices.** It was recorded on 8 August, before today's audio routing (the spec's caveat). The C-against-L comparison on it is fair, since both arms read the same audio.
 - **Latency.** Lean's last batch comes 4.1 to 5.3 s earlier at the p95 (Figure 8) and its spread is narrower; classic sits at 5.5 to 6.6 s median.
 
-![Figure 8: distribution over cycles of the time the last batch is published](lc-base/fig8_latency.png)
+![Figure 8: distribution over cycles of the time the last batch is published](figures/fig8_latency.png)
 
 *Figure 8. Box = interquartile range, white bar = median, whiskers = the range without outliers. Labels give the median and the p95.*
 
@@ -78,7 +78,7 @@ Every WSJT-X decode in a slice is either found by both engines, by classic only,
 | H40 | 8983 | 7235 (80.5 %) | 427 (4.8 %) | 335 (3.7 %) | 986 (11.0 %) | 1413 (15.7 %) |
 | H20 | 9154 | 7151 (78.1 %) | 287 (3.1 %) | 358 (3.9 %) | 1358 (14.8 %) | 1645 (18.0 %) |
 
-![Figure 3: who found the WSJT-X decodes](lc-base/fig3_overlap.png)
+![Figure 3: who found the WSJT-X decodes](figures/fig3_overlap.png)
 
 *Figure 3. Each bar is 100 % of the WSJT-X decodes in the slice.*
 
@@ -86,7 +86,7 @@ Every WSJT-X decode in a slice is either found by both engines, by classic only,
 
 SNR is WSJT-X's own field. Bands (dB): ≥ −10, −10 to −15, −15 to −18, −18 to −21, < −21; a decode at exactly −15 belongs to the "−15 to −18" band, and so on (lower edge included).
 
-![Figure 4: share of WSJT-X decodes decoded, by SNR band](lc-base/fig4_rate_by_snr.png)
+![Figure 4: share of WSJT-X decodes decoded, by SNR band](figures/fig4_rate_by_snr.png)
 
 *Figure 4. Per SNR band, the share of WSJT-X decodes each engine decoded. The two engines follow each other closely; the differences are a few points, in different directions in different bands (Tables 3a to 3c).*
 
@@ -94,7 +94,7 @@ SNR is WSJT-X's own field. Bands (dB): ≥ −10, −10 to −15, −15 to −18
 
 **Crowded** = another WSJT-X decode in the same cycle within ±50 Hz of this one (this counts only signals WSJT-X decoded, so real crowding is higher than measured). **69 to 75 % of all WSJT-X decodes are crowded by this definition** (S40 74.7 %, H40 71.3 %, H20 69.3 %), so most misses being crowded must be read against that base rate. The relevant comparison is the miss rate inside each group:
 
-![Figure 5: share of WSJT-X decodes NOT decoded, by SNR band and crowding](lc-base/fig5_miss_by_snr_and_crowding.png)
+![Figure 5: share of WSJT-X decodes NOT decoded, by SNR band and crowding](figures/fig5_miss_by_snr_and_crowding.png)
 
 *Figure 5. Share of WSJT-X decodes that the engine did not decode, per SNR band, for alone (solid) and crowded (hatched) decodes. Cells under 10 decodes are left blank. In all 30 cells (3 slices × 2 engines × 5 bands) crowded signals are missed more often than isolated ones: 1.2 to 7.1 times as often, median 3.1 times. This is the dominant structure in the data.*
 
@@ -165,7 +165,7 @@ Reading Table 3: for a signal stronger than −10 dB, lean misses 3.3 % of the i
 
 Each corroborated decode carries the harness's tags: the batch it was published in, the path (0 = ordinary pass, 1 = residual, third-pass or late-round decode, 2 = coherent-fallback tier B, 3 = cross-cycle stage) and whether it was a CQ-AP decode. The lean engine publishes round 0 as batch 1 and rounds 1 to 3 together as batch 2, so **a split into rounds 1, 2 and 3 separately is not available** from the harness's output (spec §5.2 item 3: skipped, no code change).
 
-![Figure 6: where each engine's corroborated decodes came from](lc-base/fig6_origin.png)
+![Figure 6: where each engine's corroborated decodes came from](figures/fig6_origin.png)
 
 *Figure 6. Share of each engine's corroborated decodes by the step that published them. Segments under 4 % carry no number; see Tables 4a and 4b.*
 
@@ -186,7 +186,7 @@ Each corroborated decode carries the harness's tags: the batch it was published 
 | H20 | 4547 (61.1 %) | 768 (10.3 %) | 65 (0.9 %) | 1473 (19.8 %) | 224 (3.0 %) | 361 (4.9 %) |
 
 - Round 0, tier A (lean) and the primary pass (classic) carry 58 to 68 % of each engine's decodes.
-- Classic's **third pass (Deep)** finds 1 to 2 % of its decodes (65 to 102 decodes per slice) and is its most expensive step (DR-0: +8.56 CPU-s per cycle for +7.32 pp on S40); lean has no counterpart.
+- Classic's **third pass (Deep)** publishes 1 to 2 % of its decodes (65 to 102 decodes per slice) and is its most expensive step (DR-0: +8.56 CPU-s per cycle for +7.32 pp on S40); lean has no counterpart. These two figures do not contradict each other: **the tags show which step published a decode, not what switching that step off would lose.** DR-0's step from A3 to A4 (Deep) also changes what the earlier passes and the fallback find, so the share of a tag and the marginal gain of a step measure different things.
 - Lean's **tier B** (the coherent fallback) supplies 13 to 24 % of its decodes (round 0 and rounds 1 to 3 together: 13.2, 21.6 and 23.7 %), against 11 to 20 % for classic's fallback.
 - **XC** supplies 2.6 to 4.9 % (lean) and 2.3 to 4.9 % (classic).
 
@@ -194,7 +194,7 @@ Each corroborated decode carries the harness's tags: the batch it was published 
 
 The SNR here is OpenWSFZ's own estimate (WSJT-X has no value for a decode it did not make); crowding is against WSJT-X's decodes in the same cycle. Counts of distinct (cycle, text) rows.
 
-![Figure 7: our decodes that WSJT-X did not corroborate, by SNR band and crowding](lc-base/fig7_ours_only.png)
+![Figure 7: our decodes that WSJT-X did not corroborate, by SNR band and crowding](figures/fig7_ours_only.png)
 
 *Figure 7. Counts, stacked: solid = no WSJT-X decode within ±50 Hz; hatched = one within ±50 Hz. Totals are labelled.*
 
@@ -210,11 +210,25 @@ The SNR here is OpenWSFZ's own estimate (WSJT-X has no value for a decode it did
 |  | L | 592 | 0 | 3 / 42 | 42 / 40 | 117 / 157 | 94 / 78 | 12 / 7 |
 
 - The two engines' false sides are about the same size (Figure 7). 53 to 64 % of it is crowded, and most of it lies below −15 dB by our own estimate.
-- **Lean only:** 14 rows on S40 and 10 on H40 are texts WSJT-X decoded in the same cycle at a *different* frequency (more than 10 Hz away from ours). Classic has none. This is a small effect (0.1 to 0.2 % of the WSJT-X count) and was not investigated.
+- **Lean only:** 14 rows on S40 and 10 on H40 are texts WSJT-X decoded in the same cycle at a *different* frequency (more than 10 Hz away from ours). Classic has none, on all three slices. This is small (0.21 and 0.11 % of the WSJT-X count), but it has a pattern.
+
+### 5.1 The 24 same-text rows
+
+Numbers only, read from the per-row files (`nc.tsv`) by code; the offset is the smallest absolute frequency difference to a WSJT-X decode of the same text in the same cycle (the sign was not extracted).
+
+| Slice | Rows | Offset to WSJT-X's decode of the same text | Origin | Our SNR estimate |
+|---|---:|---|---|---|
+| S40 | 14 | 98 to 103 Hz (median 101) | all 14 round 0, tier A | −25 to −12 dB |
+| H40 | 10 | 101 to 102 Hz (median 101) | all 10 round 0, tier A | −21 to −18 dB |
+| H20 | 0 | | | |
+
+- **They are probably genuine decodes reported at the wrong frequency.** The text is a message WSJT-X also decoded in that cycle, and every offset is within 5 Hz of 100 Hz. If so, each row counts twice against lean: once in `ours_only` and once as a WSJT-X decode lean missed. Lean's rate on S40 and H40 would then be understated by up to 0.21 and 0.11 pp (14 / 6,773 and 10 / 8,983), and its `ours_only` overstated by the same amounts.
+- **A fixed offset of about 100 Hz is not noise.** It points to something systematic in how round 0 reports a candidate's frequency in rare cases (a few tenths of a percent of lean's round-0 decodes on those two slices), for example a wrong spectrogram bin offset; the cause was not investigated and the sign is not known. It does not occur in classic.
+- **This was not looked for in advance and is a pattern in 24 rows on two slices**, so it is a lead, not a defect report.
 
 ## 6. Does the gap depend on how busy the cycle was?
 
-![Figure 9: lean minus classic, decodes per cycle, by how busy the cycle was](lc-base/fig9_gap_vs_activity.png)
+![Figure 9: lean minus classic, decodes per cycle, by how busy the cycle was](figures/fig9_gap_vs_activity.png)
 
 *Figure 9. Cycles ordered by the number of WSJT-X decodes in them and cut into four equal-sized groups (quietest to busiest). Bars are the mean difference in matched decodes per cycle (lean minus classic), with the standard error.*
 
@@ -224,20 +238,20 @@ The gap is **not a function of activity**: the four groups of each slice stay on
 
 | Expectation | Measured | |
 |---|---|---|
-| L about 2 to 4 pp below C on H40 | −1.02 pp | **Smaller** than expected |
-| L similar to C on H20 | +0.78 pp | Consistent |
-| `ours_only` about equal | −0.09 pp (H40), +0.34 pp (H20) | Consistent |
-| Most of L's WSJT-X-only decodes are crowded signals | 85.8 % (H40), 85.8 % (H20) crowded | Holds (base rate of crowded decodes 71 % and 69 %; Figure 5 gives the miss rates) |
-| … and signals weaker than about −18 dB | 25.1 % (H40), 13.0 % (H20) are weaker than −18 dB; **59.2 % and 70.0 % are stronger than −15 dB** | **Does not hold:** most of the misses are signals of ordinary strength that are crowded |
+| L about 2 to 4 pp below C on H40 | −1.02 pp | **Miss**: the gap is smaller than expected |
+| L about 2 to 4 pp below C on H20 (the spec's "similar on H20" meant the same 2 to 4 pp gap) | +0.78 pp | **Miss**: lean is ahead |
+| `ours_only` about equal | −0.09 pp (H40), +0.34 pp (H20) | **Hit** |
+| Most of L's WSJT-X-only decodes are crowded signals | 85.8 % (H40), 85.8 % (H20) crowded | **Hit** (base rate of crowded decodes 71 % and 69 %; Figure 5 gives the miss rates) |
+| … and signals weaker than about −18 dB | 25.1 % (H40), 13.0 % (H20) are weaker than −18 dB; **59.2 % and 70.0 % are stronger than −15 dB** | **Miss**: most of the misses are signals of ordinary strength that are crowded |
 
-No single localised cause shows in these tables; the dominant structure is crowding, and it is shared by both engines.
+**Score: 2 of 5.** Both misses on the rate were too pessimistic about lean. No single localised cause shows in these tables; the dominant structure is crowding, and it is shared by both engines.
 
 ## 8. What this suggests (not a ruling)
 
-- Lean is already a viable base for new decode-rate work on this evidence: within about one decode per cycle of classic on each slice, at 53 to 70 % of the CPU and about a third of the latency.
+- Lean is already a viable base for new decode-rate work on this evidence: within about one decode per cycle of classic on each slice, at 53 to 70 % of the CPU (at 16 threads; the saving depends on the thread count) and about a third of the latency.
 - The headroom is the 11 to 15 % of WSJT-X decodes neither engine finds, which is overwhelmingly crowded and mostly of ordinary strength (≥ −15 dB). That points at how the decoder separates and decodes signals that overlap in frequency, not at weak-signal sensitivity.
-- Two small lean-specific differences are worth a look before or alongside any new step: the isolated signals classic decodes and lean does not (Table 3), and the 10 to 14 same-text-other-frequency rows (Table 5).
-- A natural next measurement from the data already on disk: for the "neither" group, the distance and SNR difference to the nearest neighbouring WSJT-X decode (a number per decode, no text), to see how close the neighbour is when the decoder fails. Not done: outside this spec.
+- Two small lean-specific differences are worth a look before or alongside any new step: the isolated signals classic decodes and lean does not (Table 3), and the 24 rows that sit about 100 Hz from WSJT-X's decode of the same text, all from round 0, tier A (section 5.1), which may be a frequency-reporting defect in lean.
+- A natural next measurement from the data already on disk: for the "neither" group, the distance and SNR difference to the nearest neighbouring WSJT-X decode (a number per decode, no text), to see how close the neighbour is when the decoder fails. Not done: outside this spec; the Architect will specify it with the next step.
 
 ## 9. Not claimed, and caveats
 
@@ -245,13 +259,14 @@ No single localised cause shows in these tables; the dominant structure is crowd
 - **S40 is reused.** Its classic arm is DR-0's A6 on the shipped build `66b3ddf1` (run 2026-11-24), its lean arm DR-2e's L5 on `fc4fb788`; the new build reproduces A6 exactly on the first 10 cycles, but S40's CPU and latency are not paired in time. H40 and H20 are the clean pairs: one build, back to back.
 - **H20 predates today's audio routing** (recorded 2026-08-08); its rate against WSJT-X is not comparable with the 40 m slices.
 - **SNR and crowding come from WSJT-X's decodes only.** A signal WSJT-X did not decode is invisible to the crowding measure.
-- **Threads differ by design:** classic 8 (A6), lean 16 (L5). Lean's decodes do not depend on its thread count. Classic at 2 threads (DR-0's A9) used 3.97 CPU-s less per cycle and decoded 1.99 pp less than at 8 threads, so the thread count is not neutral for classic.
+- **The CPU saving is for lean at 16 threads against classic at 8.** At 2 threads lean used 9.90 CPU-s per cycle on S40 (DR-2e), so the saving is not a fixed property of lean. **Threads differ by design:** classic 8 (A6), lean 16 (L5). Lean's decodes do not depend on its thread count. Classic at 2 threads (DR-0's A9) used 3.97 CPU-s less per cycle and decoded 1.99 pp less than at 8 threads, so the thread count is not neutral for classic.
 - **The harness's text dedup** is by (cycle, text); two decodes of the same text in one cycle count once.
 - **No per-round split** for lean (see section 4).
 - **Not examined:** the *reasons* for any difference (which classic step finds what lean misses); the scoring pairs by text, so pairing our rows between the two arms needs text and was not done.
 
 ## 10. Files
 
-- **Scripts (committed):** `qa/decoder-rebuild/lc_base_prep.py` (slices), `lc_base_run.py` (runs), `lc_base_score.py` (scoring), `lc_base_report.py` (figures and tables), `lc_base_assemble.py` (this document). Figures: `qa/decoder-rebuild/lc-base/fig1` to `fig9`.
+- **This report and its figures (committed):** `qa/rr-study/results/2026-11-26-lc-base/lc-base-result.md` and `figures/fig1` to `fig9`, with the aggregate data it was built from: `score_{reuse_S40,full_H40,full_H20}.json`, `tables.json`, `slices.json` and one `arm.json` per run under `runs/` (numbers only).
+- **Scripts (committed):** `qa/decoder-rebuild/lc_base_prep.py` (slices), `lc_base_run.py` (runs), `lc_base_score.py` (scoring), `lc_base_report.py` (figures and tables), `lc_base_assemble.py` (this document). The two new slices are recorded in `qa/decoder-rebuild/test-set.md`.
 - **Run data (KEEP, text-bearing, never committed; HK-037):** `D:\Projects\claude\_qa-scratch\lc-base\runs\{pilot,full}_<slice>_<arm>_n<cycles>` (the `nc.tsv` files hold message text), score files `D:\Projects\claude\_qa-scratch\lc-base\score_*.json` (numbers only), harness checkout and build `D:\Projects\claude\_qa-scratch\lc-base\{tree,bin}`.
-- **Aggregate-only copies** (arm summaries, per-cycle timings, match lists as numeric indices, score files) of every run: `D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-11-26-lc-base\` (the root results folder, standing rule).
+- **Aggregate-only copies of every run** (arm summaries, per-cycle timings, match lists as numeric indices, score files): `D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-11-26-lc-base\` (the root results folder, standing rule; untracked there, so the tracked copy above is the one that travels with a push).
