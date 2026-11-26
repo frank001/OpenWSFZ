@@ -1,4 +1,14 @@
-=== CURRENT: the lean decoder engine's worker cap raised from 8 to 16 (FT8_SHIM_VERSION 20260078) ===
+=== CURRENT: the lean engine's duplicate rule: of same-payload (or same-text) hits of one round the highest candidate sync score is published (FT8_SHIM_VERSION 20260079) ===
+
+Built 2026-11-26 on feat/dr3-lean-default (off main 546ad125), local, not pushed. QA task dev-tasks/2026-11-26-dr3-lean-default-engine-and-duplicate-fix.md, item D3.
+What changed (native). native/ftz_decoder/ftz_decoder.c: ftz_dedup_select (round 0: the same payload; a residual round: the RR73-aware same transmission) keeps the hit with the HIGHEST ftx_candidate_t.score, equal scores
+  keep the earlier (lowest-frequency) hit; the same-text de-duplication replaces an earlier same-round result by a strictly higher-scoring one (counters taken back); two pure exports, ftz_dedup_select and
+  ftz_text_replace_wins (rebuild_shim.bat /EXPORT lines added). No ABI change, no classic change.
+Checked here: selection-level tests and an end-to-end fixture (the same message twice, the stronger copy at the higher frequency); the existing golden and determinism tests; managed output byte-identical at 1, 2, 4, 8 and 16 threads.
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    199ccbb906e64112450c1e716010889b067a29cbcd6069f5f2988c836c99f5af
+
+=== Previous: the lean decoder engine's worker cap raised from 8 to 16 (FT8_SHIM_VERSION 20260078) ===
 
 Built 2026-11-25 on feat/threads-setting (child of feat/lean-2e 57bda0eb), local, not pushed. QA task dev-tasks/2026-11-25-operator-decoder-threads-setting.md, item D7.
 What changed (native). native/ftz_decoder/ftz_decoder.h: FTZ_MAX_THREADS 8 to 16 (the worker and coherent-context arrays and the clamp follow it). No ABI change, no classic change.

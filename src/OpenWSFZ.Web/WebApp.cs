@@ -547,6 +547,8 @@ public static class WebApp
                         Nhard24MigrationApplied = store.Current.Decoder?.Nhard24MigrationApplied ?? true,
                         // Same rule for the subtraction default-ON marker (v0.54): server-owned.
                         SubtractionOnMigrationApplied = store.Current.Decoder?.SubtractionOnMigrationApplied ?? true,
+                        // DR-3: same rule for the classic -> lean engine marker; server-owned.
+                        LeanEngineMigrationApplied = store.Current.Decoder?.LeanEngineMigrationApplied ?? true,
                     },
                 };
             }

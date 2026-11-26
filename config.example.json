@@ -28,5 +28,8 @@
     "rigctldPort": 4532,
     "pollIntervalSeconds": 1,
     "lastPolledFrequencyMHz": null
+  },
+  "decoder": {
+    "engine": "lean"
   }
 }

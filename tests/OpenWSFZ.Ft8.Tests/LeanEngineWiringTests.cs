@@ -100,15 +100,17 @@ public sealed class LeanEngineWiringTests
 
     // ── the switch ───────────────────────────────────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "FR-108: DR-2 D4: the engine starts classic, and the config default and an unknown value read classic")]
-    public void Engine_DefaultsToClassic()
+    [Fact(DisplayName = "FR-109: DR-3: the config default and an unknown value read lean, only the word classic reads classic; a bare decoder object starts classic until the daemon sets the engine from the config at start")]
+    public void Engine_ConfigDefaultIsLean()
     {
         var decoder = new Ft8Decoder(new FakeClock(Start), new CapturingLogger(), new LeanFake());
-        decoder.Engine.Should().Be(DecoderEngine.Classic);
-        new DecoderConfig().GetEngineKind().Should().Be(DecoderEngine.Classic);
-        DecoderEngineNames.Parse(null).Should().Be(DecoderEngine.Classic);
-        DecoderEngineNames.Parse("").Should().Be(DecoderEngine.Classic);
-        DecoderEngineNames.Parse("turbo").Should().Be(DecoderEngine.Classic);
+        decoder.Engine.Should().Be(DecoderEngine.Classic, "the object is configured by the daemon at start (Program.cs SetEngine), exactly as for every other setting");
+        new DecoderConfig().GetEngineKind().Should().Be(DecoderEngine.Lean);
+        DecoderEngineNames.Parse(null).Should().Be(DecoderEngine.Lean);
+        DecoderEngineNames.Parse("").Should().Be(DecoderEngine.Lean);
+        DecoderEngineNames.Parse("turbo").Should().Be(DecoderEngine.Lean);
+        DecoderEngineNames.Parse("classic").Should().Be(DecoderEngine.Classic);
+        DecoderEngineNames.Parse(" Classic ").Should().Be(DecoderEngine.Classic);
         DecoderEngineNames.Parse("lean").Should().Be(DecoderEngine.Lean);
         DecoderEngineNames.Parse(" Lean ").Should().Be(DecoderEngine.Lean);
     }

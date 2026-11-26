@@ -82,3 +82,13 @@
 - [x] 10.4 Tests: Config (`ResolveThreads` table, default 0), Web (omit keeps stored, 0 stores 0, clamps), front-end (`decoderThreads.test.js`)
 - [x] 10.5 Screenshot, after: the block with the Automatic hint (`dev-tasks/screenshots/threads-default-auto-after.png`)
 - [x] 10.6 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`
+
+## 11. DR-3: the lean engine is the default, with the duplicate fix
+
+- [x] 11.1 Screenshot, before: the Advanced Decoder Settings block as on `main` (`dev-tasks/screenshots/dr3-lean-default-before.png`), taken first in this section (HK-005)
+- [x] 11.2 Default `lean` (`DecoderEngineNames`, `DecoderConfig`), the Settings page and `config.example.json` show `lean`; an unrecognised word reads the default
+- [x] 11.3 One-time migration of a stored `classic` with the server-owned marker `leanEngineMigrationApplied` (`JsonConfigStore`, `WebApp` overlay, fresh-config line)
+- [x] 11.4 Native duplicate rule in `ftz_decoder.c`: `ftz_dedup_select` (same payload or transmission, highest candidate sync score, ties keep the earlier) and the same-text replacement in the publish loop, with per-result counter take-back; `kMinScorePass2` kept; `FT8_SHIM_VERSION` 20260079, `libft8.dll` rebuilt
+- [x] 11.5 Tests: migration (Config), defaults (Config, Web, JS), marker ownership (Web), the duplicate rule at selection level and end to end (Ft8), thread-count determinism
+- [x] 11.6 Screenshot, after: the block showing the default `lean` (`dev-tasks/screenshots/dr3-lean-default-after.png`)
+- [x] 11.7 `REQUIREMENTS.md` new requirement and changelog row, VERSION 1.1, README; this change validated `--strict`

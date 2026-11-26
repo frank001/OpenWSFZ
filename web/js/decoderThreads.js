@@ -1,12 +1,12 @@
 /**
  * Pure helpers for the Settings page's lean-decoder controls (decoder.engine, decoder.effort, decoder.threads), kept out of settings.js (which
  * touches the DOM at import) so node --test can exercise them. The page shows a stored value as stored; an absent or unknown stored word shows the
- * code default and is NOT rewritten until the operator changes the select (the daemon already reads an unknown engine as classic and an unknown
+ * code default and is NOT rewritten until the operator changes the select (the daemon already reads an unknown engine as lean, the default, and an unknown
  * effort as normal).
  */
 
 /** The code defaults (DecoderConfig): the daemon's values when a key is absent. */
-export const DEFAULT_ENGINE = 'classic';
+export const DEFAULT_ENGINE = 'lean';
 export const DEFAULT_EFFORT = 'normal';
 /** decoder.threads: 0 (or an absent key) is automatic = min(logical processors of the daemon PC, 16); 1 to 16 is an explicit choice. */
 export const AUTO_THREADS = 0;
@@ -15,9 +15,9 @@ export const FALLBACK_SHOWN_THREADS = 2;
 export const MIN_THREADS = 1;
 export const MAX_THREADS = 16;
 
-/** The word the engine select shows for a stored value: `lean` (any case, white space ignored) shows lean, everything else the default. */
+/** The word the engine select shows for a stored value: `classic` (any case, white space ignored) shows classic, everything else the default (lean). */
 export function decoderEngineShown(stored) {
-  return typeof stored === 'string' && stored.trim().toLowerCase() === 'lean' ? 'lean' : DEFAULT_ENGINE;
+  return typeof stored === 'string' && stored.trim().toLowerCase() === 'classic' ? 'classic' : DEFAULT_ENGINE;
 }
 
 /** The word the effort select shows for a stored value: `fast` (any case, white space ignored) shows fast, everything else the default. */

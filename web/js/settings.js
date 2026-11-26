@@ -167,7 +167,7 @@ function syncDecoderThreadsAutoHint() {
   decoderThreadsAuto.hidden = text === '';
 }
 /** The raw stored engine / effort strings and what the select showed for them; an unknown stored word shows the default and is sent back as stored until the operator changes the select. */
-let _decoderEngineLoadedRaw = null, _decoderEngineShown = 'classic';
+let _decoderEngineLoadedRaw = null, _decoderEngineShown = 'lean';
 let _decoderEffortLoadedRaw = null, _decoderEffortShown = 'normal';
 // COH-FALLBACK: the coherent fallback checkbox (decoder.coherentFallbackEnabled, ON by default).
 const decoderCoherentFallback = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-coherent-fallback'));
@@ -1258,7 +1258,7 @@ decoderReset.addEventListener('click', () => {
   decoderEarlyEnabled.checked = true;
   decoderEarlyCut.value       = '2';
   decoderCoherentFallback.checked = true;
-  decoderEngine.value  = 'classic';
+  decoderEngine.value  = 'lean';
   decoderEffort.value  = 'normal';
   _decoderThreadsAuto = true;   // back to automatic, not to a number
   decoderThreads.value = String(decoderThreadsLoaded(0, _hostProcessorCount).value);

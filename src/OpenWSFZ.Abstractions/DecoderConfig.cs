@@ -65,11 +65,13 @@ public sealed record DecoderConfig
         // XC-BUILD: in the constructor with their defaults (false), for the same reason as the fields above.
         bool crossCyclePrior = false,
         bool crossCyclePriorShadow = false,
-        // DR-2 step 2a: in the constructor with their defaults ("classic", 2), for the same reason as the fields above.
-        string? engine = DecoderEngineNames.Classic,
+        // DR-2 step 2a / DR-3: in the constructor with their defaults ("lean", automatic threads), for the same reason as the fields above.
+        string? engine = DecoderEngineNames.Default,
         int threads = DefaultThreads,
         // DR-2 step 2d: in the constructor with its default ("normal"), for the same reason as the fields above.
-        string? effort = DecoderEffortNames.Normal)
+        string? effort = DecoderEffortNames.Normal,
+        // DR-3: the one-time classic -> lean migration marker; in the constructor with its default (false), for the same reason as the fields above.
+        bool leanEngineMigrationApplied = false)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -91,7 +93,8 @@ public sealed record DecoderConfig
         CoherentFallbackResidualCandidates = coherentFallbackResidualCandidates;
         CrossCyclePrior = crossCyclePrior;
         CrossCyclePriorShadow = crossCyclePriorShadow;
-        Engine = engine ?? DecoderEngineNames.Classic;
+        Engine = engine ?? DecoderEngineNames.Default;
+        LeanEngineMigrationApplied = leanEngineMigrationApplied;
         Threads = threads;
         Effort = effort ?? DecoderEffortNames.Normal;
     }
@@ -368,16 +371,26 @@ public sealed record DecoderConfig
     public bool CrossCyclePriorShadow { get; init; }
 
     /// <summary>
-    /// DR-2 step 2a (FR-108): which decoder engine runs each cycle, as the config-file string <c>"classic"</c> or <c>"lean"</c>. <b>Default <c>"classic"</c></b>:
-    /// an absent key, a missing <c>decoder</c> section and any unrecognised value all read as <c>classic</c> (see <see cref="GetEngineKind"/>), and with
+    /// DR-2 step 2a (FR-108): which decoder engine runs each cycle, as the config-file string <c>"classic"</c> or <c>"lean"</c>. <b>Default <c>"lean"</c></b> since DR-3 (FR-109):
+    /// an absent key, a missing <c>decoder</c> section and any unrecognised value all read as <c>lean</c> (see <see cref="GetEngineKind"/>); a stored <c>classic</c> is
+    /// migrated to <c>lean</c> once (see <see cref="LeanEngineMigrationApplied"/>) and an explicit <c>classic</c> after that is respected. With
     /// <c>classic</c> every native call, row, batch, counter, log line and provenance value is as it was before the setting existed. <c>"lean"</c> routes
     /// the cycle through the single native call <c>ftz_decode_cycle</c> and does not enter the classic decoder. The string is kept as written, so an
-    /// unrelated save never rewrites it. Config file and API only (no Settings-page control); the POST is an overlay, so a body without the key leaves it
+    /// unrelated save never rewrites it. The Settings page offers it; the POST is an overlay, so a body without the key leaves it
     /// as it was. Read once per window; takes effect on the next window.
     /// </summary>
-    public string Engine { get; init; } = DecoderEngineNames.Classic;
+    public string Engine { get; init; } = DecoderEngineNames.Default;
 
-    /// <summary><see cref="Engine"/> as the enum (a method, not a property: the config record's serialiser and its absent-key test enumerate properties): <c>lean</c> only for the word "lean"; everything else is <see cref="DecoderEngine.Classic"/>.</summary>
+    /// <summary>
+    /// DR-3 one-time migration marker: means "no classic-to-lean engine migration is pending for this install". <c>JsonConfigStore.Load()</c> rewrites a
+    /// persisted <c>engine: "classic"</c> to <c>lean</c> once and sets this to <c>true</c>; it also sets it on any other decoder section it loads, and a
+    /// decoder section created from nothing carries it <c>true</c> (the #199 rule), so an operator's later deliberate <c>classic</c> persists.
+    /// Default <c>false</c> so a legacy file without the key is migrated once.
+    /// <para><b>Server-owned</b> - a request body can neither set nor clear it.</para>
+    /// </summary>
+    public bool LeanEngineMigrationApplied { get; init; } = false;
+
+    /// <summary><see cref="Engine"/> as the enum (a method, not a property: the config record's serialiser and its absent-key test enumerate properties): <c>classic</c> only for the word "classic"; everything else is <see cref="DecoderEngine.Lean"/>.</summary>
     public DecoderEngine GetEngineKind() => DecoderEngineNames.Parse(Engine);
 
     /// <summary>

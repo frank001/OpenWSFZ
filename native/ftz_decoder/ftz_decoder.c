@@ -462,6 +462,81 @@ static int ftz_hit_cmp(const void* a, const void* b)
     return (x->index > y->index) - (x->index < y->index);  /* total order: identical hits keep a fixed order */
 }
 
+/* DR-3 duplicate rule, part 1 (the same payload twice in one round). hits[0..n) are ONE round's hits in published order (ascending frequency, then the
+ * ftz_hit_cmp tie-breaks); payloads is n * FTZ_PAYLOAD_BYTES bytes and scores[k] the candidate sync score of hit k (ftx_candidate_t.score, the field
+ * ftx_find_candidates ranks by; higher = more likely). Among hits that carry the same payload (round 0: bit-identical; a residual round: also the RR73-aware
+ * same transmission, ftz_payload_same_qso), the one with the HIGHEST score survives; equal scores keep today's rule (the earlier hit in the order survives).
+ * Hits already marked in drop[] are ignored; losers are marked drop[k] = 1. Returns the number newly dropped. Pure: no allocation, no state. */
+int ftz_dedup_select(int round, int n, const uint8_t* payloads, const int32_t* scores, uint8_t* drop)
+{
+    int dropped = 0;
+    if (n <= 0 || payloads == NULL || scores == NULL || drop == NULL) return 0;
+    for (int k = 0; k < n; ++k)
+    {
+        if (drop[k]) continue;
+        for (int j = 0; j < k; ++j)
+        {
+            if (drop[j]) continue;
+            const uint8_t* pj = payloads + (size_t)j * FTZ_PAYLOAD_BYTES;
+            const uint8_t* pk = payloads + (size_t)k * FTZ_PAYLOAD_BYTES;
+            const int same = round == 0 ? (memcmp(pj, pk, FTZ_PAYLOAD_BYTES) == 0) : ftz_payload_same_qso(pj, pk);
+            if (!same) continue;
+            if (scores[k] > scores[j]) { drop[j] = 1; ++dropped; }       /* the later, stronger hit replaces the earlier one */
+            else { drop[k] = 1; ++dropped; break; }                       /* a tie or a weaker hit never replaces the earlier one */
+        }
+    }
+    return dropped;
+}
+
+/* DR-3 duplicate rule, part 2 (the same rendered text twice in one round, from two payloads): 1 if a new hit with sync score new_score replaces the result already
+ * published this round with score old_score (strictly higher only; equal scores keep the earlier result). */
+int ftz_text_replace_wins(int new_score, int old_score)
+{
+    return new_score > old_score ? 1 : 0;
+}
+
+/* The 12-bit-hash accounting of one published result (SUP-B, f001), kept per result so that a result replaced by the duplicate rule can be un-counted: the
+ * counters are "a display counted exactly where a result is emitted", and a replaced result is no longer emitted. */
+typedef struct
+{
+    uint8_t  performed, resolved, ambiguous, divergent, suppressed;
+    uint32_t code;
+} ftz_h12_t;
+
+static ftz_h12_t ftz_h12_capture(void)
+{
+    ftz_h12_t a;
+    a.performed  = tls_h12_lookup_performed ? 1u : 0u;
+    a.resolved   = tls_h12_resolved ? 1u : 0u;
+    a.ambiguous  = tls_h12_multiplicity >= 2 ? 1u : 0u;
+    a.divergent  = tls_h12_divergent ? 1u : 0u;
+    a.suppressed = tls_h12_suppressed ? 1u : 0u;
+    a.code       = tls_h12_code;
+    return a;
+}
+
+/* delta = +1 counts the display (exactly the counters the loop incremented before this change), -1 takes it back. */
+static void ftz_h12_apply(const ftz_h12_t* a, int delta)
+{
+    if (!a->performed) return;
+    const uint32_t c = a->code & (H12_CODE_SPACE - 1u);
+    if (a->code >= H12_CODE_SPACE) g_h12_code_out_of_range += delta;
+    if (a->resolved)
+    {
+        g_h12_displaying += delta;
+        if (a->ambiguous)  g_h12_ambiguous += delta;
+        if (a->divergent)  g_h12_divergent += delta;
+        if (a->suppressed) g_h12_suppressed += delta;
+        g_h12_by_code_displaying[c] += delta;
+        if (a->ambiguous)  g_h12_by_code_ambiguous[c] += delta;
+        if (a->divergent)  g_h12_by_code_divergent[c] += delta;
+    }
+    else
+    {
+        g_h12_unresolved_by_code[c] += delta;
+    }
+}
+
 /* ── SNR (the primary pass's formula, unchanged) ──────────────────────────── */
 
 static float ftz_snr_db(const monitor_t* mon, const ftx_candidate_t* cand, const uint8_t* tones, float noise_floor_db)
@@ -749,6 +824,12 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     uint8_t (*seen_payloads)[FTZ_PAYLOAD_BYTES] = (uint8_t (*)[FTZ_PAYLOAD_BYTES])calloc((size_t)scap, FTZ_PAYLOAD_BYTES);
     uint8_t (*res_pl)[FTZ_PAYLOAD_BYTES]  = (uint8_t (*)[FTZ_PAYLOAD_BYTES])calloc((size_t)rcap, FTZ_PAYLOAD_BYTES);   /* the payload of each published result */
     uint8_t*         reenc  = (uint8_t*)calloc((size_t)rcap, 1);              /* is each published result re-encodable (SubtractionPass.IsReencodable) */
+    int32_t*         res_score = (int32_t*)calloc((size_t)rcap, sizeof(int32_t));   /* DR-3: the candidate sync score of each published result */
+    uint8_t*         res_tier  = (uint8_t*)calloc((size_t)rcap, 1);                 /* DR-3: its tier, and whether it was an ungated tier-B row, for the counters */
+    uint8_t*         res_ungated = (uint8_t*)calloc((size_t)rcap, 1);
+    ftz_h12_t*       res_h12   = (ftz_h12_t*)calloc((size_t)rcap, sizeof(ftz_h12_t));
+    uint8_t*         sel_pl    = (uint8_t*)calloc((size_t)alloc_c * 2, FTZ_PAYLOAD_BYTES);   /* DR-3: one round's hit payloads and scores, for ftz_dedup_select */
+    int32_t*         sel_sc    = (int32_t*)calloc((size_t)alloc_c * 2, sizeof(int32_t));
     int32_t*         fit_ix = (int32_t*)calloc((size_t)rcap, sizeof(int32_t)); /* the results a round fits */
     float*           sub_hz = (float*)calloc((size_t)rcap, sizeof(float));     /* the frequencies the round subtracted */
     float*           fail_hz = (float*)calloc((size_t)alloc_c, sizeof(float)); /* step 2e: base frequencies of the last round's candidates that did not decode */
@@ -763,6 +844,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     if (cands == NULL || msgs == NULL || cmsgs == NULL || ok_a == NULL || b_el == NULL || b_st == NULL || b_ed == NULL || c_el == NULL
         || c_at == NULL || c_ok == NULL || pos_f == NULL || pos_t == NULL || b_fr == NULL || b_dt == NULL || b_snr == NULL || b_pl == NULL
         || known == NULL || hits == NULL || drop == NULL || texts == NULL || seen_payloads == NULL || res_pl == NULL || reenc == NULL
+        || res_score == NULL || res_tier == NULL || res_ungated == NULL || res_h12 == NULL || sel_pl == NULL || sel_sc == NULL
         || fit_ix == NULL || sub_hz == NULL || fail_hz == NULL)
     {
         rc = FTZ_ERR_NOMEM;
@@ -1104,6 +1186,15 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             }
         }
 
+        /* DR-3 duplicate rule, part 1: of two or more hits of this round with the same payload (round 0) or the same transmission (a residual round), the one
+         * with the HIGHEST candidate sync score survives, at its own frequency and time; equal scores keep the lowest-frequency (first) one, as before. */
+        for (int k = 0; k < nhits; ++k)
+        {
+            memcpy(sel_pl + (size_t)k * FTZ_PAYLOAD_BYTES, hits[k].payload, FTZ_PAYLOAD_BYTES);
+            sel_sc[k] = (hits[k].index >= 0 && hits[k].index < ncands) ? (int32_t)cands[hits[k].index].score : 0;
+        }
+        (void)ftz_dedup_select(round, nhits, sel_pl, sel_sc, drop);
+
         const int nres_before = nres;
         for (int k = 0; k < nhits; ++k)
         {
@@ -1134,31 +1225,34 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             /* Past this point the payload unpacked: remember it, then de-duplicate by text (two payloads can render alike; a text published earlier in the cycle is not published again). */
             if (nseen >= scap) { st->abandoned = 1; break; }                      /* bounds: cannot happen (one payload per candidate per round) */
             memcpy(seen_payloads[nseen++], hits[k].payload, FTZ_PAYLOAD_BYTES);
+            /* DR-3 duplicate rule, part 2: the same text from two payloads in ONE round: the higher candidate sync score is the one published (it replaces the result
+             * already published this round, in its slot, un-counting that result); equal scores keep the earlier one. A text published in an EARLIER round stands. */
+            const int new_score = (int)cands[i].score;
+            int replace_slot = -1;
             bool text_dup = false;
             for (int s = 0; s < nres; ++s)
-                if (!strcmp(texts[s], text)) { text_dup = true; break; }
-            if (text_dup) continue;
+                if (!strcmp(texts[s], text))
+                {
+                    text_dup = true;
+                    if (s >= nres_before && ftz_text_replace_wins(new_score, res_score[s])) replace_slot = s;
+                    break;
+                }
+            if (text_dup && replace_slot < 0) continue;
 
-            if (nres >= rcap) { st->abandoned = 1; break; }   /* the caller's array is full: stop, flag it, keep what is there */
-
-            /* The primary pass's 12-bit-hash accounting (SUP-B, f001): count a display exactly where a result is emitted. */
-            if (tls_h12_lookup_performed && tls_h12_resolved) {
-                g_h12_displaying++;
-                if (tls_h12_multiplicity >= 2) g_h12_ambiguous++;
-                if (tls_h12_divergent)         g_h12_divergent++;
-                if (tls_h12_suppressed)        g_h12_suppressed++;
-                if (tls_h12_code >= H12_CODE_SPACE) g_h12_code_out_of_range++;
-                uint32_t c = tls_h12_code & (H12_CODE_SPACE - 1u);
-                g_h12_by_code_displaying[c]++;
-                if (tls_h12_multiplicity >= 2) g_h12_by_code_ambiguous[c]++;
-                if (tls_h12_divergent)         g_h12_by_code_divergent[c]++;
-            } else if (tls_h12_lookup_performed && !tls_h12_resolved) {
-                if (tls_h12_code >= H12_CODE_SPACE) g_h12_code_out_of_range++;
-                uint32_t c = tls_h12_code & (H12_CODE_SPACE - 1u);
-                g_h12_unresolved_by_code[c]++;
+            if (replace_slot < 0 && nres >= rcap) { st->abandoned = 1; break; }   /* the caller's array is full: stop, flag it, keep what is there */
+            const int slot = replace_slot >= 0 ? replace_slot : nres;
+            if (replace_slot >= 0)
+            {
+                ftz_h12_apply(&res_h12[slot], -1);
+                if (res_tier[slot] == FTZ_TIER_B) { st->n_b_published--; if (res_ungated[slot]) { st->n_ungated--; rs->n_ungated--; } }
+                else if (res_tier[slot] == FTZ_TIER_CQ) st->n_cq_decodes--;
             }
 
-            FT8Result* r = &results[nres];
+            /* The primary pass's 12-bit-hash accounting (SUP-B, f001): count a display exactly where a result is emitted. */
+            res_h12[slot] = ftz_h12_capture();
+            ftz_h12_apply(&res_h12[slot], 1);
+
+            FT8Result* r = &results[slot];
             if (hits[k].tier == FTZ_TIER_B)
             {
                 /* the fallback's row: the estimate's frequency rounded to the nearest even integer Hz (as the managed Math.Round), its dt, the coherent SNR */
@@ -1180,13 +1274,19 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             }
             strncpy(r->message, text, 35);
             r->message[35] = '\0';
-            memcpy(texts[nres], text, sizeof(texts[nres]));
-            memcpy(res_pl[nres], hits[k].payload, FTZ_PAYLOAD_BYTES);
-            reenc[nres] = (uint8_t)ftz_text_reencodable(text);
-            if (out_tiers  != NULL) out_tiers[nres]  = (uint8_t)hits[k].tier;
-            if (out_rounds != NULL) out_rounds[nres] = (uint8_t)round;
-            nres++;
-            st->n_results = nres;                              /* visible even if a later step faults */
+            memcpy(texts[slot], text, sizeof(texts[slot]));
+            memcpy(res_pl[slot], hits[k].payload, FTZ_PAYLOAD_BYTES);
+            reenc[slot] = (uint8_t)ftz_text_reencodable(text);
+            res_score[slot]   = new_score;
+            res_tier[slot]    = (uint8_t)hits[k].tier;
+            res_ungated[slot] = (uint8_t)(hits[k].tier == FTZ_TIER_B && hits[k].ungated ? 1 : 0);
+            if (out_tiers  != NULL) out_tiers[slot]  = (uint8_t)hits[k].tier;
+            if (out_rounds != NULL) out_rounds[slot] = (uint8_t)round;
+            if (replace_slot < 0)
+            {
+                nres++;
+                st->n_results = nres;                          /* visible even if a later step faults */
+            }
         }
         st->n_results         = nres;
         st->unpack_wall_us   += ftz_wall_us() - w0;
@@ -1213,7 +1313,7 @@ done:
     }
     free(cands); free(msgs); free(cmsgs); free(ok_a); free(b_el); free(b_st); free(b_ed); free(c_el); free(c_at); free(c_ok);
     free(pos_f); free(pos_t); free(b_fr); free(b_dt); free(b_snr); free(b_pl); free(known); free(hits); free(drop); free(texts); free(seen_payloads);
-    free(res_pl); free(reenc); free(fit_ix); free(sub_hz); free(fail_hz);
+    free(res_pl); free(reenc); free(res_score); free(res_tier); free(res_ungated); free(res_h12); free(sel_pl); free(sel_sc); free(fit_ix); free(sub_hz); free(fail_hz);
     free(resid); free(xa_re); free(xa_im);
     if (fitjob != NULL) { free(fitjob->shat); free(fitjob); }
     free(pcm_pad);
