@@ -860,8 +860,22 @@ extern "C" {
  *              (attempts, decodes, OSD entries), ft8_cq_ap_pattern and ft8_cq_ap_probe_llrs (test exports). Every existing export and
  *              struct is unchanged (FT8Result stays 48 bytes); the QSO-AP path (ftx_decode_candidate_ap, +-40 before normalisation) is
  *              untouched; with the flag OFF decode output is identical to 20260071.
- */
-#define FT8_SHIM_VERSION 20260072
+ *   20260073 — DR-2 step 2a (the lean decoder engine): ftz_decode_cycle and ftz_shutdown (native/ftz_decoder/, compiled into this library) and
+ *              ftx_decode_candidate_tier_a in decode.c. New exports only; every existing export, FT8Result (48 bytes) and every decode outcome
+ *              unchanged. The classic path is not entered by the new entry points and does not call them.
+ *   20260074 — DR-2 step 2b: ftz_decode_cycle gains tier B (the coherent fallback per candidate, one coherent context per worker, F1b <= T1) and CQ-AP, a wall-clock
+ *              budget, an out_tiers array and a larger ftz_params_t / ftz_stats_t (the step 2a entry point is not released). No change to any classic export or outcome.
+ *   20260075 - DR-2 step 2c: ftz_decode_cycle gains the subtract-and-retry rounds (FTZ_FLAG_ROUNDS): ft8_subfeas_fit_signal on the original audio's analytic signal,
+ *              the residual's spectrogram, a patch search near what was subtracted, the residual accept rules; an out_rounds array, a larger ftz_params_t / ftz_stats_t
+ *              (per-round statistics), and three test exports (ftz_patch_keep, ftz_payload_same_qso, ftz_residual_b_accept). No change to any classic export or outcome.
+ *   20260076 - DR-2 step 2d: ftz_params_t (version 4) gains the round-0 hand-off callback, its context and an out_residual buffer, and the FTZ_FLAG_NO_TIER_B flag (decoder.effort = fast);
+ *              ftz_stats_t gains has_residual. ftz_decode_cycle's own argument list is unchanged. No change to any classic export or outcome.
+ *   20260077 - DR-2 step 2e: the fit (subfeas_fit.c) is bit-identical but faster (frequency-shift table once per fit, copy / mix / decimation fused, four step-3 candidates at a time;
+ *              ft8_subfeas_set_reference_mode as the test seam), ftz_params_t version 5 (inject_error_round test hook, FTZ_FLAG_SKIP_FITS), per-round n_fit_skipped, ftz_fit_needed,
+ *              the residual tier-B accept rule no longer restricted by the residual-candidates flag, and no residual exported after a half-subtracted round. No change to any classic outcome.
+ *   20260078 - operator threads setting: FTZ_MAX_THREADS 8 to 16 (the lean engine's worker pool, the per-worker coherent contexts and the clamp). No ABI change, no classic change.
+*/
+#define FT8_SHIM_VERSION 20260078
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

@@ -97,7 +97,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// Frees the native residual-pass workspace pool (sub-feas-speed-redesign A3). The daemon calls this at
     /// shutdown, after the decode pump has stopped. Idempotent, and it does not load the native library.
     /// </summary>
-    public void Dispose() => _interop.SubfeasPoolShutdown();
+    public void Dispose()
+    {
+        _interop.SubfeasPoolShutdown();
+        _interop.LeanShutdown();   // DR-2 step 2a: the lean engine's worker pool (a no-op when it was never created)
+    }
 
     /// <summary>
     /// Hard per-cycle wall-clock budget (13 s, tasks.md runtime gate) for pass-0 plus the
@@ -305,6 +309,43 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     /// <summary>CQ-AP: whether the CQ a-priori attempt is requested now (the read-back of <see cref="SetCqApEnabled"/>).</summary>
     public bool CqApEnabled => _cqApEnabled;
+
+    // ── DR-2 step 2a: the engine switch ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+    private volatile int _engine;                            // (int)DecoderEngine; Classic (0) at construction
+    private volatile int _leanThreads = DecoderConfig.ResolveThreads(DecoderConfig.AutoThreads, Environment.ProcessorCount);
+
+    /// <summary>
+    /// DR-2 step 2a (FR-108): sets <c>decoder.engine</c>. The object starts <see cref="DecoderEngine.Classic"/> and so does the configured default (an absent key
+    /// reads <c>classic</c>). With <see cref="DecoderEngine.Lean"/> a cycle goes through <c>ftz_decode_cycle</c> and the classic decoder is not entered; with
+    /// <see cref="DecoderEngine.Classic"/> every statement of the cycle is as before the setting existed. Read once per decode cycle; takes effect on the next cycle.
+    /// </summary>
+    public void SetEngine(DecoderEngine engine)
+        => _engine = (int)engine;
+
+    /// <summary>DR-2 step 2a: the engine the next cycle will use (the read-back of <see cref="SetEngine"/>).</summary>
+    public DecoderEngine Engine => (DecoderEngine)_engine;
+
+    private volatile int _effort;                            // (int)DecoderEffort; Normal (0) at construction
+
+    /// <summary>
+    /// DR-2 step 2d: sets <c>decoder.effort</c> (<see cref="DecoderEffort.Normal"/> by default). Read once per cycle and effective on the next cycle; it applies only
+    /// while the engine is <see cref="DecoderEngine.Lean"/> (<see cref="DecoderEffort.Fast"/> = no tier B and one subtract-and-retry round).
+    /// </summary>
+    public void SetEffort(DecoderEffort effort)
+        => _effort = (int)effort;
+
+    /// <summary>DR-2 step 2d: the effort the next lean cycle will use (the read-back of <see cref="SetEffort"/>).</summary>
+    public DecoderEffort Effort => (DecoderEffort)_effort;
+
+    /// <summary>
+    /// DR-2 step 2a: sets <c>decoder.threads</c>, the lean engine's worker count (clamped to 1 to 16; the caller resolves automatic first, see <see cref="DecoderConfig.ResolveThreads(int)"/>). No effect while the engine is
+    /// <see cref="DecoderEngine.Classic"/>. Read once per decode cycle.
+    /// </summary>
+    public void SetLeanThreads(int threads)
+        => _leanThreads = Math.Clamp(threads, DecoderConfig.MinThreads, DecoderConfig.MaxThreads);
+
+    /// <summary>DR-2 step 2a: the lean engine's worker count the next cycle will use.</summary>
+    public int LeanThreads => _leanThreads;
 
     // ── XC-BUILD (cross-cycle template stage, batch 6) ────────────────────────────────────────────────────────────────────────────────────────────
     private volatile bool _crossCyclePrior;          // the object starts false; the daemon sets the configured value (default false) before the first cycle and on every config change
@@ -788,6 +829,11 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // This avoids the wall-clock race where scheduler delay causes
         // AlignToCycleStart to snap to the start of the *next* cycle.
         string timeStr = cycleStart.ToString("HH:mm:ss");
+
+        // ── DR-2 step 2a: the lean engine. Read ONCE per cycle. With "classic" (or the key absent) this statement is the only difference from the base: the
+        // condition is false and execution continues into the classic path below, unchanged. With "lean" the classic decoder is not entered at all.
+        if (_engine == (int)DecoderEngine.Lean)
+            return await DecodeLeanAsync(pcm, cycleStart, timeStr, currentBand, early, ct, onFirstBatch, onSecondBatch, onFallbackBatch).ConfigureAwait(false);
 
         // XC-BUILD R2: open this cycle's entry in the prior store (a band change clears it; cycles older than 90 s are dropped). Only while the stage is on.
         if (xcOn) _crossCycleStore.BeginCycle(cycleStart, currentBand);
@@ -1377,120 +1423,20 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 outcome, buffer, fitCount, refused, newCount, publishedCount, fbEndMs, startMs, endMs - startMs, endMs, LateRoundBatch, publishMs);
 
         // ── XC-BUILD: the cross-cycle template stage (spec R3 to R10, R13) ─────────────────────────────────────────────────────────────────────────────
-        // Tests the messages published 30, 60 and 90 s earlier (the store's live priors, nearest first) as known 79-tone templates on the buffer CohFallbackAudioSelector.Select hands the
-        // fallback and the late round (the residual; none => a counted, logged skip), detections go out as batch 6 through the fallback's hand-off, only when non-empty. Then, under the shadow flag,
-        // the SAME detector, window and threshold on the opposite-parity priors: counted and logged, never published, never stored. The buffer is read only. Native code is entered only for the
-        // encoder, one text at a time on this thread; the detector is managed and runs on up to EffectiveSubtractionThreads workers. A batch-6 publish is mapped with xcBatch 0: it never enters the store.
-        async Task RunCrossCycleStageAsync()
-        {
-            double startMs = sw.Elapsed.TotalMilliseconds;
-            string outcome = XcOutcomeRan;
-            var liveCandidates = _crossCycleStore.Candidates(shadow: false);
-            var shadowCandidates = xcShadowOn ? _crossCycleStore.Candidates(shadow: true) : [];
-            var exLive = default(CrossCycleTemplateStage.Exclusions);
-            var exShadow = default(CrossCycleTemplateStage.Exclusions);
-            int testedLive = 0, testedShadow = 0, detectedLive = 0, detectedShadow = 0, abandonedLive = 0, abandonedShadow = 0, publishedCount = 0;
-            int parityRejectedLive = 0, parityRejectedShadow = 0, vetoedLive = 0, vetoedShadow = 0;
-            // R14: the cycle's batch 1 to 5 publishes (text, position in our own dt, batch), after all of them are out. The same list serves live and shadow.
-            var cycleDecodes = _crossCycleStore.CurrentCycleDecodes();
-            double publishMs = -1.0;
-            try
-            {
-                var choice = CohFallbackAudioSelector.Select(audioMode, normalisedPcm, deepForFallback, reportForFallback, thirdResult);
-                if (!choice.IsResidual) { outcome = XcOutcomeNoResidual; return; }
-
-                // R8: templates stop STARTING at the cycle budget less the publish reserve. The started ones finish and publish.
-                TimeSpan stopStarting = SubtractionCycleBudget - CoherentFallbackPublishReserve;
-                bool Expired() => sw.Elapsed >= stopStarting;
-                int workers = EffectiveSubtractionThreads;
-
-                var liveTemplates = CrossCycleTemplateStage.BuildTemplates(liveCandidates, xcPublished!, _interop.EncodeMessage, out exLive);
-                CrossCycleTemplateStage.RunResult? live = null;
-                try
+        // The body lives in RunCrossCycleStageSharedAsync (DR-2 step 2d: the lean engine runs the SAME stage on its own residual); this is the classic hand-off: the buffer is
+        // what CohFallbackAudioSelector.Select hands the fallback and the late round (the residual; none => a counted, logged skip), detections go out as batch 6 through the
+        // fallback's hand-off, only when non-empty, mapped with xcBatch 0 so they never enter the store (no chaining).
+        Task RunCrossCycleStageAsync()
+            => RunCrossCycleStageSharedAsync(
+                new XcStageContext(
+                    timeStr, cycleStart, sw, xcPublished!, xcShadowOn, xcThreshold, xcParityThreshold, xcVetoOn, EffectiveSubtractionThreads, TemplateBatch,
+                    natives => MapNative(natives, PathTemplate), onFallbackBatch!),
+                () =>
                 {
-                    live = await Task.Run(
-                        () => CrossCycleTemplateStage.Run(liveTemplates, choice.Pcm, xcThreshold, workers, Expired, ct, xcParityThreshold, cycleDecodes, xcVetoOn), CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    outcome = XcOutcomeFailed;
-                    _logger?.LogWarning(ex, "Cycle {Time}: cross-cycle template stage failed - no batch 6 this cycle.", timeStr);
-                }
-
-                if (live is not null)
-                {
-                    testedLive = live.Tested; detectedLive = live.Detected; abandonedLive = live.Abandoned; parityRejectedLive = live.ParityRejected; vetoedLive = live.VetoRejected;
-                    ReportXcProbe(CrossCycleKind.Live, live);
-
-                    // R7: detections are mapped like any other batch (the same per-cycle text de-duplication and plausibility filter) and published as batch 6 only if non-empty.
-                    // Frequency: the argmax rounded to the integer Hz the other fallback rows are published with (banker's rounding, as CohFallbackAudioSelector.PublishedFreqHz).
-                    // dt: the argmax's dt in the convention of the prior it was found around, i.e. the one batches 1 to 5 publish (MapNative rounds it to 0.1 s as for every batch).
-                    // SNR: CrossCycleTemplateDetector.CoherentSnrDb at the argmax, the managed form of native cf_snr_db that every fallback row's SNR comes from.
-                    var natives = new List<Ft8NativeResult>();
-                    for (int i = 0; i < live.Outcomes.Length; i++)
-                    {
-                        var o = live.Outcomes[i];
-                        if (!o.Detected) continue;
-                        natives.Add(new Ft8NativeResult { FreqHz = (int)Math.Round(o.FreqHz), Dt = (float)o.Dt, Snr = o.Snr, Message = live.Templates[i].Text });
-                    }
-                    var batch6 = natives.Count == 0 ? [] : MapNative(natives.ToArray(), PathTemplate);
-                    publishedCount = batch6.Count;
-                    if (batch6.Count > 0)
-                    {
-                        publishMs = sw.Elapsed.TotalMilliseconds;
-                        await onFallbackBatch!(TemplateBatch, batch6).ConfigureAwait(false);
-                    }
-                }
-
-                // R9: the shadow null runs AFTER the live batch is out, so it can never delay a publish.
-                if (xcShadowOn && live is not null)
-                {
-                    var shadowTemplates = CrossCycleTemplateStage.BuildTemplates(shadowCandidates, xcPublished!, _interop.EncodeMessage, out exShadow);
-                    try
-                    {
-                        var shadow = await Task.Run(
-                            () => CrossCycleTemplateStage.Run(shadowTemplates, choice.Pcm, xcThreshold, workers, Expired, ct, xcParityThreshold, cycleDecodes, xcVetoOn), CancellationToken.None).ConfigureAwait(false);
-                        testedShadow = shadow.Tested; detectedShadow = shadow.Detected; abandonedShadow = shadow.Abandoned; parityRejectedShadow = shadow.ParityRejected; vetoedShadow = shadow.VetoRejected;
-                        ReportXcProbe(CrossCycleKind.Shadow, shadow);
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        _logger?.LogWarning(ex, "Cycle {Time}: cross-cycle shadow stage failed.", timeStr);
-                    }
-                }
-            }
-            finally
-            {
-                // R10, HK-037, NFR-021: counts and numbers only, no text, no callsign. Written even when the caller's publish throws (batch6PublishMs then holds the attempt time).
-                double endMs = sw.Elapsed.TotalMilliseconds;
-                _logger?.LogInformation(
-                    "Cross-cycle prior: outcome={Outcome}, priorsLive={PriorsLive}, priorsShadow={PriorsShadow}, excludedDecoded={ExcludedDecoded}, excludedHashed={ExcludedHashed}, " +
-                    "excludedRefused={ExcludedRefused}, shadowExcludedDecoded={ShadowExcludedDecoded}, shadowExcludedHashed={ShadowExcludedHashed}, shadowExcludedRefused={ShadowExcludedRefused}, " +
-                    "testedLive={TestedLive}, testedShadow={TestedShadow}, detected={Detected}, shadowDetected={ShadowDetected}, abandoned={Abandoned}, shadowAbandoned={ShadowAbandoned}, " +
-                    "vetoedColocated={VetoedColocated}, shadowVetoedColocated={ShadowVetoedColocated}, parityRejected={ParityRejected}, shadowParityRejected={ShadowParityRejected}, " +
-                    "veto={Veto}, parityThreshold={ParityThreshold}, " +
-                    "published={Published}, threshold={Threshold}, startMs={StartMs:F0}, stageMs={StageMs:F0}, endMs={EndMs:F0}, batch={Batch}, batch6PublishMs={PublishMs:F0}.",
-                    outcome, liveCandidates.Count, shadowCandidates.Count, exLive.AlreadyDecoded, exLive.Hashed, exLive.Refused, exShadow.AlreadyDecoded, exShadow.Hashed, exShadow.Refused,
-                    testedLive, testedShadow, detectedLive, detectedShadow, abandonedLive, abandonedShadow,
-                    vetoedLive, vetoedShadow, parityRejectedLive, parityRejectedShadow, xcVetoOn, xcParityThreshold,
-                    publishedCount, xcThreshold, startMs, endMs - startMs, endMs, TemplateBatch, publishMs);
-            }
-        }
-
-        // R13: one record per TESTED template, on this thread, in test order. The sink may throw: that is logged and never costs the cycle a decode.
-        void ReportXcProbe(CrossCycleKind kind, CrossCycleTemplateStage.RunResult run)
-        {
-            var probe = _crossCycleProbe;
-            if (probe is null) return;
-            for (int i = 0; i < run.Outcomes.Length; i++)
-            {
-                var o = run.Outcomes[i];
-                if (!o.Tested) continue;
-                var t = run.Templates[i];
-                try { probe.OnTemplateTested(new CrossCycleTestRecord(kind, o.SStar, t.AgeCycles, o.FreqHz - t.FreqHz, o.Dt - t.Dt, cycleStart, o.SP, t.FreqHz, t.Dt, t.Batch, o.Vetoed)); }
-                catch (Exception ex) { _logger?.LogWarning(ex, "Cycle {Time}: the cross-cycle diagnostic sink threw - ignored.", timeStr); }
-            }
-        }
+                    var choice = CohFallbackAudioSelector.Select(audioMode, normalisedPcm, deepForFallback, reportForFallback, thirdResult);
+                    return choice.IsResidual ? choice.Pcm : null;
+                },
+                ct);
 
         async Task RunCoherentFallbackBatchAsync(int batchNumber)
         {
@@ -1705,6 +1651,425 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// COH-FALLBACK Stage 2: the native fallback run on a thread of its own. Contains every failure: a fault is logged and the cycle
     /// simply has no fallback decodes (batches 1, 2 and 3 as they would have been), never lost.
     /// </summary>
+    // ── DR-2 step 2a: the lean engine's cycle ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The lean cycle's error code for a managed exception around the native call (the native codes are in <see cref="LeanCycleStats"/>).</summary>
+    internal const int LeanErrManaged = -100;
+
+    /// <summary>The lean engine's batch numbers (spec section 2.1): round 0, rounds 1 to 3, the cross-cycle stage's detections.</summary>
+    internal const int LeanBatchRound0 = 1, LeanBatchRounds = 2, LeanBatchXc = 3;
+
+    /// <summary>
+    /// DR-2 steps 2a to 2d: decodes one window with the lean engine: ONE native call (<c>ftz_decode_cycle</c>: spectrogram, candidates, tier A, tier B, CQ-AP, then up to
+    /// three subtract-and-retry rounds), then the same publish pipeline as every classic batch (text de-duplication per cycle, <see cref="IsPlausibleMessage"/>, region and
+    /// worked-before bycatch). Three batches: <b>1</b> = round 0, handed over by the native call itself right after round 0 is unpacked and published through
+    /// <paramref name="onFirstBatch"/> WHILE the native call goes on with round 1 (the callback only copies; nothing in native waits on the consumer); <b>2</b> =
+    /// rounds 1 to 3, through <paramref name="onSecondBatch"/> when non-empty; <b>3</b> = the cross-cycle stage's detections on the final residual the native call returns,
+    /// through <paramref name="onThirdBatch"/> when non-empty. One text is published once per cycle across the batches. With no callbacks (the single-batch entry) every
+    /// result is returned as one list. A native error is logged and whatever results the call had written are published (batch 1 is still delivered exactly once, empty or
+    /// not); an exception around the call is logged and the cycle yields nothing; neither stops the next cycle (D3). The early decode has no lean form: it returns nothing.
+    /// </summary>
+    private async Task<IReadOnlyList<DecodeResult>> DecodeLeanAsync(
+        float[] pcm, DateTime cycleStart, string timeStr, string? currentBand, bool early, CancellationToken ct,
+        Func<IReadOnlyList<DecodeResult>, Task>? onFirstBatch,
+        Func<IReadOnlyList<DecodeResult>, Task>? onSecondBatch,
+        Func<int, IReadOnlyList<DecodeResult>, Task>? onThirdBatch)
+    {
+        if (early)
+        {
+            _logger?.LogDebug("Early decode skipped - the lean engine has no early decode.");
+            return [];
+        }
+
+        var sw = BudgetClock.StartNew(_timeProvider);
+        int threads = _leanThreads;
+        bool cqAp = _cqApEnabled;   // read ONCE per cycle, like every classic flag
+        var effort = (DecoderEffort)_effort;   // DR-2 step 2d: read ONCE per cycle
+        // Step 2c: the residual rules read the same settings as the classic path, once per cycle, and act only in Both mode (as there).
+        bool bothAudio       = _coherentFallbackAudio == CoherentFallbackAudio.Both;
+        bool residualUngated = _coherentFallbackResidualUngated && bothAudio;
+        bool residualCands   = _coherentFallbackResidualCandidates && bothAudio;
+        // Step 2d: the cross-cycle stage runs in a staged cycle that can carry its batch; every setting is read once per cycle, as in the classic path.
+        bool staged        = onFirstBatch is not null;
+        bool xcOn          = staged && onThirdBatch is not null && _crossCyclePrior;
+        bool xcShadowOn    = xcOn && _crossCyclePriorShadow;
+        double xcThreshold = xcOn ? Volatile.Read(ref _crossCyclePriorThreshold) : CrossCyclePriorThresholdDefault;
+        double xcParityThreshold = xcOn ? Volatile.Read(ref _crossCyclePriorParityThreshold) : CrossCyclePriorParityThresholdDefault;
+        bool xcVetoOn      = xcOn && _crossCycleColocationVeto;
+        HashSet<string>? xcPublished = xcOn ? new HashSet<string>(StringComparer.Ordinal) : null;
+        if (xcOn) _crossCycleStore.BeginCycle(cycleStart, currentBand);   // XC-BUILD R2: open this cycle's entry in the prior store
+
+        // The same input conditioning as the primary pass today (input scaling is a closed arm): a normalised COPY, the caller's buffer is never mutated.
+        float[] normalisedPcm = NormalisePcm(pcm, PcmNormalisationTargetRms);
+
+        // The text de-duplication set is per CYCLE and spans the batches; the mapping below is the classic one (plausibility, region, worked-before, provenance tags).
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        List<DecodeResult> MapLean(Ft8NativeResult[] results, byte[] tiers, int lo, int hi, int xcBatch, int? pathOverride = null)
+        {
+            var mapped = new List<DecodeResult>(Math.Max(0, hi - lo));
+            for (int ri = lo; ri < hi; ri++)
+            {
+                Ft8NativeResult nr = results[ri];
+                byte tier = ri < tiers.Length ? tiers[ri] : LeanTier.A;
+                string msg = nr.Message.TrimEnd();                       // D-005: the native buffer is padded with spaces
+                if (!seen.Add(msg)) continue;                            // one text, once per cycle (across the batches)
+                if (!IsPlausibleMessage(msg, _grammarStore))
+                {
+                    _logger?.LogDebug("Cycle {Time}: filtered implausible message '{Message}' (false-positive guard).", timeStr, msg);
+                    continue;
+                }
+
+                RegionInfo? region = null;
+                if (_regionStore is not null)
+                {
+                    try
+                    {
+                        var primaryToken = ExtractPrimaryCallsignToken(msg);
+                        if (primaryToken is not null) region = _regionStore.TryGetRegion(primaryToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Cycle {Time}: region resolution failed for message '{Message}' - defaulting to Unknown.", timeStr, msg);
+                        region = null;
+                    }
+                }
+
+                WorkedBeforeInfo? workedBefore = null;
+                if (_workedBeforeIndex is not null)
+                {
+                    try
+                    {
+                        var primaryToken = ExtractPrimaryCallsignToken(msg);
+                        if (primaryToken is not null) workedBefore = _workedBeforeIndex.Resolve(primaryToken, currentBand);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Cycle {Time}: worked-before resolution failed for message '{Message}' - defaulting to not-worked-before.", timeStr, msg);
+                        workedBefore = null;
+                    }
+                }
+
+                // XC-BUILD R2: a message PUBLISHED in batch 1 or 2 goes into the prior store (xcBatch 0, the stage's own batch, never does: no chaining).
+                if (xcBatch > 0 && xcPublished is not null)
+                {
+                    xcPublished.Add(msg);
+                    _crossCycleStore.Record(new CrossCyclePriorStore.Prior(msg, nr.FreqHz, nr.Dt, xcBatch));
+                }
+
+                mapped.Add(new DecodeResult(
+                    Time:         timeStr,
+                    Snr:          nr.Snr,
+                    Dt:           Math.Round(nr.Dt, 1),
+                    FreqHz:       nr.FreqHz,
+                    Message:      msg,
+                    Region:       region,
+                    WorkedBefore: workedBefore,
+                    Band:         currentBand)
+                {
+                    Path   = pathOverride ?? (tier == LeanTier.B ? PathFallback : PathOrdinary),   // the provenance tags the classic path gives the same kinds of row
+                    ApKind = tier == LeanTier.CqAp ? ApKind.Cq : ApKind.None
+                });
+            }
+            return mapped;
+        }
+
+        // The cycle's wall-clock budget, as the classic staged decode has it: 13 s less the publish reserve. Tier B and CQ-AP stop between candidates when it is spent,
+        // and no subtract-and-retry round starts with less than its reserve left.
+        int budgetMs = (int)Math.Max(0, (SubtractionCycleBudget - CoherentFallbackPublishReserve - sw.Elapsed).TotalMilliseconds);
+        var request = new LeanCycleParams(
+            threads, cqAp, budgetMs,
+            Rounds: true, MaxRounds: effort == DecoderEffort.Fast ? 1 : 0,
+            ResidualUngated: residualUngated, ResidualCandidates: residualCands,
+            NoTierB: effort == DecoderEffort.Fast, WantResidual: xcOn, SkipFits: true);
+
+        // Batch 1 leaves from the native call's round-0 hand-off: the callback (on the native call's thread) only completes this source with a copy; THIS flow publishes.
+        var round0 = new TaskCompletionSource<LeanRound0>(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool batch1Delivered = false, batch2Delivered = false, batch3Delivered = false;
+        int mappedTotal = 0;   // the decodes of the ordinary batches (the "decode(s) found" line)
+        LeanCycleOutcome outcome;
+        var native = Task.Run(() => _interop.DecodeLeanCycle(normalisedPcm, request, staged ? (Action<LeanRound0>)(r0 => round0.TrySetResult(r0)) : null), ct);
+        if (staged)
+        {
+            try
+            {
+                await Task.WhenAny(round0.Task, native).ConfigureAwait(false);
+                if (round0.Task.IsCompletedSuccessfully)
+                {
+                    var r0 = round0.Task.Result;
+                    var batch1 = MapLean(r0.Results, r0.Tiers, 0, r0.Results.Length, xcBatch: LeanBatchRound0);
+                    batch1Delivered = true;
+                    mappedTotal += batch1.Count;
+                    await onFirstBatch!(batch1).ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                // A publisher (or mapping) failure propagates as in the classic path, but the native call is never left running unobserved: its task is awaited first,
+                // whatever it did (its own failure is not what the caller is told about).
+                try { await native.ConfigureAwait(false); } catch { /* observed; the publisher's exception is the one that propagates */ }
+                throw;
+            }
+        }
+        try
+        {
+            outcome = await native.ConfigureAwait(false);   // D5: only the native call is inside this try
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // D3: a failure of the native call (or of loading it) is a lost cycle, never a dead daemon. Batch 1 (if the hand-off never happened) is delivered empty below.
+            _logger?.LogError(ex, "Cycle {Time}: lean decode failed ({Type}) - cycle skipped.", timeStr, ex.GetType().Name);
+            outcome = new LeanCycleOutcome([], LeanCycleStats.None(LeanErrManaged));
+        }
+
+        var st = outcome.Stats;
+        if (st.Error != LeanCycleStats.Ok)
+            _logger?.LogWarning(
+                "Cycle {Time}: lean native error {Error} - publishing the {Count} result(s) it had written, carrying on with the next cycle.",
+                timeStr, st.Error, outcome.Results.Length);
+
+        // Which results are round 0 (a prefix: the native call writes the rounds in order) and which are later.
+        int round0Count = 0;
+        while (round0Count < outcome.Results.Length && (round0Count >= outcome.Rounds.Length || outcome.Rounds[round0Count] == 0)) round0Count++;
+
+        IReadOnlyList<DecodeResult> rest = [];
+        if (staged)
+        {
+            // The hand-off never came (the cycle failed before round 0 was unpacked, or the callback failed): batch 1 is whatever the call returned, still exactly once.
+            if (!batch1Delivered)
+            {
+                var batch1 = MapLean(outcome.Results, outcome.Tiers, 0, round0Count, xcBatch: LeanBatchRound0);
+                batch1Delivered = true;
+                mappedTotal += batch1.Count;
+                await onFirstBatch!(batch1).ConfigureAwait(false);
+            }
+            var batch2 = MapLean(outcome.Results, outcome.Tiers, round0Count, outcome.Results.Length, xcBatch: LeanBatchRounds);
+            mappedTotal += batch2.Count;
+            if (batch2.Count > 0)
+            {
+                batch2Delivered = true;
+                if (onSecondBatch is not null) await onSecondBatch(batch2).ConfigureAwait(false);
+                else rest = batch2;                                      // the two-stage entry: batch 2 is the return value
+            }
+        }
+        else
+        {
+            // The single-batch entry: every result, one list (what step 2b returned).
+            var all = MapLean(outcome.Results, outcome.Tiers, 0, outcome.Results.Length, xcBatch: 0);
+            rest = all;
+            mappedTotal = all.Count;
+        }
+
+        // XC-BUILD (S4): the template stage on the final residual (the buffer as of the last subtraction made; none when nothing was subtracted: a counted, logged skip).
+        string xcOutcome = "off";
+        int xcDetected = 0;
+        if (xcOn)
+        {
+            var ctx = new XcStageContext(
+                timeStr, cycleStart, sw, xcPublished!, xcShadowOn, xcThreshold, xcParityThreshold, xcVetoOn, threads, LeanBatchXc,
+                natives => MapLean(natives, [], 0, natives.Length, xcBatch: 0, pathOverride: PathTemplate),
+                (number, batchX) => { batch3Delivered = true; return onThirdBatch!(number, batchX); });
+            await RunCrossCycleStageSharedAsync(ctx, () => outcome.Residual, ct).ConfigureAwait(false);
+            xcOutcome = ctx.OutcomeResult;
+            xcDetected = ctx.PublishedResult;
+        }
+        sw.Stop();
+
+        // HK-037 / NFR-021: the line carries counts and times only, never message text or a callsign.
+        _logger?.LogInformation(
+            "Cycle {Time}: lean: candidates={Candidates} tierA={TierA} results={Results} threads={Threads} abandoned={Abandoned} error={Error} " +
+            "tierB: eligible={BEligible} attempted={BAttempted} crc={BCrc} f1b={BF1b} gated={BGated} published={BPublished} edge={BEdge} skipped={BSkipped} " +
+            "cqAp: attempts={CqAttempts} decodes={CqDecodes} " +
+            "wall_ms spectrogram={SpecWall:F1} candidates={CandWall:F1} tierA={TierAWall:F1} tierB={TierBWall:F1} cqAp={CqWall:F1} unpack={UnpackWall:F1} total={TotalWall:F1} " +
+            "cpu_ms spectrogram={SpecCpu:F1} candidates={CandCpu:F1} tierA={TierACpu:F1} tierB={TierBCpu:F1} cqAp={CqCpu:F1} unpack={UnpackCpu:F1} total={TotalCpu:F1} " +
+            "s3: rounds={RoundsRun} ungated={Ungated} fitSkipped={S3Skipped} wall_ms={S3Wall:F1} cpu_ms={S3Cpu:F1} fitCpu_ms={S3Fit:F1} searchCpu_ms={S3Search:F1} decodeCpu_ms={S3Decode:F1} otherCpu_ms={S3Other:F1}{RoundDetail} " +
+            "effort={Effort} batches: b1={B1} b2={B2} b3={B3} xc={XcOutcome} xcDetected={XcDetected}.",
+            timeStr, st.Candidates, st.TierADecodes, st.Results, st.Threads, st.Abandoned ? 1 : 0, st.Error,
+            st.TierBEligible, st.TierBAttempted, st.TierBCrcValid, st.TierBF1b, st.TierBGated, st.TierBPublished, st.TierBEdge, st.TierBSkipped,
+            st.CqApAttempts, st.CqApDecodes,
+            st.SpectrogramWallUs / 1000.0, st.CandidatesWallUs / 1000.0, st.TierAWallUs / 1000.0, st.TierBWallUs / 1000.0, st.CqApWallUs / 1000.0, st.UnpackWallUs / 1000.0, st.TotalWallUs / 1000.0,
+            st.SpectrogramCpuUs / 1000.0, st.CandidatesCpuUs / 1000.0, st.TierACpuUs / 1000.0, st.TierBCpuUs / 1000.0, st.CqApCpuUs / 1000.0, st.UnpackCpuUs / 1000.0, st.TotalCpuUs / 1000.0,
+            st.RoundsRun, st.Ungated, st.S3FitSkipped, st.S3WallUs / 1000.0, st.S3CpuUs / 1000.0, st.S3FitCpuUs / 1000.0, st.S3SearchCpuUs / 1000.0, st.S3DecodeCpuUs / 1000.0, st.S3OtherCpuUs / 1000.0,
+            FormatLeanRounds(st),
+            effort == DecoderEffort.Fast ? DecoderEffortNames.Fast : DecoderEffortNames.Normal,
+            batch1Delivered ? 1 : 0, batch2Delivered ? 1 : 0, batch3Delivered ? 1 : 0, xcOutcome, xcDetected);
+
+        // The ordinary cycle line, so the log parsers that read it keep working for a lean cycle too (the count is every decode of the cycle, all batches).
+        _logger?.LogInformation(
+            "Cycle {Time}: {Count} decode(s) found, elapsed={Elapsed} ms.",
+            timeStr, mappedTotal, sw.ElapsedMilliseconds);
+        return rest;
+    }
+
+    /// <summary>
+    /// XC-BUILD / DR-2 step 2d: everything the cross-cycle template stage needs from the cycle that runs it. The classic staged decode and the lean engine build one
+    /// each and call <see cref="RunCrossCycleStageSharedAsync"/>: one body, two callers.
+    /// </summary>
+    /// <param name="TimeStr">The cycle's time as the log lines write it.</param>
+    /// <param name="CycleStart">The cycle's start (the probe records carry it).</param>
+    /// <param name="Sw">The cycle's budget clock (the stage's start and stop are measured on it).</param>
+    /// <param name="Published">The texts this cycle published in its ordinary batches (R3's first exclusion).</param>
+    /// <param name="ShadowOn">Whether the shadow null runs.</param>
+    /// <param name="Threshold">The detection threshold, read once per cycle.</param>
+    /// <param name="ParityThreshold">The parity threshold, read once per cycle.</param>
+    /// <param name="VetoOn">Whether the co-location veto is on.</param>
+    /// <param name="Workers">The detector's worker count.</param>
+    /// <param name="BatchNumber">The number the stage's batch is published and logged under (6 for classic, 3 for lean).</param>
+    /// <param name="Map">Maps the detections like any other batch (same text de-duplication and plausibility filter; never enters the prior store).</param>
+    /// <param name="Publish">Hands a batch to the caller.</param>
+    private sealed record XcStageContext(
+        string TimeStr, DateTime CycleStart, BudgetClock Sw, HashSet<string> Published, bool ShadowOn, double Threshold, double ParityThreshold, bool VetoOn,
+        int Workers, int BatchNumber, Func<Ft8NativeResult[], List<DecodeResult>> Map, Func<int, IReadOnlyList<DecodeResult>, Task> Publish)
+    {
+        /// <summary>Set by the stage when it ends: its outcome token (ran, skipped-no-residual, failed).</summary>
+        public string OutcomeResult { get; set; } = XcOutcomeRan;
+
+        /// <summary>Set by the stage when it ends: the detections it published.</summary>
+        public int PublishedResult { get; set; }
+    }
+
+    /// <summary>
+    /// The cross-cycle template stage (XC-BUILD spec R3 to R10, R13). Tests the messages published 30, 60 and 90 s earlier (the store's live priors, nearest first) as known
+    /// 79-tone templates on the residual buffer <paramref name="residualProvider"/> returns (<c>null</c> = none: a counted, logged skip), publishes detections as one batch
+    /// only when non-empty, then, under the shadow flag, runs the SAME detector, window and threshold on the opposite-parity priors: counted and logged, never published,
+    /// never stored. The buffer is read only. Native code is entered only for the encoder, one text at a time on this thread; the detector is managed and runs on up to
+    /// <see cref="XcStageContext.Workers"/> workers.
+    /// </summary>
+    private async Task RunCrossCycleStageSharedAsync(XcStageContext c, Func<float[]?> residualProvider, CancellationToken ct)
+    {
+        double startMs = c.Sw.Elapsed.TotalMilliseconds;
+        string outcome = XcOutcomeRan;
+        var liveCandidates = _crossCycleStore.Candidates(shadow: false);
+        var shadowCandidates = c.ShadowOn ? _crossCycleStore.Candidates(shadow: true) : [];
+        var exLive = default(CrossCycleTemplateStage.Exclusions);
+        var exShadow = default(CrossCycleTemplateStage.Exclusions);
+        int testedLive = 0, testedShadow = 0, detectedLive = 0, detectedShadow = 0, abandonedLive = 0, abandonedShadow = 0, publishedCount = 0;
+        int parityRejectedLive = 0, parityRejectedShadow = 0, vetoedLive = 0, vetoedShadow = 0;
+        // R14: the cycle's batch 1 to 5 publishes (text, position in our own dt, batch), after all of them are out. The same list serves live and shadow.
+        var cycleDecodes = _crossCycleStore.CurrentCycleDecodes();
+        double publishMs = -1.0;
+        try
+        {
+            float[]? residualPcm = residualProvider();
+            if (residualPcm is null) { outcome = XcOutcomeNoResidual; return; }
+
+            // R8: templates stop STARTING at the cycle budget less the publish reserve. The started ones finish and publish.
+            TimeSpan stopStarting = SubtractionCycleBudget - CoherentFallbackPublishReserve;
+            bool Expired() => c.Sw.Elapsed >= stopStarting;
+            int workers = c.Workers;
+
+            var liveTemplates = CrossCycleTemplateStage.BuildTemplates(liveCandidates, c.Published, _interop.EncodeMessage, out exLive);
+            CrossCycleTemplateStage.RunResult? live = null;
+            try
+            {
+                live = await Task.Run(
+                    () => CrossCycleTemplateStage.Run(liveTemplates, residualPcm, c.Threshold, workers, Expired, ct, c.ParityThreshold, cycleDecodes, c.VetoOn), CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                outcome = XcOutcomeFailed;
+                _logger?.LogWarning(ex, "Cycle {Time}: cross-cycle template stage failed - no batch 6 this cycle.", c.TimeStr);
+            }
+
+            if (live is not null)
+            {
+                testedLive = live.Tested; detectedLive = live.Detected; abandonedLive = live.Abandoned; parityRejectedLive = live.ParityRejected; vetoedLive = live.VetoRejected;
+                ReportXcProbe(c, CrossCycleKind.Live, live);
+
+                // R7: detections are mapped like any other batch (the same per-cycle text de-duplication and plausibility filter) and published as the stage's batch only if non-empty.
+                // Frequency: the argmax rounded to the integer Hz the other fallback rows are published with (banker's rounding, as CohFallbackAudioSelector.PublishedFreqHz).
+                // dt: the argmax's dt in the convention of the prior it was found around, i.e. the one the ordinary batches publish (the mapping rounds it to 0.1 s as for every batch).
+                // SNR: CrossCycleTemplateDetector.CoherentSnrDb at the argmax, the managed form of native cf_snr_db that every fallback row's SNR comes from.
+                var natives = new List<Ft8NativeResult>();
+                for (int i = 0; i < live.Outcomes.Length; i++)
+                {
+                    var o = live.Outcomes[i];
+                    if (!o.Detected) continue;
+                    natives.Add(new Ft8NativeResult { FreqHz = (int)Math.Round(o.FreqHz), Dt = (float)o.Dt, Snr = o.Snr, Message = live.Templates[i].Text });
+                }
+                var batchX = natives.Count == 0 ? [] : c.Map(natives.ToArray());
+                publishedCount = batchX.Count;
+                if (batchX.Count > 0)
+                {
+                    publishMs = c.Sw.Elapsed.TotalMilliseconds;
+                    await c.Publish(c.BatchNumber, batchX).ConfigureAwait(false);
+                }
+            }
+
+            // R9: the shadow null runs AFTER the live batch is out, so it can never delay a publish.
+            if (c.ShadowOn && live is not null)
+            {
+                var shadowTemplates = CrossCycleTemplateStage.BuildTemplates(shadowCandidates, c.Published, _interop.EncodeMessage, out exShadow);
+                try
+                {
+                    var shadow = await Task.Run(
+                        () => CrossCycleTemplateStage.Run(shadowTemplates, residualPcm, c.Threshold, workers, Expired, ct, c.ParityThreshold, cycleDecodes, c.VetoOn), CancellationToken.None).ConfigureAwait(false);
+                    testedShadow = shadow.Tested; detectedShadow = shadow.Detected; abandonedShadow = shadow.Abandoned; parityRejectedShadow = shadow.ParityRejected; vetoedShadow = shadow.VetoRejected;
+                    ReportXcProbe(c, CrossCycleKind.Shadow, shadow);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger?.LogWarning(ex, "Cycle {Time}: cross-cycle shadow stage failed.", c.TimeStr);
+                }
+            }
+        }
+        finally
+        {
+            c.OutcomeResult = outcome;
+            c.PublishedResult = publishedCount;
+            // R10, HK-037, NFR-021: counts and numbers only, no text, no callsign. Written even when the caller's publish throws (batch6PublishMs then holds the attempt time).
+            double endMs = c.Sw.Elapsed.TotalMilliseconds;
+            _logger?.LogInformation(
+                "Cross-cycle prior: outcome={Outcome}, priorsLive={PriorsLive}, priorsShadow={PriorsShadow}, excludedDecoded={ExcludedDecoded}, excludedHashed={ExcludedHashed}, " +
+                "excludedRefused={ExcludedRefused}, shadowExcludedDecoded={ShadowExcludedDecoded}, shadowExcludedHashed={ShadowExcludedHashed}, shadowExcludedRefused={ShadowExcludedRefused}, " +
+                "testedLive={TestedLive}, testedShadow={TestedShadow}, detected={Detected}, shadowDetected={ShadowDetected}, abandoned={Abandoned}, shadowAbandoned={ShadowAbandoned}, " +
+                "vetoedColocated={VetoedColocated}, shadowVetoedColocated={ShadowVetoedColocated}, parityRejected={ParityRejected}, shadowParityRejected={ShadowParityRejected}, " +
+                "veto={Veto}, parityThreshold={ParityThreshold}, " +
+                "published={Published}, threshold={Threshold}, startMs={StartMs:F0}, stageMs={StageMs:F0}, endMs={EndMs:F0}, batch={Batch}, batch6PublishMs={PublishMs:F0}.",
+                outcome, liveCandidates.Count, shadowCandidates.Count, exLive.AlreadyDecoded, exLive.Hashed, exLive.Refused, exShadow.AlreadyDecoded, exShadow.Hashed, exShadow.Refused,
+                testedLive, testedShadow, detectedLive, detectedShadow, abandonedLive, abandonedShadow,
+                vetoedLive, vetoedShadow, parityRejectedLive, parityRejectedShadow, c.VetoOn, c.ParityThreshold,
+                publishedCount, c.Threshold, startMs, endMs - startMs, endMs, c.BatchNumber, publishMs);
+        }
+    }
+
+    // R13: one record per TESTED template, on this thread, in test order. The sink may throw: that is logged and never costs the cycle a decode.
+    private void ReportXcProbe(XcStageContext c, CrossCycleKind kind, CrossCycleTemplateStage.RunResult run)
+    {
+        var probe = _crossCycleProbe;
+        if (probe is null) return;
+        for (int i = 0; i < run.Outcomes.Length; i++)
+        {
+            var o = run.Outcomes[i];
+            if (!o.Tested) continue;
+            var t = run.Templates[i];
+            try { probe.OnTemplateTested(new CrossCycleTestRecord(kind, o.SStar, t.AgeCycles, o.FreqHz - t.FreqHz, o.Dt - t.Dt, c.CycleStart, o.SP, t.FreqHz, t.Dt, t.Batch, o.Vetoed)); }
+            catch (Exception ex) { _logger?.LogWarning(ex, "Cycle {Time}: the cross-cycle diagnostic sink threw - ignored.", c.TimeStr); }
+        }
+    }
+
+    /// <summary>
+    /// Step 2c: the per-round part of the <c>lean:</c> line, one group per round that started (counts and milliseconds only, HK-037):
+    /// <c> r1[fits=.. subtracted=.. fitNone=.. found=.. kept=.. tierA=.. results=.. ungated=.. wall_ms sub=.. spec=.. search=.. decode=.. cpu_ms fit=.. sum=.. spec=.. search=.. decode=..]</c>.
+    /// </summary>
+    internal static string FormatLeanRounds(LeanCycleStats st)
+    {
+        var sb = new System.Text.StringBuilder();
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        for (int r = 1; r < st.Rounds.Length; r++)
+        {
+            LeanRoundStats x = st.Rounds[r];
+            if (x.Fits == 0 && x.FitSkipped == 0) continue;   // the round never started and skipped nothing
+            sb.Append(ic, $" r{r}[fits={x.Fits} skipped={x.FitSkipped} subtracted={x.Subtracted} fitNone={x.FitNone} found={x.Found} kept={x.Kept} tierA={x.TierA} results={x.Results} ungated={x.Ungated} ")
+              .Append(ic, $"wall_ms sub={x.SubWallUs / 1000.0:F1} spec={x.SpecWallUs / 1000.0:F1} search={x.SearchWallUs / 1000.0:F1} decode={x.DecodeWallUs / 1000.0:F1} ")
+              .Append(ic, $"cpu_ms fit={x.FitCpuUs / 1000.0:F1} sum={x.SumCpuUs / 1000.0:F1} spec={x.SpecCpuUs / 1000.0:F1} search={x.SearchCpuUs / 1000.0:F1} decode={x.DecodeCpuUs / 1000.0:F1}]");
+        }
+        return sb.ToString();
+    }
+
     private CohFallbackRunResult? RunCoherentFallback(float[] pcm, byte[] snapshot, double budgetMs, int workers, bool multiSet, string timeStr, CancellationToken ct)
     {
         try

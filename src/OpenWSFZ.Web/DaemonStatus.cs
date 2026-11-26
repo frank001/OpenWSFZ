@@ -134,4 +134,11 @@ public sealed record DaemonStatus(
     /// third pass's counters. Served on <c>GET /api/v1/status</c> only; <c>null</c> on the other status frames and when no
     /// provider is wired.
     /// </summary>
-    OpenWSFZ.Abstractions.ThirdPassStatus? ThirdPass = null);
+    OpenWSFZ.Abstractions.ThirdPassStatus? ThirdPass = null)
+{
+    /// <summary>
+    /// The daemon host's logical processor count (<see cref="Environment.ProcessorCount"/>), read-only. The Settings page shows it next to the decoder
+    /// thread-count control: the browser may be on another machine (remote access), so <c>navigator.hardwareConcurrency</c> would be the wrong PC.
+    /// </summary>
+    public int ProcessorCount { get; init; } = Environment.ProcessorCount;
+}

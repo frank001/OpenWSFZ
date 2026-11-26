@@ -1,0 +1,12 @@
+OpenWSFZ lean decoder engine (native/ftz_decoder)
+
+This directory is OpenWSFZ-original source code, written for this project (DR-2, 2026-11). It is not a
+third-party dependency and not a git submodule. It is licensed under the same terms as the repository:
+
+    GNU Affero General Public License, version 3 (SPDX: AGPL-3.0-only)
+
+The full licence text is the LICENSE file at the repository root.
+
+It composes, with their meaning unchanged, building blocks of ft8_lib (MIT licence, Karlis Goba) that the
+repository vendors under native/ft8_lib_vendor (see native/ft8_lib_vendor/PROVENANCE.md and the MIT LICENSE there).
+No line of WSJT-X is copied or ported.

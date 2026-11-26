@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260072;
+    private const int ExpectedShimVersion = 20260078;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -583,6 +583,25 @@ internal static class Ft8LibInterop
         int                     pcmLen,
         [Out] Ft8NativeResultWire[] results,
         int                     maxResults);
+
+    /// <summary>
+    /// DR-2 step 2a (shim 20260073): the lean engine's one native call per cycle (<c>native/ftz_decoder/ftz_decoder.h</c>). Returns the number of
+    /// results (&gt;= 0) or a negative error code; the call never raises, and the statistics (also on an error) say how many results are valid.
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ftz_decode_cycle", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzDecodeCycle(
+        [In] float[]            pcm,
+        int                     pcmLen,
+        ref FtzParamsWire       parameters,
+        [Out] Ft8NativeResultWire[] results,
+        int                     maxResults,
+        [Out] byte[]            tiers,
+        [Out] byte[]            rounds,
+        ref FtzStatsWire        stats);
+
+    /// <summary>DR-2 step 2a: stops and frees the lean engine's worker pool (the next <c>ftz_decode_cycle</c> re-creates it).</summary>
+    [DllImport("libft8.dll", EntryPoint = "ftz_shutdown", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeFtzShutdown();
 
     /// <summary>
     /// cq-ap (shim 20260072): sets the per-thread CQ a-priori flag of the next <see cref="NativeDecodeAll"/> calls on this thread.
@@ -989,6 +1008,180 @@ internal static class Ft8LibInterop
             };
         }
         return results;
+    }
+
+    /// <summary>
+    /// DR-2 step 2a: decodes one cycle with the lean engine (<c>ftz_decode_cycle</c>): spectrogram, candidates, tier A, unpack, sorted. Any native
+    /// error code is reported in the returned statistics (never thrown) together with whatever results the call had already written, so the
+    /// caller can log it, publish what there is and carry on with the next cycle (D3). The call does not read or write the classic
+    /// decode's thread-local state.
+    /// </summary>
+    /// <param name="pcm">12 kHz mono float32 PCM, at most 180 000 samples are read.</param>
+    /// <param name="request">Worker count, CQ-AP switch, budget and candidate cap.</param>
+    public static LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => DecodeLeanCycle(pcm, request, null);
+
+    /// <summary>The native round-0 hand-off (<c>ftz_round0_fn</c>): <c>void (*)(void* ctx, int n, const void* results, const uint8_t* tiers)</c>.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void FtzRound0Native(IntPtr ctx, int n, IntPtr results, IntPtr tiers);
+
+    /// <summary>
+    /// DR-2 step 2d: as <see cref="DecodeLeanCycle(float[], LeanCycleParams)"/>, with the round-0 hand-off: <paramref name="onRound0"/> (may be null) is called once on
+    /// the calling thread, from inside the native call, right after round 0 is unpacked and before round 1 starts, with a copy of round 0's results. The native call goes
+    /// on when it returns, so it must only hand the copy over (it must not call any native function and must return quickly). An exception it throws is swallowed here (an
+    /// exception must never cross the native boundary); the cycle's outcome still carries every result.
+    /// </summary>
+    public static LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0)
+    {
+        ArgumentNullException.ThrowIfNull(pcm);
+        EnsureInitialized();
+
+        var tiers = new byte[MaxResults];
+        var rounds = new byte[MaxResults];
+        float[]? residual = request.WantResidual ? new float[PcmSampleCount] : null;
+        GCHandle residualPin = default;
+        FtzRound0Native? callback = null;   // kept alive (and referenced after the call) so the thunk the native side holds cannot be collected mid-call
+
+        var parameters = new FtzParamsWire
+        {
+            StructSize    = Marshal.SizeOf<FtzParamsWire>(),
+            Threads       = request.Threads,
+            MaxCandidates = request.MaxCandidates,
+            Flags         = (request.CqAp ? FtzParamsWire.FlagCqAp : 0) | (request.BudgetMs.HasValue ? FtzParamsWire.FlagBudget : 0)
+                          | (request.Rounds ? FtzParamsWire.FlagRounds : 0)
+                          | (request.ResidualUngated ? FtzParamsWire.FlagResidualUngated : 0)
+                          | (request.ResidualCandidates ? FtzParamsWire.FlagResidualCandidates : 0)
+                          | (request.NoTierB ? FtzParamsWire.FlagNoTierB : 0)
+                          | (request.SkipFits ? FtzParamsWire.FlagSkipFits : 0),
+            BudgetMs      = request.BudgetMs.GetValueOrDefault(),
+            MaxRounds     = request.MaxRounds,
+            ExpireRound   = request.ExpireRound,
+            InjectErrorRound = request.InjectErrorRound,
+        };
+        if (onRound0 is not null)
+        {
+            callback = (_, n, resultsPtr, tiersPtr) =>
+            {
+                try
+                {
+                    n = Math.Clamp(n, 0, MaxResults);
+                    var copy = n == 0 ? [] : new Ft8NativeResult[n];
+                    var tierCopy = new byte[n];
+                    int stride = Marshal.SizeOf<Ft8NativeResultWire>();
+                    for (int i = 0; i < n; i++)
+                    {
+                        var w = Marshal.PtrToStructure<Ft8NativeResultWire>(resultsPtr + i * stride);
+                        byte tier = tiersPtr == IntPtr.Zero ? LeanTier.A : Marshal.ReadByte(tiersPtr, i);
+                        tierCopy[i] = tier;
+                        copy[i] = new Ft8NativeResult { FreqHz = w.FreqHz, Dt = w.Dt, Snr = w.Snr, Message = w.Message, ApKind = tier == LeanTier.CqAp ? ApKind.Cq : ApKind.None };
+                    }
+                    onRound0(new LeanRound0(copy, tierCopy));
+                }
+                catch
+                {
+                    // Nothing may cross the native boundary. A hand-off that failed is seen by the caller as "never delivered": it then publishes batch 1 from the outcome.
+                }
+            };
+            parameters.Round0Callback = Marshal.GetFunctionPointerForDelegate(callback);
+        }
+        if (residual is not null)
+        {
+            residualPin = GCHandle.Alloc(residual, GCHandleType.Pinned);
+            parameters.OutResidual = residualPin.AddrOfPinnedObject();
+        }
+
+        var stats = new FtzStatsWire { StructSize = Marshal.SizeOf<FtzStatsWire>() };
+        var wire  = new Ft8NativeResultWire[MaxResults];
+        int rc;
+        try
+        {
+            rc = NativeFtzDecodeCycle(pcm, pcm.Length, ref parameters, wire, MaxResults, tiers, rounds, ref stats);
+        }
+        finally
+        {
+            if (residualPin.IsAllocated) residualPin.Free();
+            GC.KeepAlive(callback);
+        }
+        stats.Error = rc < 0 ? rc : stats.Error;
+
+        int count = rc >= 0 ? rc : stats.NResults;
+        count = Math.Clamp(count, 0, MaxResults);
+        var results = count == 0 ? [] : new Ft8NativeResult[count];
+        for (int i = 0; i < count; i++)
+        {
+            results[i] = new Ft8NativeResult
+            {
+                FreqHz  = wire[i].FreqHz,
+                Dt      = wire[i].Dt,
+                Snr     = wire[i].Snr,
+                Message = wire[i].Message,
+                ApKind  = tiers[i] == LeanTier.CqAp ? ApKind.Cq : ApKind.None,
+            };
+        }
+        return new LeanCycleOutcome(results, LeanCycleStats.From(in stats))
+        {
+            Tiers = count == 0 ? [] : tiers[..count],
+            Rounds = count == 0 ? [] : rounds[..count],
+            Residual = stats.HasResidual != 0 ? residual : null,
+        };
+    }
+
+    /// <summary>DR-2 step 2a: frees the lean engine's native worker pool. Does nothing if the library was never loaded.</summary>
+    public static void LeanShutdown()
+    {
+        if (!_initialized) return;
+        NativeFtzShutdown();
+    }
+
+    [DllImport("libft8.dll", EntryPoint = "ft8_subfeas_set_reference_mode", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeSubfeasSetReferenceMode(int on);
+
+    /// <summary>DR-2 step 2e (test seam): 1 runs the fit exactly as before the exact speedups, 0 (default) the fast path; the two are bit-identical. Call with no fit in flight.</summary>
+    internal static void SubfeasSetReferenceMode(bool on)
+    {
+        EnsureInitialized();
+        NativeSubfeasSetReferenceMode(on ? 1 : 0);
+    }
+
+    [DllImport("libft8.dll", EntryPoint = "ftz_fit_needed", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzFitNeeded(float resultHz, [In] float[] failedHz, int nFailed);
+
+    /// <summary>DR-2 step 2e (test export): the fit-skip rule: whether a result at <paramref name="resultHz"/> is worth fitting given the round's failed candidates.</summary>
+    internal static bool LeanFitNeeded(float resultHz, float[] failedHz)
+    {
+        EnsureInitialized();
+        return NativeFtzFitNeeded(resultHz, failedHz, failedHz.Length) != 0;
+    }
+
+    [DllImport("libft8.dll", EntryPoint = "ftz_patch_keep", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzPatchKeep(float baseHz, [In] float[] subHz, int nSub);
+
+    [DllImport("libft8.dll", EntryPoint = "ftz_payload_same_qso", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzPayloadSameQso([In] byte[] known, [In] byte[] candidate);
+
+    [DllImport("libft8.dll", EntryPoint = "ftz_residual_b_accept", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzResidualBAccept(int f1bPassed, int publishedFreqHz, int ungatedOn, int rescandOn, out int ungatedOut);
+
+    /// <summary>DR-2 step 2c (test export): whether a residual candidate at <paramref name="baseHz"/> lies in [f - 50, f + 100] Hz of any signal subtracted in the round.</summary>
+    internal static bool LeanPatchKeep(float baseHz, float[] subtractedHz)
+    {
+        EnsureInitialized();
+        return NativeFtzPatchKeep(baseHz, subtractedHz, subtractedHz.Length) != 0;
+    }
+
+    /// <summary>DR-2 step 2c (test export): the native twin of <c>SubfeasPayload.SameQso</c> on two 10-byte (77-bit) payloads.</summary>
+    internal static bool LeanPayloadSameQso(byte[] known, byte[] candidate)
+    {
+        EnsureInitialized();
+        return NativeFtzPayloadSameQso(known, candidate) != 0;
+    }
+
+    /// <summary>DR-2 step 2c (test export): the residual tier-B accept rule; <paramref name="ungated"/> is true when the row is published only by the ungating.</summary>
+    internal static bool LeanResidualBAccept(bool f1bPassed, int publishedFreqHz, bool ungatedOn, bool rescandOn, out bool ungated)
+    {
+        EnsureInitialized();
+        int accepted = NativeFtzResidualBAccept(f1bPassed ? 1 : 0, publishedFreqHz, ungatedOn ? 1 : 0, rescandOn ? 1 : 0, out int u);
+        ungated = u != 0;
+        return accepted != 0;
     }
 
     /// <summary>
