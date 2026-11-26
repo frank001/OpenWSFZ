@@ -240,6 +240,13 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     public void SetCqApEnabled(bool enabled) => _i.SetCqApEnabled(enabled);
     public (int Attempts, int Decodes, int OsdEntries) GetLastCqApStats() => _i.GetLastCqApStats();
 #endif
+#if HAS_LEAN
+    // DR-2 step 2d: the lean engine's entries are DEFAULT interface members (the first throws NotSupported). This wrapper MUST forward them, or every lean cycle in this harness is
+    // "lean decode failed" and publishes nothing (the 3-cycle pilot of 2026-11-25 caught it: zero decodes).
+    public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => _i.DecodeLeanCycle(pcm, request);
+    public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0) => _i.DecodeLeanCycle(pcm, request, onRound0);
+    public void LeanShutdown() => _i.LeanShutdown();
+#endif
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) => _i.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
     public (float DeltaFreqHz, float DeltaTimeS, float SyncScore, int CoarseDtSamp, int FineDtSamp) RefineCandidate(float[] pcm, int coarseFreqHz, float coarseTimeOffsetS)
         => _i.RefineCandidate(pcm, coarseFreqHz, coarseTimeOffsetS);

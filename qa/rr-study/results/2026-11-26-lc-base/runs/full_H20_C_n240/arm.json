@@ -1,0 +1,23 @@
+{
+ "slice": "H20",
+ "arm": "C",
+ "tag": "full",
+ "cycles": 240,
+ "first_cycle": "260808_001730",
+ "last_cycle": "260808_011715",
+ "rc": 0,
+ "wall_s": 1332.2,
+ "cpu_total_s": 4856.1,
+ "cpu_s_per_cycle": 20.234,
+ "last_p95_ms": 6162,
+ "last_median_ms": 5512,
+ "last_max_ms": 7022,
+ "abandoned_cycles": 0,
+ "ours": 7999,
+ "matched": 7438,
+ "wsjtx_decodes": 9154,
+ "rate_pct": 81.254,
+ "ours_only_pct": 6.128,
+ "flags": "--selection --run 20260808_live_run_0016-8080 --stratum FULL --wav-root --wav-dir --out --log --mode three1 --cohfb 1 --late-round 1 --xc-prior 1 --nhard 24 --osd-sign-fix 1 --cohms 1 --cohaudio Both --kmin 5 --osd-corr 0.05 --ungated 1 --cq-ap 1 --cohrescand 1 --xc-shadow 0 --xc-defaults 1 --threads 8 --engine classic --xc-out --xc-probe-out --cohfb-out --label lcbase:H20:C --wsjtx-alltxt --matched-out --outcomes --nc-dump --testb-out --matched-batch-out --third-out --abandon-out --late-out --lean-out",
+ "bin_pin": "eab11ec9a456169b"
+}
