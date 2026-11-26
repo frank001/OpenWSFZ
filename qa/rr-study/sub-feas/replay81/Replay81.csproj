@@ -52,6 +52,8 @@
     <DefineConstants Condition="'$(HasLrBuild)' == 'true'">$(DefineConstants);HAS_LRBUILD</DefineConstants>
     <!-- DR-2 step 2d (lean decoder, feat/lean-2d): only the build with Ft8Decoder.SetEngine / SetLeanThreads / SetEffort (shim 20260076). The engine argument (classic or lean) is then REQUIRED; the lean-threads, effort and lean-out arguments are optional. Needs HasCohFb4 (DecodeStagedAsync). -->
     <DefineConstants Condition="'$(HasLean)' == 'true'">$(DefineConstants);HAS_LEAN</DefineConstants>
+    <!-- SUB-PROBE (feat/sub-probe fc3d5b5c, shim 20260080): only the build with LeanCycleParams.Probe / LeanCycleOutcome.ProbeRows. Needs HasLean. --lean-probe 1 --probe-out <path> (under _qa-scratch) then write one TSV row per probe row (numbers only). -->
+    <DefineConstants Condition="'$(HasProbe)' == 'true'">$(DefineConstants);HAS_PROBE</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>
