@@ -73,3 +73,12 @@
 - [x] 9.5 Tests: front-end (`decoderThreads.test.js`), Web (the status field, the clamp, the overlay), Config, native determinism at 1, 2, 4, 8 and 16 threads, the ASan fuzz at 16
 - [x] 9.6 Screenshot, after: the block with the new controls (`dev-tasks/screenshots/threads-setting-after.png`)
 - [x] 9.7 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`
+
+## 10. Threads default auto
+
+- [x] 10.1 Screenshot, before: the Advanced Decoder Settings block as at the parent commit (`dev-tasks/screenshots/threads-default-auto-before.png`), taken first in this section (HK-005)
+- [x] 10.2 `DecoderConfig`: `AutoThreads` 0, `DefaultThreads` 0, `ClampedThreads`, pure `ResolveThreads(configured, processorCount)` (0 = `min(processors, 16)`, at least 1; negative 1; above 16 is 16); `Program.cs` and `Ft8Decoder` use it with the host's processor count; the config POST keeps 0
+- [x] 10.3 Settings page: shows the resolved value and an "Automatic" hint, posts 0 for an untouched field, the typed number for a touched one, "Reset to defaults" restores automatic; engine and effort post nothing for a never-stored key; help text with the measurement, the memory cost and the automatic rule (`web/js/decoderThreads.js`, `web/js/settings.js`, `web/settings.html`)
+- [x] 10.4 Tests: Config (`ResolveThreads` table, default 0), Web (omit keeps stored, 0 stores 0, clamps), front-end (`decoderThreads.test.js`)
+- [x] 10.5 Screenshot, after: the block with the Automatic hint (`dev-tasks/screenshots/threads-default-auto-after.png`)
+- [x] 10.6 `REQUIREMENTS.md` FR-108 extended and a changelog row; this change validated `--strict`

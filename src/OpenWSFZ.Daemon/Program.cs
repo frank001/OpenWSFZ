@@ -859,7 +859,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
     ft8Decoder.SetCrossCyclePrior(initialDecoder.CrossCyclePrior);   // XC-BUILD: default false (key absent = off); read once per cycle
     ft8Decoder.SetCrossCyclePriorShadow(initialDecoder.CrossCyclePriorShadow);   // XC-BUILD shadow null: default false; read once per cycle
     ft8Decoder.SetEngine(initialDecoder.GetEngineKind());   // DR-2 step 2a: default classic (key absent or unknown = classic); read once per cycle
-    ft8Decoder.SetLeanThreads(initialDecoder.EffectiveThreads);   // DR-2 step 2a: the lean engine's workers, 1 to 8, default 2
+    ft8Decoder.SetLeanThreads(initialDecoder.ResolveThreads(Environment.ProcessorCount));   // the lean engine's workers: 0 = auto = min(logical processors, 16), else 1 to 16
     ft8Decoder.SetEffort(initialDecoder.GetEffortKind());   // DR-2 step 2d: default normal (key absent or unknown = normal); lean engine only; read once per cycle
     Volatile.Write(ref fallbackOn, initialDecoder.CoherentFallbackEnabled);   // R14: the QSO queues' capacity follows the flag
 
@@ -977,7 +977,7 @@ configStore.OnSaved += newConfig =>
     ft8Decoder.SetCrossCyclePrior(dec.CrossCyclePrior);   // XC-BUILD: next cycle
     ft8Decoder.SetCrossCyclePriorShadow(dec.CrossCyclePriorShadow);   // XC-BUILD shadow null: next cycle
     ft8Decoder.SetEngine(dec.GetEngineKind());   // DR-2 step 2a: next cycle
-    ft8Decoder.SetLeanThreads(dec.EffectiveThreads);   // DR-2 step 2a: next cycle
+    ft8Decoder.SetLeanThreads(dec.ResolveThreads(Environment.ProcessorCount));   // DR-2 step 2a: next cycle
     ft8Decoder.SetEffort(dec.GetEffortKind());   // DR-2 step 2d: next cycle
     Volatile.Write(ref fallbackOn, dec.CoherentFallbackEnabled);          // R14: the QSO queues' capacity follows the flag
     // Re-apply the Serilog pipeline only when logging-related settings actually

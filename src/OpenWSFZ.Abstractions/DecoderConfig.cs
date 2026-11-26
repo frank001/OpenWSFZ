@@ -96,8 +96,11 @@ public sealed record DecoderConfig
         Effort = effort ?? DecoderEffortNames.Normal;
     }
 
-    /// <summary>The default of <see cref="Threads"/>.</summary>
-    public const int DefaultThreads = 2;
+    /// <summary>The value of <see cref="Threads"/> that means "automatic": as many workers as the PC has logical processors, up to <see cref="MaxThreads"/>.</summary>
+    public const int AutoThreads = 0;
+
+    /// <summary>The default of <see cref="Threads"/>: <see cref="AutoThreads"/> (the most the PC supports; the operator can lower it).</summary>
+    public const int DefaultThreads = AutoThreads;
 
     /// <summary>The smallest accepted <see cref="Threads"/> value.</summary>
     public const int MinThreads = 1;
@@ -379,7 +382,8 @@ public sealed record DecoderConfig
 
     /// <summary>
     /// DR-2 step 2a: the lean engine's worker count (<c>decoder.threads</c>): candidates are processed in parallel on a fixed pool created once. Valid
-    /// range 1 to 16, default 2; a hand-edited value outside the range is clamped where it is applied (see <see cref="EffectiveThreads"/>). No effect with
+    /// range 1 to 16 explicit; <b>0 or an absent key is automatic</b> (the default): <c>min(logical processors, 16)</c>, resolved where it is applied (see <see cref="ResolveThreads(int)"/>).
+    /// A negative value is clamped to 1 and a value above 16 to 16 (it never turns into automatic). No effect with
     /// <see cref="Engine"/> <c>classic</c>. The lean engine's output does not depend on it. Config file and API only; read once per window.
     /// </summary>
     public int Threads { get; init; } = DefaultThreads;
@@ -395,7 +399,22 @@ public sealed record DecoderConfig
     /// <summary><see cref="Effort"/> as the enum (a method, not a property, for the same reason as <see cref="GetEngineKind"/>): <c>fast</c> only for the word "fast".</summary>
     public DecoderEffort GetEffortKind() => DecoderEffortNames.Parse(Effort);
 
-    /// <summary><see cref="Threads"/> clamped to [<see cref="MinThreads"/>, <see cref="MaxThreads"/>].</summary>
+    /// <summary>
+    /// <see cref="Threads"/> as stored, with an out-of-range value clamped: <see cref="AutoThreads"/> (0) stays 0 (automatic); a negative value becomes
+    /// <see cref="MinThreads"/>; a value above <see cref="MaxThreads"/> becomes <see cref="MaxThreads"/>.
+    /// </summary>
     [JsonIgnore]
-    public int EffectiveThreads => Math.Clamp(Threads, MinThreads, MaxThreads);
+    public int ClampedThreads => Threads == AutoThreads ? AutoThreads : Math.Clamp(Threads, MinThreads, MaxThreads);
+
+    /// <summary>The worker count in force on a host with <paramref name="processorCount"/> logical processors (see <see cref="ResolveThreads(int,int)"/>).</summary>
+    public int ResolveThreads(int processorCount) => ResolveThreads(Threads, processorCount);
+
+    /// <summary>
+    /// Pure resolver for the lean engine's worker count: 0 is automatic and gives <c>min(processorCount, <see cref="MaxThreads"/>)</c>, at least 1; any other value
+    /// is explicit and is clamped to [<see cref="MinThreads"/>, <see cref="MaxThreads"/>] (a negative value is 1, never automatic).
+    /// </summary>
+    public static int ResolveThreads(int configured, int processorCount)
+        => configured == AutoThreads
+            ? Math.Clamp(processorCount, MinThreads, MaxThreads)
+            : Math.Clamp(configured, MinThreads, MaxThreads);
 }

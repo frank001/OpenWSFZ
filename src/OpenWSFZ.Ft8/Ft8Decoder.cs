@@ -312,7 +312,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
     // ── DR-2 step 2a: the engine switch ───────────────────────────────────────────────────────────────────────────────────────────────────────────
     private volatile int _engine;                            // (int)DecoderEngine; Classic (0) at construction
-    private volatile int _leanThreads = DecoderConfig.DefaultThreads;
+    private volatile int _leanThreads = DecoderConfig.ResolveThreads(DecoderConfig.AutoThreads, Environment.ProcessorCount);
 
     /// <summary>
     /// DR-2 step 2a (FR-108): sets <c>decoder.engine</c>. The object starts <see cref="DecoderEngine.Classic"/> and so does the configured default (an absent key
@@ -338,7 +338,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     public DecoderEffort Effort => (DecoderEffort)_effort;
 
     /// <summary>
-    /// DR-2 step 2a: sets <c>decoder.threads</c>, the lean engine's worker count (clamped to 1 to 8). No effect while the engine is
+    /// DR-2 step 2a: sets <c>decoder.threads</c>, the lean engine's worker count (clamped to 1 to 16; the caller resolves automatic first, see <see cref="DecoderConfig.ResolveThreads(int)"/>). No effect while the engine is
     /// <see cref="DecoderEngine.Classic"/>. Read once per decode cycle.
     /// </summary>
     public void SetLeanThreads(int threads)

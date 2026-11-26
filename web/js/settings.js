@@ -9,7 +9,7 @@
 
 import { isEmbedded, getConfig, getDevices, getOutputDevices, postConfig, getStatus, getSerialPorts, getFrequencies, postFrequencies, postCatRetry, postPttTest, postSystemRestart, getApiKey, getLogsTail, getRegionDataStatus, postRegionDataRefresh, getRegionDataLookup } from './api.js';
 import { resolveUnknownCheckboxDisplay } from './decodeNoiseSuppression.js';
-import { decoderEngineShown, decoderEffortShown, decoderThreadsPayload } from './decoderThreads.js';
+import { decoderEngineShown, decoderEffortShown, decoderThreadsPayload, decoderThreadsLoaded, decoderThreadsAutoHint, decoderChoicePayload } from './decoderThreads.js';
 
 const deviceSelect          = /** @type {HTMLSelectElement} */ (document.getElementById('device-select'));
 const outputDeviceSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('output-device-select'));
@@ -153,6 +153,19 @@ const decoderEngine  = /** @type {HTMLSelectElement} */ (document.getElementById
 const decoderEffort  = /** @type {HTMLSelectElement} */ (document.getElementById('decoder-effort'));
 const decoderThreads = /** @type {HTMLInputElement}  */ (document.getElementById('decoder-threads'));
 const decoderThreadsHost = /** @type {HTMLElement}    */ (document.getElementById('decoder-threads-host'));
+const decoderThreadsAuto = /** @type {HTMLElement}    */ (document.getElementById('decoder-threads-auto'));
+/**
+ * True while the thread field is automatic: set on load (absent or 0 stored) and by "Reset to defaults"; cleared the moment the operator types or steps
+ * the field (the 'input' event, which a programmatic .value assignment does not fire). Automatic posts 0, so a save never freezes the auto value.
+ */
+let _decoderThreadsAuto = true;
+let _hostProcessorCount = null;
+function syncDecoderThreadsAutoHint() {
+  if (!decoderThreadsAuto) return;
+  const text = _decoderThreadsAuto ? decoderThreadsAutoHint(_hostProcessorCount) : '';
+  decoderThreadsAuto.textContent = text;
+  decoderThreadsAuto.hidden = text === '';
+}
 /** The raw stored engine / effort strings and what the select showed for them; an unknown stored word shows the default and is sent back as stored until the operator changes the select. */
 let _decoderEngineLoadedRaw = null, _decoderEngineShown = 'classic';
 let _decoderEffortLoadedRaw = null, _decoderEffortShown = 'normal';
@@ -427,7 +440,7 @@ function snapshotForm() {
       coherentFallbackEnabled: decoderCoherentFallback.checked,
       engine:  decoderEngine.value,
       effort:  decoderEffort.value,
-      threads: decoderThreads.value,
+      threads: (_decoderThreadsAuto ? 'auto:' : 'set:') + decoderThreads.value,
     },
     // decode-noise-suppression: include both suppression controls in dirty-state snapshot.
     // suppressUnknownRegion uses the tri-state _suppressUnknownRegionRaw (not the checkbox's
@@ -984,7 +997,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     _decoderEffortLoadedRaw = typeof dec.effort === 'string' ? dec.effort : null;
     _decoderEffortShown = decoderEffortShown(_decoderEffortLoadedRaw);
     decoderEffort.value = _decoderEffortShown;
-    decoderThreads.value = String(dec.threads ?? 2);
+    _hostProcessorCount = status?.processorCount ?? null;
+    const threadsLoaded = decoderThreadsLoaded(dec.threads, _hostProcessorCount);
+    _decoderThreadsAuto = threadsLoaded.auto;
+    decoderThreads.value = String(threadsLoaded.value);
+    syncDecoderThreadsAutoHint();
     if (decoderThreadsHost) {
       decoderThreadsHost.textContent = Number.isInteger(status?.processorCount) && status.processorCount > 0
         ? `This PC has ${status.processorCount} logical processors.`
@@ -1243,8 +1260,16 @@ decoderReset.addEventListener('click', () => {
   decoderCoherentFallback.checked = true;
   decoderEngine.value  = 'classic';
   decoderEffort.value  = 'normal';
-  decoderThreads.value = '2';
+  _decoderThreadsAuto = true;   // back to automatic, not to a number
+  decoderThreads.value = String(decoderThreadsLoaded(0, _hostProcessorCount).value);
+  syncDecoderThreadsAutoHint();
   syncDirtyUI();
+});
+
+// Typing or stepping the thread field is an explicit choice, even when the number equals the automatic one.
+decoderThreads.addEventListener('input', () => {
+  _decoderThreadsAuto = false;
+  syncDecoderThreadsAutoHint();
 });
 
 // Passphrase show/hide toggle (task 5.4).
@@ -1498,9 +1523,9 @@ saveBtn.addEventListener('click', async () => {
       earlyDecodeCutSeconds: Number.isFinite(decoderEarlyCutRaw) ? decoderEarlyCutRaw : 2.0,
       coherentFallbackEnabled: decoderCoherentFallback.checked,
       // Engine / effort: an unchanged select sends the stored word back as it was (an unknown word is kept), a changed one sends the new choice.
-      engine:  decoderEngine.value === _decoderEngineShown ? (_decoderEngineLoadedRaw ?? _decoderEngineShown) : decoderEngine.value,
-      effort:  decoderEffort.value === _decoderEffortShown ? (_decoderEffortLoadedRaw ?? _decoderEffortShown) : decoderEffort.value,
-      threads: decoderThreadsPayload(decoderThreads.value),
+      engine:  decoderChoicePayload(decoderEngine.value, _decoderEngineShown, _decoderEngineLoadedRaw),
+      effort:  decoderChoicePayload(decoderEffort.value, _decoderEffortShown, _decoderEffortLoadedRaw),
+      threads: decoderThreadsPayload(decoderThreads.value, _decoderThreadsAuto),
     };
 
     // Collect decode-noise-suppression config (decode-noise-suppression, design.md Decision 3).

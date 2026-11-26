@@ -28,12 +28,12 @@ public sealed class LeanEngineConfigTests
     // Both markers true so no migration rewrites the decoder section: the file under test is read as written.
     private const string MarkersOnly = "\"nhard40MigrationApplied\":true,\"subtractionOnMigrationApplied\":true";
 
-    [Fact(DisplayName = "FR-108: DR-2 D4: the code default is classic and 2 threads, an absent key reads classic, 'lean' is read, the wire names are camelCase")]
+    [Fact(DisplayName = "FR-108: DR-2 D4: the code default is classic and automatic threads (0), an absent key reads classic, 'lean' is read, the wire names are camelCase")]
     public void CodeDefault_IsClassic_AbsentKeyReadsClassic()
     {
         new DecoderConfig().Engine.Should().Be("classic");
         new DecoderConfig().GetEngineKind().Should().Be(DecoderEngine.Classic);
-        new DecoderConfig().Threads.Should().Be(2);
+        new DecoderConfig().Threads.Should().Be(0);
 
         JsonSerializer.Deserialize("""{"decoder":{}}""", ConfigJsonContext.Default.AppConfig)!
             .Decoder!.GetEngineKind().Should().Be(DecoderEngine.Classic);
@@ -81,7 +81,7 @@ public sealed class LeanEngineConfigTests
         await store.SaveAsync(store.Current with { ShowCycleCountdown = !store.Current.ShowCycleCountdown });
         using var written = JsonDocument.Parse(File.ReadAllText(ConfigPath(dir)));
         written.RootElement.GetProperty("decoder").GetProperty("engine").GetString().Should().Be("classic");
-        written.RootElement.GetProperty("decoder").GetProperty("threads").GetInt32().Should().Be(2);
+        written.RootElement.GetProperty("decoder").GetProperty("threads").GetInt32().Should().Be(0);
     }
 
     [Theory(DisplayName = "FR-108: DR-2 D4: an explicit engine value round-trips: it survives a load, an unrelated save and a reload, kept as written")]
@@ -138,15 +138,35 @@ public sealed class LeanEngineConfigTests
         written.RootElement.GetProperty("decoder").GetProperty("effort").GetString().Should().Be("normal");
     }
 
-    [Fact(DisplayName = "FR-108: DR-2 D2: threads defaults to 2 when the key is absent and is clamped to 1 to 16 where it is applied")]
-    public void Threads_DefaultAndClamp()
+    [Fact(DisplayName = "FR-108: threads default auto: DefaultThreads is 0, an absent key reads as auto, a hand-edited value is respected or clamped (never turned into auto)")]
+    public void Threads_DefaultIsAuto_AndClamp()
     {
-        JsonSerializer.Deserialize("""{"decoder":{}}""", ConfigJsonContext.Default.AppConfig)!.Decoder!.Threads.Should().Be(2);
-        new DecoderConfig { Threads = 0 }.EffectiveThreads.Should().Be(1);
-        new DecoderConfig { Threads = -5 }.EffectiveThreads.Should().Be(1);
-        new DecoderConfig { Threads = 1 }.EffectiveThreads.Should().Be(1);
-        new DecoderConfig { Threads = 8 }.EffectiveThreads.Should().Be(8);
-        new DecoderConfig { Threads = 16 }.EffectiveThreads.Should().Be(16);
-        new DecoderConfig { Threads = 17 }.EffectiveThreads.Should().Be(16);
+        DecoderConfig.DefaultThreads.Should().Be(0);
+        DecoderConfig.AutoThreads.Should().Be(0);
+        JsonSerializer.Deserialize("""{"decoder":{}}""", ConfigJsonContext.Default.AppConfig)!.Decoder!.Threads.Should().Be(0);
+        new DecoderConfig().Threads.Should().Be(0);
+        new DecoderConfig { Threads = 6 }.ResolveThreads(64).Should().Be(6);
+        new DecoderConfig { Threads = 1 }.ResolveThreads(64).Should().Be(1);
+        new DecoderConfig { Threads = 16 }.ResolveThreads(64).Should().Be(16);
+        new DecoderConfig { Threads = 20 }.ResolveThreads(64).Should().Be(16);
+        new DecoderConfig { Threads = -5 }.ResolveThreads(64).Should().Be(1);
+        new DecoderConfig { Threads = 20 }.ClampedThreads.Should().Be(16);
+        new DecoderConfig { Threads = -5 }.ClampedThreads.Should().Be(1);
+        new DecoderConfig { Threads = 0 }.ClampedThreads.Should().Be(0);
+    }
+
+    [Theory(DisplayName = "FR-108: threads default auto: ResolveThreads(0, processors) is min(processors, 16), at least 1")]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(4, 4)]
+    [InlineData(8, 8)]
+    [InlineData(16, 16)]
+    [InlineData(17, 16)]
+    [InlineData(64, 16)]
+    [InlineData(0, 1)]
+    public void ResolveThreads_Auto_IsMinOfProcessorsAndSixteen(int processors, int expected)
+    {
+        new DecoderConfig { Threads = 0 }.ResolveThreads(processors).Should().Be(expected);
+        DecoderConfig.ResolveThreads(DecoderConfig.AutoThreads, processors).Should().Be(expected);
     }
 }

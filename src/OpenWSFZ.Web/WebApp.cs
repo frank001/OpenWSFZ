@@ -600,11 +600,12 @@ public static class WebApp
                     }
                 }
 
-                // Operator threads setting: decoder.threads (the lean engine's worker count) is clamped to [1, 8] with a warning, like the values above
-                // (the native pool is sized for 8). The clamped value is stored, so the Settings page shows what is in force.
-                if (decoderIn.Threads < DecoderConfig.MinThreads || decoderIn.Threads > DecoderConfig.MaxThreads)
+                // Operator threads setting: decoder.threads (the lean engine's worker count): 0 is automatic and is kept; any other value outside [1, 16]
+                // is clamped with a warning, like the values above (a negative value becomes 1, never automatic). The clamped value is stored.
+                if (decoderIn.Threads != DecoderConfig.AutoThreads
+                    && (decoderIn.Threads < DecoderConfig.MinThreads || decoderIn.Threads > DecoderConfig.MaxThreads))
                 {
-                    int clamped = decoderIn.EffectiveThreads;
+                    int clamped = decoderIn.ClampedThreads;
                     configApiLogger.LogWarning(
                         "Decoder: threads {Original} out of range [{Min}, {Max}] — clamped to {Clamped}.",
                         decoderIn.Threads, DecoderConfig.MinThreads, DecoderConfig.MaxThreads, clamped);

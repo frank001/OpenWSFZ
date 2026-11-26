@@ -475,17 +475,30 @@ public sealed class DecoderConfigApiTests : IClassFixture<WebTestFactory>
     [InlineData(8, 8)]
     [InlineData(16, 16)]
     [InlineData(5, 5)]
-    [InlineData(0, 1)]
+    [InlineData(0, 0)]
     [InlineData(-3, 1)]
+    [InlineData(-1, 1)]
     [InlineData(9, 9)]
     [InlineData(17, 16)]
     [InlineData(64, 16)]
-    public async Task PostConfig_Threads_AreClampedToOneToEight(int sent, int stored)
+    public async Task PostConfig_Threads_ZeroIsAutoKept_OthersClampedToOneToSixteen(int sent, int stored)
     {
         var client = _factory.CreateClient();
         var decoder = await PostDecoder(client, "{\"threads\":" + sent + "}");
         decoder.Threads.Should().Be(stored);
-        decoder.EffectiveThreads.Should().Be(stored);
+        decoder.ClampedThreads.Should().Be(stored);
+    }
+
+    [Fact(DisplayName = "FR-108: threads default auto: a POST that omits threads keeps a stored explicit value; a POST of 0 stores 0 (auto); a fresh config reads as auto")]
+    public async Task PostConfig_Threads_OmitKeepsStored_ZeroStoresAuto()
+    {
+        var client = _factory.CreateClient();
+        (await PostDecoder(client, "{\"threads\":6}")).Threads.Should().Be(6);
+        (await PostDecoder(client, "{\"effort\":\"fast\"}")).Threads.Should().Be(6);   // omitted: the stored 6 stays
+        var auto = await PostDecoder(client, "{\"threads\":0}");
+        auto.Threads.Should().Be(DecoderConfig.AutoThreads);
+        auto.ResolveThreads(64).Should().Be(16);
+        auto.ResolveThreads(4).Should().Be(4);
     }
 
     [Fact(DisplayName = "FR-108: operator threads setting: engine, effort and threads round-trip through the API, and the POST is an overlay (a body without threads keeps the stored value)")]

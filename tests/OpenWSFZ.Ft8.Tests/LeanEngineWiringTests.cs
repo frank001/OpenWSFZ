@@ -207,10 +207,9 @@ public sealed class LeanEngineWiringTests
         decoder.SetLeanThreads(99);
         await decoder.DecodeAsync(LoudPcm(), Start, null);
 
-        fake.ThreadsSeen.Should().Equal(2, 4, 1, 16);
-        new DecoderConfig { Threads = 0 }.EffectiveThreads.Should().Be(1);
-        new DecoderConfig { Threads = 99 }.EffectiveThreads.Should().Be(16);
-        new DecoderConfig().Threads.Should().Be(2);
+        fake.ThreadsSeen.Should().Equal(DecoderConfig.ResolveThreads(DecoderConfig.AutoThreads, Environment.ProcessorCount), 4, 1, 16);   // an unconfigured decoder is automatic
+        new DecoderConfig { Threads = 99 }.ResolveThreads(64).Should().Be(16);
+        new DecoderConfig().Threads.Should().Be(DecoderConfig.AutoThreads);
     }
 
     // ── D3: errors ───────────────────────────────────────────────────────────────────────────────────────────────

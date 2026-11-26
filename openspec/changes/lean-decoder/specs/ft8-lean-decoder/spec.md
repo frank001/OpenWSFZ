@@ -21,12 +21,17 @@ The configuration SHALL provide the string `decoder.engine`, with the values `cl
 
 ### Requirement: `decoder.threads` sets the lean engine's worker count
 
-The configuration SHALL provide the integer `decoder.threads`, default 2, applied clamped to 1 to 8, no effect while the engine is `classic`. The lean engine's output SHALL NOT depend on it.
+The configuration SHALL provide the integer `decoder.threads`, default 0 meaning automatic, no effect while the engine is `classic`. An absent key and 0 SHALL resolve, where the setting is applied, to the smaller of the daemon host's logical processor count and 16, at least 1; a value 1 to 16 SHALL be explicit and respected; a negative value SHALL be clamped to 1 and a value above 16 to 16, never to automatic. The lean engine's output SHALL NOT depend on it.
 
 #### Scenario: Out of range
 
-- **WHEN** `decoder.threads` is 0 or 99
-- **THEN** the lean engine SHALL use 1 or 8 respectively
+- **WHEN** `decoder.threads` is -5 or 99
+- **THEN** the lean engine SHALL use 1 or 16 respectively
+
+#### Scenario: Automatic
+
+- **WHEN** `decoder.threads` is absent or 0 on a host with 64 logical processors
+- **THEN** the lean engine SHALL use 16, and on a host with 4 it SHALL use 4
 
 ### Requirement: With engine `lean` a cycle makes one native call and does not enter the classic decoder
 
@@ -236,7 +241,12 @@ A cycle that ends in an error (other than a fault) after a round's subtraction s
 
 ### Requirement: The operator sets the lean decoder's thread count, engine and effort on the Settings page
 
-The Settings page's Advanced Decoder Settings SHALL offer `decoder.threads` (an integer 1 to 16, default 2), `decoder.engine` (`classic` default, `lean`) and `decoder.effort` (`normal` default, `fast`). An absent key SHALL show the default, a stored value SHALL be shown as stored, and an unknown stored engine or effort word SHALL show the default and be sent back as stored until the operator changes the select. The help text SHALL give the daemon host's logical processor count (from the status endpoint, never the browser's), say that more threads show the lean decoder's results sooner at the cost of more total CPU, give the one measurement with its limits, and say that the setting applies only with the lean engine and that the maximum is 16. The config POST SHALL clamp `threads` to 1 to 16 with a warning and store the clamped value. The lean engine's workers SHALL be capped at 16 and its results SHALL be byte-identical at 1, 2, 4, 8 and 16 threads.
+The Settings page's Advanced Decoder Settings SHALL offer `decoder.threads` (an integer 1 to 16 explicit; default automatic, stored as 0 or absent), `decoder.engine` (`classic` default, `lean`) and `decoder.effort` (`normal` default, `fast`). An absent key SHALL show the default (for threads, the resolved automatic value with an "Automatic" hint, falling back to 2 and no hint when the daemon reports no processor count), a stored value SHALL be shown as stored, and an unknown stored engine or effort word SHALL show the default and be sent back as stored until the operator changes the select. The help text SHALL give the daemon host's logical processor count (from the status endpoint, never the browser's), say that more threads show the lean decoder's results sooner at the cost of more total CPU, give the one measurement with its limits, and say that the setting applies only with the lean engine and that the maximum is 16. A save SHALL NOT write a number the operator did not enter: an untouched thread field SHALL post 0 (a stored explicit value posts as stored), a touched field SHALL post its number clamped to 1 to 16 even when it equals the automatic value, "Reset to defaults" SHALL restore automatic, and an unchanged engine or effort select SHALL post nothing for a key that was never stored. The help text SHALL also give the three-point measurement and the memory cost (about 32 MB per worker while it subtracts) and say that automatic uses every logical processor up to 16. The config POST SHALL keep a `threads` of 0 and clamp any other value outside 1 to 16 with a warning, storing the clamped value. The lean engine's workers SHALL be capped at 16 and its results SHALL be byte-identical at 1, 2, 4, 8 and 16 threads.
+
+#### Scenario: A save without touching the field
+
+- **WHEN** the operator saves the Settings page without touching the thread field, on a config with no `threads`
+- **THEN** the page SHALL post `threads` 0 and no `engine` or `effort`, and the stored value SHALL stay automatic
 
 #### Scenario: A value above the cap
 

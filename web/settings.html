@@ -451,14 +451,17 @@
                 max="16"
                 step="1"
               />
+              <p class="field-hint" id="decoder-threads-auto" hidden></p>
               <p class="field-hint">
                 How many worker threads the lean decoder may use [1&ndash;16]. More threads show the lean decoder&rsquo;s results sooner and
                 use more CPU in total; fewer threads are gentler on a PC that also runs other things.
+                Automatic uses every logical processor up to 16. Lower it if this PC also runs other programs.
                 <span id="decoder-threads-host">This PC&rsquo;s processor count is not known.</span>
-                Measured once: on a 16-processor test PC replaying one 40 m night, 2 threads gave last results about 7.6 s after decoding
-                started, 8 threads about 2.7 s, with about 24 % more CPU in total. Your PC will differ.
+                Measured once: on a 16-processor test PC replaying one 40 m night: 2 threads, last results about 7.6 s after decoding starts;
+                4 threads, 4.4 s; 8 threads, 2.7 s; CPU in total grows about 10 % each time the count doubles. Your PC will differ.
+                Each worker needs about 32 MB while it subtracts signals, so 16 threads can use about 0.5 GB.
                 Applies <strong>only when the lean engine is selected</strong>; the classic engine ignores it. The maximum is 16.
-                Takes effect on the next decode cycle. Default: 2.
+                Takes effect on the next decode cycle. Default: automatic (until you change the number, the setting stays automatic).
               </p>
             </div>
 
