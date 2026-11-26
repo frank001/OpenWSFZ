@@ -9,7 +9,7 @@
 3. **False side: equal.** Decodes WSJT-X did not corroborate differ by at most 0.34 pp of the WSJT-X count (Table 1, Figure 7).
 4. **The room for improvement is the same for both engines: crowded signals.** 11.0 to 14.8 % of the WSJT-X decodes are found by **neither** engine (871, 986 and 1,358 decodes). **86 to 91 % of lean's misses are crowded (a WSJT-X decode within ±50 Hz), against 69 to 75 % of all WSJT-X decodes; a crowded signal is missed 1.2 to 7.1 times as often as an isolated one of the same SNR band (median 3.1 times).** The ratio is the finding; the 86 to 91 % alone overstates it. Of everything lean misses, **59 to 70 % are stronger than −15 dB**; only 13 to 26 % are weaker than −18 dB. (Figures 3 and 5, Tables 2 and 3.)
 5. **Where the engines differ:** classic keeps an edge on **isolated** signals (found by classic only: 32, 71, 42; by lean only: 1, 11, 8) and, on both 40 m slices, on **strong crowded** signals (≥ −10 dB, crowded: classic only 175 and 165, lean only 74 and 73). Lean has the edge on **weak crowded** signals (below −10 dB) on H40 (251 against 191) and H20 (237 against 128), but not on S40 (111 against 174). (Figure 4, Table 3.)
-6. **One thing in lean's false side to look at:** on S40 and H40 lean published 14 and 10 decodes whose text WSJT-X decoded in the same cycle at a *different* frequency; classic published none, on any slice (Table 5). **All 24 sit 98 to 103 Hz from WSJT-X's decode of the same text and all come from round 0, tier A** (section 5.1): they look like genuine decodes reported about 100 Hz from where they are, which would count each one twice against lean.
+6. **One thing in lean's false side to look at:** on S40 and H40 lean published 14 and 10 decodes whose text WSJT-X decoded in the same cycle at a *different* frequency; classic published none, on any slice (Table 5). **All 24 sit 98 to 103 Hz below WSJT-X's decode of the same text (none above) and all come from round 0, tier A** (section 5.1): they look like genuine decodes reported about 100 Hz from where they are, which would count each one twice against lean.
 
 ![Figure 1: decode rate and false side, classic against lean, three slices](figures/fig1_headline.png)
 
@@ -214,16 +214,18 @@ The SNR here is OpenWSFZ's own estimate (WSJT-X has no value for a decode it did
 
 ### 5.1 The 24 same-text rows
 
-Numbers only, read from the per-row files (`nc.tsv`) by code; the offset is the smallest absolute frequency difference to a WSJT-X decode of the same text in the same cycle (the sign was not extracted).
+Numbers only, read from the per-row files (`nc.tsv`) by code; the offset is lean's frequency minus the frequency of the nearest WSJT-X decode of the same text in the same cycle (`qa/decoder-rebuild/lc_base_sign.py`, which reads the text inside one function and prints counts only).
 
-| Slice | Rows | Offset to WSJT-X's decode of the same text | Origin | Our SNR estimate |
-|---|---:|---|---|---|
-| S40 | 14 | 98 to 103 Hz (median 101) | all 14 round 0, tier A | −25 to −12 dB |
-| H40 | 10 | 101 to 102 Hz (median 101) | all 10 round 0, tier A | −21 to −18 dB |
-| H20 | 0 | | | |
+| Slice | Rows | Offset to WSJT-X's decode of the same text | Above / below WSJT-X | Origin | Our SNR estimate |
+|---|---:|---|---|---|---|
+| S40 | 14 | −98 to −103 Hz (median −101) | 0 above, **14 below** | all 14 round 0, tier A | −25 to −12 dB |
+| H40 | 10 | −101 to −102 Hz (median −101) | 0 above, **10 below** | all 10 round 0, tier A | −21 to −18 dB |
+| H20 | 0 | | | | |
+
+Signed offsets, in Hz, with the number of rows: S40: −103 ×1, −102 ×2, −101 ×9, −99 ×1, −98 ×1; H40: −102 ×4, −101 ×6.
 
 - **They are probably genuine decodes reported at the wrong frequency.** The text is a message WSJT-X also decoded in that cycle, and every offset is within 5 Hz of 100 Hz. If so, each row counts twice against lean: once in `ours_only` and once as a WSJT-X decode lean missed. Lean's rate on S40 and H40 would then be understated by up to 0.21 and 0.11 pp (14 / 6,773 and 10 / 8,983), and its `ours_only` overstated by the same amounts.
-- **A fixed offset of about 100 Hz is not noise.** It points to something systematic in how round 0 reports a candidate's frequency in rare cases (a few tenths of a percent of lean's round-0 decodes on those two slices), for example a wrong spectrogram bin offset; the cause was not investigated and the sign is not known. It does not occur in classic.
+- **A fixed offset of about 100 Hz is not noise.** It points to something systematic in how round 0 reports a candidate's frequency in rare cases (a few tenths of a percent of lean's round-0 decodes on those two slices). **All 24 are below WSJT-X's frequency, none above**, so the offset has one direction. That is what the Architect's hypothesis predicts (round 0 decodes the real signal and a second copy about 100 Hz away, and lean's rule 6 keeps the lower of two same-text decodes, `ftz_decoder.c:455` on `main`, where classic keeps a different one); a mixed sign would have ruled it out. One direction does not by itself separate that hypothesis from other one-directional causes, and the cause was not investigated. It does not occur in classic.
 - **This was not looked for in advance and is a pattern in 24 rows on two slices**, so it is a lead, not a defect report.
 
 ## 6. Does the gap depend on how busy the cycle was?
@@ -267,6 +269,6 @@ The gap is **not a function of activity**: the four groups of each slice stay on
 ## 10. Files
 
 - **This report and its figures (committed):** `qa/rr-study/results/2026-11-26-lc-base/lc-base-result.md` and `figures/fig1` to `fig9`, with the aggregate data it was built from: `score_{reuse_S40,full_H40,full_H20}.json`, `tables.json`, `slices.json` and one `arm.json` per run under `runs/` (numbers only).
-- **Scripts (committed):** `qa/decoder-rebuild/lc_base_prep.py` (slices), `lc_base_run.py` (runs), `lc_base_score.py` (scoring), `lc_base_report.py` (figures and tables), `lc_base_assemble.py` (this document). The two new slices are recorded in `qa/decoder-rebuild/test-set.md`.
+- **Scripts (committed):** `qa/decoder-rebuild/lc_base_prep.py` (slices), `lc_base_run.py` (runs), `lc_base_score.py` (scoring), `lc_base_report.py` (figures and tables), `lc_base_sign.py` (the sign of the 24 same-text rows, `sign_same_text.json`), `lc_base_assemble.py` (this document). The two new slices are recorded in `qa/decoder-rebuild/test-set.md`.
 - **Run data (KEEP, text-bearing, never committed; HK-037):** `D:\Projects\claude\_qa-scratch\lc-base\runs\{pilot,full}_<slice>_<arm>_n<cycles>` (the `nc.tsv` files hold message text), score files `D:\Projects\claude\_qa-scratch\lc-base\score_*.json` (numbers only), harness checkout and build `D:\Projects\claude\_qa-scratch\lc-base\{tree,bin}`.
 - **Aggregate-only copies of every run** (arm summaries, per-cycle timings, match lists as numeric indices, score files): `D:\Projects\claude\OpenWSFZ\qa\rr-study\results\2026-11-26-lc-base\` (the root results folder, standing rule; untracked there, so the tracked copy above is the one that travels with a push).

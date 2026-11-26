@@ -48,6 +48,9 @@ def main():
         assert all((r[0], r[1], r[2]) == (1, 0, 0) for r in st[k]), k                      # batch 1, path 0 (ordinary pass), no CQ-AP = round 0, tier A
         assert (min(r[4] for r in st[k]), max(r[4] for r in st[k])) == (slo, shi), k
     assert round(100 * 14 / 6773, 2) == 0.21 and round(100 * 10 / 8983, 2) == 0.11
+    sg = json.load(open(os.path.join(SC, "sign_same_text.json")))                      # lc_base_sign.py: signed offsets, lean minus WSJT-X (Hz)
+    assert (sg["S40"]["n"], sg["S40"]["above"], sg["S40"]["below"]) == (14, 0, 14) and (sg["H40"]["n"], sg["H40"]["above"], sg["H40"]["below"]) == (10, 0, 10)
+    assert sg["S40"]["histogram"] == {"-103": 1, "-102": 2, "-101": 9, "-99": 1, "-98": 1} and sg["H40"]["histogram"] == {"-102": 4, "-101": 6}
 
     T = json.load(open(os.path.join(SC, "tables.json")))
     rows = ["| Slice | Arm | Engine | Build | Cycles | Wall (s) | Process CPU (s) | Exit code |", "|---|---|---|---|---:|---:|---:|---:|"]
