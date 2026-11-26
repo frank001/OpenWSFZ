@@ -99,7 +99,8 @@ C#   S4  XC on the final residual buffer (existing CrossCycleTemplateStage, unch
 ### 2.5 Switch and settings
 
 - `decoder.engine` = `classic` (default until DR-3) or `lean`. It takes effect at the next cycle.
-- With `engine = lean`, the classic decoder's keys are ignored: depth, subtraction, the five fallback keys, late round, OSD keys, `kMinScorePass2`. They stay valid in the config until DR-4.
+- With `engine = lean`, the classic decoder's keys are ignored: depth, subtraction, the five fallback keys, late round, OSD keys. They stay valid in the config until DR-4.
+- **Correction (2026-11-26):** `kMinScorePass2` is **not** ignored. Lean uses it as the minimum candidate score of the residual search (`native/ftz_decoder/ftz_decoder.c:679` at `main` `546ad125`). It stays a setting, also after DR-4.
 
 ## 3. Steps and their checks
 
@@ -115,6 +116,19 @@ C#   S4  XC on the final residual buffer (existing CrossCycleTemplateStage, unch
 ## 4. DR-3: switch over
 
 **The Product Owner flips it when he is happy with it.** There is no test step and no waiting period. The Developer then sets the default to `lean`, migrates `engine` once, **bumps VERSION one minor**, and updates the FRs (new FR for the lean engine).
+
+**Requested by the Product Owner on 2026-11-26** after LC-BASE (`qa/rr-study/results/2026-11-26-lc-base/lc-base-result.md`, QA `d6d63eee`), with the duplicate fix below **inside DR-3**. One Developer task, branch off `main`:
+
+1. **Default `decoder.engine` = `lean`.**
+2. **Migrate a stored `engine: classic` once to `lean`**, with a one-time marker, as the `nhard` migrations do (`JsonConfigStore.cs`, M2). Needed because saving the Settings page wrote `engine: classic` into every saved config before `9027616e` (QA review notes on `fc4fb788` and `9027616e`). After the migration an explicit choice of `classic` is respected.
+3. **Duplicate fix (lean only).** Today, within a round, lean sorts its hits by frequency (`ftz_decoder.c:1081`, comparator `:451`) and publishes the **first** of two hits with the same payload (`:1117–1136`), so the **lowest-frequency** copy always wins. LC-BASE found 24 lean-only rows where WSJT-X decoded the same text 98–103 Hz **higher**, all round 0 tier A, classic 0 (report §5.1). **Rule from now on:** of two or more hits in one round with the same payload (and, for the text de-duplication, the same rendered text), the one with the **highest candidate sync score** is published, at its own frequency and time; equal scores fall back to today's order. Everything else stays as it is: publishing order, the cross-round rule (an earlier round's decode stands), determinism (the order stays total and the existing determinism test must pass unchanged).
+4. **`kMinScorePass2` stays** (see §2.5).
+5. **VERSION one minor; FRs:** a new FR for the lean engine that states rule 3.
+
+**Checks:** unit tests and QA's code review (HK-039), as every step. Unit tests at least for: (a) the migration (stored `classic` → `lean` once; explicit `classic` after the marker is kept); (b) the duplicate rule at the selection level: two hits with the same payload, the higher-score one at the **higher** frequency, so the higher-score one must be published; equal scores fall back to today's order.
+**Optional, reported only (the one replay allowed):** the lean arm on S40, 170 cycles (about 5 min), scored as LC-BASE. Report the count of "same text, other frequency" rows (was 14) and `rate` (was 81.52 %). If the count is not lower, tell the Architect: the hypothesis is then wrong, and the rule is still kept because it is the more sensible rule.
+
+**DR-4 is not requested yet.** It may run alongside the crowded-signal work, since it removes only classic code.
 
 ## 5. DR-4: delete the classic decoder
 
@@ -133,3 +147,4 @@ QA writes the task after DR-3 merges. It removes:
 ## 6. Out of scope
 
 New decode ideas, threshold re-tuning, and any closed arm (window, input scaling, OSR, candidate budgets, hash eviction). None of these are on the table until DR-4 has landed.
+*(Changed 2026-11-26, Product Owner: after LC-BASE, the lean decoder is the base for new decode-rate work, which may start alongside DR-3. It begins with the measurement CS-MAP (`spec-cs-map-crowded-misses.md`); any decoder change from it waits until DR-3 has merged. The closed arms stay closed.)*
