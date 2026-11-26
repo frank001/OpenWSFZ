@@ -717,7 +717,7 @@ internal static class Program
 #if HAS_PROBE
     private static StreamWriter? _probeOut;               // --lean-probe 1 --probe-out: SUB-PROBE rows, numbers only
     internal static bool ProbeOn => _probeOut is not null;
-    internal static void WriteProbe(LeanProbeRow[] rows, bool overflow)
+    internal static void WriteProbe(OpenWSFZ.Ft8.Interop.LeanProbeRow[] rows, bool overflow)
     {
         var w = _probeOut; if (w is null) return;
         var ci = CultureInfo.InvariantCulture;

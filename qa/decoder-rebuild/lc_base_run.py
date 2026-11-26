@@ -103,6 +103,9 @@ def main():
             "--outcomes", out + r"\outcomes.csv", "--nc-dump", out + r"\nc.tsv", "--testb-out", out + r"\testb.csv",
             "--matched-batch-out", out + r"\matchedbatch.csv", "--third-out", out + r"\third.csv",
             "--abandon-out", out + r"\abandon.csv", "--late-out", out + r"\late.csv", "--lean-out", out + r"\lean.csv"]
+    if "--probe" in sys.argv:                                # SUB-PROBE (feat/sub-probe): the harness build must have HasProbe; probe.tsv = numbers only
+        assert arm == "L"
+        args += ["--lean-probe", "1", "--probe-out", out + r"\probe.tsv"]
     t0 = time.time()
     p = subprocess.Popen(args, stdout=open(out + r"\stdout.txt", "w"), stderr=subprocess.STDOUT)
     p.wait()
