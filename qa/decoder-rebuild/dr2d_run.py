@@ -49,6 +49,7 @@ ARMS = {
     "L1": ["--engine", "lean", "--lean-threads", "2", "--effort", "normal"],
     "L2": ["--engine", "lean", "--lean-threads", "2", "--effort", "fast"],
     "L4": ["--engine", "lean", "--lean-threads", "4", "--effort", "normal"],   # L1 with 4 workers
+    "L5": ["--engine", "lean", "--lean-threads", "16", "--effort", "normal"],  # L1 with 16 workers (needs the cap-16 build, feat/threads-setting fc4fb788, libft8.dll eab11ec9...)
     "L3": ["--engine", "lean", "--lean-threads", "8", "--effort", "normal"],   # L1 with 8 workers (A6 ran at 8): the results are byte-identical across thread counts, so only CPU and wall can differ
 }
 THREADS_DEFAULT = ["--threads", "8"]

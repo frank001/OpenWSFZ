@@ -69,6 +69,21 @@ The machine is an 8-core, 16-logical-processor desktop (SMT; `Win32_Processor` r
 - **CPU grows steadily with the thread count** (+10 % from 2 to 4, +12 % from 4 to 8; the fit CPU too). The first explanation, two workers sharing one core under SMT, is **not** supported cleanly: 4 workers on 8 cores should mostly not share a core, yet CPU already rose 10 %. Cache or memory contention, clock behaviour and the scheduler's placement are equally possible; none was examined.
 - 16 threads cannot be measured on this build: the lean engine clamps workers to 8 (`ftz_decoder.h:33`, `ftz_decoder.c:673`, `DecoderConfig.cs:106`). The thread-cap raise is part of the operator-threads task (D7).
 
+### 16 threads (arm L5, run 2026-11-26, wall 272 s)
+
+Build `feat/threads-setting` `fc4fb788` (cap raised to 16, shim 20260078), harness built from it with `-p:HasLean=true` in `_qa-scratch\dr2d-replay\tree3` / `bin_lean3`; `libft8.dll` SHA256 `eab11ec9a456169b96bde734ef319e8b74555acea4c09f9096661f6082190ea2` = the pin = the tracked `src/OpenWSFZ.Ft8/Native/win-x64/libft8.dll` of `fc4fb788` (actual = pinned, asserted by the runner). Command: `dr2d_run.py L5 170 --tag threads16 --bin ...\bin_lean3 --pin eab11ec9...`; same 170 cycles and flags as L1; no `--filter` (not a test run). Output `_qa-scratch\dr2e\threads16_L5_n170`.
+
+| Threads | `cpu_net` (CPU-s per cycle) | fit CPU | `last_p95` | wall (170 cycles) | matched / ours |
+|---|---|---|---|---|---|
+| 2 | 9.896 | 6.31 | 7,597 ms | 882 s | 5,521 / 5,780 |
+| 4 | 10.888 | 6.94 | 4,374 ms | 536 s | 5,521 / 5,780 |
+| 8 | 12.238 | 7.77 | 2,706 ms | 351 s | 5,521 / 5,780 |
+| **16** | **13.405** | **8.55** | **2,053 ms** | **272 s** | **5,521 / 5,780** |
+
+- **Decodes identical** to the 2, 4 and 8 thread runs (5,521 matched, 5,780 ours, `rate` 81.515 %, `ours_only` 3.824 %, 705 skipped fits, 0 lean errors, 0 abandoned).
+- **`last_p95` 2,053 ms** (T4 met with more margin than at 8: 2,706). **CPU +9.5 % over 8 threads** (+35 % over 2); T1 (6.31) missed by 2.12 times. Each doubling cost +10 %, +12 %, +9.5 %.
+- The machine has 8 physical cores and 16 logical processors, so 16 workers fill every logical processor: this is the proposed auto default on this PC. Memory at 16 workers was not measured in this run.
+
 ## Not claimed
 
 - One run, one night, one band (40 m); no confidence interval was computed (the minimal-test rule).
