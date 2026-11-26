@@ -127,8 +127,10 @@ The numbers below come from **one live night only** (`20261114_2312`, 40 m, buil
 - `subtractionEnabled`, `subtractionMaxThreads`
 - the five coherent-fallback keys
 - `lateSubtractionRound`
-- `osdNhardMax`, `osdCorrThreshold`, `kMinScorePass2`
+- `osdNhardMax`, `osdCorrThreshold`
 - `crossCyclePriorShadow`
+
+**Correction (Architect, 2026-11-26):** `kMinScorePass2` is **not** retired. The lean decoder uses it as the minimum candidate score of the search on the residual audio (`native/ftz_decoder/ftz_decoder.c:679` at `9027616e`; station value 5, code default 10). It stays a setting until a measurement shows it can go.
 - `earlyDecode*`, if question 4 says so
 
 ### 4.5 Where the code lives
