@@ -64,7 +64,12 @@ public sealed record DecoderConfig
         bool coherentFallbackResidualCandidates = false,
         // XC-BUILD: in the constructor with their defaults (false), for the same reason as the fields above.
         bool crossCyclePrior = false,
-        bool crossCyclePriorShadow = false)
+        bool crossCyclePriorShadow = false,
+        // DR-2 step 2a: in the constructor with their defaults ("classic", 2), for the same reason as the fields above.
+        string? engine = DecoderEngineNames.Classic,
+        int threads = DefaultThreads,
+        // DR-2 step 2d: in the constructor with its default ("normal"), for the same reason as the fields above.
+        string? effort = DecoderEffortNames.Normal)
     {
         KMinScorePass2          = kMinScorePass2;
         OsdCorrThreshold        = osdCorrThreshold;
@@ -86,7 +91,22 @@ public sealed record DecoderConfig
         CoherentFallbackResidualCandidates = coherentFallbackResidualCandidates;
         CrossCyclePrior = crossCyclePrior;
         CrossCyclePriorShadow = crossCyclePriorShadow;
+        Engine = engine ?? DecoderEngineNames.Classic;
+        Threads = threads;
+        Effort = effort ?? DecoderEffortNames.Normal;
     }
+
+    /// <summary>The value of <see cref="Threads"/> that means "automatic": as many workers as the PC has logical processors, up to <see cref="MaxThreads"/>.</summary>
+    public const int AutoThreads = 0;
+
+    /// <summary>The default of <see cref="Threads"/>: <see cref="AutoThreads"/> (the most the PC supports; the operator can lower it).</summary>
+    public const int DefaultThreads = AutoThreads;
+
+    /// <summary>The smallest accepted <see cref="Threads"/> value.</summary>
+    public const int MinThreads = 1;
+
+    /// <summary>The largest accepted <see cref="Threads"/> value.</summary>
+    public const int MaxThreads = 16;
 
     /// <summary>
     /// Pass-1 candidate score floor.
@@ -346,4 +366,55 @@ public sealed record DecoderConfig
     /// off at the station unless the Captain turns it on. No effect while <see cref="CrossCyclePrior"/> is off. Config file and API only; the POST is an overlay. Read once per window.
     /// </summary>
     public bool CrossCyclePriorShadow { get; init; }
+
+    /// <summary>
+    /// DR-2 step 2a (FR-108): which decoder engine runs each cycle, as the config-file string <c>"classic"</c> or <c>"lean"</c>. <b>Default <c>"classic"</c></b>:
+    /// an absent key, a missing <c>decoder</c> section and any unrecognised value all read as <c>classic</c> (see <see cref="GetEngineKind"/>), and with
+    /// <c>classic</c> every native call, row, batch, counter, log line and provenance value is as it was before the setting existed. <c>"lean"</c> routes
+    /// the cycle through the single native call <c>ftz_decode_cycle</c> and does not enter the classic decoder. The string is kept as written, so an
+    /// unrelated save never rewrites it. Config file and API only (no Settings-page control); the POST is an overlay, so a body without the key leaves it
+    /// as it was. Read once per window; takes effect on the next window.
+    /// </summary>
+    public string Engine { get; init; } = DecoderEngineNames.Classic;
+
+    /// <summary><see cref="Engine"/> as the enum (a method, not a property: the config record's serialiser and its absent-key test enumerate properties): <c>lean</c> only for the word "lean"; everything else is <see cref="DecoderEngine.Classic"/>.</summary>
+    public DecoderEngine GetEngineKind() => DecoderEngineNames.Parse(Engine);
+
+    /// <summary>
+    /// DR-2 step 2a: the lean engine's worker count (<c>decoder.threads</c>): candidates are processed in parallel on a fixed pool created once. Valid
+    /// range 1 to 16 explicit; <b>0 or an absent key is automatic</b> (the default): <c>min(logical processors, 16)</c>, resolved where it is applied (see <see cref="ResolveThreads(int)"/>).
+    /// A negative value is clamped to 1 and a value above 16 to 16 (it never turns into automatic). No effect with
+    /// <see cref="Engine"/> <c>classic</c>. The lean engine's output does not depend on it. Config file and API only; read once per window.
+    /// </summary>
+    public int Threads { get; init; } = DefaultThreads;
+
+    /// <summary>
+    /// DR-2 step 2d (FR-108): how much the lean engine does per cycle, as the config-file string <c>"normal"</c> or <c>"fast"</c>. <b>Default <c>"normal"</c></b>: an absent
+    /// key, a missing <c>decoder</c> section and any unrecognised value read as <c>normal</c> (see <see cref="GetEffortKind"/>). <c>"fast"</c> runs no tier B and one
+    /// subtract-and-retry round. No effect with <see cref="Engine"/> <c>classic</c>. The string is kept as written; config file and API only; the POST is an overlay;
+    /// read once per window, effective on the next window.
+    /// </summary>
+    public string Effort { get; init; } = DecoderEffortNames.Normal;
+
+    /// <summary><see cref="Effort"/> as the enum (a method, not a property, for the same reason as <see cref="GetEngineKind"/>): <c>fast</c> only for the word "fast".</summary>
+    public DecoderEffort GetEffortKind() => DecoderEffortNames.Parse(Effort);
+
+    /// <summary>
+    /// <see cref="Threads"/> as stored, with an out-of-range value clamped: <see cref="AutoThreads"/> (0) stays 0 (automatic); a negative value becomes
+    /// <see cref="MinThreads"/>; a value above <see cref="MaxThreads"/> becomes <see cref="MaxThreads"/>.
+    /// </summary>
+    [JsonIgnore]
+    public int ClampedThreads => Threads == AutoThreads ? AutoThreads : Math.Clamp(Threads, MinThreads, MaxThreads);
+
+    /// <summary>The worker count in force on a host with <paramref name="processorCount"/> logical processors (see <see cref="ResolveThreads(int,int)"/>).</summary>
+    public int ResolveThreads(int processorCount) => ResolveThreads(Threads, processorCount);
+
+    /// <summary>
+    /// Pure resolver for the lean engine's worker count: 0 is automatic and gives <c>min(processorCount, <see cref="MaxThreads"/>)</c>, at least 1; any other value
+    /// is explicit and is clamped to [<see cref="MinThreads"/>, <see cref="MaxThreads"/>] (a negative value is 1, never automatic).
+    /// </summary>
+    public static int ResolveThreads(int configured, int processorCount)
+        => configured == AutoThreads
+            ? Math.Clamp(processorCount, MinThreads, MaxThreads)
+            : Math.Clamp(configured, MinThreads, MaxThreads);
 }

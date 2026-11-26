@@ -14,7 +14,7 @@ internal interface ICrossCyclePriorProbe
 /// <summary>Which prior population a tested template came from.</summary>
 internal enum CrossCycleKind
 {
-    /// <summary>A same-parity prior (published 30, 60 or 90 s earlier): a detection is published as batch 6.</summary>
+    /// <summary>A same-parity prior (published 30, 60 or 90 s earlier): a detection is published as the stage's own batch (6 for the classic engine, 3 for the lean engine).</summary>
     Live = 0,
 
     /// <summary>An opposite-parity prior (15, 45 or 75 s earlier): the null. Counted and logged, never published, never stored.</summary>
@@ -32,17 +32,17 @@ internal enum CrossCycleKind
 /// <param name="CycleStart">The cycle's start stamp (UTC).</param>
 /// <param name="SP">R15: S_P, the statistic over frame symbols 43 to 71 at the S_E* argmax.</param>
 /// <param name="PriorFreqHz">The prior's own frequency, Hz (as published in its cycle). With <see cref="PriorDt"/> and <see cref="PriorBatch"/> this lets a reader tell which test carried which text (QA's K1) without the text.</param>
-/// <param name="PriorDt">The prior's own dt, seconds, in OUR dt convention (the one batches 1 to 5 publish).</param>
-/// <param name="PriorBatch">The batch (1 to 5) the prior was published in.</param>
-/// <param name="Vetoed">R14's verdict: a decode of batches 1 to 5 of this cycle with a different text is co-located with the argmax. True whether or not the veto is applied (a run with the veto off counts it, does not apply it).</param>
+/// <param name="PriorDt">The prior's own dt, seconds, in OUR dt convention (the one the ordinary batches publish: 1 to 5 for the classic engine, 1 and 2 for the lean engine).</param>
+/// <param name="PriorBatch">The batch the prior was published in (classic: 1 to 5; lean: 1 or 2).</param>
+/// <param name="Vetoed">R14's verdict: a decode of the ordinary batches of this cycle (classic 1 to 5, lean 1 and 2) with a different text is co-located with the argmax. True whether or not the veto is applied (a run with the veto off counts it, does not apply it).</param>
 internal readonly record struct CrossCycleTestRecord(CrossCycleKind Kind, double SStar, int AgeCycles, double OffsetHz, double OffsetS, DateTime CycleStart,
                                                      double SP = 0.0, double PriorFreqHz = 0.0, double PriorDt = 0.0, int PriorBatch = 0, bool Vetoed = false);
 
 /// <summary>
-/// XC-BUILD R2/R3: the per-decoder-instance store of the messages PUBLISHED in batches 1 to 5 of each cycle, keyed by the cycle's 15 s slot, keeping the last 6 cycles (90 s, both parities).
+/// XC-BUILD R2/R3: the per-decoder-instance store of the messages PUBLISHED in the ordinary batches of each cycle (classic engine: batches 1 to 5; lean engine: batches 1 and 2), keyed by the cycle's 15 s slot, keeping the last 6 cycles (90 s, both parities).
 ///
 /// <list type="bullet">
-///   <item><b>Batch 6 never enters it</b> (no chaining): <see cref="Ft8Decoder"/> calls <see cref="Record"/> only from the mapping of batches 1 to 5.</item>
+///   <item><b>The stage's own batch never enters it</b> (batch 6 classic, batch 3 lean; no chaining): <see cref="Ft8Decoder"/> calls <see cref="Record"/> only from the mapping of the ordinary batches.</item>
 ///   <item><b>Cleared on a band change</b> (<see cref="BeginCycle"/>: the band differs from the previous staged cycle's; null on both counts as no change).</item>
 ///   <item><b>Gap rule:</b> a prior counts only if its slot is exactly the current slot minus 2, 4 or 6 (live: 30, 60, 90 s) or 1, 3 or 5 (shadow). A missing cycle therefore leaves a hole, never a shifted age.</item>
 ///   <item>The early decode never reads or writes it, and with the setting OFF <see cref="Ft8Decoder"/> never calls it at all (R11).</item>
@@ -68,7 +68,7 @@ internal sealed class CrossCyclePriorStore
     /// <summary>The ages, in cycles, of the shadow priors (15, 45 and 75 s), nearest first.</summary>
     internal static readonly int[] ShadowAges = [1, 3, 5];
 
-    /// <summary>One published message: its text, the position it was published at (the native result's frequency and dt) and its batch (1 to 5).</summary>
+    /// <summary>One published message: its text, the position it was published at (the native result's frequency and dt) and its batch (classic 1 to 5, lean 1 or 2).</summary>
     internal sealed record Prior(string Text, double FreqHz, double Dt, int Batch);
 
     /// <summary>A prior chosen for cycle t, with its age in cycles.</summary>
@@ -106,7 +106,7 @@ internal sealed class CrossCyclePriorStore
         }
     }
 
-    /// <summary>Adds a message published in batch 1 to 5 of the current cycle. Never called for batch 6.</summary>
+    /// <summary>Adds a message published in an ordinary batch of the current cycle. Never called for the stage's own batch.</summary>
     internal void Record(Prior prior)
     {
         lock (_lock)
@@ -117,8 +117,8 @@ internal sealed class CrossCyclePriorStore
     }
 
     /// <summary>
-    /// R14: a snapshot of the messages published so far in batches 1 to 5 of the CURRENT cycle (text, position in our own dt convention, batch), in publish order. Called once per staged cycle, only with the
-    /// stage ON, after batches 1 to 5 are out.
+    /// R14: a snapshot of the messages published so far in the ordinary batches of the CURRENT cycle (text, position in our own dt convention, batch), in publish order. Called once per staged cycle, only with the
+    /// stage ON, after the ordinary batches are out.
     /// </summary>
     internal List<Prior> CurrentCycleDecodes()
     {

@@ -11,6 +11,12 @@ public static class SubmoduleEnumerator
     ];
 
     /// <summary>
+    /// First-party native directories: OpenWSFZ-original code under the repository's own licence (AGPL-3.0), not a dependency. They are not
+    /// third-party submodules, so they are not inventoried against the permissive allow-list. Each carries its own LICENSE notice.
+    /// </summary>
+    private static readonly string[] FirstPartyDirectories = ["ftz_decoder"];
+
+    /// <summary>
     /// Walks the <c>/native/</c> directory under <paramref name="solutionRoot"/> for
     /// submodule directories. Returns an empty list when the directory does not exist.
     /// </summary>
@@ -35,6 +41,7 @@ public static class SubmoduleEnumerator
         foreach (var dir in Directory.EnumerateDirectories(nativeDir))
         {
             var name = Path.GetFileName(dir);
+            if (FirstPartyDirectories.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
 
             // Skip directories that are not declared git submodules (only when the filter is active).
             if (filterByGitmodules && !gitSubmodulePaths.Contains(name))

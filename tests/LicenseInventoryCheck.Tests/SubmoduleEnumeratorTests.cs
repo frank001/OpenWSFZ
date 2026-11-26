@@ -30,6 +30,30 @@ public sealed class SubmoduleEnumeratorTests
         }
     }
 
+    [Fact(DisplayName = "P0-Tool: A first-party native directory (ftz_decoder) is not inventoried as a third-party dependency")]
+    public void Enumerate_FirstPartyDirectory_IsSkipped()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"sub-test-{Guid.NewGuid():N}");
+        var first = Path.Combine(root, "native", "ftz_decoder");
+        var third = Path.Combine(root, "native", "ft8_lib");
+        Directory.CreateDirectory(first);
+        Directory.CreateDirectory(third);
+        File.WriteAllText(Path.Combine(first, "LICENSE"), "GNU AFFERO GENERAL PUBLIC LICENSE");
+        File.WriteAllText(Path.Combine(third, "LICENSE"), "MIT License\nCopyright (c) ...");
+
+        try
+        {
+            var entries = SubmoduleEnumerator.Enumerate(root);
+
+            entries.Should().ContainSingle(e => e.Name == "ft8_lib");
+            entries.Should().NotContain(e => e.Name == "ftz_decoder");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact(DisplayName = "P0-Tool: Submodule without a recognised licence file fails the run")]
     public void Enumerate_SubmoduleWithoutLicense_ThrowsInvalidOperationException()
     {

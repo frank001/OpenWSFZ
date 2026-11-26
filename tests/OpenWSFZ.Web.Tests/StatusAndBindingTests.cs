@@ -52,6 +52,17 @@ public sealed class StatusAndBindingTests : IClassFixture<WebTestFactory>
             "fallback sentinel must not reach the wire; set <Version> in Directory.Build.props");
     }
 
+    [Fact(DisplayName = "FR-108: operator threads setting: GET /api/v1/status carries the DAEMON HOST's logical processor count (a positive integer equal to Environment.ProcessorCount), for the Settings page's help text")]
+    public async Task GetStatus_IncludesTheHostProcessorCount()
+    {
+        var response = await _client.GetAsync("/api/v1/status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.TryGetProperty("processorCount", out var count).Should().BeTrue();
+        count.GetInt32().Should().BeGreaterThan(0).And.Be(Environment.ProcessorCount);
+    }
+
     [Fact(DisplayName = "daemon-status-visibility: GET /api/v1/status includes a populated shimVersion field")]
     public async Task GetStatus_IncludesShimVersionField()
     {

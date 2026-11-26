@@ -608,6 +608,20 @@ jobs:
   # paths eliminates that churn at the source instead of relying on someone
   # to notice and close each spurious PR by hand.
   # -----------------------------------------------------------------
+  # DR-2 step 2a (D6): the lean decoder engine's native code under AddressSanitizer and UndefinedBehaviorSanitizer on Linux.
+  # native/ftz_decoder/tests/run_asan.sh builds the same sources as build_linux.sh with the sanitizers on, then runs the harness
+  # ftz_fuzz.c: determinism at 1, 2 and 4 threads on the committed synthetic fixtures, 10,000 fuzz runs (random, clipped, silent and DC
+  # audio, truncated and oversized buffers) and the bad-audio / argument-error cases. A sanitizer report aborts the process: the job fails.
+  native-asan:
+    name: Native ASan + UBSan (lean decoder)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build and run the lean decoder's native tests under ASan + UBSan
+        run: bash native/ftz_decoder/tests/run_asan.sh --runs=10000
+
   detect-native-changes:
     name: Detect native-relevant changes
     runs-on: ubuntu-latest

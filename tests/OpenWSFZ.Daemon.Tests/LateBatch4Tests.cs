@@ -264,6 +264,9 @@ public sealed class LateBatch4Tests
         public readonly Channel<DecodeBatch> Caller = Channel.CreateUnbounded<DecodeBatch>();
         public readonly Channel<DecodeBatch> External = Channel.CreateUnbounded<DecodeBatch>();
         public bool Deep, FallbackOn, HasFallbackDelegate = true;
+        public bool SubtractionOn = true;
+        public Func<bool>? Lean;
+        public int SingleCalls;
         public int StagedCalls, TwoStageCalls;
         public Func<Func<int, IReadOnlyList<DecodeResult>, Task>, Task>? Staged;
 
@@ -271,8 +274,8 @@ public sealed class LateBatch4Tests
             CurrentDialFrequency:     () => 14.074,
             FallbackDialFrequency:    () => 0.0,
             DeriveBand:               _ => "20m",
-            SubtractionEnabled:       () => true,
-            DecodeSingleBatch:        (_, _, _, _) => Task.FromResult<IReadOnlyList<DecodeResult>>([]),
+            SubtractionEnabled:       () => SubtractionOn,
+            DecodeSingleBatch:        (_, _, _, _) => { SingleCalls++; return Task.FromResult<IReadOnlyList<DecodeResult>>([]); },
             DecodeTwoStage:           async (_, _, _, publishFirst, _) =>
             {
                 TwoStageCalls++;
@@ -293,6 +296,7 @@ public sealed class LateBatch4Tests
             DecodeStaged = async (_, _, _, publishBatch, _) => { StagedCalls++; await Staged!(publishBatch); },
             DecodingDeep = () => Deep,
             CoherentFallbackOn = HasFallbackDelegate ? () => FallbackOn : null,
+            LeanEngine = Lean,
         });
 
         public static async IAsyncEnumerable<(float[] Pcm, DateTime CycleStart, double? DialFrequency)> Windows(params DateTime[] cycles)
@@ -334,6 +338,44 @@ public sealed class LateBatch4Tests
         rig.Panel.Select(p => p.Count).Should().Equal(1, 1, 1, 1);
         rig.AllTxt.Select(p => p.Single().Message).Should().Equal("CQ Q1ABC JO33", "CQ Q1DEF EN37", "CQ Q1GHI IO91", "CQ Q1JKL FN20");
         rig.Admitted.Should().Contain("CQ Q1JKL FN20");
+    }
+
+    [Fact(DisplayName = "DR-2 2d D6: with the lean engine the pump uses the staged entry whatever the classic switches say (residual pass off, Normal depth, fallback off), and batches 1, 2 and 3 reach every sink numbered")]
+    public async Task Pump_Lean_RoutesToStaged_WhateverTheClassicFlagsSay()
+    {
+        var rig = new PumpRig { SubtractionOn = false, Deep = false, FallbackOn = false, Lean = () => true };
+        rig.Staged = async publish =>
+        {
+            await publish(1, [Rs("CQ Q1ABC JO33")]);
+            await publish(2, [Rs("CQ Q1DEF EN37", 2100)]);
+            await publish(3, [Rs("CQ Q1GHI IO91", 2400)]);
+        };
+
+        await rig.Build().RunAsync(PumpRig.Windows(Cycle1), CancellationToken.None);
+
+        rig.StagedCalls.Should().Be(1);
+        rig.TwoStageCalls.Should().Be(0);
+        rig.SingleCalls.Should().Be(0);
+        PumpRig.Drain(rig.Answerer).Select(b => b.BatchNumber).Should().Equal(1, 2, 3);
+        PumpRig.Drain(rig.External).Select(b => b.BatchNumber).Should().Equal(1, 2, 3);
+        rig.AllTxt.Select(p => p.Single().Message).Should().Equal("CQ Q1ABC JO33", "CQ Q1DEF EN37", "CQ Q1GHI IO91");
+    }
+
+    [Fact(DisplayName = "DR-2 2d D6: with the lean hook false or absent the pump is the pre-change pump: residual pass off is the single decode, on with the flags off is the two-stage entry")]
+    public async Task Pump_LeanHookFalseOrAbsent_ChangesNothing()
+    {
+        foreach (Func<bool>? hook in new Func<bool>?[] { null, () => false })
+        {
+            var off = new PumpRig { SubtractionOn = false, Lean = hook };
+            off.Staged = _ => Task.CompletedTask;
+            await off.Build().RunAsync(PumpRig.Windows(Cycle1), CancellationToken.None);
+            (off.SingleCalls, off.TwoStageCalls, off.StagedCalls).Should().Be((1, 0, 0));
+
+            var on = new PumpRig { SubtractionOn = true, Lean = hook };
+            on.Staged = _ => Task.CompletedTask;
+            await on.Build().RunAsync(PumpRig.Windows(Cycle1), CancellationToken.None);
+            (on.SingleCalls, on.TwoStageCalls, on.StagedCalls).Should().Be((0, 1, 0));
+        }
     }
 
     [Fact(DisplayName = "R14: Normal depth with the fallback flag ON - the staged entry is used (so batch 3, the fallback's, can leave); flag OFF - the two-stage entry as ever")]

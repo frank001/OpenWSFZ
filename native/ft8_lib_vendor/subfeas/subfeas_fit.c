@@ -92,6 +92,12 @@ typedef struct { float r, i; } cf32;
  * loop iteration (measured ~21 ms worst case, reports/phase-timing-base-2b39cf18.txt). */
 #define IS_CANCELLED(flag) ((flag) != NULL && *(const volatile int*)(flag) != 0)
 
+/* DR-2 step 2e (D2): the fit has a REFERENCE MODE that runs the code exactly as it was before the exact speedups below (the frequency-shift table recomputed per
+ * use, the copy / mix / decimation as three passes, the plain step-3 loop). It exists only so a test can run both in one process and compare the output byte for
+ * byte; production never sets it. Default 0 (the fast path). */
+static volatile int g_ref_mode = 0;
+void ft8_subfeas_set_reference_mode(int on) { g_ref_mode = on ? 1 : 0; }
+
 /* ========================================================================
  * Per-call workspace: every buffer this module's internals need, allocated
  * ONCE at the top of ft8_subfeas_fit_signal and freed before it returns.
@@ -127,6 +133,10 @@ typedef struct {
      * are constants of the method, so they are transformed ONCE per workspace instead of once per
      * convolution. Filled by workspace_init_constants(). */
     kiss_fft_cpx *pulse_spec, *win_spec;
+
+    /* D2 (step 2e): cos and sin of 2*pi*freq_hz*t for t = i / FS, i = 0 .. N_TX - 1, as apply_freq_shift computes them. freq_hz is the SAME for the ~43 uses of
+     * one fit, so the table is built once per fit (fill_shift_table) instead of 43 times. */
+    double *shift_c, *shift_s;
 } workspace_t;
 
 /* Returns 1 if every allocation in `ws` succeeded, 0 otherwise. On 0, the
@@ -173,13 +183,15 @@ static int workspace_alloc(workspace_t* ws)
     ws->win_cf          = (cf32*)malloc(sizeof(cf32) * ENV_W_SAMPLES);
     ws->pulse_spec      = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
     ws->win_spec        = (kiss_fft_cpx*)malloc(sizeof(kiss_fft_cpx) * N_FFT);
+    ws->shift_c         = (double*)malloc(sizeof(double) * N_TX);
+    ws->shift_s         = (double*)malloc(sizeof(double) * N_TX);
 
     if (!ws->work_fwd || !ws->work_inv || !ws->work_small || !ws->scratch_a ||
         !ws->scratch_full || !ws->scratch_search || !ws->tone_arr || !ws->smoothed ||
         !ws->r_unit || !ws->r_base || !ws->mixed || !ws->seg || !ws->r_base_final ||
         !ws->envelope || !ws->num || !ws->num_c || !ws->den_cf || !ws->den_c ||
         !ws->den || !ws->phase || !ws->pulse || !ws->pulse_cf || !ws->hann_d || !ws->win_cf ||
-        !ws->pulse_spec || !ws->win_spec) {
+        !ws->pulse_spec || !ws->win_spec || !ws->shift_c || !ws->shift_s) {
         return 0;
     }
 
@@ -204,6 +216,7 @@ static void workspace_free(workspace_t* ws)
     free(ws->phase);
     free(ws->pulse); free(ws->pulse_cf); free(ws->hann_d); free(ws->win_cf);
     free(ws->pulse_spec); free(ws->win_spec);
+    free(ws->shift_c); free(ws->shift_s);
 }
 
 /* ========================================================================
@@ -382,6 +395,31 @@ static void apply_freq_shift(const cf32* r_unit, int len, double df_hz, cf32* ou
     }
 }
 
+/* D2: the table apply_freq_shift would compute for df_hz, once: c[i] = cos(ph), s[i] = sin(ph) with ph = 2*pi*df_hz*t and t = (double)i / FS, the same expressions in
+ * the same order, stored as double (the values apply_freq_shift holds in its locals). */
+static void fill_shift_table(workspace_t* ws, double df_hz)
+{
+    int i;
+    for (i = 0; i < N_TX; i++) {
+        double t = (double)i / FS;
+        double ph = 2.0 * M_PI * df_hz * t;
+        ws->shift_c[i] = cos(ph);
+        ws->shift_s[i] = sin(ph);
+    }
+}
+
+/* apply_freq_shift with the table of fill_shift_table: the same product, from the same operands, in the same order: bit-identical. */
+static void apply_freq_shift_cached(const workspace_t* ws, const cf32* r_unit, int len, cf32* out)
+{
+    int i;
+    for (i = 0; i < len; i++) {
+        double c = ws->shift_c[i], s = ws->shift_s[i];
+        double rr = r_unit[i].r, ri = r_unit[i].i;
+        out[i].r = (float)(rr * c - ri * s);
+        out[i].i = (float)(rr * s + ri * c);
+    }
+}
+
 /* B2: the argmax of freq_search over bin magnitudes, in the REFERENCE'S INDEX ORDER and with its tie-break. `mag` holds the
  * magnitude of bin k at mag[k + kmax], k = -kmax .. +kmax. The reference scans FFT indices 0, 1, ..., kmax (frequencies 0 to
  * +kmax bins) and THEN N-kmax, ..., N-1 (frequencies -kmax to -1 bins), keeping the first strictly greater magnitude, so on an
@@ -407,6 +445,45 @@ static void argmax_in_index_order(
     }
     *out_best_f = best_f;
     *out_best_val = best_val;
+}
+
+static void freq_search_finish(workspace_t* ws, double f_range_hz, double* out_best_f, double* out_best_val);
+
+/* D2: freq_search of the product x * conj(r_base) without materialising it. The mixed sample is computed with the same float expression the mixing pass used
+ * (mr*rr - mi*ri, mr*ri + mi*rr with ri = -r.i), then enters the same linear-interpolation decimation in the same order, so the decimated image, and every value after
+ * it, is bit-identical to copy + mix + freq_search. len is N_TX (a multiple of FS_DECIM). */
+static void freq_search_fused(
+    workspace_t* ws, const float* xr, const float* xi, const cf32* rb,
+    double f_range_hz, double* out_best_f, double* out_best_val)
+{
+    int j, m, i;
+    kiss_fft_cpx* y = ws->scratch_search;
+    const int blocks = (N_TX + FS_DECIM - 1) / FS_DECIM;
+    float wa_t[FS_DECIM], wb_t[FS_DECIM];
+    float prev_br = 0.0f, prev_bi = 0.0f;
+    for (j = 0; j < FS_DECIM; j++) {
+        wa_t[j] = (float)(FS_DECIM - j) * (1.0f / FS_DECIM);
+        wb_t[j] = (float)j * (1.0f / FS_DECIM);
+    }
+    for (m = 0; m < blocks; m++) {
+        float ar = 0.0f, ai = 0.0f, br = 0.0f, bi = 0.0f;
+        const int base = m * FS_DECIM;
+        for (j = 0; j < FS_DECIM; j++) {
+            float mr = xr[base + j], mi = xi[base + j];
+            float rr = rb[base + j].r, ri = -rb[base + j].i;
+            float vr = mr * rr - mi * ri;
+            float vi = mr * ri + mi * rr;
+            ar += vr * wa_t[j]; ai += vi * wa_t[j];
+            br += vr * wb_t[j]; bi += vi * wb_t[j];
+        }
+        y[m].r = ar + prev_br;
+        y[m].i = ai + prev_bi;
+        prev_br = br; prev_bi = bi;
+    }
+    y[blocks].r = prev_br;
+    y[blocks].i = prev_bi;
+    for (i = blocks + 1; i < FS_SMALL_N; i++) { y[i].r = 0.0f; y[i].i = 0.0f; }
+    freq_search_finish(ws, f_range_hz, out_best_f, out_best_val);
 }
 
 /* fitter.py:_freq_search -- argmax_f |FFT(mixed, n_fft)| restricted to |f| <= f_range_hz. mixed is N_TX long
@@ -437,8 +514,7 @@ static void freq_search(
     const cf32* mixed, int mixed_len, double f_range_hz,
     double* out_best_f, double* out_best_val)
 {
-    int i, j, m, k, kmax;
-    double bin_hz = FS / (double)N_FFT;
+    int i, j, m;
     kiss_fft_cpx* y = ws->scratch_search;     /* the first FS_SMALL_N entries */
     /* mixed_len is N_TX = 2 370 x 64 at both call sites. A length that is not a multiple of 64 is handled (the last block is
      * short: its missing samples are zero, the reference's padding), and one too long for the small FFT is cut to what fits. */
@@ -465,6 +541,17 @@ static void freq_search(
     y[blocks].r = prev_br;                    /* the last block's upper half lands one output further on */
     y[blocks].i = prev_bi;
     for (i = blocks + 1; i < FS_SMALL_N; i++) { y[i].r = 0.0f; y[i].i = 0.0f; }
+
+    freq_search_finish(ws, f_range_hz, out_best_f, out_best_val);
+}
+
+/* Steps 2 and 3 of freq_search (the FFT of the decimated image in ws->scratch_search, the droop-corrected magnitudes, the reference-ordered argmax), shared by
+ * freq_search and freq_search_fused so the two cannot drift apart. */
+static void freq_search_finish(workspace_t* ws, double f_range_hz, double* out_best_f, double* out_best_val)
+{
+    int k, kmax;
+    double bin_hz = FS / (double)N_FFT;
+    kiss_fft_cpx* y = ws->scratch_search;
 
     /* 2. The 4 096-point FFT, in place. */
     kiss_fft(ws->fwd_small, y, y);
@@ -515,13 +602,21 @@ static int fine_fit_with_drift(
 
     /* ---- Step 1: (Δt, Δf) at ḟ=0 ---- */
     r_fit_drift(ws, 0.0, ws->r_unit);
-    apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
+    if (!g_ref_mode) {
+        fill_shift_table(ws, freq_hz);                       /* D2: once for the ~43 uses of this fit */
+        apply_freq_shift_cached(ws, ws->r_unit, N_TX, ws->r_base);
+    } else {
+        apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
+    }
 
     for (k = -DT_N_STEPS; k <= DT_N_STEPS; k++) {
         int start = base_start + k * DT_STEP_SAMPLES;
         double f_hat, val;
         if (IS_CANCELLED(cancel_flag)) return -4;
         if (start < 0 || start + N_TX > SUBFEAS_PCM_LEN) continue;
+        if (!g_ref_mode) {
+            freq_search_fused(ws, x_a_re + start, x_a_im + start, ws->r_base, SUBFEAS_DF_RANGE_HZ, &f_hat, &val);   /* D2: copy + mix + decimate in one pass */
+        } else {
         for (i = 0; i < N_TX; i++) {
             ws->mixed[i].r = x_a_re[start + i];
             ws->mixed[i].i = x_a_im[start + i];
@@ -534,6 +629,7 @@ static int fine_fit_with_drift(
             ws->mixed[i].i = mr * ri + mi * rr;
         }
         freq_search(ws, ws->mixed, N_TX, SUBFEAS_DF_RANGE_HZ, &f_hat, &val);
+        }
         if (!have_step1 || val > step1_best_val) {
             have_step1 = 1;
             step1_best_val = val;
@@ -548,15 +644,21 @@ static int fine_fit_with_drift(
         double best_val2 = -1.0;
         double best_fdot = 0.0, best_df2 = 0.0;
         int kf;
+        if (g_ref_mode) {
         for (i = 0; i < N_TX; i++) {
             ws->seg[i].r = x_a_re[fixed_start + i];
             ws->seg[i].i = x_a_im[fixed_start + i];
+        }
         }
         for (kf = -FDOT_N_STEPS; kf <= FDOT_N_STEPS; kf++) {
             double fdot = kf * SUBFEAS_FDOT_STEP_HZ_S;
             double f_hat, val;
             if (IS_CANCELLED(cancel_flag)) return -4;
             r_fit_drift(ws, fdot, ws->r_unit);
+            if (!g_ref_mode) {
+                apply_freq_shift_cached(ws, ws->r_unit, N_TX, ws->r_base);
+                freq_search_fused(ws, x_a_re + fixed_start, x_a_im + fixed_start, ws->r_base, SUBFEAS_DF_RANGE_HZ, &f_hat, &val);
+            } else {
             apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
             for (i = 0; i < N_TX; i++) {
                 float mr = ws->seg[i].r, mi = ws->seg[i].i;
@@ -565,6 +667,7 @@ static int fine_fit_with_drift(
                 ws->mixed[i].i = mr * ri + mi * rr;
             }
             freq_search(ws, ws->mixed, N_TX, SUBFEAS_DF_RANGE_HZ, &f_hat, &val);
+            }
             if (val > best_val2) { best_val2 = val; best_fdot = fdot; best_df2 = f_hat; }
         }
         *out_fdot = best_fdot;
@@ -573,7 +676,8 @@ static int fine_fit_with_drift(
         /* Final template at (ḟ*, Δf*) -- used for step 3's direct-correlation
          * scoring AND returned as the fit's template for envelope/subtract. */
         r_fit_drift(ws, best_fdot, ws->r_unit);
-        apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
+        if (!g_ref_mode) apply_freq_shift_cached(ws, ws->r_unit, N_TX, ws->r_base);
+        else             apply_freq_shift(ws->r_unit, N_TX, freq_hz, ws->r_base);
         apply_freq_shift(ws->r_base, N_TX, best_df2, out_r_base_final);
     }
 
@@ -581,6 +685,41 @@ static int fine_fit_with_drift(
     {
         double best_score = -1.0;
         int best_dt_samples = 0;
+        if (!g_ref_mode) {
+            /* D2: the scores of the valid candidates, four at a time. Each candidate keeps its own two double accumulators summed in the same sample order
+             * as the plain loop, so every score is bit-identical; the four independent chains hide the add latency. The argmax then scans k in order with the
+             * same strict comparison (the first maximum wins). */
+            double score_of[2 * DT_N_STEPS + 1];
+            int valid[2 * DT_N_STEPS + 1], nvalid = 0, q;
+            for (k = -DT_N_STEPS; k <= DT_N_STEPS; k++) {
+                int start = base_start + k * DT_STEP_SAMPLES;
+                if (start < 0 || start + N_TX > SUBFEAS_PCM_LEN) continue;
+                valid[nvalid++] = k;
+            }
+            for (q = 0; q < nvalid; q += 4) {
+                const int g = (nvalid - q) < 4 ? (nvalid - q) : 4;
+                const float *pr[4], *pi_[4];
+                double sr[4] = { 0.0, 0.0, 0.0, 0.0 }, si[4] = { 0.0, 0.0, 0.0, 0.0 };
+                int u;
+                if (IS_CANCELLED(cancel_flag)) return -4;
+                for (u = 0; u < g; u++) {
+                    int start = base_start + valid[q + u] * DT_STEP_SAMPLES;
+                    pr[u] = x_a_re + start; pi_[u] = x_a_im + start;
+                }
+                for (i = 0; i < N_TX; i++) {
+                    float rr = out_r_base_final[i].r, ri = -out_r_base_final[i].i; /* conj(r) */
+                    for (u = 0; u < g; u++) {
+                        float xr = pr[u][i], xi = pi_[u][i];
+                        sr[u] += xr * rr - xi * ri;
+                        si[u] += xr * ri + xi * rr;
+                    }
+                }
+                for (u = 0; u < g; u++) score_of[q + u] = sqrt(sr[u] * sr[u] + si[u] * si[u]);
+            }
+            for (q = 0; q < nvalid; q++) {
+                if (score_of[q] > best_score) { best_score = score_of[q]; best_dt_samples = valid[q] * DT_STEP_SAMPLES; }
+            }
+        } else
         for (k = -DT_N_STEPS; k <= DT_N_STEPS; k++) {
             int start = base_start + k * DT_STEP_SAMPLES;
             double sr = 0.0, si = 0.0, score;
@@ -832,7 +971,8 @@ static size_t workspace_bytes(void)
          + sizeof(float) * (size_t)N_TX                      /* den */
          + sizeof(double) * (size_t)N_TX                     /* phase */
          + (sizeof(double) + sizeof(cf32)) * (size_t)GAUSS_TAPS
-         + (sizeof(double) + sizeof(cf32)) * (size_t)ENV_W_SAMPLES;
+         + (sizeof(double) + sizeof(cf32)) * (size_t)ENV_W_SAMPLES
+         + sizeof(double) * (size_t)N_TX * 2;                /* D2: the frequency-shift table */
 }
 
 void ft8_subfeas_pool_get_stats(int* out /* SUBFEAS_POOL_STATS_LEN ints */)

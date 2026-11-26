@@ -795,6 +795,55 @@ bool ftx_decode_candidate(const ftx_waterfall_t* wf, const ftx_candidate_t* cand
 }
 
 /*
+ * ftx_decode_candidate_tier_a -- the lean engine's tier A (DR-2 step 2a, shim 20260073).
+ *
+ * Own work (OpenWSFZ), built from the same building blocks ftx_decode_candidate uses: ft8_extract_likelihood
+ * (magnitude LLRs), ftx_normalize_logl, bp_decode, the CRC-14 check. It differs from ftx_decode_candidate in
+ * three ways, all on purpose:
+ *   - no OSD (the lean engine has none in step 2a), so the function never reads the OSD globals;
+ *   - no diagnostics callbacks and no thread-local state: it only READS the waterfall and writes its own stack
+ *     and its two out parameters, so any number of threads may call it at once on the same waterfall;
+ *   - a degenerate candidate (a non-finite or zero-variance LLR vector, as an all-silent waterfall gives) is
+ *     rejected here, instead of letting a NaN reach the belief propagation.
+ * For a candidate whose belief propagation converges, the output is bit-identical to ftx_decode_candidate's.
+ * Returns true and fills message (payload, hash) when the CRC holds; false otherwise.
+ */
+bool ftx_decode_candidate_tier_a(const ftx_waterfall_t* wf, const ftx_candidate_t* cand, int max_iterations, ftx_message_t* message, ftx_decode_status_t* status)
+{
+    float log174[FTX_LDPC_N];
+    if (wf == NULL || cand == NULL || message == NULL || status == NULL || wf->mag == NULL || wf->protocol != FTX_PROTOCOL_FT8)
+        return false;
+    if (max_iterations < 1) max_iterations = 1;
+    ft8_extract_likelihood(wf, cand, log174);
+
+    {   /* degenerate guard: ftx_normalize_logl divides by the variance */
+        float sum = 0.0f, sum2 = 0.0f;
+        for (int i = 0; i < FTX_LDPC_N; ++i) { sum += log174[i]; sum2 += log174[i] * log174[i]; }
+        float inv_n = 1.0f / FTX_LDPC_N;
+        float variance = (sum2 - (sum * sum * inv_n)) * inv_n;
+        if (!isfinite(variance) || !(variance > 0.0f)) return false;
+    }
+    ftx_normalize_logl(log174);
+
+    uint8_t plain174[FTX_LDPC_N];
+    status->ldpc_errors = 0;
+    bp_decode(log174, max_iterations, plain174, &status->ldpc_errors);
+    if (status->ldpc_errors > 0) return false;
+
+    uint8_t a91[FTX_LDPC_K_BYTES];
+    pack_bits(plain174, FTX_LDPC_K, a91);
+    status->crc_extracted = ftx_extract_crc(a91);
+    a91[9] &= 0xF8;
+    a91[10] &= 0x00;
+    status->crc_calculated = ftx_compute_crc(a91, 96 - 14);
+    if (status->crc_extracted != status->crc_calculated) return false;
+
+    message->hash = status->crc_calculated;
+    for (int i = 0; i < 10; ++i) message->payload[i] = a91[i];
+    return true;
+}
+
+/*
  * ftx_compute_candidate_llr_stats — diagnostic probe for D-001 (shim 20260020).
  *
  * Redesign of ftx_compute_candidate_llr_mean_abs (shim 20260019):
