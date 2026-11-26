@@ -28,7 +28,7 @@ extern "C" {
 #define FTZ_ERR_FAULT    (-3)   /* an access violation was caught by the SEH wrapper (MSVC builds only)                 */
 #define FTZ_ERR_BADAUDIO (-4)   /* a sample is NaN, infinite or beyond +-FTZ_MAX_ABS_SAMPLE: not decodable audio        */
 
-#define FTZ_PARAMS_VERSION   5
+#define FTZ_PARAMS_VERSION   6
 #define FTZ_MIN_THREADS      1
 #define FTZ_MAX_THREADS      16
 #define FTZ_DEFAULT_THREADS  2
@@ -42,6 +42,8 @@ extern "C" {
 #define FTZ_FLAG_RESIDUAL_CANDS   16   /* ACCEPTED AND IGNORED since step 2e: a residual tier-B row is published when F1b-passed, or when the ungating is on, at any frequency */
 #define FTZ_FLAG_NO_TIER_B        32   /* step 2d, decoder.effort = fast: tier B is not run in any round (CQ-AP still is, if asked)                   */
 #define FTZ_FLAG_SKIP_FITS        64   /* step 2e (D3): a round-r result is fitted only if a candidate of round r that did NOT decode lies in its patch window (ftz_fit_needed) */
+
+#define FTZ_FLAG_PROBE            128  /* SUB-PROBE (params version 6): test-only diagnostic; fill the caller's ftz_probe_t. OFF: nothing is allocated or computed. ON: the published decodes are byte-identical */
 
 #define FTZ_MAX_ROUNDS            3      /* rounds after round 0                                                                 */
 #define FTZ_PATCH_BELOW_HZ        50.0f  /* a residual candidate is searched only within [f - 50, f + 100] Hz of a signal subtracted in the round */
@@ -82,7 +84,79 @@ typedef struct
     /* Step 2e (params version 5). */
     int32_t inject_error_round;   /* TEST HOOK: the round (1 to 3) whose fits end, after the first chunk, in a simulated allocation failure (FTZ_ERR_NOMEM); 0 = none */
     int32_t reserved2;
+    /* SUB-PROBE (params version 6); a caller built against version 5 has struct_size 72 and reads NULL. */
+    struct ftz_probe* probe;      /* NULL, or (with FTZ_FLAG_PROBE) the caller's probe buffer; see ftz_probe_t */
 } ftz_params_t;
+
+/* ── SUB-PROBE: a test-only diagnostic, numbers only (no message text, no payload; HK-037). Read-only on decoder state. ──────────────────────────────────────
+ * With FTZ_FLAG_PROBE and params.probe set, the call fills probe->rows[0 .. probe->n) with one 64-byte ftz_probe_row_t per record, in the order written (round by round:
+ * round 0 CAND rows; then for each round 1 to 3: SUB rows, LOW rows, CAND rows). cap rows fit; a row that does not fit sets probe->overflow = 1 and is dropped (nothing is
+ * ever written past rows[cap - 1]). Worst case without overflow: FTZ_PROBE_MAX_ROWS (4 x 256 CAND + 3 x 400 LOW + 1024 SUB = 3248, rounded up). */
+#define FTZ_PROBE_MAX_ROWS 3300
+
+#define FTZ_PROBE_SUB  1   /* a signal subtracted: round, freq_hz, time_s, amp (the fit's amplitude), supp_db                                                              */
+#define FTZ_PROBE_CAND 2   /* a candidate ftx_find_candidates returned (before any filter): round, freq_hz, time_s, score, kept, outcome, and the stage columns            */
+#define FTZ_PROBE_LOW  3   /* rounds 1 to 3: a candidate of the extra floor-0, cap-400 search on the round's residual (never decoded): freq_hz, time_s, score, kept = reason */
+
+/* CAND outcome (one exclusive code per candidate; the last stage that ended its journey). 0 = UNSET (the round ended early: budget, error). */
+#define FTZ_PO_UNSET          0
+#define FTZ_PO_A_OK           1   /* tier A decoded and the result was published                                                                                */
+#define FTZ_PO_A_BP           2   /* tier A failed in belief propagation (a_unsat = unsatisfied parity checks; -1 = degenerate LLRs); final only when tier B is off (effort fast) */
+#define FTZ_PO_A_CRC          3   /* tier A: BP converged but the CRC failed; final only when tier B is off                                                      */
+#define FTZ_PO_B_NE           4   /* failed tier A and was not eligible for tier B (a duplicate position)                                                         */
+#define FTZ_PO_B_OK           5   /* tier B decoded and the result was published                                                                                */
+#define FTZ_PO_B_BP           6   /* tier B ran and failed in belief propagation (b_unsat; -1 = degenerate LLRs)                                                  */
+#define FTZ_PO_B_CRC          7   /* tier B: BP converged, CRC failed                                                                                             */
+#define FTZ_PO_CQ_OK          8   /* CQ-AP decoded and the result was published                                                                                  */
+#define FTZ_PO_CQ_FAIL        9   /* CQ-AP was attempted and failed                                                                                               */
+#define FTZ_PO_DUP           10   /* decoded but not published: the same payload, transmission or text as another (the DR-3 rule), or a payload tier A already produced */
+#define FTZ_PO_GATE          11   /* decoded but not published by an accept gate; the gate is in the gate column (FTZ_PG_*)                                         */
+#define FTZ_PO_NOT_KEPT_PATCH 12  /* a residual candidate outside every [f - 50, f + 100] Hz patch of the round's subtractions                                      */
+#define FTZ_PO_NOT_KEPT_CAP   13  /* RESERVED, never written on a CAND row: the cap cuts before ftx_find_candidates returns; see the LOW rows' reason 2              */
+#define FTZ_PO_B_SKIP         14  /* eligible for tier B, the budget ran out before it was attempted                                                              */
+#define FTZ_PO_B_NOC3         15  /* tier B ran its estimate only: the coherent LLR stage (C3) and BP did not run                                                  */
+
+/* GATE codes (the gate column of a CAND row with outcome FTZ_PO_GATE). */
+#define FTZ_PG_NONE            0
+#define FTZ_PG_UNPACK          1  /* the payload does not unpack (for example a hash not yet known)                                                                */
+#define FTZ_PG_F1B             2  /* round 0: a CRC-valid new tier-B payload whose F1b is above T1                                                                 */
+#define FTZ_PG_F1B_RESIDUAL    3  /* a residual round: a CRC-valid new tier-B payload rejected by the residual accept rule (ftz_residual_b_accept)                  */
+#define FTZ_PG_CAPACITY        4  /* the caller's results array was full                                                                                           */
+
+/* Stage columns of a CAND row. a_code: 0 not run, 1 CRC-valid, 2 BP failed, 3 CRC failed, 4 degenerate LLRs. b_code: 0 not run (not eligible), 1 skipped by the budget,
+ * 2 estimate only (no C3), 3 degenerate LLRs, 4 BP failed, 5 CRC failed, 6 CRC-valid. cq_code: 0 not attempted, 1 failed, 2 CRC-valid. *_unsat: unsatisfied parity checks, -1 n/a. */
+
+/* One probe row, 64 bytes (16 x 32 bits). Fields a record does not use are 0 (supp_db of a SUB row whose footprint is outside the waterfall, or whose round ended
+ * before the residual's spectrogram, is -999). For a LOW row, kept is the reason: 0 also in the round's CAND list, 1 below the floor (kMinScorePass2), 2 cut by the cap. */
+typedef struct
+{
+    int32_t kind;        /* FTZ_PROBE_*                                                        */
+    int32_t round;       /* 0 to 3                                                             */
+    float   freq_hz;
+    float   time_s;
+    float   amp;         /* SUB: the fit's amplitude (sqrt(2 * mean square of the fitted signal over its 79 symbols)) */
+    float   supp_db;     /* SUB: 10 log10(footprint power before / after the round's subtraction)  */
+    int32_t score;       /* CAND, LOW: ftx_candidate_t.score                                   */
+    int32_t kept;        /* CAND: 1 passed the round's patch filter (round 0: all); LOW: reason */
+    int32_t outcome;     /* CAND: FTZ_PO_*                                                     */
+    int32_t gate;        /* CAND: FTZ_PG_* when outcome is FTZ_PO_GATE                         */
+    int32_t a_code;
+    int32_t a_unsat;
+    int32_t b_code;
+    int32_t b_unsat;
+    int32_t cq_code;
+    int32_t cq_unsat;
+} ftz_probe_row_t;
+
+/* The caller's probe buffer. struct_size = sizeof(ftz_probe_t), cap = rows allocated; n and overflow are outputs. */
+typedef struct ftz_probe
+{
+    int32_t struct_size;
+    int32_t cap;
+    int32_t n;
+    int32_t overflow;
+    ftz_probe_row_t* rows;
+} ftz_probe_t;
 
 /* Per-round aggregates (step 2c). Counts, then microseconds: wall, and CPU summed over the threads that worked on the stage.
  * Ten 32-bit fields and nine 64-bit times: 40 + 72 = 112 bytes. Round 0 fills only the counts that apply to it. */

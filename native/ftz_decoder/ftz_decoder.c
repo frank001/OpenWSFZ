@@ -343,6 +343,14 @@ static int ftz_run_job(ftz_item_fn fn, void* ctx, int n_items, int use_pool, int
 #define FTZ_B_GATED_OUT 4   /* CRC-valid, a new payload, F1b above T1                                  */
 #define FTZ_B_NEW_GATED 5   /* CRC-valid, a new payload, F1b <= T1: publishable                        */
 
+/* SUB-PROBE: what each stage said about one candidate (written by the stage's own item, read on the calling thread afterwards). Only allocated with FTZ_FLAG_PROBE. */
+typedef struct
+{
+    int32_t a_kind, a_err;                 /* tier A: 0 not run, 1 CRC-valid, 2 BP failed, 3 CRC failed, 4 degenerate; unsatisfied checks (BP failed)       */
+    int32_t b_c3, b_rc, b_crc, b_err;      /* tier B: C3 ran, bp_rc, CRC ok, bp_ldpc_errors                                                                  */
+    int32_t cq_ran, cq_err;                /* CQ-AP: attempted, unsatisfied checks                                                                           */
+} ftz_pstat_t;
+
 typedef struct
 {
     const ftx_waterfall_t* wf;
@@ -370,6 +378,7 @@ typedef struct
     uint8_t*               c_ok;
     ftx_message_t*         c_msgs;
     const uint8_t*         c_eligible;      /* set before the job                                                                  */
+    ftz_pstat_t*           pstat;           /* SUB-PROBE: NULL unless FTZ_FLAG_PROBE; per candidate, each item writes only its own index                  */
 } ftz_cycle_t;
 
 static int ftz_deadline_passed(const ftz_cycle_t* c)
@@ -385,6 +394,14 @@ static void ftz_tier_a_item(void* vctx, int i, int worker)
     ftx_decode_status_t status;
     memset(&status, 0, sizeof(status));
     c->ok_a[i] = ftx_decode_candidate_tier_a(c->wf, &c->cands[i], c->ldpc_iterations, &c->msgs[i], &status) ? 1u : 0u;
+    if (c->pstat != NULL)                                  /* SUB-PROBE: read-only on the decode */
+    {
+        ftz_pstat_t* p = &c->pstat[i];
+        if (c->ok_a[i])                                   p->a_kind = 1;
+        else if (status.ldpc_errors > 0)                  { p->a_kind = 2; p->a_err = status.ldpc_errors; }
+        else if (status.crc_extracted != status.crc_calculated) p->a_kind = 3;
+        else                                              { p->a_kind = 4; p->a_err = -1; }     /* ldpc_errors 0 and no CRC computed: the degenerate-LLR guard */
+    }
 }
 
 /* Tier B for one eligible candidate, on the worker's own coherent context: estimate, coherent LLRs (multi-set on), BP, CRC; then,
@@ -404,6 +421,11 @@ static void ftz_tier_b_item(void* vctx, int i, int worker)
     const double f0 = (double)c->pos_freq[i], t0 = (double)c->pos_dt[i];
     cf_process_one(ctx, c->pcm_full, f0, t0, FT8_COH_FLAG_SKIP_F1B, &r, NULL, &wi);
     c->b_state[i] = FTZ_B_NO_CRC;
+    if (c->pstat != NULL)                                  /* SUB-PROBE */
+    {
+        ftz_pstat_t* p = &c->pstat[i];
+        p->b_c3 = r.c3_ran ? 1 : 0; p->b_rc = r.bp_rc; p->b_crc = r.bp_crc_ok ? 1 : 0; p->b_err = r.bp_ldpc_errors;
+    }
     c->b_edge[i]  = r.edge ? 1u : 0u;
     c->b_freq[i]  = (float)(f0 + r.est_df_hz);
     c->b_dt[i]    = (float)(t0 + r.est_dt_s);
@@ -434,6 +456,7 @@ static void ftz_cq_item(void* vctx, int i, int worker)
     memset(&status, 0, sizeof(status));
     c->c_attempted[i] = 1u;
     c->c_ok[i] = ftx_decode_candidate_cq_ap(c->wf, &c->cands[i], c->ldpc_iterations, c->cq_force, &c->c_msgs[i], &status) ? 1u : 0u;
+    if (c->pstat != NULL) { c->pstat[i].cq_ran = 1; c->pstat[i].cq_err = status.ldpc_errors; }   /* SUB-PROBE */
 }
 
 /* ── Ordering ─────────────────────────────────────────────────────────────── */
@@ -535,6 +558,92 @@ static void ftz_h12_apply(const ftz_h12_t* a, int delta)
     {
         g_h12_unresolved_by_code[c] += delta;
     }
+}
+
+/* ── SUB-PROBE helpers (test-only; never called without FTZ_FLAG_PROBE) ─────────────────────────────────────────────────────────────────────────────────── */
+
+/* Appends a row; returns its index, or -1 (and sets overflow) when the caller's buffer is full. Nothing is ever written past rows[cap - 1]. */
+static int ftz_probe_add(ftz_probe_t* pb, const ftz_probe_row_t* row)
+{
+    if (pb == NULL) return -1;
+    if (pb->n < 0 || pb->n >= pb->cap) { pb->overflow = 1; return -1; }
+    pb->rows[pb->n] = *row;
+    return pb->n++;
+}
+
+/* The row at index ix, or NULL when ix is not a row written in this call. */
+static ftz_probe_row_t* ftz_probe_at(ftz_probe_t* pb, int ix)
+{
+    return (pb != NULL && ix >= 0 && ix < pb->n && ix < pb->cap) ? &pb->rows[ix] : NULL;
+}
+
+/* The power in a signal's footprint on a waterfall: the 8 tone columns x 79 symbols, summed over the waterfall cells nearest to the signal's frequency and time
+ * (the frequency and time subdivision the candidate search would use for the position). Cells outside the waterfall are skipped. Returns the summed linear power
+ * (the waterfall's uint8 is 2 dB + 240, so WF_ELEM_MAG is dB), or -1 when fewer than half of the 632 cells are inside. Reads the waterfall only. */
+static double ftz_probe_footprint_power(const ftx_waterfall_t* wf, float min_bin, float symbol_period, float freq_hz, float dt_s)
+{
+    if (wf == NULL || wf->mag == NULL || wf->num_blocks <= 0 || wf->num_bins <= 0 || wf->time_osr <= 0 || wf->freq_osr <= 0 || !(symbol_period > 0.0f)) return -1.0;
+    if (!isfinite(freq_hz) || !isfinite(dt_s)) return -1.0;
+    const float y  = freq_hz * symbol_period - min_bin;
+    int   fb = (int)floorf(y);
+    int   fs = (int)lroundf((y - (float)fb) * (float)wf->freq_osr);
+    if (fs >= wf->freq_osr) { fs -= wf->freq_osr; fb++; }
+    double sum = 0.0;
+    int cells = 0;
+    for (int sym = 0; sym < FT8_NN; ++sym)
+    {
+        const float x  = dt_s / symbol_period + (float)sym;
+        int   tb = (int)floorf(x);
+        int   ts = (int)lroundf((x - (float)tb) * (float)wf->time_osr);
+        if (ts >= wf->time_osr) { ts -= wf->time_osr; tb++; }
+        if (tb < 0 || tb >= wf->num_blocks) continue;
+        for (int tone = 0; tone < 8; ++tone)
+        {
+            const int bin = fb + tone;
+            if (bin < 0 || bin >= wf->num_bins) continue;
+            const WF_ELEM_T v = wf->mag[(size_t)tb * (size_t)wf->block_stride + (size_t)((ts * wf->freq_osr + fs) * wf->num_bins + bin)];
+            sum += pow(10.0, (double)WF_ELEM_MAG(v) / 10.0);
+            ++cells;
+        }
+    }
+    return cells * 2 >= FT8_NN * 8 ? sum : -1.0;
+}
+
+#define FTZ_PO_PENDING   (-1)   /* internal: a hit that has not reached an outcome yet */
+#define FTZ_PROBE_LOW_CAP 400   /* the LOW search's cap */
+#define FTZ_PROBE_NO_SUPP (-999.0f)
+
+/* Fills one CAND row's stage columns and its exclusive outcome. po / pg: what the publish loop decided for a candidate that produced a hit (0 = not a hit). */
+static void ftz_probe_finish_cand(ftz_probe_row_t* row, int round, const ftz_pstat_t* ps, int ok_a, int b_el, int b_st, int c_at, int c_ok, int no_tier_b, int po, int pg)
+{
+    row->a_code = ps->a_kind;                                   /* 0 not run, 1 ok, 2 BP, 3 CRC, 4 degenerate */
+    row->a_unsat = ps->a_kind == 2 || ps->a_kind == 4 ? ps->a_err : -1;
+    row->cq_code = c_at ? (c_ok ? 2 : 1) : 0;
+    row->cq_unsat = c_at && !c_ok ? ps->cq_err : -1;
+    int bcode = 0, bunsat = -1;
+    if (b_el)
+    {
+        if (b_st == FTZ_B_SKIPPED)       bcode = 1;
+        else if (b_st == FTZ_B_NONE)     bcode = 0;
+        else if (!ps->b_c3)              bcode = 2;
+        else if (ps->b_rc != 0)          { bcode = 3; bunsat = -1; }
+        else if (ps->b_crc)              bcode = 6;
+        else if (ps->b_err > 0)          { bcode = 4; bunsat = ps->b_err; }
+        else                             bcode = 5;
+    }
+    row->b_code = bcode; row->b_unsat = bunsat;
+
+    int outcome = FTZ_PO_UNSET, gate = FTZ_PG_NONE;
+    if (po > 0) { outcome = po; gate = pg; }
+    else if (b_st == FTZ_B_GATED_OUT) { outcome = FTZ_PO_GATE; gate = round == 0 ? FTZ_PG_F1B : FTZ_PG_F1B_RESIDUAL; }   /* CRC-valid, new payload, not accepted */
+    else if (b_st == FTZ_B_KNOWN)     outcome = FTZ_PO_DUP;                                                              /* CRC-valid, a payload tier A produced */
+    else if (ok_a || c_ok)            outcome = FTZ_PO_DUP;                                                              /* a decode that never reached the publish step */
+    else if (c_at)                    outcome = FTZ_PO_CQ_FAIL;
+    else if (b_el && b_st == FTZ_B_SKIPPED) outcome = FTZ_PO_B_SKIP;
+    else if (b_el && b_st == FTZ_B_NO_CRC)  outcome = bcode == 2 ? FTZ_PO_B_NOC3 : (bcode == 5 ? FTZ_PO_B_CRC : FTZ_PO_B_BP);
+    else if (!b_el && !no_tier_b)     outcome = FTZ_PO_B_NE;
+    else                              outcome = ps->a_kind == 3 ? FTZ_PO_A_CRC : FTZ_PO_A_BP;                           /* tier B off: tier A's failure is the last stage */
+    row->outcome = outcome; row->gate = gate;
 }
 
 /* ── SNR (the primary pass's formula, unchanged) ──────────────────────────── */
@@ -732,6 +841,12 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     const int no_tier_b    = (params->flags & FTZ_FLAG_NO_TIER_B) != 0;
     const int skip_fits    = (params->flags & FTZ_FLAG_SKIP_FITS) != 0;
     const int inject_round = params->inject_error_round;
+    /* SUB-PROBE: the caller's buffer, only with the flag; reset here so even an early return leaves n = 0. */
+    ftz_probe_t* pb = NULL;
+    if ((params->flags & FTZ_FLAG_PROBE) != 0 && (size_t)params->struct_size >= sizeof(ftz_params_t) && params->probe != NULL
+        && params->probe->rows != NULL && params->probe->cap > 0 && params->probe->struct_size >= (int32_t)sizeof(ftz_probe_t))
+        pb = params->probe;
+    if (pb != NULL) { pb->n = 0; pb->overflow = 0; }
     ftz_round0_fn r0cb     = params->round0_cb;
     void*         r0ctx    = params->round0_ctx;
     float*        out_resid = params->out_residual;
@@ -840,6 +955,15 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     float*           xa_im  = NULL;
     ftz_fit_job_t*   fitjob = NULL;
     const float*     full0  = NULL;
+    /* SUB-PROBE state: allocated only with the flag (NULL otherwise: no memory, no work). */
+    int32_t*         pr_row  = NULL;   /* the probe row of each candidate of the round              */
+    int32_t*         pr_out  = NULL;   /* the publish loop's outcome for each candidate (0 = none, FTZ_PO_PENDING = a hit not yet decided) */
+    int32_t*         pr_gate = NULL;
+    ftz_pstat_t*     pstat   = NULL;
+    int32_t*         res_cidx = NULL;  /* the candidate index of each published result (this round)  */
+    int32_t*         sub_rows = NULL;  /* the SUB rows of the round and the footprint power before its subtraction */
+    double*          sub_before = NULL;
+    ftx_candidate_t* low_buf = NULL;
     int              resid_valid = 0;     /* resid holds the original minus every subtraction of the rounds that completed */
     if (cands == NULL || msgs == NULL || cmsgs == NULL || ok_a == NULL || b_el == NULL || b_st == NULL || b_ed == NULL || c_el == NULL
         || c_at == NULL || c_ok == NULL || pos_f == NULL || pos_t == NULL || b_fr == NULL || b_dt == NULL || b_snr == NULL || b_pl == NULL
@@ -849,6 +973,23 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     {
         rc = FTZ_ERR_NOMEM;
         goto done;
+    }
+
+    if (pb != NULL)
+    {
+        pr_row  = (int32_t*)calloc((size_t)alloc_c, sizeof(int32_t));
+        pr_out  = (int32_t*)calloc((size_t)alloc_c, sizeof(int32_t));
+        pr_gate = (int32_t*)calloc((size_t)alloc_c, sizeof(int32_t));
+        pstat   = (ftz_pstat_t*)calloc((size_t)alloc_c, sizeof(ftz_pstat_t));
+        res_cidx = (int32_t*)calloc((size_t)rcap, sizeof(int32_t));
+        sub_rows = (int32_t*)calloc((size_t)rcap, sizeof(int32_t));
+        sub_before = (double*)calloc((size_t)rcap, sizeof(double));
+        low_buf = (ftx_candidate_t*)calloc((size_t)FTZ_PROBE_LOW_CAP, sizeof(ftx_candidate_t));
+        if (pr_row == NULL || pr_out == NULL || pr_gate == NULL || pstat == NULL || res_cidx == NULL || sub_rows == NULL || sub_before == NULL || low_buf == NULL)
+        {
+            pb->overflow = 1;                      /* no memory for the probe: the cycle goes on without it (it never touches the decode) */
+            pb = NULL;
+        }
     }
 
     uint8_t cq_force[FTX_LDPC_N];
@@ -864,6 +1005,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         ftz_round_stats_t* rs = &st->rounds[round];
         int ncands;
         int n_sub_round = 0;
+        int n_sub_probe = 0;       /* SUB-PROBE: SUB rows written this round */
 
         if (round == 0)
         {
@@ -956,6 +1098,22 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                     for (int s = 0; s < FT8_EXPECTED_SAMPLES; ++s) resid[s] -= sh[s];
                     sub_hz[n_sub_round++] = (float)results[fit_ix[j0 + t]].freq_hz;
                     rs->n_subtracted++;
+                    if (pb != NULL)                                            /* SUB-PROBE: read-only; the footprint power BEFORE is read from the waterfall the round was searched on */
+                    {
+                        const FT8Result* sr = &results[fit_ix[j0 + t]];
+                        double e2 = 0.0;
+                        for (int s = 0; s < FT8_EXPECTED_SAMPLES; ++s) e2 += (double)sh[s] * (double)sh[s];
+                        ftz_probe_row_t row;
+                        memset(&row, 0, sizeof(row));
+                        row.kind = FTZ_PROBE_SUB; row.round = round; row.freq_hz = (float)sr->freq_hz; row.time_s = sr->dt;
+                        row.amp = (float)sqrt(2.0 * e2 / ((double)FT8_NN * (double)mon.block_size * 2.0)) ;
+                        row.supp_db = FTZ_PROBE_NO_SUPP;
+                        if (n_sub_probe < rcap)
+                        {
+                            sub_before[n_sub_probe] = ftz_probe_footprint_power(&mon.wf, mon.min_bin, mon.symbol_period, (float)sr->freq_hz, sr->dt);
+                            sub_rows[n_sub_probe++] = ftz_probe_add(pb, &row);
+                        }
+                    }
                 }
                 rs->sum_cpu_us += ftz_thread_cpu_us() - sc0;
                 if (inject_round == round && j0 == 0) { rc = FTZ_ERR_NOMEM; goto done; }    /* TEST HOOK (step 2e, D5): a non-fault error after the first chunk */
@@ -978,6 +1136,16 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             rs->spec_cpu_us  = ftz_thread_cpu_us() - c0;
             st->spectrogram_wall_us += rs->spec_wall_us;
             st->spectrogram_cpu_us  += rs->spec_cpu_us;
+            if (pb != NULL)                                                    /* SUB-PROBE: suppression = footprint power before / after, on the round's input waterfall and the residual's */
+            {
+                for (int q = 0; q < n_sub_probe; ++q)
+                {
+                    ftz_probe_row_t* sr = ftz_probe_at(pb, sub_rows[q]);
+                    if (sr == NULL || !(sub_before[q] > 0.0)) continue;
+                    const double after = ftz_probe_footprint_power(&mon.wf, mon.min_bin, mon.symbol_period, sr->freq_hz, sr->time_s);
+                    if (after > 0.0) sr->supp_db = (float)(10.0 * log10(sub_before[q] / after));
+                }
+            }
 
             /* ── S3 (3): candidates on the residual (floor 10, cap 200), then only those near a signal subtracted in THIS round ── */
             w0 = ftz_wall_us(); c0 = ftz_thread_cpu_us();
@@ -985,12 +1153,44 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             if (ncands < 0) ncands = 0;
             if (ncands > res_cap) ncands = res_cap;
             rs->n_found = ncands;
+            if (pb != NULL)                                                    /* SUB-PROBE: the LOW search, one extra call on the same waterfall; its result is only recorded */
+            {
+                const int nlow = ftx_find_candidates(&mon.wf, FTZ_PROBE_LOW_CAP, low_buf, 0);
+                for (int q = 0; q < nlow && q < FTZ_PROBE_LOW_CAP; ++q)
+                {
+                    const ftx_candidate_t* lc = &low_buf[q];
+                    int in_normal = 0;
+                    for (int i = 0; i < ncands; ++i)
+                        if (cands[i].freq_offset == lc->freq_offset && cands[i].time_offset == lc->time_offset && cands[i].freq_sub == lc->freq_sub && cands[i].time_sub == lc->time_sub) { in_normal = 1; break; }
+                    ftz_probe_row_t row;
+                    memset(&row, 0, sizeof(row));
+                    row.kind = FTZ_PROBE_LOW; row.round = round;
+                    row.freq_hz = (mon.min_bin + lc->freq_offset + (float)lc->freq_sub / mon.wf.freq_osr) / mon.symbol_period;
+                    row.time_s  = (lc->time_offset + (float)lc->time_sub / mon.wf.time_osr) * mon.symbol_period;
+                    row.score   = lc->score;
+                    row.kept    = in_normal ? 0 : (lc->score < res_min_sc ? 1 : 2);
+                    (void)ftz_probe_add(pb, &row);
+                }
+            }
             int kept = 0;
             for (int i = 0; i < ncands; ++i)
             {
                 const ftx_candidate_t* cd = &cands[i];
                 const float f = (mon.min_bin + cd->freq_offset + (float)cd->freq_sub / mon.wf.freq_osr) / mon.symbol_period;
-                if (!ftz_patch_keep(f, sub_hz, n_sub_round)) continue;
+                const int keep_it = ftz_patch_keep(f, sub_hz, n_sub_round);
+                if (pb != NULL)                                                /* SUB-PROBE: a CAND row for EVERY candidate returned, before any filter */
+                {
+                    ftz_probe_row_t row;
+                    memset(&row, 0, sizeof(row));
+                    row.kind = FTZ_PROBE_CAND; row.round = round; row.freq_hz = f;
+                    row.time_s = (cd->time_offset + (float)cd->time_sub / mon.wf.time_osr) * mon.symbol_period;
+                    row.score = cd->score; row.kept = keep_it ? 1 : 0;
+                    row.outcome = keep_it ? FTZ_PO_UNSET : FTZ_PO_NOT_KEPT_PATCH;
+                    row.a_unsat = row.b_unsat = row.cq_unsat = -1;
+                    const int rix = ftz_probe_add(pb, &row);
+                    if (keep_it) pr_row[kept] = rix;                           /* kept <= i: the entry is not read again */
+                }
+                if (!keep_it) continue;
                 if (kept != i) cands[kept] = cands[i];
                 kept++;
             }
@@ -1008,6 +1208,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             memset(ok_a, 0, (size_t)alloc_c); memset(b_el, 0, (size_t)alloc_c); memset(b_st, 0, (size_t)alloc_c); memset(b_ed, 0, (size_t)alloc_c);
             memset(c_el, 0, (size_t)alloc_c); memset(c_at, 0, (size_t)alloc_c); memset(c_ok, 0, (size_t)alloc_c);
             memset(drop, 0, (size_t)alloc_c * 2);
+            if (pb != NULL) { memset(pr_out, 0, (size_t)alloc_c * sizeof(int32_t)); memset(pr_gate, 0, (size_t)alloc_c * sizeof(int32_t)); memset(pstat, 0, (size_t)alloc_c * sizeof(ftz_pstat_t)); }
         }
         st->n_candidates += ncands;
         for (int i = 0; i < ncands; ++i)
@@ -1015,6 +1216,15 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             const ftx_candidate_t* cand = &cands[i];
             pos_f[i] = (mon.min_bin + cand->freq_offset + (float)cand->freq_sub / mon.wf.freq_osr) / mon.symbol_period;
             pos_t[i] = (cand->time_offset + (float)cand->time_sub / mon.wf.time_osr) * mon.symbol_period;
+            if (pb != NULL && round == 0)                                      /* SUB-PROBE: round 0's CAND rows (every candidate is kept) */
+            {
+                ftz_probe_row_t row;
+                memset(&row, 0, sizeof(row));
+                row.kind = FTZ_PROBE_CAND; row.round = 0; row.freq_hz = pos_f[i]; row.time_s = pos_t[i];
+                row.score = cand->score; row.kept = 1; row.outcome = FTZ_PO_UNSET;
+                row.a_unsat = row.b_unsat = row.cq_unsat = -1;
+                pr_row[i] = ftz_probe_add(pb, &row);
+            }
         }
 
         const int64_t dec_w0 = ftz_wall_us();
@@ -1027,6 +1237,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         cyc.b_eligible = b_el; cyc.b_state = b_st; cyc.b_edge = b_ed; cyc.b_payload = b_pl; cyc.b_freq = b_fr; cyc.b_dt = b_dt; cyc.b_snr = b_snr;
         cyc.known = known;
         cyc.c_attempted = c_at; cyc.c_ok = c_ok; cyc.c_msgs = cmsgs; cyc.c_eligible = c_el;
+        cyc.pstat = pstat;                                                     /* NULL unless FTZ_FLAG_PROBE */
         if (round > 0)
         {
             for (int s = 0; s < nseen; ++s) memcpy(known[cyc.n_known++], seen_payloads[s], FTZ_PAYLOAD_BYTES);   /* everything already found is "known" to tier B */
@@ -1194,6 +1405,9 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             sel_sc[k] = (hits[k].index >= 0 && hits[k].index < ncands) ? (int32_t)cands[hits[k].index].score : 0;
         }
         (void)ftz_dedup_select(round, nhits, sel_pl, sel_sc, drop);
+        if (pb != NULL)                                                        /* SUB-PROBE: every hit is pending until the loop decides; a dropped hit is a duplicate */
+            for (int k = 0; k < nhits; ++k)
+                if (hits[k].index >= 0 && hits[k].index < ncands) pr_out[hits[k].index] = drop[k] ? FTZ_PO_DUP : FTZ_PO_PENDING;
 
         const int nres_before = nres;
         for (int k = 0; k < nhits; ++k)
@@ -1210,7 +1424,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                 if (round == 0 ? !memcmp(seen_payloads[s], hits[k].payload, FTZ_PAYLOAD_BYTES) : ftz_payload_same_qso(seen_payloads[s], hits[k].payload))
                 { dup = true; break; }
             }
-            if (dup) continue;
+            if (dup) { if (pb != NULL) pr_out[i] = FTZ_PO_DUP; continue; }
 
             ftx_message_t msg;
             memset(&msg, 0, sizeof(msg));
@@ -1219,7 +1433,10 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             tls_h12_lookup_performed = false;
             tls_h12_suppressed       = false;
             if (ftx_message_decode(&msg, &s_hash_if, text) != FTX_MESSAGE_RC_OK)
+            {
+                if (pb != NULL) { pr_out[i] = FTZ_PO_GATE; pr_gate[i] = FTZ_PG_UNPACK; }
                 continue;                              /* e.g. a Type-4 hash not yet known: not a decode */
+            }
             text[FTX_MAX_MESSAGE_LENGTH] = '\0';
 
             /* Past this point the payload unpacked: remember it, then de-duplicate by text (two payloads can render alike; a text published earlier in the cycle is not published again). */
@@ -1237,12 +1454,17 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                     if (s >= nres_before && ftz_text_replace_wins(new_score, res_score[s])) replace_slot = s;
                     break;
                 }
-            if (text_dup && replace_slot < 0) continue;
+            if (text_dup && replace_slot < 0) { if (pb != NULL) pr_out[i] = FTZ_PO_DUP; continue; }
 
-            if (replace_slot < 0 && nres >= rcap) { st->abandoned = 1; break; }   /* the caller's array is full: stop, flag it, keep what is there */
+            if (replace_slot < 0 && nres >= rcap)
+            {
+                if (pb != NULL) { pr_out[i] = FTZ_PO_GATE; pr_gate[i] = FTZ_PG_CAPACITY; }
+                st->abandoned = 1; break;              /* the caller's array is full: stop, flag it, keep what is there */
+            }
             const int slot = replace_slot >= 0 ? replace_slot : nres;
             if (replace_slot >= 0)
             {
+                if (pb != NULL) pr_out[res_cidx[slot]] = FTZ_PO_DUP;           /* SUB-PROBE: the replaced result's candidate is now the duplicate */
                 ftz_h12_apply(&res_h12[slot], -1);
                 if (res_tier[slot] == FTZ_TIER_B) { st->n_b_published--; if (res_ungated[slot]) { st->n_ungated--; rs->n_ungated--; } }
                 else if (res_tier[slot] == FTZ_TIER_CQ) st->n_cq_decodes--;
@@ -1277,6 +1499,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             memcpy(texts[slot], text, sizeof(texts[slot]));
             memcpy(res_pl[slot], hits[k].payload, FTZ_PAYLOAD_BYTES);
             reenc[slot] = (uint8_t)ftz_text_reencodable(text);
+            if (pb != NULL) { pr_out[i] = hits[k].tier == FTZ_TIER_B ? FTZ_PO_B_OK : (hits[k].tier == FTZ_TIER_CQ ? FTZ_PO_CQ_OK : FTZ_PO_A_OK); res_cidx[slot] = i; }
             res_score[slot]   = new_score;
             res_tier[slot]    = (uint8_t)hits[k].tier;
             res_ungated[slot] = (uint8_t)(hits[k].tier == FTZ_TIER_B && hits[k].ungated ? 1 : 0);
@@ -1286,6 +1509,17 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             {
                 nres++;
                 st->n_results = nres;                          /* visible even if a later step faults */
+            }
+        }
+        if (pb != NULL)                                                        /* SUB-PROBE: one exclusive outcome and the stage columns for every kept candidate of the round */
+        {
+            for (int i = 0; i < ncands; ++i)
+            {
+                ftz_probe_row_t* pr = ftz_probe_at(pb, pr_row[i]);
+                if (pr == NULL) continue;
+                int po = pr_out[i], pg = pr_gate[i];
+                if (po == FTZ_PO_PENDING) { po = FTZ_PO_GATE; pg = FTZ_PG_CAPACITY; }   /* a hit the loop never reached: the results array filled first */
+                ftz_probe_finish_cand(pr, round, &pstat[i], ok_a[i], b_el[i], b_st[i], c_at[i], c_ok[i], no_tier_b, po, pg);
             }
         }
         st->n_results         = nres;
@@ -1314,6 +1548,7 @@ done:
     free(cands); free(msgs); free(cmsgs); free(ok_a); free(b_el); free(b_st); free(b_ed); free(c_el); free(c_at); free(c_ok);
     free(pos_f); free(pos_t); free(b_fr); free(b_dt); free(b_snr); free(b_pl); free(known); free(hits); free(drop); free(texts); free(seen_payloads);
     free(res_pl); free(reenc); free(res_score); free(res_tier); free(res_ungated); free(res_h12); free(sel_pl); free(sel_sc); free(fit_ix); free(sub_hz); free(fail_hz);
+    free(pr_row); free(pr_out); free(pr_gate); free(pstat); free(res_cidx); free(sub_rows); free(sub_before); free(low_buf);
     free(resid); free(xa_re); free(xa_im);
     if (fitjob != NULL) { free(fitjob->shat); free(fitjob); }
     free(pcm_pad);

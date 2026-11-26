@@ -1,4 +1,15 @@
-=== CURRENT: the lean engine's duplicate rule: of same-payload (or same-text) hits of one round the highest candidate sync score is published (FT8_SHIM_VERSION 20260079) ===
+=== CURRENT: SUB-PROBE, the lean engine's test-only diagnostic probe (FT8_SHIM_VERSION 20260080) ===
+
+Built 2026-11-26 on feat/sub-probe (off main c3ba377c), local, not pushed. QA task dev-tasks/2026-11-26-sub-probe-lean-diagnostic.md (spec docs/decoder-rebuild/spec-sub-probe.md).
+What changed (native). native/ftz_decoder/ftz_decoder.h / .c: ftz_params_t version 6 (a probe pointer), FTZ_FLAG_PROBE, ftz_probe_t and ftz_probe_row_t (64 bytes: SUB, CAND and LOW rows,
+  numbers only); the cycle fills the caller's bounds-checked buffer (overflow flag, never a write past the end), read-only on the decode. Flag off: nothing allocated or computed.
+  No classic change, no ABI change to any existing export.
+Checked here: published output byte-identical flag off vs on on the three synth-qso WAVs and their mix at 1, 2, 4, 8 and 16 threads; ASan + UBSan (GCC, WSL Debian), 10,000 fuzz runs of
+  which 7,123 with the flag on (tiny and full buffers, 726 overflows), no report.
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    7f2f72257e7212ed96f3b1058551b43eeccf774caae5749ba0e2a4c923601c69
+
+=== Previous: the lean engine's duplicate rule (FT8_SHIM_VERSION 20260079) ===
 
 Built 2026-11-26 on feat/dr3-lean-default (off main 546ad125), local, not pushed. QA task dev-tasks/2026-11-26-dr3-lean-default-engine-and-duplicate-fix.md, item D3.
 What changed (native). native/ftz_decoder/ftz_decoder.c: ftz_dedup_select (round 0: the same payload; a residual round: the RR73-aware same transmission) keeps the hit with the HIGHEST ftx_candidate_t.score, equal scores
