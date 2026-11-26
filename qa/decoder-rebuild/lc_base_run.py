@@ -66,6 +66,10 @@ def main():
     sl, arm, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
     tag = sys.argv[sys.argv.index("--tag") + 1] if "--tag" in sys.argv else "run"
     assert sl in SLICES and arm in ARMS
+    global BIN, PIN
+    if "--bin" in sys.argv:                                  # a later build (DR-3 replay): --bin <harness dir> --pin <libft8.dll sha256>
+        BIN = sys.argv[sys.argv.index("--bin") + 1]
+        PIN = sys.argv[sys.argv.index("--pin") + 1]
     night, folder, selsrc, start = SLICES[sl]
     assert sha(BIN + r"\libft8.dll") == PIN, "libft8.dll is not the pin"
     b = busy()
