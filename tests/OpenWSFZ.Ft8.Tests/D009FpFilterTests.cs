@@ -45,7 +45,7 @@ public sealed class D009FpFilterTests
     /// allowing precise control over the message strings returned to <see cref="Ft8Decoder"/>
     /// without loading the native DLL.
     /// </summary>
-    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : IFt8NativeInterop
+    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 

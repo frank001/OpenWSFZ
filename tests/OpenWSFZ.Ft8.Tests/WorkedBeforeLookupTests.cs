@@ -18,7 +18,7 @@ namespace OpenWSFZ.Ft8.Tests;
 /// </summary>
 public sealed class WorkedBeforeLookupTests
 {
-    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : IFt8NativeInterop
+    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 

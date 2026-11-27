@@ -50,6 +50,8 @@ public sealed class LeanEngineXcRoundManagedTests
     /// <summary>A scripted lean interop: the cycle's results per call, and what the extra round returns (or throws). Every classic member throws.</summary>
     private sealed class ScriptedLean : IFt8NativeInterop
     {
+        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => throw new NotSupportedException("Not modelled by this fake.");
+        public void LeanShutdown() { }
         private readonly Queue<(Ft8NativeResult[] Round0, Ft8NativeResult[] Later, bool Residual)> _cycles = new();
         public List<LeanCycleParams> Requests { get; } = [];
         public List<XcCall> XcCalls { get; } = [];

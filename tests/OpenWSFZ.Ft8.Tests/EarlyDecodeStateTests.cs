@@ -23,7 +23,7 @@ public sealed class EarlyDecodeStateTests
 {
     // ── Fake interop that records the order of every call ─────────────────────
 
-    private sealed class RecordingInterop : IFt8NativeInterop
+    private sealed class RecordingInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         public readonly List<string> Events = [];
         public Func<float[], Ft8NativeResult[]> OnDecodeAll = _ => [];

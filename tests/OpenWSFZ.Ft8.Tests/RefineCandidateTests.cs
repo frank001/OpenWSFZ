@@ -24,7 +24,7 @@ public sealed class RefineCandidateTests
     // ── Test double ───────────────────────────────────────────────────────────
 
     /// <summary>Capturing fake that records the last <see cref="RefineCandidate"/> call.</summary>
-    private sealed class CapturingInterop : IFt8NativeInterop
+    private sealed class CapturingInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         public bool    RefineCandidateCalled     { get; private set; }
         public float[]? LastPcm                  { get; private set; }

@@ -230,38 +230,28 @@ internal interface IFt8NativeInterop
 
     /// <summary>
     /// DR-2 step 2a: one lean-engine cycle (<c>ftz_decode_cycle</c>). A native error is reported in the returned statistics, never thrown.
-    /// Default: not supported (a fake that does not model the lean engine must not be asked to decode with it).
+    /// No default body: every implementer says what it means (a class that implements this member with a different parameter list fails to compile instead of silently
+    /// landing on a default).
     /// </summary>
-    LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => throw new NotSupportedException("This interop does not model the lean engine.");
+    LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request);
 
     /// <summary>
     /// DR-2 step 2d: as <see cref="DecodeLeanCycle(float[], LeanCycleParams)"/>, and <paramref name="onRound0"/> (may be null) is called once, on the decoding thread,
     /// right after round 0 is unpacked and before round 1 starts, with a COPY of round 0's results; it must return quickly and must not throw. The default calls
     /// the plain overload and then <paramref name="onRound0"/> with the results tagged round 0 (a fake that does not model the hand-off still delivers batch 1).
+    /// No default body.
     /// </summary>
-    LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0)
-    {
-        var outcome = DecodeLeanCycle(pcm, request);
-        if (onRound0 is not null)
-        {
-            var idx = Enumerable.Range(0, outcome.Results.Length).Where(i => i >= outcome.Rounds.Length || outcome.Rounds[i] == 0).ToArray();
-            onRound0(new LeanRound0(
-                idx.Select(i => outcome.Results[i]).ToArray(),
-                idx.Select(i => i < outcome.Tiers.Length ? outcome.Tiers[i] : LeanTier.A).ToArray()));
-        }
-        return outcome;
-    }
+    LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0);
 
     /// <summary>
     /// XC-ROUND (shim 20260082): one more subtract-and-retry round after the cross-cycle stage (<c>ftz_xc_round</c>): fits and subtracts <paramref name="detections"/> on
-    /// <paramref name="residual"/>, searches and decodes only near them, and returns the new results (round 4). Default: an empty outcome (a fake that does not model the
-    /// round finds nothing in it, so no batch 4 is ever published from it).
+    /// <paramref name="residual"/>, searches and decodes only near them, and returns the new results (round 4). No default body: the empty default of the past let a changed
+    /// signature silently disable the round (twice on 2026-11-27), so a missed implementation is now a compile error.
     /// </summary>
-    LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections)
-        => new([], LeanCycleStats.None());
+    LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections);
 
-    /// <summary>DR-2 step 2a: frees the lean engine's native worker pool at decoder dispose. Default: no-op.</summary>
-    void LeanShutdown() { }
+    /// <summary>DR-2 step 2a: frees the lean engine's native worker pool at decoder dispose. No default body.</summary>
+    void LeanShutdown();
 
     /// <summary>
     /// sub-feas-speed-redesign A3: frees the native fit-workspace pool at decoder dispose. Default: no-op.
