@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260079;
+    private const int ExpectedShimVersion = 20260080;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -1051,7 +1051,8 @@ internal static class Ft8LibInterop
                           | (request.ResidualUngated ? FtzParamsWire.FlagResidualUngated : 0)
                           | (request.ResidualCandidates ? FtzParamsWire.FlagResidualCandidates : 0)
                           | (request.NoTierB ? FtzParamsWire.FlagNoTierB : 0)
-                          | (request.SkipFits ? FtzParamsWire.FlagSkipFits : 0),
+                          | (request.SkipFits ? FtzParamsWire.FlagSkipFits : 0)
+                          | (request.Probe ? FtzParamsWire.FlagProbe : 0),
             BudgetMs      = request.BudgetMs.GetValueOrDefault(),
             MaxRounds     = request.MaxRounds,
             ExpireRound   = request.ExpireRound,
@@ -1089,6 +1090,19 @@ internal static class Ft8LibInterop
             parameters.OutResidual = residualPin.AddrOfPinnedObject();
         }
 
+        // SUB-PROBE (test-only): the caller-sized row buffer, pinned for the call; read back after it. Never allocated unless asked.
+        FtzProbeRowWire[]? probeRows = null;
+        GCHandle probeRowsPin = default, probePin = default;
+        FtzProbeWire probeWire = default;
+        if (request.Probe)
+        {
+            probeRows = new FtzProbeRowWire[Math.Max(1, request.ProbeCapacity)];
+            probeRowsPin = GCHandle.Alloc(probeRows, GCHandleType.Pinned);
+            probeWire = new FtzProbeWire { StructSize = Marshal.SizeOf<FtzProbeWire>(), Cap = request.ProbeCapacity, Rows = probeRowsPin.AddrOfPinnedObject() };
+            probePin = GCHandle.Alloc(probeWire, GCHandleType.Pinned);
+            parameters.Probe = probePin.AddrOfPinnedObject();
+        }
+
         var stats = new FtzStatsWire { StructSize = Marshal.SizeOf<FtzStatsWire>() };
         var wire  = new Ft8NativeResultWire[MaxResults];
         int rc;
@@ -1100,6 +1114,24 @@ internal static class Ft8LibInterop
         {
             if (residualPin.IsAllocated) residualPin.Free();
             GC.KeepAlive(callback);
+        }
+        LeanProbeRow[] probeOut = [];
+        bool probeOverflow = false;
+        if (request.Probe)
+        {
+            try
+            {
+                var back = (FtzProbeWire)probePin.Target!;                 // the native side wrote n and overflow into the pinned copy
+                int n = Math.Clamp(back.N, 0, Math.Min(request.ProbeCapacity, probeRows!.Length));
+                probeOut = new LeanProbeRow[n];
+                for (int i = 0; i < n; i++) probeOut[i] = LeanProbeRow.From(in probeRows[i]);
+                probeOverflow = back.Overflow != 0;
+            }
+            finally
+            {
+                probePin.Free();
+                probeRowsPin.Free();
+            }
         }
         stats.Error = rc < 0 ? rc : stats.Error;
 
@@ -1122,6 +1154,8 @@ internal static class Ft8LibInterop
             Tiers = count == 0 ? [] : tiers[..count],
             Rounds = count == 0 ? [] : rounds[..count],
             Residual = stats.HasResidual != 0 ? residual : null,
+            ProbeRows = probeOut,
+            ProbeOverflow = probeOverflow,
         };
     }
 

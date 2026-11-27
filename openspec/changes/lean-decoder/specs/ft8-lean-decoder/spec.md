@@ -277,3 +277,23 @@ The Settings page's Advanced Decoder Settings SHALL offer `decoder.threads` (an 
 
 - **WHEN** two same-payload hits have equal scores
 - **THEN** the one at the lower frequency SHALL be published, as before
+
+
+### Requirement: A test-only probe reports why the lean engine misses a weak signal beside a strong one, without changing what it publishes
+
+With the native flag `FTZ_FLAG_PROBE` set (by the replay harness only; the daemon SHALL NOT set it) and a caller-supplied probe buffer, the lean cycle SHALL fill the buffer with numbers only (no message text, no payload): a `SUB` row for every signal subtracted (round, frequency, time, the fit's amplitude, and the suppression in dB of the signal's footprint of 8 tone columns by 79 symbols between the waterfall of the round's input and the waterfall of the residual), a `CAND` row for every candidate the search returned in every round (frequency, time, sync score, whether the round's patch filter kept it, one exclusive outcome code and the stage columns), and, in rounds 1 to 3, `LOW` rows from one extra search of the residual with floor 0 and cap 400 that is never decoded. The buffer SHALL be bounds-checked: a row that does not fit sets an overflow flag and is dropped. With the flag off nothing SHALL be allocated or computed, and with it on the published decodes SHALL be byte-identical at every thread count.
+
+#### Scenario: The flag changes nothing that is published
+
+- **WHEN** a cycle is decoded with and without the flag on the same audio and hash state
+- **THEN** the results, tiers and rounds SHALL be identical, at 1, 2, 4, 8 and 16 threads
+
+#### Scenario: A strong and a weak signal 10 Hz apart
+
+- **WHEN** the probe is on
+- **THEN** there SHALL be one `SUB` row for the strong signal with suppression above 0 dB, and a `CAND` row near the weak one
+
+#### Scenario: A buffer that is too small
+
+- **WHEN** the probe buffer holds fewer rows than the cycle produces
+- **THEN** the rows that fit SHALL be returned, the overflow flag SHALL be set, and nothing SHALL be written past the end

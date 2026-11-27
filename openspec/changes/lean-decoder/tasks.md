@@ -92,3 +92,10 @@
 - [x] 11.5 Tests: migration (Config), defaults (Config, Web, JS), marker ownership (Web), the duplicate rule at selection level and end to end (Ft8), thread-count determinism
 - [x] 11.6 Screenshot, after: the block showing the default `lean` (`dev-tasks/screenshots/dr3-lean-default-after.png`)
 - [x] 11.7 `REQUIREMENTS.md` new requirement and changelog row, VERSION 1.1, README; this change validated `--strict`
+
+## 12. SUB-PROBE: a test-only diagnostic probe
+
+- [x] 12.1 Native: `FTZ_FLAG_PROBE`, `ftz_probe_t` / `ftz_probe_row_t` (SUB, CAND, LOW; outcome and gate codes documented in `ftz_decoder.h`), read-only on the decode, bounds-checked; flag off allocates and computes nothing; `FT8_SHIM_VERSION` 20260080, `libft8.dll` rebuilt
+- [x] 12.2 Managed: `LeanCycleParams.Probe` / `ProbeCapacity`, `LeanCycleOutcome.ProbeRows` / `ProbeOverflow` (internal; the daemon never sets the flag)
+- [x] 12.3 Tests (`LeanEngineProbeTests`): off against on byte-identical on the synth-qso WAVs and their mix at 1, 2, 4, 8 and 16 threads; the two-signal case; the small buffer; ASan + UBSan fuzz with the flag on
+- [x] 12.4 This change validated `--strict`; no VERSION bump (test-only)

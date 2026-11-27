@@ -82,7 +82,12 @@ class Tab:
 
 def main():
     res = {}
+    tag = os.environ.get("CS_MAP_TAG")                       # e.g. "probe": the lean arm of each slice from lc-base\runs\<tag>_<slice>_L_n<cycles> instead of the LC-BASE / DR-2e runs
+    out_name = "cs_map.json" if not tag else "cs_map_%s.json" % tag
     for name, (dirs, folder) in SLICES.items():
+        if tag:
+            n = {"S40": 170, "H40": 240, "H20": 240}[name]
+            dirs = {"C": dirs["C"], "L": SC + r"\lc-base\runs\%s_%s_L_n%d" % (tag, name, n)}
         sel = json.load(open(os.path.join(dirs["C"], "sel.json")))
         stamps = list(sel["runs"][sel["run"]]["FULL"])
         w = load_wsjtx(os.path.join(ART, folder, "wsjt-x", "ALL.TXT"), stamps)
@@ -128,7 +133,7 @@ def main():
                      "key": {"crowded_missed_by_L": key_n, "neighbour_decoded_by_L": key_nbr_decoded, "by_batch": {str(k): v for k, v in sorted(key_by_batch.items())},
                                 "nbr_decoded_by_dSNR": dict(sorted(key_snr_nbr_decoded.items()))}}
         assert sum(v["n"] for v in res[name]["by_dF"].values()) == n_crowded
-    json.dump(res, open(os.path.join(SC, "lc-base", "cs_map.json"), "w"), indent=1)
+    json.dump(res, open(os.path.join(SC, "lc-base", out_name), "w"), indent=1)
     for k, v in res.items():
         print(k, v["wsjtx_decodes"], "crowded", v["crowded"], "key", v["key"])
 

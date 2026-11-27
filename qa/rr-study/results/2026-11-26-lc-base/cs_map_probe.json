@@ -1,0 +1,608 @@
+{
+ "S40": {
+  "cycles": 170,
+  "wsjtx_decodes": 6773,
+  "crowded": 5060,
+  "by_dF": {
+   "25-50": {
+    "n": 2332,
+    "missL": 309,
+    "missC": 326
+   },
+   "<6.25": {
+    "n": 975,
+    "missL": 270,
+    "missC": 261
+   },
+   "6.25-12.5": {
+    "n": 731,
+    "missL": 146,
+    "missC": 162
+   },
+   "12.5-25": {
+    "n": 1022,
+    "missL": 200,
+    "missC": 220
+   }
+  },
+  "by_dSNR": {
+   "weaker>3": {
+    "n": 1948,
+    "missL": 92,
+    "missC": 92
+   },
+   "stronger3-10": {
+    "n": 1052,
+    "missL": 300,
+    "missC": 315
+   },
+   "within3": {
+    "n": 1186,
+    "missL": 191,
+    "missC": 219
+   },
+   "stronger>10": {
+    "n": 874,
+    "missL": 342,
+    "missC": 343
+   }
+  },
+  "by_N_decoded": {
+   "N decoded by L, batch 2": {
+    "n": 1655,
+    "missL": 136,
+    "missC": 157
+   },
+   "N decoded by L, batch 1": {
+    "n": 2273,
+    "missL": 491,
+    "missC": 536
+   },
+   "N not decoded by L": {
+    "n": 1010,
+    "missL": 258,
+    "missC": 245
+   },
+   "N decoded by L, batch 3": {
+    "n": 122,
+    "missL": 40,
+    "missC": 31
+   }
+  },
+  "by_dDT": {
+   "0.16-0.5": {
+    "n": 1546,
+    "missL": 291,
+    "missC": 324
+   },
+   "<0.16": {
+    "n": 2804,
+    "missL": 481,
+    "missC": 485
+   },
+   ">0.5": {
+    "n": 710,
+    "missL": 153,
+    "missC": 160
+   }
+  },
+  "by_n50": {
+   "2": {
+    "n": 1691,
+    "missL": 351,
+    "missC": 355
+   },
+   "1": {
+    "n": 2520,
+    "missL": 334,
+    "missC": 337
+   },
+   "3+": {
+    "n": 849,
+    "missL": 240,
+    "missC": 277
+   }
+  },
+  "dF_x_dSNR": {
+   "25-50|weaker>3": {
+    "n": 890,
+    "missL": 41,
+    "missC": 38
+   },
+   "<6.25|weaker>3": {
+    "n": 386,
+    "missL": 15,
+    "missC": 23
+   },
+   "6.25-12.5|weaker>3": {
+    "n": 285,
+    "missL": 11,
+    "missC": 9
+   },
+   "25-50|stronger3-10": {
+    "n": 448,
+    "missL": 79,
+    "missC": 87
+   },
+   "12.5-25|weaker>3": {
+    "n": 387,
+    "missL": 25,
+    "missC": 22
+   },
+   "25-50|within3": {
+    "n": 555,
+    "missL": 62,
+    "missC": 71
+   },
+   "12.5-25|within3": {
+    "n": 265,
+    "missL": 48,
+    "missC": 57
+   },
+   "<6.25|stronger>10": {
+    "n": 170,
+    "missL": 104,
+    "missC": 91
+   },
+   "12.5-25|stronger>10": {
+    "n": 154,
+    "missL": 58,
+    "missC": 64
+   },
+   "25-50|stronger>10": {
+    "n": 439,
+    "missL": 127,
+    "missC": 130
+   },
+   "6.25-12.5|stronger>10": {
+    "n": 111,
+    "missL": 53,
+    "missC": 58
+   },
+   "<6.25|within3": {
+    "n": 201,
+    "missL": 55,
+    "missC": 55
+   },
+   "12.5-25|stronger3-10": {
+    "n": 216,
+    "missL": 69,
+    "missC": 77
+   },
+   "6.25-12.5|stronger3-10": {
+    "n": 170,
+    "missL": 56,
+    "missC": 59
+   },
+   "<6.25|stronger3-10": {
+    "n": 218,
+    "missL": 96,
+    "missC": 92
+   },
+   "6.25-12.5|within3": {
+    "n": 165,
+    "missL": 26,
+    "missC": 36
+   }
+  },
+  "key": {
+   "crowded_missed_by_L": 925,
+   "neighbour_decoded_by_L": 667,
+   "by_batch": {
+    "1": 491,
+    "2": 136,
+    "3": 40
+   },
+   "nbr_decoded_by_dSNR": {
+    "stronger3-10": 240,
+    "stronger>10": 318,
+    "weaker>3": 12,
+    "within3": 97
+   }
+  }
+ },
+ "H40": {
+  "cycles": 240,
+  "wsjtx_decodes": 8983,
+  "crowded": 6402,
+  "by_dF": {
+   "25-50": {
+    "n": 2520,
+    "missL": 279,
+    "missC": 337
+   },
+   "12.5-25": {
+    "n": 1700,
+    "missL": 225,
+    "missC": 291
+   },
+   "<6.25": {
+    "n": 1085,
+    "missL": 371,
+    "missC": 363
+   },
+   "6.25-12.5": {
+    "n": 1097,
+    "missL": 171,
+    "missC": 190
+   }
+  },
+  "by_dSNR": {
+   "weaker>3": {
+    "n": 2326,
+    "missL": 138,
+    "missC": 133
+   },
+   "stronger3-10": {
+    "n": 1466,
+    "missL": 378,
+    "missC": 440
+   },
+   "within3": {
+    "n": 1674,
+    "missL": 236,
+    "missC": 269
+   },
+   "stronger>10": {
+    "n": 936,
+    "missL": 294,
+    "missC": 339
+   }
+  },
+  "by_N_decoded": {
+   "N decoded by L, batch 2": {
+    "n": 2219,
+    "missL": 147,
+    "missC": 188
+   },
+   "N decoded by L, batch 1": {
+    "n": 2863,
+    "missL": 470,
+    "missC": 625
+   },
+   "N not decoded by L": {
+    "n": 1098,
+    "missL": 350,
+    "missC": 296
+   },
+   "N decoded by L, batch 3": {
+    "n": 222,
+    "missL": 79,
+    "missC": 72
+   }
+  },
+  "by_dDT": {
+   "<0.16": {
+    "n": 3279,
+    "missL": 587,
+    "missC": 635
+   },
+   "0.16-0.5": {
+    "n": 1823,
+    "missL": 271,
+    "missC": 321
+   },
+   ">0.5": {
+    "n": 1300,
+    "missL": 188,
+    "missC": 225
+   }
+  },
+  "by_n50": {
+   "1": {
+    "n": 3714,
+    "missL": 475,
+    "missC": 512
+   },
+   "2": {
+    "n": 1876,
+    "missL": 350,
+    "missC": 404
+   },
+   "3+": {
+    "n": 812,
+    "missL": 221,
+    "missC": 265
+   }
+  },
+  "dF_x_dSNR": {
+   "25-50|weaker>3": {
+    "n": 887,
+    "missL": 27,
+    "missC": 28
+   },
+   "12.5-25|weaker>3": {
+    "n": 588,
+    "missL": 21,
+    "missC": 19
+   },
+   "25-50|stronger3-10": {
+    "n": 531,
+    "missL": 86,
+    "missC": 104
+   },
+   "<6.25|weaker>3": {
+    "n": 447,
+    "missL": 80,
+    "missC": 74
+   },
+   "12.5-25|within3": {
+    "n": 502,
+    "missL": 61,
+    "missC": 81
+   },
+   "6.25-12.5|weaker>3": {
+    "n": 404,
+    "missL": 10,
+    "missC": 12
+   },
+   "6.25-12.5|within3": {
+    "n": 301,
+    "missL": 42,
+    "missC": 46
+   },
+   "25-50|within3": {
+    "n": 672,
+    "missL": 67,
+    "missC": 75
+   },
+   "12.5-25|stronger3-10": {
+    "n": 372,
+    "missL": 82,
+    "missC": 117
+   },
+   "6.25-12.5|stronger3-10": {
+    "n": 267,
+    "missL": 68,
+    "missC": 77
+   },
+   "<6.25|stronger3-10": {
+    "n": 296,
+    "missL": 142,
+    "missC": 142
+   },
+   "12.5-25|stronger>10": {
+    "n": 238,
+    "missL": 61,
+    "missC": 74
+   },
+   "25-50|stronger>10": {
+    "n": 430,
+    "missL": 99,
+    "missC": 130
+   },
+   "6.25-12.5|stronger>10": {
+    "n": 125,
+    "missL": 51,
+    "missC": 55
+   },
+   "<6.25|within3": {
+    "n": 199,
+    "missL": 66,
+    "missC": 67
+   },
+   "<6.25|stronger>10": {
+    "n": 143,
+    "missL": 83,
+    "missC": 80
+   }
+  },
+  "key": {
+   "crowded_missed_by_L": 1046,
+   "neighbour_decoded_by_L": 696,
+   "by_batch": {
+    "1": 470,
+    "2": 147,
+    "3": 79
+   },
+   "nbr_decoded_by_dSNR": {
+    "stronger3-10": 276,
+    "stronger>10": 269,
+    "weaker>3": 28,
+    "within3": 123
+   }
+  }
+ },
+ "H20": {
+  "cycles": 240,
+  "wsjtx_decodes": 9154,
+  "crowded": 6348,
+  "by_dF": {
+   "25-50": {
+    "n": 2642,
+    "missL": 367,
+    "missC": 433
+   },
+   "<6.25": {
+    "n": 1149,
+    "missL": 357,
+    "missC": 393
+   },
+   "6.25-12.5": {
+    "n": 1169,
+    "missL": 316,
+    "missC": 335
+   },
+   "12.5-25": {
+    "n": 1388,
+    "missL": 296,
+    "missC": 355
+   }
+  },
+  "by_dSNR": {
+   "weaker>3": {
+    "n": 2288,
+    "missL": 149,
+    "missC": 145
+   },
+   "within3": {
+    "n": 1736,
+    "missL": 342,
+    "missC": 394
+   },
+   "stronger>10": {
+    "n": 674,
+    "missL": 264,
+    "missC": 276
+   },
+   "stronger3-10": {
+    "n": 1650,
+    "missL": 581,
+    "missC": 701
+   }
+  },
+  "by_N_decoded": {
+   "N not decoded by L": {
+    "n": 1387,
+    "missL": 422,
+    "missC": 385
+   },
+   "N decoded by L, batch 2": {
+    "n": 1916,
+    "missL": 130,
+    "missC": 200
+   },
+   "N decoded by L, batch 1": {
+    "n": 2735,
+    "missL": 663,
+    "missC": 814
+   },
+   "N decoded by L, batch 3": {
+    "n": 310,
+    "missL": 121,
+    "missC": 117
+   }
+  },
+  "by_dDT": {
+   "<0.16": {
+    "n": 3301,
+    "missL": 657,
+    "missC": 736
+   },
+   ">0.5": {
+    "n": 1270,
+    "missL": 260,
+    "missC": 314
+   },
+   "0.16-0.5": {
+    "n": 1777,
+    "missL": 419,
+    "missC": 466
+   }
+  },
+  "by_n50": {
+   "2": {
+    "n": 2004,
+    "missL": 497,
+    "missC": 578
+   },
+   "1": {
+    "n": 3621,
+    "missL": 576,
+    "missC": 657
+   },
+   "3+": {
+    "n": 723,
+    "missL": 263,
+    "missC": 281
+   }
+  },
+  "dF_x_dSNR": {
+   "25-50|weaker>3": {
+    "n": 876,
+    "missL": 41,
+    "missC": 38
+   },
+   "<6.25|within3": {
+    "n": 215,
+    "missL": 74,
+    "missC": 76
+   },
+   "<6.25|weaker>3": {
+    "n": 467,
+    "missL": 45,
+    "missC": 48
+   },
+   "<6.25|stronger>10": {
+    "n": 112,
+    "missL": 56,
+    "missC": 57
+   },
+   "25-50|stronger3-10": {
+    "n": 629,
+    "missL": 142,
+    "missC": 184
+   },
+   "25-50|stronger>10": {
+    "n": 233,
+    "missL": 66,
+    "missC": 70
+   },
+   "6.25-12.5|within3": {
+    "n": 265,
+    "missL": 77,
+    "missC": 85
+   },
+   "<6.25|stronger3-10": {
+    "n": 355,
+    "missL": 182,
+    "missC": 212
+   },
+   "25-50|within3": {
+    "n": 904,
+    "missL": 118,
+    "missC": 141
+   },
+   "6.25-12.5|weaker>3": {
+    "n": 451,
+    "missL": 34,
+    "missC": 28
+   },
+   "12.5-25|within3": {
+    "n": 352,
+    "missL": 73,
+    "missC": 92
+   },
+   "6.25-12.5|stronger3-10": {
+    "n": 316,
+    "missL": 140,
+    "missC": 158
+   },
+   "12.5-25|weaker>3": {
+    "n": 494,
+    "missL": 29,
+    "missC": 31
+   },
+   "12.5-25|stronger3-10": {
+    "n": 350,
+    "missL": 117,
+    "missC": 147
+   },
+   "12.5-25|stronger>10": {
+    "n": 192,
+    "missL": 77,
+    "missC": 85
+   },
+   "6.25-12.5|stronger>10": {
+    "n": 137,
+    "missL": 65,
+    "missC": 64
+   }
+  },
+  "key": {
+   "crowded_missed_by_L": 1336,
+   "neighbour_decoded_by_L": 914,
+   "by_batch": {
+    "1": 663,
+    "2": 130,
+    "3": 121
+   },
+   "nbr_decoded_by_dSNR": {
+    "stronger3-10": 468,
+    "stronger>10": 244,
+    "weaker>3": 32,
+    "within3": 170
+   }
+  }
+ }
+}

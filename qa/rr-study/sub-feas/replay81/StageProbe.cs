@@ -243,8 +243,17 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
 #if HAS_LEAN
     // DR-2 step 2d: the lean engine's entries are DEFAULT interface members (the first throws NotSupported). This wrapper MUST forward them, or every lean cycle in this harness is
     // "lean decode failed" and publishes nothing (the 3-cycle pilot of 2026-11-25 caught it: zero decodes).
+#if HAS_PROBE
+    // SUB-PROBE: with --lean-probe 1 the request asks for the probe rows and each cycle's rows go to --probe-out under the cycle's stamp (numbers only). The decoded output is
+    // byte-identical with the flag on (the Developer's unit test; QA's free check is S40's matched/ours against the DR-3 run).
+    public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => Probed(_i.DecodeLeanCycle(pcm, Prep(request)));
+    public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0) => Probed(_i.DecodeLeanCycle(pcm, Prep(request), onRound0));
+    private static LeanCycleParams Prep(LeanCycleParams request) => Program.ProbeOn ? request with { Probe = true } : request;
+    private static LeanCycleOutcome Probed(LeanCycleOutcome o) { if (Program.ProbeOn) Program.WriteProbe(o.ProbeRows, o.ProbeOverflow); return o; }
+#else
     public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => _i.DecodeLeanCycle(pcm, request);
     public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0) => _i.DecodeLeanCycle(pcm, request, onRound0);
+#endif
     public void LeanShutdown() => _i.LeanShutdown();
 #endif
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) => _i.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);

@@ -66,6 +66,10 @@ def main():
     sl, arm, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
     tag = sys.argv[sys.argv.index("--tag") + 1] if "--tag" in sys.argv else "run"
     assert sl in SLICES and arm in ARMS
+    global BIN, PIN
+    if "--bin" in sys.argv:                                  # a later build (DR-3 replay): --bin <harness dir> --pin <libft8.dll sha256>
+        BIN = sys.argv[sys.argv.index("--bin") + 1]
+        PIN = sys.argv[sys.argv.index("--pin") + 1]
     night, folder, selsrc, start = SLICES[sl]
     assert sha(BIN + r"\libft8.dll") == PIN, "libft8.dll is not the pin"
     b = busy()
@@ -99,6 +103,9 @@ def main():
             "--outcomes", out + r"\outcomes.csv", "--nc-dump", out + r"\nc.tsv", "--testb-out", out + r"\testb.csv",
             "--matched-batch-out", out + r"\matchedbatch.csv", "--third-out", out + r"\third.csv",
             "--abandon-out", out + r"\abandon.csv", "--late-out", out + r"\late.csv", "--lean-out", out + r"\lean.csv"]
+    if "--probe" in sys.argv:                                # SUB-PROBE (feat/sub-probe): the harness build must have HasProbe; probe.tsv = numbers only
+        assert arm == "L"
+        args += ["--lean-probe", "1", "--probe-out", out + r"\probe.tsv"]
     t0 = time.time()
     p = subprocess.Popen(args, stdout=open(out + r"\stdout.txt", "w"), stderr=subprocess.STDOUT)
     p.wait()

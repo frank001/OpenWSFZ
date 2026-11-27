@@ -451,6 +451,17 @@ internal static class Program
                     _leanOut = new StreamWriter(leanPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
                     if (new FileInfo(leanPath).Length == 0) _leanOut.WriteLine("stamp,abandoned,error,results,rounds,ungated,s3_wall_ms,s3_cpu_ms,fit_cpu_ms,search_cpu_ms,decode_cpu_ms,other_cpu_ms,effort,b1,b2,b3,xc,xc_detected,fit_skipped");
                 }
+#if HAS_PROBE
+                // SUB-PROBE: --lean-probe 1 --probe-out <path under _qa-scratch>: one TSV row per probe row (numbers only, no text); an overflowed cycle writes an OVERFLOW row.
+                if (a.TryGetValue("lean-probe", out var lp) && lp == "1")
+                {
+                    if (!a.TryGetValue("probe-out", out var probePath)) throw new ArgumentException("--lean-probe 1 needs --probe-out <path>");
+                    if (!probePath.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--probe-out must be under _qa-scratch");
+                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(probePath))!);
+                    _probeOut = new StreamWriter(probePath, append: false, new UTF8Encoding(false)) { AutoFlush = true };
+                    _probeOut.WriteLine("stamp\tkind\tround\tfreq_hz\ttime_s\tamp\tsupp_db\tscore\tkept\toutcome\tgate\ta_code\ta_unsat\tb_code\tb_unsat\tcq_code\tcq_unsat");
+                }
+#endif
             }
 #endif
             Readback(decoder, log, "start", threadsNote);
@@ -700,6 +711,22 @@ internal static class Program
             string N(int i) => g[i].Value.Replace(',', '.');
             string skipped = g[6].Success ? g[6].Value : "0";
             w.WriteLine(string.Join(",", _curStamp, g[2].Value, g[3].Value, g[1].Value, g[4].Value, g[5].Value, N(7), N(8), N(9), N(10), N(11), N(12), g[13].Value, g[14].Value, g[15].Value, g[16].Value, g[17].Value, g[18].Value, skipped));
+        }
+    }
+#endif
+#if HAS_PROBE
+    private static StreamWriter? _probeOut;               // --lean-probe 1 --probe-out: SUB-PROBE rows, numbers only
+    internal static bool ProbeOn => _probeOut is not null;
+    internal static void WriteProbe(OpenWSFZ.Ft8.Interop.LeanProbeRow[] rows, bool overflow)
+    {
+        var w = _probeOut; if (w is null) return;
+        var ci = CultureInfo.InvariantCulture;
+        lock (w)
+        {
+            foreach (var r in rows)
+                w.WriteLine(string.Join("\t", _curStamp, r.Kind.ToString(ci), r.Round.ToString(ci), r.FreqHz.ToString("F2", ci), r.TimeS.ToString("F3", ci), r.Amp.ToString("F4", ci), r.SuppDb.ToString("F2", ci),
+                    r.Score.ToString(ci), r.Kept.ToString(ci), r.Outcome.ToString(ci), r.Gate.ToString(ci), r.ACode.ToString(ci), r.AUnsat.ToString(ci), r.BCode.ToString(ci), r.BUnsat.ToString(ci), r.CqCode.ToString(ci), r.CqUnsat.ToString(ci)));
+            if (overflow) w.WriteLine(_curStamp + "\tOVERFLOW");
         }
     }
 #endif
