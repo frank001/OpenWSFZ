@@ -248,7 +248,14 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     // byte-identical with the flag on (the Developer's unit test; QA's free check is S40's matched/ours against the DR-3 run).
     public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => Probed(_i.DecodeLeanCycle(pcm, Prep(request)));
     public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0) => Probed(_i.DecodeLeanCycle(pcm, Prep(request), onRound0));
-    private static LeanCycleParams Prep(LeanCycleParams request) => Program.ProbeOn ? request with { Probe = true } : request;
+    private static LeanCycleParams Prep(LeanCycleParams request)
+    {
+#if HAS_FINEGRID
+        // FINE-GRID: the decoder has no setter for these, so every lean request of the replay (the cycle's and the XC round's) takes them from the harness options.
+        request = request with { Thin = Program.LeanThin, TimeOsr = Program.LeanTimeOsr, FreqOsr = Program.LeanFreqOsr };
+#endif
+        return Program.ProbeOn ? request with { Probe = true } : request;
+    }
     private static LeanCycleOutcome Probed(LeanCycleOutcome o) { if (Program.ProbeOn) Program.WriteProbe(o.ProbeRows, o.ProbeOverflow); return o; }
 #else
     public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => _i.DecodeLeanCycle(pcm, request);

@@ -58,6 +58,8 @@
     <DefineConstants Condition="'$(HasXcRound)' == 'true'">$(DefineConstants);HAS_XCROUND</DefineConstants>
     <!-- KNOWN-ERASURE (shim 20260083): the build whose DecodeLeanXcRound has the fifth parameter (the known results). Needs HasXcRound. -->
     <DefineConstants Condition="'$(HasXcKnown)' == 'true'">$(DefineConstants);HAS_XCKNOWN</DefineConstants>
+    <!-- FINE-GRID (shim 20260083): the build whose LeanCycleParams has Thin, TimeOsr, FreqOsr and whose probe rows carry TimeSub and FreqSub. Needs HasLean and HasProbe. The StageProbeInterop wrapper sets them on every lean request (the decoder has no setter for them), from the harness options lean-thin, lean-time-osr and lean-freq-osr. -->
+    <DefineConstants Condition="'$(HasFineGrid)' == 'true'">$(DefineConstants);HAS_FINEGRID</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>
