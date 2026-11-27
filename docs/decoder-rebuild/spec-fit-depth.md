@@ -189,4 +189,11 @@ Read **F** wherever §6 says D (the paired fall of ≥ 2 dB against 0.32 s). L_T
 - The start-time seed is calibrated per slice by a coarse scan on strong signals; SUB-FEAS's `TAU0_S` = −0.16 s does not hold on these recordings (median +0.52 s on 12 strong signals). Stated in `meta.json`.
 - Subsampling **k = 5** (about 130 cycles, about 82 min).
 
-**Next:** QA adds F, F_side and C1′, and re-pilots the same 20 S40 cycles. If C1′–C3′ pass, it runs k = 5 on all three slices. A C3′ failure ends the measurement (see the table).
+### 8.6 Finer views (Product Owner 2026-11-27: "yes, send the finer views to QA"). Reported only; no check and no §6 condition reads them
+
+They say **where** the leftover sits, and so which kind of fix would fit. They need projections only, no extra fits. Compute them for S0–S2 at **W = 0.32 s and at the W with the lowest median F**, GFSK, on the full run (not on the pilot).
+
+1. **Frequency profile at half-bin steps:** on the §2.1 grid, project at S's tone frequency **+ k·3.125 Hz** for every symbol, with k from −12 to +12, i.e. ±37.5 Hz around the tone S sends in that symbol. For each k: 10·log10(mean power after ÷ the same at the noise spot). Report the median and quartiles per k. Neighbouring points overlap (the projection is 6.25 Hz wide), so this is a shape, not independent bins. Mask as in F_side.
+2. **Symbol edge against symbol centre:** band-limit the residual to S's band (its 8 tones ± 3.125 Hz) and take the power per sample. Average it over the **edge** samples (the 20 ms on each side of a symbol boundary) and over the **centre** samples (the rest), separately for boundaries **where the tone changes** and **where it does not**. Do the same at the noise spot with the same timing. Report 10·log10(signal ÷ noise spot) for edge/change, edge/no-change and centre, median and quartiles. Leftover mostly at tone changes points at the pulse shape or the timing; leftover spread evenly points at the envelope.
+
+**Next:** QA adds F, F_side, C1′ and §8.6, and re-pilots the same 20 S40 cycles. If C1′–C3′ pass, it runs k = 5 on all three slices. A C3′ failure ends the measurement (see the table).
