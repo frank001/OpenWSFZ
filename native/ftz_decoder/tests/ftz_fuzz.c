@@ -85,6 +85,7 @@ static void round0_probe(void* ctx, int n, const void* results, const uint8_t* t
     }
 }
 
+#define XC_NN 79   /* tones per FT8 signal */
 static int g_inject = 0;     /* the test hook inject_error_round of the next call */
 static int g_probe_cap = 0;  /* SUB-PROBE: rows of the probe buffer of the next call (0 = flag off); the buffer is exactly-sized, so AddressSanitizer sees any write past it */
 static int g_probe_rows = 0, g_probe_overflows = 0, g_probe_runs = 0;
@@ -201,6 +202,38 @@ static int determinism(const char* path)
             CHECK(probe.n == first_cb_n, "%s threads=%d: callback delivered %d, expected %d", path, threads[t], probe.n, first_cb_n);
         }
     }
+    {   /* XC-ROUND: the same fixed detections on the residual at 1, 2 and 16 threads give the same bytes (results, tiers, rounds, probe rows) */
+        static FT8Result xa[MAX_RESULTS], xb[MAX_RESULTS];
+        static uint8_t xta[MAX_RESULTS], xtb[MAX_RESULTS], xra[MAX_RESULTS], xrb[MAX_RESULTS];
+        uint8_t tones[2 * XC_NN];
+        for (int k = 0; k < 2 * XC_NN; k++) tones[k] = (uint8_t)((k * 5 + k / 7) % 8);
+        float fr[2] = { 1500.0f, 1900.0f }, tm[2] = { 0.5f, 0.3f };
+        ftz_xc_t xc; memset(&xc, 0, sizeof(xc));
+        xc.struct_size = (int32_t)sizeof(xc); xc.n_det = 2; xc.tones = tones; xc.freq_hz = fr; xc.time_s = tm; xc.residual = first_has_resid ? first_resid : pcm;
+        static ftz_probe_row_t rows_a[FTZ_PROBE_MAX_ROWS], rows_b[FTZ_PROBE_MAX_ROWS];
+        int na = -1, pna = -1;
+        const int xthreads[] = { 1, 2, 16 };
+        for (int t = 0; t < 3; t++)
+        {
+            ft8_hash_state_restore(start, image_size);
+            ftz_params_t p; memset(&p, 0, sizeof(p)); p.struct_size = (int32_t)sizeof(p); p.threads = xthreads[t]; p.flags = FTZ_FLAG_CQ_AP | FTZ_FLAG_PROBE;
+            ftz_probe_t pb; memset(&pb, 0, sizeof(pb)); pb.struct_size = (int32_t)sizeof(pb); pb.cap = FTZ_PROBE_MAX_ROWS; pb.rows = t == 0 ? rows_a : rows_b;
+            p.probe = &pb;
+            ftz_stats_t xs;
+            int rc = ftz_xc_round(pcm, n, &p, &xc, t == 0 ? xa : xb, MAX_RESULTS, t == 0 ? xta : xtb, t == 0 ? xra : xrb, &xs);
+            CHECK(rc >= 0, "%s xc threads=%d: error %d", path, xthreads[t], rc);
+            if (rc < 0) continue;
+            if (t == 0) { na = rc; pna = pb.n; }
+            else
+            {
+                CHECK(rc == na && pb.n == pna, "%s xc threads=%d: %d results and %d rows, expected %d and %d", path, xthreads[t], rc, pb.n, na, pna);
+                CHECK(memcmp(xa, xb, sizeof(FT8Result) * (size_t)(rc < na ? rc : na)) == 0 && memcmp(xta, xtb, (size_t)(rc < na ? rc : na)) == 0 && memcmp(xra, xrb, (size_t)(rc < na ? rc : na)) == 0,
+                      "%s xc threads=%d: output differs from threads=1", path, xthreads[t]);
+                CHECK(memcmp(rows_a, rows_b, sizeof(ftz_probe_row_t) * (size_t)(pb.n < pna ? pb.n : pna)) == 0, "%s xc threads=%d: probe rows differ from threads=1", path, xthreads[t]);
+            }
+        }
+        printf("determinism %s: xc round %d result(s), %d probe row(s), identical at 1/2/16 threads\n", path, na, pna);
+    }
     ft8_hash_state_restore(start, image_size);
     printf("determinism %s: %d results (%d from rounds 1 to 3, %d round(s) run, residual %s), identical at 1/2/4/8/16/2/1 threads\n", path, first_n, first_loop_results, first_rounds, first_has_resid ? "returned" : "none");
     free(start); free(pcm);
@@ -238,6 +271,75 @@ static void mutate_real(float* x, int n, int kind)
         }
         x[i] = v;
     }
+}
+
+static int g_xc_runs = 0, g_xc_with_results = 0, g_xc_probe_rows = 0, g_xc_probe_overflows = 0;
+
+/* XC-ROUND: one ftz_xc_round call on random detections (0 to 3: random tones, frequency, time) and the given residual (exactly PCM_SAMPLES floats, an exactly-sized heap block so
+ * AddressSanitizer sees any read past it), with an exactly-sized probe buffer of its own. Checks the contract: the return code, the round tag (4) on every result and probe row,
+ * the stats, and that the residual is not written. */
+static void xc_run(const float* pcm, int n, const float* residual, int threads, int flags, int budget_ms, int run)
+{
+    static FT8Result out[MAX_RESULTS];
+    static uint8_t tiers[MAX_RESULTS], rounds[MAX_RESULTS];
+    const int n_det = (int)(rnd() % 4u);
+    uint8_t* tones = (uint8_t*)malloc((size_t)(n_det > 0 ? n_det : 1) * XC_NN);
+    float* fr = (float*)malloc(sizeof(float) * (size_t)(n_det > 0 ? n_det : 1));
+    float* tm = (float*)malloc(sizeof(float) * (size_t)(n_det > 0 ? n_det : 1));
+    for (int d = 0; d < n_det; d++)
+    {
+        for (int k = 0; k < XC_NN; k++) tones[d * XC_NN + k] = (uint8_t)(rnd() % 8u);
+        fr[d] = 100.0f + 3000.0f * ((float)(rnd() >> 8) / 16777216.0f);
+        tm[d] = -1.0f + 3.0f * ((float)(rnd() >> 8) / 16777216.0f);
+    }
+    ftz_xc_t xc;
+    memset(&xc, 0, sizeof(xc));
+    xc.struct_size = (int32_t)sizeof(xc); xc.n_det = n_det; xc.tones = tones; xc.freq_hz = fr; xc.time_s = tm; xc.residual = residual;
+
+    ftz_params_t p;
+    memset(&p, 0, sizeof(p));
+    p.struct_size = (int32_t)sizeof(p);
+    p.threads = threads;
+    p.max_candidates = 1 + (int)(rnd() % 4u);
+    p.flags = (flags & (FTZ_FLAG_CQ_AP | FTZ_FLAG_RESIDUAL_UNGATED | FTZ_FLAG_NO_TIER_B)) | ((run % 3 == 0) ? FTZ_FLAG_BUDGET : 0);
+    p.budget_ms = budget_ms;
+    ftz_probe_t pb;
+    ftz_probe_row_t* rows = NULL;
+    int cap = 0;
+    { const int pcaps[] = { 0, 1, 3, 17, 100, FTZ_PROBE_MAX_ROWS }; cap = pcaps[rnd() % 6u]; }
+    if (cap > 0)
+    {
+        rows = (ftz_probe_row_t*)malloc(sizeof(ftz_probe_row_t) * (size_t)cap);
+        memset(&pb, 0, sizeof(pb));
+        pb.struct_size = (int32_t)sizeof(pb); pb.cap = cap; pb.rows = rows; pb.n = -7; pb.overflow = 9;
+        p.flags |= FTZ_FLAG_PROBE; p.probe = &pb;
+    }
+    float* snapshot = (float*)malloc(sizeof(float) * PCM_SAMPLES);
+    memcpy(snapshot, residual, sizeof(float) * PCM_SAMPLES);
+    ftz_stats_t st;
+    memset(&st, 0, sizeof(st));
+    int rc = ftz_xc_round(pcm, n, &p, &xc, out, MAX_RESULTS, tiers, rounds, &st);
+    CHECK(rc == FTZ_ERR_BADAUDIO || rc >= 0 || rc == FTZ_ERR_ARG || rc == FTZ_ERR_NOMEM, "xc run %d: rc %d", run, rc);
+    CHECK(memcmp(snapshot, residual, sizeof(float) * PCM_SAMPLES) == 0, "xc run %d: the residual was written", run);
+    if (rc >= 0)
+    {
+        CHECK(rc <= MAX_RESULTS && st.error == 0 && st.n_results == rc, "xc run %d: stats inconsistent (error %d, n_results %d, rc %d)", run, st.error, st.n_results, rc);
+        CHECK(st.n_rounds == 0 || st.n_rounds == 1, "xc run %d: %d rounds", run, st.n_rounds);
+        CHECK(st.rounds[0].n_results == 0 && st.rounds[2].n_results == 0 && st.rounds[3].n_results == 0 && st.rounds[1].n_results == rc, "xc run %d: results outside rounds[1]", run);
+        for (int i = 0; i < rc; i++) CHECK(rounds[i] == FTZ_XC_PROBE_ROUND && tiers[i] <= FTZ_TIER_CQ && memchr(out[i].message, '\0', sizeof(out[i].message)) != NULL, "xc run %d: result %d round %d tier %d", run, i, rounds[i], tiers[i]);
+        if (n_det == 0) CHECK(rc == 0 && (cap == 0 || pb.n == 0), "xc run %d: no detection but %d results", run, rc);
+        if (rc > 0) g_xc_with_results++;
+    }
+    if (cap > 0)
+    {
+        CHECK(pb.n >= 0 && pb.n <= pb.cap && (pb.overflow == 0 || pb.overflow == 1), "xc probe: n %d cap %d overflow %d", pb.n, pb.cap, pb.overflow);
+        for (int i = 0; i < pb.n && i < pb.cap; i++)
+            CHECK(rows[i].round == FTZ_XC_PROBE_ROUND && rows[i].kind >= FTZ_PROBE_SUB && rows[i].kind <= FTZ_PROBE_LOW, "xc probe row %d: kind %d round %d", i, rows[i].kind, rows[i].round);
+        g_xc_probe_rows += pb.n; g_xc_probe_overflows += pb.overflow;
+        free(rows);
+    }
+    g_xc_runs++;
+    free(snapshot); free(tones); free(fr); free(tm);
 }
 
 static void fuzz(int runs)
@@ -282,6 +384,13 @@ static void fuzz(int runs)
         if (want_cb && rc >= 0) CHECK(fprobe.calls == 1, "run %d: round-0 callback not called on a successful cycle", run);
         CHECK(st.has_residual == 0 || (resid != NULL && (flags & FTZ_FLAG_ROUNDS)), "run %d: has_residual without a buffer or without the loop", run);
         if (flags & FTZ_FLAG_NO_TIER_B) CHECK(st.n_b_eligible == 0 && st.n_b_attempted == 0 && st.n_b_published == 0, "run %d: tier B ran with the no-tier-B flag", run);
+        if (n > 0 && (run % 4 == 0 || real_run) && rc >= 0)        /* XC-ROUND: the extra round, on the cycle's own residual when it returned one, else on a random buffer */
+        {
+            float* xr = (float*)malloc(sizeof(float) * PCM_SAMPLES);
+            if (resid != NULL && st.has_residual) memcpy(xr, resid, sizeof(float) * PCM_SAMPLES); else fill(xr, PCM_SAMPLES, (int)(rnd() % 7u));
+            xc_run(x, n, xr, threads, flags, budget, run);
+            free(xr);
+        }
         free(resid);
         g_probe_cap = 0;
         const int injected_error = g_inject != 0 && rc == FTZ_ERR_NOMEM;           /* the hook fired: results of the earlier rounds stand, no residual */
@@ -304,6 +413,7 @@ static void fuzz(int runs)
     }
     printf("fuzz: %d runs (%d full length, %d on mutated real audio, %d with at least one subtract-and-retry round), no crash, no sanitizer report\n", runs, full, real_loop_runs, loop_runs);
     printf("probe: %d runs with the SUB-PROBE flag on, %d rows written, %d overflowed (exactly-sized buffers: no write past the end)\n", g_probe_runs, g_probe_rows, g_probe_overflows);
+    printf("xc round: %d runs (%d with at least one new result), %d probe rows, %d overflowed, residual never written\n", g_xc_runs, g_xc_with_results, g_xc_probe_rows, g_xc_probe_overflows);
 }
 
 /* The accept rules of step 2c, called directly (the cycle calls the same functions). */
@@ -374,6 +484,31 @@ static void bad_audio(void)
     CHECK(ftz_decode_cycle(y, 10, &p, NULL, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "NULL results");
     CHECK(ftz_decode_cycle(y, 10, &p, out, 0, NULL, NULL, &st) == FTZ_ERR_ARG, "zero capacity");
     CHECK(ftz_decode_cycle(NULL, 0, &p, out, MAX_RESULTS, NULL, NULL, NULL) == 0, "n = 0 with NULL pcm and NULL stats");
+
+    /* XC-ROUND argument errors: a malformed xc is an argument error, never a crash. */
+    {
+        static float resid[PCM_SAMPLES];
+        uint8_t tones[XC_NN] = { 0 };
+        float fr = 1500.0f, tm = 0.5f;
+        ftz_xc_t xc; memset(&xc, 0, sizeof(xc));
+        xc.struct_size = (int32_t)sizeof(xc); xc.n_det = 1; xc.tones = tones; xc.freq_hz = &fr; xc.time_s = &tm; xc.residual = resid;
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, &p, NULL, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: NULL xc");
+        CHECK(ftz_xc_round(NULL, PCM_SAMPLES, &p, &xc, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: NULL pcm");
+        CHECK(ftz_xc_round(y, 0, &p, &xc, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: n = 0");
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, NULL, &xc, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: NULL params");
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, &p, &xc, NULL, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: NULL results");
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, &p, &xc, out, 0, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: zero capacity");
+        ftz_xc_t bad = xc; bad.struct_size = 8;
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, &p, &bad, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: undersized struct");
+        bad = xc; bad.tones = NULL;
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, &p, &bad, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: NULL tones with a detection");
+        bad = xc; bad.residual = NULL;
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, &p, &bad, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "xc: NULL residual with a detection");
+        bad = xc; bad.n_det = 0; bad.tones = NULL; bad.freq_hz = NULL; bad.time_s = NULL; bad.residual = NULL;
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, &p, &bad, out, MAX_RESULTS, NULL, NULL, &st) == 0, "xc: no detection is a no-op, whatever the other pointers");
+        bad = xc; bad.n_det = -5;
+        CHECK(ftz_xc_round(y, PCM_SAMPLES, &p, &bad, out, MAX_RESULTS, NULL, NULL, &st) == 0, "xc: a negative detection count is no detection");
+    }
     free(y);
     printf("bad audio and argument errors: handled\n");
 }

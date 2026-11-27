@@ -84,6 +84,19 @@ internal struct FtzParamsWire
     public const int FlagResidualCandidates = 16;
 }
 
+/// <summary>
+/// XC-ROUND (shim 20260082): one cross-cycle detection to fit and subtract: the published frequency and dt of the detection and the 79 tones of its template. Numbers only.
+/// </summary>
+internal sealed record LeanXcDetection(float FreqHz, float Dt, byte[] Tones);
+
+/// <summary>Mirror of the native <c>ftz_xc_t</c> (<c>native/ftz_decoder/ftz_decoder.h</c>): two 32-bit integers and four pointers, 40 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct FtzXcWire
+{
+    public int StructSize, NDet;
+    public IntPtr Tones, FreqHz, TimeS, Residual;
+}
+
 /// <summary>Mirror of the native <c>ftz_probe_row_t</c>: sixteen 32-bit fields, 64 bytes (<c>native/ftz_decoder/ftz_decoder.h</c> documents every field and code).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct FtzProbeRowWire
@@ -108,6 +121,9 @@ internal static class LeanProbe
     public const int MaxRows = 3300;
 
     public const int Sub = 1, Cand = 2, Low = 3;
+
+    /// <summary>The round number the probe rows and the per-result round tag carry for the XC round (<c>FTZ_XC_PROBE_ROUND</c>).</summary>
+    public const int XcRound = 4;
 }
 
 /// <summary>

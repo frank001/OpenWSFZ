@@ -218,6 +218,37 @@ typedef struct
 
 #define FTZ_MAX_CANDIDATES 256
 
+/* ── XC-ROUND (shim 20260082): ONE more subtract-and-retry round after the managed cross-cycle stage ─────────────────────────────────────────────────────────────
+ * The cycle's native state is not kept between calls, so everything is passed back in. ftz_xc_round fits each detection (79 tones, frequency, time) on the residual
+ * the cycle returned, subtracts it, re-computes the residual's spectrogram and searches and decodes ONLY inside the patch windows [f - 50, f + 100] Hz of the signals it
+ * subtracted, with the same candidate floor, tiers, accept rules and duplicate rule as a round 1 to 3. Every detection is fitted (no step-2e skip: there is no failed-
+ * candidate list for them). The new results come back sorted (frequency, time, payload) before anything touches the callsign table. Not started with less than
+ * FTZ_RESIDUAL_RESERVE_MS of the budget left; cancelled on the deadline, all or nothing (nothing published, stats.abandoned = 1). With FTZ_FLAG_PROBE the probe rows
+ * (a separate buffer from the cycle's) carry round = FTZ_XC_PROBE_ROUND; out_rounds also says 4. The stats are the existing form: the round's own are in rounds[1]
+ * (n_rounds is 0 or 1; the totals are the call's). */
+#define FTZ_XC_PROBE_ROUND 4
+
+typedef struct
+{
+    int32_t         struct_size;   /* sizeof(ftz_xc_t)                                                                                          */
+    int32_t         n_det;         /* detections to fit; clamped to the results capacity; 0 = nothing to do (returns 0)                            */
+    const uint8_t*  tones;         /* n_det * 79 tone indices (0 to 7), one detection after the other                                              */
+    const float*    freq_hz;       /* n_det base frequencies, Hz                                                                                    */
+    const float*    time_s;        /* n_det start times, s (the dt the cycle's fit takes: ftz results' dt)                                         */
+    const float*    residual;      /* FT8_EXPECTED_SAMPLES floats: the residual the cycle returned (ftz_params_t.out_residual); read only          */
+} ftz_xc_t;
+
+/*
+ * ftz_xc_round -- one residual round for the cross-cycle detections.
+ *   pcm, n       the SAME normalised capture the cycle decoded (the fit reads its analytic signal, computed once here).
+ *   params       as ftz_decode_cycle's (threads, flags: CQ_AP, NO_TIER_B, RESIDUAL_UNGATED, PROBE; budget_ms = what is left of the cycle's budget with FTZ_FLAG_BUDGET).
+ *                FTZ_FLAG_ROUNDS and max_rounds are not read. out_residual and the round-0 hand-off are ignored.
+ *   xc           see above; NULL is an error.
+ *   out_results, out_tiers, out_rounds, out_stats   as ftz_decode_cycle's.
+ * Returns the number of new results (>= 0) or an FTZ_ERR_* (< 0).
+ */
+int ftz_xc_round(const float* pcm, int n, const ftz_params_t* params, const ftz_xc_t* xc, void* out_results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* out_stats);
+
 /*
  * ftz_decode_cycle -- decode one cycle.
  *   pcm          n float samples, 12 kHz mono; n may be anything from 0 up (a buffer longer than 180 000 samples is read

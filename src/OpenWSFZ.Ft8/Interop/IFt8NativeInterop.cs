@@ -252,6 +252,14 @@ internal interface IFt8NativeInterop
         return outcome;
     }
 
+    /// <summary>
+    /// XC-ROUND (shim 20260082): one more subtract-and-retry round after the cross-cycle stage (<c>ftz_xc_round</c>): fits and subtracts <paramref name="detections"/> on
+    /// <paramref name="residual"/>, searches and decodes only near them, and returns the new results (round 4). Default: an empty outcome (a fake that does not model the
+    /// round finds nothing in it, so no batch 4 is ever published from it).
+    /// </summary>
+    LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections)
+        => new([], LeanCycleStats.None());
+
     /// <summary>DR-2 step 2a: frees the lean engine's native worker pool at decoder dispose. Default: no-op.</summary>
     void LeanShutdown() { }
 

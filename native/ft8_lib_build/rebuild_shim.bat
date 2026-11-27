@@ -228,6 +228,7 @@ link /DLL ^
   /EXPORT:ft8_cq_ap_pattern ^
   /EXPORT:ft8_cq_ap_probe_llrs ^
   /EXPORT:ftz_decode_cycle ^
+  /EXPORT:ftz_xc_round ^
   /EXPORT:ftz_shutdown ^
   /EXPORT:ftz_patch_keep ^
   /EXPORT:ftz_payload_same_qso ^

@@ -1656,16 +1656,16 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>The lean cycle's error code for a managed exception around the native call (the native codes are in <see cref="LeanCycleStats"/>).</summary>
     internal const int LeanErrManaged = -100;
 
-    /// <summary>The lean engine's batch numbers (spec section 2.1): round 0, rounds 1 to 3, the cross-cycle stage's detections.</summary>
-    internal const int LeanBatchRound0 = 1, LeanBatchRounds = 2, LeanBatchXc = 3;
+    /// <summary>The lean engine's batch numbers (spec section 2.1): round 0, rounds 1 to 3, the cross-cycle stage's detections, and (XC-ROUND) the decodes of the one more round that follows the stage.</summary>
+    internal const int LeanBatchRound0 = 1, LeanBatchRounds = 2, LeanBatchXc = 3, LeanBatchXcRound = 4;
 
     /// <summary>
     /// DR-2 steps 2a to 2d: decodes one window with the lean engine: ONE native call (<c>ftz_decode_cycle</c>: spectrogram, candidates, tier A, tier B, CQ-AP, then up to
     /// three subtract-and-retry rounds), then the same publish pipeline as every classic batch (text de-duplication per cycle, <see cref="IsPlausibleMessage"/>, region and
-    /// worked-before bycatch). Three batches: <b>1</b> = round 0, handed over by the native call itself right after round 0 is unpacked and published through
+    /// worked-before bycatch). Four batches: <b>1</b> = round 0, handed over by the native call itself right after round 0 is unpacked and published through
     /// <paramref name="onFirstBatch"/> WHILE the native call goes on with round 1 (the callback only copies; nothing in native waits on the consumer); <b>2</b> =
     /// rounds 1 to 3, through <paramref name="onSecondBatch"/> when non-empty; <b>3</b> = the cross-cycle stage's detections on the final residual the native call returns,
-    /// through <paramref name="onThirdBatch"/> when non-empty. One text is published once per cycle across the batches. With no callbacks (the single-batch entry) every
+    /// through <paramref name="onThirdBatch"/> when non-empty; <b>4</b> (XC-ROUND) = the decodes of ONE more native round, run after the stage on the batch-3 detections (fitted and subtracted from the residual; only the patch windows around them are searched), through <paramref name="onThirdBatch"/> under number 4 when non-empty (skipped on Fast, with no batch-3 detection or with no residual). One text is published once per cycle across the batches. With no callbacks (the single-batch entry) every
     /// result is returned as one list. A native error is logged and whatever results the call had written are published (batch 1 is still delivered exactly once, empty or
     /// not); an exception around the call is logged and the cycle yields nothing; neither stops the next cycle (D3). The early decode has no lean form: it returns nothing.
     /// </summary>
@@ -1784,7 +1784,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
         // Batch 1 leaves from the native call's round-0 hand-off: the callback (on the native call's thread) only completes this source with a copy; THIS flow publishes.
         var round0 = new TaskCompletionSource<LeanRound0>(TaskCreationOptions.RunContinuationsAsynchronously);
-        bool batch1Delivered = false, batch2Delivered = false, batch3Delivered = false;
+        bool batch1Delivered = false, batch2Delivered = false, batch3Delivered = false, batch4Delivered = false;
         int mappedTotal = 0;   // the decodes of the ordinary batches (the "decode(s) found" line)
         LeanCycleOutcome outcome;
         var native = Task.Run(() => _interop.DecodeLeanCycle(normalisedPcm, request, staged ? (Action<LeanRound0>)(r0 => round0.TrySetResult(r0)) : null), ct);
@@ -1866,6 +1866,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
         // XC-BUILD (S4): the template stage on the final residual (the buffer as of the last subtraction made; none when nothing was subtracted: a counted, logged skip).
         string xcOutcome = "off";
         int xcDetected = 0;
+        string xcRoundDetail = "";   // XC-ROUND: empty unless the round was attempted (so a cycle without it logs exactly what it did before)
         if (xcOn)
         {
             var ctx = new XcStageContext(
@@ -1875,6 +1876,40 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             await RunCrossCycleStageSharedAsync(ctx, () => outcome.Residual, ct).ConfigureAwait(false);
             xcOutcome = ctx.OutcomeResult;
             xcDetected = ctx.PublishedResult;
+
+            // XC-ROUND: after the stage, ONE more native round on the batch-3 detections that were published (the live ones; never the shadow's), on the residual the cycle returned.
+            // Skipped on Fast, with no batch-3 detection, or with no residual. Its decodes are batch 4 (through the same mapping: text de-duplication across the whole cycle,
+            // plausibility, region, worked-before), stored in the prior store as an ordinary batch like batch 2, delivered only when non-empty.
+            if (effort != DecoderEffort.Fast && ctx.PublishedDetections.Count > 0 && outcome.Residual is not null)
+            {
+                int xcBudgetMs = (int)Math.Max(0, (SubtractionCycleBudget - CoherentFallbackPublishReserve - sw.Elapsed).TotalMilliseconds);
+                var xcRequest = request with { WantResidual = false, BudgetMs = xcBudgetMs };
+                float[] xcResidual = outcome.Residual;
+                IReadOnlyList<LeanXcDetection> xcDetections = ctx.PublishedDetections;
+                LeanCycleOutcome xr;
+                try
+                {
+                    xr = await Task.Run(() => _interop.DecodeLeanXcRound(normalisedPcm, xcRequest, xcResidual, xcDetections), ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // A failure of the round is a lost batch 4, never a lost cycle: batches 1 to 3 are already out.
+                    _logger?.LogError(ex, "Cycle {Time}: lean XC round failed ({Type}) - no batch 4 this cycle.", timeStr, ex.GetType().Name);
+                    xr = new LeanCycleOutcome([], LeanCycleStats.None(LeanErrManaged));
+                }
+                var batch4 = MapLean(xr.Results, xr.Tiers, 0, xr.Results.Length, xcBatch: LeanBatchRounds);
+                mappedTotal += batch4.Count;
+                if (batch4.Count > 0)
+                {
+                    batch4Delivered = true;
+                    await onThirdBatch!(LeanBatchXcRound, batch4).ConfigureAwait(false);
+                }
+                xcRoundDetail = FormatLeanXcRound(xr.Stats, xcDetections.Count, batch4.Count);
+            }
         }
         sw.Stop();
 
@@ -1886,7 +1921,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             "wall_ms spectrogram={SpecWall:F1} candidates={CandWall:F1} tierA={TierAWall:F1} tierB={TierBWall:F1} cqAp={CqWall:F1} unpack={UnpackWall:F1} total={TotalWall:F1} " +
             "cpu_ms spectrogram={SpecCpu:F1} candidates={CandCpu:F1} tierA={TierACpu:F1} tierB={TierBCpu:F1} cqAp={CqCpu:F1} unpack={UnpackCpu:F1} total={TotalCpu:F1} " +
             "s3: rounds={RoundsRun} ungated={Ungated} fitSkipped={S3Skipped} wall_ms={S3Wall:F1} cpu_ms={S3Cpu:F1} fitCpu_ms={S3Fit:F1} searchCpu_ms={S3Search:F1} decodeCpu_ms={S3Decode:F1} otherCpu_ms={S3Other:F1}{RoundDetail} " +
-            "effort={Effort} batches: b1={B1} b2={B2} b3={B3} xc={XcOutcome} xcDetected={XcDetected}.",
+            "effort={Effort} batches: b1={B1} b2={B2} b3={B3} xc={XcOutcome} xcDetected={XcDetected}{XcRound}.",
             timeStr, st.Candidates, st.TierADecodes, st.Results, st.Threads, st.Abandoned ? 1 : 0, st.Error,
             st.TierBEligible, st.TierBAttempted, st.TierBCrcValid, st.TierBF1b, st.TierBGated, st.TierBPublished, st.TierBEdge, st.TierBSkipped,
             st.CqApAttempts, st.CqApDecodes,
@@ -1895,7 +1930,8 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             st.RoundsRun, st.Ungated, st.S3FitSkipped, st.S3WallUs / 1000.0, st.S3CpuUs / 1000.0, st.S3FitCpuUs / 1000.0, st.S3SearchCpuUs / 1000.0, st.S3DecodeCpuUs / 1000.0, st.S3OtherCpuUs / 1000.0,
             FormatLeanRounds(st),
             effort == DecoderEffort.Fast ? DecoderEffortNames.Fast : DecoderEffortNames.Normal,
-            batch1Delivered ? 1 : 0, batch2Delivered ? 1 : 0, batch3Delivered ? 1 : 0, xcOutcome, xcDetected);
+            batch1Delivered ? 1 : 0, batch2Delivered ? 1 : 0, batch3Delivered ? 1 : 0, xcOutcome, xcDetected,
+            xcRoundDetail.Length == 0 ? "" : $" b4={(batch4Delivered ? 1 : 0)}{xcRoundDetail}");
 
         // The ordinary cycle line, so the log parsers that read it keep working for a lean cycle too (the count is every decode of the cycle, all batches).
         _logger?.LogInformation(
@@ -1929,6 +1965,12 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
         /// <summary>Set by the stage when it ends: the detections it published.</summary>
         public int PublishedResult { get; set; }
+
+        /// <summary>
+        /// XC-ROUND: the detections the stage PUBLISHED (those that survived the mapping), each with its published frequency and dt and its 79 template tones, in the stage's
+        /// order. The lean cycle fits and subtracts exactly these. Live detections only: the shadow stage never contributes.
+        /// </summary>
+        public List<LeanXcDetection> PublishedDetections { get; } = [];
     }
 
     /// <summary>
@@ -1994,6 +2036,15 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                 publishedCount = batchX.Count;
                 if (batchX.Count > 0)
                 {
+                    var publishedTexts = new HashSet<string>(batchX.Select(d => d.Message), StringComparer.Ordinal);
+                    for (int i = 0; i < live.Outcomes.Length; i++)
+                    {
+                        if (!live.Outcomes[i].Detected || !publishedTexts.Contains(live.Templates[i].Text.TrimEnd())) continue;
+                        c.PublishedDetections.Add(new LeanXcDetection((float)(int)Math.Round(live.Outcomes[i].FreqHz), (float)live.Outcomes[i].Dt, live.Templates[i].Tones));
+                    }
+                }
+                if (batchX.Count > 0)
+                {
                     publishMs = c.Sw.Elapsed.TotalMilliseconds;
                     await c.Publish(c.BatchNumber, batchX).ConfigureAwait(false);
                 }
@@ -2049,6 +2100,19 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
             try { probe.OnTemplateTested(new CrossCycleTestRecord(kind, o.SStar, t.AgeCycles, o.FreqHz - t.FreqHz, o.Dt - t.Dt, c.CycleStart, o.SP, t.FreqHz, t.Dt, t.Batch, o.Vetoed)); }
             catch (Exception ex) { _logger?.LogWarning(ex, "Cycle {Time}: the cross-cycle diagnostic sink threw - ignored.", c.TimeStr); }
         }
+    }
+
+    /// <summary>
+    /// XC-ROUND: the log group of the one extra round, written only when it was attempted (counts and milliseconds only, HK-037):
+    /// <c> xcRound[detections=.. fits=.. subtracted=.. fitNone=.. found=.. kept=.. tierA=.. results=.. decodes=.. error=.. abandoned=.. wall_ms sub=.. spec=.. search=.. decode=.. total=.. cpu_ms fit=.. sum=.. spec=.. search=.. decode=.. total=..]</c>.
+    /// </summary>
+    internal static string FormatLeanXcRound(LeanCycleStats st, int detections, int decodes)
+    {
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        LeanRoundStats x = st.Rounds.Length > 1 ? st.Rounds[1] : default;
+        return string.Create(ic, $" xcRound[detections={detections} fits={x.Fits} subtracted={x.Subtracted} fitNone={x.FitNone} found={x.Found} kept={x.Kept} tierA={x.TierA} results={x.Results} decodes={decodes} error={st.Error} abandoned={(st.Abandoned ? 1 : 0)} " +
+            $"wall_ms sub={x.SubWallUs / 1000.0:F1} spec={x.SpecWallUs / 1000.0:F1} search={x.SearchWallUs / 1000.0:F1} decode={x.DecodeWallUs / 1000.0:F1} total={st.TotalWallUs / 1000.0:F1} " +
+            $"cpu_ms fit={x.FitCpuUs / 1000.0:F1} sum={x.SumCpuUs / 1000.0:F1} spec={x.SpecCpuUs / 1000.0:F1} search={x.SearchCpuUs / 1000.0:F1} decode={x.DecodeCpuUs / 1000.0:F1} total={st.TotalCpuUs / 1000.0:F1}]");
     }
 
     /// <summary>
