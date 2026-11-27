@@ -38,7 +38,9 @@ Source: the XC-ROUND confirmation runs `_qa-scratch\lc-base\runs\xn_{S40,H40,H20
 
 ### 1a. THIN: one candidate per place
 
-Before the cap is applied, a candidate is **dropped if a higher-scoring candidate lies within 6.25 Hz and 0.16 s of it** (one tone spacing, one symbol: the "shadowed" rule of §0.2). Ties are broken by lower frequency, then earlier time, so the result is deterministic. The cap (140 / 200) then takes the best of the survivors.
+Before the cap is applied, candidates are taken in descending score order. Ties are broken by lower frequency, then earlier time, so the result is deterministic. **A candidate is dropped if a candidate ALREADY KEPT lies within 6.25 Hz and 0.16 s of it** (one tone spacing, one symbol). This is greedy peak suppression. The cap (140 / 200) then takes the best of the survivors.
+
+*Clarified 2026-11-27, after QA's task draft:* the suppressor must be a **kept** candidate, not any higher-scoring one. With "any", a chain A > B > C (each within the window of the next, A and C farther apart) drops C because of B, which was itself dropped. C can be a real second signal, and on the fine grid such chains are four times as common. The first check still holds exactly: no two survivors lie within the window, by construction.
 
 Two real signals that close overlap in every tone. The stronger one is decoded and subtracted, and the weaker is found in a later residual round, which is how lean already treats them.
 
