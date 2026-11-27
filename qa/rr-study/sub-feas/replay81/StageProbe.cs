@@ -254,6 +254,15 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
     public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => _i.DecodeLeanCycle(pcm, request);
     public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0) => _i.DecodeLeanCycle(pcm, request, onRound0);
 #endif
+#if HAS_XCROUND
+    // XC-ROUND: the interface default is an EMPTY outcome, so without this forward the round never runs in this harness (and batch 4 would be silently absent). With --lean-probe 1 the round's own
+    // probe rows (every row round = 4) go to --probe-out under the same stamp as the cycle's.
+#if HAS_PROBE
+    public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections) => Probed(_i.DecodeLeanXcRound(pcm, Prep(request), residual, detections));
+#else
+    public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections) => _i.DecodeLeanXcRound(pcm, request, residual, detections);
+#endif
+#endif
     public void LeanShutdown() => _i.LeanShutdown();
 #endif
     public void SetDecodeParams(int kMinScorePass2, float osdCorrThreshold, int osdNhardMax) => _i.SetDecodeParams(kMinScorePass2, osdCorrThreshold, osdNhardMax);
