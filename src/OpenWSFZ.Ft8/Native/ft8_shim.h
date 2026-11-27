@@ -880,8 +880,11 @@ extern "C" {
  *   20260080 - SUB-PROBE: ftz_params_t (version 6) gains a probe pointer and FTZ_FLAG_PROBE (test-only, set by the replay harness; the daemon never sets it). With the flag the cycle
  *              fills the caller's ftz_probe_t with SUB, CAND and LOW rows (numbers only), read-only on the decode: the published results are byte-identical with and without it. Flag off:
  *              nothing is allocated or computed. No change to any classic export or outcome.
+ *   20260081 - PAYLOAD-FIT: the lean engine fits every published result from its decoded payload. The text gate (no "<" hash placeholder, at least three tokens), a leftover of the
+ *              classic SubtractionPass which builds its tones from the text, is removed from the round loop; the lean fit always encoded from the payload. The step-2e skip rule,
+ *              the rounds and every default are unchanged. No ABI change; no classic change.
 */
-#define FT8_SHIM_VERSION 20260080
+#define FT8_SHIM_VERSION 20260081
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

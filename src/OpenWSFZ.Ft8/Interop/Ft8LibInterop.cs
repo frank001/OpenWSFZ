@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260080;
+    private const int ExpectedShimVersion = 20260081;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
