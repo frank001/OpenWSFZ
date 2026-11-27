@@ -12,8 +12,8 @@ namespace OpenWSFZ.Ft8.Tests;
 /// XC-ROUND (FR-108), the managed side in <c>DecodeLeanAsync</c>, against a scripted lean interop (the seam is the interop's <c>DecodeLeanXcRound</c>; the cross-cycle template
 /// stage runs for real on synthetic audio, as in <c>LeanEngineBatchesTests</c>): the round is NOT called with the stage off, with no batch-3 detection, with no residual, or
 /// on Fast; with a detection it is called ONCE with exactly the published batch-3 detections (frequency, dt, the 79 tones of the template) and the cycle's own buffers, its
-/// results are published as batch 4 AFTER batch 3 and only when non-empty, a text already published earlier in the cycle is not published again, they are stored as priors like
-/// batch 2, and a failure of the round costs the cycle only its batch 4. Synthetic Q-prefix content only (NFR-021). No delay anywhere (TESTING_STRATEGY section 11).
+/// results are published as batch 4 AFTER batch 3 and only when non-empty, a text already published earlier in the cycle is not published again, they are NOT stored in the
+/// prior store (no chaining, as batch 3: a batch-4 decode never becomes a template for a later cycle), and a failure of the round costs the cycle only its batch 4. Synthetic Q-prefix content only (NFR-021). No delay anywhere (TESTING_STRATEGY section 11).
 /// </summary>
 public sealed class LeanEngineXcRoundManagedTests
 {
@@ -184,7 +184,7 @@ public sealed class LeanEngineXcRoundManagedTests
         noResidual.Select(r => r.Batch).Should().Equal(1);
     }
 
-    [Fact(DisplayName = "FR-108: XC-ROUND test (c): with a detection the round is called once with the published detections and the cycle's buffers; batch 4 follows batch 3, repeats of earlier texts are dropped, and the decodes are stored as priors like batch 2")]
+    [Fact(DisplayName = "FR-108: XC-ROUND test (c): with a detection the round is called once with the published detections and the cycle's buffers; batch 4 follows batch 3, repeats of earlier texts are dropped, and the decodes are NOT stored in the prior store")]
     public async Task Detection_CallsTheRoundOnce_AndPublishesBatch4AfterBatch3()
     {
         var log = new LineLog();
@@ -211,10 +211,20 @@ public sealed class LeanEngineXcRoundManagedTests
         call.Request.BudgetMs.Should().NotBeNull();
         call.Request.NoTierB.Should().BeFalse();
 
-        d.CrossCyclePriorStoreCount.Should().Be(4, "cycle 1: M and Other; cycle 2: Other2 (batch 1) and Fresh (batch 4, like batch 2); the batch-3 M is never stored");
+        d.CrossCyclePriorStoreCount.Should().Be(3, "cycle 1: M and Other; cycle 2: Other2 (batch 1); neither the batch-3 M nor the batch-4 Fresh is stored (no chaining)");
         var line = log.LastLean;
         line.Should().Contain("b1=1 b2=0 b3=1").And.Contain("xc=ran xcDetected=1").And.Contain("b4=1").And.Contain("xcRound[detections=1");
         LineLog.Field(line.Substring(line.IndexOf("xcRound[", StringComparison.Ordinal)), "decodes").Should().Be(1);
+
+        // A batch-4 decode is not a template for the next cycle's stage: 30 s later Fresh's signal is in the audio, but the store has no entry for it, so the stage finds
+        // nothing (no batch 3), calls no round, and sees exactly the priors of batches 1 and 2 (M and Other from cycle 1, 60 s back; Other2 from cycle 2, 30 s back).
+        io.Enqueue([], []);
+        var next = await Cycle(d, At(60), Audio(3, (Fresh, 1900, MDt)));
+        next.Should().NotContain(r => r.Batch == Ft8Decoder.LeanBatchXc, "Fresh was never stored as a prior, so the stage has nothing to test it with");
+        next.Should().NotContain(r => r.Message == Fresh);
+        io.XcCalls.Should().ContainSingle("no detection in the next cycle, so no second round");
+        var stage = log.Lines.Last(l => l.StartsWith("Cross-cycle prior:", StringComparison.Ordinal));
+        LineLog.Field(stage, "priorsLive").Should().Be(3, "M, Other and Other2: the batch-4 decode is not among the priors");
     }
 
     [Fact(DisplayName = "FR-108: XC-ROUND test (c): a round that finds nothing publishes no batch 4 (b4=0); a round that throws costs the cycle only its batch 4")]
