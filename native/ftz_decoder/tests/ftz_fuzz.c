@@ -86,6 +86,8 @@ static void round0_probe(void* ctx, int n, const void* results, const uint8_t* t
 }
 
 static int g_inject = 0;     /* the test hook inject_error_round of the next call */
+static int g_probe_cap = 0;  /* SUB-PROBE: rows of the probe buffer of the next call (0 = flag off); the buffer is exactly-sized, so AddressSanitizer sees any write past it */
+static int g_probe_rows = 0, g_probe_overflows = 0, g_probe_runs = 0;
 
 static int decode_full2(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, int max_rounds, int expire_round,
                         FT8Result* out, uint8_t* tiers, uint8_t* rounds, ftz_stats_t* st, cb_probe_t* probe, float* out_residual)
@@ -102,7 +104,33 @@ static int decode_full2(const float* pcm, int n, int threads, int max_cand, int 
     if (probe) { memset(probe, 0, sizeof(*probe)); p.round0_cb = round0_probe; p.round0_ctx = probe; }
     p.out_residual = out_residual;
     p.inject_error_round = g_inject;
-    return ftz_decode_cycle(pcm, n, &p, out, MAX_RESULTS, tiers, rounds, st);
+    ftz_probe_t pb;
+    ftz_probe_row_t* rows = NULL;
+    if (g_probe_cap > 0)
+    {
+        rows = (ftz_probe_row_t*)malloc(sizeof(ftz_probe_row_t) * (size_t)g_probe_cap);
+        memset(&pb, 0, sizeof(pb));
+        pb.struct_size = (int32_t)sizeof(pb); pb.cap = g_probe_cap; pb.rows = rows;
+        pb.n = -7; pb.overflow = 9;                                                  /* garbage the call must overwrite */
+        p.flags |= FTZ_FLAG_PROBE; p.probe = &pb;
+    }
+    int rc = ftz_decode_cycle(pcm, n, &p, out, MAX_RESULTS, tiers, rounds, st);
+    if (g_probe_cap > 0)
+    {
+        CHECK(pb.n >= 0 && pb.n <= pb.cap && (pb.overflow == 0 || pb.overflow == 1), "probe: n %d cap %d overflow %d", pb.n, pb.cap, pb.overflow);
+        CHECK(pb.overflow == 0 || pb.n == pb.cap, "probe: overflow with room left (n %d cap %d)", pb.n, pb.cap);
+        for (int i = 0; i < pb.n && i < pb.cap; i++)
+        {
+            const ftz_probe_row_t* r = &rows[i];
+            CHECK(r->kind >= FTZ_PROBE_SUB && r->kind <= FTZ_PROBE_LOW && r->round >= 0 && r->round <= FTZ_MAX_ROUNDS, "probe row %d: kind %d round %d", i, r->kind, r->round);
+            CHECK(r->kind == FTZ_PROBE_CAND ? (r->outcome >= 0 && r->outcome <= FTZ_PO_B_NOC3) : 1, "probe row %d: outcome %d", i, r->outcome);
+            CHECK(r->kind != FTZ_PROBE_LOW || (r->round >= 1 && r->kept >= 0 && r->kept <= 2), "probe row %d: LOW round %d reason %d", i, r->round, r->kept);
+            CHECK(r->kind != FTZ_PROBE_SUB || r->round >= 1, "probe row %d: SUB in round %d", i, r->round);
+        }
+        g_probe_rows += pb.n; g_probe_overflows += pb.overflow; g_probe_runs++;
+        free(rows);
+    }
+    return rc;
 }
 
 static int decode_full(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, int max_rounds, int expire_round,
@@ -245,6 +273,7 @@ static void fuzz(int runs)
         if (rnd() & 1u) flags |= FTZ_FLAG_SKIP_FITS;                               /* step 2e: the fit-skip rule */
         g_inject = (real_run && (rnd() % 8u) == 0) ? 1 + (int)(rnd() % 3u) : 0;   /* step 2e: a simulated fit error after the first chunk of that round */
         const int want_resid = (rnd() & 1u) != 0, want_cb = (rnd() & 1u) != 0;
+        { const int pcaps[] = { 0, 0, 1, 3, 17, 100, FTZ_PROBE_MAX_ROWS }; g_probe_cap = real_run ? FTZ_PROBE_MAX_ROWS - (int)(rnd() % 2u) * 3200 : pcaps[rnd() % 7u]; }   /* SUB-PROBE on in about 5 runs in 7, with tiny and full buffers */
         /* Exactly-sized heap block, so AddressSanitizer sees any write past FT8_EXPECTED_SAMPLES floats. */
         float* resid = want_resid ? (float*)malloc(sizeof(float) * PCM_SAMPLES) : NULL;
         static cb_probe_t fprobe;
@@ -254,6 +283,7 @@ static void fuzz(int runs)
         CHECK(st.has_residual == 0 || (resid != NULL && (flags & FTZ_FLAG_ROUNDS)), "run %d: has_residual without a buffer or without the loop", run);
         if (flags & FTZ_FLAG_NO_TIER_B) CHECK(st.n_b_eligible == 0 && st.n_b_attempted == 0 && st.n_b_published == 0, "run %d: tier B ran with the no-tier-B flag", run);
         free(resid);
+        g_probe_cap = 0;
         const int injected_error = g_inject != 0 && rc == FTZ_ERR_NOMEM;           /* the hook fired: results of the earlier rounds stand, no residual */
         CHECK((rc >= 0 && rc <= MAX_RESULTS) || injected_error, "run %d: kind %d n %d threads %d: rc %d", run, kind, n, threads, rc);
         if (injected_error) CHECK(st.has_residual == 0 && st.error == FTZ_ERR_NOMEM, "run %d: a fit error must export no residual (has_residual %d, error %d)", run, st.has_residual, st.error);
@@ -273,6 +303,7 @@ static void fuzz(int runs)
         if (failures > 20) break;
     }
     printf("fuzz: %d runs (%d full length, %d on mutated real audio, %d with at least one subtract-and-retry round), no crash, no sanitizer report\n", runs, full, real_loop_runs, loop_runs);
+    printf("probe: %d runs with the SUB-PROBE flag on, %d rows written, %d overflowed (exactly-sized buffers: no write past the end)\n", g_probe_runs, g_probe_rows, g_probe_overflows);
 }
 
 /* The accept rules of step 2c, called directly (the cycle calls the same functions). */

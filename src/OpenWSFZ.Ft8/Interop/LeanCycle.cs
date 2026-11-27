@@ -13,11 +13,14 @@ namespace OpenWSFZ.Ft8.Interop;
 /// <paramref name="WantResidual"/> asks for the final residual buffer (<see cref="LeanCycleOutcome.Residual"/>).
 /// Step 2e: <paramref name="SkipFits"/> turns on the fit-skip rule (a result is fitted only if a failed candidate of its round lies in its patch window; off by default
 /// here, on in the daemon's lean cycle) and <paramref name="InjectErrorRound"/> is a TEST HOOK (a simulated allocation failure after the first chunk of that round's fits).
+/// SUB-PROBE: <paramref name="Probe"/> asks for the test-only probe rows (<see cref="LeanCycleOutcome.ProbeRows"/>); <paramref name="ProbeCapacity"/> is the buffer's row capacity
+/// (default <see cref="LeanProbe.MaxRows"/>, the worst case; tests lower it to exercise the overflow). The daemon never sets either.
 /// </summary>
 internal readonly record struct LeanCycleParams(
     int Threads, bool CqAp = false, int? BudgetMs = null, int MaxCandidates = 0,
     bool Rounds = false, int MaxRounds = 0, bool ResidualUngated = false, bool ResidualCandidates = false, int ExpireRound = 0,
-    bool NoTierB = false, bool WantResidual = false, bool SkipFits = false, int InjectErrorRound = 0);
+    bool NoTierB = false, bool WantResidual = false, bool SkipFits = false, int InjectErrorRound = 0,
+    bool Probe = false, int ProbeCapacity = LeanProbe.MaxRows);
 
 /// <summary>Where a lean result came from (the native <c>FTZ_TIER_*</c> values).</summary>
 internal static class LeanTier
@@ -54,6 +57,10 @@ internal struct FtzParamsWire
     public IntPtr OutResidual;
     public int InjectErrorRound;
     public int Reserved2;
+    public IntPtr Probe;
+
+    /// <summary><c>FTZ_FLAG_PROBE</c>.</summary>
+    public const int FlagProbe = 128;
 
     /// <summary><c>FTZ_FLAG_NO_TIER_B</c>.</summary>
     public const int FlagNoTierB = 32;
@@ -75,6 +82,46 @@ internal struct FtzParamsWire
 
     /// <summary><c>FTZ_FLAG_RESIDUAL_CANDS</c>.</summary>
     public const int FlagResidualCandidates = 16;
+}
+
+/// <summary>Mirror of the native <c>ftz_probe_row_t</c>: sixteen 32-bit fields, 64 bytes (<c>native/ftz_decoder/ftz_decoder.h</c> documents every field and code).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct FtzProbeRowWire
+{
+    public int Kind, Round;
+    public float FreqHz, TimeS, Amp, SuppDb;
+    public int Score, Kept, Outcome, Gate, ACode, AUnsat, BCode, BUnsat, CqCode, CqUnsat;
+}
+
+/// <summary>Mirror of the native <c>ftz_probe_t</c>: three 32-bit fields, an overflow flag and the rows pointer (24 bytes).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct FtzProbeWire
+{
+    public int StructSize, Cap, N, Overflow;
+    public IntPtr Rows;
+}
+
+/// <summary>SUB-PROBE record kinds (the native <c>FTZ_PROBE_*</c>).</summary>
+internal static class LeanProbe
+{
+    /// <summary>The worst case the native side can write without overflow (<c>FTZ_PROBE_MAX_ROWS</c>).</summary>
+    public const int MaxRows = 3300;
+
+    public const int Sub = 1, Cand = 2, Low = 3;
+}
+
+/// <summary>
+/// One SUB-PROBE row (test-only diagnostic, numbers only; no message text and no payload, HK-037). See <c>ftz_decoder.h</c> for the codes.
+/// <see cref="Kind"/> is <see cref="LeanProbe.Sub"/>, <see cref="LeanProbe.Cand"/> or <see cref="LeanProbe.Low"/>. SUB: <see cref="Amp"/> and <see cref="SuppDb"/> (-999 = not measured).
+/// CAND: <see cref="Score"/>, <see cref="Kept"/>, <see cref="Outcome"/> (FTZ_PO_*), <see cref="Gate"/> (FTZ_PG_*) and the stage columns. LOW: <see cref="Score"/> and
+/// <see cref="Kept"/> as the reason (0 also in the round's CAND list, 1 below the floor, 2 cut by the cap).
+/// </summary>
+internal readonly record struct LeanProbeRow(
+    int Kind, int Round, float FreqHz, float TimeS, float Amp, float SuppDb,
+    int Score, int Kept, int Outcome, int Gate, int ACode, int AUnsat, int BCode, int BUnsat, int CqCode, int CqUnsat)
+{
+    internal static LeanProbeRow From(in FtzProbeRowWire w) => new(
+        w.Kind, w.Round, w.FreqHz, w.TimeS, w.Amp, w.SuppDb, w.Score, w.Kept, w.Outcome, w.Gate, w.ACode, w.AUnsat, w.BCode, w.BUnsat, w.CqCode, w.CqUnsat);
 }
 
 /// <summary>Mirror of the native <c>ftz_round_stats_t</c>: ten 32-bit counts and nine 64-bit microsecond counters, 112 bytes.</summary>
@@ -243,6 +290,12 @@ internal readonly record struct LeanCycleOutcome(Ft8NativeResult[] Results, Lean
     /// subtracted nothing, a fit round was stopped, or none was asked for. Results found in the last round are NOT subtracted from it.
     /// </summary>
     public float[]? Residual { get; init; }
+
+    /// <summary>SUB-PROBE (test-only): the probe rows, in the order the native call wrote them; empty unless <see cref="LeanCycleParams.Probe"/> was set.</summary>
+    public LeanProbeRow[] ProbeRows { get; init; } = [];
+
+    /// <summary>SUB-PROBE: true when the probe buffer was too small and rows were dropped (the rows that fit are in <see cref="ProbeRows"/>).</summary>
+    public bool ProbeOverflow { get; init; }
 }
 
 /// <summary>

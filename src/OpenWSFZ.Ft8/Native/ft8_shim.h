@@ -877,8 +877,11 @@ extern "C" {
  *   20260079 - DR-3: the lean engine's duplicate rule. Of two or more hits of ONE round with the same payload (round 0) or the same transmission (a residual round), and of
  *              the same rendered text from two payloads, the hit with the HIGHEST candidate sync score (ftx_candidate_t.score) is published, at its own frequency and time;
  *              equal scores keep the earlier (lowest-frequency) one, as before. Two pure exports (ftz_dedup_select, ftz_text_replace_wins). No ABI change; no classic change.
+ *   20260080 - SUB-PROBE: ftz_params_t (version 6) gains a probe pointer and FTZ_FLAG_PROBE (test-only, set by the replay harness; the daemon never sets it). With the flag the cycle
+ *              fills the caller's ftz_probe_t with SUB, CAND and LOW rows (numbers only), read-only on the decode: the published results are byte-identical with and without it. Flag off:
+ *              nothing is allocated or computed. No change to any classic export or outcome.
 */
-#define FT8_SHIM_VERSION 20260079
+#define FT8_SHIM_VERSION 20260080
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
