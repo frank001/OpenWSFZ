@@ -104,7 +104,7 @@ public sealed class CohResCandV2Tests
     /// DecodeAll answers by call number (1 = pass 0, 2 = residual, 3 = third pass). A snapshot is one byte: the number of the last DecodeAll. The fallback runs
     /// are answered by call index: 0 and 1 are the two runs of today (<see cref="FirstTwoRows"/>), 2 is the third run (<see cref="ThirdRows"/>).
     /// </summary>
-    private sealed class V2Interop(Ft8NativeResult[][] decodes) : IFt8NativeInterop
+    private sealed class V2Interop(Ft8NativeResult[][] decodes) : NonLeanInteropBase, IFt8NativeInterop
     {
         private readonly object _gate = new();
         private int _lastDecode;

@@ -32,7 +32,7 @@ public sealed class HashTableRejectCountLoggingTests
     /// decode result set — this test only cares about the reject-count log line, not decode
     /// output.
     /// </summary>
-    private sealed class FixedRejectCountInterop(int rejectCount) : IFt8NativeInterop
+    private sealed class FixedRejectCountInterop(int rejectCount) : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 

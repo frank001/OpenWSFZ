@@ -36,7 +36,7 @@ public sealed class D005MessageTrimTests
     /// Fake interop that returns a fixed set of <see cref="Ft8NativeResult"/>s,
     /// allowing precise control over the message strings returned to <see cref="Ft8Decoder"/>.
     /// </summary>
-    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : IFt8NativeInterop
+    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 

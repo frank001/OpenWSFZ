@@ -24,7 +24,7 @@ public sealed class CoherentLlrAtTests
     // ── Test double ───────────────────────────────────────────────────────────
 
     /// <summary>Capturing fake that records the last <see cref="CoherentLlrAt"/> call.</summary>
-    private sealed class CapturingInterop : IFt8NativeInterop
+    private sealed class CapturingInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         public bool     CoherentLlrAtCalled { get; private set; }
         public float[]? LastPcm             { get; private set; }

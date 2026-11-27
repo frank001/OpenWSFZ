@@ -121,7 +121,7 @@ public sealed class SubtractionFlagTests
     /// fake can drive a full <see cref="Ft8Decoder.DecodeAsync(float[],CancellationToken)"/>
     /// round trip through both passes. EncodeMessage delegates to the real native encoder.
     /// </summary>
-    internal sealed class SequencedInterop(Ft8NativeResult[] pass0, Ft8NativeResult[] residual) : IFt8NativeInterop
+    internal sealed class SequencedInterop(Ft8NativeResult[] pass0, Ft8NativeResult[] residual) : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
         public bool ComputeAnalyticCalled { get; private set; }

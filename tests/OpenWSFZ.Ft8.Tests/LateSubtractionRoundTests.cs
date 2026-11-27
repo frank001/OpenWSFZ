@@ -67,7 +67,7 @@ public sealed class LateSubtractionRoundTests
     /// analytic-signal call count tells a fit which stage it belongs to (1 = residual pass, 2 = third pass, 3 = late round); the fits of every
     /// stage are recorded with the tones they were asked to subtract.
     /// </summary>
-    private sealed class LateInterop(Ft8NativeResult[][] decodes, CohFallbackRunResult? run) : IFt8NativeInterop
+    private sealed class LateInterop(Ft8NativeResult[][] decodes, CohFallbackRunResult? run) : NonLeanInteropBase, IFt8NativeInterop
     {
         private readonly object _gate = new();
         public int MaxDecodePasses => 2;

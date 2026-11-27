@@ -38,7 +38,7 @@ public sealed class ThirdPassDeepTests
     /// DecodeAll answers by call number (1 = pass 0, 2 = residual, 3 = third pass). The analytic-signal call count tells the
     /// fit which stage it belongs to (1 = residual pass, 2 = third pass), and records what each stage worked on.
     /// </summary>
-    private sealed class StagedInterop(params Ft8NativeResult[][] decodes) : IFt8NativeInterop
+    private sealed class StagedInterop(params Ft8NativeResult[][] decodes) : NonLeanInteropBase, IFt8NativeInterop
     {
         private readonly object _gate = new();
         public int MaxDecodePasses => 2;

@@ -92,7 +92,7 @@ public sealed class CrossCyclePriorTests
     /// DecodeAll answers by call number within the cycle (1 = pass 0, 2 = the residual pass); the fallback finds nothing; the fits subtract nothing, so the residual buffer is a copy of the cycle audio.
     /// <see cref="AdvanceInFallback"/> moves the manual clock during the fallback run (a stand-in for a slow cycle).
     /// </summary>
-    private sealed class XcInterop : IFt8NativeInterop
+    private sealed class XcInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         private readonly object _gate = new();
         private int _call;

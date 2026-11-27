@@ -318,7 +318,7 @@ public sealed class OsdSignFixTests : IDisposable
         decoder.GetOsdSignFix().Should().Be(0);
     }
 
-    private sealed class RecordingInterop : IFt8NativeInterop
+    private sealed class RecordingInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         public int Last { get; private set; } = 1;
         public int MaxDecodePasses => 2;

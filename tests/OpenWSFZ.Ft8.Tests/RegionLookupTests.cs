@@ -89,7 +89,7 @@ public sealed class RegionLookupTests
 
     // ── End-to-end: DecodeAsync attaches Region to the decode payload ─────────
 
-    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : IFt8NativeInterop
+    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 

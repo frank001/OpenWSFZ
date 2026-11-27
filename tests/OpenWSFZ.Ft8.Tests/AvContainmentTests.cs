@@ -53,7 +53,7 @@ public sealed class AvContainmentTests
     /// from <see cref="DecodeAll"/>, simulating an AV in the native pipeline.
     /// Tracks whether the TLS-query methods were incorrectly called after the AV.
     /// </summary>
-    private sealed class ThrowingNativeInterop : IFt8NativeInterop
+    private sealed class ThrowingNativeInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         public int  MaxDecodePasses                { get; } = 2;
         public bool GetLastPassCountsCalled        { get; private set; }

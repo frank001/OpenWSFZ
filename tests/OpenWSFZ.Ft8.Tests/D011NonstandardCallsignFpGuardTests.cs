@@ -68,7 +68,7 @@ public sealed class D011NonstandardCallsignFpGuardTests
     /// Fake interop mirroring <see cref="D009FpFilterTests"/>'s test double, used to drive
     /// <see cref="Ft8Decoder.DecodeAsync"/> without loading the native DLL.
     /// </summary>
-    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : IFt8NativeInterop
+    private sealed class FixedResultInterop(params Ft8NativeResult[] results) : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 

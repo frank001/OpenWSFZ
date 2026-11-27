@@ -50,7 +50,7 @@ public sealed class CoherentFallbackWiringTests
     /// A scripted native interop. DecodeAll answers by call number (1 = pass 0, 2 = residual, 3 = third pass); the fallback methods are
     /// scripted per cycle and every call is recorded, in order, together with the batches the test's callback receives.
     /// </summary>
-    private sealed class FallbackInterop(Ft8NativeResult[][] decodes, CohFallbackRunResult? run) : IFt8NativeInterop
+    private sealed class FallbackInterop(Ft8NativeResult[][] decodes, CohFallbackRunResult? run) : NonLeanInteropBase, IFt8NativeInterop
     {
         private readonly object _gate = new();
         private int _ordinaryActive;

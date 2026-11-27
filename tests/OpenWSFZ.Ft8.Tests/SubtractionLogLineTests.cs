@@ -241,7 +241,7 @@ public sealed class SubtractionLogLineTests
         }
     }
 
-    private sealed class ProbeInterop : IFt8NativeInterop
+    private sealed class ProbeInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
         public Ft8NativeResult[] Pass0 { get; init; } = [];

@@ -247,7 +247,7 @@ public sealed class SubtractionPassTests
     /// drives the new hooks below (<see cref="FitBehaviour"/>, <see cref="PoolConfigureCalls"/>, and the
     /// <c>Diag(...)</c> events).
     /// </remarks>
-    internal sealed class FakeInterop : IFt8NativeInterop
+    internal sealed class FakeInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         /// <summary>Overrides the fit: receives the cancel-flag pointer; returns (rc, shat). Default: (FitSignalReturnCode, zeros).</summary>
         public Func<IntPtr, (int ReturnCode, float[] Shat)>? FitBehaviour { get; init; }

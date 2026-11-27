@@ -263,7 +263,7 @@ public sealed class CoherentFallbackParallelRunnerTests
 
     // ── the default interface method ────────────────────────────────────────────────────────────────────────────
 
-    private sealed class BackendOnlyInterop(ICohFallbackBackend? backend) : IFt8NativeInterop
+    private sealed class BackendOnlyInterop(ICohFallbackBackend? backend) : NonLeanInteropBase, IFt8NativeInterop
     {
         public ICohFallbackBackend? CohFallbackBackend => backend;
         public Ft8NativeResult[] DecodeAll(float[] pcm) => [];
