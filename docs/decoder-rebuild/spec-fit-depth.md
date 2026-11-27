@@ -206,6 +206,20 @@ SC and S0–S2 read almost the same. **On crowded S40, the footprint carries oth
    - **If isolated SC is within ±1.5 dB AND isolated S0–S2 ≥ 2 dB:** run k = 5 on all three slices as specified, plus §8.6.
    - **If not:** the noise-spot reference does not work on these recordings. **The measurement ends as INCONCLUSIVE.** QA writes a short result note and the Architect reports to the Product Owner. **There is no Amendment 2.**
 
+### 8.5c Outcome (QA, 2026-11-27): INCONCLUSIVE under the 8.5b ending rule
+
+Result: `qa/decoder-rebuild/fit-depth-result.md` (QA `3ee55c1a`, `qa/sprint-known-erasure`). The isolated signals of `pilot2`, F at 0.32 s GFSK:
+- **SC: +0.67 dB** (n = 17, passes);
+- **S0–S2 pooled: +1.58 dB** (n = 80; S0 +1.56, S1 +3.44, S2 +0.97), below the 2 dB bar, so the rule fired.
+
+Neither the k = 5 run nor §8.6 was run. C1′ stays FAIL (−2.16 dB). The cause is not position: there is a constant time-convention offset of 0.156 s ± 15 ms, and the suppression difference does not follow the time deviation. That leaves the two definitions (a Hann-windowed oversampled waterfall against a single DFT bin).
+
+**The Architect's reading:**
+- **On isolated signals there is no sign of a 4–6 dB shortfall.** Strong signals are removed to within about 1.6 dB of the noise in this instrument, and the instrument may overstate production's leftover by up to about 2 dB.
+- SUB-PROBE's "5 dB short" is therefore most likely **crowding plus the ceiling approximation, not the fit.** This agrees with KNOWN-ERASURE's null: nothing of the neighbour was left in T's cells to erase.
+- The window, the pulse, L_T and the retention were **not measured.** Crowded signals were not read.
+- The evidence is thin: one slice, 20 cycles, n = 80. **The subtraction-depth lever is not proven closed, but there is no measured room to build on.**
+
 ### 8.6 Finer views (Product Owner 2026-11-27: "yes, send the finer views to QA"). Reported only; no check and no §6 condition reads them
 
 They say **where** the leftover sits, and so which kind of fix would fit. They need projections only, no extra fits. Compute them for S0–S2 at **W = 0.32 s and at the W with the lowest median F**, GFSK, on the full run (not on the pilot).
