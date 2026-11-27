@@ -54,6 +54,8 @@
     <DefineConstants Condition="'$(HasLean)' == 'true'">$(DefineConstants);HAS_LEAN</DefineConstants>
     <!-- SUB-PROBE (feat/sub-probe fc3d5b5c, shim 20260080): only the build with LeanCycleParams.Probe / LeanCycleOutcome.ProbeRows. Needs HasLean. The harness options lean-probe=1 and probe-out=PATH (under _qa-scratch) write one TSV row per probe row (numbers only). -->
     <DefineConstants Condition="'$(HasProbe)' == 'true'">$(DefineConstants);HAS_PROBE</DefineConstants>
+    <!-- XC-ROUND (feat/xc-round, shim 20260082): only the build with IFt8NativeInterop.DecodeLeanXcRound / LeanXcDetection. Needs HasLean (and HasInternals). The StageProbeInterop wrapper MUST forward the round (the interface default is an empty outcome: without the forward the round never runs); with HasProbe its round-4 rows go to the probe-out file under the cycle's stamp. -->
+    <DefineConstants Condition="'$(HasXcRound)' == 'true'">$(DefineConstants);HAS_XCROUND</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>

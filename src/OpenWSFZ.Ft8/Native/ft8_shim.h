@@ -883,8 +883,11 @@ extern "C" {
  *   20260081 - PAYLOAD-FIT: the lean engine fits every published result from its decoded payload. The text gate (no "<" hash placeholder, at least three tokens), a leftover of the
  *              classic SubtractionPass which builds its tones from the text, is removed from the round loop; the lean fit always encoded from the payload. The step-2e skip rule,
  *              the rounds and every default are unchanged. No ABI change; no classic change.
+ *   20260082 - XC-ROUND: a new export, ftz_xc_round, with the new struct ftz_xc_t (an ABI addition; ftz_params_t, ftz_stats_t and every existing export are unchanged). ONE more
+ *              subtract-and-retry round for the managed cross-cycle stage: it fits and subtracts the stage's detections (79 tones, frequency, time) on the residual the cycle returned,
+ *              re-computes the spectrogram and searches and decodes only in their patch windows, as a round 1 to 3 does; probe rows and out_rounds carry round 4. No classic change.
 */
-#define FT8_SHIM_VERSION 20260081
+#define FT8_SHIM_VERSION 20260082
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

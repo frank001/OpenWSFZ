@@ -105,3 +105,11 @@
 - [x] 13.1 Native: the text gate (`if (!reenc[k]) continue;`) removed from the round loop; the now-dead `reenc` array and `ftz_text_reencodable` removed; `FT8_SHIM_VERSION` 20260081, `libft8.dll` rebuilt
 - [x] 13.2 Tests (`LeanEnginePayloadFitTests`): a hashed type-4 result and a two-token result are fitted (a `SUB` row, a counted fit, the masked signal beneath found); red on the 20260080 binary
 - [x] 13.3 This change validated `--strict`; VERSION per `tools/check_version_bump.py`
+
+## 14. XC-ROUND: one more native round after the cross-cycle stage
+
+- [x] 14.1 Native: `ftz_xc_round` (new export, `ftz_xc_t`) runs one residual round on the stage's detections through the same implementation as the cycle (`ftz_decode_cycle_impl` with an XC mode: no round 0, every detection fitted, patch windows only, probe rows and out_rounds carry round 4); `FT8_SHIM_VERSION` 20260082, `libft8.dll` rebuilt, `rebuild_shim.bat` exports it
+- [x] 14.2 Managed: `Ft8LibInterop.DecodeLeanXcRound` and the interface member (default: an empty outcome), `DecodeLeanAsync` calls it after the stage and publishes batch 4; the lean log line gains `b4=` and `xcRound[...]` only when the round was attempted
+- [x] 14.3 Tests: `LeanEngineXcRoundNativeTests` (the masked signal found, no detection a no-op, 1/2/16 threads identical, no budget left publishes nothing), `LeanEngineXcRoundManagedTests` (not called with the stage off, no detection, no residual or Fast; called once with the published detections; batch 4 after batch 3, no repeated text; failure costs only batch 4); ASan + UBSan fuzz with the XC round and its argument errors
+- [x] 14.4 `REQUIREMENTS.md` FR-108 (four batches, the round, shim 20260082), changelog 1.79; this change validated `--strict`
+- [x] 14.5 Batch 4 is NOT stored in the prior store (`xcBatch: 0`: no chaining, as batch 3; the replay found 4 / 21 / 44 chained batch-3 decodes); managed code and documents only, shim unchanged; test flipped; `REQUIREMENTS.md` changelog 1.80

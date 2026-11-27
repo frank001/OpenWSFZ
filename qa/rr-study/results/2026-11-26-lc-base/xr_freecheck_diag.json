@@ -1,0 +1,47 @@
+{
+ "S40": {
+  "extra_rows_in_b123": 4,
+  "extra_by_batch": {
+   "3": 4
+  },
+  "extra_explained_by_a_batch4_decode_30_60_90_s_earlier": 4,
+  "extra_not_explained": 0,
+  "lost_rows_from_b123": 0,
+  "lost_by_batch": {},
+  "lost_explained": 0,
+  "lost_not_explained": 0,
+  "extra_rows_whose_text_was_in_the_old_run_in_another_batch": 0,
+  "cycles_with_batch4_decodes": 45
+ },
+ "H40": {
+  "extra_rows_in_b123": 21,
+  "extra_by_batch": {
+   "3": 21
+  },
+  "extra_explained_by_a_batch4_decode_30_60_90_s_earlier": 21,
+  "extra_not_explained": 0,
+  "lost_rows_from_b123": 0,
+  "lost_by_batch": {},
+  "lost_explained": 0,
+  "lost_not_explained": 0,
+  "extra_rows_whose_text_was_in_the_old_run_in_another_batch": 0,
+  "cycles_with_batch4_decodes": 99
+ },
+ "H20": {
+  "extra_rows_in_b123": 44,
+  "extra_by_batch": {
+   "3": 43,
+   "2": 1
+  },
+  "extra_explained_by_a_batch4_decode_30_60_90_s_earlier": 44,
+  "extra_not_explained": 0,
+  "lost_rows_from_b123": 1,
+  "lost_by_batch": {
+   "2": 1
+  },
+  "lost_explained": 1,
+  "lost_not_explained": 0,
+  "extra_rows_whose_text_was_in_the_old_run_in_another_batch": 0,
+  "cycles_with_batch4_decodes": 133
+ }
+}

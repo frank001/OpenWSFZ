@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 SC = r"D:\Projects\claude\_qa-scratch"
 ART = r"D:\Projects\claude\OpenWSFZ\artefacts"
 SL = {"S40": (170, "20261114_2312_endurance_run-gathered"), "H40": (240, "20261028_2233_endurance_run-gathered"), "H20": (240, "20260808_live_run_0016-8080")}
+OLD_TAG, NEW_TAG = (sys.argv[1], sys.argv[2]) if len(sys.argv) > 2 else ("probe", "pf")      # the baseline run and the run under test (default: SUB-PROBE vs PAYLOAD-FIT; XC-ROUND: pf xr)
 FREQ_TOL_HZ = 10.0
 NEXT_CYCLES = 4
 CYCLE_S = 15
@@ -50,7 +51,7 @@ def quart(v):
 
 def analyse_slice(name):
     n, folder = SL[name]
-    old_d, new_d = SC + r"\lc-base\runs\probe_%s_L_n%d" % (name, n), SC + r"\lc-base\runs\pf_%s_L_n%d" % (name, n)
+    old_d, new_d = SC + r"\lc-base\runs\%s_%s_L_n%d" % (OLD_TAG, name, n), SC + r"\lc-base\runs\%s_%s_L_n%d" % (NEW_TAG, name, n)
     sel = json.load(open(new_d + r"\sel.json"))
     assert sel == json.load(open(old_d + r"\sel.json"))
     stamps = list(sel["runs"][sel["run"]]["FULL"])
@@ -130,7 +131,7 @@ def analyse_slice(name):
 
 def main():
     out = {s: analyse_slice(s) for s in SL}
-    with open(os.path.join(SC, "lc-base", "pf_oo_check.json"), "w") as fh:
+    with open(os.path.join(SC, "lc-base", "pf_oo_check.json" if (OLD_TAG, NEW_TAG) == ("probe", "pf") else "oo_check_%s_%s.json" % (OLD_TAG, NEW_TAG)), "w") as fh:
         json.dump(out, fh, indent=1)
     print(json.dumps(out, indent=1))
 
