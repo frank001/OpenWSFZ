@@ -12,8 +12,8 @@
  * steps) builds it without a new compile line. Nothing here is reachable except through ftz_decode_cycle and ftz_shutdown.
  *
  * Shape of a call (spec section 2.3, S1 + S2 steps 1 to 4, 6 and 7):
- *   S1  spectrogram (same monitor configuration as the primary pass: window, oversampling and scaling are closed arms)
- *   S2  candidates (ftx_find_candidates, today's primary parameters), tier A on every candidate IN PARALLEL on a fixed
+ *   S1  spectrogram (the primary pass's monitor configuration by default; FINE-GRID: the search grid's time_osr / freq_osr are lean runtime parameters, 2 or 4, default 2, and a freq_osr of 4 zero-pads the 2-symbol window)
+ *   S2  candidates (ftx_find_candidates, today's primary parameters; FINE-GRID: optionally thinned, see ftz_find_candidates), tier A on every candidate IN PARALLEL on a fixed
  *       worker pool; tier B (the coherent fallback's per-candidate body, one coherent context per worker) on every candidate
  *       that failed tier A; CQ-AP (FR-103) on every candidate that failed both; then ON THE CALLING THREAD, in a fixed order: sort by (frequency, time, payload), unpack against the
  *       callsign table, de-duplicate by payload and by text, SNR, write the result.
@@ -812,6 +812,132 @@ static int ftz_call_round0(ftz_round0_fn fn, void* ctx, int n, const FT8Result* 
 #endif
 }
 
+/* ── FINE-GRID: the lean candidate search (THIN) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * ftx_find_candidates keeps the best N grid positions with no local-peak suppression, so a strong signal fills many slots with copies of itself. With thin on, this wrapper scores
+ * every grid position exactly as ftx_find_candidates does (it CALLS it, with a cap large enough for the whole grid, so the floor, the score and the position set are the vendored
+ * ones, untouched), sorts the positions above the floor by (score descending, frequency ascending, time ascending), and walks that list once: a candidate is dropped when an
+ * ALREADY KEPT candidate lies within one tone spacing (6.25 Hz) and one symbol (0.16 s) of it (suppression by KEPT candidates, never by a dropped one), and the walk stops at the cap.
+ * No two survivors are within the window, whatever the order of a chain. Positions are compared on the integer grid (units of 1/freq_osr bin and 1/time_osr symbol), so the
+ * comparison is exact. With thin off the wrapper IS ftx_find_candidates. */
+
+static int ftz_cand_freq_units(const ftx_candidate_t* c, int freq_osr) { return (int)c->freq_offset * freq_osr + (int)c->freq_sub; }
+static int ftz_cand_time_units(const ftx_candidate_t* c, int time_osr) { return (int)c->time_offset * time_osr + (int)c->time_sub; }
+
+/* THIN's sort key: score descending, then the lower frequency, then the earlier time (a total order on distinct grid positions, so the result never depends on the sort's stability). */
+static int ftz_cand_before(const ftx_candidate_t* a, const ftx_candidate_t* b, int time_osr, int freq_osr)
+{
+    if (a->score != b->score) return a->score > b->score;
+    const int fa = ftz_cand_freq_units(a, freq_osr), fb = ftz_cand_freq_units(b, freq_osr);
+    if (fa != fb) return fa < fb;
+    return ftz_cand_time_units(a, time_osr) < ftz_cand_time_units(b, time_osr);
+}
+
+/* A bottom-up merge sort into tmp (n entries), by ftz_cand_before. No qsort: it takes no context, and a sort that needs one would need a global. */
+static void ftz_sort_cands(ftx_candidate_t* v, ftx_candidate_t* tmp, int n, int time_osr, int freq_osr)
+{
+    ftx_candidate_t* src = v;
+    ftx_candidate_t* dst = tmp;
+    for (int width = 1; width < n; width *= 2)
+    {
+        for (int lo = 0; lo < n; lo += 2 * width)
+        {
+            const int mid = lo + width < n ? lo + width : n;
+            const int hi  = lo + 2 * width < n ? lo + 2 * width : n;
+            int i = lo, j = mid, k = lo;
+            while (i < mid && j < hi)
+                dst[k++] = ftz_cand_before(&src[j], &src[i], time_osr, freq_osr) ? src[j++] : src[i++];
+            while (i < mid) dst[k++] = src[i++];
+            while (j < hi)  dst[k++] = src[j++];
+        }
+        ftx_candidate_t* t = src; src = dst; dst = t;
+    }
+    if (src != v) memcpy(v, src, (size_t)n * sizeof(v[0]));
+}
+
+/* The greedy walk over a list already in ftz_cand_before order. Writes the survivors (at most cap) to out and returns their number. */
+static int ftz_thin_sorted(const ftx_candidate_t* sorted, int n, int cap, int time_osr, int freq_osr, ftx_candidate_t* out)
+{
+    int kept = 0;
+    for (int i = 0; i < n && kept < cap; ++i)
+    {
+        const int fi = ftz_cand_freq_units(&sorted[i], freq_osr), ti = ftz_cand_time_units(&sorted[i], time_osr);
+        int shadowed = 0;
+        for (int k = 0; k < kept; ++k)
+        {
+            const int df = fi - ftz_cand_freq_units(&out[k], freq_osr), dt = ti - ftz_cand_time_units(&out[k], time_osr);
+            if (df >= -freq_osr && df <= freq_osr && dt >= -time_osr && dt <= time_osr) { shadowed = 1; break; }
+        }
+        if (!shadowed) out[kept++] = sorted[i];
+    }
+    return kept;
+}
+
+/* The most positions ftx_find_candidates can score for a waterfall: time offsets -10 to 19 (30) x num_bins x both sub-positions. */
+static size_t ftz_grid_capacity(const ftx_waterfall_t* wf)
+{
+    return (size_t)30 * (size_t)(wf->num_bins > 0 ? wf->num_bins : 0) * (size_t)wf->time_osr * (size_t)wf->freq_osr;
+}
+
+/* scratch holds scratch2_n candidates (twice ftz_grid_capacity: the list and the sort's workspace). out holds cap. */
+static int ftz_find_candidates(const ftx_waterfall_t* wf, int cap, ftx_candidate_t out[], int min_score, int thin, ftx_candidate_t* scratch, size_t scratch2_n)
+{
+    if (!thin || scratch == NULL) return ftx_find_candidates(wf, cap, out, min_score);
+    const size_t grid_n = scratch2_n / 2;
+    if (wf == NULL || cap <= 0 || grid_n == 0 || grid_n > (size_t)INT32_MAX) return 0;
+    int n = ftx_find_candidates(wf, (int)grid_n, scratch, min_score);
+    if (n <= 0) return 0;
+    if ((size_t)n > grid_n) n = (int)grid_n;
+    ftz_sort_cands(scratch, scratch + grid_n, n, wf->time_osr, wf->freq_osr);
+    return ftz_thin_sorted(scratch, n, cap, wf->time_osr, wf->freq_osr, out);
+}
+
+/* TEST EXPORT (FINE-GRID): THIN's rule on a caller-built list, so a test can drive it with random sets, exact ties and chains. cands holds n candidates of five int32 each
+ * (score, time_offset, time_sub, freq_offset, freq_sub); the survivors (at most cap, in THIN's order) are written to out in the same form. Returns the number of survivors, or
+ * FTZ_ERR_ARG (NULL, a negative size, an osr other than 1 to 4, a sub-position outside its osr). Not used by the decoder. */
+int ftz_test_thin(const int32_t* cands, int n, int cap, int time_osr, int freq_osr, int32_t* out)
+{
+    if (cands == NULL || out == NULL || n < 0 || cap < 0 || time_osr < 1 || time_osr > 4 || freq_osr < 1 || freq_osr > 4) return FTZ_ERR_ARG;
+    if (n == 0 || cap == 0) return 0;
+    ftx_candidate_t* v = (ftx_candidate_t*)calloc((size_t)n * 3, sizeof(ftx_candidate_t));
+    if (v == NULL) return FTZ_ERR_NOMEM;
+    for (int i = 0; i < n; ++i)
+    {
+        const int32_t* c = cands + (size_t)i * 5;
+        if (c[2] < 0 || c[2] >= time_osr || c[4] < 0 || c[4] >= freq_osr) { free(v); return FTZ_ERR_ARG; }
+        v[i].score = (int16_t)c[0]; v[i].time_offset = (int16_t)c[1]; v[i].time_sub = (uint8_t)c[2]; v[i].freq_offset = (int16_t)c[3]; v[i].freq_sub = (uint8_t)c[4];
+    }
+    ftz_sort_cands(v, v + n, n, time_osr, freq_osr);
+    const int kept = ftz_thin_sorted(v, n, cap, time_osr, freq_osr, v + (size_t)2 * n);
+    for (int i = 0; i < kept; ++i)
+    {
+        const ftx_candidate_t* s = &v[(size_t)2 * n + i];
+        int32_t* o = out + (size_t)i * 5;
+        o[0] = s->score; o[1] = s->time_offset; o[2] = s->time_sub; o[3] = s->freq_offset; o[4] = s->freq_sub;
+    }
+    free(v);
+    return kept;
+}
+
+/* TEST EXPORT (FINE-GRID): the waterfall the lean cycle would build for pcm (n samples) at the given grid, for a bit-level comparison between grids. window_len 0 = nfft
+ * (the original window), otherwise the window length in samples. dims = { num_blocks, time_osr, freq_osr, num_bins }. Copies num_blocks * block_stride bytes to out
+ * (layout [block][time_sub][freq_sub][bin]) and returns that count, or FTZ_ERR_ARG / FTZ_ERR_NOMEM / -6 when out_cap is too small. Not used by the decoder. */
+int ftz_test_waterfall(const float* pcm, int n, int time_osr, int freq_osr, int window_len, uint8_t* out, int out_cap, int32_t* dims)
+{
+    if (pcm == NULL || out == NULL || dims == NULL || n <= 0 || (time_osr != 2 && time_osr != 4) || (freq_osr != 2 && freq_osr != 4) || window_len < 0 || out_cap < 0) return FTZ_ERR_ARG;
+    monitor_t mon;
+    memset(&mon, 0, sizeof(mon));
+    monitor_config_t cfg = { .f_min = 140.0f, .f_max = 3075.0f, .sample_rate = FT8_SAMPLE_RATE, .time_osr = time_osr, .freq_osr = freq_osr, .protocol = FTX_PROTOCOL_FT8, .window_len = window_len };
+    monitor_init(&mon, &cfg);
+    if (mon.wf.mag == NULL || mon.window == NULL || mon.last_frame == NULL || mon.fft_cfg == NULL || mon.block_size <= 0) { monitor_free(&mon); return FTZ_ERR_NOMEM; }
+    for (int pos = 0; pos + mon.block_size <= n; pos += mon.block_size) monitor_process(&mon, pcm + pos);
+    const long bytes = (long)mon.wf.num_blocks * (long)mon.wf.block_stride;
+    dims[0] = mon.wf.num_blocks; dims[1] = mon.wf.time_osr; dims[2] = mon.wf.freq_osr; dims[3] = mon.wf.num_bins;
+    int rc = -6;
+    if (bytes <= (long)out_cap) { memcpy(out, mon.wf.mag, (size_t)bytes); rc = (int)bytes; }
+    monitor_free(&mon);
+    return rc;
+}
+
 static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* params, FT8Result* results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* st,
                                  const ftz_xc_t* xc)
 {
@@ -829,6 +955,14 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     const int no_tier_b    = (params->flags & FTZ_FLAG_NO_TIER_B) != 0;
     const int skip_fits    = (params->flags & FTZ_FLAG_SKIP_FITS) != 0;
     const int inject_round = params->inject_error_round;
+    /* FINE-GRID: validated before anything is allocated. 0 = today's value (thin off, osr 2/2). */
+    if ((params->thin != 0 && params->thin != 1)
+        || (params->time_osr != 0 && params->time_osr != 2 && params->time_osr != 4)
+        || (params->freq_osr != 0 && params->freq_osr != 2 && params->freq_osr != 4))
+        return FTZ_ERR_PARAM;
+    const int thin_on  = params->thin == 1;
+    const int grid_t   = params->time_osr != 0 ? params->time_osr : K_TIME_OSR;
+    const int grid_f   = params->freq_osr != 0 ? params->freq_osr : K_FREQ_OSR;
     /* SUB-PROBE: the caller's buffer, only with the flag; reset here so even an early return leaves n = 0. */
     ftz_probe_t* pb = NULL;
     if ((params->flags & FTZ_FLAG_PROBE) != 0 && (size_t)params->struct_size >= sizeof(ftz_params_t) && params->probe != NULL
@@ -881,8 +1015,10 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     monitor_config_t cfg = {
         .f_min = 140.0f, .f_max = 3075.0f,
         .sample_rate = FT8_SAMPLE_RATE,
-        .time_osr = K_TIME_OSR, .freq_osr = K_FREQ_OSR,
-        .protocol = FTX_PROTOCOL_FT8
+        .time_osr = grid_t, .freq_osr = grid_f,
+        .protocol = FTX_PROTOCOL_FT8,
+        /* A finer frequency grid is made by zero-padding: the window stays today's 2 symbols (the FFT is freq_osr symbols long; at freq_osr 2 they are the same, window_len 0). */
+        .window_len = grid_f > K_FREQ_OSR ? K_FREQ_OSR * (int)(FT8_SAMPLE_RATE * FT8_SYMBOL_PERIOD) : 0
     };
     monitor_init(&mon, &cfg);
     if (mon.wf.mag == NULL || mon.window == NULL || mon.last_frame == NULL || mon.fft_cfg == NULL || mon.block_size <= 0)
@@ -961,12 +1097,15 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     int32_t*         sub_rows = NULL;  /* the SUB rows of the round and the footprint power before its subtraction */
     double*          sub_before = NULL;
     ftx_candidate_t* low_buf = NULL;
+    /* FINE-GRID: the above-floor list THIN sorts, and the sort's workspace; only with thin on, sized for the grid in use (about 56 k positions at 2/2, 226 k at 4/4, each). */
+    const size_t     thin_n = thin_on ? 2 * ftz_grid_capacity(&mon.wf) : 0;
+    ftx_candidate_t* thin_buf = thin_on ? (ftx_candidate_t*)calloc(thin_n, sizeof(ftx_candidate_t)) : NULL;
     int              resid_valid = 0;     /* resid holds the original minus every subtraction of the rounds that completed */
     if (cands == NULL || msgs == NULL || cmsgs == NULL || ok_a == NULL || b_el == NULL || b_st == NULL || b_ed == NULL || c_el == NULL
         || c_at == NULL || c_ok == NULL || pos_f == NULL || pos_t == NULL || b_fr == NULL || b_dt == NULL || b_snr == NULL || b_pl == NULL
         || known == NULL || hits == NULL || drop == NULL || texts == NULL || seen_payloads == NULL || res_pl == NULL
         || res_score == NULL || res_tier == NULL || res_ungated == NULL || res_h12 == NULL || sel_pl == NULL || sel_sc == NULL
-        || fit_ix == NULL || sub_hz == NULL || fail_hz == NULL)
+        || fit_ix == NULL || sub_hz == NULL || fail_hz == NULL || (thin_on && thin_buf == NULL))
     {
         rc = FTZ_ERR_NOMEM;
         goto done;
@@ -1009,7 +1148,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         {
             /* ── S2 step 1: candidates ── */
             w0 = ftz_wall_us(); c0 = ftz_thread_cpu_us();
-            ncands = ftx_find_candidates(&mon.wf, max_c, cands, min_sc);
+            ncands = ftz_find_candidates(&mon.wf, max_c, cands, min_sc, thin_on, thin_buf, thin_n);
             if (ncands < 0) ncands = 0;
             if (ncands > max_c) ncands = max_c;
             rs->n_found = ncands; rs->n_kept = ncands;
@@ -1160,7 +1299,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
 
             /* ── S3 (3): candidates on the residual (floor 10, cap 200), then only those near a signal subtracted in THIS round ── */
             w0 = ftz_wall_us(); c0 = ftz_thread_cpu_us();
-            ncands = ftx_find_candidates(&mon.wf, res_cap, cands, res_min_sc);
+            ncands = ftz_find_candidates(&mon.wf, res_cap, cands, res_min_sc, thin_on, thin_buf, thin_n);
             if (ncands < 0) ncands = 0;
             if (ncands > res_cap) ncands = res_cap;
             rs->n_found = ncands;
@@ -1176,6 +1315,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                     ftz_probe_row_t row;
                     memset(&row, 0, sizeof(row));
                     row.kind = FTZ_PROBE_LOW; row.round = prow;
+                    row.time_sub = lc->time_sub; row.freq_sub = lc->freq_sub;
                     row.freq_hz = (mon.min_bin + lc->freq_offset + (float)lc->freq_sub / mon.wf.freq_osr) / mon.symbol_period;
                     row.time_s  = (lc->time_offset + (float)lc->time_sub / mon.wf.time_osr) * mon.symbol_period;
                     row.score   = lc->score;
@@ -1194,6 +1334,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                     ftz_probe_row_t row;
                     memset(&row, 0, sizeof(row));
                     row.kind = FTZ_PROBE_CAND; row.round = prow; row.freq_hz = f;
+                    row.time_sub = cd->time_sub; row.freq_sub = cd->freq_sub;
                     row.time_s = (cd->time_offset + (float)cd->time_sub / mon.wf.time_osr) * mon.symbol_period;
                     row.score = cd->score; row.kept = keep_it ? 1 : 0;
                     row.outcome = keep_it ? FTZ_PO_UNSET : FTZ_PO_NOT_KEPT_PATCH;
@@ -1232,6 +1373,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                 ftz_probe_row_t row;
                 memset(&row, 0, sizeof(row));
                 row.kind = FTZ_PROBE_CAND; row.round = 0; row.freq_hz = pos_f[i]; row.time_s = pos_t[i];
+                row.time_sub = cand->time_sub; row.freq_sub = cand->freq_sub;
                 row.score = cand->score; row.kept = 1; row.outcome = FTZ_PO_UNSET;
                 row.a_unsat = row.b_unsat = row.cq_unsat = -1;
                 pr_row[i] = ftz_probe_add(pb, &row);
@@ -1558,7 +1700,7 @@ done:
     free(cands); free(msgs); free(cmsgs); free(ok_a); free(b_el); free(b_st); free(b_ed); free(c_el); free(c_at); free(c_ok);
     free(pos_f); free(pos_t); free(b_fr); free(b_dt); free(b_snr); free(b_pl); free(known); free(hits); free(drop); free(texts); free(seen_payloads);
     free(res_pl); free(res_score); free(res_tier); free(res_ungated); free(res_h12); free(sel_pl); free(sel_sc); free(fit_ix); free(sub_hz); free(fail_hz);
-    free(pr_row); free(pr_out); free(pr_gate); free(pstat); free(res_cidx); free(sub_rows); free(sub_before); free(low_buf);
+    free(thin_buf); free(pr_row); free(pr_out); free(pr_gate); free(pstat); free(res_cidx); free(sub_rows); free(sub_before); free(low_buf);
     free(resid); free(xa_re); free(xa_im);
     if (fitjob != NULL) { free(fitjob->shat); free(fitjob); }
     free(pcm_pad);

@@ -27,8 +27,9 @@ extern "C" {
 #define FTZ_ERR_NOMEM    (-2)   /* an allocation (spectrogram, candidate list, worker pool) failed                      */
 #define FTZ_ERR_FAULT    (-3)   /* an access violation was caught by the SEH wrapper (MSVC builds only)                 */
 #define FTZ_ERR_BADAUDIO (-4)   /* a sample is NaN, infinite or beyond +-FTZ_MAX_ABS_SAMPLE: not decodable audio        */
+#define FTZ_ERR_PARAM    (-5)   /* FINE-GRID: thin is not 0 or 1, or time_osr / freq_osr is not 0, 2 or 4 (nothing was run)  */
 
-#define FTZ_PARAMS_VERSION   6
+#define FTZ_PARAMS_VERSION   7
 #define FTZ_MIN_THREADS      1
 #define FTZ_MAX_THREADS      16
 #define FTZ_DEFAULT_THREADS  2
@@ -86,6 +87,12 @@ typedef struct
     int32_t reserved2;
     /* SUB-PROBE (params version 6); a caller built against version 5 has struct_size 72 and reads NULL. */
     struct ftz_probe* probe;      /* NULL, or (with FTZ_FLAG_PROBE) the caller's probe buffer; see ftz_probe_t */
+    /* FINE-GRID (params version 7); a caller built against version 6 has struct_size 80 and reads zero for all of these: today's search, bit-identical. Any other value than
+     * those listed returns FTZ_ERR_PARAM before anything is allocated or run. */
+    int32_t thin;             /* 0 = off (today's candidate list); 1 = THIN: a candidate is dropped when an ALREADY KEPT candidate (taken in score order) lies within 6.25 Hz and 0.16 s */
+    int32_t time_osr;         /* search grid time oversampling: 0 = 2 (today), 2 or 4                                                                                              */
+    int32_t freq_osr;         /* search grid frequency oversampling: 0 = 2 (today), 2 or 4 (4 is made by zero-padding the 2-symbol window; the window is not stretched)             */
+    int32_t reserved3;
 } ftz_params_t;
 
 /* ── SUB-PROBE: a test-only diagnostic, numbers only (no message text, no payload; HK-037). Read-only on decoder state. ──────────────────────────────────────
@@ -126,7 +133,7 @@ typedef struct
 /* Stage columns of a CAND row. a_code: 0 not run, 1 CRC-valid, 2 BP failed, 3 CRC failed, 4 degenerate LLRs. b_code: 0 not run (not eligible), 1 skipped by the budget,
  * 2 estimate only (no C3), 3 degenerate LLRs, 4 BP failed, 5 CRC failed, 6 CRC-valid. cq_code: 0 not attempted, 1 failed, 2 CRC-valid. *_unsat: unsatisfied parity checks, -1 n/a. */
 
-/* One probe row, 64 bytes (16 x 32 bits). Fields a record does not use are 0 (supp_db of a SUB row whose footprint is outside the waterfall, or whose round ended
+/* One probe row, 72 bytes (18 x 32 bits; 64 bytes up to shim 20260082). Fields a record does not use are 0 (supp_db of a SUB row whose footprint is outside the waterfall, or whose round ended
  * before the residual's spectrogram, is -999). For a LOW row, kept is the reason: 0 also in the round's CAND list, 1 below the floor (kMinScorePass2), 2 cut by the cap. */
 typedef struct
 {
@@ -146,6 +153,8 @@ typedef struct
     int32_t b_unsat;
     int32_t cq_code;
     int32_t cq_unsat;
+    int32_t time_sub;    /* CAND, LOW: the candidate's time sub-position on the search grid (0 to time_osr - 1)       */
+    int32_t freq_sub;    /* CAND, LOW: the candidate's frequency sub-position (0 to freq_osr - 1)                     */
 } ftz_probe_row_t;
 
 /* The caller's probe buffer. struct_size = sizeof(ftz_probe_t), cap = rows allocated; n and overflow are outputs. */
@@ -278,6 +287,9 @@ int ftz_payload_same_qso(const uint8_t* known, const uint8_t* candidate);
  * (round 0) or the same transmission (a residual round) the HIGHEST score survives, equal scores keep the earlier hit; losers are marked in drop[]; returns
  * the number newly dropped. ftz_text_replace_wins: 1 when a same-text result of the same round with score new_score replaces one with old_score (strictly higher). */
 int ftz_dedup_select(int round, int n, const uint8_t* payloads, const int32_t* scores, uint8_t* drop);
+/* FINE-GRID test exports (see ftz_decoder.c): THIN's rule on a caller-built list, and the waterfall of a grid. Not used by the decoder. */
+int ftz_test_thin(const int32_t* cands, int n, int cap, int time_osr, int freq_osr, int32_t* out);
+int ftz_test_waterfall(const float* pcm, int n, int time_osr, int freq_osr, int window_len, uint8_t* out, int out_cap, int32_t* dims);
 int ftz_text_replace_wins(int new_score, int old_score);
 
 /* 1 if a CRC-valid, new tier-B row of a residual round is published. f1b_passed: F1b <= T1. Since step 2e: an F1b-passed row, or (ungated on) any row, at any

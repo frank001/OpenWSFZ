@@ -337,3 +337,27 @@ When the cross-cycle stage published at least one detection (live, never shadow)
 
 - **WHEN** the round is run at 1, 2 and 16 threads
 - **THEN** its results, tiers, rounds and probe rows SHALL be the same bytes
+
+### Requirement: The lean candidate search can be thinned and run on a finer grid, both off by default
+
+The lean engine SHALL accept three runtime search parameters, all off by default: `thin` (0 or 1), `time_osr` and `freq_osr` (0, 2 or 4; 0 meaning 2). With `thin` 1 a candidate SHALL be dropped when an already kept candidate, taken in score order (ties: the lower frequency, then the earlier time), lies within 6.25 Hz and 0.16 s of it, before the candidate cap, in round 0, in the residual rounds and in the cross-cycle round; no two surviving candidates SHALL lie within that window. A `freq_osr` of 4 SHALL be made by zero-padding the two-symbol window (the window SHALL NOT be stretched), and its even sub-positions SHALL equal the `freq_osr` 2 waterfall's cells within one stored step. Any other value SHALL return an error before anything runs. With the defaults the published output SHALL be byte-identical to the build before the parameters, and the classic decoder SHALL be unchanged. The probe's candidate rows SHALL carry the grid sub-position.
+
+#### Scenario: Defaults change nothing
+
+- **WHEN** `thin` is 0 and the grid is 2 x 2
+- **THEN** the published output SHALL be byte-identical to the build before the parameters
+
+#### Scenario: One survivor per place, two signals 20 Hz apart both survive
+
+- **WHEN** `thin` is 1 and a strong signal and a second signal 20 Hz away are searched
+- **THEN** each SHALL leave one surviving candidate, and no two survivors SHALL lie within 6.25 Hz and 0.16 s of each other
+
+#### Scenario: A chain keeps its ends
+
+- **WHEN** candidates A > B > C have A-B and B-C inside the window and A-C outside it
+- **THEN** A and C SHALL survive and B SHALL be dropped
+
+#### Scenario: An invalid value is refused
+
+- **WHEN** `thin` is not 0 or 1, or an oversampling value is not 0, 2 or 4
+- **THEN** the call SHALL return the parameter error and run nothing
