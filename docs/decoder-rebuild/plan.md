@@ -1,6 +1,60 @@
-# Decoder rebuild: plan (DRAFT for the Product Owner)
+# Decoder rebuild: plan
 
-**Status:** APPROVED by the Product Owner, 2026-11-24 ("1-5 ok, write the specs for qa"). All five §9 proposals were accepted as written. Specs: [`spec-dr0-dr1-measure-and-relief.md`](spec-dr0-dr1-measure-and-relief.md) and [`spec-dr2-lean-decoder.md`](spec-dr2-lean-decoder.md).
+**Status:** APPROVED by the Product Owner, 2026-11-24 ("1-5 ok, write the specs for qa"). All five §9 proposals were accepted as written. Specs: [`spec-dr0-dr1-measure-and-relief.md`](spec-dr0-dr1-measure-and-relief.md) and [`spec-dr2-lean-decoder.md`](spec-dr2-lean-decoder.md). **Progress since then: §0 below (updated 2026-11-28).** §1–§9 are the plan as approved and are kept as the record. Where §0 contradicts them, §0 wins.
+
+---
+
+## 0. Where the programme stands (Architect, 2026-11-28; `main` `c6d54afb`, VERSION 1.1)
+
+### 0.1 Phases
+
+| Phase | State | Where |
+|---|---|---|
+| 0: measure (DR-0) | ✅ done 2026-11-24. Baseline A6 on S40: 25.25 CPU-s per cycle, rate 84.39 %, ours_only 3.77 % | `spec-dr0-dr1-measure-and-relief.md`, QA's DR-0 result |
+| 1: quick relief (DR-1) | ❌ skipped 2026-11-24. Settings gave ≈ 0 CPU relief | §5 |
+| 2: build lean (DR-2, steps 2a–2e) | ✅ done 2026-11-25. The Product Owner accepted the numbers as **targets, not gates** (rate and CPU missed, ours_only met). The default thread count became the machine's maximum. | `spec-dr2-lean-decoder.md`, `qa/decoder-rebuild/dr2e-result.md` |
+| 3: switch over (DR-3) | ✅ #295, 2026-11-26: **lean is the default engine** (v1.1), a stored `classic` migrates once, plus the duplicate fix (+3.19 pp on S40) | `qa/rr-study/results/2026-11-26-lc-base/dr3-s40-replay.md` |
+| 4: delete classic (DR-4) | ⏳ **not started, not requested.** Classic stays selectable. `kMinScorePass2` must survive it (§4.4). | §5 |
+
+### 0.2 After the switch: decode-rate levers on lean
+
+The Product Owner opened decode-rate work on lean alongside DR-3 (`spec-dr2-lean-decoder.md` §6, amended 2026-11-26). This reverses §1's "decode gains are not the goal", §7's "new decode ideas wait until Phase 4" and §8's first bullet. On 2026-11-27 he ruled that **lean is a new decoder, so the classic-era closures (K6) do not bind it.**
+
+Every row below is one replay of S40 / H40 / H20 against the build before it, with aggregates only:
+
+| Step | What it did | Rate change (pp, S40 / H40 / H20) | Outcome |
+|---|---|---|---|
+| LC-BASE, CS-MAP | Lean against classic; where the crowded misses are | (measurement) | Most misses are crowded; lean usually decodes the strong neighbour |
+| SUB-PROBE, R1–R4 | Why a weak signal next to a decoded one is missed | (measurement) | "Found, tried, failed" (K2) is 65–75 % of the crowded misses; 21–39 % of K2's neighbours were never subtracted, mostly because of a text gate |
+| **PAYLOAD-FIT** (#300) | Fit every result from its payload; the text gate is gone | **+3.09 / +0.97 / +2.36** | kept |
+| **XC-ROUND** (#302) | One subtract-and-retry round after the cross-cycle stage | **+0.47 / +0.76 / +1.26** | kept |
+| KNOWN-ERASURE | Blank a decoded strong neighbour's tone bins when reading a weak signal | +0.03 / +0.06 / +0.03 | **dropped** (no effect) |
+| FIT-DEPTH | Offline: how deeply are strong signals subtracted? | (measurement) | **Inconclusive.** Isolated strong signals are within ~1.6 dB of the noise; no room measured |
+| **FINE-GRID** (#304) | One candidate per 6.25 Hz × 0.16 s, plus a search grid of 1.5625 Hz × 0.04 s (zero-padded) | **+2.08 / +1.39 / +0.60** | kept, **default on** |
+
+### 0.3 Where lean is now (FINE-GRID replay, arm F = `main`'s defaults)
+
+| | S40 | H40 | H20 |
+|---|---|---|---|
+| Rate (matched ÷ WSJT-X decodes) | **90.29 %** | **89.29 %** | **86.88 %** |
+| Ours ÷ WSJT-X, counting our unconfirmed decodes as real | 95.5 % | 97.6 % | 95.1 % |
+| ours_only | 5.23 % | 8.32 % | 8.24 % |
+| Lean minus classic (rate) | +5.89 pp | +4.00 pp | +5.63 pp |
+| CPU-s per cycle, lean at 16 threads (classic at 8 threads) | 18.06 (25.2) | 16.87 (22.0) | 16.88 (20.2) |
+| `last_p95` ms; abandoned cycles | 2,569; 0 | 2,414; 0 | 2,540; 0 |
+
+**Against the §9 targets** (2026-11-24, which became targets rather than gates on 2026-11-25):
+- **Decodes:** met by a wide margin. The bar was ≥ A6 − 1 pp on S40, i.e. 83.39 %; lean is at 90.29 %.
+- **ours_only** (≤ 4.27 % on S40): **missed**, at 5.23 %. The added unconfirmed decodes repeat in later cycles about as often as the baseline's do (38–50 % against 43–52 %).
+- **CPU** (≤ 6.31 CPU-s per cycle, 25 % of A6): **missed**, at 18.06. Lean uses **72–84 % of classic's CPU**, not 25 %. The levers in §0.2 bought rate with CPU: PAYLOAD-FIT +8 to +19 %, XC-ROUND ±4 %, FINE-GRID about +10 % on S40.
+- **Latency** (`last_p95` ≤ 3,000 ms): met.
+
+### 0.4 What is left
+
+- **K2 ("found, tried, failed")** is the bulk of what remains: 317 / 458 / 533 cases. Nothing tried so far has moved it; the candidate is found and tier B tries it at a precise position. No lever is in hand.
+- **FINE-GRID lost some matched decodes** (44 / 101 / 148, largest on H20). They have not been read. The data are on disk, so reading them needs no new run.
+- **DR-4** (delete classic) and the CPU target are the plan's own unfinished items. Neither has been requested.
+- **The Product Owner's question of 2026-11-27, whether to pause the decoder work here,** stays open. The gap to WSJT-X is 9.7–13.1 pp on the strict count and 2.4–4.9 % counting our unconfirmed decodes.
 **Author:** Architect (AI-assisted), 2026-11-24T17:00Z
 **Requested by the Product Owner, 2026-11-24:** *"I want to rebuild the decoder and decoding phases from scratch using all the knowledge that we have gathered up to now. It needs to be leaner, decoding phases combined where possible. It has now become a CPU-heavy application and it should not be."*
 
@@ -58,12 +112,12 @@ The numbers below come from **one live night only** (`20261114_2312`, 40 m, buil
 | K3 | **Most of the remaining gap is overlapping signals.** Of the 11.8 pp gap to WSJT-X on `20261114_2312`, ≈ 8.4 pp is co-channel and ≈ 2.0 pp is isolated signals at about −18 dB and weaker. | Subtraction is the lever that matters, and its wins sit near the signals already subtracted. A full re-decode of the whole band after every subtraction wastes most of its work. |
 | K4 | **The data-aided subtraction fit works.** SUB-FEAS: NET +8.89 pp. | Keep the fit (`subfeas_fit.c`, our own code). Reuse it, don't rewrite it. |
 | K5 | **OSD adds nothing at today's settings.** OSD at `nhard` 24 vs OSD off gave identical text on `20261110` (NET 0.0). In the fallback it added 7 rows on a whole night. | Drop OSD from the hot path. Confirm on the Phase 0 replay. |
-| K6 | **Some settings are proven non-levers.** Input scaling, window shape (Hann stays), a finer grid (OSR) without a false-decode check, candidate caps or counts, and more OSD all gained nothing. | None of them come back as settings. |
+| K6 | **Some settings are proven non-levers.** Input scaling, window shape (Hann stays), a finer grid (OSR) without a false-decode check, candidate caps or counts, and more OSD all gained nothing. | None of them come back as settings. *(2026-11-28: classic-era only. On lean, a finer grid WITH candidate thinning gained +0.60 to +2.08 pp at a modest CPU cost (FINE-GRID, §0.2).)* |
 | K7 | **XC (repeat priors) is cheap and pays.** 50 ms per cycle; +2.8 pp on 40 m and +3.4 pp on 20 m (one night each). | Keep it, as the last step of the loop. |
 | K8 | **The late-pass yield is limited by the accept gate, not the demodulator.** LATE-SUB's full round found ≈ +2.9 pp, but its false-decode cost was too high. No instrument yet judges buried decodes well. | One loop with one accept rule. Do not chase late-pass yield in this work. |
 | K9 | **The hash table works as it is.** Fill-and-freeze; eviction loses decodes (EVICT, F-001 D3). | Carry it over unchanged. |
 | K10 | **Native subtraction crashed before** (two `0xC0000005` in 2026-09). | Write the new native loop with bounds checks, sanitiser builds and a fuzz test (§7). |
-| K11 | **A ground-up rewrite of the primary demodulator alone does not close the gap.** The coherent extractor, forced to WSJT-X's exact position, still missed 13.1 pp in NR. | The rebuild is about **cost and structure**, not about out-decoding WSJT-X. Do not sell it as a rate gain. |
+| K11 | **A ground-up rewrite of the primary demodulator alone does not close the gap.** The coherent extractor, forced to WSJT-X's exact position, still missed 13.1 pp in NR. | The rebuild is about **cost and structure**, not about out-decoding WSJT-X. Do not sell it as a rate gain. *(2026-11-28: overtaken. After the switch, lean leads classic by +4.00 to +5.89 pp, §0.3. The remaining gap to WSJT-X is mostly K2, which this finding still describes.)* |
 | K12 | **Licences.** Permissive only. WSJT-X may be read for method; not one line of it may be copied or ported. | ft8_lib (MIT), KISS FFT (BSD-3) and our own C remain the building blocks. |
 
 ## 4. The proposed design
