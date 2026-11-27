@@ -145,3 +145,48 @@ The SUB-FEAS medians fell 1.36 dB from 0.64 to 0.32 s over a population that was
 | FD-4 | CPFSK is better by > 1 dB for ≥ 10 % of S0–S2 signals on every slice | 0.15 | H |
 | FD-5 | Checks C1–C3 all pass | 0.70 | C |
 | FD-6 | The run (full or subsampled) finishes in under 2 hours of wall time | 0.80 | C |
+
+---
+
+## 8. Amendment 1 (Architect, 2026-11-27, after QA's S40 pilot stopped on C1 and C3)
+
+**The pilot** (QA, 20 S40 cycles, seed 20261127, records in `_qa-scratch\fit-depth\pilot`):
+- C1 −2.36 dB (Python suppresses less than the native rows);
+- C2 passes (SC −0.44 dB);
+- **C3 fails: S0–S2 median D = +0.28 dB**, with the own-cell level before ≈ 23 dB in S0;
+- no injection spot for 59–65 % of strong signals.
+
+QA printed the §6 rows before reading the checks and said so. Those numbers are **void and not used.**
+
+### 8.1 Why C3 failed: the primary measure is blind by construction (Architect's spec error)
+
+The envelope c(t) is a Hann-weighted local average of x·conj(r) over 0.32 s, an effective bandwidth of about 4–5 Hz. The own-cell projection of a symbol is the average of the same product over that symbol's 0.16 s, with a bandwidth of 6.25 Hz. **The subtraction therefore removes most of what lies in the signal's own cells, whatever the model error.** A wrong pulse, timing or drift leaves its error mostly **outside** the own cell: in the neighbouring columns, at the tone changes, in the sidebands. That is exactly where a weak neighbour T is read.
+
+So L_after sits near the noise for every window (C2 and C3 both read about 0). This is HK-026: an instrument whose response is flat where the boundary sits. QA's alternative reading (the real fit's time and frequency search absorbs noise the control cannot) is not the cause. The search adds 3–4 parameters over 12.64 s; the envelope adds roughly one complex value per symbol, and the control has those too. **QA's option (a) is therefore not taken.** Neither are (b), which would accept a blind measure, or (c), which would close the lever on a blind measure.
+
+### 8.2 The replacement measure: the footprint against an absolute noise reference
+
+- **The noise spot:** as in §2.2, with two changes. It is the free spot **nearest in frequency to S** (clear of every WSJT-X and lean decode by ±60 Hz; the seed only breaks ties), so the receiver passband does not tilt the comparison. And the control subtraction is kept exactly as in §2.2.
+- **F, the footprint excess (replaces D as the primary):** the mean power after the subtraction over S's **8 tone columns × 79 symbols**, on the §2.1 projection grid, divided by the mean power over the same 8 × 79 pattern at the noise spot after its control subtraction. 10·log10 of that ratio. Perfect subtraction gives ≈ 0 dB.
+- **F_side, the sidebands (new):** the same ratio over the columns **1 to 6 tone spacings outside S's footprint on each side** (where T is read; §2.3 uses offsets of 2 to 6), against the same columns at the noise spot. Reported, not gated. Another signal's columns are masked out of both: any column within ±25 Hz of another WSJT-X or lean decode in the cycle.
+- **D and L are still computed and reported** (Table 1), marked as the own-cell view.
+
+### 8.3 Checks, re-stated
+
+| # | Check | Predicate | Where the number comes from |
+|---|---|---|---|
+| C1′ | The Python fit is the production fit | as C1, but **only on signals with no other native `SUB` row within ±50 Hz in the same round.** Report the all-signal figure too. | §3.5 already names the contamination: a native `SUB` row includes everything subtracted in that footprint in that round. On crowded S40 the bias runs the way the pilot shows (native suppresses more). ±2 dB stays (Architect's choice). |
+| C2′ | No room where SUB-PROBE says none | median **F** of SC at 0.32 s, GFSK, within ±1.5 dB of 0, every slice | as C2 |
+| C3′ | The strong shortfall is seen | median **F** of S0–S2 pooled at 0.32 s, GFSK, ≥ 2 dB, every slice | as C3. **If C3′ also fails** (F ≈ 0 with C2′ passing), the strong signals ARE removed to the noise across their footprint. SUB-PROBE's "5 dB short" was then its ceiling approximation or crowding, not the fit. **That closes the lever with a result, not a blind spot:** QA stops and reports. |
+| C4 | as before, plus the "no injection spot" and "no noise spot" counts by band, isolated and crowded | | |
+
+### 8.4 The §6 decision rule, re-based
+
+Read **F** wherever §6 says D (the paired fall of ≥ 2 dB against 0.32 s). L_T and the retention conditions are unchanged. L_T is measured in T's own cells, which are S's side columns, so it was never blind. The injection rule stays as written. The 35–40 % of strong signals with an injection spot is enough at k = 5 (§3.4), and the result states the n.
+
+### 8.5 Settled with QA, confirmed
+
+- The start-time seed is calibrated per slice by a coarse scan on strong signals; SUB-FEAS's `TAU0_S` = −0.16 s does not hold on these recordings (median +0.52 s on 12 strong signals). Stated in `meta.json`.
+- Subsampling **k = 5** (about 130 cycles, about 82 min).
+
+**Next:** QA adds F, F_side and C1′, and re-pilots the same 20 S40 cycles. If C1′–C3′ pass, it runs k = 5 on all three slices. A C3′ failure ends the measurement (see the table).
