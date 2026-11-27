@@ -30,15 +30,15 @@ assert SAMPLES_PER_MS == 12, SAMPLES_PER_MS
 TRANSMISSION_S = N_TX / FS           # 12.64 s, exact
 
 
-def r_fit(tones: list) -> np.ndarray:
+def r_fit(tones: list, smooth: bool = True) -> np.ndarray:
     """Unit-amplitude complex reference carrier for `tones` at baseband (freq 0 --
     the frequency offset is applied separately as a phase ramp during the search,
     not baked in here, so one template serves every frequency candidate)."""
-    phase = MOD.instantaneous_phase(tones, 0.0, FS)
+    phase = MOD.instantaneous_phase(tones, 0.0, FS, pulse_smoothing=smooth)
     return np.exp(1j * phase).astype(np.complex128)
 
 
-def r_fit_drift(tones: list, fdot_hz_per_s: float) -> np.ndarray:
+def r_fit_drift(tones: list, fdot_hz_per_s: float, smooth: bool = True) -> np.ndarray:
     """Amendment 2: unit-amplitude baseband template with an added linear drift
     rate `fdot_hz_per_s` (Hz/s), instantaneous frequency offset
     `fdot * (t - T_tx/2)` -- reuses modulator.instantaneous_phase's OWN existing
@@ -49,7 +49,7 @@ def r_fit_drift(tones: list, fdot_hz_per_s: float) -> np.ndarray:
     Amendment 2's own `fdot * (t - t_mid)` formula. At `fdot=0` this is byte-for-
     byte `r_fit(tones)` (modulator.py's own documented zero-drift identity)."""
     drift_hz = fdot_hz_per_s * TRANSMISSION_S
-    phase = MOD.instantaneous_phase(tones, 0.0, FS, drift_hz=drift_hz)
+    phase = MOD.instantaneous_phase(tones, 0.0, FS, drift_hz=drift_hz, pulse_smoothing=smooth)
     return np.exp(1j * phase).astype(np.complex128)
 
 
@@ -87,7 +87,7 @@ def apply_freq_shift(r_unit: np.ndarray, df_hz: float) -> np.ndarray:
 
 def fine_fit(x_a: np.ndarray, tones: list, freq_hz: float, nominal_t_s: float,
              dt_range_ms: float = 60.0, dt_step_ms: float = 1.0,
-             df_range_hz: float = 2.0, n_fft: int = 262144):
+             df_range_hz: float = 2.0, n_fft: int = 262144, smooth: bool = True):
     """Spec sec.4 steps 1-2. `freq_hz` is the nominal (decoded) frequency; the
     Δf search below is a RESIDUAL correction around it (± df_range_hz), not a
     search for the base frequency itself -- the template is shifted to `freq_hz`
@@ -97,7 +97,7 @@ def fine_fit(x_a: np.ndarray, tones: list, freq_hz: float, nominal_t_s: float,
     freq_hz-shifted unit template, baseband-local-time, for envelope reuse), seg
     (the best-position segment), or None if every candidate ran off the buffer
     edge."""
-    r_unit = r_fit(tones)
+    r_unit = r_fit(tones, smooth)
     r_base = apply_freq_shift(r_unit, freq_hz)   # local-time axis, same for every Δt
     n_steps = int(round(dt_range_ms / dt_step_ms))
     step_samples = int(round(dt_step_ms * SAMPLES_PER_MS))
@@ -139,7 +139,7 @@ def fine_fit_with_drift(x_a: np.ndarray, tones: list, freq_hz: float, nominal_t_
                          dt_range_ms: float = 100.0, dt_step_ms: float = 1.0,
                          df_range_hz: float = 2.0, n_fft: int = 262144,
                          fdot_range: float = FDOT_RANGE_HZ_PER_S,
-                         fdot_step: float = FDOT_STEP_HZ_PER_S):
+                         fdot_step: float = FDOT_STEP_HZ_PER_S, smooth: bool = True):
     """Amendment 2 (arch/subtraction-feasibility cdba5cf4): adds a linear drift-
     rate term to the fine fit, coarse-to-fine, disclosed equivalent of the spec's
     own search order --
@@ -155,7 +155,7 @@ def fine_fit_with_drift(x_a: np.ndarray, tones: list, freq_hz: float, nominal_t_
     exactly as with plain `fine_fit`, so bigfit.py's L1/L2 construction is
     unchanged). L0 (the June control) must NOT call this function -- it stays on
     plain `r_fit`/lattice-snap, per Amendment 2."""
-    step0 = fine_fit(x_a, tones, freq_hz, nominal_t_s, dt_range_ms, dt_step_ms, df_range_hz, n_fft)
+    step0 = fine_fit(x_a, tones, freq_hz, nominal_t_s, dt_range_ms, dt_step_ms, df_range_hz, n_fft, smooth)
     if step0 is None:
         return None
     seg = step0["seg"]
@@ -164,7 +164,7 @@ def fine_fit_with_drift(x_a: np.ndarray, tones: list, freq_hz: float, nominal_t_
     best = None  # (val, fdot, df_hz, edge_f)
     for kf in range(-n_fdot_steps, n_fdot_steps + 1):
         fdot = kf * fdot_step
-        r_unit_fdot = r_fit_drift(tones, fdot)
+        r_unit_fdot = r_fit_drift(tones, fdot, smooth)
         r_base_fdot = apply_freq_shift(r_unit_fdot, freq_hz)
         mixed = seg * np.conj(r_base_fdot)
         f_hat, val, edge_f = _freq_search(mixed, n_fft, df_range_hz)
@@ -173,7 +173,7 @@ def fine_fit_with_drift(x_a: np.ndarray, tones: list, freq_hz: float, nominal_t_
     _val, fdot_star, df_star, edge_f = best
     at_edge_fdot = abs(fdot_star) >= (fdot_range - fdot_step / 2.0)
 
-    r_unit_final = r_fit_drift(tones, fdot_star)
+    r_unit_final = r_fit_drift(tones, fdot_star, smooth)
     r_base_final = apply_freq_shift(r_unit_final, freq_hz)
     r_template_final = apply_freq_shift(r_base_final, df_star)
 
