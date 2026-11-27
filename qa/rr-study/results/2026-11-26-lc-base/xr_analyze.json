@@ -1,0 +1,296 @@
+{
+ "S40": {
+  "free_check": {
+   "decodes_b123_before": 6246,
+   "decodes_b123_after": 6250,
+   "b123_only_in_before": 0,
+   "b123_only_in_after": 4,
+   "b123_changed_fields": 0,
+   "b123_matched_flag_changed": 0,
+   "decode_cycles_differing": 4,
+   "probe_rows_round0to3_cycles_differing": 0,
+   "batch4_decodes": 51,
+   "batch4_matched": 28,
+   "round4_probe_rows": {
+    "SUB": 272,
+    "LOW": 54400,
+    "CAND": 27200
+   }
+  },
+  "table1": {
+   "before_PAYLOADFIT_run": {
+    "matched": 5946,
+    "ours": 6246,
+    "rate_pct": 87.79,
+    "ours_only_pct": 4.429
+   },
+   "after_XCROUND": {
+    "matched": 5978,
+    "ours": 6301,
+    "rate_pct": 88.262,
+    "ours_only_pct": 4.769
+   },
+   "delta": {
+    "rate_pp": 0.472,
+    "ours_only_pp": 0.34,
+    "matched": 32,
+    "ours": 55
+   }
+  },
+  "cost": {
+   "cpu_s_per_cycle": [
+    17.219,
+    16.486
+   ],
+   "cpu_change_pct": -4.3,
+   "last_p95_ms": [
+    2268,
+    2350
+   ],
+   "abandoned_cycles": [
+    0,
+    0
+   ],
+   "native_error_cycles": [
+    0,
+    0
+   ],
+   "lean_parse_failed": 0,
+   "cycles": 170,
+   "xc_rounds_run": 136,
+   "xc_rounds_per_cycle": 0.8,
+   "xr_fits_per_cycle": 1.612,
+   "xr_fitnone_per_cycle": 0.012,
+   "xr_batch4_decodes": 51,
+   "xr_batch4_decodes_per_cycle": 0.3,
+   "xr_round_errors": 0,
+   "xr_round_abandoned": 0,
+   "xr_wall_ms_per_round_median": 328.0,
+   "xr_cpu_ms_per_round_median": 734.4,
+   "xr_cpu_s_per_cycle_added": 0.622
+  },
+  "xc_cases": {
+   "cases": 27,
+   "N_has_round4_SUB_row": 27,
+   "N_has_SUB_row_of_another_round": 0,
+   "T_matched_now": 13,
+   "T_matched_now_and_N_round4_SUB": 13,
+   "T_matched_now_N_not_round4_SUB": 0
+  },
+  "new_split_k2": {
+   "cases": 339,
+   "never_subtracted": 28,
+   "classes": {
+    "SUB": 311,
+    "R2": 15,
+    "R3": 8,
+    "R4": 5
+   }
+  },
+  "knock_on": {
+   "matched_gained_gross": 32,
+   "matched_lost_gross": 0,
+   "net": 32,
+   "gained_in_the_XC_cases": 13,
+   "gained_outside_the_XC_cases": 19,
+   "gained_outside_that_were_crowded": 17
+  }
+ },
+ "H40": {
+  "free_check": {
+   "decodes_b123_before": 8465,
+   "decodes_b123_after": 8486,
+   "b123_only_in_before": 0,
+   "b123_only_in_after": 21,
+   "b123_changed_fields": 0,
+   "b123_matched_flag_changed": 0,
+   "decode_cycles_differing": 20,
+   "probe_rows_round0to3_cycles_differing": 0,
+   "batch4_decodes": 140,
+   "batch4_matched": 60,
+   "round4_probe_rows": {
+    "SUB": 580,
+    "LOW": 86800,
+    "CAND": 43400
+   }
+  },
+  "table1": {
+   "before_PAYLOADFIT_run": {
+    "matched": 7837,
+    "ours": 8465,
+    "rate_pct": 87.243,
+    "ours_only_pct": 6.991
+   },
+   "after_XCROUND": {
+    "matched": 7905,
+    "ours": 8626,
+    "rate_pct": 88.0,
+    "ours_only_pct": 8.026
+   },
+   "delta": {
+    "rate_pp": 0.757,
+    "ours_only_pp": 1.035,
+    "matched": 68,
+    "ours": 161
+   }
+  },
+  "cost": {
+   "cpu_s_per_cycle": [
+    17.411,
+    17.403
+   ],
+   "cpu_change_pct": -0.0,
+   "last_p95_ms": [
+    2315,
+    2453
+   ],
+   "abandoned_cycles": [
+    0,
+    0
+   ],
+   "native_error_cycles": [
+    0,
+    0
+   ],
+   "lean_parse_failed": 0,
+   "cycles": 240,
+   "xc_rounds_run": 218,
+   "xc_rounds_per_cycle": 0.908,
+   "xr_fits_per_cycle": 2.508,
+   "xr_fitnone_per_cycle": 0.092,
+   "xr_batch4_decodes": 140,
+   "xr_batch4_decodes_per_cycle": 0.583,
+   "xr_round_errors": 0,
+   "xr_round_abandoned": 0,
+   "xr_wall_ms_per_round_median": 355.4,
+   "xr_cpu_ms_per_round_median": 984.4,
+   "xr_cpu_s_per_cycle_added": 1.028
+  },
+  "xc_cases": {
+   "cases": 52,
+   "N_has_round4_SUB_row": 50,
+   "N_has_SUB_row_of_another_round": 0,
+   "T_matched_now": 29,
+   "T_matched_now_and_N_round4_SUB": 29,
+   "T_matched_now_N_not_round4_SUB": 0
+  },
+  "new_split_k2": {
+   "cases": 443,
+   "never_subtracted": 45,
+   "classes": {
+    "SUB": 398,
+    "R3": 26,
+    "XC": 2,
+    "R4": 7,
+    "R2": 9,
+    "SUB_FOUND_BY_RESULT_POSITION": 1
+   }
+  },
+  "knock_on": {
+   "matched_gained_gross": 68,
+   "matched_lost_gross": 0,
+   "net": 68,
+   "gained_in_the_XC_cases": 29,
+   "gained_outside_the_XC_cases": 39,
+   "gained_outside_that_were_crowded": 34
+  }
+ },
+ "H20": {
+  "free_check": {
+   "decodes_b123_before": 8454,
+   "decodes_b123_after": 8497,
+   "b123_only_in_before": 1,
+   "b123_only_in_after": 44,
+   "b123_changed_fields": 0,
+   "b123_matched_flag_changed": 0,
+   "decode_cycles_differing": 40,
+   "probe_rows_round0to3_cycles_differing": 0,
+   "batch4_decodes": 195,
+   "batch4_matched": 98,
+   "round4_probe_rows": {
+    "SUB": 796,
+    "LOW": 89200,
+    "CAND": 44600
+   }
+  },
+  "table1": {
+   "before_PAYLOADFIT_run": {
+    "matched": 7803,
+    "ours": 8454,
+    "rate_pct": 85.241,
+    "ours_only_pct": 7.112
+   },
+   "after_XCROUND": {
+    "matched": 7918,
+    "ours": 8692,
+    "rate_pct": 86.498,
+    "ours_only_pct": 8.455
+   },
+   "delta": {
+    "rate_pp": 1.257,
+    "ours_only_pp": 1.343,
+    "matched": 115,
+    "ours": 238
+   }
+  },
+  "cost": {
+   "cpu_s_per_cycle": [
+    16.5,
+    17.226
+   ],
+   "cpu_change_pct": 4.4,
+   "last_p95_ms": [
+    2260,
+    2537
+   ],
+   "abandoned_cycles": [
+    0,
+    0
+   ],
+   "native_error_cycles": [
+    0,
+    0
+   ],
+   "lean_parse_failed": 0,
+   "cycles": 240,
+   "xc_rounds_run": 223,
+   "xc_rounds_per_cycle": 0.929,
+   "xr_fits_per_cycle": 3.35,
+   "xr_fitnone_per_cycle": 0.033,
+   "xr_batch4_decodes": 195,
+   "xr_batch4_decodes_per_cycle": 0.812,
+   "xr_round_errors": 0,
+   "xr_round_abandoned": 0,
+   "xr_wall_ms_per_round_median": 391.2,
+   "xr_cpu_ms_per_round_median": 1453.1,
+   "xr_cpu_s_per_cycle_added": 1.397
+  },
+  "xc_cases": {
+   "cases": 89,
+   "N_has_round4_SUB_row": 89,
+   "N_has_SUB_row_of_another_round": 0,
+   "T_matched_now": 63,
+   "T_matched_now_and_N_round4_SUB": 63,
+   "T_matched_now_N_not_round4_SUB": 0
+  },
+  "new_split_k2": {
+   "cases": 523,
+   "never_subtracted": 57,
+   "classes": {
+    "SUB": 466,
+    "R2": 14,
+    "SUB_FOUND_BY_RESULT_POSITION": 1,
+    "R3": 31,
+    "R4": 11
+   }
+  },
+  "knock_on": {
+   "matched_gained_gross": 115,
+   "matched_lost_gross": 0,
+   "net": 115,
+   "gained_in_the_XC_cases": 63,
+   "gained_outside_the_XC_cases": 52,
+   "gained_outside_that_were_crowded": 41
+  }
+ }
+}

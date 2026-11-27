@@ -122,6 +122,7 @@ def classify(prb_rows, subs, f, dt, gate, batch, cycle_flag):
     return "R3", rnd
 
 
+XC_CASES = {}                                           # (tag, slice) -> [(stamp, wsjtx index of T, wsjtx index of N)] of the K2 cases whose never-subtracted neighbour was a cross-cycle result (batch 3)
 R1_CASES = {}                                           # slice -> [(stamp, wsjtx index of T, wsjtx index of N)] of the K2 cases whose never-subtracted neighbour was an R1 result (filled by run_slice)
 
 
@@ -180,6 +181,7 @@ def run_slice(name, tag="probe"):
     nbr_class = {k: Counter() for k in ("K0", "K1", "K2", "K3", "K4")}
     classified = 0
     R1_CASES[(tag, name)] = []
+    XC_CASES[(tag, name)] = []
     k2_batch_unsub = Counter()
     for st in stamps:
         w, rows, ml = wl[st], prb.get(st, []), M.get(st, set())
@@ -227,6 +229,8 @@ def run_slice(name, tag="probe"):
             if c == "SUB":                                    # the WSJT-X-position match (SUB-PROBE's rule, inherited) missed it, the result's OWN position finds a SUB row: reported, kept inside the inherited 'never subtracted' count
                 c = "SUB_FOUND_BY_RESULT_POSITION"
             nbr_class[cls][c] += 1
+            if cls == "K2" and c == "XC":
+                XC_CASES[(tag, name)].append((st, j, ni))
             if cls == "K2" and c in ("R1h", "R1t"):
                 R1_CASES[(tag, name)].append((st, j, ni))
             if cls == "K2":
