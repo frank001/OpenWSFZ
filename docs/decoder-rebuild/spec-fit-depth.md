@@ -189,6 +189,23 @@ Read **F** wherever §6 says D (the paired fall of ≥ 2 dB against 0.32 s). L_T
 - The start-time seed is calibrated per slice by a coarse scan on strong signals; SUB-FEAS's `TAU0_S` = −0.16 s does not hold on these recordings (median +0.52 s on 12 strong signals). Stated in `meta.json`.
 - Subsampling **k = 5** (about 130 cycles, about 82 min).
 
+### 8.5b Amendment 1b (Architect, 2026-11-27, after re-pilot `pilot2`): F is read on ISOLATED signals; one more failure ends the measurement
+
+**`pilot2`** (same 20 S40 cycles, 566 fitted):
+- **C1′ fails marginally:** −2.16 dB on 295 signals with no other native `SUB` row within ±50 Hz; −2.36 dB on all 416. So contamination does not explain it.
+- **C2′ fails:** SC median F = +6.99 dB.
+- **C3′ passes:** S0–S2 median F = +7.83 dB.
+
+SC and S0–S2 read almost the same. **On crowded S40, the footprint carries other signals' tones (decoded or not) that the cleared noise spot does not, so the absolute F measures the neighbourhood, not the fit** (QA's reading, accepted). 80 % of the fitted signals are crowded.
+
+**Changes, final for this measurement:**
+1. **The absolute measures (C2′, C3′, Table 1's F, §8.6) are read on ISOLATED signals only** (§1: no other WSJT-X decode within ±60 Hz). For crowded signals only **paired** changes of F between variants are reported: the neighbours are the same in every variant of the same signal, so they cancel there. They are reported, and §6 does not read them.
+2. **§6 reads isolated signals.** The F condition is read on the isolated S0–S2. L_T and retention are read where an injection spot exists, which in practice is mostly the isolated signals (no spot: crowded 103/148 in S0, isolated 6/39). The fit's model error belongs to the signal, not to its neighbourhood, so isolated signals are a fair test of the window. Whether a deeper fit then helps the crowded K2 cases is the build's replay's question.
+3. **C1′ stays recorded as FAIL** (−2.16 dB against ±2 dB). It is not re-cut again. The Python fit leaves about 2 dB more than the native rows. **Consequence:** absolute F may overstate the room left in production by up to ~2 dB. The paired §6 condition is unaffected, because both windows use the same fitter. QA reports one cause check from the records without a re-fit: the median difference between the Python fit's time and frequency and the native `SUB` row's, on the 295 signals.
+4. **Ending rule, written now:** QA reads C2′/C3′ on the isolated signals of `pilot2` (already fitted).
+   - **If isolated SC is within ±1.5 dB AND isolated S0–S2 ≥ 2 dB:** run k = 5 on all three slices as specified, plus §8.6.
+   - **If not:** the noise-spot reference does not work on these recordings. **The measurement ends as INCONCLUSIVE.** QA writes a short result note and the Architect reports to the Product Owner. **There is no Amendment 2.**
+
 ### 8.6 Finer views (Product Owner 2026-11-27: "yes, send the finer views to QA"). Reported only; no check and no §6 condition reads them
 
 They say **where** the leftover sits, and so which kind of fix would fit. They need projections only, no extra fits. Compute them for S0–S2 at **W = 0.32 s and at the W with the lowest median F**, GFSK, on the full run (not on the pilot).
