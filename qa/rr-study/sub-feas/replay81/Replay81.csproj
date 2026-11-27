@@ -56,6 +56,8 @@
     <DefineConstants Condition="'$(HasProbe)' == 'true'">$(DefineConstants);HAS_PROBE</DefineConstants>
     <!-- XC-ROUND (feat/xc-round, shim 20260082): only the build with IFt8NativeInterop.DecodeLeanXcRound / LeanXcDetection. Needs HasLean (and HasInternals). The StageProbeInterop wrapper MUST forward the round (the interface default is an empty outcome: without the forward the round never runs); with HasProbe its round-4 rows go to the probe-out file under the cycle's stamp. -->
     <DefineConstants Condition="'$(HasXcRound)' == 'true'">$(DefineConstants);HAS_XCROUND</DefineConstants>
+    <!-- KNOWN-ERASURE (shim 20260083): the build whose DecodeLeanXcRound has the fifth parameter (the known results). Needs HasXcRound. -->
+    <DefineConstants Condition="'$(HasXcKnown)' == 'true'">$(DefineConstants);HAS_XCKNOWN</DefineConstants>
     <DefineConstants Condition="'$(HasInternals)' == 'true'">$(DefineConstants);HAS_INTERNALS</DefineConstants>
     <AssemblyName Condition="'$(HasInternals)' == 'true'">Ft8.FitProbe</AssemblyName>
   </PropertyGroup>

@@ -257,10 +257,20 @@ internal sealed class StageProbeInterop : IFt8NativeInterop
 #if HAS_XCROUND
     // XC-ROUND: the interface default is an EMPTY outcome, so without this forward the round never runs in this harness (and batch 4 would be silently absent). With --lean-probe 1 the round's own
     // probe rows (every row round = 4) go to --probe-out under the same stamp as the cycle's.
+    // A wrapper method whose PARAMETER LIST differs from the interface's does NOT implement it: the call then lands on the default and the round silently never runs (QA's KNOWN-ERASURE replay, 2026-11-27,
+    // after the interface gained the fifth `known` parameter). HAS_XCKNOWN (shim 20260083, KNOWN-ERASURE) selects the five-argument form; ke_analyze.py refuses a replay whose round did zero fits.
+#if HAS_XCKNOWN
+#if HAS_PROBE
+    public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections, IReadOnlyList<LeanXcKnown>? known = null) => Probed(_i.DecodeLeanXcRound(pcm, Prep(request), residual, detections, known));
+#else
+    public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections, IReadOnlyList<LeanXcKnown>? known = null) => _i.DecodeLeanXcRound(pcm, request, residual, detections, known);
+#endif
+#else
 #if HAS_PROBE
     public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections) => Probed(_i.DecodeLeanXcRound(pcm, Prep(request), residual, detections));
 #else
     public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections) => _i.DecodeLeanXcRound(pcm, request, residual, detections);
+#endif
 #endif
 #endif
     public void LeanShutdown() => _i.LeanShutdown();
