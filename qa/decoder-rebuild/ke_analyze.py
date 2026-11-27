@@ -15,13 +15,14 @@ import statistics
 import sys
 from collections import Counter
 
+NEW_TAG = sys.argv[1] if len(sys.argv) > 1 else "ke2"        # the run under test (ke = the first, VOID replay whose XC round never ran; ke2 = the valid one)
 sys.argv = [sys.argv[0]]
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sub_probe_analyze as sp   # noqa: E402
 
 SC = sp.SC
 SLICES = ["S40", "H40", "H20"]
-BASE, NEW = "xn", "ke"
+BASE, NEW = "xn", NEW_TAG
 PIN_NEW = "12444634b1882c36"                          # first 16 hex of the SHA256 of libft8.dll of 104bc426 (KNOWN-ERASURE, shim 20260083): the arm.json's bin_pin
 BASE_RATE = {"S40": 88.203, "H40": 87.899, "H20": 86.279}      # the XC-ROUND confirmation runs, asserted against their arm.json (inherited constants)
 CLASSIC_RATE = {"S40": 84.39, "H40": 85.29, "H20": 81.25}
@@ -146,7 +147,7 @@ def run_slice(name):
 
 def main():
     out = {s: run_slice(s) for s in SLICES}
-    with open(os.path.join(SC, "lc-base", "ke_analyze.json"), "w") as fh:
+    with open(os.path.join(SC, "lc-base", "ke_analyze.json" if NEW == "ke2" else "%s_analyze.json" % NEW), "w") as fh:
         json.dump(out, fh, indent=1)
     print(json.dumps(out, indent=1))
 
