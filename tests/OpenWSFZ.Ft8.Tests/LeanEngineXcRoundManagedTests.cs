@@ -150,6 +150,27 @@ public sealed class LeanEngineXcRoundManagedTests
         return await Cycle(d, At(30), cycle2HasM ? Audio(2, (M, MFreq, MDt)) : Audio(2));
     }
 
+    [Fact(DisplayName = "FR-108: FINE-GRID default: the lean cycle and the XC round that Ft8Decoder issues both carry thin 1, time_osr 4, freq_osr 4 (the constants), while LeanCycleParams' own defaults stay off / 0 / 0")]
+    public async Task LeanCycleAndXcRound_CarryThinAndTheFineGrid()
+    {
+        var io = new ScriptedLean { XcResults = [Msg(Fresh, 1900)] };
+        var d = Build(io);
+        await TwoCycles(io, d);
+
+        io.Requests.Should().HaveCount(2);
+        io.XcCalls.Should().ContainSingle("control: the stage detected M, so the round was issued");
+        foreach (var request in io.Requests.Append(io.XcCalls[0].Request))
+        {
+            request.Thin.Should().BeTrue();
+            request.TimeOsr.Should().Be(4);
+            request.FreqOsr.Should().Be(4);
+        }
+        (Ft8Decoder.LeanThin, Ft8Decoder.LeanTimeOsr, Ft8Decoder.LeanFreqOsr).Should().Be((true, 4, 4));
+
+        var plain = new LeanCycleParams(2);
+        (plain.Thin, plain.TimeOsr, plain.FreqOsr).Should().Be((false, 0, 0), "the record's own defaults, and so the native defaults and every test that builds a request itself, stay as they were");
+    }
+
     [Fact(DisplayName = "FR-108: XC-ROUND test (c): with the cross-cycle stage off the round is not called")]
     public async Task StageOff_NoRound()
     {

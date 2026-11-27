@@ -120,3 +120,9 @@
 - [x] 15.2 Managed: `LeanCycleParams` (`Thin`, `TimeOsr`, `FreqOsr`), the params and probe-row wires, `LeanProbeRow.TimeSub` / `FreqSub`
 - [x] 15.3 Tests (`LeanEngineFineGridTests`): defaults change nothing; zero-padding is right; thinning (one survivor, two signals 20 Hz apart both survive, the chain case, no two survivors inside the window, thread counts); FINE decodes a signal off the old grid; invalid values; the fuzz driver covers the parameters (CI runs it)
 - [x] 15.4 `REQUIREMENTS.md` FR-108 (the lean search parameters, shim 20260083), changelog 1.81; this change validated `--strict`; VERSION per `tools/check_version_bump.py`
+
+## 16. FINE-GRID shipped: the daemon runs thin 1 on the 4 x 4 grid
+
+- [x] 16.1 Managed: `Ft8Decoder.LeanThin`, `LeanTimeOsr`, `LeanFreqOsr` set on the request of the lean cycle (and, derived from it, the cross-cycle round); the native defaults and `LeanCycleParams`' defaults unchanged; no native change, no shim bump
+- [x] 16.2 Test: a recording fake sees thin 1, time_osr 4, freq_osr 4 on both requests
+- [x] 16.3 `REQUIREMENTS.md` FR-108, changelog 1.82; this change validated `--strict`
