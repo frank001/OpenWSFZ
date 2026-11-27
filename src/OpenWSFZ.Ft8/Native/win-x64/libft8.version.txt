@@ -1,4 +1,15 @@
-=== CURRENT: SUB-PROBE, the lean engine's test-only diagnostic probe (FT8_SHIM_VERSION 20260080) ===
+=== CURRENT: PAYLOAD-FIT, the lean engine fits every result from its payload (FT8_SHIM_VERSION 20260081) ===
+
+Built 2026-11-27 on feat/payload-fit (off main 326538fb), local, not pushed. QA task dev-tasks/2026-11-27-payload-fit-lean-fits-every-result.md (spec docs/decoder-rebuild/spec-payload-fit.md).
+What changed (native). native/ftz_decoder/ftz_decoder.c: `if (!reenc[k]) continue;` removed from the round loop, and with it the dead `reenc` array and `ftz_text_reencodable`. The lean fit takes its
+  tones from the decoded payload (ft8_encode(res_pl[k])), so a "<...>" or short-text result is fitted exactly like any other; the step-2e skip rule, the rounds and every default are unchanged.
+  No ABI change, no classic change (the C# SubtractionPass keeps its text gate: it encodes from the text).
+Checked here: LeanEnginePayloadFitTests (a hashed type-4 result and a two-token result are fitted; both fail on the 20260080 binary at the SUB-row assertion); the existing golden, determinism,
+  duplicate-rule and probe tests unchanged.
+  Windows x64 (rebuild_shim.bat, MSVC 19.44): SHA256
+    2f522765d508085861bd0098b66c39d628ab7884584f91d7bcaf8763bcd654b9
+
+=== Previous: SUB-PROBE, the lean engine's test-only diagnostic probe (FT8_SHIM_VERSION 20260080) ===
 
 Built 2026-11-26 on feat/sub-probe (off main c3ba377c), local, not pushed. QA task dev-tasks/2026-11-26-sub-probe-lean-diagnostic.md (spec docs/decoder-rebuild/spec-sub-probe.md).
 What changed (native). native/ftz_decoder/ftz_decoder.h / .c: ftz_params_t version 6 (a probe pointer), FTZ_FLAG_PROBE, ftz_probe_t and ftz_probe_row_t (64 bytes: SUB, CAND and LOW rows,

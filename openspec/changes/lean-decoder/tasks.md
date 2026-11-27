@@ -99,3 +99,9 @@
 - [x] 12.2 Managed: `LeanCycleParams.Probe` / `ProbeCapacity`, `LeanCycleOutcome.ProbeRows` / `ProbeOverflow` (internal; the daemon never sets the flag)
 - [x] 12.3 Tests (`LeanEngineProbeTests`): off against on byte-identical on the synth-qso WAVs and their mix at 1, 2, 4, 8 and 16 threads; the two-signal case; the small buffer; ASan + UBSan fuzz with the flag on
 - [x] 12.4 This change validated `--strict`; no VERSION bump (test-only)
+
+## 13. PAYLOAD-FIT: the lean engine fits every result from its payload
+
+- [x] 13.1 Native: the text gate (`if (!reenc[k]) continue;`) removed from the round loop; the now-dead `reenc` array and `ftz_text_reencodable` removed; `FT8_SHIM_VERSION` 20260081, `libft8.dll` rebuilt
+- [x] 13.2 Tests (`LeanEnginePayloadFitTests`): a hashed type-4 result and a two-token result are fitted (a `SUB` row, a counted fit, the masked signal beneath found); red on the 20260080 binary
+- [x] 13.3 This change validated `--strict`; VERSION per `tools/check_version_bump.py`
