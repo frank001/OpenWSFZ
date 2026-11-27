@@ -62,6 +62,7 @@ internal static class Program
         catch (Exception ex)
         {
             Console.Error.WriteLine("FATAL " + ex.GetType().Name);   // type only, never text
+            if (Environment.GetEnvironmentVariable("QA_FATAL_DETAIL") == "1") Console.Error.WriteLine("DETAIL (startup debugging only, never in a run that reads text): " + ex.Message.Split((char)10)[0] + " @ " + (ex.StackTrace ?? "").Split((char)10).FirstOrDefault());
             return 3;
         }
     }
@@ -442,6 +443,13 @@ internal static class Program
                 decoder.SetEngine(eng == "lean" ? DecoderEngine.Lean : DecoderEngine.Classic);
                 _leanThreads = a.TryGetValue("lean-threads", out var lt) ? int.Parse(lt, CultureInfo.InvariantCulture) : DecoderConfig.DefaultThreads;
                 decoder.SetLeanThreads(_leanThreads);
+#if HAS_FINEGRID
+                // FINE-GRID: --lean-thin 0|1, --lean-time-osr and --lean-freq-osr (0, 2 or 4; 0 = today's 2). Logged at the start so a run records what it ran with.
+                LeanThin = a.TryGetValue("lean-thin", out var lth) && lth == "1";
+                LeanTimeOsr = a.TryGetValue("lean-time-osr", out var lto) ? int.Parse(lto, CultureInfo.InvariantCulture) : 0;
+                LeanFreqOsr = a.TryGetValue("lean-freq-osr", out var lfo) ? int.Parse(lfo, CultureInfo.InvariantCulture) : 0;
+                log.Line("INFO", "lean grid: thin=" + (LeanThin ? 1 : 0) + " time_osr=" + LeanTimeOsr + " freq_osr=" + LeanFreqOsr);
+#endif
                 _effort = a.TryGetValue("effort", out var ef) ? ef : DecoderEffortNames.Normal;
                 if (_effort is not ("normal" or "fast")) throw new ArgumentException("--effort must be normal or fast");
                 decoder.SetEffort(DecoderEffortNames.Parse(_effort));
@@ -451,7 +459,7 @@ internal static class Program
                     _leanOut = new StreamWriter(leanPath, append: true, new UTF8Encoding(false)) { AutoFlush = true };
                     if (new FileInfo(leanPath).Length == 0) _leanOut.WriteLine("stamp,abandoned,error,results,rounds,ungated,s3_wall_ms,s3_cpu_ms,fit_cpu_ms,search_cpu_ms,decode_cpu_ms,other_cpu_ms,effort,b1,b2,b3,xc,xc_detected,fit_skipped"
 #if HAS_XCROUND
-                        + ",b4,xr_detections,xr_fits,xr_subtracted,xr_fitnone,xr_found,xr_kept,xr_results,xr_decodes,xr_error,xr_abandoned,xr_wall_ms,xr_cpu_ms"
+                        + ",b4,xr_detections,xr_fits,xr_subtracted,xr_fitnone,xr_found,xr_kept,xr_results,xr_decodes,xr_error,xr_abandoned,xr_wall_ms,xr_cpu_ms,xr_acands,xr_aerased"
 #endif
                         );
                 }
@@ -463,7 +471,11 @@ internal static class Program
                     if (!probePath.Replace((char)92, '/').Contains("/_qa-scratch/")) throw new ArgumentException("--probe-out must be under _qa-scratch");
                     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(probePath))!);
                     _probeOut = new StreamWriter(probePath, append: false, new UTF8Encoding(false)) { AutoFlush = true };
-                    _probeOut.WriteLine("stamp\tkind\tround\tfreq_hz\ttime_s\tamp\tsupp_db\tscore\tkept\toutcome\tgate\ta_code\ta_unsat\tb_code\tb_unsat\tcq_code\tcq_unsat");
+                    _probeOut.WriteLine("stamp\tkind\tround\tfreq_hz\ttime_s\tamp\tsupp_db\tscore\tkept\toutcome\tgate\ta_code\ta_unsat\tb_code\tb_unsat\tcq_code\tcq_unsat"
+#if HAS_FINEGRID
+                        + "\ttime_sub\tfreq_sub"
+#endif
+                        );
                 }
 #endif
             }
@@ -700,7 +712,7 @@ internal static class Program
 #endif
 #if HAS_LEAN
     private static readonly System.Text.RegularExpressions.Regex LeanLineRx = new(
-        @"results=(\d+) threads=\d+ abandoned=(\d+) error=(-?\d+).*?s3: rounds=(\d+) ungated=(\d+) (?:fitSkipped=(\d+) )?wall_ms=([\d.,]+) cpu_ms=([\d.,]+) fitCpu_ms=([\d.,]+) searchCpu_ms=([\d.,]+) decodeCpu_ms=([\d.,]+) otherCpu_ms=([\d.,]+).*?effort=(\w+) batches: b1=(\d) b2=(\d) b3=(\d) xc=(\S+) xcDetected=(\d+)(?: b4=(\d) xcRound\[detections=(\d+) fits=(\d+) subtracted=(\d+) fitNone=(\d+) found=(\d+) kept=(\d+) tierA=(\d+) results=(\d+) decodes=(\d+) error=(-?\d+) abandoned=(\d+) wall_ms sub=[\d.,]+ spec=[\d.,]+ search=[\d.,]+ decode=[\d.,]+ total=([\d.,]+) cpu_ms fit=[\d.,]+ sum=[\d.,]+ spec=[\d.,]+ search=[\d.,]+ decode=[\d.,]+ total=([\d.,]+)\])?",
+        @"results=(\d+) threads=\d+ abandoned=(\d+) error=(-?\d+).*?s3: rounds=(\d+) ungated=(\d+) (?:fitSkipped=(\d+) )?wall_ms=([\d.,]+) cpu_ms=([\d.,]+) fitCpu_ms=([\d.,]+) searchCpu_ms=([\d.,]+) decodeCpu_ms=([\d.,]+) otherCpu_ms=([\d.,]+).*?effort=(\w+) batches: b1=(\d) b2=(\d) b3=(\d) xc=(\S+) xcDetected=(\d+)(?: b4=(\d) xcRound\[detections=(\d+) fits=(\d+) subtracted=(\d+) fitNone=(\d+) found=(\d+) kept=(\d+) tierA=(\d+) results=(\d+) (?:aCands=(?<ac>\d+) aErased=(?<ae>\d+) )?decodes=(\d+) error=(-?\d+) abandoned=(\d+) wall_ms sub=[\d.,]+ spec=[\d.,]+ search=[\d.,]+ decode=[\d.,]+ total=([\d.,]+) cpu_ms fit=[\d.,]+ sum=[\d.,]+ spec=[\d.,]+ search=[\d.,]+ decode=[\d.,]+ total=([\d.,]+)\])?",
         System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     /// <summary>One row per lean cycle into --lean-out, parsed from the decoder's own aggregate-only 'lean:' line (decimal commas normalised). A line that does not parse is written as a row of "parse-failed" so a format drift cannot pass silently.</summary>
@@ -717,7 +729,7 @@ internal static class Program
             w.WriteLine(string.Join(",", _curStamp, g[2].Value, g[3].Value, g[1].Value, g[4].Value, g[5].Value, N(7), N(8), N(9), N(10), N(11), N(12), g[13].Value, g[14].Value, g[15].Value, g[16].Value, g[17].Value, g[18].Value, skipped
 #if HAS_XCROUND
                 , g[19].Success ? g[19].Value : "0", g[19].Success ? g[20].Value : "0", g[19].Success ? g[21].Value : "0", g[19].Success ? g[22].Value : "0", g[19].Success ? g[23].Value : "0", g[19].Success ? g[24].Value : "0"
-                , g[19].Success ? g[25].Value : "0", g[19].Success ? g[27].Value : "0", g[19].Success ? g[28].Value : "0", g[19].Success ? g[29].Value : "0", g[19].Success ? g[30].Value : "0", g[19].Success ? N(31) : "0", g[19].Success ? N(32) : "0"
+                , g[19].Success ? g[25].Value : "0", g[19].Success ? g[27].Value : "0", g[19].Success ? g[28].Value : "0", g[19].Success ? g[29].Value : "0", g[19].Success ? g[30].Value : "0", g[19].Success ? N(31) : "0", g[19].Success ? N(32) : "0", g["ac"].Success ? g["ac"].Value : "0", g["ae"].Success ? g["ae"].Value : "0"
 #endif
                 ));
         }
@@ -726,6 +738,10 @@ internal static class Program
 #if HAS_PROBE
     private static StreamWriter? _probeOut;               // --lean-probe 1 --probe-out: SUB-PROBE rows, numbers only
     internal static bool ProbeOn => _probeOut is not null;
+#if HAS_FINEGRID
+    internal static bool LeanThin;
+    internal static int LeanTimeOsr, LeanFreqOsr;
+#endif
     internal static void WriteProbe(OpenWSFZ.Ft8.Interop.LeanProbeRow[] rows, bool overflow)
     {
         var w = _probeOut; if (w is null) return;
@@ -734,7 +750,11 @@ internal static class Program
         {
             foreach (var r in rows)
                 w.WriteLine(string.Join("\t", _curStamp, r.Kind.ToString(ci), r.Round.ToString(ci), r.FreqHz.ToString("F2", ci), r.TimeS.ToString("F3", ci), r.Amp.ToString("F4", ci), r.SuppDb.ToString("F2", ci),
-                    r.Score.ToString(ci), r.Kept.ToString(ci), r.Outcome.ToString(ci), r.Gate.ToString(ci), r.ACode.ToString(ci), r.AUnsat.ToString(ci), r.BCode.ToString(ci), r.BUnsat.ToString(ci), r.CqCode.ToString(ci), r.CqUnsat.ToString(ci)));
+                    r.Score.ToString(ci), r.Kept.ToString(ci), r.Outcome.ToString(ci), r.Gate.ToString(ci), r.ACode.ToString(ci), r.AUnsat.ToString(ci), r.BCode.ToString(ci), r.BUnsat.ToString(ci), r.CqCode.ToString(ci), r.CqUnsat.ToString(ci)
+#if HAS_FINEGRID
+                    , r.TimeSub.ToString(ci), r.FreqSub.ToString(ci)
+#endif
+                    ));
             if (overflow) w.WriteLine(_curStamp + "\tOVERFLOW");
         }
     }

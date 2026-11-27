@@ -236,6 +236,8 @@ link /DLL ^
   /EXPORT:ftz_dedup_select ^
   /EXPORT:ftz_text_replace_wins ^
   /EXPORT:ftz_fit_needed ^
+  /EXPORT:ftz_test_thin ^
+  /EXPORT:ftz_test_waterfall ^
   /EXPORT:ft8_subfeas_set_reference_mode ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\constants.obj" ^
   "%FT8_ROOT%\native\ft8_lib_build\obj\crc.obj" ^

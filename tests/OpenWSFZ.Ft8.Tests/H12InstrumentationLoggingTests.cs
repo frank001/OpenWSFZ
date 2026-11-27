@@ -27,7 +27,7 @@ public sealed class H12InstrumentationLoggingTests
     /// Fake interop returning fixed, caller-controlled 12-bit-path counts and an empty decode
     /// result set — this test only cares about the h12 log line, not decode output.
     /// </summary>
-    private sealed class FixedH12CountsInterop(int displaying, int ambiguous, int divergent, int suppressed) : IFt8NativeInterop
+    private sealed class FixedH12CountsInterop(int displaying, int ambiguous, int divergent, int suppressed) : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 

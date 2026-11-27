@@ -886,8 +886,12 @@ extern "C" {
  *   20260082 - XC-ROUND: a new export, ftz_xc_round, with the new struct ftz_xc_t (an ABI addition; ftz_params_t, ftz_stats_t and every existing export are unchanged). ONE more
  *              subtract-and-retry round for the managed cross-cycle stage: it fits and subtracts the stage's detections (79 tones, frequency, time) on the residual the cycle returned,
  *              re-computes the spectrogram and searches and decodes only in their patch windows, as a round 1 to 3 does; probe rows and out_rounds carry round 4. No classic change.
+ *   20260083 - FINE-GRID (lean only): ftz_params_t grows to version 7 (thin, time_osr, freq_osr; a caller built against version 6 reads zero = today's search, bit-identical) and ftz_probe_row_t to 72 bytes
+ *              (time_sub, freq_sub). THIN drops a candidate when an already kept, higher-scoring candidate lies within 6.25 Hz and 0.16 s, before the cap (ftz_find_candidates; the vendored
+ *              ftx_find_candidates is untouched). FINE makes the search grid 4 x 4: time by the hop, frequency by zero-padding the 2-symbol window (monitor_config_t.window_len, 0 = nfft = unchanged).
+ *              An invalid thin or osr value returns FTZ_ERR_PARAM. Every default is off; the classic decoder is bit-identical.
 */
-#define FT8_SHIM_VERSION 20260082
+#define FT8_SHIM_VERSION 20260083
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct

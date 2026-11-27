@@ -89,6 +89,7 @@ static void round0_probe(void* ctx, int n, const void* results, const uint8_t* t
 static int g_inject = 0;     /* the test hook inject_error_round of the next call */
 static int g_probe_cap = 0;  /* SUB-PROBE: rows of the probe buffer of the next call (0 = flag off); the buffer is exactly-sized, so AddressSanitizer sees any write past it */
 static int g_probe_rows = 0, g_probe_overflows = 0, g_probe_runs = 0;
+static int g_thin = 0, g_tosr = 0, g_fosr = 0;   /* FINE-GRID: thin and the search grid of the next call (0 = today's) */
 
 static int decode_full2(const float* pcm, int n, int threads, int max_cand, int flags, int budget_ms, int max_rounds, int expire_round,
                         FT8Result* out, uint8_t* tiers, uint8_t* rounds, ftz_stats_t* st, cb_probe_t* probe, float* out_residual)
@@ -105,6 +106,7 @@ static int decode_full2(const float* pcm, int n, int threads, int max_cand, int 
     if (probe) { memset(probe, 0, sizeof(*probe)); p.round0_cb = round0_probe; p.round0_ctx = probe; }
     p.out_residual = out_residual;
     p.inject_error_round = g_inject;
+    p.thin = g_thin; p.time_osr = g_tosr; p.freq_osr = g_fosr;
     ftz_probe_t pb;
     ftz_probe_row_t* rows = NULL;
     if (g_probe_cap > 0)
@@ -303,6 +305,7 @@ static void xc_run(const float* pcm, int n, const float* residual, int threads, 
     p.max_candidates = 1 + (int)(rnd() % 4u);
     p.flags = (flags & (FTZ_FLAG_CQ_AP | FTZ_FLAG_RESIDUAL_UNGATED | FTZ_FLAG_NO_TIER_B)) | ((run % 3 == 0) ? FTZ_FLAG_BUDGET : 0);
     p.budget_ms = budget_ms;
+    p.thin = g_thin; p.time_osr = g_tosr; p.freq_osr = g_fosr;
     ftz_probe_t pb;
     ftz_probe_row_t* rows = NULL;
     int cap = 0;
@@ -375,6 +378,7 @@ static void fuzz(int runs)
         if (rnd() & 1u) flags |= FTZ_FLAG_SKIP_FITS;                               /* step 2e: the fit-skip rule */
         g_inject = (real_run && (rnd() % 8u) == 0) ? 1 + (int)(rnd() % 3u) : 0;   /* step 2e: a simulated fit error after the first chunk of that round */
         const int want_resid = (rnd() & 1u) != 0, want_cb = (rnd() & 1u) != 0;
+        { const int osrs[] = { 0, 0, 2, 2, 4 }; g_thin = (int)(rnd() & 1u); g_tosr = osrs[rnd() % 5u]; g_fosr = osrs[rnd() % 5u]; }   /* FINE-GRID: thin, and a 2 or 4 grid in either axis in about 1 run in 3 */
         { const int pcaps[] = { 0, 0, 1, 3, 17, 100, FTZ_PROBE_MAX_ROWS }; g_probe_cap = real_run ? FTZ_PROBE_MAX_ROWS - (int)(rnd() % 2u) * 3200 : pcaps[rnd() % 7u]; }   /* SUB-PROBE on in about 5 runs in 7, with tiny and full buffers */
         /* Exactly-sized heap block, so AddressSanitizer sees any write past FT8_EXPECTED_SAMPLES floats. */
         float* resid = want_resid ? (float*)malloc(sizeof(float) * PCM_SAMPLES) : NULL;
@@ -393,6 +397,7 @@ static void fuzz(int runs)
         }
         free(resid);
         g_probe_cap = 0;
+        g_thin = g_tosr = g_fosr = 0;
         const int injected_error = g_inject != 0 && rc == FTZ_ERR_NOMEM;           /* the hook fired: results of the earlier rounds stand, no residual */
         CHECK((rc >= 0 && rc <= MAX_RESULTS) || injected_error, "run %d: kind %d n %d threads %d: rc %d", run, kind, n, threads, rc);
         if (injected_error) CHECK(st.has_residual == 0 && st.error == FTZ_ERR_NOMEM, "run %d: a fit error must export no residual (has_residual %d, error %d)", run, st.has_residual, st.error);
@@ -484,6 +489,20 @@ static void bad_audio(void)
     CHECK(ftz_decode_cycle(y, 10, &p, NULL, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_ARG, "NULL results");
     CHECK(ftz_decode_cycle(y, 10, &p, out, 0, NULL, NULL, &st) == FTZ_ERR_ARG, "zero capacity");
     CHECK(ftz_decode_cycle(NULL, 0, &p, out, MAX_RESULTS, NULL, NULL, NULL) == 0, "n = 0 with NULL pcm and NULL stats");
+
+    /* FINE-GRID: any thin / osr value outside the documented set is FTZ_ERR_PARAM, before anything runs; the valid values are not an error. */
+    {
+        const int bad_thin[] = { -1, 2, 7, 1000 }, bad_osr[] = { -2, 1, 3, 5, 8, 16, 1000 };
+        for (size_t i = 0; i < sizeof(bad_thin) / sizeof(bad_thin[0]); i++)
+        { ftz_params_t q = p; q.thin = bad_thin[i]; CHECK(ftz_decode_cycle(y, PCM_SAMPLES, &q, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_PARAM, "thin %d", bad_thin[i]); }
+        for (size_t i = 0; i < sizeof(bad_osr) / sizeof(bad_osr[0]); i++)
+        {
+            ftz_params_t q = p; q.time_osr = bad_osr[i]; CHECK(ftz_decode_cycle(y, PCM_SAMPLES, &q, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_PARAM, "time_osr %d", bad_osr[i]);
+            q = p; q.freq_osr = bad_osr[i]; CHECK(ftz_decode_cycle(y, PCM_SAMPLES, &q, out, MAX_RESULTS, NULL, NULL, &st) == FTZ_ERR_PARAM, "freq_osr %d", bad_osr[i]);
+        }
+        ftz_params_t q = p; q.thin = 1; q.time_osr = 4; q.freq_osr = 4;
+        CHECK(ftz_decode_cycle(y, PCM_SAMPLES, &q, out, MAX_RESULTS, NULL, NULL, &st) >= 0, "thin 1, osr 4/4 on noise must run");
+    }
 
     /* XC-ROUND argument errors: a malformed xc is an argument error, never a crash. */
     {

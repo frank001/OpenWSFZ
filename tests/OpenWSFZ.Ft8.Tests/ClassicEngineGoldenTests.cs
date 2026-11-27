@@ -19,7 +19,7 @@ namespace OpenWSFZ.Ft8.Tests;
 public sealed class ClassicEngineGoldenTests
 {
     /// <summary>A fake native layer that records every call it receives and returns fixed results.</summary>
-    private sealed class RecordingInterop(List<string> calls) : IFt8NativeInterop
+    private sealed class RecordingInterop(List<string> calls) : NonLeanInteropBase, IFt8NativeInterop
     {
         private static Ft8NativeResult Native(string message, int freq, float dt, int snr)
             => new() { FreqHz = freq, Dt = dt, Snr = snr, Message = message };

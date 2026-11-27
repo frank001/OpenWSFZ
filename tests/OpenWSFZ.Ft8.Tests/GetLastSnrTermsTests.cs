@@ -36,7 +36,7 @@ public sealed class GetLastSnrTermsTests
 
     /// <summary>Minimal fake implementing every <see cref="IFt8NativeInterop"/> member,
     /// mirroring <c>CoherentLlrAtTests.CapturingInterop</c>'s own construction.</summary>
-    private sealed class CapturingInterop : IFt8NativeInterop
+    private sealed class CapturingInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         public int MaxDecodePasses => 2;
 

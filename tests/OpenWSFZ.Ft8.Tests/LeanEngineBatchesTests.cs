@@ -53,6 +53,9 @@ public sealed class LeanEngineBatchesTests
     /// <summary>A lean interop that replays <see cref="Script"/>s; every classic member throws, so a lean cycle that touches one fails the test.</summary>
     private sealed class ScriptedLean : IFt8NativeInterop
     {
+        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => throw new NotSupportedException("Not modelled by this fake.");
+        public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections) => throw new NotSupportedException("Not modelled by this fake.");
+        public void LeanShutdown() { }
         private readonly Queue<Script> _scripts = new();
         public List<LeanCycleParams> Requests { get; } = [];
         public List<string> Events { get; } = [];
@@ -389,6 +392,9 @@ public sealed class LeanEngineBatchesNativeTests(ITestOutputHelper output) : IDi
     /// <summary>The real lean entry with two seams: the round-0 callback may be wrapped (to block the native call) and a hook runs when the native call has returned.</summary>
     private sealed class RealLean : IFt8NativeInterop
     {
+        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request) => throw new NotSupportedException("Not modelled by this fake.");
+        public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections) => throw new NotSupportedException("Not modelled by this fake.");
+        public void LeanShutdown() { }
         public Func<Action<LeanRound0>, Action<LeanRound0>>? WrapCallback { get; init; }
         public Action? AfterNative { get; init; }
         public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0)

@@ -37,6 +37,7 @@ def instantaneous_phase(
     sample_rate_hz: int = DEFAULT_SAMPLE_RATE_HZ,
     *,
     drift_hz: float = 0.0,
+    pulse_smoothing: bool = True,
 ) -> np.ndarray:
     """Return the unwrapped, unplaced instantaneous phase (radians) for `tones`.
 
@@ -59,8 +60,12 @@ def instantaneous_phase(
 
     # Per-sample tone index (piecewise constant), then Gaussian-smoothed.
     tone_arr = np.repeat(np.asarray(tones, dtype=np.float64), sps)
-    pulse = _gaussian_pulse(sps, GFSK_BT)
-    smoothed = fftconvolve(tone_arr, pulse, mode="same")
+    if pulse_smoothing:
+        pulse = _gaussian_pulse(sps, GFSK_BT)
+        smoothed = fftconvolve(tone_arr, pulse, mode="same")
+    else:
+        # FIT-DEPTH (2026-11-27): plain CPFSK, the frequency steps at the symbol boundaries, phase continuous (the integral below). Default (True) is unchanged.
+        smoothed = tone_arr
 
     # Instantaneous frequency (Hz) then integrated phase.
     inst_freq = base_freq_hz + smoothed * TONE_SPACING_HZ

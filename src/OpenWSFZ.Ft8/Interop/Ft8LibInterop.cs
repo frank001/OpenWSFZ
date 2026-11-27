@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260082;
+    private const int ExpectedShimVersion = 20260083;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -1057,6 +1057,9 @@ internal static class Ft8LibInterop
             MaxRounds     = request.MaxRounds,
             ExpireRound   = request.ExpireRound,
             InjectErrorRound = request.InjectErrorRound,
+            Thin          = request.Thin ? 1 : 0,
+            TimeOsr       = request.TimeOsr,
+            FreqOsr       = request.FreqOsr,
         };
         if (onRound0 is not null)
         {
@@ -1215,6 +1218,9 @@ internal static class Ft8LibInterop
             BudgetMs      = request.BudgetMs.GetValueOrDefault(),
             ExpireRound   = request.ExpireRound,
             InjectErrorRound = request.InjectErrorRound,
+            Thin          = request.Thin ? 1 : 0,
+            TimeOsr       = request.TimeOsr,
+            FreqOsr       = request.FreqOsr,
         };
 
         FtzProbeRowWire[]? probeRows = null;
@@ -1320,6 +1326,41 @@ internal static class Ft8LibInterop
     {
         EnsureInitialized();
         return NativeFtzFitNeeded(resultHz, failedHz, failedHz.Length) != 0;
+    }
+
+    [DllImport("libft8.dll", EntryPoint = "ftz_test_thin", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzTestThin([In] int[] cands, int n, int cap, int timeOsr, int freqOsr, [Out] int[] output);
+
+    [DllImport("libft8.dll", EntryPoint = "ftz_test_waterfall", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzTestWaterfall([In] float[] pcm, int n, int timeOsr, int freqOsr, int windowLen, [Out] byte[] output, int outCap, [Out] int[] dims);
+
+    /// <summary>
+    /// FINE-GRID test export: THIN's rule on a caller-built candidate list (five integers each: score, time offset, time sub, frequency offset, frequency sub), in THIN's order, at most
+    /// <paramref name="cap"/> survivors. Throws on a malformed list.
+    /// </summary>
+    internal static int[][] FtzTestThin(IReadOnlyList<int[]> candidates, int cap, int timeOsr, int freqOsr)
+    {
+        EnsureInitialized();
+        var flat = new int[Math.Max(1, candidates.Count * 5)];
+        for (int i = 0; i < candidates.Count; i++) Array.Copy(candidates[i], 0, flat, i * 5, 5);
+        var output = new int[Math.Max(1, candidates.Count * 5)];
+        int rc = NativeFtzTestThin(flat, candidates.Count, cap, timeOsr, freqOsr, output);
+        if (rc < 0) throw new ArgumentException($"ftz_test_thin returned {rc}.");
+        return Enumerable.Range(0, rc).Select(i => output[(i * 5)..(i * 5 + 5)]).ToArray();
+    }
+
+    /// <summary>
+    /// FINE-GRID test export: the waterfall the lean cycle builds for <paramref name="pcm"/> at the given grid (layout [block][time_sub][freq_sub][bin]); <paramref name="windowLen"/> 0 is the
+    /// original window (the whole FFT). Returns the bytes and <c>{ blocks, time_osr, freq_osr, bins }</c>.
+    /// </summary>
+    internal static (byte[] Mag, int[] Dims) FtzTestWaterfall(float[] pcm, int timeOsr, int freqOsr, int windowLen)
+    {
+        EnsureInitialized();
+        var buffer = new byte[2_000_000];
+        var dims = new int[4];
+        int rc = NativeFtzTestWaterfall(pcm, pcm.Length, timeOsr, freqOsr, windowLen, buffer, buffer.Length, dims);
+        if (rc < 0) throw new InvalidOperationException($"ftz_test_waterfall returned {rc}.");
+        return (buffer[..rc], dims);
     }
 
     [DllImport("libft8.dll", EntryPoint = "ftz_patch_keep", CallingConvention = CallingConvention.Cdecl)]

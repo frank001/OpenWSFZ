@@ -1,4 +1,14 @@
-=== CURRENT: XC-ROUND, one more native round after the cross-cycle stage (FT8_SHIM_VERSION 20260082) ===
+=== CURRENT: FINE-GRID, a thinned candidate list and a finer search grid, lean only (FT8_SHIM_VERSION 20260083) ===
+
+Built 2026-11-27 on feat/fine-grid (from origin/main ea3350e2), local, not pushed. QA task dev-tasks/2026-11-27-fine-grid-thin-candidates-and-finer-search-grid.md (spec docs/decoder-rebuild/spec-fine-grid.md).
+What changed (native). ftz_params_t version 7: thin (0/1), time_osr, freq_osr (0, 2 or 4; 0 = 2); a caller built against version 6 reads zero = today's search. Anything else returns FTZ_ERR_PARAM. THIN (ftz_find_candidates in
+  ftz_decoder.c): scores every grid position through the untouched ftx_find_candidates, sorts the above-floor list by (score, frequency, time) and keeps a candidate only when no already kept one lies within 6.25 Hz and 0.16 s,
+  then the cap. FINE: monitor_config_t.window_len (0 = nfft); freq_osr 4 zero-pads the 2-symbol Hann window to 4 symbols (nfft 7680, inside timedata[8192]), normalised from the window length; time_osr 4 is the hop.
+  ftz_probe_row_t is 72 bytes (time_sub, freq_sub). Classic (ft8_shim.c, K_FREQ_OSR / K_TIME_OSR) is bit-identical: window_len 0 is the original loop.
+
+=== (older entries follow) ===
+
+=== PREVIOUS: XC-ROUND, one more native round after the cross-cycle stage (FT8_SHIM_VERSION 20260082) ===
 
 Built 2026-11-27 on feat/xc-round (stacked on qa/sprint-r1r4 f20ae680, PAYLOAD-FIT), local, not pushed. QA task dev-tasks/2026-11-27-xc-round-subtract-cross-cycle-detections.md (spec docs/decoder-rebuild/spec-xc-round.md).
 What changed (native). native/ftz_decoder/ftz_decoder.h / .c: a NEW export ftz_xc_round and a new struct ftz_xc_t (79 tones, frequency and time per detection, the residual, read only). It runs ONE residual

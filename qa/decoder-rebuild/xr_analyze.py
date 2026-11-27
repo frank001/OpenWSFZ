@@ -15,6 +15,7 @@ import statistics
 import sys
 from collections import Counter
 
+NEW_TAG = sys.argv[1] if len(sys.argv) > 1 else "xr"        # the run under test: xr = XC-ROUND with the prior-store feed, xn = as shipped (batch 4 not stored)
 sys.argv = [sys.argv[0]]
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import r1r4_split as rs          # noqa: E402
@@ -22,7 +23,7 @@ import sub_probe_analyze as sp   # noqa: E402
 
 SC = sp.SC
 SLICES = ["S40", "H40", "H20"]
-BASE, NEW = "pf", "xr"
+BASE, NEW = "pf", NEW_TAG
 PIN_NEW = "fa0b96c1c8a220b3"                          # first 16 hex of the SHA256 of libft8.dll of 65bca805 (XC-ROUND, shim 20260082): the arm.json's bin_pin
 BASE_RATE = {"S40": 87.79, "H40": 87.243, "H20": 85.241}   # asserted against the PAYLOAD-FIT arm.json below (inherited constants, rounded)
 
@@ -154,7 +155,7 @@ def run_slice(name):
 
 def main():
     out = {s: run_slice(s) for s in SLICES}
-    with open(os.path.join(SC, "lc-base", "xr_analyze.json"), "w") as fh:
+    with open(os.path.join(SC, "lc-base", "xr_analyze.json" if NEW == "xr" else "%s_analyze.json" % NEW), "w") as fh:
         json.dump(out, fh, indent=1)
     print(json.dumps(out, indent=1))
 

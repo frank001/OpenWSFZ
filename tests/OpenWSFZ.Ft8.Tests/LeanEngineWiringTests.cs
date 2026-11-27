@@ -32,6 +32,18 @@ public sealed class LeanEngineWiringTests
     /// </summary>
     private sealed class LeanFake : IFt8NativeInterop
     {
+        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0)
+        {
+            var outcome = DecodeLeanCycle(pcm, request);
+            if (onRound0 is not null)
+            {
+                var idx = Enumerable.Range(0, outcome.Results.Length).Where(i => i >= outcome.Rounds.Length || outcome.Rounds[i] == 0).ToArray();
+                onRound0(new LeanRound0(idx.Select(i => outcome.Results[i]).ToArray(), idx.Select(i => i < outcome.Tiers.Length ? outcome.Tiers[i] : LeanTier.A).ToArray()));
+            }
+            return outcome;
+        }
+        public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections) => throw new NotSupportedException("Not modelled by this fake.");
+        public void LeanShutdown() { }
         public List<int> ThreadsSeen { get; } = [];
         public List<LeanCycleParams> Requests { get; } = [];
         public Queue<Func<LeanCycleOutcome>> Outcomes { get; } = new();
@@ -169,6 +181,9 @@ public sealed class LeanEngineWiringTests
 
     private sealed class NoLeanFake : IFt8NativeInterop
     {
+        public LeanCycleOutcome DecodeLeanCycle(float[] pcm, LeanCycleParams request, Action<LeanRound0>? onRound0) => throw new NotSupportedException("Not modelled by this fake.");
+        public LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections) => throw new NotSupportedException("Not modelled by this fake.");
+        public void LeanShutdown() { }
         public int MaxDecodePasses => 2;
         public Ft8NativeResult[] DecodeAll(float[] pcm) => [Native("CQ Q1ABC JO22")];
         public int[] GetLastPassCounts(int maxPasses) => [1, 0];

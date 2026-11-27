@@ -106,6 +106,11 @@ def main():
     if "--probe" in sys.argv:                                # SUB-PROBE (feat/sub-probe): the harness build must have HasProbe; probe.tsv = numbers only
         assert arm == "L"
         args += ["--lean-probe", "1", "--probe-out", out + r"\probe.tsv"]
+    if "--grid" in sys.argv:                                 # FINE-GRID (shim 20260083): --grid <thin>:<time_osr>:<freq_osr>, e.g. 1:2:2 (arm T) or 1:4:4 (arm F); the harness build must have HasFineGrid
+        assert arm == "L" and "--probe" in sys.argv
+        gt, gtime, gfreq = sys.argv[sys.argv.index("--grid") + 1].split(":")
+        assert gt in ("0", "1") and gtime in ("0", "2", "4") and gfreq in ("0", "2", "4")
+        args += ["--lean-thin", gt, "--lean-time-osr", gtime, "--lean-freq-osr", gfreq]
     t0 = time.time()
     p = subprocess.Popen(args, stdout=open(out + r"\stdout.txt", "w"), stderr=subprocess.STDOUT)
     p.wait()

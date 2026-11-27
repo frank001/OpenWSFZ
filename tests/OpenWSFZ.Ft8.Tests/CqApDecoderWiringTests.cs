@@ -18,7 +18,7 @@ public sealed class CqApDecoderWiringTests
         => new() { FreqHz = freq, Dt = 0.2f, Snr = -19, Message = message, ApKind = kind };
 
     /// <summary>A fake native layer: fixed results, records the flag as it stood at every <c>DecodeAll</c>, reports a fixed attempt count per call.</summary>
-    private sealed class Fake(params Ft8NativeResult[] results) : IFt8NativeInterop
+    private sealed class Fake(params Ft8NativeResult[] results) : NonLeanInteropBase, IFt8NativeInterop
     {
         private bool _flag;
         public List<bool> FlagAtDecode { get; } = [];

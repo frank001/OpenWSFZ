@@ -16,7 +16,7 @@ public sealed class SetDecodeParamsTests
     /// <summary>
     /// Capturing fake that records the last <see cref="SetDecodeParams"/> call.
     /// </summary>
-    private sealed class CapturingInterop : IFt8NativeInterop
+    private sealed class CapturingInterop : NonLeanInteropBase, IFt8NativeInterop
     {
         public bool   SetDecodeParamsCalled    { get; private set; }
         public int    LastKMinScorePass2        { get; private set; }
