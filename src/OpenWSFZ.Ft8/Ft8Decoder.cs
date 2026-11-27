@@ -357,10 +357,6 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     private double _crossCyclePriorParityThreshold = CrossCyclePriorParityThresholdDefault;   // R15, read with Volatile.Read
 
     /// <summary>
-    /// XC-BUILD R6: T_E, the shipped threshold on S_E* above which a template is detected: 3.076041980658299, frozen on the TRAIN night by QA's TR2 (T_E from the shadow null at FA* = 0.021 / K with K = 36, T_P the 10th percentile of the corroborated detections' S_P), committed before any acceptance arm; qa/xc-build/results/xc_te_v2_full_2026-11-14.json.
-    /// Replay can set it (for example <see cref="double.PositiveInfinity"/>, which detects nothing) through <see cref="SetCrossCyclePriorThreshold"/>.
-    /// </summary>
-    /// <summary>
     /// FINE-GRID (shim 20260083), the lean search the daemon runs: thin the candidate list (a candidate is dropped when an already kept, higher-scoring one lies within 6.25 Hz and
     /// 0.16 s) and search a 4 x 4 grid (time hop 0.04 s, frequency step 1.5625 Hz by zero-padding). QA's replay of 2026-11-27, thin 1 with 4 x 4 against the build before: +2.08 / +1.39 / +0.60 pp
     /// on S40 / H40 / H20, CPU about +10 %, no abandoned cycle (thin alone was mixed and is not shipped alone). Applies to the lean cycle and, through the same request, the XC round.
@@ -374,6 +370,10 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
     /// <summary>The lean search grid's frequency oversampling (see <see cref="LeanThin"/>).</summary>
     internal const int LeanFreqOsr = 4;
 
+    /// <summary>
+    /// XC-BUILD R6: T_E, the shipped threshold on S_E* above which a template is detected: 3.076041980658299, frozen on the TRAIN night by QA's TR2 (T_E from the shadow null at FA* = 0.021 / K with K = 36, T_P the 10th percentile of the corroborated detections' S_P), committed before any acceptance arm; qa/xc-build/results/xc_te_v2_full_2026-11-14.json.
+    /// Replay can set it (for example <see cref="double.PositiveInfinity"/>, which detects nothing) through <see cref="SetCrossCyclePriorThreshold"/>.
+    /// </summary>
     internal const double CrossCyclePriorThresholdDefault = 3.076041980658299;
 
     /// <summary>
