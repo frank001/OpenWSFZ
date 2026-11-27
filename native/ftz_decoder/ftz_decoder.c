@@ -812,7 +812,8 @@ static int ftz_call_round0(ftz_round0_fn fn, void* ctx, int n, const FT8Result* 
 #endif
 }
 
-static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* params, FT8Result* results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* st)
+static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* params, FT8Result* results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* st,
+                                 const ftz_xc_t* xc)
 {
     const int64_t t_start = ftz_wall_us();
 
@@ -864,6 +865,14 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     st->threads = threads;
 
     if (!ftz_audio_ok(pcm, n)) return FTZ_ERR_BADAUDIO;
+    /* XC-ROUND: with xc set the call is ONE residual round on the caller's residual (no round 0, no loop); no detection, nothing to do. */
+    int xc_n = 0;
+    if (xc != NULL)
+    {
+        xc_n = xc->n_det < 0 ? 0 : (xc->n_det > rcap ? rcap : xc->n_det);
+        if (xc_n == 0) return 0;
+    }
+    const int prow_xc = FTZ_XC_PROBE_ROUND;                                   /* the round number the probe rows and out_rounds carry in an XC call */
 
     /* ── S1: spectrogram (the primary pass's monitor configuration) ── */
     int64_t w0 = ftz_wall_us(), c0 = ftz_thread_cpu_us();
@@ -881,8 +890,9 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         monitor_free(&mon);                       /* free(NULL) is fine; monitor_free frees only what monitor_init allocated */
         return FTZ_ERR_NOMEM;
     }
-    for (int pos = 0; pos + mon.block_size <= n; pos += mon.block_size)
-        monitor_process(&mon, pcm + pos);         /* monitor_process itself stops at max_blocks */
+    if (xc == NULL)                               /* an XC call reads the residual's spectrogram only, computed after the fits */
+        for (int pos = 0; pos + mon.block_size <= n; pos += mon.block_size)
+            monitor_process(&mon, pcm + pos);     /* monitor_process itself stops at max_blocks */
     st->spectrogram_wall_us = ftz_wall_us() - w0;
     st->spectrogram_cpu_us  = ftz_thread_cpu_us() - c0;
     st->rounds[0].spec_wall_us = st->spectrogram_wall_us;
@@ -897,7 +907,8 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
 
     float     noise_floor_db;
     WF_ELEM_T noise_raw;
-    compute_noise_floor(&mon, &noise_floor_db, &noise_raw);
+    noise_floor_db = 0.0f; noise_raw = 0;
+    if (xc == NULL) compute_noise_floor(&mon, &noise_floor_db, &noise_raw);
     (void)noise_raw;
     tls_last_noise_floor_db = noise_floor_db;     /* compute_local_noise_floor_db's fallback reads it */
 
@@ -986,8 +997,9 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
 
     /* ── The rounds: round 0 is the step-2a/2b decode of the capture; rounds 1 to 3 (FTZ_FLAG_ROUNDS) subtract what is not yet subtracted, re-compute the
      * residual's spectrogram and decode only the candidates near the signals just subtracted. ── */
-    for (int round = 0; round <= rounds_to_run; ++round)
+    for (int round = xc != NULL ? 1 : 0; round <= (xc != NULL ? 1 : rounds_to_run); ++round)   /* an XC call is round 1 of its own stats; the probe and out_rounds say 4 */
     {
+        const int prow = xc != NULL ? prow_xc : round;
         ftz_round_stats_t* rs = &st->rounds[round];
         int ncands;
         int n_sub_round = 0;
@@ -1010,6 +1022,9 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         {
             /* ── S3 (1): what is not yet subtracted. PAYLOAD-FIT: every result is fitted, the tones come from the payload, never from the text ── */
             int nfit = 0;
+            if (xc != NULL)                                          /* XC-ROUND: every detection is fitted, the tones are the caller's (fit_ix[j] = j) */
+                for (int k = 0; k < xc_n; ++k) fit_ix[nfit++] = k;
+            else
             for (int k = n_sub_done; k < nres; ++k)
             {
                 /* Step 2e (D3): the fit is skipped when no candidate of the round that found this result failed to decode in its patch window. */
@@ -1031,7 +1046,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                 fitjob = (ftz_fit_job_t*)calloc(1, sizeof(ftz_fit_job_t));
                 if (fitjob != NULL) fitjob->shat = (float*)malloc((size_t)FTZ_FIT_CHUNK * (size_t)FT8_EXPECTED_SAMPLES * sizeof(float));
                 if (full0 == NULL || resid == NULL || xa_re == NULL || xa_im == NULL || fitjob == NULL || fitjob->shat == NULL) { rc = FTZ_ERR_NOMEM; goto done; }
-                memcpy(resid, full0, (size_t)FT8_EXPECTED_SAMPLES * sizeof(float));
+                memcpy(resid, xc != NULL ? xc->residual : full0, (size_t)FT8_EXPECTED_SAMPLES * sizeof(float));   /* an XC call starts from the residual the cycle returned */
                 int arc = ft8_subfeas_compute_analytic(full0, xa_re, xa_im);     /* ONE per cycle, read-only for every fit */
                 if (arc == -2) { rc = FTZ_ERR_FAULT; goto done; }
                 if (arc != 0)  { rc = FTZ_ERR_NOMEM; goto done; }
@@ -1058,9 +1073,18 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                 for (int t = 0; t < m; ++t)
                 {
                     const int k = fit_ix[j0 + t];
-                    ft8_encode(res_pl[k], fitjob->tones[t]);                  /* the tones come from the payload, not from the text */
-                    fitjob->dt[t]   = results[k].dt;
-                    fitjob->freq[t] = (float)results[k].freq_hz;
+                    if (xc != NULL)
+                    {
+                        memcpy(fitjob->tones[t], xc->tones + (size_t)k * FT8_NN, FT8_NN);
+                        fitjob->dt[t]   = xc->time_s[k];
+                        fitjob->freq[t] = xc->freq_hz[k];
+                    }
+                    else
+                    {
+                        ft8_encode(res_pl[k], fitjob->tones[t]);              /* the tones come from the payload, not from the text */
+                        fitjob->dt[t]   = results[k].dt;
+                        fitjob->freq[t] = (float)results[k].freq_hz;
+                    }
                     fitjob->rc[t]   = 0;
                 }
                 int64_t cpu_us = 0;
@@ -1081,21 +1105,23 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                     if (fitjob->rc[t] != 0) continue;
                     const float* sh = fitjob->shat + (size_t)t * (size_t)FT8_EXPECTED_SAMPLES;
                     for (int s = 0; s < FT8_EXPECTED_SAMPLES; ++s) resid[s] -= sh[s];
-                    sub_hz[n_sub_round++] = (float)results[fit_ix[j0 + t]].freq_hz;
+                    const int fk = fit_ix[j0 + t];
+                    const float fit_hz = xc != NULL ? xc->freq_hz[fk] : (float)results[fk].freq_hz;
+                    const float fit_dt = xc != NULL ? xc->time_s[fk]  : results[fk].dt;
+                    sub_hz[n_sub_round++] = fit_hz;
                     rs->n_subtracted++;
                     if (pb != NULL)                                            /* SUB-PROBE: read-only; the footprint power BEFORE is read from the waterfall the round was searched on */
                     {
-                        const FT8Result* sr = &results[fit_ix[j0 + t]];
                         double e2 = 0.0;
                         for (int s = 0; s < FT8_EXPECTED_SAMPLES; ++s) e2 += (double)sh[s] * (double)sh[s];
                         ftz_probe_row_t row;
                         memset(&row, 0, sizeof(row));
-                        row.kind = FTZ_PROBE_SUB; row.round = round; row.freq_hz = (float)sr->freq_hz; row.time_s = sr->dt;
+                        row.kind = FTZ_PROBE_SUB; row.round = prow; row.freq_hz = fit_hz; row.time_s = fit_dt;
                         row.amp = (float)sqrt(2.0 * e2 / ((double)FT8_NN * (double)mon.block_size * 2.0)) ;
                         row.supp_db = FTZ_PROBE_NO_SUPP;
                         if (n_sub_probe < rcap)
                         {
-                            sub_before[n_sub_probe] = ftz_probe_footprint_power(&mon.wf, mon.min_bin, mon.symbol_period, (float)sr->freq_hz, sr->dt);
+                            sub_before[n_sub_probe] = ftz_probe_footprint_power(&mon.wf, mon.min_bin, mon.symbol_period, fit_hz, fit_dt);
                             sub_rows[n_sub_probe++] = ftz_probe_add(pb, &row);
                         }
                     }
@@ -1149,7 +1175,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                         if (cands[i].freq_offset == lc->freq_offset && cands[i].time_offset == lc->time_offset && cands[i].freq_sub == lc->freq_sub && cands[i].time_sub == lc->time_sub) { in_normal = 1; break; }
                     ftz_probe_row_t row;
                     memset(&row, 0, sizeof(row));
-                    row.kind = FTZ_PROBE_LOW; row.round = round;
+                    row.kind = FTZ_PROBE_LOW; row.round = prow;
                     row.freq_hz = (mon.min_bin + lc->freq_offset + (float)lc->freq_sub / mon.wf.freq_osr) / mon.symbol_period;
                     row.time_s  = (lc->time_offset + (float)lc->time_sub / mon.wf.time_osr) * mon.symbol_period;
                     row.score   = lc->score;
@@ -1167,7 +1193,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
                 {
                     ftz_probe_row_t row;
                     memset(&row, 0, sizeof(row));
-                    row.kind = FTZ_PROBE_CAND; row.round = round; row.freq_hz = f;
+                    row.kind = FTZ_PROBE_CAND; row.round = prow; row.freq_hz = f;
                     row.time_s = (cd->time_offset + (float)cd->time_sub / mon.wf.time_osr) * mon.symbol_period;
                     row.score = cd->score; row.kept = keep_it ? 1 : 0;
                     row.outcome = keep_it ? FTZ_PO_UNSET : FTZ_PO_NOT_KEPT_PATCH;
@@ -1488,7 +1514,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             res_tier[slot]    = (uint8_t)hits[k].tier;
             res_ungated[slot] = (uint8_t)(hits[k].tier == FTZ_TIER_B && hits[k].ungated ? 1 : 0);
             if (out_tiers  != NULL) out_tiers[slot]  = (uint8_t)hits[k].tier;
-            if (out_rounds != NULL) out_rounds[slot] = (uint8_t)round;
+            if (out_rounds != NULL) out_rounds[slot] = (uint8_t)prow;
             if (replace_slot < 0)
             {
                 nres++;
@@ -1544,7 +1570,7 @@ done:
     return rc;
 }
 
-int ftz_decode_cycle(const float* pcm, int n, const ftz_params_t* params, void* out_results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* out_stats)
+static int ftz_entry(const float* pcm, int n, const ftz_params_t* params, const ftz_xc_t* xc, void* out_results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* out_stats)
 {
     ftz_stats_t  local;
     ftz_stats_t* st = out_stats != NULL ? out_stats : &local;
@@ -1569,7 +1595,7 @@ int ftz_decode_cycle(const float* pcm, int n, const ftz_params_t* params, void* 
     int rc;
     ftz_call_lock();
 #ifdef _MSC_VER
-    __try { rc = ftz_decode_cycle_impl(pcm, n, &p, (FT8Result*)out_results, cap, out_tiers, out_rounds, st); }
+    __try { rc = ftz_decode_cycle_impl(pcm, n, &p, (FT8Result*)out_results, cap, out_tiers, out_rounds, st, xc); }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
         /* As ft8_decode_all does: clear the thread-local table pointer; the spectrogram heap is deliberately not freed
@@ -1578,9 +1604,30 @@ int ftz_decode_cycle(const float* pcm, int n, const ftz_params_t* params, void* 
         rc = FTZ_ERR_FAULT;
     }
 #else
-    rc = ftz_decode_cycle_impl(pcm, n, &p, (FT8Result*)out_results, cap, out_tiers, out_rounds, st);
+    rc = ftz_decode_cycle_impl(pcm, n, &p, (FT8Result*)out_results, cap, out_tiers, out_rounds, st, xc);
 #endif
     ftz_call_unlock();
     st->error = rc < 0 ? rc : FTZ_OK;   /* error is the error code, never the result count */
     return rc;
+}
+
+int ftz_decode_cycle(const float* pcm, int n, const ftz_params_t* params, void* out_results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* out_stats)
+{
+    return ftz_entry(pcm, n, params, NULL, out_results, cap, out_tiers, out_rounds, out_stats);
+}
+
+int ftz_xc_round(const float* pcm, int n, const ftz_params_t* params, const ftz_xc_t* xc, void* out_results, int cap, uint8_t* out_tiers, uint8_t* out_rounds, ftz_stats_t* out_stats)
+{
+    /* A malformed xc is an argument error, never a crash: the detections are read only after these checks. */
+    if (xc == NULL || xc->struct_size < (int32_t)sizeof(ftz_xc_t) || (xc->n_det > 0 && (xc->tones == NULL || xc->freq_hz == NULL || xc->time_s == NULL || xc->residual == NULL))
+        || n <= 0 || pcm == NULL)
+    {
+        ftz_stats_t  local;
+        ftz_stats_t* st = out_stats != NULL ? out_stats : &local;
+        memset(st, 0, sizeof(*st));
+        st->struct_size = (int32_t)sizeof(*st);
+        st->error = FTZ_ERR_ARG;
+        return FTZ_ERR_ARG;
+    }
+    return ftz_entry(pcm, n, params, xc, out_results, cap, out_tiers, out_rounds, out_stats);
 }

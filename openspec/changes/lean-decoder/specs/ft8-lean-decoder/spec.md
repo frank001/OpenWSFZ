@@ -312,3 +312,23 @@ In every residual round the lean engine SHALL consider every published result th
 
 - **WHEN** a result whose text is `CQ Q5XYZ/P` is published in round 0 and a candidate fails to decode inside its patch window
 - **THEN** it SHALL be fitted and subtracted in round 1 like any other
+
+
+### Requirement: After the cross-cycle stage the lean cycle runs one more native round on its detections and publishes the decodes as batch 4
+
+When the cross-cycle stage published at least one detection (live, never shadow), the cycle returned a residual and the effort is not `fast`, the lean cycle SHALL call `ftz_xc_round` once with those detections (79 tones, frequency, dt), the capture it decoded, the residual it returned and the budget left. The round SHALL fit and subtract every detection, re-compute the residual's spectrogram, and search and decode only inside the patch windows `[f - 50, f + 100]` Hz of what it subtracted, with the candidate floor, tiers, accept rules and duplicate rule of a round 1 to 3. It SHALL NOT start with less than the residual reserve left and SHALL publish nothing when cancelled on the deadline. Its decodes SHALL be published as batch 4, only when non-empty, through the same mapping as every batch (one text once per cycle across the batches), stored as priors like batch 2, and tagged round 4 (also on the probe rows). It SHALL NOT be called with the stage off, with no detection, with no residual or on `fast`, and batches 1 to 3 SHALL be unchanged by it.
+
+#### Scenario: A masked signal beside a cross-cycle detection is found
+
+- **WHEN** the strong signal's tones and position are passed with the residual the cycle left unsubtracted
+- **THEN** the round SHALL subtract it, decode the weak signal beside it with round 4, and, with the probe on, write a round-4 `SUB` row at its position
+
+#### Scenario: The round is not called without a reason
+
+- **WHEN** the stage is off, or published no detection, or the cycle returned no residual, or the effort is `fast`
+- **THEN** `ftz_xc_round` SHALL NOT be called and the log line SHALL carry no `b4=`
+
+#### Scenario: Determinism
+
+- **WHEN** the round is run at 1, 2 and 16 threads
+- **THEN** its results, tiers, rounds and probe rows SHALL be the same bytes

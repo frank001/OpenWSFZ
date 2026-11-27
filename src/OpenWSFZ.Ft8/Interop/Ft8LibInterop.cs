@@ -491,7 +491,7 @@ internal static class Ft8LibInterop
     /// <c>ft8_coherent_fallback_set_groups</c>) with the new structs <c>FT8CohSetOutcome</c> and <c>FT8CohSetsResult</c>; nothing in the
     /// decode path calls them, no existing export or struct changes.
     /// </remarks>
-    private const int ExpectedShimVersion = 20260081;
+    private const int ExpectedShimVersion = 20260082;
 
     /// <summary>
     /// The native shim's actual loaded ABI version, as read once by the startup ABI
@@ -1154,6 +1154,142 @@ internal static class Ft8LibInterop
             Tiers = count == 0 ? [] : tiers[..count],
             Rounds = count == 0 ? [] : rounds[..count],
             Residual = stats.HasResidual != 0 ? residual : null,
+            ProbeRows = probeOut,
+            ProbeOverflow = probeOverflow,
+        };
+    }
+
+    /// <summary>
+    /// XC-ROUND (shim 20260082): the native entry that runs ONE more subtract-and-retry round after the managed cross-cycle stage (<c>ftz_xc_round</c>,
+    /// <c>native/ftz_decoder/ftz_decoder.h</c>).
+    /// </summary>
+    [DllImport("libft8.dll", EntryPoint = "ftz_xc_round", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeFtzXcRound(
+        [In] float[]            pcm,
+        int                     pcmLen,
+        ref FtzParamsWire       parameters,
+        ref FtzXcWire           xc,
+        [Out] Ft8NativeResultWire[] results,
+        int                     maxResults,
+        [Out] byte[]            tiers,
+        [Out] byte[]            rounds,
+        ref FtzStatsWire        stats);
+
+    /// <summary>
+    /// XC-ROUND: fits and subtracts each of <paramref name="detections"/> on <paramref name="residual"/> (the buffer the cycle returned; read only here), re-computes the
+    /// residual's spectrogram, searches and decodes only in the patch windows of what it subtracted, and returns the new results (sorted by the native side; every
+    /// result carries round 4). <paramref name="pcm"/> must be the SAME normalised capture the cycle decoded. <paramref name="request"/> carries the cycle's flags
+    /// (threads, CQ-AP, residual rules, probe) and the budget left. A native error is reported in the statistics, never thrown. The stats of the round itself are in
+    /// <c>Stats.Rounds[1]</c>.
+    /// </summary>
+    public static LeanCycleOutcome DecodeLeanXcRound(float[] pcm, LeanCycleParams request, float[] residual, IReadOnlyList<LeanXcDetection> detections)
+    {
+        ArgumentNullException.ThrowIfNull(pcm);
+        ArgumentNullException.ThrowIfNull(residual);
+        ArgumentNullException.ThrowIfNull(detections);
+        if (residual.Length < PcmSampleCount) throw new ArgumentException($"The residual must hold {PcmSampleCount} samples.", nameof(residual));
+        EnsureInitialized();
+
+        int nDet = detections.Count;
+        var tones = new byte[Math.Max(1, nDet) * 79];
+        var freq = new float[Math.Max(1, nDet)];
+        var time = new float[Math.Max(1, nDet)];
+        for (int i = 0; i < nDet; i++)
+        {
+            if (detections[i].Tones.Length != 79) throw new ArgumentException("A detection needs exactly 79 tones.", nameof(detections));
+            Array.Copy(detections[i].Tones, 0, tones, i * 79, 79);
+            freq[i] = detections[i].FreqHz;
+            time[i] = detections[i].Dt;
+        }
+
+        var parameters = new FtzParamsWire
+        {
+            StructSize    = Marshal.SizeOf<FtzParamsWire>(),
+            Threads       = request.Threads,
+            MaxCandidates = request.MaxCandidates,
+            Flags         = (request.CqAp ? FtzParamsWire.FlagCqAp : 0) | (request.BudgetMs.HasValue ? FtzParamsWire.FlagBudget : 0)
+                          | (request.ResidualUngated ? FtzParamsWire.FlagResidualUngated : 0)
+                          | (request.ResidualCandidates ? FtzParamsWire.FlagResidualCandidates : 0)
+                          | (request.NoTierB ? FtzParamsWire.FlagNoTierB : 0)
+                          | (request.Probe ? FtzParamsWire.FlagProbe : 0),
+            BudgetMs      = request.BudgetMs.GetValueOrDefault(),
+            ExpireRound   = request.ExpireRound,
+            InjectErrorRound = request.InjectErrorRound,
+        };
+
+        FtzProbeRowWire[]? probeRows = null;
+        GCHandle probeRowsPin = default, probePin = default;
+        FtzProbeWire probeWire = default;
+        if (request.Probe)
+        {
+            probeRows = new FtzProbeRowWire[Math.Max(1, request.ProbeCapacity)];
+            probeRowsPin = GCHandle.Alloc(probeRows, GCHandleType.Pinned);
+            probeWire = new FtzProbeWire { StructSize = Marshal.SizeOf<FtzProbeWire>(), Cap = request.ProbeCapacity, Rows = probeRowsPin.AddrOfPinnedObject() };
+            probePin = GCHandle.Alloc(probeWire, GCHandleType.Pinned);
+            parameters.Probe = probePin.AddrOfPinnedObject();
+        }
+
+        var tonesPin = GCHandle.Alloc(tones, GCHandleType.Pinned);
+        var freqPin = GCHandle.Alloc(freq, GCHandleType.Pinned);
+        var timePin = GCHandle.Alloc(time, GCHandleType.Pinned);
+        var residualPin = GCHandle.Alloc(residual, GCHandleType.Pinned);
+        var outTiers = new byte[MaxResults];
+        var outRounds = new byte[MaxResults];
+        var stats = new FtzStatsWire { StructSize = Marshal.SizeOf<FtzStatsWire>() };
+        var wire  = new Ft8NativeResultWire[MaxResults];
+        int rc;
+        try
+        {
+            var xc = new FtzXcWire
+            {
+                StructSize = Marshal.SizeOf<FtzXcWire>(), NDet = nDet,
+                Tones = tonesPin.AddrOfPinnedObject(), FreqHz = freqPin.AddrOfPinnedObject(), TimeS = timePin.AddrOfPinnedObject(), Residual = residualPin.AddrOfPinnedObject(),
+            };
+            rc = NativeFtzXcRound(pcm, pcm.Length, ref parameters, ref xc, wire, MaxResults, outTiers, outRounds, ref stats);
+        }
+        finally
+        {
+            tonesPin.Free(); freqPin.Free(); timePin.Free(); residualPin.Free();
+        }
+
+        LeanProbeRow[] probeOut = [];
+        bool probeOverflow = false;
+        if (request.Probe)
+        {
+            try
+            {
+                var back = (FtzProbeWire)probePin.Target!;
+                int n = Math.Clamp(back.N, 0, Math.Min(request.ProbeCapacity, probeRows!.Length));
+                probeOut = new LeanProbeRow[n];
+                for (int i = 0; i < n; i++) probeOut[i] = LeanProbeRow.From(in probeRows[i]);
+                probeOverflow = back.Overflow != 0;
+            }
+            finally
+            {
+                probePin.Free();
+                probeRowsPin.Free();
+            }
+        }
+        stats.Error = rc < 0 ? rc : stats.Error;
+
+        int count = rc >= 0 ? rc : stats.NResults;
+        count = Math.Clamp(count, 0, MaxResults);
+        var results = count == 0 ? [] : new Ft8NativeResult[count];
+        for (int i = 0; i < count; i++)
+        {
+            results[i] = new Ft8NativeResult
+            {
+                FreqHz  = wire[i].FreqHz,
+                Dt      = wire[i].Dt,
+                Snr     = wire[i].Snr,
+                Message = wire[i].Message,
+                ApKind  = outTiers[i] == LeanTier.CqAp ? ApKind.Cq : ApKind.None,
+            };
+        }
+        return new LeanCycleOutcome(results, LeanCycleStats.From(in stats))
+        {
+            Tiers = count == 0 ? [] : outTiers[..count],
+            Rounds = count == 0 ? [] : outRounds[..count],
             ProbeRows = probeOut,
             ProbeOverflow = probeOverflow,
         };
