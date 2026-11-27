@@ -740,19 +740,6 @@ int ftz_residual_b_accept(int f1b_passed, int published_freq_hz, int ungated_on,
     return 1;
 }
 
-/* SubtractionPass.IsReencodable, on the unpacked text: no hash placeholder ('<') and at least three space-separated tokens. */
-static int ftz_text_reencodable(const char* text)
-{
-    if (strchr(text, '<') != NULL) return 0;
-    int tokens = 0, in_token = 0;
-    for (const char* c = text; *c != '\0'; ++c)
-    {
-        if (*c == ' ') in_token = 0;
-        else if (!in_token) { in_token = 1; tokens++; }
-    }
-    return tokens >= 3;
-}
-
 /* The buffer tier B, the analytic signal and the residual read: the capture as 15 s of samples, zero-padded when it is shorter. NULL: no memory. */
 static const float* ftz_full_buffer(const float* pcm, int n, float** pad)
 {
@@ -938,7 +925,6 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     char (*texts)[FTX_MAX_MESSAGE_LENGTH + 1] = (char (*)[FTX_MAX_MESSAGE_LENGTH + 1])calloc((size_t)rcap, FTX_MAX_MESSAGE_LENGTH + 1);
     uint8_t (*seen_payloads)[FTZ_PAYLOAD_BYTES] = (uint8_t (*)[FTZ_PAYLOAD_BYTES])calloc((size_t)scap, FTZ_PAYLOAD_BYTES);
     uint8_t (*res_pl)[FTZ_PAYLOAD_BYTES]  = (uint8_t (*)[FTZ_PAYLOAD_BYTES])calloc((size_t)rcap, FTZ_PAYLOAD_BYTES);   /* the payload of each published result */
-    uint8_t*         reenc  = (uint8_t*)calloc((size_t)rcap, 1);              /* is each published result re-encodable (SubtractionPass.IsReencodable) */
     int32_t*         res_score = (int32_t*)calloc((size_t)rcap, sizeof(int32_t));   /* DR-3: the candidate sync score of each published result */
     uint8_t*         res_tier  = (uint8_t*)calloc((size_t)rcap, 1);                 /* DR-3: its tier, and whether it was an ungated tier-B row, for the counters */
     uint8_t*         res_ungated = (uint8_t*)calloc((size_t)rcap, 1);
@@ -967,7 +953,7 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
     int              resid_valid = 0;     /* resid holds the original minus every subtraction of the rounds that completed */
     if (cands == NULL || msgs == NULL || cmsgs == NULL || ok_a == NULL || b_el == NULL || b_st == NULL || b_ed == NULL || c_el == NULL
         || c_at == NULL || c_ok == NULL || pos_f == NULL || pos_t == NULL || b_fr == NULL || b_dt == NULL || b_snr == NULL || b_pl == NULL
-        || known == NULL || hits == NULL || drop == NULL || texts == NULL || seen_payloads == NULL || res_pl == NULL || reenc == NULL
+        || known == NULL || hits == NULL || drop == NULL || texts == NULL || seen_payloads == NULL || res_pl == NULL
         || res_score == NULL || res_tier == NULL || res_ungated == NULL || res_h12 == NULL || sel_pl == NULL || sel_sc == NULL
         || fit_ix == NULL || sub_hz == NULL || fail_hz == NULL)
     {
@@ -1022,11 +1008,10 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
         }
         else
         {
-            /* ── S3 (1): what is not yet subtracted, if re-encodable (SubtractionPass.IsReencodable on the unpacked text) ── */
+            /* ── S3 (1): what is not yet subtracted. PAYLOAD-FIT: every result is fitted, the tones come from the payload, never from the text ── */
             int nfit = 0;
             for (int k = n_sub_done; k < nres; ++k)
             {
-                if (!reenc[k]) continue;
                 /* Step 2e (D3): the fit is skipped when no candidate of the round that found this result failed to decode in its patch window. */
                 if (skip_fits && !ftz_fit_needed((float)results[k].freq_hz, fail_hz, n_fail)) { rs->n_fit_skipped++; continue; }
                 fit_ix[nfit++] = k;
@@ -1498,7 +1483,6 @@ static int ftz_decode_cycle_impl(const float* pcm, int n, const ftz_params_t* pa
             r->message[35] = '\0';
             memcpy(texts[slot], text, sizeof(texts[slot]));
             memcpy(res_pl[slot], hits[k].payload, FTZ_PAYLOAD_BYTES);
-            reenc[slot] = (uint8_t)ftz_text_reencodable(text);
             if (pb != NULL) { pr_out[i] = hits[k].tier == FTZ_TIER_B ? FTZ_PO_B_OK : (hits[k].tier == FTZ_TIER_CQ ? FTZ_PO_CQ_OK : FTZ_PO_A_OK); res_cidx[slot] = i; }
             res_score[slot]   = new_score;
             res_tier[slot]    = (uint8_t)hits[k].tier;
@@ -1547,7 +1531,7 @@ done:
     }
     free(cands); free(msgs); free(cmsgs); free(ok_a); free(b_el); free(b_st); free(b_ed); free(c_el); free(c_at); free(c_ok);
     free(pos_f); free(pos_t); free(b_fr); free(b_dt); free(b_snr); free(b_pl); free(known); free(hits); free(drop); free(texts); free(seen_payloads);
-    free(res_pl); free(reenc); free(res_score); free(res_tier); free(res_ungated); free(res_h12); free(sel_pl); free(sel_sc); free(fit_ix); free(sub_hz); free(fail_hz);
+    free(res_pl); free(res_score); free(res_tier); free(res_ungated); free(res_h12); free(sel_pl); free(sel_sc); free(fit_ix); free(sub_hz); free(fail_hz);
     free(pr_row); free(pr_out); free(pr_gate); free(pstat); free(res_cidx); free(sub_rows); free(sub_before); free(low_buf);
     free(resid); free(xa_re); free(xa_im);
     if (fitjob != NULL) { free(fitjob->shat); free(fitjob); }

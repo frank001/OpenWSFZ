@@ -1,0 +1,295 @@
+{
+ "S40": {
+  "cycles": 170,
+  "dt_offset": 0.66,
+  "results_in_dump": 6246,
+  "lean_csv_results": 6000,
+  "sub_rows": 5177,
+  "flagged_cycles_abandoned_or_cancelled": 0,
+  "xc_cycles": 134,
+  "base_rate_all_results": {
+   "R2": 757,
+   "SUB": 5156,
+   "UNLINKED": 268,
+   "R4": 27,
+   "R3": 38
+  },
+  "formerly_gated_results_by_class": {
+   "HASH:R2": 59,
+   "HASH:R3": 12,
+   "HASH:R4": 2,
+   "HASH:SUB": 369,
+   "TOKENS:R2": 3,
+   "TOKENS:SUB": 33
+  },
+  "base_rate_by_round": {
+   "R2": {
+    "0": 746,
+    "1": 11
+   },
+   "R4": {
+    "3": 27
+   },
+   "R3": {
+    "0": 26,
+    "1": 10,
+    "2": 2
+   }
+  },
+  "cycle_totals_from_log": {
+   "skipped": 757,
+   "subtracted": 5177,
+   "fitNone": 37,
+   "fits": 5214
+  },
+  "derived": {
+   "SUB": 5156,
+   "R2": 757,
+   "R3": 38
+  },
+  "k2_neighbour_class": {
+   "SUB": 297,
+   "XC": 27,
+   "R2": 14,
+   "R3": 8,
+   "R4": 4
+  },
+  "k2_unsubtracted": 53,
+  "k2_by_round": {
+   "R2@0": 14,
+   "R3@0": 7,
+   "R3@1": 1,
+   "R4@3": 4,
+   "XC@None": 27
+  },
+  "all_classes_neighbour": {
+   "K0": {
+    "SUB": 80,
+    "R2": 9,
+    "XC": 1
+   },
+   "K1": {
+    "R2": 16,
+    "SUB": 11,
+    "XC": 6
+   },
+   "K2": {
+    "SUB": 297,
+    "XC": 27,
+    "R2": 14,
+    "R3": 8,
+    "R4": 4
+   },
+   "K3": {
+    "R2": 39,
+    "SUB": 13,
+    "XC": 4,
+    "R3": 1
+   },
+   "K4": {
+    "SUB": 7,
+    "R2": 17,
+    "XC": 1
+   }
+  }
+ },
+ "H40": {
+  "cycles": 240,
+  "dt_offset": 0.66,
+  "results_in_dump": 8465,
+  "lean_csv_results": 7984,
+  "sub_rows": 7055,
+  "flagged_cycles_abandoned_or_cancelled": 0,
+  "xc_cycles": 217,
+  "base_rate_all_results": {
+   "R2": 757,
+   "SUB": 6966,
+   "R3": 140,
+   "UNLINKED": 579,
+   "R4": 23
+  },
+  "formerly_gated_results_by_class": {
+   "HASH:R2": 12,
+   "HASH:SUB": 80,
+   "TOKENS:R2": 1,
+   "TOKENS:SUB": 9,
+   "TOKENS:UNLINKED": 1
+  },
+  "base_rate_by_round": {
+   "R2": {
+    "0": 738,
+    "1": 17,
+    "2": 2
+   },
+   "R3": {
+    "0": 39,
+    "1": 93,
+    "2": 8
+   },
+   "R4": {
+    "3": 23
+   }
+  },
+  "cycle_totals_from_log": {
+   "skipped": 765,
+   "subtracted": 7055,
+   "fitNone": 140,
+   "fits": 7195
+  },
+  "derived": {
+   "SUB": 6966,
+   "R2": 757,
+   "R3": 140
+  },
+  "k2_neighbour_class": {
+   "SUB": 391,
+   "R3": 25,
+   "XC": 52,
+   "R2": 8,
+   "R4": 1,
+   "SUB_FOUND_BY_RESULT_POSITION": 1
+  },
+  "k2_unsubtracted": 87,
+  "k2_by_round": {
+   "R2@0": 8,
+   "R3@0": 12,
+   "R3@1": 12,
+   "R3@2": 1,
+   "R4@3": 1,
+   "SUB_FOUND_BY_RESULT_POSITION@None": 1,
+   "XC@None": 52
+  },
+  "all_classes_neighbour": {
+   "K0": {
+    "SUB": 73,
+    "XC": 1,
+    "R2": 6,
+    "R3": 2
+   },
+   "K1": {
+    "SUB": 42,
+    "R2": 11,
+    "XC": 7
+   },
+   "K2": {
+    "SUB": 391,
+    "R3": 25,
+    "XC": 52,
+    "R2": 8,
+    "R4": 1,
+    "SUB_FOUND_BY_RESULT_POSITION": 1
+   },
+   "K3": {
+    "R2": 44,
+    "XC": 9,
+    "SUB": 10,
+    "R3": 2
+   },
+   "K4": {
+    "R2": 21,
+    "SUB": 9,
+    "XC": 4,
+    "R3": 1
+   }
+  }
+ },
+ "H20": {
+  "cycles": 240,
+  "dt_offset": 0.66,
+  "results_in_dump": 8454,
+  "lean_csv_results": 7712,
+  "sub_rows": 6862,
+  "flagged_cycles_abandoned_or_cancelled": 0,
+  "xc_cycles": 220,
+  "base_rate_all_results": {
+   "R2": 682,
+   "SUB": 6853,
+   "R3": 139,
+   "UNLINKED": 759,
+   "R4": 21
+  },
+  "formerly_gated_results_by_class": {
+   "HASH:R2": 54,
+   "HASH:R3": 9,
+   "HASH:R4": 2,
+   "HASH:SUB": 516,
+   "TOKENS:R2": 12,
+   "TOKENS:R3": 7,
+   "TOKENS:SUB": 25
+  },
+  "base_rate_by_round": {
+   "R2": {
+    "0": 665,
+    "1": 15,
+    "2": 2
+   },
+   "R3": {
+    "0": 102,
+    "1": 35,
+    "2": 2
+   },
+   "R4": {
+    "3": 21
+   }
+  },
+  "cycle_totals_from_log": {
+   "skipped": 687,
+   "subtracted": 6862,
+   "fitNone": 139,
+   "fits": 7001
+  },
+  "derived": {
+   "SUB": 6853,
+   "R2": 682,
+   "R3": 139
+  },
+  "k2_neighbour_class": {
+   "SUB": 445,
+   "XC": 89,
+   "R2": 12,
+   "R3": 30,
+   "NO_LEAN_RESULT": 1
+  },
+  "k2_unsubtracted": 132,
+  "k2_by_round": {
+   "R2@0": 12,
+   "R3@0": 29,
+   "R3@1": 1,
+   "XC@None": 89
+  },
+  "all_classes_neighbour": {
+   "K0": {
+    "SUB": 55,
+    "XC": 2,
+    "R2": 6
+   },
+   "K1": {
+    "SUB": 25,
+    "R2": 9,
+    "XC": 12,
+    "R3": 1,
+    "R4": 1
+   },
+   "K2": {
+    "SUB": 445,
+    "XC": 89,
+    "R2": 12,
+    "R3": 30,
+    "NO_LEAN_RESULT": 1
+   },
+   "K3": {
+    "SUB": 11,
+    "R2": 38,
+    "XC": 8,
+    "R4": 1,
+    "R3": 1
+   },
+   "K4": {
+    "SUB": 11,
+    "R3": 2,
+    "XC": 4,
+    "R2": 25
+   }
+  }
+ }
+}

@@ -297,3 +297,18 @@ With the native flag `FTZ_FLAG_PROBE` set (by the replay harness only; the daemo
 
 - **WHEN** the probe buffer holds fewer rows than the cycle produces
 - **THEN** the rows that fit SHALL be returned, the overflow flag SHALL be set, and nothing SHALL be written past the end
+
+
+### Requirement: The lean engine fits every published result from its decoded payload, whatever its text
+
+In every residual round the lean engine SHALL consider every published result that is not yet subtracted for the fit, under the step-2e skip rule unchanged, regardless of its rendered text: a result whose text carries a `<...>` hash placeholder, or has fewer than three tokens, SHALL be fitted like any other. The fit's tones SHALL come from the decoded 77-bit payload, never from the text. The classic decoder is not affected.
+
+#### Scenario: A result with a hash placeholder is fitted
+
+- **WHEN** a result whose text is `<...> Q5XYZ/P` is published in round 0 and a candidate fails to decode inside its patch window
+- **THEN** a `SUB` row SHALL be written for it in round 1, the round's fit count SHALL include it, and a weaker signal it masked SHALL be found
+
+#### Scenario: A result with fewer than three tokens is fitted
+
+- **WHEN** a result whose text is `CQ Q5XYZ/P` is published in round 0 and a candidate fails to decode inside its patch window
+- **THEN** it SHALL be fitted and subtracted in round 1 like any other
