@@ -16,6 +16,12 @@
    "R4": 22,
    "R3": 26
   },
+  "formerly_gated_results_by_class": {
+   "HASH:R1h": 419,
+   "HASH:R4": 3,
+   "HASH:SUB": 3,
+   "TOKENS:R1t": 33
+  },
   "base_rate_by_round": {
    "R2": {
     "0": 684,
@@ -128,6 +134,12 @@
    "R1h": 85,
    "R1t": 10,
    "R4": 22
+  },
+  "formerly_gated_results_by_class": {
+   "HASH:R1h": 85,
+   "HASH:SUB": 4,
+   "TOKENS:R1t": 10,
+   "TOKENS:UNLINKED": 1
   },
   "base_rate_by_round": {
    "R2": {
@@ -244,6 +256,12 @@
    "R2": 616,
    "UNLINKED": 738,
    "R4": 13
+  },
+  "formerly_gated_results_by_class": {
+   "HASH:R1h": 562,
+   "HASH:R4": 1,
+   "HASH:SUB": 3,
+   "TOKENS:R1t": 44
   },
   "base_rate_by_round": {
    "R1t": {

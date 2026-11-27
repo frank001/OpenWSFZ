@@ -1,0 +1,245 @@
+{
+ "S40": {
+  "table1": {
+   "wsjtx": 6773,
+   "classic": {
+    "matched": 5716,
+    "ours": 5971,
+    "wsjtx": 6773,
+    "rate": 84.39,
+    "ours_only": 3.77
+   },
+   "before_SUBPROBE_run": {
+    "matched": 5737,
+    "ours": 6009,
+    "rate_pct": 84.704,
+    "ours_only_pct": 4.016
+   },
+   "after_PAYLOADFIT": {
+    "matched": 5946,
+    "ours": 6246,
+    "rate_pct": 87.79,
+    "ours_only_pct": 4.429
+   },
+   "delta_pp": {
+    "rate": 3.086,
+    "ours_only": 0.413,
+    "matched": 209,
+    "ours": 237
+   },
+   "after_minus_classic_pp": {
+    "rate": 3.4,
+    "ours_only": 0.66
+   }
+  },
+  "cost": {
+   "cpu_s_per_cycle": [
+    14.484,
+    17.219
+   ],
+   "cpu_change_pct": 18.9,
+   "last_p95_ms": [
+    2089,
+    2268
+   ],
+   "abandoned_cycles": [
+    0,
+    0
+   ],
+   "native_error_cycles": [
+    0,
+    0
+   ],
+   "old": {
+    "fits_per_cycle": 27.02,
+    "fitNone_per_cycle": 0.15,
+    "skipped_per_cycle": 4.12,
+    "rounds_per_cycle": 2.647
+   },
+   "new": {
+    "fits_per_cycle": 30.67,
+    "fitNone_per_cycle": 0.22,
+    "skipped_per_cycle": 4.45,
+    "rounds_per_cycle": 2.776
+   }
+  },
+  "r1_cases": {
+   "n_cases": 112,
+   "N_has_SUB_row_now": 109,
+   "T_matched_now": 90,
+   "T_matched_now_and_N_SUB": 90,
+   "T_matched_now_but_N_no_SUB": 0
+  },
+  "knock_on": {
+   "matched_gained_gross": 212,
+   "matched_lost_gross": 3,
+   "net": 209,
+   "gained_in_the_R1_cases": 90,
+   "gained_outside_the_R1_cases": 122,
+   "gained_outside_that_were_crowded": 112,
+   "gained_outside_that_were_not_crowded": 10
+  }
+ },
+ "H40": {
+  "table1": {
+   "wsjtx": 8983,
+   "classic": {
+    "matched": 7662,
+    "ours": 8233,
+    "wsjtx": 8983,
+    "rate": 85.29,
+    "ours_only": 6.36
+   },
+   "before_SUBPROBE_run": {
+    "matched": 7750,
+    "ours": 8362,
+    "rate_pct": 86.274,
+    "ours_only_pct": 6.813
+   },
+   "after_PAYLOADFIT": {
+    "matched": 7837,
+    "ours": 8465,
+    "rate_pct": 87.243,
+    "ours_only_pct": 6.991
+   },
+   "delta_pp": {
+    "rate": 0.969,
+    "ours_only": 0.178,
+    "matched": 87,
+    "ours": 103
+   },
+   "after_minus_classic_pp": {
+    "rate": 1.95,
+    "ours_only": 0.63
+   }
+  },
+  "cost": {
+   "cpu_s_per_cycle": [
+    16.104,
+    17.411
+   ],
+   "cpu_change_pct": 8.1,
+   "last_p95_ms": [
+    2157,
+    2315
+   ],
+   "abandoned_cycles": [
+    0,
+    0
+   ],
+   "native_error_cycles": [
+    0,
+    0
+   ],
+   "old": {
+    "fits_per_cycle": 28.8,
+    "fitNone_per_cycle": 0.57,
+    "skipped_per_cycle": 3.1,
+    "rounds_per_cycle": 2.617
+   },
+   "new": {
+    "fits_per_cycle": 29.98,
+    "fitNone_per_cycle": 0.58,
+    "skipped_per_cycle": 3.19,
+    "rounds_per_cycle": 2.654
+   }
+  },
+  "r1_cases": {
+   "n_cases": 18,
+   "N_has_SUB_row_now": 18,
+   "T_matched_now": 17,
+   "T_matched_now_and_N_SUB": 17,
+   "T_matched_now_but_N_no_SUB": 0
+  },
+  "knock_on": {
+   "matched_gained_gross": 91,
+   "matched_lost_gross": 4,
+   "net": 87,
+   "gained_in_the_R1_cases": 17,
+   "gained_outside_the_R1_cases": 74,
+   "gained_outside_that_were_crowded": 69,
+   "gained_outside_that_were_not_crowded": 5
+  }
+ },
+ "H20": {
+  "table1": {
+   "wsjtx": 9154,
+   "classic": {
+    "matched": 7438,
+    "ours": 7999,
+    "wsjtx": 9154,
+    "rate": 81.25,
+    "ours_only": 6.13
+   },
+   "before_SUBPROBE_run": {
+    "matched": 7587,
+    "ours": 8188,
+    "rate_pct": 82.882,
+    "ours_only_pct": 6.565
+   },
+   "after_PAYLOADFIT": {
+    "matched": 7803,
+    "ours": 8454,
+    "rate_pct": 85.241,
+    "ours_only_pct": 7.112
+   },
+   "delta_pp": {
+    "rate": 2.359,
+    "ours_only": 0.547,
+    "matched": 216,
+    "ours": 266
+   },
+   "after_minus_classic_pp": {
+    "rate": 3.99,
+    "ours_only": 0.98
+   }
+  },
+  "cost": {
+   "cpu_s_per_cycle": [
+    14.17,
+    16.5
+   ],
+   "cpu_change_pct": 16.4,
+   "last_p95_ms": [
+    2076,
+    2260
+   ],
+   "abandoned_cycles": [
+    0,
+    0
+   ],
+   "native_error_cycles": [
+    0,
+    0
+   ],
+   "old": {
+    "fits_per_cycle": 25.9,
+    "fitNone_per_cycle": 0.51,
+    "skipped_per_cycle": 2.58,
+    "rounds_per_cycle": 2.604
+   },
+   "new": {
+    "fits_per_cycle": 29.17,
+    "fitNone_per_cycle": 0.58,
+    "skipped_per_cycle": 2.86,
+    "rounds_per_cycle": 2.7
+   }
+  },
+  "r1_cases": {
+   "n_cases": 134,
+   "N_has_SUB_row_now": 133,
+   "T_matched_now": 95,
+   "T_matched_now_and_N_SUB": 95,
+   "T_matched_now_but_N_no_SUB": 0
+  },
+  "knock_on": {
+   "matched_gained_gross": 227,
+   "matched_lost_gross": 11,
+   "net": 216,
+   "gained_in_the_R1_cases": 95,
+   "gained_outside_the_R1_cases": 132,
+   "gained_outside_that_were_crowded": 124,
+   "gained_outside_that_were_not_crowded": 8
+  }
+ }
+}

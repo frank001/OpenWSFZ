@@ -23,6 +23,7 @@ import statistics
 import sys
 from collections import Counter
 
+ARGV_TAG = sys.argv[1] if len(sys.argv) > 1 else "probe"      # the run tag when run as a script (probe = the SUB-PROBE runs, pf = the PAYLOAD-FIT runs)
 sys.argv = [sys.argv[0], "probe"]                      # sub_probe_analyze reads sys.argv[1] at import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sub_probe_analyze as sp                          # noqa: E402  (loaders, constants, the T/N definitions: the SAME code that produced the 157 / 105 / 266)
@@ -121,9 +122,12 @@ def classify(prb_rows, subs, f, dt, gate, batch, cycle_flag):
     return "R3", rnd
 
 
-def run_slice(name):
+R1_CASES = {}                                           # slice -> [(stamp, wsjtx index of T, wsjtx index of N)] of the K2 cases whose never-subtracted neighbour was an R1 result (filled by run_slice)
+
+
+def run_slice(name, tag="probe"):
     n, folder = sp.SL[name]
-    d = SC + r"\lc-base\runs\probe_%s_L_n%d" % (name, n)
+    d = SC + r"\lc-base\runs\%s_%s_L_n%d" % (tag, name, n)
     sel = json.load(open(os.path.join(d, "sel.json")))
     stamps = list(sel["runs"][sel["run"]]["FULL"])
     wl = sp.load_wsjtx(os.path.join(sp.ART, folder, "wsjt-x", "ALL.TXT"), stamps)
@@ -143,6 +147,7 @@ def run_slice(name):
 
     # ---- (A) THE BASE RATE: every published result of every cycle ----
     base = Counter()
+    formerly_gated = Counter()                            # (gate code, class) of the results whose text the old gate refused: where they end up
     base_by_round = {}
     per_cycle = {}
     for st in stamps:
@@ -150,7 +155,9 @@ def run_slice(name):
         subs = [r for r in rows if r[R_KIND] == sp.KIND_SUB]
         c = Counter()
         for (f, dt, gate) in res.get(st, []):
-            cls, rnd = classify(rows, subs, f, dt, gate, 0, flag[st])
+            cls, rnd = classify(rows, subs, f, dt, gate if tag == "probe" else "OK", 0, flag[st])      # PAYLOAD-FIT removed the text gate: on a later run the text is not a cause
+            if gate != "OK":
+                formerly_gated[(gate, cls)] += 1
             c[cls] += 1
             base[cls] += 1
             if rnd is not None:
@@ -172,6 +179,7 @@ def run_slice(name):
     k2_n, k2_ns, k2_cls, k2_round, k2_all = 0, 0, Counter(), Counter(), 0
     nbr_class = {k: Counter() for k in ("K0", "K1", "K2", "K3", "K4")}
     classified = 0
+    R1_CASES[(tag, name)] = []
     k2_batch_unsub = Counter()
     for st in stamps:
         w, rows, ml = wl[st], prb.get(st, []), M.get(st, set())
@@ -215,22 +223,25 @@ def run_slice(name):
             if best is None:
                 nbr_class[cls]["NO_LEAN_RESULT"] += 1
                 continue
-            c, rnd = classify(rows, subs, best[1], best[2], best[3], batch, flag[st])
+            c, rnd = classify(rows, subs, best[1], best[2], best[3] if tag == "probe" else "OK", batch, flag[st])
             if c == "SUB":                                    # the WSJT-X-position match (SUB-PROBE's rule, inherited) missed it, the result's OWN position finds a SUB row: reported, kept inside the inherited 'never subtracted' count
                 c = "SUB_FOUND_BY_RESULT_POSITION"
             nbr_class[cls][c] += 1
+            if cls == "K2" and c in ("R1h", "R1t"):
+                R1_CASES[(tag, name)].append((st, j, ni))
             if cls == "K2":
                 k2_round[(c, rnd)] += 1
-    assert classified == INHERITED[name]["classified"], (classified, INHERITED[name])
+    inherited_ok = tag == "probe"                         # the inherited constants belong to the SUB-PROBE runs; a later run is reported, not asserted
+    assert not inherited_ok or classified == INHERITED[name]["classified"], (classified, INHERITED[name])
     k2_total = sum(nbr_class["K2"].values())
     k2_unsub = k2_total - nbr_class["K2"]["SUB"]
-    assert k2_total == INHERITED[name]["k2"], (k2_total, INHERITED[name])
-    assert dict(k2_batch_unsub) == INHERITED[name]["k2_batch"], (dict(k2_batch_unsub), INHERITED[name]["k2_batch"])
-    assert k2_unsub == INHERITED[name]["k2_not_sub"], (k2_unsub, dict(nbr_class["K2"]), INHERITED[name])
+    assert not inherited_ok or k2_total == INHERITED[name]["k2"], (k2_total, INHERITED[name])
+    assert not inherited_ok or dict(k2_batch_unsub) == INHERITED[name]["k2_batch"], (dict(k2_batch_unsub), INHERITED[name]["k2_batch"])
+    assert not inherited_ok or k2_unsub == INHERITED[name]["k2_not_sub"], (k2_unsub, dict(nbr_class["K2"]), INHERITED[name])
     out = {
         "cycles": n, "dt_offset": round(off, 3), "results_in_dump": n_res, "lean_csv_results": lean_results, "sub_rows": sub_rows,
         "flagged_cycles_abandoned_or_cancelled": sum(1 for v in flag.values() if v), "xc_cycles": xc_flag,
-        "base_rate_all_results": dict(base), "base_rate_by_round": {k: {str(r): c for r, c in sorted(v.items())} for k, v in base_by_round.items()},
+        "base_rate_all_results": dict(base), "formerly_gated_results_by_class": {"%s:%s" % k: v for k, v in sorted(formerly_gated.items())}, "base_rate_by_round": {k: {str(r): c for r, c in sorted(v.items())} for k, v in base_by_round.items()},
         "cycle_totals_from_log": dict(tot), "derived": {"SUB": base["SUB"], "R2": base["R2"], "R3": base["R3"]},
         "k2_neighbour_class": dict(nbr_class["K2"]), "k2_unsubtracted": k2_unsub,
         "k2_by_round": {"%s@%s" % k: c for k, c in sorted(k2_round.items(), key=lambda kv: (kv[0][0], str(kv[0][1])))},
@@ -240,8 +251,8 @@ def run_slice(name):
 
 
 def main():
-    out = {s: run_slice(s) for s in SLICES}
-    with open(os.path.join(SC, "lc-base", "r1r4_split.json"), "w") as fh:
+    out = {s: run_slice(s, ARGV_TAG) for s in SLICES}
+    with open(os.path.join(SC, "lc-base", "r1r4_split.json" if ARGV_TAG == "probe" else "r1r4_split_%s.json" % ARGV_TAG), "w") as fh:
         json.dump(out, fh, indent=1)
     print(json.dumps(out, indent=1))
 
