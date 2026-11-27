@@ -101,6 +101,8 @@ jobs:
           cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.h" ft8/message.h
           # common/monitor.c: the repo's copy differs from the clone's only in a LOG_LEVEL line (the clone's prints four INFO lines to stderr on every ft8_decode_all) and comments; it is what Windows and build_linux.sh compile.
           cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/common/monitor.c" common/monitor.c
+          # common/monitor.h: the repo's vendored copy adds window_len (FINE-GRID, shim 20260083: a window shorter than the FFT, zero-padded); the clone's header does not have it, and monitor.c above needs it.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/common/monitor.h" common/monitor.h
           clang -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. \
             -target arm64-apple-macos11.0 -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
@@ -248,6 +250,8 @@ jobs:
           cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/ft8/message.h" ft8/message.h
           # common/monitor.c: the repo's copy differs from the clone's only in a LOG_LEVEL line (the clone's prints four INFO lines to stderr on every ft8_decode_all) and comments; it is what Windows and build_linux.sh compile.
           cp "$GITHUB_WORKSPACE/native/ft8_lib_build/patched/common/monitor.c" common/monitor.c
+          # common/monitor.h: the repo's vendored copy adds window_len (FINE-GRID, shim 20260083: a window shorter than the FFT, zero-padded); the clone's header does not have it, and monitor.c above needs it.
+          cp "$GITHUB_WORKSPACE/native/ft8_lib_vendor/common/monitor.h" common/monitor.h
           gcc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -I. -c \
             ft8/constants.c ft8/crc.c ft8/decode.c ft8/encode.c ft8/ldpc.c \
             ft8/message.c ft8/text.c \
