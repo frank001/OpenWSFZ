@@ -30,6 +30,10 @@
 2. **The red-on-`main` run is the Developer's** (against the committed 20260080 DLL, before the rebuild); QA did not repeat it. The assertion text in the report is the SUB-row one, the right one.
 3. **The OpenSpec delta says "a `SUB` row SHALL be written ... in round 1"**, true for the fixture; in general a fit can also be skipped by step 2e or return no valid fit. The sentence starts with "WHEN ... a candidate fails to decode inside its patch window", which covers step 2e, and R3 stays possible; fine as written.
 
+## Addendum: the required doc fix, reviewed
+
+The Developer's doc-only commit `3ea762ee9b114bc8612055a6ed07bf3f8855f566` (on top of the reviewed commit; `REQUIREMENTS.md` only, 2 insertions, 1 deletion) removes the text condition from the FR-108 sentence ("whatever its rendered text ... tones from the decoded 77-bit payload and never from the text"), adds `20260080` (the probe, never listed) and `20260081` to the shim-version list, and adds changelog row 1.78. QA read the word-level diff: only those fragments changed; the one remaining "re-encodable" is the historical changelog row 1.72. Required fix **met**; verdict unchanged: APPROVED. `check_version_docs.py` and G3 are re-run by `pre_merge_check` at the sprint PR.
+
 ## Next (QA)
 
 The one replay (the SUB-PROBE arm on S40 / H40 / H20, the build pinned by SHA256 above), after QA's push-free local build of the harness against this commit. No bars; the Captain decides.
