@@ -1,0 +1,44 @@
+{
+ "S40": {
+  "a_batch4": {
+   "decodes": 51,
+   "matched": 28,
+   "unmatched": 23,
+   "unmatched_with_same_text_in_wsjtx_same_cycle_any_freq": 0,
+   "unmatched_with_same_text_in_wsjtx_same_cycle_within_10hz": 0
+  },
+  "b_chained_in_b123": {},
+  "c_lost": {},
+  "c_dropped_from_the_baseline_run": {},
+  "rise_in_ours": 51,
+  "batches_of_the_chained_rows": {}
+ },
+ "H40": {
+  "a_batch4": {
+   "decodes": 140,
+   "matched": 59,
+   "unmatched": 81,
+   "unmatched_with_same_text_in_wsjtx_same_cycle_any_freq": 0,
+   "unmatched_with_same_text_in_wsjtx_same_cycle_within_10hz": 0
+  },
+  "b_chained_in_b123": {},
+  "c_lost": {},
+  "c_dropped_from_the_baseline_run": {},
+  "rise_in_ours": 140,
+  "batches_of_the_chained_rows": {}
+ },
+ "H20": {
+  "a_batch4": {
+   "decodes": 187,
+   "unmatched": 92,
+   "unmatched_with_same_text_in_wsjtx_same_cycle_any_freq": 0,
+   "unmatched_with_same_text_in_wsjtx_same_cycle_within_10hz": 0,
+   "matched": 95
+  },
+  "b_chained_in_b123": {},
+  "c_lost": {},
+  "c_dropped_from_the_baseline_run": {},
+  "rise_in_ours": 187,
+  "batches_of_the_chained_rows": {}
+ }
+}

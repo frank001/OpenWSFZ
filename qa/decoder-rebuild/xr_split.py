@@ -11,6 +11,8 @@ import json
 import os
 from collections import Counter
 
+import sys
+NEW_TAG = sys.argv[1] if len(sys.argv) > 1 else "xr"        # the run under test (xr: with the prior-store feed, xn: as shipped)
 SC = r"D:\Projects\claude\_qa-scratch"
 ART = r"D:\Projects\claude\OpenWSFZ\artefacts"
 SL = {"S40": (170, "20261114_2312_endurance_run-gathered"), "H40": (240, "20261028_2233_endurance_run-gathered"), "H20": (240, "20260808_live_run_0016-8080")}
@@ -27,7 +29,7 @@ def norm(text):
 
 def split_slice(name):
     n, folder = SL[name]
-    od, nd = SC + r"\lc-base\runs\pf_%s_L_n%d" % (name, n), SC + r"\lc-base\runs\xr_%s_L_n%d" % (name, n)
+    od, nd = SC + r"\lc-base\runs\pf_%s_L_n%d" % (name, n), SC + r"\lc-base\runs\%s_%s_L_n%d" % (NEW_TAG, name, n)
     sel = json.load(open(nd + r"\sel.json"))
     stamps = set(sel["runs"][sel["run"]]["FULL"])
 
@@ -89,5 +91,5 @@ def split_slice(name):
 
 if __name__ == "__main__":
     res = {s: split_slice(s) for s in SL}
-    json.dump(res, open(os.path.join(SC, "lc-base", "xr_split.json"), "w"), indent=1)
+    json.dump(res, open(os.path.join(SC, "lc-base", "xr_split.json" if NEW_TAG == "xr" else "%s_split.json" % NEW_TAG), "w"), indent=1)
     print(json.dumps(res, indent=1))
