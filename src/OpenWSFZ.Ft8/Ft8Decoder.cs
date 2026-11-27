@@ -1879,7 +1879,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
 
             // XC-ROUND: after the stage, ONE more native round on the batch-3 detections that were published (the live ones; never the shadow's), on the residual the cycle returned.
             // Skipped on Fast, with no batch-3 detection, or with no residual. Its decodes are batch 4 (through the same mapping: text de-duplication across the whole cycle,
-            // plausibility, region, worked-before), stored in the prior store as an ordinary batch like batch 2, delivered only when non-empty.
+            // plausibility, region, worked-before), NOT stored in the prior store (no chaining, as batch 3: a batch-4 decode never becomes a template for a later cycle), delivered only when non-empty.
             if (effort != DecoderEffort.Fast && ctx.PublishedDetections.Count > 0 && outcome.Residual is not null)
             {
                 int xcBudgetMs = (int)Math.Max(0, (SubtractionCycleBudget - CoherentFallbackPublishReserve - sw.Elapsed).TotalMilliseconds);
@@ -1901,7 +1901,7 @@ public sealed class Ft8Decoder : IModeDecoder, IApConstraintSink, IDisposable
                     _logger?.LogError(ex, "Cycle {Time}: lean XC round failed ({Type}) - no batch 4 this cycle.", timeStr, ex.GetType().Name);
                     xr = new LeanCycleOutcome([], LeanCycleStats.None(LeanErrManaged));
                 }
-                var batch4 = MapLean(xr.Results, xr.Tiers, 0, xr.Results.Length, xcBatch: LeanBatchRounds);
+                var batch4 = MapLean(xr.Results, xr.Tiers, 0, xr.Results.Length, xcBatch: 0);   // xcBatch 0: never stored in the prior store (no chaining, as batch 3)
                 mappedTotal += batch4.Count;
                 if (batch4.Count > 0)
                 {
