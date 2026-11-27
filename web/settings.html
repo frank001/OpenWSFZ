@@ -422,10 +422,9 @@
                 <option value="lean">lean</option>
               </select>
               <p class="field-hint">
-                <strong>classic</strong> is the multi-pass decoder and is the default. <strong>lean</strong> is the new, rebuilt decoder
-                (one pass over the audio, then subtract-and-retry rounds); it is off by default and still being measured. With lean, the
-                residual-pass, depth and coherent-fallback switches above are ignored. Takes effect on the next decode cycle.
-                Default: classic.
+                <strong>lean</strong> is the rebuilt decoder (one pass over the audio, then subtract-and-retry rounds) and is the default.
+                <strong>classic</strong> is the older multi-pass decoder. With lean, the residual-pass, depth and coherent-fallback
+                switches above are ignored. Takes effect on the next decode cycle. Default: lean.
               </p>
             </div>
 

@@ -874,8 +874,11 @@ extern "C" {
  *              ft8_subfeas_set_reference_mode as the test seam), ftz_params_t version 5 (inject_error_round test hook, FTZ_FLAG_SKIP_FITS), per-round n_fit_skipped, ftz_fit_needed,
  *              the residual tier-B accept rule no longer restricted by the residual-candidates flag, and no residual exported after a half-subtracted round. No change to any classic outcome.
  *   20260078 - operator threads setting: FTZ_MAX_THREADS 8 to 16 (the lean engine's worker pool, the per-worker coherent contexts and the clamp). No ABI change, no classic change.
+ *   20260079 - DR-3: the lean engine's duplicate rule. Of two or more hits of ONE round with the same payload (round 0) or the same transmission (a residual round), and of
+ *              the same rendered text from two payloads, the hit with the HIGHEST candidate sync score (ftx_candidate_t.score) is published, at its own frequency and time;
+ *              equal scores keep the earlier (lowest-frequency) one, as before. Two pure exports (ftz_dedup_select, ftz_text_replace_wins). No ABI change; no classic change.
 */
-#define FT8_SHIM_VERSION 20260078
+#define FT8_SHIM_VERSION 20260079
 
 /* One decoded FT8 message. sizeof(FT8Result) == 48. */
 typedef struct
