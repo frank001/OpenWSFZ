@@ -18,6 +18,8 @@ typedef struct
     int time_osr;            ///< Number of time subdivisions
     int freq_osr;            ///< Number of frequency subdivisions
     ftx_protocol_t protocol; ///< Protocol: FT4 or FT8
+    int window_len;          ///< Analysis window length in samples; 0 = nfft (the window spans the whole FFT, as ft8_lib has always built it).
+                             ///< A shorter window is zero-padded to nfft: a finer frequency grid without stretching the window (lean FINE-GRID).
 } monitor_config_t;
 
 /// FT4/FT8 monitor object that manages DSP processing of incoming audio data
@@ -30,8 +32,9 @@ typedef struct
     int block_size;      ///< Number of samples per symbol (block)
     int subblock_size;   ///< Analysis shift size (number of samples)
     int nfft;            ///< FFT size
-    float fft_norm;      ///< FFT normalization factor
-    float* window;       ///< Window function for STFT analysis (nfft samples)
+    int window_len;      ///< Window length in samples (<= nfft; the analysis frame is zero-padded from window_len to nfft)
+    float fft_norm;      ///< FFT normalization factor (from the window length)
+    float* window;       ///< Window function for STFT analysis (window_len samples)
     float* last_frame;   ///< Current STFT analysis frame (nfft samples)
     ftx_waterfall_t wf;  ///< Waterfall object
     float max_mag;       ///< Maximum detected magnitude (debug stats)

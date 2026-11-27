@@ -15,12 +15,15 @@ namespace OpenWSFZ.Ft8.Interop;
 /// here, on in the daemon's lean cycle) and <paramref name="InjectErrorRound"/> is a TEST HOOK (a simulated allocation failure after the first chunk of that round's fits).
 /// SUB-PROBE: <paramref name="Probe"/> asks for the test-only probe rows (<see cref="LeanCycleOutcome.ProbeRows"/>); <paramref name="ProbeCapacity"/> is the buffer's row capacity
 /// (default <see cref="LeanProbe.MaxRows"/>, the worst case; tests lower it to exercise the overflow). The daemon never sets either.
+/// FINE-GRID: <paramref name="Thin"/> drops a candidate when an already kept, higher-scoring one lies within 6.25 Hz and 0.16 s (before the cap), and <paramref name="TimeOsr"/> /
+/// <paramref name="FreqOsr"/> set the search grid's oversampling (0 = today's 2; only 2 or 4 are valid, anything else is a native error). Lean only, all off by default; the classic decoder never reads them.
 /// </summary>
 internal readonly record struct LeanCycleParams(
     int Threads, bool CqAp = false, int? BudgetMs = null, int MaxCandidates = 0,
     bool Rounds = false, int MaxRounds = 0, bool ResidualUngated = false, bool ResidualCandidates = false, int ExpireRound = 0,
     bool NoTierB = false, bool WantResidual = false, bool SkipFits = false, int InjectErrorRound = 0,
-    bool Probe = false, int ProbeCapacity = LeanProbe.MaxRows);
+    bool Probe = false, int ProbeCapacity = LeanProbe.MaxRows,
+    bool Thin = false, int TimeOsr = 0, int FreqOsr = 0);
 
 /// <summary>Where a lean result came from (the native <c>FTZ_TIER_*</c> values).</summary>
 internal static class LeanTier
@@ -58,6 +61,11 @@ internal struct FtzParamsWire
     public int InjectErrorRound;
     public int Reserved2;
     public IntPtr Probe;
+    // FINE-GRID (params version 7): thin (0 or 1), the grid's time and frequency oversampling (0 = 2), one spare. 96 bytes in all.
+    public int Thin;
+    public int TimeOsr;
+    public int FreqOsr;
+    public int Reserved3;
 
     /// <summary><c>FTZ_FLAG_PROBE</c>.</summary>
     public const int FlagProbe = 128;
@@ -97,13 +105,14 @@ internal struct FtzXcWire
     public IntPtr Tones, FreqHz, TimeS, Residual;
 }
 
-/// <summary>Mirror of the native <c>ftz_probe_row_t</c>: sixteen 32-bit fields, 64 bytes (<c>native/ftz_decoder/ftz_decoder.h</c> documents every field and code).</summary>
+/// <summary>Mirror of the native <c>ftz_probe_row_t</c>: eighteen 32-bit fields, 72 bytes (<c>native/ftz_decoder/ftz_decoder.h</c> documents every field and code).</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct FtzProbeRowWire
 {
     public int Kind, Round;
     public float FreqHz, TimeS, Amp, SuppDb;
     public int Score, Kept, Outcome, Gate, ACode, AUnsat, BCode, BUnsat, CqCode, CqUnsat;
+    public int TimeSub, FreqSub;
 }
 
 /// <summary>Mirror of the native <c>ftz_probe_t</c>: three 32-bit fields, an overflow flag and the rows pointer (24 bytes).</summary>
@@ -134,10 +143,11 @@ internal static class LeanProbe
 /// </summary>
 internal readonly record struct LeanProbeRow(
     int Kind, int Round, float FreqHz, float TimeS, float Amp, float SuppDb,
-    int Score, int Kept, int Outcome, int Gate, int ACode, int AUnsat, int BCode, int BUnsat, int CqCode, int CqUnsat)
+    int Score, int Kept, int Outcome, int Gate, int ACode, int AUnsat, int BCode, int BUnsat, int CqCode, int CqUnsat,
+    int TimeSub = 0, int FreqSub = 0)
 {
     internal static LeanProbeRow From(in FtzProbeRowWire w) => new(
-        w.Kind, w.Round, w.FreqHz, w.TimeS, w.Amp, w.SuppDb, w.Score, w.Kept, w.Outcome, w.Gate, w.ACode, w.AUnsat, w.BCode, w.BUnsat, w.CqCode, w.CqUnsat);
+        w.Kind, w.Round, w.FreqHz, w.TimeS, w.Amp, w.SuppDb, w.Score, w.Kept, w.Outcome, w.Gate, w.ACode, w.AUnsat, w.BCode, w.BUnsat, w.CqCode, w.CqUnsat, w.TimeSub, w.FreqSub);
 }
 
 /// <summary>Mirror of the native <c>ftz_round_stats_t</c>: ten 32-bit counts and nine 64-bit microsecond counters, 112 bytes.</summary>
@@ -218,7 +228,7 @@ internal readonly record struct LeanCycleStats(
     long TotalWallUs, long TotalCpuUs)
 {
     /// <summary>The native error codes of <c>ftz_decoder.h</c>.</summary>
-    public const int Ok = 0, ErrArg = -1, ErrNoMem = -2, ErrFault = -3, ErrBadAudio = -4;
+    public const int Ok = 0, ErrArg = -1, ErrNoMem = -2, ErrFault = -3, ErrBadAudio = -4, ErrParam = -5;
 
     /// <summary>Tier B: candidates that failed tier A and were eligible.</summary>
     public int TierBEligible { get; init; }

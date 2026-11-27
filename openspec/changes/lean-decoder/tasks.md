@@ -113,3 +113,10 @@
 - [x] 14.3 Tests: `LeanEngineXcRoundNativeTests` (the masked signal found, no detection a no-op, 1/2/16 threads identical, no budget left publishes nothing), `LeanEngineXcRoundManagedTests` (not called with the stage off, no detection, no residual or Fast; called once with the published detections; batch 4 after batch 3, no repeated text; failure costs only batch 4); ASan + UBSan fuzz with the XC round and its argument errors
 - [x] 14.4 `REQUIREMENTS.md` FR-108 (four batches, the round, shim 20260082), changelog 1.79; this change validated `--strict`
 - [x] 14.5 Batch 4 is NOT stored in the prior store (`xcBatch: 0`: no chaining, as batch 3; the replay found 4 / 21 / 44 chained batch-3 decodes); managed code and documents only, shim unchanged; test flipped; `REQUIREMENTS.md` changelog 1.80
+
+## 15. FINE-GRID: a thinned candidate list and a finer search grid (lean only, off by default)
+
+- [x] 15.1 Native: `ftz_params_t` version 7 (`thin`, `time_osr`, `freq_osr`; invalid values return `FTZ_ERR_PARAM`), `ftz_find_candidates` (THIN, in `ftz_decoder.c`; the vendored `ftx_find_candidates` untouched), `monitor_config_t.window_len` (0 = `nfft`; the 4 x 4 grid zero-pads the two-symbol window), probe rows carry `time_sub` / `freq_sub`; `FT8_SHIM_VERSION` 20260083, `libft8.dll` rebuilt
+- [x] 15.2 Managed: `LeanCycleParams` (`Thin`, `TimeOsr`, `FreqOsr`), the params and probe-row wires, `LeanProbeRow.TimeSub` / `FreqSub`
+- [x] 15.3 Tests (`LeanEngineFineGridTests`): defaults change nothing; zero-padding is right; thinning (one survivor, two signals 20 Hz apart both survive, the chain case, no two survivors inside the window, thread counts); FINE decodes a signal off the old grid; invalid values; the fuzz driver covers the parameters (CI runs it)
+- [x] 15.4 `REQUIREMENTS.md` FR-108 (the lean search parameters, shim 20260083), changelog 1.81; this change validated `--strict`; VERSION per `tools/check_version_bump.py`

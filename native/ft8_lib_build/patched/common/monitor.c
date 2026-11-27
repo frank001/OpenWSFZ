@@ -72,14 +72,17 @@ void monitor_init(monitor_t* me, const monitor_config_t* cfg)
     me->block_size = (int)(cfg->sample_rate * symbol_period); // samples corresponding to one FSK symbol
     me->subblock_size = me->block_size / cfg->time_osr;
     me->nfft = me->block_size * cfg->freq_osr;
-    me->fft_norm = 2.0f / me->nfft;
+    /* FINE-GRID: the window may be shorter than the FFT (cfg->window_len, 0 = nfft = the original behaviour, which classic always gets). A shorter window is
+     * zero-padded to nfft in monitor_process, so every (nfft / window_len)-th bin equals the bin of an FFT of window_len, and the normalisation follows the window. */
+    me->window_len = (cfg->window_len > 0 && cfg->window_len <= me->nfft) ? cfg->window_len : me->nfft;
+    me->fft_norm = 2.0f / me->window_len;
     // const int len_window = 1.8f * me->block_size; // hand-picked and optimized
 
-    me->window = (float*)malloc(me->nfft * sizeof(me->window[0]));
-    for (int i = 0; i < me->nfft; ++i)
+    me->window = (float*)malloc(me->window_len * sizeof(me->window[0]));
+    for (int i = 0; i < me->window_len; ++i)
     {
         // window[i] = 1;
-        me->window[i] = me->fft_norm * hann_i(i, me->nfft);
+        me->window[i] = me->fft_norm * hann_i(i, me->window_len);
         // me->window[i] = blackman_i(i, me->nfft);
         // me->window[i] = hamming_i(i, me->nfft);
         // me->window[i] = (i < len_window) ? hann_i(i, len_window) : 0;
@@ -144,6 +147,9 @@ void monitor_process(monitor_t* me, const float* frame)
     // Check if we can still store more waterfall data
     if (me->wf.num_blocks >= me->wf.max_blocks)
         return;
+    // The fixed buffers below hold nfft <= 8192 samples and nfft / 2 + 1 <= 4097 bins (nfft 3840 today, 7680 at freq_osr 4). A larger FFT is refused, never overrun.
+    if (me->nfft > 8192 || me->nfft / 2 + 1 > 4097 || me->window_len > me->nfft)
+        return;
 
     int offset = me->wf.num_blocks * me->wf.block_stride;
     int frame_pos = 0;
@@ -165,10 +171,18 @@ void monitor_process(monitor_t* me, const float* frame)
             ++frame_pos;
         }
 
-        // Do DFT of windowed analysis frame
-        for (int pos = 0; pos < me->nfft; ++pos)
+        // Do DFT of windowed analysis frame: the most recent window_len samples, windowed, then zero-padded up to nfft
+        // (window_len == nfft: exactly the original loop).
         {
-            timedata[pos] = me->window[pos] * me->last_frame[pos];
+            const float* frame_tail = me->last_frame + (me->nfft - me->window_len);
+            for (int pos = 0; pos < me->window_len; ++pos)
+            {
+                timedata[pos] = me->window[pos] * frame_tail[pos];
+            }
+            for (int pos = me->window_len; pos < me->nfft; ++pos)
+            {
+                timedata[pos] = 0.0f;
+            }
         }
         kiss_fftr(me->fft_cfg, timedata, freqdata);
 
@@ -178,6 +192,8 @@ void monitor_process(monitor_t* me, const float* frame)
             for (int bin = me->min_bin; bin < me->max_bin; ++bin)
             {
                 int src_bin = (bin * me->wf.freq_osr) + freq_sub;
+                if (src_bin > me->nfft / 2)
+                    src_bin = me->nfft / 2;     // never read past the FFT's last bin (not reachable with today's frequency range)
                 float mag2 = (freqdata[src_bin].i * freqdata[src_bin].i) + (freqdata[src_bin].r * freqdata[src_bin].r);
                 float db = 10.0f * log10f(1E-12f + mag2);
 
