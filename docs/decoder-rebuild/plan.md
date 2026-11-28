@@ -43,6 +43,12 @@ Every row below is one replay of S40 / H40 / H20 against the build before it, wi
 | CPU-s per cycle, lean at 16 threads (classic at 8 threads) | 18.06 (25.2) | 16.87 (22.0) | 16.88 (20.2) |
 | `last_p95` ms; abandoned cycles | 2,569; 0 | 2,414; 0 | 2,540; 0 |
 
+**Confirmed out of sample (QA, 2026-11-28, `fg-night-heldout-replay.md`):** two 400-cycle blocks of the first live night with the new default (`20261128_0038`, 40 m), pre-FINE-GRID build against today's default:
+- **busy block** (37 WSJT-X decodes per cycle): **+1.54 pp** (paired +0.58 ± 0.06 matched per cycle; 180 cycles better, 46 worse);
+- **quiet block** (15 per cycle): **+0.02 pp**, no loss.
+
+The gain grows with crowding and is absent below about 25 decodes per cycle. On the same cycles the replay reproduces the live daemon within 0.1–0.4 pp.
+
 **Against the §9 targets** (2026-11-24, which became targets rather than gates on 2026-11-25):
 - **Decodes:** met by a wide margin. The bar was ≥ A6 − 1 pp on S40, i.e. 83.39 %; lean is at 90.29 %.
 - **ours_only** (≤ 4.27 % on S40): **missed**, at 5.23 %. The added unconfirmed decodes repeat in later cycles about as often as the baseline's do (38–50 % against 43–52 %).
