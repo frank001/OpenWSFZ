@@ -85,7 +85,7 @@ def main():
     else:
         warm = src["runs"][key]["warmup"]
         cycles = full[:n]
-    assert len(cycles) == n and n <= 240
+    assert len(cycles) == n and n <= 2500             # was 240 (the three LC-BASE slices); 2,500 for the FG ON night blocks
     out = os.path.join(OUT_ROOT, "%s_%s_%s_n%d" % (tag, sl, arm, n))
     os.makedirs(out, exist_ok=True)
     for f in os.listdir(out):
